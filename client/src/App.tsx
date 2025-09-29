@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
-import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { EditorProvider } from './context/EditorContext'
+import Navigation from './components/Navigation'
+import EditorBar from './components/Editor/EditorBar'
 import Login from './components/Login'
 import Register from './components/Register'
 import Dashboard from './components/Dashboard'
@@ -20,8 +23,10 @@ function App() {
 }
 
 function AppContent() {
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
   const [serverMessage, setServerMessage] = useState('')
+  const location = useLocation()
+  const isEditorRoute = location.pathname.startsWith('/editor/')
 
   useEffect(() => {
     fetch('http://localhost:5000')
@@ -31,31 +36,9 @@ function AppContent() {
   }, [])
 
   return (
-    <div>
-      <nav className="nav">
-        <div className="nav-container">
-          <h1 className="nav-title">FB Konva App</h1>
-          <div className="nav-links">
-            {user ? (
-              <>
-                <Link to="/dashboard" className="nav-link">Dashboard</Link>
-                <Link to="/books" className="nav-link">My Books</Link>
-                <Link to="/books/archive" className="nav-link">Archive</Link>
-                <span className="nav-link">Hello, {user.name}</span>
-                <button onClick={logout} className="nav-link" style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>Logout</button>
-              </>
-            ) : (
-              <>
-                <Link to="/" className="nav-link">Home</Link>
-                <Link to="/login" className="nav-link">Login</Link>
-                <Link to="/register" className="nav-link">Register</Link>
-              </>
-            )}
-          </div>
-        </div>
-      </nav>
-
-      <main className="main">
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <Navigation />
+      <main style={{ flex: 1, overflow: isEditorRoute ? 'hidden' : 'auto' }} className={isEditorRoute ? '' : 'main'}>
         <Routes>
           <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Home serverMessage={serverMessage} />} />
           <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <Login />} />
@@ -63,7 +46,7 @@ function AppContent() {
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/books" element={<ProtectedRoute><BooksList /></ProtectedRoute>} />
           <Route path="/books/archive" element={<ProtectedRoute><BookArchive /></ProtectedRoute>} />
-          <Route path="/editor/:bookId" element={<ProtectedRoute><Editor /></ProtectedRoute>} />
+          <Route path="/editor/:bookId" element={<ProtectedRoute><EditorWithBar /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminPanel /></ProtectedRoute>} />
         </Routes>
       </main>
@@ -82,6 +65,15 @@ function Home({ serverMessage }: { serverMessage: string }) {
       </div>
     </div>
   )
+}
+
+function EditorWithBar() {
+  return (
+    <EditorProvider>
+      <EditorBar />
+      <Editor />
+    </EditorProvider>
+  );
 }
 
 function AdminPanel() {
