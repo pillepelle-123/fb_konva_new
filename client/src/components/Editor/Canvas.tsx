@@ -17,7 +17,12 @@ const PAGE_DIMENSIONS = {
   Square: { width: 600, height: 600 }
 };
 
-function CanvasElementComponent({ element, isMovingGroup }: { element: CanvasElement; isMovingGroup: boolean }) {
+function CanvasElementComponent({ element, isMovingGroup, onDragStart, onDragEnd }: { 
+  element: CanvasElement; 
+  isMovingGroup: boolean;
+  onDragStart: () => void;
+  onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
+}) {
   const { state, dispatch } = useEditor();
   const shapeRef = useRef<any>(null);
   const isSelected = state.selectedElementIds.includes(element.id);
@@ -30,12 +35,13 @@ function CanvasElementComponent({ element, isMovingGroup }: { element: CanvasEle
 
   const handleDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
     dispatch({
-      type: 'UPDATE_ELEMENT',
+      type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
       payload: {
         id: element.id,
         updates: { x: e.target.x(), y: e.target.y() }
       }
     });
+    onDragEnd(e);
   };
 
   if (element.type === 'text') {
@@ -44,6 +50,7 @@ function CanvasElementComponent({ element, isMovingGroup }: { element: CanvasEle
         element={element}
         isSelected={isSelected}
         onSelect={() => dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] })}
+        onDragStart={onDragStart}
         onDragEnd={handleDragEnd}
         scale={0.8}
         isMovingGroup={isMovingGroup}
@@ -57,6 +64,7 @@ function CanvasElementComponent({ element, isMovingGroup }: { element: CanvasEle
         element={element}
         isSelected={isSelected}
         onSelect={() => dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] })}
+        onDragStart={onDragStart}
         onDragEnd={handleDragEnd}
         isMovingGroup={isMovingGroup}
       />
@@ -68,10 +76,8 @@ function CanvasElementComponent({ element, isMovingGroup }: { element: CanvasEle
       <RoughBrush
         element={element}
         isSelected={isSelected}
-        onSelect={() => {
-          console.log('Selecting rough brush:', element.id);
-          dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] });
-        }}
+        onSelect={() => dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] })}
+        onDragStart={onDragStart}
         onDragEnd={handleDragEnd}
         isMovingGroup={isMovingGroup}
       />
@@ -83,10 +89,8 @@ function CanvasElementComponent({ element, isMovingGroup }: { element: CanvasEle
       <RoughShape
         element={element}
         isSelected={isSelected}
-        onSelect={() => {
-          console.log('Selecting rough shape:', element.id);
-          dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] });
-        }}
+        onSelect={() => dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] })}
+        onDragStart={onDragStart}
         onDragEnd={handleDragEnd}
         isMovingGroup={isMovingGroup}
       />
@@ -107,6 +111,7 @@ function CanvasElementComponent({ element, isMovingGroup }: { element: CanvasEle
       draggable={state.activeTool === 'select' && isSelected}
       onClick={handleClick}
       onTap={handleClick}
+      onDragStart={onDragStart}
       onDragEnd={handleDragEnd}
     />
   );
@@ -130,6 +135,8 @@ export default function Canvas() {
   const [isMovingGroup, setIsMovingGroup] = useState(false);
   const [groupMoveStart, setGroupMoveStart] = useState<{ x: number; y: number } | null>(null);
   const [lastClickTime, setLastClickTime] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; visible: boolean }>({ x: 0, y: 0, visible: false });
 
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const pageSize = state.currentBook?.pageSize || 'A4';
@@ -145,42 +152,37 @@ export default function Canvas() {
   const displayHeight = canvasHeight * scale;
 
   useEffect(() => {
-    console.log('Selected element IDs changed:', state.selectedElementIds);
+    if (isDragging) return; // Don't update transformer during drag
+    
     if (transformerRef.current && stageRef.current) {
       const transformer = transformerRef.current;
       const stage = stageRef.current;
       
       if (state.selectedElementIds.length > 0) {
         const selectedNodes = state.selectedElementIds.map(id => {
-          // Try to find by ID in the stage
           let node = stage.findOne(`#${id}`);
           if (!node) {
-            // Fallback: search all nodes recursively
             const allNodes = stage.find('*');
             node = allNodes.find(n => n.id() === id);
           }
-          console.log('Looking for node with ID:', id, 'Found:', node);
           return node;
         }).filter(Boolean);
         
-        console.log('Selected nodes for transformer:', selectedNodes);
-        console.log('Setting transformer nodes...');
         transformer.nodes(selectedNodes);
         transformer.getLayer()?.batchDraw();
-        console.log('Transformer should now be visible');
       } else {
-        console.log('Clearing transformer');
         transformer.nodes([]);
         transformer.getLayer()?.batchDraw();
       }
     }
-  }, [state.selectedElementIds]);
+  }, [state.selectedElementIds, isDragging]);
 
   const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
     const currentTime = Date.now();
     const isDoubleClick = currentTime - lastClickTime < 300;
     setLastClickTime(currentTime);
 
+    // Only handle mouseDown for brush and select tools
     if (state.activeTool === 'brush') {
       setIsDrawing(true);
       const pos = e.target.getStage()?.getPointerPosition();
@@ -200,20 +202,134 @@ export default function Canvas() {
       if (isDoubleClick && state.selectedElementIds.length > 0) {
         const isWithinSelection = isPointWithinSelectedElements(x, y);
         if (isWithinSelection) {
-          // Start group movement
-          console.log('Starting group movement');
           setIsMovingGroup(true);
           setGroupMoveStart({ x, y });
           return;
         }
       }
       
-      // Start selection rectangle
-      console.log('Starting selection rectangle');
       setIsSelecting(true);
       setSelectionStart({ x, y });
       setSelectionRect({ x, y, width: 0, height: 0, visible: true });
-      console.log('Selection rectangle started at:', { x, y });
+    } else {
+      // Handle element creation for other tools
+      const pos = e.target.getStage()?.getPointerPosition();
+      if (!pos) return;
+      
+      const x = pos.x / scale;
+      const y = pos.y / scale;
+      
+      // Check if clicked on background
+      const isBackgroundClick = e.target === e.target.getStage() || 
+        (e.target.getClassName() === 'Rect' && !e.target.id());
+      
+      if (isBackgroundClick) {
+        let newElement: CanvasElement | null = null;
+        
+        if (state.activeTool === 'rect') {
+          newElement = {
+            id: uuidv4(),
+            type: 'rect',
+            x: x - 50,
+            y: y - 25,
+            width: 100,
+            height: 50,
+            fill: 'transparent',
+            stroke: '#1f2937',
+            roughness: 1,
+            strokeWidth: 2
+          };
+        } else if (state.activeTool === 'circle') {
+          newElement = {
+            id: uuidv4(),
+            type: 'circle',
+            x: x - 40,
+            y: y - 40,
+            width: 80,
+            height: 80,
+            fill: 'transparent',
+            stroke: '#1f2937',
+            roughness: 1,
+            strokeWidth: 2
+          };
+        } else if (state.activeTool === 'line') {
+          newElement = {
+            id: uuidv4(),
+            type: 'line',
+            x: x - 50,
+            y: y - 5,
+            width: 100,
+            height: 10,
+            stroke: '#1f2937',
+            roughness: 1,
+            strokeWidth: 2
+          };
+        } else if (state.activeTool === 'photo') {
+          newElement = {
+            id: uuidv4(),
+            type: 'placeholder',
+            x: x - 75,
+            y: y - 50,
+            width: 150,
+            height: 100,
+            fill: '#f3f4f6',
+            stroke: '#d1d5db'
+          };
+        } else if (state.activeTool === 'text') {
+          newElement = {
+            id: uuidv4(),
+            type: 'text',
+            x: x - 75,
+            y: y - 25,
+            width: 150,
+            height: 50,
+            fill: '#1f2937',
+            text: '',
+            fontSize: 16,
+            lineHeight: 1.2,
+            align: 'left',
+            fontFamily: 'Arial, sans-serif',
+            textType: 'regular'
+          };
+        } else if (state.activeTool === 'question') {
+          newElement = {
+            id: uuidv4(),
+            type: 'text',
+            x: x - 100,
+            y: y - 30,
+            width: 200,
+            height: 60,
+            fill: '#7c2d12',
+            text: '',
+            fontSize: 16,
+            lineHeight: 1.2,
+            align: 'left',
+            fontFamily: 'Arial, sans-serif',
+            textType: 'question'
+          };
+        } else if (state.activeTool === 'answer') {
+          newElement = {
+            id: uuidv4(),
+            type: 'text',
+            x: x - 100,
+            y: y - 30,
+            width: 200,
+            height: 60,
+            fill: '#1e40af',
+            text: '',
+            fontSize: 16,
+            lineHeight: 1.2,
+            align: 'left',
+            fontFamily: 'Arial, sans-serif',
+            textType: 'answer'
+          };
+        }
+        
+        if (newElement) {
+          dispatch({ type: 'ADD_ELEMENT', payload: newElement });
+          dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+        }
+      }
     }
   };
 
@@ -270,7 +386,7 @@ export default function Canvas() {
           visible: true
         };
         
-        console.log('Updating selection rectangle:', newRect);
+
         setSelectionRect(newRect);
       }
     }
@@ -326,15 +442,10 @@ export default function Canvas() {
       dispatch({ type: 'ADD_ELEMENT', payload: newElement });
       dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
     } else if (isMovingGroup) {
-      // Complete group movement
-      console.log('Completing group movement');
       setIsMovingGroup(false);
       setGroupMoveStart(null);
     } else if (isSelecting) {
-      // Complete selection
-      console.log('Completing selection rectangle');
       const selectedIds = getElementsInSelection();
-      console.log('Selected IDs:', selectedIds);
       dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: selectedIds });
       setSelectionRect({ x: 0, y: 0, width: 0, height: 0, visible: false });
       setIsSelecting(false);
@@ -351,11 +462,14 @@ export default function Canvas() {
       const element = currentPage.elements.find(el => el.id === elementId);
       if (!element) return false;
       
+      const scaleX = element.scaleX || 1;
+      const scaleY = element.scaleY || 1;
+      
       const bounds = {
         x: element.x,
         y: element.y,
-        width: element.width || 100,
-        height: element.height || 100
+        width: (element.width || 100) * scaleX,
+        height: (element.height || 100) * scaleY
       };
       
       // Calculate bounds for different element types
@@ -372,14 +486,14 @@ export default function Canvas() {
         
         bounds.x = minX - 10;
         bounds.y = minY - 10;
-        bounds.width = maxX - minX + 20;
-        bounds.height = maxY - minY + 20;
+        bounds.width = (maxX - minX + 20) * scaleX;
+        bounds.height = (maxY - minY + 20) * scaleY;
       } else if (element.type === 'text') {
-        bounds.width = element.width || 150;
-        bounds.height = element.height || 50;
+        bounds.width = (element.width || 150) * scaleX;
+        bounds.height = (element.height || 50) * scaleY;
       } else if (element.type === 'placeholder' || element.type === 'image') {
-        bounds.width = element.width || 150;
-        bounds.height = element.height || 100;
+        bounds.width = (element.width || 150) * scaleX;
+        bounds.height = (element.height || 100) * scaleY;
       }
       
       return (
@@ -392,12 +506,7 @@ export default function Canvas() {
   };
 
   const getElementsInSelection = () => {
-    console.log('getElementsInSelection called');
-    console.log('Selection rect:', selectionRect);
-    console.log('Current page elements:', currentPage?.elements);
-    
     if (!currentPage || selectionRect.width < 5 || selectionRect.height < 5) {
-      console.log('Selection too small or no page');
       return [];
     }
     
@@ -455,9 +564,6 @@ export default function Canvas() {
         elementBounds.height = element.height || 100;
       }
       
-      console.log('Element bounds:', element.id, elementBounds);
-      
-      // Check intersection
       const intersects = (
         selectionRect.x < elementBounds.x + elementBounds.width &&
         selectionRect.x + selectionRect.width > elementBounds.x &&
@@ -465,143 +571,71 @@ export default function Canvas() {
         selectionRect.y + selectionRect.height > elementBounds.y
       );
       
-      console.log('Intersection check for', element.id, ':', intersects);
-      
       if (intersects) {
         selectedIds.push(element.id);
       }
     });
     
-    console.log('Final selected IDs:', selectedIds);
+
     return selectedIds;
   };
 
+  const handleContextMenu = (e: Konva.KonvaEventObject<PointerEvent>) => {
+    e.evt.preventDefault();
+    const pos = e.target.getStage()?.getPointerPosition();
+    if (!pos) return;
+    
+    const x = pos.x / scale;
+    const y = pos.y / scale;
+    
+    // Check if right-click is on selected elements
+    if (state.selectedElementIds.length > 0 && isPointWithinSelectedElements(x, y)) {
+      // Use page coordinates for proper positioning
+      setContextMenu({ x: e.evt.pageX, y: e.evt.pageY, visible: true });
+    } else {
+      setContextMenu({ x: 0, y: 0, visible: false });
+    }
+  };
+
+  const handleDuplicateItems = () => {
+    if (!currentPage) return;
+    
+    state.selectedElementIds.forEach(elementId => {
+      const element = currentPage.elements.find(el => el.id === elementId);
+      if (element) {
+        const duplicatedElement = {
+          ...element,
+          id: uuidv4(),
+          x: element.x + 20,
+          y: element.y + 20
+        };
+        dispatch({ type: 'ADD_ELEMENT', payload: duplicatedElement });
+      }
+    });
+    setContextMenu({ x: 0, y: 0, visible: false });
+  };
+
+  const handleDeleteItems = () => {
+    state.selectedElementIds.forEach(elementId => {
+      dispatch({ type: 'DELETE_ELEMENT', payload: elementId });
+    });
+    setContextMenu({ x: 0, y: 0, visible: false });
+  };
+
   const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    // Hide context menu on any click
+    setContextMenu({ x: 0, y: 0, visible: false });
+    
     // Don't clear selection if we just completed a selection rectangle
     if (isSelecting) return;
     
-    // Check if clicked on stage or page background
-    if (e.target === e.target.getStage() || e.target.getClassName() === 'Rect') {
-      const pos = e.target.getStage()?.getPointerPosition();
-      if (!pos) return;
-
-      // Adjust for scale
-      const x = pos.x / scale;
-      const y = pos.y / scale;
-
-      if (state.activeTool === 'select') {
+    // Only handle select tool clicks here
+    if (state.activeTool === 'select') {
+      const isBackgroundClick = e.target === e.target.getStage() || 
+        (e.target.getClassName() === 'Rect' && !e.target.id());
+      
+      if (isBackgroundClick) {
         dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [] });
-      } else if (state.activeTool === 'rect') {
-        const newElement: CanvasElement = {
-          id: uuidv4(),
-          type: 'rect',
-          x: x - 50,
-          y: y - 25,
-          width: 100,
-          height: 50,
-          fill: 'transparent',
-          stroke: '#1f2937',
-          roughness: 1,
-          strokeWidth: 2
-        };
-        dispatch({ type: 'ADD_ELEMENT', payload: newElement });
-        dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
-      } else if (state.activeTool === 'circle') {
-        const newElement: CanvasElement = {
-          id: uuidv4(),
-          type: 'circle',
-          x: x - 40,
-          y: y - 40,
-          width: 80,
-          height: 80,
-          fill: 'transparent',
-          stroke: '#1f2937',
-          roughness: 1,
-          strokeWidth: 2
-        };
-        dispatch({ type: 'ADD_ELEMENT', payload: newElement });
-        dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
-      } else if (state.activeTool === 'line') {
-        const newElement: CanvasElement = {
-          id: uuidv4(),
-          type: 'line',
-          x: x - 50,
-          y: y - 5,
-          width: 100,
-          height: 10,
-          stroke: '#1f2937',
-          roughness: 1,
-          strokeWidth: 2
-        };
-        dispatch({ type: 'ADD_ELEMENT', payload: newElement });
-        dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
-      } else if (state.activeTool === 'photo') {
-        const newElement: CanvasElement = {
-          id: uuidv4(),
-          type: 'placeholder',
-          x: x - 75,
-          y: y - 50,
-          width: 150,
-          height: 100,
-          fill: '#f3f4f6',
-          stroke: '#d1d5db'
-        };
-        dispatch({ type: 'ADD_ELEMENT', payload: newElement });
-        dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
-      } else if (state.activeTool === 'text') {
-        const newElement: CanvasElement = {
-          id: uuidv4(),
-          type: 'text',
-          x: x - 75,
-          y: y - 25,
-          width: 150,
-          height: 50,
-          fill: '#1f2937',
-          text: '',
-          fontSize: 16,
-          lineHeight: 1.2,
-          align: 'left',
-          fontFamily: 'Arial, sans-serif',
-          textType: 'regular'
-        };
-        dispatch({ type: 'ADD_ELEMENT', payload: newElement });
-        dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
-      } else if (state.activeTool === 'question') {
-        const newElement: CanvasElement = {
-          id: uuidv4(),
-          type: 'text',
-          x: x - 100,
-          y: y - 30,
-          width: 200,
-          height: 60,
-          fill: '#7c2d12',
-          text: '',
-          fontSize: 16,
-          lineHeight: 1.2,
-          align: 'left',
-          fontFamily: 'Arial, sans-serif',
-          textType: 'question'
-        };
-        dispatch({ type: 'ADD_ELEMENT', payload: newElement });
-        dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
-      } else if (state.activeTool === 'answer') {
-        const newElement: CanvasElement = {
-          id: uuidv4(),
-          type: 'text',
-          x: x - 100,
-          y: y - 30,
-          width: 200,
-          height: 60,
-          fill: '#1e40af',
-          text: '',
-          fontSize: 16,
-          lineHeight: 1.2,
-          align: 'left',
-          fontFamily: 'Arial, sans-serif',
-          textType: 'answer'
-        };
-        dispatch({ type: 'ADD_ELEMENT', payload: newElement });
-        dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
       }
     }
   };
@@ -632,6 +666,7 @@ export default function Canvas() {
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
+          onContextMenu={handleContextMenu}
         >
           <Layer>
             {/* Page boundary */}
@@ -651,6 +686,8 @@ export default function Canvas() {
                 key={element.id}
                 element={element}
                 isMovingGroup={isMovingGroup}
+                onDragStart={() => setIsDragging(true)}
+                onDragEnd={() => setTimeout(() => setIsDragging(false), 10)}
               />
             ))}
             
@@ -696,9 +733,8 @@ export default function Canvas() {
                 const node = e.target;
                 const element = currentPage?.elements.find(el => el.id === node.id());
                 if (element) {
-                  const currentSelection = [...state.selectedElementIds];
                   dispatch({
-                    type: 'UPDATE_ELEMENT',
+                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
                     payload: {
                       id: element.id,
                       updates: {
@@ -710,15 +746,64 @@ export default function Canvas() {
                       }
                     }
                   });
-                  // Preserve selection after transform
-                  setTimeout(() => {
-                    dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: currentSelection });
-                  }, 0);
                 }
               }}
             />
           </Layer>
         </Stage>
+        
+        {/* Context Menu */}
+        {contextMenu.visible && (
+          <div
+            style={{
+              position: 'absolute',
+              left: contextMenu.x,
+              top: contextMenu.y,
+              backgroundColor: 'white',
+              border: '1px solid #d1d5db',
+              borderRadius: '4px',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+              zIndex: 1000,
+              minWidth: '120px'
+            }}
+          >
+            <button
+              onClick={handleDuplicateItems}
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '8px 12px',
+                border: 'none',
+                backgroundColor: 'transparent',
+                textAlign: 'left',
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}
+              onMouseEnter={(e) => e.target.style.backgroundColor = '#f3f4f6'}
+              onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+            >
+              Duplicate {state.selectedElementIds.length > 1 ? 'Items' : 'Item'}
+            </button>
+            <button
+              onClick={handleDeleteItems}
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '8px 12px',
+                border: 'none',
+                backgroundColor: 'transparent',
+                textAlign: 'left',
+                cursor: 'pointer',
+                fontSize: '14px',
+                color: '#dc2626'
+              }}
+              onMouseEnter={(e) => e.target.style.backgroundColor = '#fef2f2'}
+              onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+            >
+              Delete {state.selectedElementIds.length > 1 ? 'Items' : 'Item'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

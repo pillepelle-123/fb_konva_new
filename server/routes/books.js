@@ -117,6 +117,90 @@ router.get('/archived', authenticateToken, async (req, res) => {
   }
 });
 
+// Get single book with pages
+router.get('/:id', authenticateToken, async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const userId = req.user.id;
+
+    // Check if user has access to this book
+    const bookAccess = await pool.query(`
+      SELECT b.* FROM public.books b
+      LEFT JOIN public.book_collaborators bc ON b.id = bc.book_id
+      WHERE b.id = $1 AND (b.owner_id = $2 OR bc.user_id = $2)
+    `, [bookId, userId]);
+
+    if (bookAccess.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const book = bookAccess.rows[0];
+
+    // Get pages for this book
+    const pages = await pool.query(
+      'SELECT * FROM public.pages WHERE book_id = $1 ORDER BY page_number ASC',
+      [bookId]
+    );
+
+    res.json({
+      id: book.id,
+      name: book.name,
+      pageSize: book.page_size,
+      orientation: book.orientation,
+      pages: pages.rows.map(page => ({
+        id: page.id,
+        pageNumber: page.page_number,
+        elements: page.elements || []
+      }))
+    });
+  } catch (error) {
+    console.error('Book fetch error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Update book and pages
+router.put('/:id', authenticateToken, async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const userId = req.user.id;
+    const { name, pageSize, orientation, pages } = req.body;
+
+    // Check if user has access to this book
+    const bookAccess = await pool.query(`
+      SELECT b.* FROM public.books b
+      LEFT JOIN public.book_collaborators bc ON b.id = bc.book_id
+      WHERE b.id = $1 AND (b.owner_id = $2 OR bc.user_id = $2)
+    `, [bookId, userId]);
+
+    if (bookAccess.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Update book metadata
+    await pool.query(
+      'UPDATE public.books SET name = $1, page_size = $2, orientation = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4',
+      [name, pageSize, orientation, bookId]
+    );
+
+    // Delete existing pages
+    await pool.query('DELETE FROM public.pages WHERE book_id = $1', [bookId]);
+
+    // Insert updated pages
+    for (const page of pages) {
+      await pool.query(
+        'INSERT INTO public.pages (book_id, page_number, elements) VALUES ($1, $2, $3)',
+        [bookId, page.pageNumber, JSON.stringify(page.elements)]
+      );
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Book update error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Create new book
 router.post('/', authenticateToken, async (req, res) => {
   try {
@@ -128,14 +212,23 @@ router.post('/', authenticateToken, async (req, res) => {
       [name, userId, pageSize, orientation]
     );
 
+    const bookId = result.rows[0].id;
+
+    // Create initial page
+    await pool.query(
+      'INSERT INTO public.pages (book_id, page_number, elements) VALUES ($1, $2, $3)',
+      [bookId, 1, JSON.stringify([])]
+    );
+
     // Add owner as admin collaborator
     await pool.query(
       'INSERT INTO public.book_collaborators (book_id, user_id, role) VALUES ($1, $2, $3)',
-      [result.rows[0].id, userId, 'admin']
+      [bookId, userId, 'admin']
     );
 
     res.json(result.rows[0]);
   } catch (error) {
+    console.error('Book creation error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

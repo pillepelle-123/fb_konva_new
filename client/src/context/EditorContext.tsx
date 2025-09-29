@@ -54,7 +54,11 @@ type EditorAction =
   | { type: 'SET_SELECTED_ELEMENTS'; payload: string[] }
   | { type: 'ADD_ELEMENT'; payload: CanvasElement }
   | { type: 'UPDATE_ELEMENT'; payload: { id: string; updates: Partial<CanvasElement> } }
-  | { type: 'DELETE_ELEMENT'; payload: string };
+  | { type: 'UPDATE_ELEMENT_PRESERVE_SELECTION'; payload: { id: string; updates: Partial<CanvasElement> } }
+  | { type: 'DELETE_ELEMENT'; payload: string }
+  | { type: 'ADD_PAGE' }
+  | { type: 'DELETE_PAGE'; payload: number }
+  | { type: 'DUPLICATE_PAGE'; payload: number };
 
 const initialState: EditorState = {
   currentBook: null,
@@ -73,13 +77,13 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       return { ...state, activePageIndex: action.payload, selectedElementIds: [] };
     
     case 'SET_ACTIVE_TOOL':
-      return { ...state, activeTool: action.payload, selectedElementIds: [] };
+      return { ...state, activeTool: action.payload };
     
     case 'SET_SELECTED_ELEMENTS':
       return { ...state, selectedElementIds: action.payload };
     
     case 'ADD_ELEMENT':
-      if (!state.currentBook) return state;
+      if (!state.currentBook || !state.currentBook.pages[state.activePageIndex]) return state;
       const newBook = {
         ...state.currentBook,
         pages: state.currentBook.pages.map((page, index) => 
@@ -100,6 +104,16 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       }
       return { ...state, currentBook: updatedBook };
     
+    case 'UPDATE_ELEMENT_PRESERVE_SELECTION':
+      if (!state.currentBook) return state;
+      const updatedBookPreserve = { ...state.currentBook };
+      const pagePreserve = updatedBookPreserve.pages[state.activePageIndex];
+      const elementIndexPreserve = pagePreserve.elements.findIndex(el => el.id === action.payload.id);
+      if (elementIndexPreserve !== -1) {
+        pagePreserve.elements[elementIndexPreserve] = { ...pagePreserve.elements[elementIndexPreserve], ...action.payload.updates };
+      }
+      return { ...state, currentBook: updatedBookPreserve };
+    
     case 'DELETE_ELEMENT':
       if (!state.currentBook) return state;
       const filteredBook = { ...state.currentBook };
@@ -111,6 +125,59 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         selectedElementIds: state.selectedElementIds.filter(id => id !== action.payload)
       };
     
+    case 'ADD_PAGE':
+      if (!state.currentBook) return state;
+      const newPageNumber = state.currentBook.pages.length + 1;
+      const newPage: Page = {
+        id: Date.now(),
+        pageNumber: newPageNumber,
+        elements: []
+      };
+      return {
+        ...state,
+        currentBook: {
+          ...state.currentBook,
+          pages: [...state.currentBook.pages, newPage]
+        },
+        activePageIndex: state.currentBook.pages.length
+      };
+    
+    case 'DELETE_PAGE':
+      if (!state.currentBook || state.currentBook.pages.length <= 1) return state;
+      const pagesAfterDelete = state.currentBook.pages.filter((_, index) => index !== action.payload);
+      const newActiveIndex = action.payload >= pagesAfterDelete.length ? pagesAfterDelete.length - 1 : state.activePageIndex;
+      return {
+        ...state,
+        currentBook: {
+          ...state.currentBook,
+          pages: pagesAfterDelete.map((page, index) => ({ ...page, pageNumber: index + 1 }))
+        },
+        activePageIndex: newActiveIndex,
+        selectedElementIds: []
+      };
+    
+    case 'DUPLICATE_PAGE':
+      if (!state.currentBook) return state;
+      const pageToDuplicate = state.currentBook.pages[action.payload];
+      const duplicatedPage: Page = {
+        id: Date.now(),
+        pageNumber: action.payload + 2,
+        elements: pageToDuplicate.elements.map(el => ({ ...el, id: uuidv4() }))
+      };
+      const pagesWithDuplicate = [
+        ...state.currentBook.pages.slice(0, action.payload + 1),
+        duplicatedPage,
+        ...state.currentBook.pages.slice(action.payload + 1)
+      ].map((page, index) => ({ ...page, pageNumber: index + 1 }));
+      return {
+        ...state,
+        currentBook: {
+          ...state.currentBook,
+          pages: pagesWithDuplicate
+        },
+        activePageIndex: action.payload + 1
+      };
+    
     default:
       return state;
   }
@@ -119,6 +186,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
 const EditorContext = createContext<{
   state: EditorState;
   dispatch: React.Dispatch<EditorAction>;
+  saveBook: () => Promise<void>;
+  loadBook: (bookId: number) => Promise<void>;
 } | undefined>(undefined);
 
 export const useEditor = () => {
@@ -132,16 +201,53 @@ export const useEditor = () => {
 export const EditorProvider = ({ children }: { children: ReactNode }) => {
   const [state, dispatch] = useReducer(editorReducer, initialState);
 
+  const saveBook = async () => {
+    if (!state.currentBook) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:5000/api/books/${state.currentBook.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(state.currentBook)
+      });
+      
+      if (!response.ok) throw new Error('Failed to save book');
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const loadBook = async (bookId: number) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:5000/api/books/${bookId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) throw new Error('Failed to load book');
+      const book = await response.json();
+      dispatch({ type: 'SET_BOOK', payload: book });
+    } catch (error) {
+      throw error;
+    }
+  };
+
   return (
-    <EditorContext.Provider value={{ state, dispatch }}>
+    <EditorContext.Provider value={{ state, dispatch, saveBook, loadBook }}>
       {children}
     </EditorContext.Provider>
   );
 };
 
 // Helper functions
-export const createSampleBook = (): Book => ({
-  id: 1,
+export const createSampleBook = (id: number = 1): Book => ({
+  id,
   name: 'Sample Book',
   pageSize: 'A4',
   orientation: 'portrait',

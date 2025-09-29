@@ -1,19 +1,38 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { EditorProvider, useEditor, createSampleBook } from '../../context/EditorContext';
 import Toolbar from './Toolbar';
 import Canvas from './Canvas';
+import PageManager from './PageManager';
 
 function EditorContent() {
   const { bookId } = useParams<{ bookId: string }>();
-  const { state, dispatch } = useEditor();
+  const { state, dispatch, saveBook, loadBook } = useEditor();
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    // For now, load a sample book
-    // In a real app, you'd fetch the book data from the API
-    const sampleBook = createSampleBook();
-    dispatch({ type: 'SET_BOOK', payload: sampleBook });
-  }, [bookId, dispatch]);
+    if (bookId && !isNaN(Number(bookId))) {
+      loadBook(Number(bookId)).catch(() => {
+        // Fallback to sample book if load fails
+        const sampleBook = createSampleBook(Number(bookId));
+        dispatch({ type: 'SET_BOOK', payload: sampleBook });
+      });
+    } else {
+      const sampleBook = createSampleBook();
+      dispatch({ type: 'SET_BOOK', payload: sampleBook });
+    }
+  }, [bookId]);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await saveBook();
+    } catch (error) {
+      alert('Failed to save book');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   if (!state.currentBook) {
     return <div className="home"><p>Loading editor...</p></div>;
@@ -39,29 +58,37 @@ function EditorContent() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button style={{ 
-            padding: '0.5rem 1rem', 
-            backgroundColor: '#059669', 
-            color: 'white', 
-            border: 'none', 
-            borderRadius: '4px', 
-            cursor: 'pointer' 
-          }}>
-            Save
+          <button 
+            onClick={handleSave}
+            disabled={isSaving}
+            style={{ 
+              padding: '0.5rem 1rem', 
+              backgroundColor: isSaving ? '#9ca3af' : '#059669', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '4px', 
+              cursor: isSaving ? 'not-allowed' : 'pointer' 
+            }}
+          >
+            {isSaving ? 'Saving...' : 'Save Book'}
           </button>
-          <button style={{ 
-            padding: '0.5rem 1rem', 
-            backgroundColor: '#6b7280', 
-            color: 'white', 
-            border: 'none', 
-            borderRadius: '4px', 
-            cursor: 'pointer' 
-          }}>
+          <button 
+            onClick={() => window.history.back()}
+            style={{ 
+              padding: '0.5rem 1rem', 
+              backgroundColor: '#6b7280', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '4px', 
+              cursor: 'pointer' 
+            }}
+          >
             Close
           </button>
         </div>
       </div>
       
+      <PageManager />
       <Toolbar />
       
       <div style={{ flex: 1, overflow: 'hidden' }}>

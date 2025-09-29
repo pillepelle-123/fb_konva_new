@@ -9,11 +9,12 @@ interface RoughShapeProps {
   element: CanvasElement;
   isSelected: boolean;
   onSelect: () => void;
+  onDragStart?: () => void;
   onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
   isMovingGroup?: boolean;
 }
 
-export default function RoughShape({ element, isSelected, onSelect, onDragEnd, isMovingGroup }: RoughShapeProps) {
+export default function RoughShape({ element, isSelected, onSelect, onDragStart, onDragEnd, isMovingGroup }: RoughShapeProps) {
   const { state } = useEditor();
   const groupRef = useRef<Konva.Group>(null);
 
@@ -72,7 +73,7 @@ export default function RoughShape({ element, isSelected, onSelect, onDragEnd, i
         return combinedPath.trim();
       }
     } catch (error) {
-      console.error('Error generating rough path:', error);
+      // Fallback to simple paths
     }
     
     // Fallback to simple paths
@@ -107,15 +108,27 @@ export default function RoughShape({ element, isSelected, onSelect, onDragEnd, i
       draggable={state.activeTool === 'select' && isSelected && !isMovingGroup}
       onClick={(e) => {
         e.cancelBubble = true;
-        console.log('RoughShape clicked:', element.id);
         onSelect();
       }}
       onTap={(e) => {
         e.cancelBubble = true;
-        console.log('RoughShape tapped:', element.id);
         onSelect();
       }}
-      onDragEnd={onDragEnd}
+      onDragStart={() => {
+        onDragStart?.();
+      }}
+      onDragEnd={(e) => {
+        e.cancelBubble = true;
+        const modifiedEvent = {
+          ...e,
+          target: {
+            ...e.target,
+            x: () => e.target.x(),
+            y: () => e.target.y()
+          }
+        };
+        onDragEnd(modifiedEvent as any);
+      }}
     >
       {/* Invisible hit area for easier selection */}
       <Rect
