@@ -555,11 +555,16 @@ export default function Canvas() {
     if (state.selectedElementIds.length > 1 && transformerRef.current) {
       const transformer = transformerRef.current;
       const box = transformer.getClientRect();
+      // Convert transformer bounds to page coordinates
+      const pageX = (box.x - stagePos.x) / zoom - pageOffsetX;
+      const pageY = (box.y - stagePos.y) / zoom - pageOffsetY;
+      const pageWidth = box.width / zoom;
+      const pageHeight = box.height / zoom;
       return (
-        x >= box.x &&
-        x <= box.x + box.width &&
-        y >= box.y &&
-        y <= box.y + box.height
+        x >= pageX &&
+        x <= pageX + pageWidth &&
+        y >= pageY &&
+        y <= pageY + pageHeight
       );
     }
     
@@ -699,8 +704,8 @@ export default function Canvas() {
     const pos = e.target.getStage()?.getPointerPosition();
     if (!pos) return;
     
-    const x = (pos.x - stagePos.x) / zoom;
-    const y = (pos.y - stagePos.y) / zoom;
+    const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
+    const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
     
     // Check if right-click is on selected elements
     if (state.selectedElementIds.length > 0 && isPointWithinSelectedElements(x, y)) {
@@ -796,9 +801,17 @@ export default function Canvas() {
       }
     };
     
+    const handleClickOutside = () => {
+      setContextMenu({ x: 0, y: 0, visible: false });
+    };
+    
     updateSize();
     window.addEventListener('resize', updateSize);
-    return () => window.removeEventListener('resize', updateSize);
+    window.addEventListener('click', handleClickOutside);
+    return () => {
+      window.removeEventListener('resize', updateSize);
+      window.removeEventListener('click', handleClickOutside);
+    };
   }, []);
 
   const containerPadding = 40;

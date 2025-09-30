@@ -116,9 +116,24 @@ export default function RoughBrush({ element, isSelected, onSelect, onDragStart,
       rotation={element.rotation || 0}
       draggable={state.activeTool === 'select' && isSelected && !isMovingGroup}
       onClick={(e) => {
-        e.cancelBubble = true;
-        console.log('RoughBrush clicked:', element.id);
-        onSelect();
+        if (state.activeTool === 'select') {
+          if (e.evt.button === 0) {
+            // Only handle left-click for selection
+            e.cancelBubble = true;
+            console.log('RoughBrush clicked:', element.id);
+            onSelect();
+          } else if (e.evt.button === 2) {
+            // Prevent right-click selection when multi-selection is active
+            if (state.selectedElementIds.length > 1) {
+              e.cancelBubble = true;
+              return;
+            }
+            // Right-click on selected item - don't change selection
+            if (isSelected) {
+              return;
+            }
+          }
+        }
       }}
       onTap={(e) => {
         e.cancelBubble = true;
