@@ -164,8 +164,6 @@ export default function RoughBrush({ element, isSelected, onSelect, onDragStart,
       
       {/* Visible rough path */}
       <Path
-        x={bounds.minX - 10}
-        y={bounds.minY - 10}
         data={pathData}
         stroke={stroke}
         strokeWidth={strokeWidth}
