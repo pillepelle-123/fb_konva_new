@@ -9,11 +9,12 @@ interface RoughBrushProps {
   element: CanvasElement;
   isSelected: boolean;
   onSelect: () => void;
+  onDragStart?: () => void;
   onDragEnd?: (e: Konva.KonvaEventObject<DragEvent>) => void;
   isMovingGroup?: boolean;
 }
 
-export default function RoughBrush({ element, isSelected, onSelect, onDragEnd, isMovingGroup }: RoughBrushProps) {
+export default function RoughBrush({ element, isSelected, onSelect, onDragStart, onDragEnd, isMovingGroup }: RoughBrushProps) {
   const { state } = useEditor();
   const groupRef = useRef<Konva.Group>(null);
 
@@ -108,8 +109,8 @@ export default function RoughBrush({ element, isSelected, onSelect, onDragEnd, i
     <Group
       ref={groupRef}
       id={element.id}
-      x={bounds.minX - 10}
-      y={bounds.minY - 10}
+      x={(element.x || 0)}
+      y={(element.y || 0)}
       scaleX={element.scaleX || 1}
       scaleY={element.scaleY || 1}
       rotation={element.rotation || 0}
@@ -124,12 +125,13 @@ export default function RoughBrush({ element, isSelected, onSelect, onDragEnd, i
         console.log('RoughBrush tapped:', element.id);
         onSelect();
       }}
+      onDragStart={onDragStart}
       onDragEnd={onDragEnd}
     >
       {/* Invisible hit area for easier selection */}
       <Rect
-        x={0}
-        y={0}
+        x={bounds.minX - 10}
+        y={bounds.minY - 10}
         width={bounds.width + 20}
         height={bounds.height + 20}
         fill="transparent"
@@ -138,8 +140,8 @@ export default function RoughBrush({ element, isSelected, onSelect, onDragEnd, i
       
       {/* Visible rough path */}
       <Path
-        x={10 - bounds.minX}
-        y={10 - bounds.minY}
+        x={bounds.minX - 10}
+        y={bounds.minY - 10}
         data={pathData}
         stroke={stroke}
         strokeWidth={strokeWidth}

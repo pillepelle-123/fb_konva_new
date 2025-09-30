@@ -97,7 +97,7 @@ function formatRichText(text: string, fontSize: number, fontFamily: string, maxW
       
       if (currentX + wordWidth > maxWidth && currentX > 0) {
         currentX = 0;
-        currentY += lineHeight;
+        currentY += (styles.fontSize || fontSize) * 1.2;
       }
       
       textParts.push({
@@ -372,6 +372,20 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
     }
   };
 
+  // Override getClientRect to return only visible area
+  useEffect(() => {
+    if (groupRef.current) {
+      groupRef.current.getClientRect = () => {
+        return {
+          x: 0,
+          y: 0,
+          width: element.width,
+          height: element.height
+        };
+      };
+    }
+  }, [element.width, element.height]);
+
   return (
     <Group
       ref={groupRef}
@@ -382,7 +396,6 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       scaleY={1}
       draggable={state.activeTool === 'select' && !isEditing && isSelected && !isMovingGroup}
       onClick={handleClick}
-
       onDragEnd={onDragEnd}
     >
       {/* Background rectangle - this defines the selection bounds */}
@@ -453,8 +466,6 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
             wrap="word"
             ellipsis={false}
             opacity={element.text ? 1 : 0.6}
-            scaleX={1}
-            scaleY={1}
             listening={false}
           />
         )}

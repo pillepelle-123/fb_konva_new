@@ -207,11 +207,11 @@ export default function Canvas() {
             node = allNodes.find(n => n.id() === id);
           }
           
-          // For text elements, select the background rect instead of the group
+          // For text elements, select the entire group
           if (node && node.getClassName() === 'Group') {
-            const rect = node.findOne('.selectableRect');
-            if (rect) {
-              return rect;
+            const element = currentPage?.elements.find(el => el.id === id);
+            if (element?.type === 'text') {
+              return node; // Select the group itself for text elements
             }
           }
           
@@ -580,8 +580,8 @@ export default function Canvas() {
           maxY = Math.max(maxY, element.points[i + 1]);
         }
         
-        bounds.x = minX - 10;
-        bounds.y = minY - 10;
+        bounds.x = element.x + minX - 10;
+        bounds.y = element.y + minY - 10;
         bounds.width = (maxX - minX + 20) * scaleX;
         bounds.height = (maxY - minY + 20) * scaleY;
       } else if (element.type === 'text') {
@@ -638,8 +638,8 @@ export default function Canvas() {
           maxY = Math.max(maxY, element.points[i + 1]);
         }
         
-        elementBounds.x = minX - 10;
-        elementBounds.y = minY - 10;
+        elementBounds.x = element.x + minX - 10;
+        elementBounds.y = element.y + minY - 10;
         elementBounds.width = maxX - minX + 20;
         elementBounds.height = maxY - minY + 20;
       } else if (element.type === 'text') {
@@ -902,43 +902,17 @@ export default function Canvas() {
                 }
                 return newBox;
               }}
-              onDragMove={(e) => {
-                // Sync text group positions during drag
-                const nodes = transformerRef.current?.nodes() || [];
-                nodes.forEach(node => {
-                  if (node.getClassName() === 'Rect' && node.getParent()?.getClassName() === 'Group') {
-                    const parentGroup = node.getParent();
-                    if (parentGroup) {
-                      parentGroup.x(parentGroup.x() + node.x());
-                      parentGroup.y(parentGroup.y() + node.y());
-                      node.x(0);
-                      node.y(0);
-                    }
-                  }
-                });
-              }}
               onDragEnd={(e) => {
-                // Update positions after drag without triggering onTransformEnd
+                // Update positions after drag
                 const nodes = transformerRef.current?.nodes() || [];
                 nodes.forEach(node => {
-                  let elementId = node.id();
-                  let finalX = node.x();
-                  let finalY = node.y();
-                  
-                  // For text elements, use parent group position
-                  if (node.getClassName() === 'Rect' && node.getParent()?.getClassName() === 'Group') {
-                    const parentGroup = node.getParent();
-                    elementId = parentGroup?.id() || elementId;
-                    finalX = parentGroup?.x() || 0;
-                    finalY = parentGroup?.y() || 0;
-                  }
-                  
+                  const elementId = node.id();
                   if (elementId) {
                     dispatch({
                       type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
                       payload: {
                         id: elementId,
-                        updates: { x: finalX, y: finalY }
+                        updates: { x: node.x(), y: node.y() }
                       }
                     });
                   }
@@ -946,14 +920,7 @@ export default function Canvas() {
               }}
               onTransformEnd={(e) => {
                 const node = e.target;
-                let elementId = node.id();
-                let parentGroup = null;
-                
-                // If we're transforming a rect inside a group, get the group's id
-                if (node.getClassName() === 'Rect' && node.getParent()?.getClassName() === 'Group') {
-                  parentGroup = node.getParent();
-                  elementId = parentGroup?.id() || elementId;
-                }
+                const elementId = node.id();
                 
                 const element = currentPage?.elements.find(el => el.id === elementId);
                 if (element) {
@@ -968,14 +935,9 @@ export default function Canvas() {
                     updates.width = Math.max(50, (element.width || 150) * scaleX);
                     updates.height = Math.max(20, (element.height || 50) * scaleY);
                     
-                    // For position, use the parent group's position if available
-                    if (parentGroup) {
-                      updates.x = parentGroup.x();
-                      updates.y = parentGroup.y();
-                    } else {
-                      updates.x = node.x();
-                      updates.y = node.y();
-                    }
+                    // For position, use node position directly
+                    updates.x = node.x();
+                    updates.y = node.y();
                     
                     updates.rotation = node.rotation();
                     
