@@ -10,12 +10,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@scena/react-guides": "^0.28.2",
     "konva": "^10.0.2",
+    "moveable": "^0.53.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-konva": "^19.0.10",
     "react-router-dom": "^7.9.3",
     "roughjs": "^4.6.6",
+    "selecto": "^1.26.3",
     "uuid": "^13.0.0"
   },
   "devDependencies": {

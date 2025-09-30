@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import { Group, Rect, Text } from 'react-konva';
+import { Group, Rect, Text, Circle } from 'react-konva';
 import Konva from 'konva';
 import { useEditor } from '../../context/EditorContext';
 import type { CanvasElement } from '../../context/EditorContext';
@@ -159,14 +159,23 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
 
   const displayText = element.text || getPlaceholderText();
 
-  // Check for text overflow
+  // Check for text overflow and update text wrapping
   useEffect(() => {
     if (textRef.current) {
+      // Reset any scale transforms
+      textRef.current.scaleX(1);
+      textRef.current.scaleY(1);
+      
+      // Force text to rewrap when width changes
+      textRef.current.width(element.width - 8);
+      textRef.current.getLayer()?.batchDraw();
+      
+      // Check if text overflows the container
       const textHeight = textRef.current.height();
-      const boxHeight = element.height;
-      setHasOverflow(textHeight > boxHeight);
+      const containerHeight = element.height - 8;
+      setHasOverflow(textHeight > containerHeight);
     }
-  }, [element.text, element.height, fontSize, lineHeight]);
+  }, [element.text, element.width, element.height, fontSize, lineHeight, displayText]);
 
   const handleDoubleClick = () => {
     if (state.activeTool !== 'select') return;
@@ -251,7 +260,13 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       saveBtn.style.color = 'white';
       saveBtn.style.cursor = 'pointer';
       saveBtn.onclick = () => {
-        const htmlContent = quill.root.innerHTML;
+        let htmlContent = quill.root.innerHTML;
+        
+        // Clean up Quill's automatic <p> wrapping for simple text
+        if (htmlContent.startsWith('<p>') && htmlContent.endsWith('</p>') && !htmlContent.includes('</p><p>')) {
+          htmlContent = htmlContent.slice(3, -4); // Remove <p> and </p>
+        }
+        
         dispatch({
           type: 'UPDATE_ELEMENT',
           payload: {
@@ -333,8 +348,18 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
 
   };
 
-  const handleClick = () => {
-    if (state.activeTool === 'select') {
+  const [lastClickTime, setLastClickTime] = useState(0);
+  
+  const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (state.activeTool === 'select' && e.evt.button === 0) {
+      // Check for double-click with left button only
+      const currentTime = Date.now();
+      if (currentTime - lastClickTime < 300) {
+        handleDoubleClick();
+      }
+      setLastClickTime(currentTime);
+      
+      // Only handle left-click for selection
       onSelect();
     }
   };
@@ -345,68 +370,76 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       id={element.id}
       x={element.x}
       y={element.y}
+      scaleX={1}
+      scaleY={1}
       draggable={state.activeTool === 'select' && !isEditing && isSelected && !isMovingGroup}
       onClick={handleClick}
-      onTap={handleClick}
-      onDblClick={handleDoubleClick}
-      onDblTap={handleDoubleClick}
+
       onDragEnd={onDragEnd}
     >
-      {/* Background rectangle */}
+      {/* Background rectangle - this defines the selection bounds */}
       <Rect
         width={element.width}
         height={element.height}
         fill="rgba(255, 255, 255, 0.8)"
-        stroke={hasOverflow ? '#dc2626' : (isSelected ? '#2563eb' : '#d1d5db')}
-        strokeWidth={hasOverflow ? 2 : 1}
-        dash={hasOverflow ? [5, 5] : []}
+        stroke={isSelected ? '#2563eb' : '#d1d5db'}
+        strokeWidth={1}
         cornerRadius={4}
+        name="selectableRect"
       />
       
-      {/* Rich text content */}
-      {element.text && (element.text.includes('<') && (element.text.includes('<strong>') || element.text.includes('<em>') || element.text.includes('<u>') || element.text.includes('color:') || element.text.includes('<h'))) ? (
-        <>
-          {formatRichText(element.text, fontSize, fontFamily, element.width - 8).map((textPart, index) => (
-            <Text
-              key={index}
-              text={textPart.text}
-              x={4 + textPart.x}
-              y={4 + textPart.y}
-              fontSize={textPart.fontSize}
-              fontFamily={textPart.fontFamily}
-              fontStyle={textPart.fontStyle}
-              fill={textPart.fill || element.fill || '#1f2937'}
-              textDecoration={textPart.textDecoration}
-            />
-          ))}
-        </>
-      ) : (
-        <Text
-          ref={textRef}
-          text={displayText}
-          fontSize={fontSize}
-          fontFamily={fontFamily}
-          fill={element.fill || '#1f2937'}
-          width={element.width - 8}
-          height={element.height - 8}
-          x={4}
-          y={4}
-          align={align}
-          verticalAlign="top"
-          lineHeight={lineHeight}
-          wrap="word"
-          ellipsis={false}
-          opacity={element.text ? 1 : 0.6}
-        />
-      )}
+      {/* Text content with clipping */}
+      <Group
+        clipX={0}
+        clipY={0}
+        clipWidth={element.width}
+        clipHeight={element.height}
+      >
+        {element.text && (element.text.includes('<') && (element.text.includes('<strong>') || element.text.includes('<em>') || element.text.includes('<u>') || element.text.includes('color:') || element.text.includes('<h'))) ? (
+          <>
+            {formatRichText(element.text, fontSize, fontFamily, element.width - 8).map((textPart, index) => (
+              <Text
+                key={index}
+                text={textPart.text}
+                x={4 + textPart.x}
+                y={4 + textPart.y}
+                fontSize={textPart.fontSize}
+                fontFamily={textPart.fontFamily}
+                fontStyle={textPart.fontStyle}
+                fill={textPart.fill || element.fill || '#1f2937'}
+                textDecoration={textPart.textDecoration}
+              />
+            ))}
+          </>
+        ) : (
+          <Text
+            ref={textRef}
+            text={displayText}
+            fontSize={fontSize}
+            fontFamily={fontFamily}
+            fill={element.fill || '#1f2937'}
+            width={element.width - 8}
+            x={4}
+            y={4}
+            align={align}
+            verticalAlign="top"
+            lineHeight={lineHeight}
+            wrap="word"
+            ellipsis={false}
+            opacity={element.text ? 1 : 0.6}
+            scaleX={1}
+            scaleY={1}
+            listening={false}
+          />
+        )}
+      </Group>
       
-      {/* Overflow warning icon */}
+      {/* Red dot indicator for overflow */}
       {hasOverflow && (
-        <Text
-          text="⚠️"
-          fontSize={12}
-          x={element.width - 20}
-          y={4}
+        <Circle
+          x={element.width - 8}
+          y={8}
+          radius={3}
           fill="#dc2626"
         />
       )}

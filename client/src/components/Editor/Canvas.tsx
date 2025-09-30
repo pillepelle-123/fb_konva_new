@@ -27,8 +27,9 @@ function CanvasElementComponent({ element, isMovingGroup, onDragStart, onDragEnd
   const shapeRef = useRef<any>(null);
   const isSelected = state.selectedElementIds.includes(element.id);
 
-  const handleClick = () => {
-    if (state.activeTool === 'select') {
+  const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (state.activeTool === 'select' && e.evt.button === 0) {
+      // Only handle left-click for selection
       dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] });
     }
   };
@@ -50,7 +51,6 @@ function CanvasElementComponent({ element, isMovingGroup, onDragStart, onDragEnd
         element={element}
         isSelected={isSelected}
         onSelect={() => dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] })}
-        onDragStart={onDragStart}
         onDragEnd={handleDragEnd}
         scale={0.8}
         isMovingGroup={isMovingGroup}
@@ -165,6 +165,15 @@ export default function Canvas() {
             const allNodes = stage.find('*');
             node = allNodes.find(n => n.id() === id);
           }
+          
+          // For text elements, select the background rect instead of the group
+          if (node && node.getClassName() === 'Group') {
+            const rect = node.findOne('.selectableRect');
+            if (rect) {
+              return rect;
+            }
+          }
+          
           return node;
         }).filter(Boolean);
         
@@ -192,6 +201,12 @@ export default function Canvas() {
         setCurrentPath([x, y]);
       }
     } else if (state.activeTool === 'select') {
+      // Only handle background clicks for selection rectangle
+      const isBackgroundClick = e.target === e.target.getStage() || 
+        (e.target.getClassName() === 'Rect' && !e.target.id());
+      
+      if (!isBackgroundClick) return;
+      
       const pos = e.target.getStage()?.getPointerPosition();
       if (!pos) return;
       
@@ -458,6 +473,19 @@ export default function Canvas() {
   const isPointWithinSelectedElements = (x: number, y: number) => {
     if (!currentPage || state.selectedElementIds.length === 0) return false;
     
+    // For multi-selection, check if point is within transformer bounds
+    if (state.selectedElementIds.length > 1 && transformerRef.current) {
+      const transformer = transformerRef.current;
+      const box = transformer.getClientRect();
+      return (
+        x >= box.x &&
+        x <= box.x + box.width &&
+        y >= box.y &&
+        y <= box.y + box.height
+      );
+    }
+    
+    // For single selection, check individual element bounds
     return state.selectedElementIds.some(elementId => {
       const element = currentPage.elements.find(el => el.id === elementId);
       if (!element) return false;
@@ -623,11 +651,16 @@ export default function Canvas() {
   };
 
   const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    // Hide context menu on any click
-    setContextMenu({ x: 0, y: 0, visible: false });
+    // Hide context menu on left click only
+    if (e.evt.button !== 2) {
+      setContextMenu({ x: 0, y: 0, visible: false });
+    }
     
     // Don't clear selection if we just completed a selection rectangle
     if (isSelecting) return;
+    
+    // Don't clear selection on right-click
+    if (e.evt.button === 2) return;
     
     // Only handle select tool clicks here
     if (state.activeTool === 'select') {
@@ -731,19 +764,60 @@ export default function Canvas() {
               }}
               onTransformEnd={(e) => {
                 const node = e.target;
-                const element = currentPage?.elements.find(el => el.id === node.id());
+                let elementId = node.id();
+                let parentGroup = null;
+                
+                // If we're transforming a rect inside a group, get the group's id
+                if (node.getClassName() === 'Rect' && node.getParent()?.getClassName() === 'Group') {
+                  parentGroup = node.getParent();
+                  elementId = parentGroup?.id() || elementId;
+                }
+                
+                const element = currentPage?.elements.find(el => el.id === elementId);
                 if (element) {
+                  const updates: any = {};
+                  
+                  // For text elements, convert scale to width/height changes
+                  if (element.type === 'text') {
+                    const scaleX = node.scaleX();
+                    const scaleY = node.scaleY();
+                    
+                    // Calculate new dimensions
+                    updates.width = Math.max(50, (element.width || 150) * scaleX);
+                    updates.height = Math.max(20, (element.height || 50) * scaleY);
+                    
+                    // For position, use the parent group's position if available
+                    if (parentGroup) {
+                      updates.x = parentGroup.x() + node.x();
+                      updates.y = parentGroup.y() + node.y();
+                      
+                      // Reset the rect position within the group
+                      node.x(0);
+                      node.y(0);
+                    } else {
+                      updates.x = node.x();
+                      updates.y = node.y();
+                    }
+                    
+                    updates.rotation = node.rotation();
+                    
+                    // Reset scale to 1 for text elements
+                    node.scaleX(1);
+                    node.scaleY(1);
+                  } else {
+                    // For other elements, keep scale behavior
+                    updates.x = node.x();
+                    updates.y = node.y();
+                    updates.scaleX = node.scaleX();
+                    updates.scaleY = node.scaleY();
+                    updates.rotation = node.rotation();
+                  }
+                  
                   dispatch({
                     type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
                     payload: {
                       id: element.id,
-                      updates: {
-                        x: node.x(),
-                        y: node.y(),
-                        scaleX: node.scaleX(),
-                        scaleY: node.scaleY(),
-                        rotation: node.rotation()
-                      }
+                      updates
                     }
                   });
                 }
