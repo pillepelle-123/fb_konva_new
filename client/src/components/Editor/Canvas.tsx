@@ -232,6 +232,16 @@ export default function Canvas() {
     const isDoubleClick = currentTime - lastClickTime < 300;
     setLastClickTime(currentTime);
 
+    // Right-click drag for panning
+    if (e.evt.button === 2) {
+      setIsPanning(true);
+      const pos = e.target.getStage()?.getPointerPosition();
+      if (pos) {
+        setPanStart({ x: pos.x - stagePos.x, y: pos.y - stagePos.y });
+      }
+      return;
+    }
+
     // Only handle mouseDown for brush, select, and pan tools
     if (state.activeTool === 'pan') {
       setIsPanning(true);
@@ -396,7 +406,7 @@ export default function Canvas() {
   };
 
   const handleMouseMove = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (isPanning && state.activeTool === 'pan') {
+    if (isPanning) {
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
         setStagePos({
@@ -494,7 +504,7 @@ export default function Canvas() {
     return smoothed;
   };
 
-  const handleMouseUp = () => {
+  const handleMouseUp = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (isPanning) {
       setIsPanning(false);
       setPanStart({ x: 0, y: 0 });
