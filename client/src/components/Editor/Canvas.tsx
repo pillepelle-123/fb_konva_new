@@ -18,7 +18,7 @@ function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; he
       height={height}
       fill="white"
       stroke="#e5e7eb"
-      strokeWidth={2}
+      strokeWidth={11}
     />
   );
 }
@@ -31,7 +31,7 @@ function CanvasPageContainer({ children }: { children: React.ReactNode }) {
       alignItems: 'center',
       flex: 1,
       height: '100%',
-      backgroundColor: '#f9fafb',
+      backgroundColor: '#f3f3f3ff',
       padding: '2rem'
     }}>
       {children}
@@ -40,11 +40,11 @@ function CanvasPageContainer({ children }: { children: React.ReactNode }) {
 }
 
 const PAGE_DIMENSIONS = {
-  A4: { width: 595, height: 842 },
-  A5: { width: 420, height: 595 },
-  A3: { width: 842, height: 1191 },
-  Letter: { width: 612, height: 792 },
-  Square: { width: 600, height: 600 }
+  A4: { width: 2480, height: 3508 },
+  A5: { width: 1748, height: 2480 },
+  A3: { width: 3508, height: 4961 },
+  Letter: { width: 2550, height: 3300 },
+  Square: { width: 2480, height: 2480 }
 };
 
 function CanvasElementComponent({ element, isMovingGroup, onDragStart, onDragEnd }: { 
@@ -302,48 +302,48 @@ export default function Canvas() {
           newElement = {
             id: uuidv4(),
             type: 'rect',
-            x: x - 50,
-            y: y - 25,
-            width: 100,
-            height: 50,
+            x: x - 200,
+            y: y - 100,
+            width: 400,
+            height: 200,
             fill: 'transparent',
             stroke: '#1f2937',
-            roughness: 1,
+            roughness: 3,
             strokeWidth: 2
           };
         } else if (state.activeTool === 'circle') {
           newElement = {
             id: uuidv4(),
             type: 'circle',
-            x: x - 40,
-            y: y - 40,
-            width: 80,
-            height: 80,
+            x: x - 160,
+            y: y - 160,
+            width: 320,
+            height: 320,
             fill: 'transparent',
             stroke: '#1f2937',
-            roughness: 1,
+            roughness: 3,
             strokeWidth: 2
           };
         } else if (state.activeTool === 'line') {
           newElement = {
             id: uuidv4(),
             type: 'line',
-            x: x - 50,
-            y: y - 5,
-            width: 100,
-            height: 10,
+            x: x - 200,
+            y: y - 20,
+            width: 400,
+            height: 40,
             stroke: '#1f2937',
-            roughness: 1,
+            roughness: 3,
             strokeWidth: 2
           };
         } else if (state.activeTool === 'photo') {
           newElement = {
             id: uuidv4(),
             type: 'placeholder',
-            x: x - 75,
-            y: y - 50,
-            width: 150,
-            height: 100,
+            x: x - 300,
+            y: y - 200,
+            width: 600,
+            height: 400,
             fill: '#f3f4f6',
             stroke: '#d1d5db'
           };
@@ -351,13 +351,13 @@ export default function Canvas() {
           newElement = {
             id: uuidv4(),
             type: 'text',
-            x: x - 75,
-            y: y - 25,
-            width: 150,
-            height: 50,
+            x: x - 300,
+            y: y - 100,
+            width: 600,
+            height: 200,
             fill: '#1f2937',
             text: '',
-            fontSize: 16,
+            fontSize: 64,
             lineHeight: 1.2,
             align: 'left',
             fontFamily: 'Arial, sans-serif',
@@ -367,13 +367,13 @@ export default function Canvas() {
           newElement = {
             id: uuidv4(),
             type: 'text',
-            x: x - 100,
-            y: y - 30,
-            width: 200,
-            height: 60,
+            x: x - 400,
+            y: y - 120,
+            width: 800,
+            height: 240,
             fill: '#7c2d12',
             text: '',
-            fontSize: 16,
+            fontSize: 64,
             lineHeight: 1.2,
             align: 'left',
             fontFamily: 'Arial, sans-serif',
@@ -383,13 +383,13 @@ export default function Canvas() {
           newElement = {
             id: uuidv4(),
             type: 'text',
-            x: x - 100,
-            y: y - 30,
-            width: 200,
-            height: 60,
+            x: x - 400,
+            y: y - 120,
+            width: 800,
+            height: 240,
             fill: '#1e40af',
             text: '',
-            fontSize: 16,
+            fontSize: 64,
             lineHeight: 1.2,
             align: 'left',
             fontFamily: 'Arial, sans-serif',
@@ -852,12 +852,13 @@ export default function Canvas() {
         style={{
           backgroundColor: 'white',
           boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-          borderRadius: '8px',
-          padding: '1rem',
+          borderRadius: '14px',
+          padding: '.5rem',
           flex: 1,
           height: '100%',
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
+          backgroundColor: '#F9FAFB',
         }}>
         <Stage
           ref={stageRef}
@@ -874,7 +875,10 @@ export default function Canvas() {
           onWheel={handleWheel}
           x={stagePos.x}
           y={stagePos.y}
-          style={{ cursor: state.activeTool === 'pan' ? 'grab' : 'default' }}
+          style={{ 
+            cursor: state.activeTool === 'pan' ? 'grab' : 'default',
+            backgroundColor: '#F9FAFB' 
+          }}
         >
           <Layer>
             {/* Page boundary */}

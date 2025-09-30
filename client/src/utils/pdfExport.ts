@@ -37,7 +37,7 @@ export const exportBookToPDF = async (
     pagesToExport = book.pages.slice(start, end);
   }
 
-  // Create PDF with appropriate dimensions
+  // Create PDF with standard dimensions
   const orientation = book.orientation === 'landscape' ? 'landscape' : 'portrait';
   const pdf = new jsPDF({
     orientation,
@@ -97,19 +97,8 @@ export const exportBookToPDF = async (
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
       
-      // Calculate image dimensions to fit the page
-      const imgWidth = tempCanvas.width;
-      const imgHeight = tempCanvas.height;
-      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-      
-      const finalWidth = imgWidth * ratio;
-      const finalHeight = imgHeight * ratio;
-      
-      // Center the image on the page
-      const x = (pdfWidth - finalWidth) / 2;
-      const y = (pdfHeight - finalHeight) / 2;
-      
-      pdf.addImage(imgData, 'JPEG', x, y, finalWidth, finalHeight);
+      // Fill PDF page exactly
+      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
       
       isFirstPage = false;
       

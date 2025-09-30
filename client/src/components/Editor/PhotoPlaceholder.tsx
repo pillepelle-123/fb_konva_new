@@ -117,7 +117,7 @@ export default function PhotoPlaceholder({ element, isSelected, onSelect, onDrag
           />
           <Text
             text={isUploading ? "Uploading..." : "📷\nClick to upload"}
-            fontSize={16}
+            fontSize={36}
             fill="#6b7280"
             width={element.width}
             height={element.height}
