@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useEditor } from '../../context/EditorContext';
+import PDFExportModal from './PDFExportModal';
 
 export default function EditorBar() {
   const { state, dispatch, saveBook } = useEditor();
   const [isSaving, setIsSaving] = useState(false);
+  const [showPDFModal, setShowPDFModal] = useState(false);
 
   if (!state.currentBook) return null;
 
@@ -48,6 +50,7 @@ export default function EditorBar() {
   };
 
   return (
+    <>
     <div style={{ 
       padding: '1rem 2rem', 
       backgroundColor: 'white', 
@@ -171,6 +174,19 @@ export default function EditorBar() {
             {isSaving ? 'Saving...' : 'Save Book'}
           </button>
           <button 
+            onClick={() => setShowPDFModal(true)}
+            style={{ 
+              padding: '0.5rem 1rem', 
+              backgroundColor: '#dc2626', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '4px', 
+              cursor: 'pointer' 
+            }}
+          >
+            Print Book (PDF)
+          </button>
+          <button 
             onClick={() => window.history.back()}
             style={{ 
               padding: '0.5rem 1rem', 
@@ -186,5 +202,11 @@ export default function EditorBar() {
         </div>
       </div>
     </div>
+    
+    <PDFExportModal 
+      isOpen={showPDFModal} 
+      onClose={() => setShowPDFModal(false)} 
+    />
+    </>
   );
 }

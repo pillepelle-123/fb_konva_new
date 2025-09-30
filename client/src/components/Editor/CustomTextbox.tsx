@@ -271,7 +271,7 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
         }
         
         dispatch({
-          type: 'UPDATE_ELEMENT',
+          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
           payload: {
             id: element.id,
             updates: { text: htmlContent }

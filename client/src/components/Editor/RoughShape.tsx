@@ -15,7 +15,7 @@ interface RoughShapeProps {
 }
 
 export default function RoughShape({ element, isSelected, onSelect, onDragStart, onDragEnd, isMovingGroup }: RoughShapeProps) {
-  const { state } = useEditor();
+  const { state, dispatch } = useEditor();
   const groupRef = useRef<Konva.Group>(null);
 
   const generateRoughPath = () => {
@@ -133,16 +133,14 @@ export default function RoughShape({ element, isSelected, onSelect, onDragStart,
         onDragStart?.();
       }}
       onDragEnd={(e) => {
-        e.cancelBubble = true;
-        const modifiedEvent = {
-          ...e,
-          target: {
-            ...e.target,
-            x: () => e.target.x(),
-            y: () => e.target.y()
+        dispatch({
+          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+          payload: {
+            id: element.id,
+            updates: { x: e.target.x(), y: e.target.y() }
           }
-        };
-        onDragEnd(modifiedEvent as any);
+        });
+        onDragEnd(e);
       }}
     >
       {/* Invisible hit area for easier selection */}

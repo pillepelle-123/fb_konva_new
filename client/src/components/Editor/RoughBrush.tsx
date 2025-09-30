@@ -15,7 +15,7 @@ interface RoughBrushProps {
 }
 
 export default function RoughBrush({ element, isSelected, onSelect, onDragStart, onDragEnd, isMovingGroup }: RoughBrushProps) {
-  const { state } = useEditor();
+  const { state, dispatch } = useEditor();
   const groupRef = useRef<Konva.Group>(null);
 
   const getBounds = (points: number[]) => {
@@ -141,7 +141,16 @@ export default function RoughBrush({ element, isSelected, onSelect, onDragStart,
         onSelect();
       }}
       onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
+      onDragEnd={(e) => {
+        dispatch({
+          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+          payload: {
+            id: element.id,
+            updates: { x: e.target.x(), y: e.target.y() }
+          }
+        });
+        onDragEnd?.(e);
+      }}
     >
       {/* Invisible hit area for easier selection */}
       <Rect

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { EditorProvider } from './context/EditorContext'
+import PageContainer from './components/PageContainer'
 import Navigation from './components/Navigation'
 import EditorBar from './components/Editor/EditorBar'
 import Login from './components/Login'
@@ -36,9 +37,9 @@ function AppContent() {
   }, [])
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <PageContainer>
       <Navigation />
-      <main style={{ flex: 1, overflow: isEditorRoute ? 'hidden' : 'auto' }} className={isEditorRoute ? '' : 'main'}>
+      <main style={{ flex: 1, overflow: isEditorRoute ? 'hidden' : 'auto', height: 0, width: '100%', margin: 0, padding: 0, boxSizing: 'border-box', maxWidth: 'none' }} className={isEditorRoute ? '' : 'main'}>
         <Routes>
           <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Home serverMessage={serverMessage} />} />
           <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <Login />} />
@@ -50,7 +51,7 @@ function AppContent() {
           <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminPanel /></ProtectedRoute>} />
         </Routes>
       </main>
-    </div>
+    </PageContainer>
   )
 }
 

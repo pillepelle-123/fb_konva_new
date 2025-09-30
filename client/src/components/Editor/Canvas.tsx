@@ -253,8 +253,8 @@ export default function Canvas() {
       setIsDrawing(true);
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
-        const x = (pos.x - stagePos.x) / zoom;
-        const y = (pos.y - stagePos.y) / zoom;
+        const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
+        const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
         setCurrentPath([x, y]);
       }
     } else if (state.activeTool === 'select') {
@@ -417,8 +417,8 @@ export default function Canvas() {
     } else if (isDrawing && state.activeTool === 'brush') {
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
-        const x = (pos.x - stagePos.x) / zoom;
-        const y = (pos.y - stagePos.y) / zoom;
+        const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
+        const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
         setCurrentPath(prev => [...prev, x, y]);
       }
     } else if (isMovingGroup && groupMoveStart) {
@@ -435,7 +435,7 @@ export default function Canvas() {
           const element = currentPage?.elements.find(el => el.id === elementId);
           if (element) {
             dispatch({
-              type: 'UPDATE_ELEMENT',
+              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
               payload: {
                 id: elementId,
                 updates: {
@@ -510,16 +510,8 @@ export default function Canvas() {
       setPanStart({ x: 0, y: 0 });
     } else if (isDrawing && state.activeTool === 'brush' && currentPath.length > 2) {
       const smoothedPath = smoothPath(currentPath);
-      // Adjust points for page offset
-      const adjustedPoints = smoothedPath.map((point, index) => {
-        if (index % 2 === 0) {
-          // X coordinate
-          return point - pageOffsetX;
-        } else {
-          // Y coordinate
-          return point - pageOffsetY;
-        }
-      });
+      // Points are already relative to Group position
+      const adjustedPoints = smoothedPath;
       const newElement: CanvasElement = {
         id: uuidv4(),
         type: 'roughPath',
@@ -744,30 +736,39 @@ export default function Canvas() {
   const handleWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault();
     
-    const stage = stageRef.current;
-    if (!stage) return;
-    
-    const scaleBy = 1.1;
-    const oldScale = zoom;
-    const pointer = stage.getPointerPosition();
-    
-    if (!pointer) return;
-    
-    const mousePointTo = {
-      x: (pointer.x - stagePos.x) / oldScale,
-      y: (pointer.y - stagePos.y) / oldScale,
-    };
-    
-    const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
-    const clampedScale = Math.max(0.1, Math.min(3, newScale));
-    
-    const newPos = {
-      x: pointer.x - mousePointTo.x * clampedScale,
-      y: pointer.y - mousePointTo.y * clampedScale,
-    };
-    
-    setZoom(clampedScale);
-    setStagePos(newPos);
+    if (e.evt.ctrlKey) {
+      // Zoom with Ctrl + mousewheel
+      const stage = stageRef.current;
+      if (!stage) return;
+      
+      const scaleBy = 1.1;
+      const oldScale = zoom;
+      const pointer = stage.getPointerPosition();
+      
+      if (!pointer) return;
+      
+      const mousePointTo = {
+        x: (pointer.x - stagePos.x) / oldScale,
+        y: (pointer.y - stagePos.y) / oldScale,
+      };
+      
+      const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
+      const clampedScale = Math.max(0.1, Math.min(3, newScale));
+      
+      const newPos = {
+        x: pointer.x - mousePointTo.x * clampedScale,
+        y: pointer.y - mousePointTo.y * clampedScale,
+      };
+      
+      setZoom(clampedScale);
+      setStagePos(newPos);
+    } else {
+      // Pan with two-finger touchpad (mousewheel without Ctrl)
+      setStagePos({
+        x: stagePos.x - e.evt.deltaX,
+        y: stagePos.y - e.evt.deltaY
+      });
+    }
   };
 
   const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -805,12 +806,18 @@ export default function Canvas() {
       setContextMenu({ x: 0, y: 0, visible: false });
     };
     
+    const handlePageChange = (event: CustomEvent) => {
+      dispatch({ type: 'SET_ACTIVE_PAGE', payload: event.detail });
+    };
+    
     updateSize();
     window.addEventListener('resize', updateSize);
     window.addEventListener('click', handleClickOutside);
+    window.addEventListener('changePage', handlePageChange as EventListener);
     return () => {
       window.removeEventListener('resize', updateSize);
       window.removeEventListener('click', handleClickOutside);
+      window.removeEventListener('changePage', handlePageChange as EventListener);
     };
   }, []);
 
@@ -841,6 +848,7 @@ export default function Canvas() {
     <CanvasPageContainer>
       <div 
         ref={containerRef}
+        data-page-id={currentPage?.id}
         style={{
           backgroundColor: 'white',
           boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
@@ -883,20 +891,20 @@ export default function Canvas() {
                   onDragEnd={() => setTimeout(() => setIsDragging(false), 10)}
                 />
               ))}
+              
+              {/* Brush preview line */}
+              {isDrawing && currentPath.length > 2 && (
+                <Line
+                  points={currentPath}
+                  stroke="#1f2937"
+                  strokeWidth={2}
+                  lineCap="round"
+                  lineJoin="round"
+                  listening={false}
+                  opacity={0.7}
+                />
+              )}
             </Group>
-            
-            {/* Brush preview line */}
-            {isDrawing && currentPath.length > 2 && (
-              <Line
-                points={currentPath}
-                stroke="#1f2937"
-                strokeWidth={2}
-                lineCap="round"
-                lineJoin="round"
-                listening={false}
-                opacity={0.7}
-              />
-            )}
             
             {/* Selection rectangle */}
             {selectionRect.visible && (
