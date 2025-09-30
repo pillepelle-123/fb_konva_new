@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
-import { Stage, Layer, Rect, Circle, Transformer, Line } from 'react-konva';
+import { Stage, Layer, Rect, Circle, Transformer, Line, Group } from 'react-konva';
 import Konva from 'konva';
 import { v4 as uuidv4 } from 'uuid';
 import { useEditor } from '../../context/EditorContext';
@@ -8,6 +8,36 @@ import CustomTextbox from './CustomTextbox';
 import RoughShape from './RoughShape';
 import PhotoPlaceholder from './PhotoPlaceholder';
 import RoughBrush from './RoughBrush';
+
+function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
+  return (
+    <Rect
+      x={x}
+      y={y}
+      width={width}
+      height={height}
+      fill="white"
+      stroke="#e5e7eb"
+      strokeWidth={2}
+    />
+  );
+}
+
+function CanvasPageContainer({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      flex: 1,
+      height: '100%',
+      backgroundColor: '#f9fafb',
+      padding: '2rem'
+    }}>
+      {children}
+    </div>
+  );
+}
 
 const PAGE_DIMENSIONS = {
   A4: { width: 595, height: 842 },
@@ -28,9 +58,14 @@ function CanvasElementComponent({ element, isMovingGroup, onDragStart, onDragEnd
   const isSelected = state.selectedElementIds.includes(element.id);
 
   const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (state.activeTool === 'select' && e.evt.button === 0) {
-      // Only handle left-click for selection
-      dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] });
+    if (state.activeTool === 'select') {
+      if (e.evt.button === 0) {
+        // Only handle left-click for selection
+        dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] });
+      } else if (e.evt.button === 2 && isSelected) {
+        // Right-click on selected item - don't change selection
+        return;
+      }
     }
   };
 
@@ -121,6 +156,8 @@ export default function Canvas() {
   const { state, dispatch } = useEditor();
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentPath, setCurrentPath] = useState<number[]>([]);
   const [selectionRect, setSelectionRect] = useState<{
@@ -137,6 +174,10 @@ export default function Canvas() {
   const [lastClickTime, setLastClickTime] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; visible: boolean }>({ x: 0, y: 0, visible: false });
+  const [zoom, setZoom] = useState(0.8);
+  const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
 
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const pageSize = state.currentBook?.pageSize || 'A4';
@@ -146,8 +187,8 @@ export default function Canvas() {
   const canvasWidth = orientation === 'landscape' ? dimensions.height : dimensions.width;
   const canvasHeight = orientation === 'landscape' ? dimensions.width : dimensions.height;
 
-  // Scale down for display
-  const scale = 0.8;
+  // Scale for display with zoom
+  const scale = zoom;
   const displayWidth = canvasWidth * scale;
   const displayHeight = canvasHeight * scale;
 
@@ -191,13 +232,19 @@ export default function Canvas() {
     const isDoubleClick = currentTime - lastClickTime < 300;
     setLastClickTime(currentTime);
 
-    // Only handle mouseDown for brush and select tools
-    if (state.activeTool === 'brush') {
+    // Only handle mouseDown for brush, select, and pan tools
+    if (state.activeTool === 'pan') {
+      setIsPanning(true);
+      const pos = e.target.getStage()?.getPointerPosition();
+      if (pos) {
+        setPanStart({ x: pos.x - stagePos.x, y: pos.y - stagePos.y });
+      }
+    } else if (state.activeTool === 'brush') {
       setIsDrawing(true);
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
-        const x = pos.x / scale;
-        const y = pos.y / scale;
+        const x = (pos.x - stagePos.x) / zoom;
+        const y = (pos.y - stagePos.y) / zoom;
         setCurrentPath([x, y]);
       }
     } else if (state.activeTool === 'select') {
@@ -210,8 +257,8 @@ export default function Canvas() {
       const pos = e.target.getStage()?.getPointerPosition();
       if (!pos) return;
       
-      const x = pos.x / scale;
-      const y = pos.y / scale;
+      const x = (pos.x - stagePos.x) / zoom;
+      const y = (pos.y - stagePos.y) / zoom;
       
       // Check if double-click is within selected elements bounds
       if (isDoubleClick && state.selectedElementIds.length > 0) {
@@ -231,8 +278,8 @@ export default function Canvas() {
       const pos = e.target.getStage()?.getPointerPosition();
       if (!pos) return;
       
-      const x = pos.x / scale;
-      const y = pos.y / scale;
+      const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
+      const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
       
       // Check if clicked on background
       const isBackgroundClick = e.target === e.target.getStage() || 
@@ -349,19 +396,27 @@ export default function Canvas() {
   };
 
   const handleMouseMove = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (isDrawing && state.activeTool === 'brush') {
+    if (isPanning && state.activeTool === 'pan') {
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
-        const x = pos.x / scale;
-        const y = pos.y / scale;
+        setStagePos({
+          x: pos.x - panStart.x,
+          y: pos.y - panStart.y
+        });
+      }
+    } else if (isDrawing && state.activeTool === 'brush') {
+      const pos = e.target.getStage()?.getPointerPosition();
+      if (pos) {
+        const x = (pos.x - stagePos.x) / zoom;
+        const y = (pos.y - stagePos.y) / zoom;
         setCurrentPath(prev => [...prev, x, y]);
       }
     } else if (isMovingGroup && groupMoveStart) {
       // Move entire selection
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
-        const x = pos.x / scale;
-        const y = pos.y / scale;
+        const x = (pos.x - stagePos.x) / zoom;
+        const y = (pos.y - stagePos.y) / zoom;
         const deltaX = x - groupMoveStart.x;
         const deltaY = y - groupMoveStart.y;
         
@@ -388,8 +443,8 @@ export default function Canvas() {
       // Update selection rectangle
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
-        const x = pos.x / scale;
-        const y = pos.y / scale;
+        const x = (pos.x - stagePos.x) / zoom;
+        const y = (pos.y - stagePos.y) / zoom;
         const width = x - selectionStart.x;
         const height = y - selectionStart.y;
         
@@ -440,8 +495,21 @@ export default function Canvas() {
   };
 
   const handleMouseUp = () => {
-    if (isDrawing && state.activeTool === 'brush' && currentPath.length > 2) {
+    if (isPanning) {
+      setIsPanning(false);
+      setPanStart({ x: 0, y: 0 });
+    } else if (isDrawing && state.activeTool === 'brush' && currentPath.length > 2) {
       const smoothedPath = smoothPath(currentPath);
+      // Adjust points for page offset
+      const adjustedPoints = smoothedPath.map((point, index) => {
+        if (index % 2 === 0) {
+          // X coordinate
+          return point - pageOffsetX;
+        } else {
+          // Y coordinate
+          return point - pageOffsetY;
+        }
+      });
       const newElement: CanvasElement = {
         id: uuidv4(),
         type: 'roughPath',
@@ -449,7 +517,7 @@ export default function Canvas() {
         y: 0,
         width: 0,
         height: 0,
-        points: smoothedPath,
+        points: adjustedPoints,
         stroke: '#1f2937',
         roughness: 1,
         strokeWidth: 2
@@ -540,6 +608,14 @@ export default function Canvas() {
     
     const selectedIds: string[] = [];
     
+    // Adjust selection rectangle for page offset
+    const adjustedSelectionRect = {
+      x: selectionRect.x - pageOffsetX,
+      y: selectionRect.y - pageOffsetY,
+      width: selectionRect.width,
+      height: selectionRect.height
+    };
+    
     currentPage.elements.forEach(element => {
       // Check if element intersects with selection rectangle
       const elementBounds = {
@@ -593,10 +669,10 @@ export default function Canvas() {
       }
       
       const intersects = (
-        selectionRect.x < elementBounds.x + elementBounds.width &&
-        selectionRect.x + selectionRect.width > elementBounds.x &&
-        selectionRect.y < elementBounds.y + elementBounds.height &&
-        selectionRect.y + selectionRect.height > elementBounds.y
+        adjustedSelectionRect.x < elementBounds.x + elementBounds.width &&
+        adjustedSelectionRect.x + adjustedSelectionRect.width > elementBounds.x &&
+        adjustedSelectionRect.y < elementBounds.y + elementBounds.height &&
+        adjustedSelectionRect.y + adjustedSelectionRect.height > elementBounds.y
       );
       
       if (intersects) {
@@ -613,8 +689,8 @@ export default function Canvas() {
     const pos = e.target.getStage()?.getPointerPosition();
     if (!pos) return;
     
-    const x = pos.x / scale;
-    const y = pos.y / scale;
+    const x = (pos.x - stagePos.x) / zoom;
+    const y = (pos.y - stagePos.y) / zoom;
     
     // Check if right-click is on selected elements
     if (state.selectedElementIds.length > 0 && isPointWithinSelectedElements(x, y)) {
@@ -650,6 +726,35 @@ export default function Canvas() {
     setContextMenu({ x: 0, y: 0, visible: false });
   };
 
+  const handleWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
+    e.evt.preventDefault();
+    
+    const stage = stageRef.current;
+    if (!stage) return;
+    
+    const scaleBy = 1.1;
+    const oldScale = zoom;
+    const pointer = stage.getPointerPosition();
+    
+    if (!pointer) return;
+    
+    const mousePointTo = {
+      x: (pointer.x - stagePos.x) / oldScale,
+      y: (pointer.y - stagePos.y) / oldScale,
+    };
+    
+    const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
+    const clampedScale = Math.max(0.1, Math.min(3, newScale));
+    
+    const newPos = {
+      x: pointer.x - mousePointTo.x * clampedScale,
+      y: pointer.y - mousePointTo.y * clampedScale,
+    };
+    
+    setZoom(clampedScale);
+    setStagePos(newPos);
+  };
+
   const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
     // Hide context menu on left click only
     if (e.evt.button !== 2) {
@@ -673,56 +778,89 @@ export default function Canvas() {
     }
   };
 
+  useEffect(() => {
+    const updateSize = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        setContainerSize({ width: rect.width, height: rect.height });
+      }
+    };
+    
+    updateSize();
+    window.addEventListener('resize', updateSize);
+    return () => window.removeEventListener('resize', updateSize);
+  }, []);
+
+  const containerPadding = 40;
+  const availableWidth = containerSize.width - containerPadding * 2;
+  const availableHeight = containerSize.height - containerPadding * 2;
+  
+  const pageAspectRatio = canvasWidth / canvasHeight;
+  const containerAspectRatio = availableWidth / availableHeight;
+  
+  let pageDisplayWidth, pageDisplayHeight, pageOffsetX, pageOffsetY;
+  
+  if (pageAspectRatio > containerAspectRatio) {
+    pageDisplayWidth = availableWidth;
+    pageDisplayHeight = availableWidth / pageAspectRatio;
+    pageOffsetX = containerPadding;
+    pageOffsetY = containerPadding + (availableHeight - pageDisplayHeight) / 2;
+  } else {
+    pageDisplayWidth = availableHeight * pageAspectRatio;
+    pageDisplayHeight = availableHeight;
+    pageOffsetX = containerPadding + (availableWidth - pageDisplayWidth) / 2;
+    pageOffsetY = containerPadding;
+  }
+  
+  const pageScale = pageDisplayWidth / canvasWidth;
+
   return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      minHeight: '600px',
-      backgroundColor: '#f9fafb',
-      padding: '2rem'
-    }}>
-      <div style={{
-        backgroundColor: 'white',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-        borderRadius: '8px',
-        padding: '1rem'
-      }}>
+    <CanvasPageContainer>
+      <div 
+        ref={containerRef}
+        style={{
+          backgroundColor: 'white',
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+          borderRadius: '8px',
+          padding: '1rem',
+          flex: 1,
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
         <Stage
           ref={stageRef}
-          width={displayWidth}
-          height={displayHeight}
-          scaleX={scale}
-          scaleY={scale}
+          width={containerSize.width}
+          height={containerSize.height}
+          scaleX={zoom}
+          scaleY={zoom}
           onClick={handleStageClick}
           onTap={handleStageClick}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onContextMenu={handleContextMenu}
+          onWheel={handleWheel}
+          x={stagePos.x}
+          y={stagePos.y}
+          style={{ cursor: state.activeTool === 'pan' ? 'grab' : 'default' }}
         >
           <Layer>
             {/* Page boundary */}
-            <Rect
-              x={0}
-              y={0}
-              width={canvasWidth}
-              height={canvasHeight}
-              fill="white"
-              stroke="#e5e7eb"
-              strokeWidth={2}
-            />
+            <CanvasPageEditArea width={canvasWidth} height={canvasHeight} x={pageOffsetX} y={pageOffsetY} />
             
             {/* Canvas elements */}
-            {currentPage?.elements.map(element => (
-              <CanvasElementComponent
-                key={element.id}
-                element={element}
-                isMovingGroup={isMovingGroup}
-                onDragStart={() => setIsDragging(true)}
-                onDragEnd={() => setTimeout(() => setIsDragging(false), 10)}
-              />
-            ))}
+            <Group x={pageOffsetX} y={pageOffsetY}>
+              {currentPage?.elements.map(element => (
+                <CanvasElementComponent
+                  key={element.id}
+                  element={element}
+                  isMovingGroup={isMovingGroup}
+                  onDragStart={() => setIsDragging(true)}
+                  onDragEnd={() => setTimeout(() => setIsDragging(false), 10)}
+                />
+              ))}
+            </Group>
             
             {/* Brush preview line */}
             {isDrawing && currentPath.length > 2 && (
@@ -755,12 +893,56 @@ export default function Canvas() {
             {/* Transformer for selected elements */}
             <Transformer
               ref={transformerRef}
+              keepRatio={false}
+              enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right', 'top-center', 'middle-left', 'middle-right', 'bottom-center']}
               boundBoxFunc={(oldBox, newBox) => {
                 // Limit resize
                 if (newBox.width < 5 || newBox.height < 5) {
                   return oldBox;
                 }
                 return newBox;
+              }}
+              onDragMove={(e) => {
+                // Sync text group positions during drag
+                const nodes = transformerRef.current?.nodes() || [];
+                nodes.forEach(node => {
+                  if (node.getClassName() === 'Rect' && node.getParent()?.getClassName() === 'Group') {
+                    const parentGroup = node.getParent();
+                    if (parentGroup) {
+                      parentGroup.x(parentGroup.x() + node.x());
+                      parentGroup.y(parentGroup.y() + node.y());
+                      node.x(0);
+                      node.y(0);
+                    }
+                  }
+                });
+              }}
+              onDragEnd={(e) => {
+                // Update positions after drag without triggering onTransformEnd
+                const nodes = transformerRef.current?.nodes() || [];
+                nodes.forEach(node => {
+                  let elementId = node.id();
+                  let finalX = node.x();
+                  let finalY = node.y();
+                  
+                  // For text elements, use parent group position
+                  if (node.getClassName() === 'Rect' && node.getParent()?.getClassName() === 'Group') {
+                    const parentGroup = node.getParent();
+                    elementId = parentGroup?.id() || elementId;
+                    finalX = parentGroup?.x() || 0;
+                    finalY = parentGroup?.y() || 0;
+                  }
+                  
+                  if (elementId) {
+                    dispatch({
+                      type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                      payload: {
+                        id: elementId,
+                        updates: { x: finalX, y: finalY }
+                      }
+                    });
+                  }
+                });
               }}
               onTransformEnd={(e) => {
                 const node = e.target;
@@ -788,12 +970,8 @@ export default function Canvas() {
                     
                     // For position, use the parent group's position if available
                     if (parentGroup) {
-                      updates.x = parentGroup.x() + node.x();
-                      updates.y = parentGroup.y() + node.y();
-                      
-                      // Reset the rect position within the group
-                      node.x(0);
-                      node.y(0);
+                      updates.x = parentGroup.x();
+                      updates.y = parentGroup.y();
                     } else {
                       updates.x = node.x();
                       updates.y = node.y();
@@ -879,6 +1057,6 @@ export default function Canvas() {
           </div>
         )}
       </div>
-    </div>
+    </CanvasPageContainer>
   );
 }

@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import { Group, Rect, Text, Circle } from 'react-konva';
+import { Group, Rect, Text, Circle, Path } from 'react-konva';
 import Konva from 'konva';
 import { useEditor } from '../../context/EditorContext';
 import type { CanvasElement } from '../../context/EditorContext';
@@ -168,6 +168,9 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       
       // Force text to rewrap when width changes
       textRef.current.width(element.width - 8);
+      
+      // Force re-render to apply new width
+      textRef.current.text(displayText);
       textRef.current.getLayer()?.batchDraw();
       
       // Check if text overflows the container
@@ -351,16 +354,21 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
   const [lastClickTime, setLastClickTime] = useState(0);
   
   const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (state.activeTool === 'select' && e.evt.button === 0) {
-      // Check for double-click with left button only
-      const currentTime = Date.now();
-      if (currentTime - lastClickTime < 300) {
-        handleDoubleClick();
+    if (state.activeTool === 'select') {
+      if (e.evt.button === 0) {
+        // Check for double-click with left button only
+        const currentTime = Date.now();
+        if (currentTime - lastClickTime < 300) {
+          handleDoubleClick();
+        }
+        setLastClickTime(currentTime);
+        
+        // Only handle left-click for selection
+        onSelect();
+      } else if (e.evt.button === 2 && isSelected) {
+        // Right-click on selected item - don't change selection
+        return;
       }
-      setLastClickTime(currentTime);
-      
-      // Only handle left-click for selection
-      onSelect();
     }
   };
 
@@ -387,6 +395,24 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
         cornerRadius={4}
         name="selectableRect"
       />
+      
+      {/* Red dashed bottom border for overflow */}
+      {hasOverflow && isSelected && (
+        <>
+          <Path
+            data={`M0 ${element.height} L${element.width} ${element.height}`}
+            stroke="#dc2626"
+            strokeWidth={1}
+            dash={[4, 2]}
+          />
+          <Path
+            data={`M0 ${element.height - 3} L${element.width} ${element.height - 3}`}
+            stroke="#dc2626"
+            strokeWidth={2}
+            dash={[4, 2]}
+          />
+        </>
+      )}
       
       {/* Text content with clipping */}
       <Group
@@ -434,15 +460,7 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
         )}
       </Group>
       
-      {/* Red dot indicator for overflow */}
-      {hasOverflow && (
-        <Circle
-          x={element.width - 8}
-          y={8}
-          radius={3}
-          fill="#dc2626"
-        />
-      )}
+
     </Group>
   );
 }

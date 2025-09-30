@@ -7,6 +7,7 @@ export default function Toolbar() {
 
   const tools = [
     { id: 'select', label: 'Select', icon: '🔍' },
+    { id: 'pan', label: 'Pan', icon: '✋' },
     { id: 'text', label: 'Text', icon: '📝' },
     { id: 'question', label: 'Question', icon: '❓' },
     { id: 'answer', label: 'Answer', icon: '💬' },
