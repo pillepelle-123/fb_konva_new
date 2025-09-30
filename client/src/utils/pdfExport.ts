@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import Konva from 'konva';
 import type { Book } from '../context/EditorContext';
 
 export interface PDFExportOptions {
@@ -9,17 +9,12 @@ export interface PDFExportOptions {
   endPage?: number;
 }
 
-const getQualitySettings = (quality: string) => {
-  switch (quality) {
-    case 'preview':
-      return { scale: 1, quality: 0.7 };
-    case 'medium':
-      return { scale: 2, quality: 0.85 };
-    case 'printing':
-      return { scale: 3, quality: 1.0 };
-    default:
-      return { scale: 2, quality: 0.85 };
-  }
+const PAGE_DIMENSIONS = {
+  A4: { width: 210, height: 297 },
+  A5: { width: 148, height: 210 },
+  A3: { width: 297, height: 420 },
+  Letter: { width: 216, height: 279 },
+  Square: { width: 210, height: 210 }
 };
 
 export const exportBookToPDF = async (
@@ -27,8 +22,6 @@ export const exportBookToPDF = async (
   options: PDFExportOptions,
   onProgress?: (progress: number) => void
 ): Promise<void> => {
-  const { scale, quality } = getQualitySettings(options.quality);
-  
   // Determine which pages to export
   let pagesToExport = book.pages;
   if (options.pageRange === 'range' && options.startPage && options.endPage) {
@@ -37,81 +30,110 @@ export const exportBookToPDF = async (
     pagesToExport = book.pages.slice(start, end);
   }
 
-  // Create PDF with standard dimensions
-  const orientation = book.orientation === 'landscape' ? 'landscape' : 'portrait';
+  // Get PDF dimensions
+  const dimensions = PAGE_DIMENSIONS[book.pageSize as keyof typeof PAGE_DIMENSIONS] || PAGE_DIMENSIONS.A4;
+  const pdfWidth = book.orientation === 'landscape' ? dimensions.height : dimensions.width;
+  const pdfHeight = book.orientation === 'landscape' ? dimensions.width : dimensions.height;
+  
   const pdf = new jsPDF({
-    orientation,
-    unit: 'pt',
-    format: book.pageSize.toLowerCase() === 'a4' ? 'a4' : 'letter'
+    orientation: book.orientation || 'portrait',
+    unit: 'mm',
+    format: [pdfWidth, pdfHeight],
+    compress: true
   });
 
-  let isFirstPage = true;
-
-  // Store current page to restore later
-  const currentPageIndex = document.querySelector('[data-page-id]')?.getAttribute('data-page-id');
-  
   for (let i = 0; i < pagesToExport.length; i++) {
-    const page = pagesToExport[i];
+    const bookPage = pagesToExport[i];
     
-    // Navigate to the page if it's not currently visible
-    const pageIndex = book.pages.findIndex(p => p.id === page.id);
+    // Navigate to the page
+    const pageIndex = book.pages.findIndex(p => p.id === bookPage.id);
     if (pageIndex !== -1) {
-      // Trigger page change event
       const event = new CustomEvent('changePage', { detail: pageIndex });
       window.dispatchEvent(event);
-      
-      // Wait for page to render
       await new Promise(resolve => setTimeout(resolve, 500));
     }
     
-    // Find the Konva stage canvas (the actual drawing area)
-    const konvaCanvas = document.querySelector('.konvajs-content canvas') as HTMLCanvasElement;
-    if (!konvaCanvas) {
-      console.warn(`Canvas not found for page ${page.pageNumber}`);
-      continue;
+    // Get the stage from window reference
+    const stage = (window as any).konvaStage;
+    if (!stage) {
+      console.error('Konva stage not found');
+      return;
     }
 
-    try {
-      // Create a new canvas with just the page content
-      const tempCanvas = document.createElement('canvas');
-      const ctx = tempCanvas.getContext('2d')!;
+    // Create a temporary stage for PDF export with exact page dimensions
+    const CANVAS_DIMS = {
+      A4: { width: 2480, height: 3508 },
+      A5: { width: 1748, height: 2480 },
+      A3: { width: 3508, height: 4961 },
+      Letter: { width: 2550, height: 3300 },
+      Square: { width: 2480, height: 2480 }
+    };
+    
+    const canvasDims = CANVAS_DIMS[book.pageSize as keyof typeof CANVAS_DIMS] || CANVAS_DIMS.A4;
+    const canvasWidth = book.orientation === 'landscape' ? canvasDims.height : canvasDims.width;
+    const canvasHeight = book.orientation === 'landscape' ? canvasDims.width : canvasDims.height;
+
+    // Create temporary container
+    const tempContainer = document.createElement('div');
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.top = '-9999px';
+    tempContainer.style.left = '-9999px';
+    document.body.appendChild(tempContainer);
+
+    // Create temporary stage with exact page dimensions
+    const tempStage = new Konva.Stage({
+      container: tempContainer,
+      width: canvasWidth,
+      height: canvasHeight
+    });
+
+    // Clone the main layer to the temporary stage
+    const mainLayer = stage.getLayers()[0];
+    if (mainLayer) {
+      const clonedLayer = mainLayer.clone();
       
-      // Set canvas size to match the page dimensions
-      tempCanvas.width = konvaCanvas.width;
-      tempCanvas.height = konvaCanvas.height;
-      
-      // Fill with white background
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-      
-      // Draw the Konva canvas content
-      ctx.drawImage(konvaCanvas, 0, 0);
-      
-      const imgData = tempCanvas.toDataURL('image/jpeg', quality);
-      
-      if (!isFirstPage) {
-        pdf.addPage();
+      // Remove the page border (CanvasPageEditArea) from export
+      const pageRect = clonedLayer.findOne('Rect');
+      if (pageRect && !pageRect.id()) {
+        pageRect.destroy();
       }
       
-      // Get PDF page dimensions
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
+      tempStage.add(clonedLayer);
       
-      // Fill PDF page exactly
-      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
-      
-      isFirstPage = false;
-      
-      // Update progress
-      if (onProgress) {
-        onProgress(((i + 1) / pagesToExport.length) * 100);
+      // Find the page content group and adjust positioning
+      const pageGroup = clonedLayer.findOne('Group');
+      if (pageGroup) {
+        pageGroup.x(0);
+        pageGroup.y(0);
       }
-    } catch (error) {
-      console.error(`Error capturing page ${page.pageNumber}:`, error);
+      
+      tempStage.draw();
+    }
+
+    // Export to data URL
+    const dataURL = tempStage.toDataURL({
+      mimeType: 'image/png',
+      quality: 1.0,
+      pixelRatio: options.quality === 'printing' ? 1.5 : options.quality === 'medium' ? 1 : 0.8
+    });
+
+    // Add page to PDF (add new page for subsequent pages)
+    if (i > 0) {
+      pdf.addPage([pdfWidth, pdfHeight], book.orientation || 'portrait');
+    }
+
+    // Add image to PDF
+    pdf.addImage(dataURL, 'PNG', 0, 0, pdfWidth, pdfHeight);
+
+    // Clean up temporary stage
+    tempStage.destroy();
+    document.body.removeChild(tempContainer);
+    
+    if (onProgress) {
+      onProgress(((i + 1) / pagesToExport.length) * 100);
     }
   }
-
-  // Save the PDF
-  const fileName = `${book.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`;
-  pdf.save(fileName);
+  
+  // Save PDF
+  pdf.save(`${book.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`);
 };

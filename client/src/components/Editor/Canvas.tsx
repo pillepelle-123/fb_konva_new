@@ -821,6 +821,13 @@ export default function Canvas() {
     };
   }, []);
 
+  // Expose stage reference for PDF export
+  useEffect(() => {
+    if (stageRef.current) {
+      (window as any).konvaStage = stageRef.current;
+    }
+  }, [stageRef.current]);
+
   const containerPadding = 40;
   const availableWidth = containerSize.width - containerPadding * 2;
   const availableHeight = containerSize.height - containerPadding * 2;
