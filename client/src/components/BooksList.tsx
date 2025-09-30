@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import QuestionsManager from './QuestionsManager';
+import { Button } from './ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Input } from './ui/input';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
+import { BookOpen, Plus, Users, Archive, Edit, Settings, FileText } from 'lucide-react';
 
 interface Book {
   id: number;
@@ -42,103 +47,193 @@ export default function BooksList() {
   };
 
   const handleArchive = async (bookId: number) => {
-    try {
-      const response = await fetch(`http://localhost:5000/api/books/${bookId}/archive`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (response.ok) {
-        fetchBooks();
+    if (window.confirm('Are you sure you want to archive this book?')) {
+      try {
+        const response = await fetch(`http://localhost:5000/api/books/${bookId}/archive`, {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (response.ok) {
+          fetchBooks();
+        }
+      } catch (error) {
+        console.error('Error archiving book:', error);
       }
-    } catch (error) {
-      console.error('Error archiving book:', error);
     }
   };
 
-  if (loading) return <div className="home"><p>Loading books...</p></div>;
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center space-y-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="text-muted-foreground">Loading books...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <h1 className="title">My Books</h1>
-        <button 
-          onClick={() => setShowAddForm(true)}
-          style={{ padding: '0.75rem 1.5rem', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-        >
-          📚 Add Book
-        </button>
-      </div>
-
-      {books.length === 0 ? (
-        <div className="card">
-          <p className="card-text">No books yet. Create your first book to get started!</p>
+    <div className="container mx-auto px-4 py-8">
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="space-y-1">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">My Books</h1>
+            <p className="text-muted-foreground">
+              Manage and organize your book projects
+            </p>
+          </div>
+          <Button onClick={() => setShowAddForm(true)} className="space-x-2">
+            <Plus className="h-4 w-4" />
+            <span>Add Book</span>
+          </Button>
         </div>
-      ) : (
-        <div className="card">
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
-                <th style={{ padding: '1rem', textAlign: 'left' }}>Name</th>
-                <th style={{ padding: '1rem', textAlign: 'left' }}>Size/Orientation</th>
-                <th style={{ padding: '1rem', textAlign: 'left' }}>Pages</th>
-                <th style={{ padding: '1rem', textAlign: 'left' }}>Collaborators</th>
-                <th style={{ padding: '1rem', textAlign: 'left' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {books.map(book => (
-                <tr key={book.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                  <td style={{ padding: '1rem' }}>{book.name}</td>
-                  <td style={{ padding: '1rem' }}>{book.pageSize} / {book.orientation}</td>
-                  <td style={{ padding: '1rem' }}>{book.pageCount}</td>
-                  <td style={{ padding: '1rem' }}>{book.collaboratorCount}</td>
-                  <td style={{ padding: '1rem' }}>
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      <Link to={`/editor/${book.id}`} style={{ textDecoration: 'none' }}>
-                        <button style={{ padding: '0.25rem 0.5rem', backgroundColor: '#059669', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '0.8rem' }}>
-                          Edit
-                        </button>
-                      </Link>
-                      <button 
-                        onClick={() => handleArchive(book.id)}
-                        style={{ padding: '0.25rem 0.5rem', backgroundColor: '#dc2626', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '0.8rem' }}
-                      >
-                        Archive
-                      </button>
-                      {book.isOwner && (
-                        <>
-                          <button 
-                            onClick={() => setShowCollaboratorModal(book.id)}
-                            style={{ padding: '0.25rem 0.5rem', backgroundColor: '#7c3aed', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '0.8rem' }}
-                          >
-                            Collaborators
-                          </button>
-                          <button 
-                            onClick={() => setShowQuestionsModal({ bookId: book.id, bookName: book.name })}
-                            style={{ padding: '0.25rem 0.5rem', backgroundColor: '#ea580c', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '0.8rem' }}
-                          >
-                            Questions
-                          </button>
-                        </>
-                      )}
+
+        {/* Books Grid */}
+        {books.length === 0 ? (
+          <Card className="border-0 shadow-sm">
+            <CardContent className="text-center py-12">
+              <BookOpen className="h-12 w-12 text-muted-foreground mx-auto opacity-50 mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-2">No books yet</h3>
+              <p className="text-muted-foreground mb-6">
+                Create your first book to get started with your projects.
+              </p>
+              <Button onClick={() => setShowAddForm(true)} className="space-x-2">
+                <Plus className="h-4 w-4" />
+                <span>Create Your First Book</span>
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {books.map(book => (
+              <Card key={book.id} className="border-0 shadow-sm hover:shadow-md transition-shadow">
+                <CardHeader className="pb-4">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-1">
+                      <CardTitle className="text-lg font-semibold line-clamp-2">
+                        {book.name}
+                      </CardTitle>
+                      <CardDescription className="flex items-center space-x-2 text-sm">
+                        <span>{book.pageSize}</span>
+                        <span>•</span>
+                        <span className="capitalize">{book.orientation}</span>
+                      </CardDescription>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                      <BookOpen className="h-4 w-4 text-primary" />
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <div className="flex items-center space-x-4">
+                      <div className="flex items-center space-x-1">
+                        <FileText className="h-3 w-3" />
+                        <span>{book.pageCount} pages</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <Users className="h-3 w-3" />
+                        <span>{book.collaboratorCount}</span>
+                      </div>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs ${
+                      book.isOwner 
+                        ? 'bg-blue-100 text-blue-800' 
+                        : 'bg-green-100 text-green-800'
+                    }`}>
+                      {book.isOwner ? 'Owner' : 'Collaborator'}
+                    </span>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-2">
+                    <Link to={`/editor/${book.id}`} className="flex-1">
+                      <Button variant="default" size="sm" className="w-full space-x-2">
+                        <Edit className="h-3 w-3" />
+                        <span>Edit</span>
+                      </Button>
+                    </Link>
+                    {book.isOwner && (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setShowQuestionsModal({ bookId: book.id, bookName: book.name })}
+                        className="space-x-2"
+                      >
+                        <Settings className="h-3 w-3" />
+                        <span>Questions</span>
+                      </Button>
+                    )}
+                  </div>
+                  
+                  <div className="flex justify-between items-center pt-2 border-t">
+                    {book.isOwner && (
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => setShowCollaboratorModal(book.id)}
+                        className="space-x-2 text-muted-foreground hover:text-foreground"
+                      >
+                        <Users className="h-3 w-3" />
+                        <span>Collaborators</span>
+                      </Button>
+                    )}
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => handleArchive(book.id)}
+                      className="space-x-2 text-destructive hover:text-destructive"
+                    >
+                      <Archive className="h-3 w-3" />
+                      <span>Archive</span>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
 
-      {showAddForm && <AddBookForm onClose={() => setShowAddForm(false)} onSuccess={fetchBooks} />}
-      {showCollaboratorModal && <CollaboratorModal bookId={showCollaboratorModal} onClose={() => setShowCollaboratorModal(null)} />}
-      {showQuestionsModal && (
-        <QuestionsManager 
-          bookId={showQuestionsModal.bookId} 
-          bookName={showQuestionsModal.bookName}
-          onClose={() => setShowQuestionsModal(null)} 
-        />
-      )}
+        {/* Add Book Dialog */}
+        <Dialog open={showAddForm} onOpenChange={setShowAddForm}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Create New Book</DialogTitle>
+              <DialogDescription>
+                Set up your new book project with the preferred format.
+              </DialogDescription>
+            </DialogHeader>
+            <AddBookForm onClose={() => setShowAddForm(false)} onSuccess={fetchBooks} />
+          </DialogContent>
+        </Dialog>
+
+        {/* Collaborator Dialog */}
+        <Dialog open={!!showCollaboratorModal} onOpenChange={() => setShowCollaboratorModal(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Manage Collaborators</DialogTitle>
+              <DialogDescription>
+                Add collaborators to work on this book with you.
+              </DialogDescription>
+            </DialogHeader>
+            {showCollaboratorModal && (
+              <CollaboratorModal bookId={showCollaboratorModal} onClose={() => setShowCollaboratorModal(null)} />
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Questions Manager Dialog */}
+        {showQuestionsModal && (
+          <QuestionsManager 
+            bookId={showQuestionsModal.bookId} 
+            bookName={showQuestionsModal.bookName}
+            onClose={() => setShowQuestionsModal(null)} 
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -170,70 +265,70 @@ function AddBookForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
   };
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      <div className="card" style={{ maxWidth: '400px', width: '90%' }}>
-        <h2 className="card-title">Add New Book</h2>
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem' }}>Book Name:</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              style={{ width: '100%', padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px' }}
-            />
-          </div>
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem' }}>Page Size:</label>
-            <select
-              value={pageSize}
-              onChange={(e) => setPageSize(e.target.value)}
-              style={{ width: '100%', padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px' }}
-            >
-              <option value="A4">A4</option>
-              <option value="A5">A5</option>
-              <option value="A3">A3</option>
-              <option value="Letter">Letter</option>
-              <option value="Square">Square</option>
-            </select>
-          </div>
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem' }}>Orientation:</label>
-            <div>
-              <label style={{ marginRight: '1rem' }}>
-                <input
-                  type="radio"
-                  value="portrait"
-                  checked={orientation === 'portrait'}
-                  onChange={(e) => setOrientation(e.target.value)}
-                  style={{ marginRight: '0.25rem' }}
-                />
-                Portrait
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  value="landscape"
-                  checked={orientation === 'landscape'}
-                  onChange={(e) => setOrientation(e.target.value)}
-                  style={{ marginRight: '0.25rem' }}
-                />
-                Landscape
-              </label>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
-            <button type="button" onClick={onClose} style={{ padding: '0.5rem 1rem', backgroundColor: '#6b7280', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-              Cancel
-            </button>
-            <button type="submit" style={{ padding: '0.5rem 1rem', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-              Create Book
-            </button>
-          </div>
-        </form>
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <label htmlFor="name" className="text-sm font-medium">Book Name</label>
+        <Input
+          id="name"
+          type="text"
+          placeholder="Enter book name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
       </div>
-    </div>
+      
+      <div className="space-y-2">
+        <label htmlFor="pageSize" className="text-sm font-medium">Page Size</label>
+        <select
+          id="pageSize"
+          value={pageSize}
+          onChange={(e) => setPageSize(e.target.value)}
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+          <option value="A4">A4</option>
+          <option value="A5">A5</option>
+          <option value="A3">A3</option>
+          <option value="Letter">Letter</option>
+          <option value="Square">Square</option>
+        </select>
+      </div>
+      
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Orientation</label>
+        <div className="flex space-x-4">
+          <label className="flex items-center space-x-2">
+            <input
+              type="radio"
+              value="portrait"
+              checked={orientation === 'portrait'}
+              onChange={(e) => setOrientation(e.target.value)}
+              className="text-primary focus:ring-primary"
+            />
+            <span>Portrait</span>
+          </label>
+          <label className="flex items-center space-x-2">
+            <input
+              type="radio"
+              value="landscape"
+              checked={orientation === 'landscape'}
+              onChange={(e) => setOrientation(e.target.value)}
+              className="text-primary focus:ring-primary"
+            />
+            <span>Landscape</span>
+          </label>
+        </div>
+      </div>
+      
+      <div className="flex justify-end space-x-2 pt-4">
+        <Button type="button" variant="outline" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit">
+          Create Book
+        </Button>
+      </div>
+    </form>
   );
 }
 
@@ -265,31 +360,26 @@ function CollaboratorModal({ bookId, onClose }: { bookId: number; onClose: () =>
   };
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      <div className="card" style={{ maxWidth: '400px', width: '90%' }}>
-        <h2 className="card-title">Manage Collaborators</h2>
-        <form onSubmit={handleAddCollaborator}>
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem' }}>Add Collaborator by Email:</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="user@example.com"
-              required
-              style={{ width: '100%', padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px' }}
-            />
-          </div>
-          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
-            <button type="button" onClick={onClose} style={{ padding: '0.5rem 1rem', backgroundColor: '#6b7280', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-              Close
-            </button>
-            <button type="submit" style={{ padding: '0.5rem 1rem', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-              Add Collaborator
-            </button>
-          </div>
-        </form>
+    <form onSubmit={handleAddCollaborator} className="space-y-4">
+      <div className="space-y-2">
+        <label htmlFor="email" className="text-sm font-medium">Add Collaborator by Email</label>
+        <Input
+          id="email"
+          type="email"
+          placeholder="user@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
       </div>
-    </div>
+      <div className="flex justify-end space-x-2 pt-4">
+        <Button type="button" variant="outline" onClick={onClose}>
+          Close
+        </Button>
+        <Button type="submit">
+          Add Collaborator
+        </Button>
+      </div>
+    </form>
   );
 }

@@ -1,79 +1,87 @@
 import { useState } from 'react';
 import { useEditor } from '../../context/EditorContext';
+import { Button } from '../ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { 
+  MousePointer, 
+  Hand, 
+  Type, 
+  HelpCircle, 
+  MessageSquare, 
+  Image, 
+  Minus, 
+  Circle, 
+  Square, 
+  Paintbrush,
+  ChevronLeft,
+  ChevronRight
+} from 'lucide-react';
 
 export default function Toolbar() {
   const { state, dispatch } = useEditor();
   const [isExpanded, setIsExpanded] = useState(true);
 
   const tools = [
-    { id: 'select', label: 'Select', icon: '🔍' },
-    { id: 'pan', label: 'Pan', icon: '✋' },
-    { id: 'text', label: 'Text', icon: '📝' },
-    { id: 'question', label: 'Question', icon: '❓' },
-    { id: 'answer', label: 'Answer', icon: '💬' },
-    { id: 'photo', label: 'Photo', icon: '🖼️' },
-    { id: 'line', label: 'Line', icon: '📏' },
-    { id: 'circle', label: 'Circle', icon: '⭕' },
-    { id: 'rect', label: 'Rectangle', icon: '⬜' },
-    { id: 'brush', label: 'Brush', icon: '🖌️' },
+    { id: 'select', label: 'Select', icon: MousePointer },
+    { id: 'pan', label: 'Pan', icon: Hand },
+    { id: 'text', label: 'Text', icon: Type },
+    { id: 'question', label: 'Question', icon: HelpCircle },
+    { id: 'answer', label: 'Answer', icon: MessageSquare },
+    { id: 'photo', label: 'Photo', icon: Image },
+    { id: 'line', label: 'Line', icon: Minus },
+    { id: 'circle', label: 'Circle', icon: Circle },
+    { id: 'rect', label: 'Rectangle', icon: Square },
+    { id: 'brush', label: 'Brush', icon: Paintbrush },
   ];
 
   return (
-    <div style={{
-      width: isExpanded ? '200px' : '60px',
-      backgroundColor: 'white',
-      borderRight: '1px solid #e5e7eb',
-      display: 'flex',
-      flexDirection: 'column',
-      transition: 'width 0.2s ease'
-    }}>
-      {/* Toggle button */}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        style={{
-          padding: '0.75rem',
-          border: 'none',
-          backgroundColor: '#f3f4f6',
-          borderBottom: '1px solid #e5e7eb',
-          cursor: 'pointer',
-          fontSize: '1rem',
-          display: 'flex',
-          justifyContent: isExpanded ? 'space-between' : 'center',
-          alignItems: 'center'
-        }}
-      >
-        {isExpanded && <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>Tools</span>}
-        <span>{isExpanded ? '◀' : '▶'}</span>
-      </button>
-      
-      {/* Tool buttons */}
-      <div style={{ padding: '0.5rem' }}>
-        {tools.map(tool => (
-          <button
-            key={tool.id}
-            onClick={() => dispatch({ type: 'SET_ACTIVE_TOOL', payload: tool.id as any })}
-            style={{
-              width: '100%',
-              padding: '0.75rem',
-              margin: '0.25rem 0',
-              border: '1px solid #d1d5db',
-              borderRadius: '4px',
-              backgroundColor: state.activeTool === tool.id ? '#2563eb' : 'white',
-              color: state.activeTool === tool.id ? 'white' : '#374151',
-              cursor: 'pointer',
-              fontSize: '0.9rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              justifyContent: isExpanded ? 'flex-start' : 'center'
-            }}
-            title={!isExpanded ? tool.label : undefined}
+    <Card className={`h-full rounded-none border-r-0 border-t-0 border-b-0 shadow-sm transition-all duration-200 ${
+      isExpanded ? 'w-48' : 'w-16'
+    }`}>
+      {/* Header */}
+      <CardHeader className="p-3 border-b">
+        <div className="flex items-center justify-between">
+          {isExpanded && (
+            <CardTitle className="text-sm font-medium">Tools</CardTitle>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="h-8 w-8 p-0"
           >
-            <span>{tool.icon}</span>
-            {isExpanded && <span>{tool.label}</span>}
-          </button>
-        ))}
-      </div>
-    </div>
+            {isExpanded ? (
+              <ChevronLeft className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
+      </CardHeader>
+
+      {/* Tool buttons */}
+      <CardContent className="p-2 space-y-1">
+        {tools.map(tool => {
+          const Icon = tool.icon;
+          return (
+            <Button
+              key={tool.id}
+              variant={state.activeTool === tool.id ? "default" : "ghost"}
+              size="sm"
+              onClick={() => dispatch({ type: 'SET_ACTIVE_TOOL', payload: tool.id as any })}
+              className={`w-full justify-start space-x-2 ${
+                isExpanded ? 'px-3' : 'px-2'
+              }`}
+              title={!isExpanded ? tool.label : undefined}
+            >
+              <Icon className="h-4 w-4 flex-shrink-0" />
+              {isExpanded && (
+                <span className="text-sm">{tool.label}</span>
+              )}
+            </Button>
+          );
+        })}
+      </CardContent>
+    </Card>
   );
 }

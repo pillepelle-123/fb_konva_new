@@ -1,5 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { Button } from './ui/button';
+import { Card, CardContent, CardDescription } from './ui/card';
+import { Input } from './ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { HelpCircle, Plus, Edit, Trash2, Save, Calendar } from 'lucide-react';
 
 interface Question {
   id: number;
@@ -111,97 +116,146 @@ export default function QuestionsManager({ bookId, bookName, onClose }: Question
     setEditText('');
   };
 
-  if (loading) return <div className="home"><p>Loading questions...</p></div>;
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  if (loading) {
+    return (
+      <Dialog open={true} onOpenChange={onClose}>
+        <DialogContent className="sm:max-w-2xl">
+          <div className="flex items-center justify-center h-32">
+            <div className="text-center space-y-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+              <p className="text-muted-foreground">Loading questions...</p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      <div className="card" style={{ maxWidth: '600px', width: '90%', maxHeight: '80vh', overflow: 'auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h2 className="card-title">Manage Questions - {bookName}</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
+    <Dialog open={true} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center space-x-2">
+            <HelpCircle className="h-5 w-5" />
+            <span>Manage Questions - {bookName}</span>
+          </DialogTitle>
+          <CardDescription>
+            Add, edit, and organize questions for this book
+          </CardDescription>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-hidden flex flex-col space-y-4">
+          {/* Add New Question */}
+          <Card className="border-0 shadow-sm">
+            <CardContent className="p-4">
+              <form onSubmit={handleAddQuestion} className="space-y-3">
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    value={newQuestion}
+                    onChange={(e) => setNewQuestion(e.target.value)}
+                    placeholder="Enter new question..."
+                    className="flex-1"
+                  />
+                  <Button type="submit" className="space-x-2">
+                    <Plus className="h-4 w-4" />
+                    <span>Add</span>
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Questions List */}
+          <Card className="border-0 shadow-sm flex-1 overflow-hidden">
+            <CardContent className="p-0">
+              {questions.length === 0 ? (
+                <div className="text-center py-12">
+                  <HelpCircle className="h-12 w-12 text-muted-foreground mx-auto opacity-50 mb-4" />
+                  <h3 className="text-lg font-medium text-foreground mb-2">No questions yet</h3>
+                  <p className="text-muted-foreground">
+                    Add your first question above to get started.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y max-h-96 overflow-y-auto">
+                  {questions.map(question => (
+                    <div key={question.id} className="p-4 hover:bg-muted/50 transition-colors">
+                      {editingId === question.id ? (
+                        <div className="space-y-3">
+                          <Input
+                            type="text"
+                            value={editText}
+                            onChange={(e) => setEditText(e.target.value)}
+                            className="w-full"
+                          />
+                          <div className="flex gap-2 justify-end">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={cancelEdit}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => handleEditQuestion(question.id)}
+                              className="space-x-2"
+                            >
+                              <Save className="h-4 w-4" />
+                              <span>Save</span>
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-start justify-between">
+                          <div className="space-y-1 flex-1">
+                            <p className="text-foreground leading-relaxed">
+                              {question.question_text}
+                            </p>
+                            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                              <Calendar className="h-3 w-3" />
+                              <span>Created {formatDate(question.created_at)}</span>
+                            </div>
+                          </div>
+                          <div className="flex gap-2 ml-4">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => startEdit(question)}
+                              className="space-x-2"
+                            >
+                              <Edit className="h-4 w-4" />
+                              <span>Edit</span>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteQuestion(question.id)}
+                              className="space-x-2 text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span>Delete</span>
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
-
-        {/* Add New Question */}
-        <form onSubmit={handleAddQuestion} style={{ marginBottom: '2rem' }}>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <input
-              type="text"
-              value={newQuestion}
-              onChange={(e) => setNewQuestion(e.target.value)}
-              placeholder="Enter new question..."
-              style={{ flex: 1, padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px' }}
-            />
-            <button type="submit" style={{ padding: '0.5rem 1rem', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-              Add
-            </button>
-          </div>
-        </form>
-
-        {/* Questions List */}
-        {questions.length === 0 ? (
-          <p className="card-text">No questions yet. Add your first question above.</p>
-        ) : (
-          <div>
-            {questions.map(question => (
-              <div key={question.id} style={{ 
-                padding: '1rem', 
-                border: '1px solid #e5e7eb', 
-                borderRadius: '4px', 
-                marginBottom: '0.5rem',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}>
-                {editingId === question.id ? (
-                  <div style={{ flex: 1, display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <input
-                      type="text"
-                      value={editText}
-                      onChange={(e) => setEditText(e.target.value)}
-                      style={{ flex: 1, padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px' }}
-                    />
-                    <button 
-                      onClick={() => handleEditQuestion(question.id)}
-                      style={{ padding: '0.25rem 0.5rem', backgroundColor: '#059669', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '0.8rem' }}
-                    >
-                      Save
-                    </button>
-                    <button 
-                      onClick={cancelEdit}
-                      style={{ padding: '0.25rem 0.5rem', backgroundColor: '#6b7280', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '0.8rem' }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <div style={{ flex: 1 }}>
-                      <p style={{ margin: '0', fontSize: '1rem' }}>{question.question_text}</p>
-                      <p style={{ margin: '0.25rem 0 0 0', color: '#6b7280', fontSize: '0.8rem' }}>
-                        Created: {new Date(question.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button 
-                        onClick={() => startEdit(question)}
-                        style={{ padding: '0.25rem 0.5rem', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '0.8rem' }}
-                      >
-                        ✏️ Edit
-                      </button>
-                      <button 
-                        onClick={() => handleDeleteQuestion(question.id)}
-                        style={{ padding: '0.25rem 0.5rem', backgroundColor: '#dc2626', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '0.8rem' }}
-                      >
-                        🗑️ Delete
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

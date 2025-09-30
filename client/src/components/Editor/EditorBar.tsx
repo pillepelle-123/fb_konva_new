@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useEditor } from '../../context/EditorContext';
 import PDFExportModal from './PDFExportModal';
+import { Button } from '../ui/button';
+import { Card, CardContent } from '../ui/card';
+import { ChevronLeft, ChevronRight, Plus, Copy, Trash2, Save, Download, X, BookOpen } from 'lucide-react';
 
 export default function EditorBar() {
   const { state, dispatch, saveBook } = useEditor();
@@ -51,162 +54,125 @@ export default function EditorBar() {
 
   return (
     <>
-    <div style={{ 
-      padding: '1rem 2rem', 
-      backgroundColor: 'white', 
-      borderBottom: '1px solid #e5e7eb',
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center'
-    }}>
-      {/* Page Section */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.5rem'
-      }}>
-        <button
-          onClick={handlePrevPage}
-          disabled={state.activePageIndex === 0}
-          style={{
-            padding: '0.25rem 0.5rem',
-            backgroundColor: state.activePageIndex === 0 ? '#e5e7eb' : '#3b82f6',
-            color: state.activePageIndex === 0 ? '#9ca3af' : 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: state.activePageIndex === 0 ? 'not-allowed' : 'pointer',
-            fontSize: '0.8rem'
-          }}
-        >
-          ← Prev
-        </button>
+      <Card className="rounded-none border-x-0 border-t-0 shadow-sm">
+        <CardContent className="p-4">
+          <div className="flex flex-col lg:flex-row justify-between items-center gap-4">
+            {/* Page Controls */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePrevPage}
+                  disabled={state.activePageIndex === 0}
+                  className="h-9 w-9 p-0"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
 
-        <span style={{ fontSize: '0.9rem', color: '#374151', minWidth: '80px', textAlign: 'center' }}>
-          Page {currentPage} of {pages.length}
-        </span>
+                <div className="flex items-center gap-2 bg-muted rounded-lg px-3 py-1.5">
+                  <BookOpen className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium text-foreground min-w-[100px] text-center">
+                    Page {currentPage} of {pages.length}
+                  </span>
+                </div>
 
-        <button
-          onClick={handleNextPage}
-          disabled={state.activePageIndex === pages.length - 1}
-          style={{
-            padding: '0.25rem 0.5rem',
-            backgroundColor: state.activePageIndex === pages.length - 1 ? '#e5e7eb' : '#3b82f6',
-            color: state.activePageIndex === pages.length - 1 ? '#9ca3af' : 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: state.activePageIndex === pages.length - 1 ? 'not-allowed' : 'pointer',
-            fontSize: '0.8rem'
-          }}
-        >
-          Next →
-        </button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleNextPage}
+                  disabled={state.activePageIndex === pages.length - 1}
+                  className="h-9 w-9 p-0"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
 
-        <div style={{ width: '1px', height: '20px', backgroundColor: '#d1d5db', margin: '0 0.5rem' }} />
+              <div className="h-6 w-px bg-border" />
 
-        <button
-          onClick={handleAddPage}
-          style={{
-            padding: '0.25rem 0.5rem',
-            backgroundColor: '#059669',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '0.8rem'
-          }}
-        >
-          + Add Page
-        </button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddPage}
+                  className="space-x-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Add Page</span>
+                </Button>
 
-        <button
-          onClick={handleDuplicatePage}
-          style={{
-            padding: '0.25rem 0.5rem',
-            backgroundColor: '#7c3aed',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '0.8rem'
-          }}
-        >
-          Duplicate
-        </button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDuplicatePage}
+                  className="space-x-2"
+                >
+                  <Copy className="h-4 w-4" />
+                  <span>Duplicate</span>
+                </Button>
 
-        <button
-          onClick={handleDeletePage}
-          disabled={pages.length <= 1}
-          style={{
-            padding: '0.25rem 0.5rem',
-            backgroundColor: pages.length <= 1 ? '#e5e7eb' : '#dc2626',
-            color: pages.length <= 1 ? '#9ca3af' : 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: pages.length <= 1 ? 'not-allowed' : 'pointer',
-            fontSize: '0.8rem'
-          }}
-        >
-          Delete Page
-        </button>
-      </div>
-      {/* Book Section */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#1f2937' }}>
-            {state.currentBook.name}
-          </h1>
-       
-        </div>
-        
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button 
-            onClick={handleSave}
-            disabled={isSaving}
-            style={{ 
-              padding: '0.5rem 1rem', 
-              backgroundColor: isSaving ? '#9ca3af' : '#059669', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '4px', 
-              cursor: isSaving ? 'not-allowed' : 'pointer' 
-            }}
-          >
-            {isSaving ? 'Saving...' : 'Save Book'}
-          </button>
-          <button 
-            onClick={() => setShowPDFModal(true)}
-            style={{ 
-              padding: '0.5rem 1rem', 
-              backgroundColor: '#dc2626', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '4px', 
-              cursor: 'pointer' 
-            }}
-          >
-            Print Book (PDF)
-          </button>
-          <button 
-            onClick={() => window.history.back()}
-            style={{ 
-              padding: '0.5rem 1rem', 
-              backgroundColor: '#6b7280', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '4px', 
-              cursor: 'pointer' 
-            }}
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
-    
-    <PDFExportModal 
-      isOpen={showPDFModal} 
-      onClose={() => setShowPDFModal(false)} 
-    />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDeletePage}
+                  disabled={pages.length <= 1}
+                  className="space-x-2 text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span>Delete</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Book Info and Actions */}
+            <div className="flex items-center gap-4">
+              <div className="text-center lg:text-right">
+                <h1 className="text-lg font-semibold text-foreground line-clamp-1">
+                  {state.currentBook.name}
+                </h1>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="space-x-2"
+                >
+                  <Save className="h-4 w-4" />
+                  <span>{isSaving ? 'Saving...' : 'Save'}</span>
+                </Button>
+
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => setShowPDFModal(true)}
+                  className="space-x-2"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>Export PDF</span>
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => window.history.back()}
+                  className="space-x-2"
+                >
+                  <X className="h-4 w-4" />
+                  <span>Close</span>
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      
+      <PDFExportModal 
+        isOpen={showPDFModal} 
+        onClose={() => setShowPDFModal(false)} 
+      />
     </>
   );
 }

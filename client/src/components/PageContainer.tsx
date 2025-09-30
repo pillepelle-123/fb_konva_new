@@ -4,7 +4,7 @@ interface PageContainerProps {
 
 export default function PageContainer({ children }: PageContainerProps) {
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div className="min-h-screen h-screen flex flex-col">
       {children}
     </div>
   );

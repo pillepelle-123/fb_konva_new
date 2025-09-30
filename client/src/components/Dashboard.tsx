@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { Button } from './ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { BookOpen, Users, FileText, Plus, ArrowRight, Calendar } from 'lucide-react';
 
 interface DashboardData {
   stats: {
@@ -43,91 +46,203 @@ export default function Dashboard() {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString();
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
   };
 
   if (loading) {
-    return <div className="home"><p>Loading dashboard...</p></div>;
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center space-y-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="text-muted-foreground">Loading dashboard...</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
-      <h1 className="title">Welcome back, {user?.name}!</h1>
-      
-      {/* Statistics Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-        <div className="card">
-          <h3 style={{ margin: '0 0 0.5rem 0', color: '#2563eb' }}>{dashboardData?.stats.myBooks || 0}</h3>
-          <p className="card-text">My Books</p>
+    <div className="container mx-auto px-4 py-8">
+      <div className="space-y-8">
+        {/* Header */}
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
+            Welcome back, {user?.name}!
+          </h1>
+          <p className="text-muted-foreground">
+            Here's what's happening with your books today.
+          </p>
         </div>
-        <div className="card">
-          <h3 style={{ margin: '0 0 0.5rem 0', color: '#059669' }}>{dashboardData?.stats.contributedBooks || 0}</h3>
-          <p className="card-text">Books I Contribute To</p>
-        </div>
-        <div className="card">
-          <h3 style={{ margin: '0 0 0.5rem 0', color: '#dc2626' }}>{dashboardData?.stats.totalCollaborators || 0}</h3>
-          <p className="card-text">Total Collaborators</p>
-        </div>
-      </div>
 
-      {/* Quick Actions */}
-      <div className="card" style={{ marginBottom: '2rem' }}>
-        <h2 className="card-title">Quick Actions</h2>
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '1rem' }}>
-          <Link to="/books" style={{ textDecoration: 'none' }}>
-            <button style={{ padding: '0.75rem 1.5rem', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-              📚 Create New Book
-            </button>
-          </Link>
-          <Link to="/books" style={{ textDecoration: 'none' }}>
-            <button style={{ padding: '0.75rem 1.5rem', backgroundColor: '#059669', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-              📖 View All Books
-            </button>
-          </Link>
-          <button style={{ padding: '0.75rem 1.5rem', backgroundColor: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-            ❓ Manage Questions
-          </button>
-        </div>
-      </div>
-
-      {/* Recent Books */}
-      <div className="card">
-        <h2 className="card-title">Recent Books</h2>
-        {dashboardData?.recentBooks.length === 0 ? (
-          <p className="card-text">No books yet. Create your first book to get started!</p>
-        ) : (
-          <div style={{ marginTop: '1rem' }}>
-            {dashboardData?.recentBooks.map(book => (
-              <div key={book.id} style={{ 
-                padding: '1rem', 
-                border: '1px solid #e5e7eb', 
-                borderRadius: '4px', 
-                marginBottom: '0.5rem',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}>
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card className="border-0 shadow-sm">
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-50">
+                  <BookOpen className="h-6 w-6 text-blue-600" />
+                </div>
                 <div>
-                  <h3 style={{ margin: '0 0 0.25rem 0', fontSize: '1.1rem' }}>{book.name}</h3>
-                  <p style={{ margin: '0', color: '#6b7280', fontSize: '0.9rem' }}>
-                    Last modified: {formatDate(book.lastModified)} • 
-                    {book.collaboratorCount} collaborator{book.collaboratorCount !== 1 ? 's' : ''} • 
-                    {book.isOwner ? 'Owner' : 'Collaborator'}
+                  <p className="text-sm font-medium text-muted-foreground">My Books</p>
+                  <p className="text-2xl font-bold text-foreground">
+                    {dashboardData?.stats.myBooks || 0}
                   </p>
                 </div>
-                <button style={{ 
-                  padding: '0.5rem 1rem', 
-                  backgroundColor: '#f3f4f6', 
-                  border: '1px solid #d1d5db', 
-                  borderRadius: '4px', 
-                  cursor: 'pointer' 
-                }}>
-                  Open
-                </button>
               </div>
-            ))}
-          </div>
-        )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm">
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-green-50">
+                  <FileText className="h-6 w-6 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Books I Contribute To</p>
+                  <p className="text-2xl font-bold text-foreground">
+                    {dashboardData?.stats.contributedBooks || 0}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm">
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-purple-50">
+                  <Users className="h-6 w-6 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Total Collaborators</p>
+                  <p className="text-2xl font-bold text-foreground">
+                    {dashboardData?.stats.totalCollaborators || 0}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Quick Actions */}
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <CardTitle>Quick Actions</CardTitle>
+            <CardDescription>
+              Quickly access the most common tasks
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-4">
+              <Link to="/books" className="flex-1 min-w-[200px]">
+                <Button className="w-full h-auto py-4 px-6 justify-start space-x-3" variant="outline">
+                  <Plus className="h-5 w-5" />
+                  <div className="text-left">
+                    <div className="font-medium">Create New Book</div>
+                    <div className="text-sm text-muted-foreground">Start a new project</div>
+                  </div>
+                </Button>
+              </Link>
+              <Link to="/books" className="flex-1 min-w-[200px]">
+                <Button className="w-full h-auto py-4 px-6 justify-start space-x-3" variant="outline">
+                  <BookOpen className="h-5 w-5" />
+                  <div className="text-left">
+                    <div className="font-medium">View All Books</div>
+                    <div className="text-sm text-muted-foreground">Browse your library</div>
+                  </div>
+                </Button>
+              </Link>
+              <Button className="flex-1 min-w-[200px] h-auto py-4 px-6 justify-start space-x-3" variant="outline">
+                <FileText className="h-5 w-5" />
+                <div className="text-left">
+                  <div className="font-medium">Manage Questions</div>
+                  <div className="text-sm text-muted-foreground">Organize content</div>
+                </div>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Recent Books */}
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Recent Books</CardTitle>
+              <CardDescription>
+                Your most recently accessed books
+              </CardDescription>
+            </div>
+            <Link to="/books">
+              <Button variant="ghost" size="sm" className="space-x-2">
+                <span>View All</span>
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </CardHeader>
+          <CardContent>
+            {dashboardData?.recentBooks.length === 0 ? (
+              <div className="text-center py-8 space-y-4">
+                <BookOpen className="h-12 w-12 text-muted-foreground mx-auto opacity-50" />
+                <div>
+                  <p className="text-muted-foreground font-medium">No books yet</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Create your first book to get started!
+                  </p>
+                </div>
+                <Link to="/books">
+                  <Button className="space-x-2">
+                    <Plus className="h-4 w-4" />
+                    <span>Create Book</span>
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {dashboardData?.recentBooks.map(book => (
+                  <div
+                    key={book.id}
+                    className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-center space-x-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                        <BookOpen className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-foreground">{book.name}</h3>
+                        <div className="flex items-center space-x-4 text-sm text-muted-foreground mt-1">
+                          <div className="flex items-center space-x-1">
+                            <Calendar className="h-3 w-3" />
+                            <span>Modified {formatDate(book.lastModified)}</span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <Users className="h-3 w-3" />
+                            <span>{book.collaboratorCount} collaborator{book.collaboratorCount !== 1 ? 's' : ''}</span>
+                          </div>
+                          <span className={`px-2 py-1 rounded-full text-xs ${
+                            book.isOwner 
+                              ? 'bg-blue-100 text-blue-800' 
+                              : 'bg-green-100 text-green-800'
+                          }`}>
+                            {book.isOwner ? 'Owner' : 'Collaborator'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <Button variant="outline" size="sm">
+                      Open
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

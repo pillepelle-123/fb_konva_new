@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { EditorProvider } from './context/EditorContext'
 import PageContainer from './components/PageContainer'
@@ -39,7 +39,7 @@ function AppContent() {
   return (
     <PageContainer>
       <Navigation />
-      <main style={{ flex: 1, overflow: isEditorRoute ? 'hidden' : 'auto', height: 0, width: '100%', margin: 0, padding: 0, boxSizing: 'border-box', maxWidth: 'none' }} className={isEditorRoute ? '' : 'main'}>
+      <main className={`flex-1 ${isEditorRoute ? 'overflow-hidden' : 'overflow-auto'} w-full`}>
         <Routes>
           <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Home serverMessage={serverMessage} />} />
           <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <Login />} />
@@ -57,12 +57,21 @@ function AppContent() {
 
 function Home({ serverMessage }: { serverMessage: string }) {
   return (
-    <div className="home">
-      <h1 className="title">Welcome to FB Konva App</h1>
-      <div className="card">
-        <h2 className="card-title">Server Status:</h2>
-        <p className="card-text">{serverMessage || 'Connecting to server...'}</p>
-        <p style={{ marginTop: '1rem' }}>Please login or register to continue.</p>
+    <div className="container mx-auto px-4 py-8">
+      <div className="max-w-2xl mx-auto text-center space-y-6">
+        <h1 className="text-4xl font-bold tracking-tight text-foreground">
+          Welcome to FB Konva
+        </h1>
+        <p className="text-xl text-muted-foreground">
+          Create and collaborate on beautiful books and documents
+        </p>
+        <div className="bg-card border rounded-lg p-6 shadow-sm">
+          <h2 className="text-lg font-semibold mb-2">Server Status</h2>
+          <p className="text-muted-foreground">{serverMessage || 'Connecting to server...'}</p>
+          <p className="mt-4 text-sm text-muted-foreground">
+            Please login or register to continue.
+          </p>
+        </div>
       </div>
     </div>
   )
@@ -79,11 +88,17 @@ function EditorWithBar() {
 
 function AdminPanel() {
   return (
-    <div className="home">
-      <h1 className="title">Admin Panel</h1>
-      <div className="card">
-        <h2 className="card-title">Admin Features</h2>
-        <p className="card-text">Manage books, questions, and invite editors.</p>
+    <div className="container mx-auto px-4 py-8">
+      <div className="max-w-2xl mx-auto text-center space-y-6">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">
+          Admin Panel
+        </h1>
+        <div className="bg-card border rounded-lg p-6 shadow-sm">
+          <h2 className="text-lg font-semibold mb-2">Admin Features</h2>
+          <p className="text-muted-foreground">
+            Manage books, questions, and invite editors.
+          </p>
+        </div>
       </div>
     </div>
   )

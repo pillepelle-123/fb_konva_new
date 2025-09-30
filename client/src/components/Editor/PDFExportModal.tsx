@@ -15,10 +15,13 @@ export default function PDFExportModal({ isOpen, onClose }: PDFExportModalProps)
   const [endPage, setEndPage] = useState(state.currentBook?.pages.length || 1);
   const [isExporting, setIsExporting] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [exportController, setExportController] = useState<AbortController | null>(null);
 
   if (!isOpen || !state.currentBook) return null;
 
   const handleExport = async () => {
+    const controller = new AbortController();
+    setExportController(controller);
     setIsExporting(true);
     setProgress(0);
 
@@ -30,14 +33,26 @@ export default function PDFExportModal({ isOpen, onClose }: PDFExportModalProps)
     };
 
     try {
-      await exportBookToPDF(state.currentBook, options, setProgress);
+      // Fix TypeScript error by ensuring state.currentBook is not null
+      await exportBookToPDF(state.currentBook, options, setProgress, controller.signal);
       onClose();
     } catch (error) {
-      console.error('PDF export failed:', error);
+      // Fix TypeScript error by checking error type properly
+      if (error instanceof Error && error.name !== 'AbortError') {
+        console.error('PDF export failed:', error);
+      }
     } finally {
       setIsExporting(false);
       setProgress(0);
+      setExportController(null);
     }
+  };
+
+  const handleCancel = () => {
+    if (exportController) {
+      exportController.abort();
+    }
+    onClose();
   };
 
   return (
@@ -167,15 +182,13 @@ export default function PDFExportModal({ isOpen, onClose }: PDFExportModalProps)
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
           <button
-            onClick={onClose}
-            disabled={isExporting}
+            onClick={isExporting ? handleCancel : onClose}
             style={{
               padding: '8px 16px',
               border: '1px solid #d1d5db',
               borderRadius: '4px',
               backgroundColor: 'white',
-              cursor: isExporting ? 'not-allowed' : 'pointer',
-              opacity: isExporting ? 0.5 : 1
+              cursor: 'pointer'
             }}
           >
             Cancel

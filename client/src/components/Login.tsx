@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
+import { Button } from './ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Input } from './ui/input';
+import { LogIn, Mail, Lock } from 'lucide-react';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -18,38 +22,67 @@ export default function Login() {
   };
 
   return (
-    <div className="home">
-      <div className="card" style={{ maxWidth: '400px' }}>
-        <h2 className="card-title">Login</h2>
-        {error && <p style={{ color: 'red', marginBottom: '1rem' }}>{error}</p>}
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '1rem' }}>
-            <input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              style={{ width: '100%', padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px' }}
-            />
-          </div>
-          <div style={{ marginBottom: '1rem' }}>
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              style={{ width: '100%', padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px' }}
-            />
-          </div>
-          <button type="submit" style={{ width: '100%', padding: '0.75rem', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-            Login
-          </button>
-        </form>
-        <p style={{ marginTop: '1rem', textAlign: 'center' }}>
-          Don't have an account? <Link to="/register" style={{ color: '#2563eb' }}>Register</Link>
-        </p>
+    <div className="container mx-auto px-4 py-8">
+      <div className="max-w-md mx-auto">
+        <Card className="border-0 shadow-lg">
+          <CardHeader className="text-center space-y-2">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+              <LogIn className="h-6 w-6 text-primary" />
+            </div>
+            <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
+            <CardDescription>
+              Enter your credentials to access your account
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {error && (
+              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3">
+                <p className="text-sm text-destructive text-center">{error}</p>
+              </div>
+            )}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="email"
+                    placeholder="Email address"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="password"
+                    placeholder="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+              <Button type="submit" className="w-full" size="lg">
+                <LogIn className="mr-2 h-4 w-4" />
+                Sign in
+              </Button>
+            </form>
+            <div className="text-center text-sm text-muted-foreground">
+              Don't have an account?{' '}
+              <Link 
+                to="/register" 
+                className="text-primary font-medium hover:underline transition-colors"
+              >
+                Create one
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

@@ -20,7 +20,8 @@ const PAGE_DIMENSIONS = {
 export const exportBookToPDF = async (
   book: Book,
   options: PDFExportOptions,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  signal?: AbortSignal
 ): Promise<void> => {
   // Determine which pages to export
   let pagesToExport = book.pages;
@@ -35,14 +36,19 @@ export const exportBookToPDF = async (
   const pdfWidth = book.orientation === 'landscape' ? dimensions.height : dimensions.width;
   const pdfHeight = book.orientation === 'landscape' ? dimensions.width : dimensions.height;
   
+  // Fix TypeScript error by using proper jsPDF constructor
   const pdf = new jsPDF({
-    orientation: book.orientation || 'portrait',
+    orientation: (book.orientation === 'portrait' ? 'portrait' : 'landscape') as 'portrait' | 'landscape',
     unit: 'mm',
     format: [pdfWidth, pdfHeight],
     compress: true
-  });
+  } as any);
 
   for (let i = 0; i < pagesToExport.length; i++) {
+    if (signal?.aborted) {
+      throw new DOMException('Export cancelled', 'AbortError');
+    }
+    
     const bookPage = pagesToExport[i];
     
     // Navigate to the page
@@ -119,7 +125,7 @@ export const exportBookToPDF = async (
 
     // Add page to PDF (add new page for subsequent pages)
     if (i > 0) {
-      pdf.addPage([pdfWidth, pdfHeight], book.orientation || 'portrait');
+      pdf.addPage([pdfWidth, pdfHeight], (book.orientation === 'portrait' ? 'portrait' : 'landscape') as 'portrait' | 'landscape');
     }
 
     // Add image to PDF

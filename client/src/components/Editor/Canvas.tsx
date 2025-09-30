@@ -29,9 +29,9 @@ function CanvasPageContainer({ children }: { children: React.ReactNode }) {
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
-      flex: 1,
+      width: '100%',
       height: '100%',
-      backgroundColor: '#f3f3f3ff',
+      backgroundColor: 'hsl(var(--muted))',
       padding: '2rem'
     }}>
       {children}
