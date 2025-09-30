@@ -4,7 +4,7 @@ import Konva from 'konva';
 import { useEditor } from '../../context/EditorContext';
 import type { CanvasElement } from '../../context/EditorContext';
 
-// Rich text formatting function based on Konva demo
+// Rich text formatting function for Quill HTML output
 function formatRichText(text: string, fontSize: number, fontFamily: string, maxWidth: number) {
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d')!;
@@ -12,81 +12,118 @@ function formatRichText(text: string, fontSize: number, fontFamily: string, maxW
   const lineHeight = fontSize * 1.2;
   const textParts: any[] = [];
   
-  // Normalize HTML: convert line breaks to \n while preserving all formatting tags
-  const normalizedText = text
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/div>\s*<div>/gi, '\n')
-    .replace(/^<div>/gi, '')
-    .replace(/<\/div>$/gi, '')
-    .replace(/<div>/gi, '\n')
-    .replace(/<\/div>/gi, '');
-    
-  const tokens = normalizedText.split(/(<\/?[biu]>|<font[^>]*>|<\/font>|\n)/g).filter(token => token.length > 0);
+  // Create temporary div to parse Quill HTML
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = text;
   
   let currentX = 0;
   let currentY = 0;
-  let isBold = false;
-  let isItalic = false;
-  let isUnderline = false;
-  let currentColor = '#000000';
   
-  tokens.forEach(token => {
-    if (token === '<b>') {
-      isBold = true;
-    } else if (token === '</b>') {
-      isBold = false;
-    } else if (token === '<i>') {
-      isItalic = true;
-    } else if (token === '</i>') {
-      isItalic = false;
-    } else if (token === '<u>') {
-      isUnderline = true;
-    } else if (token === '</u>') {
-      isUnderline = false;
-    } else if (token.startsWith('<font')) {
-      // Extract color from font tag
-      const colorMatch = token.match(/color=["']([^"']*)["']/i);
+  // Process each paragraph/line
+  const processElement = (element: Element, inheritedStyles: any = {}) => {
+    const styles = { ...inheritedStyles };
+    
+    // Check element styles
+    if (element.tagName === 'STRONG' || element.tagName === 'B') {
+      styles.bold = true;
+    }
+    if (element.tagName === 'EM' || element.tagName === 'I') {
+      styles.italic = true;
+    }
+    if (element.tagName === 'U') {
+      styles.underline = true;
+    }
+    if (element.tagName === 'H1') {
+      styles.bold = true;
+      styles.fontSize = fontSize * 1.8;
+    }
+    if (element.tagName === 'H2') {
+      styles.bold = true;
+      styles.fontSize = fontSize * 1.5;
+    }
+    if (element.tagName === 'H3') {
+      styles.bold = true;
+      styles.fontSize = fontSize * 1.2;
+    }
+    
+    // Check for color in style attribute
+    const styleAttr = element.getAttribute('style');
+    if (styleAttr && styleAttr.includes('color:')) {
+      const colorMatch = styleAttr.match(/color:\s*([^;]+)/i);
       if (colorMatch) {
-        currentColor = colorMatch[1];
+        styles.color = colorMatch[1].trim();
       }
-    } else if (token === '</font>') {
-      currentColor = '#000000'; // Reset to default
-    } else if (token === '\n') {
-      // Line break
-      currentX = 0;
-      currentY += lineHeight;
-    } else if (token && !token.startsWith('<')) {
-      // Text content
-      const words = token.split(' ');
-      
-      words.forEach((word, index) => {
-        if (index > 0) word = ' ' + word; // Add space back
-        
-        // Set font for measurement
-        const fontStyle = `${isBold ? 'bold ' : ''}${isItalic ? 'italic ' : ''}${fontSize}px ${fontFamily}`;
-        context.font = fontStyle;
-        
-        const wordWidth = context.measureText(word).width;
-        
-        // Check if word fits on current line
-        if (currentX + wordWidth > maxWidth && currentX > 0) {
-          currentX = 0;
-          currentY += lineHeight;
+    }
+    
+    // Process child nodes
+    element.childNodes.forEach(child => {
+      if (child.nodeType === Node.TEXT_NODE) {
+        const text = child.textContent || '';
+        if (text.trim()) {
+          processText(text, styles);
         }
-        
-        textParts.push({
-          text: word,
-          x: currentX,
-          y: currentY,
-          fontSize,
-          fontFamily,
-          fontStyle: `${isBold ? 'bold' : ''}${isItalic ? ' italic' : ''}`.trim() || 'normal',
-          textDecoration: isUnderline ? 'underline' : '',
-          fill: currentColor
-        });
-        
-        currentX += wordWidth;
+      } else if (child.nodeType === Node.ELEMENT_NODE) {
+        processElement(child as Element, styles);
+      }
+    });
+    
+    // Add line break after block elements with proper line height
+    if (['P', 'DIV', 'H1', 'H2', 'H3'].includes(element.tagName)) {
+      currentX = 0;
+      // Use appropriate line height based on element type
+      let elementLineHeight = lineHeight;
+      if (element.tagName === 'H1') {
+        elementLineHeight = fontSize * 1.8 * 1.2;
+      } else if (element.tagName === 'H2') {
+        elementLineHeight = fontSize * 1.5 * 1.2;
+      } else if (element.tagName === 'H3') {
+        elementLineHeight = fontSize * 1.2 * 1.2;
+      }
+      currentY += elementLineHeight;
+    }
+  };
+  
+  const processText = (text: string, styles: any) => {
+    const words = text.split(' ');
+    
+    words.forEach((word, index) => {
+      if (index > 0) word = ' ' + word;
+      
+      const currentFontSize = styles.fontSize || fontSize;
+      const fontStyle = `${styles.bold ? 'bold ' : ''}${styles.italic ? 'italic ' : ''}${currentFontSize}px ${fontFamily}`;
+      context.font = fontStyle;
+      
+      const wordWidth = context.measureText(word).width;
+      
+      if (currentX + wordWidth > maxWidth && currentX > 0) {
+        currentX = 0;
+        currentY += lineHeight;
+      }
+      
+      textParts.push({
+        text: word,
+        x: currentX,
+        y: currentY,
+        fontSize: currentFontSize,
+        fontFamily,
+        fontStyle: `${styles.bold ? 'bold' : ''}${styles.italic ? ' italic' : ''}`.trim() || 'normal',
+        textDecoration: styles.underline ? 'underline' : '',
+        fill: styles.color || '#000000'
       });
+      
+      currentX += wordWidth;
+    });
+  };
+  
+  // Process all child elements
+  tempDiv.childNodes.forEach(child => {
+    if (child.nodeType === Node.ELEMENT_NODE) {
+      processElement(child as Element);
+    } else if (child.nodeType === Node.TEXT_NODE) {
+      const text = child.textContent || '';
+      if (text.trim()) {
+        processText(text, {});
+      }
     }
   });
   
@@ -141,210 +178,140 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
     
     setIsEditing(true);
     
-    // Create modal overlay
-    const modal = document.createElement('div');
-    modal.style.position = 'fixed';
-    modal.style.top = '0';
-    modal.style.left = '0';
-    modal.style.width = '100%';
-    modal.style.height = '100%';
-    modal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-    modal.style.display = 'flex';
-    modal.style.justifyContent = 'center';
-    modal.style.alignItems = 'center';
-    modal.style.zIndex = '10000';
+    // Load Quill.js if not already loaded
+    if (!window.Quill) {
+      const quillCSS = document.createElement('link');
+      quillCSS.rel = 'stylesheet';
+      quillCSS.href = 'https://cdn.quilljs.com/1.3.6/quill.snow.css';
+      document.head.appendChild(quillCSS);
+      
+      const quillJS = document.createElement('script');
+      quillJS.src = 'https://cdn.quilljs.com/1.3.6/quill.min.js';
+      document.head.appendChild(quillJS);
+      
+      // Wait for Quill to load
+      quillJS.onload = () => initQuillEditor();
+      return;
+    } else {
+      initQuillEditor();
+    }
+    
+    function initQuillEditor() {
+      // Create modal overlay
+      const modal = document.createElement('div');
+      modal.style.position = 'fixed';
+      modal.style.top = '0';
+      modal.style.left = '0';
+      modal.style.width = '100%';
+      modal.style.height = '100%';
+      modal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+      modal.style.display = 'flex';
+      modal.style.justifyContent = 'center';
+      modal.style.alignItems = 'center';
+      modal.style.zIndex = '10000';
 
-    // Create editor container
-    const container = document.createElement('div');
-    container.style.backgroundColor = 'white';
-    container.style.borderRadius = '8px';
-    container.style.padding = '20px';
-    container.style.minWidth = '400px';
-    container.style.maxWidth = '600px';
-    container.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.3)';
+      // Create editor container
+      const container = document.createElement('div');
+      container.style.backgroundColor = 'white';
+      container.style.borderRadius = '8px';
+      container.style.padding = '20px';
+      container.style.minWidth = '500px';
+      container.style.maxWidth = '700px';
+      container.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.3)';
 
-    // Create toolbar
-    const toolbar = document.createElement('div');
-    toolbar.style.display = 'flex';
-    toolbar.style.gap = '8px';
-    toolbar.style.marginBottom = '12px';
-    toolbar.style.padding = '8px';
-    toolbar.style.backgroundColor = '#f5f5f5';
-    toolbar.style.borderRadius = '4px';
-    
-    // Text style dropdown
-    const styleSelect = document.createElement('select');
-    styleSelect.style.padding = '4px 8px';
-    styleSelect.style.border = '1px solid #ccc';
-    styleSelect.style.borderRadius = '4px';
-    styleSelect.innerHTML = `
-      <option value="normal">Normal</option>
-      <option value="h1">Heading 1</option>
-      <option value="h2">Heading 2</option>
-      <option value="h3">Heading 3</option>
-    `;
-    styleSelect.onchange = () => {
-      const value = styleSelect.value;
-      if (value === 'h1') {
-        document.execCommand('fontSize', false, '7');
-        document.execCommand('bold');
-      } else if (value === 'h2') {
-        document.execCommand('fontSize', false, '5');
-        document.execCommand('bold');
-      } else if (value === 'h3') {
-        document.execCommand('fontSize', false, '4');
-        document.execCommand('bold');
-      } else {
-        document.execCommand('fontSize', false, '3');
-      }
-      overlay.focus();
-    };
-    
-    // Bold button
-    const boldBtn = document.createElement('button');
-    boldBtn.innerHTML = '<b>B</b>';
-    boldBtn.style.border = '1px solid #ccc';
-    boldBtn.style.padding = '4px 8px';
-    boldBtn.style.cursor = 'pointer';
-    boldBtn.style.borderRadius = '4px';
-    boldBtn.onmousedown = (e) => {
-      e.preventDefault();
-      document.execCommand('bold');
-    };
-    
-    // Italic button
-    const italicBtn = document.createElement('button');
-    italicBtn.innerHTML = '<i>I</i>';
-    italicBtn.style.border = '1px solid #ccc';
-    italicBtn.style.padding = '4px 8px';
-    italicBtn.style.cursor = 'pointer';
-    italicBtn.style.borderRadius = '4px';
-    italicBtn.onmousedown = (e) => {
-      e.preventDefault();
-      document.execCommand('italic');
-    };
-    
-    // Underline button
-    const underlineBtn = document.createElement('button');
-    underlineBtn.innerHTML = '<u>U</u>';
-    underlineBtn.style.border = '1px solid #ccc';
-    underlineBtn.style.padding = '4px 8px';
-    underlineBtn.style.cursor = 'pointer';
-    underlineBtn.style.borderRadius = '4px';
-    underlineBtn.onmousedown = (e) => {
-      e.preventDefault();
-      document.execCommand('underline');
-    };
-    
-    // Color picker
-    const colorPicker = document.createElement('input');
-    colorPicker.type = 'color';
-    colorPicker.value = '#000000';
-    colorPicker.style.width = '32px';
-    colorPicker.style.height = '32px';
-    colorPicker.style.border = '1px solid #ccc';
-    colorPicker.style.borderRadius = '4px';
-    colorPicker.style.cursor = 'pointer';
-    colorPicker.onchange = () => {
-      document.execCommand('foreColor', false, colorPicker.value);
-      overlay.focus();
-    };
-    
-    // Hex color input
-    const hexInput = document.createElement('input');
-    hexInput.type = 'text';
-    hexInput.placeholder = '#000000';
-    hexInput.style.width = '70px';
-    hexInput.style.padding = '4px';
-    hexInput.style.border = '1px solid #ccc';
-    hexInput.style.borderRadius = '4px';
-    hexInput.style.fontSize = '12px';
-    hexInput.onkeydown = (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        const color = hexInput.value;
-        if (/^#[0-9A-F]{6}$/i.test(color)) {
-          document.execCommand('foreColor', false, color);
-          colorPicker.value = color;
-        }
-        overlay.focus();
-      }
-    };
-    
-    toolbar.appendChild(styleSelect);
-    toolbar.appendChild(boldBtn);
-    toolbar.appendChild(italicBtn);
-    toolbar.appendChild(underlineBtn);
-    toolbar.appendChild(colorPicker);
-    toolbar.appendChild(hexInput);
+      // Create Quill editor container
+      const editorContainer = document.createElement('div');
+      editorContainer.style.minHeight = '200px';
+      editorContainer.style.marginBottom = '12px';
 
-    // Create text editor
-    const overlay = document.createElement('div');
-    overlay.contentEditable = 'true';
-    // Convert multiple spaces to &nbsp; for proper display in editor
-    const editorText = (element.text || '').replace(/ {2,}/g, (match) => {
-      return match.replace(/ /g, '&nbsp;');
-    });
-    overlay.innerHTML = editorText;
-    overlay.style.border = '1px solid #ccc';
-    overlay.style.borderRadius = '4px';
-    overlay.style.padding = '12px';
-    overlay.style.minHeight = '150px';
-    overlay.style.fontSize = '16px';
-    overlay.style.fontFamily = fontFamily;
-    overlay.style.lineHeight = '1.4';
-    overlay.style.outline = 'none';
-    overlay.style.backgroundColor = 'white';
+      // Create buttons
+      const buttonContainer = document.createElement('div');
+      buttonContainer.style.display = 'flex';
+      buttonContainer.style.justifyContent = 'flex-end';
+      buttonContainer.style.gap = '8px';
+      buttonContainer.style.marginTop = '12px';
 
-    // Create buttons
-    const buttonContainer = document.createElement('div');
-    buttonContainer.style.display = 'flex';
-    buttonContainer.style.justifyContent = 'flex-end';
-    buttonContainer.style.gap = '8px';
-    buttonContainer.style.marginTop = '12px';
+      const cancelBtn = document.createElement('button');
+      cancelBtn.textContent = 'Cancel';
+      cancelBtn.style.padding = '8px 16px';
+      cancelBtn.style.border = '1px solid #ccc';
+      cancelBtn.style.borderRadius = '4px';
+      cancelBtn.style.cursor = 'pointer';
+      cancelBtn.onclick = () => {
+        document.body.removeChild(modal);
+        setIsEditing(false);
+      };
 
-    const cancelBtn = document.createElement('button');
-    cancelBtn.textContent = 'Cancel';
-    cancelBtn.style.padding = '8px 16px';
-    cancelBtn.style.border = '1px solid #ccc';
-    cancelBtn.style.borderRadius = '4px';
-    cancelBtn.style.cursor = 'pointer';
-    cancelBtn.onclick = () => {
-      document.body.removeChild(modal);
-      setIsEditing(false);
-    };
+      const saveBtn = document.createElement('button');
+      saveBtn.textContent = 'Save';
+      saveBtn.style.padding = '8px 16px';
+      saveBtn.style.border = 'none';
+      saveBtn.style.borderRadius = '4px';
+      saveBtn.style.backgroundColor = '#2563eb';
+      saveBtn.style.color = 'white';
+      saveBtn.style.cursor = 'pointer';
+      saveBtn.onclick = () => {
+        const htmlContent = quill.root.innerHTML;
+        dispatch({
+          type: 'UPDATE_ELEMENT',
+          payload: {
+            id: element.id,
+            updates: { text: htmlContent }
+          }
+        });
+        document.body.removeChild(modal);
+        setIsEditing(false);
+      };
 
-    const saveBtn = document.createElement('button');
-    saveBtn.textContent = 'Save';
-    saveBtn.style.padding = '8px 16px';
-    saveBtn.style.border = 'none';
-    saveBtn.style.borderRadius = '4px';
-    saveBtn.style.backgroundColor = '#2563eb';
-    saveBtn.style.color = 'white';
-    saveBtn.style.cursor = 'pointer';
-    saveBtn.onclick = () => {
-      const cleanedText = cleanupHTML(overlay.innerHTML);
-      dispatch({
-        type: 'UPDATE_ELEMENT',
-        payload: {
-          id: element.id,
-          updates: { text: cleanedText }
+      buttonContainer.appendChild(cancelBtn);
+      buttonContainer.appendChild(saveBtn);
+
+      container.appendChild(editorContainer);
+      container.appendChild(buttonContainer);
+      modal.appendChild(container);
+      
+      document.body.appendChild(modal);
+      
+      // Initialize Quill after DOM is attached
+      const userColors = [
+        '#000000', '#e60000', '#ff9900', '#ffff00', '#008a00', '#0066cc', 
+        '#9933ff', '#ffffff', '#facccc', '#ffebcc', '#ffffcc', '#cce8cc', 
+        '#cce0f5', '#ebd6ff', '#bbbbbb', '#f06666', '#ffc266', '#ffff66', 
+        '#66b966', '#66a3e0', '#c285ff', '#888888', '#a10000', '#b26b00', 
+        '#b2b200', '#006100', '#0047b2', '#6b24b2', '#444444', '#5c0000'
+      ];
+      
+      const quill = new window.Quill(editorContainer, {
+        theme: 'snow',
+        modules: {
+          toolbar: {
+            container: [
+              [{ 'header': [1, 2, 3, false] }],
+              ['bold', 'italic', 'underline'],
+              [{ 'color': userColors }],
+              ['clean']
+            ]
+          }
         }
       });
-      document.body.removeChild(modal);
-      setIsEditing(false);
-    };
-
-    buttonContainer.appendChild(cancelBtn);
-    buttonContainer.appendChild(saveBtn);
-
-    container.appendChild(toolbar);
-    container.appendChild(overlay);
-    container.appendChild(buttonContainer);
-    modal.appendChild(container);
-    
-    document.body.appendChild(modal);
-    overlay.focus();
+      
+      // Set initial content
+      if (element.text) {
+        quill.root.innerHTML = element.text;
+      }
+      
+      quill.focus();
+      
+      // Handle escape key
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          document.body.removeChild(modal);
+          setIsEditing(false);
+        }
+      };
+      
+      modal.addEventListener('keydown', handleKeyDown);
+    }
 
     const cleanupHTML = (html: string) => {
       // Create temporary div to decode HTML entities
@@ -363,14 +330,7 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
         .trim();
     };
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        document.body.removeChild(modal);
-        setIsEditing(false);
-      }
-    };
 
-    modal.addEventListener('keydown', handleKeyDown);
   };
 
   const handleClick = () => {
@@ -404,7 +364,7 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       />
       
       {/* Rich text content */}
-      {element.text && (element.text.includes('<b>') || element.text.includes('<i>') || element.text.includes('<u>') || element.text.includes('<font')) ? (
+      {element.text && (element.text.includes('<') && (element.text.includes('<strong>') || element.text.includes('<em>') || element.text.includes('<u>') || element.text.includes('color:') || element.text.includes('<h'))) ? (
         <>
           {formatRichText(element.text, fontSize, fontFamily, element.width - 8).map((textPart, index) => (
             <Text
