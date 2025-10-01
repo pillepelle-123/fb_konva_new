@@ -878,6 +878,9 @@ export default function Canvas() {
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
+          onTouchStart={handleMouseDown}
+          onTouchMove={handleMouseMove}
+          onTouchEnd={handleMouseUp}
           onContextMenu={handleContextMenu}
           onWheel={handleWheel}
           x={stagePos.x}

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Archive, RotateCcw, Trash2, Calendar } from 'lucide-react';
+import { Archive, RotateCcw, Trash2, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface ArchivedBook {
   id: number;
@@ -17,6 +17,8 @@ export default function BookArchive() {
   const { token } = useAuth();
   const [books, setBooks] = useState<ArchivedBook[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   useEffect(() => {
     fetchArchivedBooks();
@@ -102,9 +104,34 @@ export default function BookArchive() {
           </p>
         </div>
 
+        {/* Pagination */}
+        {books.length > itemsPerPage && (
+          <div className="flex justify-center items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Page {currentPage} of {Math.ceil(books.length / itemsPerPage)}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(books.length / itemsPerPage)))}
+              disabled={currentPage === Math.ceil(books.length / itemsPerPage)}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+
         {/* Archived Books */}
         {books.length === 0 ? (
-          <Card className="border-0 shadow-sm">
+          <Card className="border shadow-sm">
             <CardContent className="text-center py-12">
               <Archive className="h-12 w-12 text-muted-foreground mx-auto opacity-50 mb-4" />
               <h3 className="text-lg font-medium text-foreground mb-2">No archived books</h3>
@@ -114,9 +141,10 @@ export default function BookArchive() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {books.map(book => (
-              <Card key={book.id} className="border-0 shadow-sm border-l-4 border-l-muted-foreground/30">
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {books.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(book => (
+              <Card key={book.id} className="border shadow-sm hover:shadow-md transition-all duration-200 hover:border-primary/20">
                 <CardHeader className="pb-4">
                   <div className="flex items-start justify-between">
                     <div className="space-y-1">
@@ -129,8 +157,8 @@ export default function BookArchive() {
                         <span className="capitalize">{book.orientation}</span>
                       </CardDescription>
                     </div>
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted">
-                      <Archive className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                      <Archive className="h-4 w-4 text-primary" />
                     </div>
                   </div>
                 </CardHeader>
@@ -175,8 +203,10 @@ export default function BookArchive() {
                   </div>
                 </CardContent>
               </Card>
-            ))}
-          </div>
+              ))}
+            </div>
+
+          </>
         )}
       </div>
     </div>

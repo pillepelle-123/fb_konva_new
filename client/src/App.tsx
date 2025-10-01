@@ -80,8 +80,12 @@ function Home({ serverMessage }: { serverMessage: string }) {
 function EditorWithBar() {
   return (
     <EditorProvider>
-      <EditorBar />
-      <Editor />
+      <div className="h-full flex flex-col">
+        <EditorBar />
+        <div className="flex-1 min-h-0">
+          <Editor />
+        </div>
+      </div>
     </EditorProvider>
   );
 }
