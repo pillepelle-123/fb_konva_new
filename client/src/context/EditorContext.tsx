@@ -265,28 +265,21 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       
       if (questionsResponse.ok) {
         const questions = await questionsResponse.json();
-        console.log('Questions from DB:', questions);
         const questionMap = new Map(questions.map(q => [q.id, q.question_text]));
         
         let updated = false;
         book.pages.forEach(page => {
           page.elements.forEach(element => {
-            if (element.textType === 'question') {
-              console.log('Question element:', element.id, 'questionId:', element.questionId, 'current text:', element.text);
-              if (element.questionId && questionMap.has(element.questionId)) {
-                const latestText = questionMap.get(element.questionId);
-                console.log('Latest text from DB:', latestText);
-                if (element.text !== latestText) {
-                  console.log('Updating text from', element.text, 'to', latestText);
-                  element.text = latestText;
-                  updated = true;
-                }
+            if (element.textType === 'question' && element.questionId && questionMap.has(element.questionId)) {
+              const latestText = questionMap.get(element.questionId);
+              if (element.text !== latestText) {
+                element.text = latestText;
+                updated = true;
               }
             }
           });
         });
         
-        console.log('Updated any questions:', updated);
         if (updated) {
           await fetch(`http://localhost:5000/api/books/${bookId}`, {
             method: 'PUT',
@@ -296,7 +289,6 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
             },
             body: JSON.stringify(book)
           });
-          console.log('Book saved with updated questions');
         }
       }
       

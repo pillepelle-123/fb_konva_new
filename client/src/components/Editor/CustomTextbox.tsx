@@ -368,7 +368,6 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
               textDiv.style.cursor = 'pointer';
               textDiv.style.flex = '1';
               textDiv.onclick = () => {
-                console.log('Selecting existing question:', q.id, 'for element:', element.id);
                 quill.root.innerHTML = q.question_text;
                 dispatch({
                   type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
@@ -377,7 +376,6 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
                     updates: { text: q.question_text, questionId: q.id }
                   }
                 });
-                console.log('Dispatched questionId:', q.id);
                 listContainer.remove();
                 backBtn.remove();
                 addNewBtn.remove();
