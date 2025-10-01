@@ -178,6 +178,12 @@ export default function Canvas() {
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [isDrawingLine, setIsDrawingLine] = useState(false);
+  const [lineStart, setLineStart] = useState<{ x: number; y: number } | null>(null);
+  const [previewLine, setPreviewLine] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  const [isDrawingShape, setIsDrawingShape] = useState(false);
+  const [shapeStart, setShapeStart] = useState<{ x: number; y: number } | null>(null);
+  const [previewShape, setPreviewShape] = useState<{ x: number; y: number; width: number; height: number; type: string } | null>(null);
 
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const pageSize = state.currentBook?.pageSize || 'A4';
@@ -257,6 +263,34 @@ export default function Canvas() {
         const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
         setCurrentPath([x, y]);
       }
+    } else if (state.activeTool === 'line') {
+      const pos = e.target.getStage()?.getPointerPosition();
+      if (pos) {
+        const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
+        const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
+        const isBackgroundClick = e.target === e.target.getStage() || 
+          (e.target.getClassName() === 'Rect' && !e.target.id());
+        
+        if (isBackgroundClick) {
+          setIsDrawingLine(true);
+          setLineStart({ x, y });
+          setPreviewLine({ x1: x, y1: y, x2: x, y2: y });
+        }
+      }
+    } else if (state.activeTool === 'rect' || state.activeTool === 'circle') {
+      const pos = e.target.getStage()?.getPointerPosition();
+      if (pos) {
+        const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
+        const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
+        const isBackgroundClick = e.target === e.target.getStage() || 
+          (e.target.getClassName() === 'Rect' && !e.target.id());
+        
+        if (isBackgroundClick) {
+          setIsDrawingShape(true);
+          setShapeStart({ x, y });
+          setPreviewShape({ x, y, width: 0, height: 0, type: state.activeTool });
+        }
+      }
     } else if (state.activeTool === 'select') {
       // Only handle background clicks for selection rectangle
       const isBackgroundClick = e.target === e.target.getStage() || 
@@ -298,45 +332,7 @@ export default function Canvas() {
       if (isBackgroundClick) {
         let newElement: CanvasElement | null = null;
         
-        if (state.activeTool === 'rect') {
-          newElement = {
-            id: uuidv4(),
-            type: 'rect',
-            x: x - 200,
-            y: y - 100,
-            width: 400,
-            height: 200,
-            fill: 'transparent',
-            stroke: '#1f2937',
-            roughness: 3,
-            strokeWidth: 2
-          };
-        } else if (state.activeTool === 'circle') {
-          newElement = {
-            id: uuidv4(),
-            type: 'circle',
-            x: x - 160,
-            y: y - 160,
-            width: 320,
-            height: 320,
-            fill: 'transparent',
-            stroke: '#1f2937',
-            roughness: 3,
-            strokeWidth: 2
-          };
-        } else if (state.activeTool === 'line') {
-          newElement = {
-            id: uuidv4(),
-            type: 'line',
-            x: x - 200,
-            y: y - 20,
-            width: 400,
-            height: 40,
-            stroke: '#1f2937',
-            roughness: 3,
-            strokeWidth: 2
-          };
-        } else if (state.activeTool === 'photo') {
+        if (state.activeTool === 'photo') {
           newElement = {
             id: uuidv4(),
             type: 'placeholder',
@@ -420,6 +416,28 @@ export default function Canvas() {
         const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
         const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
         setCurrentPath(prev => [...prev, x, y]);
+      }
+    } else if (isDrawingLine && lineStart) {
+      const pos = e.target.getStage()?.getPointerPosition();
+      if (pos) {
+        const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
+        const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
+        setPreviewLine({ x1: lineStart.x, y1: lineStart.y, x2: x, y2: y });
+      }
+    } else if (isDrawingShape && shapeStart) {
+      const pos = e.target.getStage()?.getPointerPosition();
+      if (pos) {
+        const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
+        const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
+        const width = x - shapeStart.x;
+        const height = y - shapeStart.y;
+        setPreviewShape({ 
+          x: Math.min(shapeStart.x, x), 
+          y: Math.min(shapeStart.y, y), 
+          width: Math.abs(width), 
+          height: Math.abs(height), 
+          type: previewShape?.type || 'rect' 
+        });
       }
     } else if (isMovingGroup && groupMoveStart) {
       // Move entire selection
@@ -526,6 +544,48 @@ export default function Canvas() {
       };
       dispatch({ type: 'ADD_ELEMENT', payload: newElement });
       dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+    } else if (isDrawingLine && lineStart && previewLine) {
+      const width = previewLine.x2 - previewLine.x1;
+      const height = previewLine.y2 - previewLine.y1;
+      
+      if (Math.abs(width) > 5 || Math.abs(height) > 5) {
+        const newElement: CanvasElement = {
+          id: uuidv4(),
+          type: 'line',
+          x: previewLine.x1,
+          y: previewLine.y1,
+          width: width,
+          height: height,
+          stroke: '#1f2937',
+          roughness: 3,
+          strokeWidth: 2
+        };
+        dispatch({ type: 'ADD_ELEMENT', payload: newElement });
+        dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+      }
+      setIsDrawingLine(false);
+      setLineStart(null);
+      setPreviewLine(null);
+    } else if (isDrawingShape && shapeStart && previewShape) {
+      if (previewShape.width > 5 || previewShape.height > 5) {
+        const newElement: CanvasElement = {
+          id: uuidv4(),
+          type: previewShape.type as 'rect' | 'circle',
+          x: previewShape.x,
+          y: previewShape.y,
+          width: previewShape.width,
+          height: previewShape.height,
+          fill: 'transparent',
+          stroke: '#1f2937',
+          roughness: 3,
+          strokeWidth: 2
+        };
+        dispatch({ type: 'ADD_ELEMENT', payload: newElement });
+        dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+      }
+      setIsDrawingShape(false);
+      setShapeStart(null);
+      setPreviewShape(null);
     } else if (isMovingGroup) {
       setIsMovingGroup(false);
       setGroupMoveStart(null);
@@ -917,6 +977,49 @@ export default function Canvas() {
                   listening={false}
                   opacity={0.7}
                 />
+              )}
+              
+              {/* Line preview */}
+              {previewLine && (
+                <Line
+                  points={[previewLine.x1, previewLine.y1, previewLine.x2, previewLine.y2]}
+                  stroke="#1f2937"
+                  strokeWidth={2}
+                  lineCap="round"
+                  listening={false}
+                  opacity={0.7}
+                  dash={[5, 5]}
+                />
+              )}
+              
+              {/* Shape preview */}
+              {previewShape && (
+                previewShape.type === 'rect' ? (
+                  <Rect
+                    x={previewShape.x}
+                    y={previewShape.y}
+                    width={previewShape.width}
+                    height={previewShape.height}
+                    stroke="#1f2937"
+                    strokeWidth={2}
+                    fill="transparent"
+                    listening={false}
+                    opacity={0.7}
+                    dash={[5, 5]}
+                  />
+                ) : (
+                  <Circle
+                    x={previewShape.x + previewShape.width / 2}
+                    y={previewShape.y + previewShape.height / 2}
+                    radius={Math.min(previewShape.width, previewShape.height) / 2}
+                    stroke="#1f2937"
+                    strokeWidth={2}
+                    fill="transparent"
+                    listening={false}
+                    opacity={0.7}
+                    dash={[5, 5]}
+                  />
+                )
               )}
             </Group>
             

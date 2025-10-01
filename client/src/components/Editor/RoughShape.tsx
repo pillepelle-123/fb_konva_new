@@ -54,7 +54,7 @@ export default function RoughShape({ element, isSelected, onSelect, onDragStart,
           seed
         });
       } else if (element.type === 'line') {
-        roughElement = rc.line(0, element.height / 2, element.width, element.height / 2, {
+        roughElement = rc.line(0, 0, element.width, element.height, {
           roughness,
           strokeWidth,
           stroke,
@@ -85,7 +85,7 @@ export default function RoughShape({ element, isSelected, onSelect, onDragStart,
       const cy = element.height / 2;
       return `M ${cx - r} ${cy} A ${r} ${r} 0 1 0 ${cx + r} ${cy} A ${r} ${r} 0 1 0 ${cx - r} ${cy}`;
     } else if (element.type === 'line') {
-      return `M 0 ${element.height / 2} L ${element.width} ${element.height / 2}`;
+      return `M 0 0 L ${element.width} ${element.height}`;
     }
     
     return '';

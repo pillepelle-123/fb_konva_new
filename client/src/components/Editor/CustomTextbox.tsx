@@ -562,6 +562,29 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
         }
       });
       
+      // Preserve formatting on Enter from headers
+      quill.on('text-change', function(delta, oldDelta, source) {
+        if (source === 'user') {
+          delta.ops?.forEach(op => {
+            if (op.insert === '\n') {
+              const selection = quill.getSelection();
+              if (selection) {
+                const prevFormat = quill.getFormat(selection.index - 2, 1);
+                if (prevFormat.font && prevFormat.header) {
+                  setTimeout(() => {
+                    if (prevFormat.font) quill.format('font', prevFormat.font);
+                    if (prevFormat.color) quill.format('color', prevFormat.color);
+                    if (prevFormat.bold) quill.format('bold', true);
+                    if (prevFormat.italic) quill.format('italic', true);
+                    if (prevFormat.underline) quill.format('underline', true);
+                  }, 10);
+                }
+              }
+            }
+          });
+        }
+      });
+      
       quill.focus();
       
       // Handle escape key
