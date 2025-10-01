@@ -309,8 +309,8 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
         }
         
         // Clean up Quill's automatic <p> wrapping for simple text
-        if (htmlContent.startsWith('<p>') && htmlContent.endsWith('</p>') && !htmlContent.includes('</p><p>') && !hasRuledLines) {
-          htmlContent = htmlContent.slice(3, -4); // Remove <p> and </p>
+        if (htmlContent.startsWith('<p>') && htmlContent.endsWith('</p>') && !htmlContent.includes('</p><p>') && !hasRuledLines && !htmlContent.includes('<span') && !htmlContent.includes('<strong') && !htmlContent.includes('<em')) {
+          htmlContent = htmlContent.slice(3, -4);
         }
         
         dispatch({
@@ -349,11 +349,12 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       
       const quill = new window.Quill(editorContainer, {
         theme: 'snow',
+        formats: ['bold', 'italic', 'underline', 'color', 'font', 'header'],
         modules: {
           toolbar: {
             container: [
               [{ 'header': [1, 2, 3, false] }],
-              [{ 'font': ['georgia', 'helvetica', 'arial', 'courier', 'kalam', 'shadows', 'playwrite', 'msmadi', 'giveyouglory', 'meowscript'] }],
+              [{ 'font': ['helvetica', 'georgia', 'arial', 'courier', 'kalam', 'shadows', 'playwrite', 'msmadi', 'giveyouglory', 'meowscript'] }],
               ['bold', 'italic', 'underline'],
               [{ 'color': userColors }],
               ['ruled-lines'],
@@ -362,20 +363,45 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
             handlers: {
               'ruled-lines': function() {
                 const button = document.querySelector('.ql-ruled-lines');
-                const isActive = button.classList.contains('ql-active');
+                const hasRuledAttr = quill.root.hasAttribute('data-ruled');
                 
-                if (isActive) {
-                  // Remove ruled lines
+                if (hasRuledAttr) {
                   button.classList.remove('ql-active');
                   quill.root.removeAttribute('data-ruled');
                   quill.root.style.lineHeight = '';
                 } else {
-                  // Add ruled lines
                   button.classList.add('ql-active');
                   quill.root.setAttribute('data-ruled', 'true');
                   quill.root.style.lineHeight = '2.5';
                 }
               }
+            }
+          }
+        }
+      });
+      
+      // Set default formatting
+      quill.format('font', 'helvetica');
+      quill.format('color', '#000000');
+      
+      // Handle paste events to process ruled line content
+      quill.root.addEventListener('paste', function(e) {
+        const clipboardData = e.clipboardData;
+        const htmlData = clipboardData?.getData('text/html');
+        
+        if (htmlData && htmlData.includes('data-ruled="true"')) {
+          e.preventDefault();
+          
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = htmlData;
+          const ruledDiv = tempDiv.querySelector('[data-ruled="true"]');
+          
+          if (ruledDiv) {
+            const content = ruledDiv.innerHTML;
+            const selection = quill.getSelection();
+            
+            if (selection) {
+              quill.clipboard.dangerouslyPasteHTML(selection.index, content);
             }
           }
         }
@@ -484,7 +510,6 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       // Set initial content and ruled lines state
       if (element.text) {
         if (element.text.includes('data-ruled="true"')) {
-          // Extract content from ruled wrapper
           const tempDiv = document.createElement('div');
           tempDiv.innerHTML = element.text;
           const ruledDiv = tempDiv.querySelector('[data-ruled="true"]');
@@ -498,9 +523,44 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
             }, 100);
           }
         } else {
-          quill.root.innerHTML = element.text;
+          // Check if content has HTML formatting
+          if (element.text.includes('<span') || element.text.includes('<strong') || element.text.includes('<em') || element.text.includes('ql-font-')) {
+            quill.root.innerHTML = element.text;
+          } else {
+            // Plain text - remove paragraph tags if present
+            let content = element.text;
+            if (content.startsWith('<p>') && content.endsWith('</p>') && !content.includes('</p><p>')) {
+              content = content.slice(3, -4);
+            }
+            quill.setText(content);
+            quill.formatText(0, content.length, 'font', 'helvetica');
+          }
+          // Ensure ruled lines button state matches content
+          setTimeout(() => {
+            const button = document.querySelector('.ql-ruled-lines');
+            if (button) {
+              button.classList.remove('ql-active');
+              quill.root.removeAttribute('data-ruled');
+              quill.root.style.lineHeight = '';
+            }
+          }, 100);
         }
+      } else {
+        quill.format('font', 'helvetica');
       }
+      
+      // Update button state on focus
+      quill.on('selection-change', function() {
+        const button = document.querySelector('.ql-ruled-lines');
+        const hasRuledAttr = quill.root.hasAttribute('data-ruled');
+        if (button) {
+          if (hasRuledAttr) {
+            button.classList.add('ql-active');
+          } else {
+            button.classList.remove('ql-active');
+          }
+        }
+      });
       
       quill.focus();
       
