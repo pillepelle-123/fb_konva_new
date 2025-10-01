@@ -613,33 +613,99 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       
       {/* Ruled lines background */}
       {element.text && element.text.includes('data-ruled="true"') && (
-        <Group>
-          {Array.from({ length: Math.floor((element.height - 8) / (fontSize * 2.5)) + 1 }, (_, i) => {
-            const y = 8 + (i + 1) * fontSize * 2.5 - fontSize * 1.2;
-            const lineWidth = element.width - 16;
+        <Group
+          clipX={4}
+          clipY={4}
+          clipWidth={element.width - 8}
+          clipHeight={element.height - 8}
+        >
+          {(() => {
+            // Count total visual lines including text wrapping
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = element.text;
             
-            const lineElement: CanvasElement = {
-              id: `ruled-line-${element.id}-${i}`,
-              type: 'line',
-              x: 8,
-              y: y,
-              width: lineWidth,
-              height: 2,
-              stroke: '#1f2937',
-              strokeWidth: 2,
-              roughness: 1.3
-            };
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d')!;
+            context.font = `${fontSize}px ${fontFamily}`;
             
-            return (
-              <RoughShape
-                key={i}
-                element={lineElement}
-                isSelected={false}
-                onSelect={() => {}}
-                onDragEnd={() => {}}
-              />
-            );
-          })}
+            let totalLines = 0;
+            const maxWidth = element.width - 16;
+            
+            // Process each paragraph
+            const paragraphs = tempDiv.querySelectorAll('p');
+            if (paragraphs.length > 0) {
+              paragraphs.forEach(p => {
+                const text = p.textContent || '';
+                if (text.trim()) {
+                  const words = text.trim().split(/\s+/);
+                  let currentLineWidth = 0;
+                  let paragraphLines = 1;
+                  
+                  words.forEach((word, index) => {
+                    const wordWidth = context.measureText((index > 0 ? ' ' : '') + word).width;
+                    if (currentLineWidth + wordWidth > maxWidth && currentLineWidth > 0) {
+                      paragraphLines++;
+                      currentLineWidth = context.measureText(word).width;
+                    } else {
+                      currentLineWidth += wordWidth;
+                    }
+                  });
+                  
+                  totalLines += paragraphLines;
+                } else {
+                  totalLines += 1; // Empty paragraph still takes a line
+                }
+              });
+            } else {
+              // No paragraphs, treat as single block
+              const text = tempDiv.textContent || '';
+              if (text.trim()) {
+                const words = text.trim().split(/\s+/);
+                let currentLineWidth = 0;
+                let textLines = 1;
+                
+                words.forEach((word, index) => {
+                  const wordWidth = context.measureText((index > 0 ? ' ' : '') + word).width;
+                  if (currentLineWidth + wordWidth > maxWidth && currentLineWidth > 0) {
+                    textLines++;
+                    currentLineWidth = context.measureText(word).width;
+                  } else {
+                    currentLineWidth += wordWidth;
+                  }
+                });
+                
+                totalLines = textLines;
+              }
+            }
+            
+            return Array.from({ length: totalLines }, (_, i) => {
+              const y = 8 + (i + 1) * fontSize * 2.5 - fontSize * 1.2;
+              
+              if (y >= element.height - 4) return null;
+              
+              const lineElement: CanvasElement = {
+                id: `ruled-line-${element.id}-${i}`,
+                type: 'line',
+                x: 8,
+                y: y,
+                width: element.width - 16,
+                height: 2,
+                stroke: '#1f2937',
+                strokeWidth: 1,
+                roughness: 0.8
+              };
+              
+              return (
+                <RoughShape
+                  key={i}
+                  element={lineElement}
+                  isSelected={false}
+                  onSelect={() => {}}
+                  onDragEnd={() => {}}
+                />
+              );
+            }).filter(Boolean);
+          })()}
         </Group>
       )}
       
