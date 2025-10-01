@@ -7,11 +7,11 @@ import type { CanvasElement } from '../../context/EditorContext';
 import RoughShape from './RoughShape';
 
 // Rich text formatting function for Quill HTML output
-function formatRichText(text: string, fontSize: number, fontFamily: string, maxWidth: number) {
+function formatRichText(text: string, fontSize: number, fontFamily: string, maxWidth: number, hasRuledLines: boolean = false) {
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d')!;
   
-  const lineHeight = fontSize * 1.2;
+  const lineHeight = hasRuledLines ? fontSize * 2.5 : fontSize * 1.2;
   const textParts: any[] = [];
   
   // Create temporary div to parse Quill HTML
@@ -132,7 +132,7 @@ function formatRichText(text: string, fontSize: number, fontFamily: string, maxW
       
       if (currentX + wordWidth > maxWidth && currentX > 0) {
         currentX = 0;
-        currentY += (styles.fontSize || fontSize) * 1.2;
+        currentY += hasRuledLines ? (styles.fontSize || fontSize) * 2.5 : (styles.fontSize || fontSize) * 1.2;
       }
       
       textParts.push({
@@ -615,7 +615,7 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       {element.text && element.text.includes('data-ruled="true"') && (
         <Group>
           {Array.from({ length: Math.floor((element.height - 8) / (fontSize * 2.5)) + 1 }, (_, i) => {
-            const y = 8 + (i + 1) * fontSize * 2.5 - fontSize * 0.5;
+            const y = 8 + (i + 1) * fontSize * 2.5 - fontSize * 1.2;
             const lineWidth = element.width - 16;
             
             const lineElement: CanvasElement = {
@@ -627,7 +627,7 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
               height: 2,
               stroke: '#1f2937',
               strokeWidth: 2,
-              roughness: 3
+              roughness: 1.3
             };
             
             return (
@@ -652,7 +652,7 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       >
         {element.text && (element.text.includes('<') && (element.text.includes('<strong>') || element.text.includes('<em>') || element.text.includes('<u>') || element.text.includes('color:') || element.text.includes('font-family:') || element.text.includes('ql-font-') || element.text.includes('data-ruled=') || element.text.includes('<h'))) ? (
           <>
-            {formatRichText(element.text, fontSize, fontFamily, element.width - 8).map((textPart, index) => (
+            {formatRichText(element.text, fontSize, fontFamily, element.width - 8, element.text.includes('data-ruled="true"')).map((textPart, index) => (
               <Text
                 key={index}
                 text={textPart.text}
