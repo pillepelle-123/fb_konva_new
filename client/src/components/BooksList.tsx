@@ -27,6 +27,8 @@ export default function BooksList() {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const [showAlert, setShowAlert] = useState<{ title: string; message: string } | null>(null);
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState<number | null>(null);
 
   useEffect(() => {
     fetchBooks();
@@ -48,20 +50,25 @@ export default function BooksList() {
     }
   };
 
-  const handleArchive = async (bookId: number) => {
-    if (window.confirm('Are you sure you want to archive this book?')) {
-      try {
-        const response = await fetch(`http://localhost:5000/api/books/${bookId}/archive`, {
-          method: 'PUT',
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (response.ok) {
-          fetchBooks();
-        }
-      } catch (error) {
-        console.error('Error archiving book:', error);
+  const handleArchive = (bookId: number) => {
+    setShowArchiveConfirm(bookId);
+  };
+
+  const handleConfirmArchive = async () => {
+    if (!showArchiveConfirm) return;
+    
+    try {
+      const response = await fetch(`http://localhost:5000/api/books/${showArchiveConfirm}/archive`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.ok) {
+        fetchBooks();
       }
+    } catch (error) {
+      console.error('Error archiving book:', error);
     }
+    setShowArchiveConfirm(null);
   };
 
   if (loading) {
@@ -263,6 +270,43 @@ export default function BooksList() {
             onClose={() => setShowQuestionsModal(null)} 
           />
         )}
+        
+        {/* Alert Dialog */}
+        <Dialog open={!!showAlert} onOpenChange={() => setShowAlert(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>{showAlert?.title}</DialogTitle>
+              <DialogDescription>
+                {showAlert?.message}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end pt-4">
+              <Button onClick={() => setShowAlert(null)}>
+                OK
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+        
+        {/* Archive Confirmation Dialog */}
+        <Dialog open={!!showArchiveConfirm} onOpenChange={() => setShowArchiveConfirm(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Archive Book</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to archive this book? You can restore it later from the archive.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex gap-2 pt-4">
+              <Button variant="outline" onClick={() => setShowArchiveConfirm(null)} className="flex-1">
+                Cancel
+              </Button>
+              <Button onClick={handleConfirmArchive} className="flex-1">
+                Archive Book
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
@@ -379,10 +423,10 @@ function CollaboratorModal({ bookId, onClose }: { bookId: number; onClose: () =>
       });
       if (response.ok) {
         setEmail('');
-        alert('Collaborator added successfully!');
+        setShowAlert({ title: 'Success', message: 'Collaborator added successfully!' });
       } else {
         const error = await response.json();
-        alert(error.error || 'Failed to add collaborator');
+        setShowAlert({ title: 'Error', message: error.error || 'Failed to add collaborator' });
       }
     } catch (error) {
       console.error('Error adding collaborator:', error);

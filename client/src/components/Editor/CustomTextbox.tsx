@@ -46,12 +46,41 @@ function formatRichText(text: string, fontSize: number, fontFamily: string, maxW
       styles.fontSize = fontSize * 1.2;
     }
     
-    // Check for color in style attribute
+    // Check for styles in style attribute
     const styleAttr = element.getAttribute('style');
-    if (styleAttr && styleAttr.includes('color:')) {
-      const colorMatch = styleAttr.match(/color:\s*([^;]+)/i);
-      if (colorMatch) {
-        styles.color = colorMatch[1].trim();
+    if (styleAttr) {
+      if (styleAttr.includes('color:')) {
+        const colorMatch = styleAttr.match(/color:\s*([^;]+)/i);
+        if (colorMatch) {
+          styles.color = colorMatch[1].trim();
+        }
+      }
+      if (styleAttr.includes('font-family:')) {
+        const fontMatch = styleAttr.match(/font-family:\s*([^;]+)/i);
+        if (fontMatch) {
+          styles.fontFamily = fontMatch[1].trim().replace(/["']/g, '');
+        }
+      }
+    }
+    
+    // Check for Quill font classes
+    const className = element.getAttribute('class');
+    if (className && className.includes('ql-font-')) {
+      const fontClass = className.match(/ql-font-([a-z]+)/);
+      if (fontClass) {
+        const fontMap: { [key: string]: string } = {
+          'georgia': 'Georgia, serif',
+          'helvetica': 'Helvetica, sans-serif',
+          'arial': 'Arial, sans-serif',
+          'courier': 'Courier New, monospace',
+          'kalam': 'Kalam, cursive',
+          'shadows': 'Shadows Into Light, cursive',
+          'playwrite': 'Playwrite DE SAS, cursive',
+          'msmadi': 'Ms Madi, cursive',
+          'giveyouglory': 'Give You Glory, cursive',
+          'meowscript': 'Meow Script, cursive'
+        };
+        styles.fontFamily = fontMap[fontClass[1]] || fontFamily;
       }
     }
     
@@ -105,7 +134,7 @@ function formatRichText(text: string, fontSize: number, fontFamily: string, maxW
         x: currentX,
         y: currentY,
         fontSize: currentFontSize,
-        fontFamily,
+        fontFamily: styles.fontFamily || fontFamily,
         fontStyle: `${styles.bold ? 'bold' : ''}${styles.italic ? ' italic' : ''}`.trim() || 'normal',
         textDecoration: styles.underline ? 'underline' : '',
         fill: styles.color || '#000000'
@@ -227,8 +256,9 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       container.style.backgroundColor = 'white';
       container.style.borderRadius = '8px';
       container.style.padding = '20px';
-      container.style.minWidth = '500px';
-      container.style.maxWidth = '700px';
+      container.style.width = '80vw';
+      container.style.maxWidth = '900px';
+      container.style.minWidth = '400px';
       container.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.3)';
 
       // Create Quill editor container
@@ -299,12 +329,18 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
         '#b2b200', '#006100', '#0047b2', '#6b24b2', '#444444', '#5c0000'
       ];
       
+      // Register custom fonts with Quill
+      const Font = window.Quill.import('formats/font');
+      Font.whitelist = ['georgia', 'helvetica', 'arial', 'courier', 'kalam', 'shadows', 'playwrite', 'msmadi', 'giveyouglory', 'meowscript'];
+      window.Quill.register(Font, true);
+      
       const quill = new window.Quill(editorContainer, {
         theme: 'snow',
         modules: {
           toolbar: {
             container: [
               [{ 'header': [1, 2, 3, false] }],
+              [{ 'font': ['georgia', 'helvetica', 'arial', 'courier', 'kalam', 'shadows', 'playwrite', 'msmadi', 'giveyouglory', 'meowscript'] }],
               ['bold', 'italic', 'underline'],
               [{ 'color': userColors }],
               ['clean']
@@ -312,6 +348,69 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
           }
         }
       });
+      
+      // Load Google Fonts for handwriting styles
+      const googleFonts = document.createElement('link');
+      googleFonts.rel = 'stylesheet';
+      googleFonts.href = 'https://fonts.googleapis.com/css2?family=Kalam:wght@300;400;700&family=Shadows+Into+Light&family=Playwrite+DE+SAS&family=Ms+Madi&family=Give+You+Glory&family=Meow+Script&display=swap';
+      document.head.appendChild(googleFonts);
+      
+      // Add CSS for font families and dropdown labels
+      const fontCSS = document.createElement('style');
+      fontCSS.textContent = `
+        .ql-font-georgia { font-family: Georgia, serif; }
+        .ql-font-helvetica { font-family: Helvetica, sans-serif; }
+        .ql-font-arial { font-family: Arial, sans-serif; }
+        .ql-font-courier { font-family: 'Courier New', monospace; }
+        .ql-font-kalam { font-family: 'Kalam', cursive; }
+        .ql-font-shadows { font-family: 'Shadows Into Light', cursive; }
+        .ql-font-playwrite { font-family: 'Playwrite DE SAS', cursive; }
+        .ql-font-msmadi { font-family: 'Ms Madi', cursive; }
+        .ql-font-giveyouglory { font-family: 'Give You Glory', cursive; }
+        .ql-font-meowscript { font-family: 'Meow Script', cursive; }
+        
+        .ql-picker.ql-font .ql-picker-label[data-value="georgia"]::before,
+        .ql-picker.ql-font .ql-picker-item[data-value="georgia"]::before {
+          content: 'Georgia';
+        }
+        .ql-picker.ql-font .ql-picker-label[data-value="helvetica"]::before,
+        .ql-picker.ql-font .ql-picker-item[data-value="helvetica"]::before {
+          content: 'Helvetica';
+        }
+        .ql-picker.ql-font .ql-picker-label[data-value="arial"]::before,
+        .ql-picker.ql-font .ql-picker-item[data-value="arial"]::before {
+          content: 'Arial';
+        }
+        .ql-picker.ql-font .ql-picker-label[data-value="courier"]::before,
+        .ql-picker.ql-font .ql-picker-item[data-value="courier"]::before {
+          content: 'Courier New';
+        }
+        .ql-picker.ql-font .ql-picker-label[data-value="kalam"]::before,
+        .ql-picker.ql-font .ql-picker-item[data-value="kalam"]::before {
+          content: 'Kalam';
+        }
+        .ql-picker.ql-font .ql-picker-label[data-value="shadows"]::before,
+        .ql-picker.ql-font .ql-picker-item[data-value="shadows"]::before {
+          content: 'Shadows Into Light';
+        }
+        .ql-picker.ql-font .ql-picker-label[data-value="playwrite"]::before,
+        .ql-picker.ql-font .ql-picker-item[data-value="playwrite"]::before {
+          content: 'Playwrite Deutschland';
+        }
+        .ql-picker.ql-font .ql-picker-label[data-value="msmadi"]::before,
+        .ql-picker.ql-font .ql-picker-item[data-value="msmadi"]::before {
+          content: 'Ms Madi';
+        }
+        .ql-picker.ql-font .ql-picker-label[data-value="giveyouglory"]::before,
+        .ql-picker.ql-font .ql-picker-item[data-value="giveyouglory"]::before {
+          content: 'Give You Glory';
+        }
+        .ql-picker.ql-font .ql-picker-label[data-value="meowscript"]::before,
+        .ql-picker.ql-font .ql-picker-item[data-value="meowscript"]::before {
+          content: 'Meow Script';
+        }
+      `;
+      document.head.appendChild(fontCSS);
       
       // Set initial content
       if (element.text) {
@@ -402,8 +501,8 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       <Rect
         width={element.width}
         height={element.height}
-        fill="rgba(255, 255, 255, 0.8)"
-        stroke={isSelected ? '#2563eb' : '#d1d5db'}
+        /*fill="rgba(255, 255, 255, 0.8)"*/
+        stroke={isSelected ? '#2563eb' : 'transparent'}
         strokeWidth={1}
         cornerRadius={4}
         name="selectableRect"
@@ -434,7 +533,7 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
         clipWidth={element.width}
         clipHeight={element.height}
       >
-        {element.text && (element.text.includes('<') && (element.text.includes('<strong>') || element.text.includes('<em>') || element.text.includes('<u>') || element.text.includes('color:') || element.text.includes('<h'))) ? (
+        {element.text && (element.text.includes('<') && (element.text.includes('<strong>') || element.text.includes('<em>') || element.text.includes('<u>') || element.text.includes('color:') || element.text.includes('font-family:') || element.text.includes('ql-font-') || element.text.includes('<h'))) ? (
           <>
             {formatRichText(element.text, fontSize, fontFamily, element.width - 8).map((textPart, index) => (
               <Text

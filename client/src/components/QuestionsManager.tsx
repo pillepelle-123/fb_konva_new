@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription } from './ui/card';
 import { Input } from './ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { HelpCircle, Plus, Edit, Trash2, Save, Calendar } from 'lucide-react';
 
 interface Question {
@@ -25,6 +25,7 @@ export default function QuestionsManager({ bookId, bookName, onClose }: Question
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editText, setEditText] = useState('');
   const [newQuestion, setNewQuestion] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
 
   useEffect(() => {
     fetchQuestions();
@@ -90,11 +91,15 @@ export default function QuestionsManager({ bookId, bookName, onClose }: Question
     }
   };
 
-  const handleDeleteQuestion = async (questionId: number) => {
-    if (!confirm('Are you sure you want to delete this question?')) return;
+  const handleDeleteQuestion = (questionId: number) => {
+    setShowDeleteConfirm(questionId);
+  };
 
+  const handleConfirmDelete = async () => {
+    if (!showDeleteConfirm) return;
+    
     try {
-      const response = await fetch(`http://localhost:5000/api/questions/${questionId}`, {
+      const response = await fetch(`http://localhost:5000/api/questions/${showDeleteConfirm}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -104,6 +109,7 @@ export default function QuestionsManager({ bookId, bookName, onClose }: Question
     } catch (error) {
       console.error('Error deleting question:', error);
     }
+    setShowDeleteConfirm(null);
   };
 
   const startEdit = (question: Question) => {
@@ -255,6 +261,26 @@ export default function QuestionsManager({ bookId, bookName, onClose }: Question
             </CardContent>
           </Card>
         </div>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={!!showDeleteConfirm} onOpenChange={() => setShowDeleteConfirm(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Delete Question</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete this question? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex gap-2 pt-4">
+              <Button variant="outline" onClick={() => setShowDeleteConfirm(null)} className="flex-1">
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleConfirmDelete} className="flex-1">
+                Delete Question
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   );

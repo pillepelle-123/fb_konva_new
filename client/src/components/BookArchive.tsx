@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Archive, RotateCcw, Trash2, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface ArchivedBook {
@@ -19,6 +20,8 @@ export default function BookArchive() {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const [showRestoreConfirm, setShowRestoreConfirm] = useState<number | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
 
   useEffect(() => {
     fetchArchivedBooks();
@@ -40,9 +43,15 @@ export default function BookArchive() {
     }
   };
 
-  const handleRestore = async (bookId: number) => {
+  const handleRestore = (bookId: number) => {
+    setShowRestoreConfirm(bookId);
+  };
+
+  const handleConfirmRestore = async () => {
+    if (!showRestoreConfirm) return;
+    
     try {
-      const response = await fetch(`http://localhost:5000/api/books/${bookId}/archive`, {
+      const response = await fetch(`http://localhost:5000/api/books/${showRestoreConfirm}/archive`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -52,15 +61,18 @@ export default function BookArchive() {
     } catch (error) {
       console.error('Error restoring book:', error);
     }
+    setShowRestoreConfirm(null);
   };
 
-  const handleDelete = async (bookId: number) => {
-    if (!confirm('Are you sure you want to permanently delete this book? This action cannot be undone.')) {
-      return;
-    }
+  const handleDelete = (bookId: number) => {
+    setShowDeleteConfirm(bookId);
+  };
 
+  const handleConfirmDelete = async () => {
+    if (!showDeleteConfirm) return;
+    
     try {
-      const response = await fetch(`http://localhost:5000/api/books/${bookId}`, {
+      const response = await fetch(`http://localhost:5000/api/books/${showDeleteConfirm}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -70,6 +82,7 @@ export default function BookArchive() {
     } catch (error) {
       console.error('Error deleting book:', error);
     }
+    setShowDeleteConfirm(null);
   };
 
   const formatDate = (dateString: string) => {
@@ -208,6 +221,46 @@ export default function BookArchive() {
 
           </>
         )}
+        
+        {/* Restore Confirmation Dialog */}
+        <Dialog open={!!showRestoreConfirm} onOpenChange={() => setShowRestoreConfirm(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Restore Book</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to restore this book? It will be moved back to your active books.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex gap-2 pt-4">
+              <Button variant="outline" onClick={() => setShowRestoreConfirm(null)} className="flex-1">
+                Cancel
+              </Button>
+              <Button onClick={handleConfirmRestore} className="flex-1">
+                Restore Book
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={!!showDeleteConfirm} onOpenChange={() => setShowDeleteConfirm(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Delete Book Permanently</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to permanently delete this book? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex gap-2 pt-4">
+              <Button variant="outline" onClick={() => setShowDeleteConfirm(null)} className="flex-1">
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleConfirmDelete} className="flex-1">
+                Delete Permanently
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

@@ -48,6 +48,7 @@ export interface EditorState {
   user?: { id: number; role: string } | null;
   editorBarVisible: boolean;
   toolbarVisible: boolean;
+  hasUnsavedChanges: boolean;
 }
 
 type EditorAction =
@@ -63,7 +64,8 @@ type EditorAction =
   | { type: 'DELETE_PAGE'; payload: number }
   | { type: 'DUPLICATE_PAGE'; payload: number }
   | { type: 'TOGGLE_EDITOR_BAR' }
-  | { type: 'TOGGLE_TOOLBAR' };
+  | { type: 'TOGGLE_TOOLBAR' }
+  | { type: 'MARK_SAVED' };
 
 const initialState: EditorState = {
   currentBook: null,
@@ -73,6 +75,7 @@ const initialState: EditorState = {
   user: null,
   editorBarVisible: true,
   toolbarVisible: true,
+  hasUnsavedChanges: false,
 };
 
 function editorReducer(state: EditorState, action: EditorAction): EditorState {
@@ -99,7 +102,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             : page
         )
       };
-      return { ...state, currentBook: newBook };
+      return { ...state, currentBook: newBook, hasUnsavedChanges: true };
     
     case 'UPDATE_ELEMENT':
       if (!state.currentBook) return state;
@@ -109,7 +112,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (elementIndex !== -1) {
         page.elements[elementIndex] = { ...page.elements[elementIndex], ...action.payload.updates };
       }
-      return { ...state, currentBook: updatedBook };
+      return { ...state, currentBook: updatedBook, hasUnsavedChanges: true };
     
     case 'UPDATE_ELEMENT_PRESERVE_SELECTION':
       if (!state.currentBook) return state;
@@ -119,7 +122,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (elementIndexPreserve !== -1) {
         pagePreserve.elements[elementIndexPreserve] = { ...pagePreserve.elements[elementIndexPreserve], ...action.payload.updates };
       }
-      return { ...state, currentBook: updatedBookPreserve };
+      return { ...state, currentBook: updatedBookPreserve, hasUnsavedChanges: true };
     
     case 'DELETE_ELEMENT':
       if (!state.currentBook) return state;
@@ -129,7 +132,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       return { 
         ...state, 
         currentBook: filteredBook,
-        selectedElementIds: state.selectedElementIds.filter(id => id !== action.payload)
+        selectedElementIds: state.selectedElementIds.filter(id => id !== action.payload),
+        hasUnsavedChanges: true
       };
     
     case 'ADD_PAGE':
@@ -146,7 +150,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           ...state.currentBook,
           pages: [...state.currentBook.pages, newPage]
         },
-        activePageIndex: state.currentBook.pages.length
+        activePageIndex: state.currentBook.pages.length,
+        hasUnsavedChanges: true
       };
     
     case 'DELETE_PAGE':
@@ -160,7 +165,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           pages: pagesAfterDelete.map((page, index) => ({ ...page, pageNumber: index + 1 }))
         },
         activePageIndex: newActiveIndex,
-        selectedElementIds: []
+        selectedElementIds: [],
+        hasUnsavedChanges: true
       };
     
     case 'DUPLICATE_PAGE':
@@ -182,7 +188,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           ...state.currentBook,
           pages: pagesWithDuplicate
         },
-        activePageIndex: action.payload + 1
+        activePageIndex: action.payload + 1,
+        hasUnsavedChanges: true
       };
     
     case 'TOGGLE_EDITOR_BAR':
@@ -190,6 +197,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'TOGGLE_TOOLBAR':
       return { ...state, toolbarVisible: !state.toolbarVisible };
+    
+    case 'MARK_SAVED':
+      return { ...state, hasUnsavedChanges: false };
     
     default:
       return state;
@@ -229,6 +239,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       });
       
       if (!response.ok) throw new Error('Failed to save book');
+      dispatch({ type: 'MARK_SAVED' });
     } catch (error) {
       throw error;
     }

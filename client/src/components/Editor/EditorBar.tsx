@@ -1,14 +1,18 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useEditor } from '../../context/EditorContext';
 import PDFExportModal from './PDFExportModal';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { ChevronLeft, ChevronRight, Plus, Copy, Trash2, Save, Download, X, BookOpen, PanelTop, Wrench } from 'lucide-react';
 
 export default function EditorBar() {
   const { state, dispatch, saveBook } = useEditor();
   const [isSaving, setIsSaving] = useState(false);
   const [showPDFModal, setShowPDFModal] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showAlert, setShowAlert] = useState<{ title: string; message: string } | null>(null);
 
   if (!state.currentBook) return null;
 
@@ -20,10 +24,29 @@ export default function EditorBar() {
     try {
       await saveBook();
     } catch (error) {
-      alert('Failed to save book');
+      setShowAlert({ title: 'Save Failed', message: 'Failed to save book. Please try again.' });
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleClose = () => {
+    if (state.hasUnsavedChanges) {
+      setShowCloseConfirm(true);
+    } else {
+      window.history.back();
+    }
+  };
+
+  const handleExitWithoutSaving = () => {
+    setShowCloseConfirm(false);
+    window.history.back();
+  };
+
+  const handleExitWithSaving = async () => {
+    setShowCloseConfirm(false);
+    await handleSave();
+    window.history.back();
   };
 
   const handlePrevPage = () => {
@@ -44,8 +67,13 @@ export default function EditorBar() {
 
   const handleDeletePage = () => {
     if (pages.length > 1) {
-      dispatch({ type: 'DELETE_PAGE', payload: state.activePageIndex });
+      setShowDeleteConfirm(true);
     }
+  };
+
+  const handleConfirmDeletePage = () => {
+    setShowDeleteConfirm(false);
+    dispatch({ type: 'DELETE_PAGE', payload: state.activePageIndex });
   };
 
   const handleDuplicatePage = () => {
@@ -180,7 +208,7 @@ export default function EditorBar() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => window.history.back()}
+                  onClick={handleClose}
                   className="h-8 md:h-9 px-2 md:px-3"
                 >
                   <X className="h-3 w-3 md:h-4 md:w-4" />
@@ -196,6 +224,63 @@ export default function EditorBar() {
         isOpen={showPDFModal} 
         onClose={() => setShowPDFModal(false)} 
       />
+      
+      <Dialog open={showCloseConfirm} onOpenChange={setShowCloseConfirm}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Unsaved Changes</DialogTitle>
+            <DialogDescription>
+              You have unsaved changes. What would you like to do?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 pt-4">
+            <Button onClick={handleExitWithSaving} className="w-full">
+              Save and Exit
+            </Button>
+            <Button variant="outline" onClick={handleExitWithoutSaving} className="w-full">
+              Exit without Saving
+            </Button>
+            <Button variant="ghost" onClick={() => setShowCloseConfirm(false)} className="w-full">
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Page</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete page {currentPage}? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2 pt-4">
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)} className="flex-1">
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmDeletePage} className="flex-1">
+              Delete Page
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      
+      <Dialog open={!!showAlert} onOpenChange={() => setShowAlert(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{showAlert?.title}</DialogTitle>
+            <DialogDescription>
+              {showAlert?.message}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end pt-4">
+            <Button onClick={() => setShowAlert(null)}>
+              OK
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
