@@ -5,6 +5,45 @@ const { authenticateToken } = require('../middleware/auth');
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
+// Get questions by book ID
+router.get('/:bookId', authenticateToken, async (req, res) => {
+  try {
+    const bookId = req.params.bookId;
+    const result = await pool.query(
+      'SELECT * FROM public.questions WHERE book_id = $1 ORDER BY created_at DESC',
+      [bookId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get questions error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Create new question
+router.post('/', authenticateToken, async (req, res) => {
+  try {
+    const { text, book_id } = req.body;
+    const userId = req.user.id;
+    
+    // Check if user owns the book
+    const book = await pool.query('SELECT owner_id FROM public.books WHERE id = $1', [book_id]);
+    if (book.rows.length === 0 || book.rows[0].owner_id !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+    
+    const result = await pool.query(
+      'INSERT INTO public.questions (question_text, book_id, created_by, created_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP) RETURNING *',
+      [text, book_id, userId]
+    );
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Create question error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Update question
 router.put('/:id', authenticateToken, async (req, res) => {
   try {

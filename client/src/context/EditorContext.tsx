@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer } from 'react';
+import { createContext, useContext, useReducer, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -17,6 +17,7 @@ export interface CanvasElement {
   align?: 'left' | 'center' | 'right';
   fontFamily?: string;
   textType?: 'question' | 'answer' | 'regular';
+  questionId?: number;
   src?: string;
   points?: number[];
   roughness?: number;
@@ -245,7 +246,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const loadBook = async (bookId: number) => {
+  const loadBook = useCallback(async (bookId: number) => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`http://localhost:5000/api/books/${bookId}`, {
@@ -256,11 +257,54 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       
       if (!response.ok) throw new Error('Failed to load book');
       const book = await response.json();
+      
+      // Update linked question textboxes with latest database text
+      const questionsResponse = await fetch(`http://localhost:5000/api/questions/${bookId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (questionsResponse.ok) {
+        const questions = await questionsResponse.json();
+        console.log('Questions from DB:', questions);
+        const questionMap = new Map(questions.map(q => [q.id, q.question_text]));
+        
+        let updated = false;
+        book.pages.forEach(page => {
+          page.elements.forEach(element => {
+            if (element.textType === 'question') {
+              console.log('Question element:', element.id, 'questionId:', element.questionId, 'current text:', element.text);
+              if (element.questionId && questionMap.has(element.questionId)) {
+                const latestText = questionMap.get(element.questionId);
+                console.log('Latest text from DB:', latestText);
+                if (element.text !== latestText) {
+                  console.log('Updating text from', element.text, 'to', latestText);
+                  element.text = latestText;
+                  updated = true;
+                }
+              }
+            }
+          });
+        });
+        
+        console.log('Updated any questions:', updated);
+        if (updated) {
+          await fetch(`http://localhost:5000/api/books/${bookId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(book)
+          });
+          console.log('Book saved with updated questions');
+        }
+      }
+      
       dispatch({ type: 'SET_BOOK', payload: book });
     } catch (error) {
       throw error;
     }
-  };
+  }, [dispatch]);
 
   return (
     <EditorContext.Provider value={{ state, dispatch, saveBook, loadBook }}>

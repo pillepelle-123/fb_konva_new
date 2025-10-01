@@ -20,7 +20,7 @@ function EditorContent() {
       const sampleBook = createSampleBook();
       dispatch({ type: 'SET_BOOK', payload: sampleBook });
     }
-  }, [bookId]);
+  }, [bookId, loadBook]);
 
   if (!state.currentBook) {
     return (

@@ -181,6 +181,8 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
   const [isEditing, setIsEditing] = useState(false);
   const [hasOverflow, setHasOverflow] = useState(false);
 
+
+
   const fontSize = element.fontSize || 16;
   const lineHeight = element.lineHeight || (element.text && element.text.includes('data-ruled="true"') ? 2.5 : 1.2);
   const align = element.align || 'left';
@@ -290,7 +292,47 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
         setIsEditing(false);
       };
 
-      const saveBtn = document.createElement('button');
+      // Create different buttons based on text type
+      let saveBtn, saveQuestionBtn, resetBtn, selectQuestionBtn;
+      
+      if (element.textType === 'question') {
+        saveQuestionBtn = document.createElement('button');
+        saveQuestionBtn.textContent = '💾';
+        saveQuestionBtn.style.padding = '8px 12px';
+        saveQuestionBtn.style.border = 'none';
+        saveQuestionBtn.style.borderRadius = '4px';
+        saveQuestionBtn.style.backgroundColor = '#f59e0b';
+        saveQuestionBtn.style.color = 'white';
+        saveQuestionBtn.style.cursor = 'pointer';
+        saveQuestionBtn.style.display = 'none';
+        
+        resetBtn = document.createElement('button');
+        resetBtn.textContent = '↺';
+        resetBtn.style.padding = '8px 12px';
+        resetBtn.style.border = 'none';
+        resetBtn.style.borderRadius = '4px';
+        resetBtn.style.backgroundColor = '#ef4444';
+        resetBtn.style.color = 'white';
+        resetBtn.style.cursor = 'pointer';
+        resetBtn.style.display = 'none';
+        
+        selectQuestionBtn = document.createElement('button');
+        selectQuestionBtn.textContent = 'Select Question';
+        selectQuestionBtn.style.padding = '8px 16px';
+        selectQuestionBtn.style.border = '1px solid #ccc';
+        selectQuestionBtn.style.borderRadius = '4px';
+        selectQuestionBtn.style.cursor = 'pointer';
+        selectQuestionBtn.onclick = () => {
+          // Show question list
+          editorContainer.style.display = 'none';
+          buttonContainer.style.display = 'none';
+          const toolbar = container.querySelector('.ql-toolbar');
+          if (toolbar) toolbar.style.display = 'none';
+          showQuestionList();
+        };
+      }
+      
+      saveBtn = document.createElement('button');
       saveBtn.textContent = 'OK';
       saveBtn.style.padding = '8px 16px';
       saveBtn.style.border = 'none';
@@ -298,6 +340,421 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       saveBtn.style.backgroundColor = '#2563eb';
       saveBtn.style.color = 'white';
       saveBtn.style.cursor = 'pointer';
+      const showQuestionList = async () => {
+        try {
+          const token = localStorage.getItem('token');
+          const response = await fetch(`http://localhost:5000/api/questions/${state.currentBook?.id}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          
+          if (response.ok) {
+            const questions = await response.json();
+            
+            const listContainer = document.createElement('div');
+            listContainer.style.height = '400px';
+            listContainer.style.overflowY = 'auto';
+            listContainer.style.border = '1px solid #ccc';
+            listContainer.style.borderRadius = '4px';
+            
+            questions.forEach(q => {
+              const item = document.createElement('div');
+              item.style.padding = '12px';
+              item.style.borderBottom = '1px solid #eee';
+              item.style.display = 'flex';
+              item.style.justifyContent = 'space-between';
+              item.style.alignItems = 'center';
+              const textDiv = document.createElement('div');
+              textDiv.textContent = q.question_text.replace(/<[^>]*>/g, ''); // Strip HTML tags for display
+              textDiv.style.cursor = 'pointer';
+              textDiv.style.flex = '1';
+              textDiv.onclick = () => {
+                console.log('Selecting existing question:', q.id, 'for element:', element.id);
+                quill.root.innerHTML = q.question_text;
+                dispatch({
+                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                  payload: {
+                    id: element.id,
+                    updates: { text: q.question_text, questionId: q.id }
+                  }
+                });
+                console.log('Dispatched questionId:', q.id);
+                listContainer.remove();
+                backBtn.remove();
+                addNewBtn.remove();
+                editorContainer.style.display = 'block';
+                buttonContainer.style.display = 'flex';
+                const toolbar = container.querySelector('.ql-toolbar');
+                if (toolbar) toolbar.style.display = 'block';
+                setTimeout(() => {
+                  updateContainerVisibility();
+                  quill.focus();
+                }, 0);
+              };
+              
+              const actionsDiv = document.createElement('div');
+              actionsDiv.style.display = 'flex';
+              actionsDiv.style.gap = '8px';
+              
+              const editBtn = document.createElement('button');
+              editBtn.textContent = '✏️';
+              editBtn.style.padding = '4px 8px';
+              editBtn.style.border = 'none';
+              editBtn.style.borderRadius = '4px';
+              editBtn.style.cursor = 'pointer';
+              editBtn.onclick = () => editQuestion(q.id, q.question_text, item);
+              
+              const deleteBtn = document.createElement('button');
+              deleteBtn.textContent = '🗑️';
+              deleteBtn.style.padding = '4px 8px';
+              deleteBtn.style.border = 'none';
+              deleteBtn.style.borderRadius = '4px';
+              deleteBtn.style.cursor = 'pointer';
+              deleteBtn.onclick = () => deleteQuestion(q.id, item);
+              
+              actionsDiv.appendChild(editBtn);
+              actionsDiv.appendChild(deleteBtn);
+              item.appendChild(textDiv);
+              item.appendChild(actionsDiv);
+              listContainer.appendChild(item);
+            });
+            
+            const addNewBtn = document.createElement('button');
+            addNewBtn.textContent = '+ Add New Question';
+            addNewBtn.style.padding = '12px';
+            addNewBtn.style.width = '100%';
+            addNewBtn.style.border = '2px dashed #ccc';
+            addNewBtn.style.borderRadius = '4px';
+            addNewBtn.style.backgroundColor = 'transparent';
+            addNewBtn.style.cursor = 'pointer';
+            addNewBtn.onclick = () => addNewQuestion();
+            
+            const editQuestion = (id, text, itemElement) => {
+              const textDiv = itemElement.querySelector('div');
+              const originalText = textDiv.textContent;
+              
+              const inputContainer = document.createElement('div');
+              inputContainer.style.display = 'flex';
+              inputContainer.style.gap = '4px';
+              inputContainer.style.alignItems = 'center';
+              inputContainer.style.width = '100%';
+              
+              const input = document.createElement('input');
+              input.type = 'text';
+              input.value = originalText;
+              input.style.flex = '1';
+              input.style.padding = '8px';
+              input.style.border = '2px solid #007bff';
+              input.style.borderRadius = '4px';
+              input.style.fontSize = 'inherit';
+              input.style.fontFamily = 'inherit';
+              
+              const saveBtn = document.createElement('button');
+              saveBtn.textContent = '✓';
+              saveBtn.style.width = '24px';
+              saveBtn.style.height = '24px';
+              saveBtn.style.borderRadius = '50%';
+              saveBtn.style.border = 'none';
+              saveBtn.style.backgroundColor = '#10b981';
+              saveBtn.style.color = 'white';
+              saveBtn.style.cursor = 'pointer';
+              saveBtn.style.fontSize = '12px';
+              
+              const cancelBtn = document.createElement('button');
+              cancelBtn.textContent = 'X';
+              cancelBtn.style.width = '24px';
+              cancelBtn.style.height = '24px';
+              cancelBtn.style.borderRadius = '50%';
+              cancelBtn.style.border = 'none';
+              cancelBtn.style.backgroundColor = '#ef4444';
+              cancelBtn.style.color = 'white';
+              cancelBtn.style.cursor = 'pointer';
+              cancelBtn.style.fontSize = '12px';
+              
+              const saveEdit = async () => {
+                document.removeEventListener('click', handleClickOutside);
+                const newText = input.value.trim();
+                if (newText && newText !== originalText) {
+                  try {
+                    const token = localStorage.getItem('token');
+                    const response = await fetch(`http://localhost:5000/api/questions/${id}`, {
+                      method: 'PUT',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                      },
+                      body: JSON.stringify({ questionText: newText })
+                    });
+                    
+                    if (response.ok) {
+                      textDiv.textContent = newText;
+                    }
+                  } catch (error) {
+                    console.error('Failed to update question:', error);
+                  }
+                } else {
+                  textDiv.textContent = originalText;
+                }
+                textDiv.style.display = 'block';
+                inputContainer.remove();
+              };
+              
+              const cancelEdit = () => {
+                document.removeEventListener('click', handleClickOutside);
+                textDiv.textContent = originalText;
+                textDiv.style.display = 'block';
+                inputContainer.remove();
+              };
+              
+              saveBtn.onclick = saveEdit;
+              cancelBtn.onclick = cancelEdit;
+              
+              input.onkeydown = (e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  saveEdit();
+                }
+                if (e.key === 'Escape') {
+                  cancelEdit();
+                }
+              };
+              
+              inputContainer.appendChild(input);
+              inputContainer.appendChild(saveBtn);
+              inputContainer.appendChild(cancelBtn);
+              
+              const handleClickOutside = (e) => {
+                if (!inputContainer.contains(e.target)) {
+                  cancelEdit();
+                  document.removeEventListener('click', handleClickOutside);
+                }
+              };
+              
+              textDiv.style.display = 'none';
+              textDiv.parentNode.insertBefore(inputContainer, textDiv);
+              input.focus();
+              input.select();
+              
+              setTimeout(() => {
+                document.addEventListener('click', handleClickOutside);
+              }, 0);
+            };
+            
+            const deleteQuestion = async (id, itemElement) => {
+              if (confirm('Delete this question?')) {
+                try {
+                  const token = localStorage.getItem('token');
+                  const response = await fetch(`http://localhost:5000/api/questions/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                  });
+                  
+                  if (response.ok) {
+                    itemElement.remove();
+                  }
+                } catch (error) {
+                  console.error('Failed to delete question:', error);
+                }
+              }
+            };
+            
+            const addNewQuestion = () => {
+              const newItem = document.createElement('div');
+              newItem.style.padding = '12px';
+              newItem.style.borderBottom = '1px solid #eee';
+              newItem.style.display = 'flex';
+              newItem.style.justifyContent = 'space-between';
+              newItem.style.alignItems = 'center';
+              newItem.style.backgroundColor = '#f8f9fa';
+              newItem.style.position = 'relative';
+              
+              const inputContainer = document.createElement('div');
+              inputContainer.style.display = 'flex';
+              inputContainer.style.gap = '4px';
+              inputContainer.style.alignItems = 'center';
+              inputContainer.style.width = '100%';
+              
+              const input = document.createElement('input');
+              input.type = 'text';
+              input.placeholder = 'Enter new question...';
+              input.style.flex = '1';
+              input.style.padding = '8px';
+              input.style.border = '2px solid #007bff';
+              input.style.borderRadius = '4px';
+              input.style.fontSize = 'inherit';
+              input.style.fontFamily = 'inherit';
+              
+              const saveBtn = document.createElement('button');
+              saveBtn.textContent = '✓';
+              saveBtn.style.width = '24px';
+              saveBtn.style.height = '24px';
+              saveBtn.style.borderRadius = '50%';
+              saveBtn.style.border = 'none';
+              saveBtn.style.backgroundColor = '#10b981';
+              saveBtn.style.color = 'white';
+              saveBtn.style.cursor = 'pointer';
+              saveBtn.style.fontSize = '12px';
+              
+              const cancelBtn = document.createElement('button');
+              cancelBtn.textContent = 'X';
+              cancelBtn.style.width = '24px';
+              cancelBtn.style.height = '24px';
+              cancelBtn.style.borderRadius = '50%';
+              cancelBtn.style.border = 'none';
+              cancelBtn.style.backgroundColor = '#ef4444';
+              cancelBtn.style.color = 'white';
+              cancelBtn.style.cursor = 'pointer';
+              cancelBtn.style.fontSize = '12px';
+              
+              let isSaving = false;
+              const saveNew = async () => {
+                if (isSaving) return;
+                isSaving = true;
+                
+                const text = input.value.trim();
+                if (text) {
+                  try {
+                    const token = localStorage.getItem('token');
+                    const response = await fetch('http://localhost:5000/api/questions', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                      },
+                      body: JSON.stringify({
+                        text: text,
+                        book_id: state.currentBook?.id
+                      })
+                    });
+                    
+                    if (response.ok) {
+                      const newQuestion = await response.json();
+                      
+                      const textDiv = document.createElement('div');
+                      textDiv.textContent = text;
+                      textDiv.style.cursor = 'pointer';
+                      textDiv.style.flex = '1';
+                      textDiv.onclick = () => {
+                        quill.root.innerHTML = text;
+                        dispatch({
+                          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                          payload: {
+                            id: element.id,
+                            updates: { text: text, questionId: newQuestion.id }
+                          }
+                        });
+                        listContainer.remove();
+                        backBtn.remove();
+                        addNewBtn.remove();
+                        editorContainer.style.display = 'block';
+                        buttonContainer.style.display = 'flex';
+                        const toolbar = container.querySelector('.ql-toolbar');
+                        if (toolbar) toolbar.style.display = 'block';
+                        updateContainerVisibility();
+                        quill.focus();
+                      };
+                      
+                      const actionsDiv = document.createElement('div');
+                      actionsDiv.style.display = 'flex';
+                      actionsDiv.style.gap = '8px';
+                      
+                      const editBtn = document.createElement('button');
+                      editBtn.textContent = '✏️';
+                      editBtn.style.padding = '4px 8px';
+                      editBtn.style.border = 'none';
+                      editBtn.style.borderRadius = '4px';
+                      editBtn.style.cursor = 'pointer';
+                      editBtn.onclick = () => editQuestion(newQuestion.id, text, newItem);
+                      
+                      const deleteBtn = document.createElement('button');
+                      deleteBtn.textContent = '🗑️';
+                      deleteBtn.style.padding = '4px 8px';
+                      deleteBtn.style.border = 'none';
+                      deleteBtn.style.borderRadius = '4px';
+                      deleteBtn.style.cursor = 'pointer';
+                      deleteBtn.onclick = () => deleteQuestion(newQuestion.id, newItem);
+                      
+                      actionsDiv.appendChild(editBtn);
+                      actionsDiv.appendChild(deleteBtn);
+                      
+                      newItem.innerHTML = '';
+                      newItem.style.backgroundColor = '';
+                      newItem.style.position = '';
+                      newItem.appendChild(textDiv);
+                      newItem.appendChild(actionsDiv);
+                    }
+                  } catch (error) {
+                    console.error('Failed to add question:', error);
+                  }
+                } else {
+                  newItem.remove();
+                }
+              };
+              
+              saveBtn.onclick = () => {
+                document.removeEventListener('click', handleClickOutside);
+                saveNew();
+              };
+              cancelBtn.onclick = () => cancelNew();
+              
+              input.onkeydown = (e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  saveNew();
+                }
+                if (e.key === 'Escape') {
+                  cancelNew();
+                }
+              };
+              
+              inputContainer.appendChild(input);
+              inputContainer.appendChild(saveBtn);
+              inputContainer.appendChild(cancelBtn);
+              
+              const cancelNew = () => {
+                document.removeEventListener('click', handleClickOutside);
+                newItem.remove();
+              };
+              
+              const handleClickOutside = (e) => {
+                if (!inputContainer.contains(e.target)) {
+                  cancelNew();
+                  document.removeEventListener('click', handleClickOutside);
+                }
+              };
+              
+              newItem.appendChild(inputContainer);
+              listContainer.insertBefore(newItem, listContainer.firstChild);
+              input.focus();
+              
+              setTimeout(() => {
+                document.addEventListener('click', handleClickOutside);
+              }, 0);
+            };
+            
+            const backBtn = document.createElement('button');
+            backBtn.textContent = 'Back';
+            backBtn.style.marginTop = '12px';
+            backBtn.style.padding = '8px 16px';
+            backBtn.onclick = () => {
+              listContainer.remove();
+              backBtn.remove();
+              addNewBtn.remove();
+              editorContainer.style.display = 'block';
+              buttonContainer.style.display = 'flex';
+              const toolbar = container.querySelector('.ql-toolbar');
+              if (toolbar) toolbar.style.display = 'block';
+              updateContainerVisibility();
+            };
+            
+            container.insertBefore(listContainer, buttonContainer);
+            container.insertBefore(addNewBtn, buttonContainer);
+            container.insertBefore(backBtn, buttonContainer);
+          }
+        } catch (error) {
+          console.error('Failed to load questions:', error);
+        }
+      };
+      
       saveBtn.onclick = () => {
         let htmlContent = quill.root.innerHTML;
         
@@ -324,8 +781,16 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
         setIsEditing(false);
       };
 
-      buttonContainer.appendChild(cancelBtn);
-      buttonContainer.appendChild(saveBtn);
+      if (element.textType === 'question') {
+        buttonContainer.appendChild(selectQuestionBtn);
+        buttonContainer.appendChild(saveQuestionBtn);
+        buttonContainer.appendChild(resetBtn);
+        buttonContainer.appendChild(cancelBtn);
+        buttonContainer.appendChild(saveBtn);
+      } else {
+        buttonContainer.appendChild(cancelBtn);
+        buttonContainer.appendChild(saveBtn);
+      }
 
       container.appendChild(editorContainer);
       container.appendChild(buttonContainer);
@@ -521,6 +986,72 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       `;
       document.head.appendChild(fontCSS);
       
+      // Create "Add question" button for empty content
+      const addQuestionButton = document.createElement('button');
+      addQuestionButton.style.width = '100%';
+      addQuestionButton.style.height = 'auto';
+      addQuestionButton.style.padding = '16px 24px';
+      addQuestionButton.style.display = 'flex';
+      addQuestionButton.style.alignItems = 'center';
+      addQuestionButton.style.justifyContent = 'flex-start';
+      addQuestionButton.style.gap = '12px';
+      addQuestionButton.style.border = '1px solid #e2e8f0';
+      addQuestionButton.style.borderRadius = '6px';
+      addQuestionButton.style.backgroundColor = 'white';
+      addQuestionButton.style.cursor = 'pointer';
+      addQuestionButton.style.fontSize = '14px';
+      addQuestionButton.style.fontWeight = '500';
+      addQuestionButton.style.color = '#0f172a';
+      addQuestionButton.style.transition = 'background-color 0.2s';
+      
+      const plusIcon = document.createElement('span');
+      plusIcon.innerHTML = '+';
+      plusIcon.style.fontSize = '20px';
+      plusIcon.style.fontWeight = 'bold';
+      
+      const buttonText = document.createElement('div');
+      buttonText.style.textAlign = 'left';
+      buttonText.innerHTML = '<div style="font-weight: 500;">Select question</div><div style="font-size: 12px; color: #64748b; margin-top: 2px;">Select from existing questions or add new</div>';
+      
+      addQuestionButton.appendChild(plusIcon);
+      addQuestionButton.appendChild(buttonText);
+      
+      addQuestionButton.onmouseover = () => {
+        addQuestionButton.style.backgroundColor = '#f8fafc';
+      };
+      addQuestionButton.onmouseout = () => {
+        addQuestionButton.style.backgroundColor = 'white';
+      };
+      
+      addQuestionButton.onclick = () => {
+        editorContainer.style.display = 'none';
+        buttonContainer.style.display = 'none';
+        const toolbar = container.querySelector('.ql-toolbar');
+        if (toolbar) toolbar.style.display = 'none';
+        showQuestionList();
+      };
+      
+      const updateContainerVisibility = () => {
+        if (element.textType === 'question') {
+          const isEmpty = !quill.getText().trim();
+          const qlContainer = editorContainer.querySelector('.ql-container');
+          if (isEmpty) {
+            if (qlContainer) qlContainer.style.display = 'none';
+            quill.root.style.pointerEvents = 'none';
+            quill.blur();
+            if (!editorContainer.contains(addQuestionButton)) {
+              editorContainer.appendChild(addQuestionButton);
+            }
+          } else {
+            if (qlContainer) qlContainer.style.display = 'block';
+            quill.root.style.pointerEvents = 'auto';
+            if (editorContainer.contains(addQuestionButton)) {
+              editorContainer.removeChild(addQuestionButton);
+            }
+          }
+        }
+      };
+      
       // Set initial content and ruled lines state
       if (element.text) {
         if (element.text.includes('data-ruled="true"')) {
@@ -563,6 +1094,10 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
         quill.format('font', 'helvetica');
       }
       
+      setTimeout(() => {
+        updateContainerVisibility();
+      }, 0);
+      
       // Update button state on focus
       quill.on('selection-change', function() {
         const button = document.querySelector('.ql-ruled-lines');
@@ -574,6 +1109,7 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
             button.classList.remove('ql-active');
           }
         }
+        updateContainerVisibility();
       });
       
       // Preserve formatting on Enter from headers
@@ -596,6 +1132,31 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
               }
             }
           });
+        }
+      });
+      
+      // Disable text input but allow formatting
+      quill.root.addEventListener('beforeinput', (e) => {
+        if (element.textType === 'question' && (e.inputType.includes('insert') || e.inputType.includes('delete'))) {
+          e.preventDefault();
+        }
+      });
+      
+      quill.root.addEventListener('keydown', (e) => {
+        if (element.textType === 'question' && !e.ctrlKey && !e.metaKey && e.key.length === 1) {
+          e.preventDefault();
+        }
+        if (element.textType === 'question' && (e.key === 'Backspace' || e.key === 'Delete' || e.key === 'Enter')) {
+          e.preventDefault();
+        }
+        if (element.textType === 'question' && (e.ctrlKey || e.metaKey) && e.key === 'v') {
+          e.preventDefault();
+        }
+      });
+      
+      quill.root.addEventListener('paste', (e) => {
+        if (element.textType === 'question') {
+          e.preventDefault();
         }
       });
       
