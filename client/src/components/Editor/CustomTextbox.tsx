@@ -291,7 +291,7 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       };
 
       const saveBtn = document.createElement('button');
-      saveBtn.textContent = 'Save';
+      saveBtn.textContent = 'OK';
       saveBtn.style.padding = '8px 16px';
       saveBtn.style.border = 'none';
       saveBtn.style.borderRadius = '4px';
@@ -354,9 +354,10 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
           toolbar: {
             container: [
               [{ 'header': [1, 2, 3, false] }],
-              [{ 'font': ['helvetica', 'georgia', 'arial', 'courier', 'kalam', 'shadows', 'playwrite', 'msmadi', 'giveyouglory', 'meowscript'] }],
+
               ['bold', 'italic', 'underline'],
               [{ 'color': userColors }],
+              [{ 'font': ['helvetica', 'georgia', 'arial', 'courier', 'kalam', 'shadows', 'playwrite', 'msmadi', 'giveyouglory', 'meowscript'] }],
               ['ruled-lines'],
               ['clean']
             ],
@@ -383,6 +384,19 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       // Set default formatting
       quill.format('font', 'helvetica');
       quill.format('color', '#000000');
+      
+      // Handle global font changes
+      setTimeout(() => {
+        const fontItems = document.querySelectorAll('.ql-font .ql-picker-item');
+        fontItems.forEach(item => {
+          item.addEventListener('click', function() {
+            const selectedFont = this.getAttribute('data-value');
+            if (selectedFont) {
+              quill.formatText(0, quill.getLength(), 'font', selectedFont);
+            }
+          });
+        });
+      }, 100);
       
       // Handle paste events to process ruled line content
       quill.root.addEventListener('paste', function(e) {
