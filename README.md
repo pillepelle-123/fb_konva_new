@@ -1,4 +1,4 @@
-# FB Konva Full-Stack Application
+# freundebuch.io Full-Stack Application
 
 A full-stack web application with React frontend and Node.js/Express backend for creating interactive canvas-based content with drawing tools, text editing, and image management.
 

@@ -60,7 +60,7 @@ function Home({ serverMessage }: { serverMessage: string }) {
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-2xl mx-auto text-center space-y-6">
         <h1 className="text-4xl font-bold tracking-tight text-foreground">
-          Welcome to FB Konva
+          Welcome to freundebuch.io
         </h1>
         <p className="text-xl text-muted-foreground">
           Create and collaborate on beautiful books and documents

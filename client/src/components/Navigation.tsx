@@ -30,7 +30,7 @@ export default function Navigation() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white">
               <BookOpen className="h-5 w-5 text-primary" />
             </div>
-            <span className="text-xl font-semibold text-white">FB Konva</span>
+            <span className="text-xl font-semibold text-white">freundebuch.io</span>
           </Link>
 
           {/* Desktop Navigation */}
