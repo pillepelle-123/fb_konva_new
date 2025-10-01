@@ -340,417 +340,71 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       saveBtn.style.backgroundColor = '#2563eb';
       saveBtn.style.color = 'white';
       saveBtn.style.cursor = 'pointer';
-      const showQuestionList = async () => {
-        try {
-          const token = localStorage.getItem('token');
-          const response = await fetch(`http://localhost:5000/api/questions/${state.currentBook?.id}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          
-          if (response.ok) {
-            const questions = await response.json();
-            
-            const listContainer = document.createElement('div');
-            listContainer.style.height = '400px';
-            listContainer.style.overflowY = 'auto';
-            listContainer.style.border = '1px solid #ccc';
-            listContainer.style.borderRadius = '4px';
-            
-            questions.forEach(q => {
-              const item = document.createElement('div');
-              item.style.padding = '12px';
-              item.style.borderBottom = '1px solid #eee';
-              item.style.display = 'flex';
-              item.style.justifyContent = 'space-between';
-              item.style.alignItems = 'center';
-              const textDiv = document.createElement('div');
-              textDiv.textContent = q.question_text.replace(/<[^>]*>/g, ''); // Strip HTML tags for display
-              textDiv.style.cursor = 'pointer';
-              textDiv.style.flex = '1';
-              textDiv.onclick = () => {
-                quill.root.innerHTML = q.question_text;
+      const showQuestionList = () => {
+        // Import React and ReactDOM dynamically
+        import('react').then(React => {
+          import('react-dom/client').then(ReactDOM => {
+            import('../QuestionsManagerContent').then(({ default: QuestionsManagerContent }) => {
+              // Create React container
+              const reactContainer = document.createElement('div');
+              container.insertBefore(reactContainer, buttonContainer);
+              
+              const root = ReactDOM.createRoot(reactContainer);
+              
+              const handleQuestionSelect = (questionId: number, questionText: string) => {
+                quill.root.innerHTML = questionText;
                 dispatch({
                   type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
                   payload: {
                     id: element.id,
-                    updates: { text: q.question_text, questionId: q.id }
+                    updates: { text: questionText, questionId: questionId }
                   }
                 });
-                listContainer.remove();
-                backBtn.remove();
-                addNewBtn.remove();
+                
+                // Clean up React component
+                root.unmount();
+                reactContainer.remove();
+                
+                // Show editor again
                 editorContainer.style.display = 'block';
                 buttonContainer.style.display = 'flex';
                 const toolbar = container.querySelector('.ql-toolbar');
                 if (toolbar) toolbar.style.display = 'block';
+                
                 setTimeout(() => {
                   updateContainerVisibility();
                   quill.focus();
                 }, 0);
               };
               
-              const actionsDiv = document.createElement('div');
-              actionsDiv.style.display = 'flex';
-              actionsDiv.style.gap = '8px';
-              
-              const editBtn = document.createElement('button');
-              editBtn.textContent = '✏️';
-              editBtn.style.padding = '4px 8px';
-              editBtn.style.border = 'none';
-              editBtn.style.borderRadius = '4px';
-              editBtn.style.cursor = 'pointer';
-              editBtn.onclick = () => editQuestion(q.id, q.question_text, item);
-              
-              const deleteBtn = document.createElement('button');
-              deleteBtn.textContent = '🗑️';
-              deleteBtn.style.padding = '4px 8px';
-              deleteBtn.style.border = 'none';
-              deleteBtn.style.borderRadius = '4px';
-              deleteBtn.style.cursor = 'pointer';
-              deleteBtn.onclick = () => deleteQuestion(q.id, item);
-              
-              actionsDiv.appendChild(editBtn);
-              actionsDiv.appendChild(deleteBtn);
-              item.appendChild(textDiv);
-              item.appendChild(actionsDiv);
-              listContainer.appendChild(item);
-            });
-            
-            const addNewBtn = document.createElement('button');
-            addNewBtn.textContent = '+ Add New Question';
-            addNewBtn.style.padding = '12px';
-            addNewBtn.style.width = '100%';
-            addNewBtn.style.border = '2px dashed #ccc';
-            addNewBtn.style.borderRadius = '4px';
-            addNewBtn.style.backgroundColor = 'transparent';
-            addNewBtn.style.cursor = 'pointer';
-            addNewBtn.onclick = () => addNewQuestion();
-            
-            const editQuestion = (id, text, itemElement) => {
-              const textDiv = itemElement.querySelector('div');
-              const originalText = textDiv.textContent;
-              
-              const inputContainer = document.createElement('div');
-              inputContainer.style.display = 'flex';
-              inputContainer.style.gap = '4px';
-              inputContainer.style.alignItems = 'center';
-              inputContainer.style.width = '100%';
-              
-              const input = document.createElement('input');
-              input.type = 'text';
-              input.value = originalText;
-              input.style.flex = '1';
-              input.style.padding = '8px';
-              input.style.border = '2px solid #007bff';
-              input.style.borderRadius = '4px';
-              input.style.fontSize = 'inherit';
-              input.style.fontFamily = 'inherit';
-              
-              const saveBtn = document.createElement('button');
-              saveBtn.textContent = '✓';
-              saveBtn.style.width = '24px';
-              saveBtn.style.height = '24px';
-              saveBtn.style.borderRadius = '50%';
-              saveBtn.style.border = 'none';
-              saveBtn.style.backgroundColor = '#10b981';
-              saveBtn.style.color = 'white';
-              saveBtn.style.cursor = 'pointer';
-              saveBtn.style.fontSize = '12px';
-              
-              const cancelBtn = document.createElement('button');
-              cancelBtn.textContent = 'X';
-              cancelBtn.style.width = '24px';
-              cancelBtn.style.height = '24px';
-              cancelBtn.style.borderRadius = '50%';
-              cancelBtn.style.border = 'none';
-              cancelBtn.style.backgroundColor = '#ef4444';
-              cancelBtn.style.color = 'white';
-              cancelBtn.style.cursor = 'pointer';
-              cancelBtn.style.fontSize = '12px';
-              
-              const saveEdit = async () => {
-                document.removeEventListener('click', handleClickOutside);
-                const newText = input.value.trim();
-                if (newText && newText !== originalText) {
-                  try {
-                    const token = localStorage.getItem('token');
-                    const response = await fetch(`http://localhost:5000/api/questions/${id}`, {
-                      method: 'PUT',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                      },
-                      body: JSON.stringify({ questionText: newText })
-                    });
-                    
-                    if (response.ok) {
-                      textDiv.textContent = newText;
-                    }
-                  } catch (error) {
-                    console.error('Failed to update question:', error);
-                  }
-                } else {
-                  textDiv.textContent = originalText;
-                }
-                textDiv.style.display = 'block';
-                inputContainer.remove();
-              };
-              
-              const cancelEdit = () => {
-                document.removeEventListener('click', handleClickOutside);
-                textDiv.textContent = originalText;
-                textDiv.style.display = 'block';
-                inputContainer.remove();
-              };
-              
-              saveBtn.onclick = saveEdit;
-              cancelBtn.onclick = cancelEdit;
-              
-              input.onkeydown = (e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  saveEdit();
-                }
-                if (e.key === 'Escape') {
-                  cancelEdit();
-                }
-              };
-              
-              inputContainer.appendChild(input);
-              inputContainer.appendChild(saveBtn);
-              inputContainer.appendChild(cancelBtn);
-              
-              const handleClickOutside = (e) => {
-                if (!inputContainer.contains(e.target)) {
-                  cancelEdit();
-                  document.removeEventListener('click', handleClickOutside);
-                }
-              };
-              
-              textDiv.style.display = 'none';
-              textDiv.parentNode.insertBefore(inputContainer, textDiv);
-              input.focus();
-              input.select();
-              
-              setTimeout(() => {
-                document.addEventListener('click', handleClickOutside);
-              }, 0);
-            };
-            
-            const deleteQuestion = async (id, itemElement) => {
-              if (confirm('Delete this question?')) {
-                try {
-                  const token = localStorage.getItem('token');
-                  const response = await fetch(`http://localhost:5000/api/questions/${id}`, {
-                    method: 'DELETE',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                  });
-                  
-                  if (response.ok) {
-                    itemElement.remove();
-                  }
-                } catch (error) {
-                  console.error('Failed to delete question:', error);
-                }
-              }
-            };
-            
-            const addNewQuestion = () => {
-              const newItem = document.createElement('div');
-              newItem.style.padding = '12px';
-              newItem.style.borderBottom = '1px solid #eee';
-              newItem.style.display = 'flex';
-              newItem.style.justifyContent = 'space-between';
-              newItem.style.alignItems = 'center';
-              newItem.style.backgroundColor = '#f8f9fa';
-              newItem.style.position = 'relative';
-              
-              const inputContainer = document.createElement('div');
-              inputContainer.style.display = 'flex';
-              inputContainer.style.gap = '4px';
-              inputContainer.style.alignItems = 'center';
-              inputContainer.style.width = '100%';
-              
-              const input = document.createElement('input');
-              input.type = 'text';
-              input.placeholder = 'Enter new question...';
-              input.style.flex = '1';
-              input.style.padding = '8px';
-              input.style.border = '2px solid #007bff';
-              input.style.borderRadius = '4px';
-              input.style.fontSize = 'inherit';
-              input.style.fontFamily = 'inherit';
-              
-              const saveBtn = document.createElement('button');
-              saveBtn.textContent = '✓';
-              saveBtn.style.width = '24px';
-              saveBtn.style.height = '24px';
-              saveBtn.style.borderRadius = '50%';
-              saveBtn.style.border = 'none';
-              saveBtn.style.backgroundColor = '#10b981';
-              saveBtn.style.color = 'white';
-              saveBtn.style.cursor = 'pointer';
-              saveBtn.style.fontSize = '12px';
-              
-              const cancelBtn = document.createElement('button');
-              cancelBtn.textContent = 'X';
-              cancelBtn.style.width = '24px';
-              cancelBtn.style.height = '24px';
-              cancelBtn.style.borderRadius = '50%';
-              cancelBtn.style.border = 'none';
-              cancelBtn.style.backgroundColor = '#ef4444';
-              cancelBtn.style.color = 'white';
-              cancelBtn.style.cursor = 'pointer';
-              cancelBtn.style.fontSize = '12px';
-              
-              let isSaving = false;
-              const saveNew = async () => {
-                if (isSaving) return;
-                isSaving = true;
+              const handleCancel = () => {
+                // Clean up React component
+                root.unmount();
+                reactContainer.remove();
                 
-                const text = input.value.trim();
-                if (text) {
-                  try {
-                    const token = localStorage.getItem('token');
-                    const response = await fetch('http://localhost:5000/api/questions', {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                      },
-                      body: JSON.stringify({
-                        text: text,
-                        book_id: state.currentBook?.id
-                      })
-                    });
-                    
-                    if (response.ok) {
-                      const newQuestion = await response.json();
-                      
-                      const textDiv = document.createElement('div');
-                      textDiv.textContent = text;
-                      textDiv.style.cursor = 'pointer';
-                      textDiv.style.flex = '1';
-                      textDiv.onclick = () => {
-                        quill.root.innerHTML = text;
-                        dispatch({
-                          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                          payload: {
-                            id: element.id,
-                            updates: { text: text, questionId: newQuestion.id }
-                          }
-                        });
-                        listContainer.remove();
-                        backBtn.remove();
-                        addNewBtn.remove();
-                        editorContainer.style.display = 'block';
-                        buttonContainer.style.display = 'flex';
-                        const toolbar = container.querySelector('.ql-toolbar');
-                        if (toolbar) toolbar.style.display = 'block';
-                        updateContainerVisibility();
-                        quill.focus();
-                      };
-                      
-                      const actionsDiv = document.createElement('div');
-                      actionsDiv.style.display = 'flex';
-                      actionsDiv.style.gap = '8px';
-                      
-                      const editBtn = document.createElement('button');
-                      editBtn.textContent = '✏️';
-                      editBtn.style.padding = '4px 8px';
-                      editBtn.style.border = 'none';
-                      editBtn.style.borderRadius = '4px';
-                      editBtn.style.cursor = 'pointer';
-                      editBtn.onclick = () => editQuestion(newQuestion.id, text, newItem);
-                      
-                      const deleteBtn = document.createElement('button');
-                      deleteBtn.textContent = '🗑️';
-                      deleteBtn.style.padding = '4px 8px';
-                      deleteBtn.style.border = 'none';
-                      deleteBtn.style.borderRadius = '4px';
-                      deleteBtn.style.cursor = 'pointer';
-                      deleteBtn.onclick = () => deleteQuestion(newQuestion.id, newItem);
-                      
-                      actionsDiv.appendChild(editBtn);
-                      actionsDiv.appendChild(deleteBtn);
-                      
-                      newItem.innerHTML = '';
-                      newItem.style.backgroundColor = '';
-                      newItem.style.position = '';
-                      newItem.appendChild(textDiv);
-                      newItem.appendChild(actionsDiv);
-                    }
-                  } catch (error) {
-                    console.error('Failed to add question:', error);
-                  }
-                } else {
-                  newItem.remove();
-                }
+                // Show editor again
+                editorContainer.style.display = 'block';
+                buttonContainer.style.display = 'flex';
+                const toolbar = container.querySelector('.ql-toolbar');
+                if (toolbar) toolbar.style.display = 'block';
+                updateContainerVisibility();
               };
               
-              saveBtn.onclick = () => {
-                document.removeEventListener('click', handleClickOutside);
-                saveNew();
-              };
-              cancelBtn.onclick = () => cancelNew();
-              
-              input.onkeydown = (e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  saveNew();
-                }
-                if (e.key === 'Escape') {
-                  cancelNew();
-                }
-              };
-              
-              inputContainer.appendChild(input);
-              inputContainer.appendChild(saveBtn);
-              inputContainer.appendChild(cancelBtn);
-              
-              const cancelNew = () => {
-                document.removeEventListener('click', handleClickOutside);
-                newItem.remove();
-              };
-              
-              const handleClickOutside = (e) => {
-                if (!inputContainer.contains(e.target)) {
-                  cancelNew();
-                  document.removeEventListener('click', handleClickOutside);
-                }
-              };
-              
-              newItem.appendChild(inputContainer);
-              listContainer.insertBefore(newItem, listContainer.firstChild);
-              input.focus();
-              
-              setTimeout(() => {
-                document.addEventListener('click', handleClickOutside);
-              }, 0);
-            };
-            
-            const backBtn = document.createElement('button');
-            backBtn.textContent = 'Back';
-            backBtn.style.marginTop = '12px';
-            backBtn.style.padding = '8px 16px';
-            backBtn.onclick = () => {
-              listContainer.remove();
-              backBtn.remove();
-              addNewBtn.remove();
-              editorContainer.style.display = 'block';
-              buttonContainer.style.display = 'flex';
-              const toolbar = container.querySelector('.ql-toolbar');
-              if (toolbar) toolbar.style.display = 'block';
-              updateContainerVisibility();
-            };
-            
-            container.insertBefore(listContainer, buttonContainer);
-            container.insertBefore(addNewBtn, buttonContainer);
-            container.insertBefore(backBtn, buttonContainer);
-          }
-        } catch (error) {
-          console.error('Failed to load questions:', error);
-        }
+              // Render QuestionsManagerContent
+              root.render(
+                React.createElement(QuestionsManagerContent, {
+                  bookId: state.currentBook?.id || 0,
+                  bookName: state.currentBook?.name || '',
+                  onQuestionSelect: handleQuestionSelect,
+                  mode: 'select',
+                  token: localStorage.getItem('token') || '',
+                  onClose: handleCancel,
+                  showAsContent: true
+                })
+              );
+            });
+          });
+        });
       };
       
       saveBtn.onclick = () => {
