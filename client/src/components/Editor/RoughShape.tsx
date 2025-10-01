@@ -149,6 +149,8 @@ export default function RoughShape({ element, isSelected, onSelect, onDragStart,
         height={element.height}
         fill="transparent"
         listening={true}
+        strokeWidth={10}
+        stroke="transparent"
       />
       
       {/* Visible rough path */}

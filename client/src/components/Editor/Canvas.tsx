@@ -620,52 +620,23 @@ export default function Canvas() {
       );
     }
     
-    // For single selection, check individual element bounds
-    return state.selectedElementIds.some(elementId => {
-      const element = currentPage.elements.find(el => el.id === elementId);
-      if (!element) return false;
-      
-      const scaleX = element.scaleX || 1;
-      const scaleY = element.scaleY || 1;
-      
-      const bounds = {
-        x: element.x,
-        y: element.y,
-        width: (element.width || 100) * scaleX,
-        height: (element.height || 100) * scaleY
-      };
-      
-      // Calculate bounds for different element types
-      if (element.type === 'roughPath' && element.points) {
-        let minX = element.points[0], maxX = element.points[0];
-        let minY = element.points[1], maxY = element.points[1];
-        
-        for (let i = 2; i < element.points.length; i += 2) {
-          minX = Math.min(minX, element.points[i]);
-          maxX = Math.max(maxX, element.points[i]);
-          minY = Math.min(minY, element.points[i + 1]);
-          maxY = Math.max(maxY, element.points[i + 1]);
-        }
-        
-        bounds.x = element.x + minX - 10;
-        bounds.y = element.y + minY - 10;
-        bounds.width = (maxX - minX + 20) * scaleX;
-        bounds.height = (maxY - minY + 20) * scaleY;
-      } else if (element.type === 'text') {
-        bounds.width = (element.width || 150) * scaleX;
-        bounds.height = (element.height || 50) * scaleY;
-      } else if (element.type === 'placeholder' || element.type === 'image') {
-        bounds.width = (element.width || 150) * scaleX;
-        bounds.height = (element.height || 100) * scaleY;
-      }
-      
+    // For single selection, use transformer bounds if available
+    if (transformerRef.current && transformerRef.current.nodes().length > 0) {
+      const transformer = transformerRef.current;
+      const box = transformer.getClientRect();
+      const pageX = (box.x - stagePos.x) / zoom - pageOffsetX;
+      const pageY = (box.y - stagePos.y) / zoom - pageOffsetY;
+      const pageWidth = box.width / zoom;
+      const pageHeight = box.height / zoom;
       return (
-        x >= bounds.x &&
-        x <= bounds.x + bounds.width &&
-        y >= bounds.y &&
-        y <= bounds.y + bounds.height
+        x >= pageX &&
+        x <= pageX + pageWidth &&
+        y >= pageY &&
+        y <= pageY + pageHeight
       );
-    });
+    }
+    
+    return false;
   };
 
   const getElementsInSelection = () => {
