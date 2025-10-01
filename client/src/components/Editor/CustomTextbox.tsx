@@ -1,8 +1,10 @@
 import { useRef, useState, useEffect } from 'react';
 import { Group, Rect, Text, Circle, Path } from 'react-konva';
 import Konva from 'konva';
+import rough from 'roughjs';
 import { useEditor } from '../../context/EditorContext';
 import type { CanvasElement } from '../../context/EditorContext';
+import RoughShape from './RoughShape';
 
 // Rich text formatting function for Quill HTML output
 function formatRichText(text: string, fontSize: number, fontFamily: string, maxWidth: number) {
@@ -108,6 +110,10 @@ function formatRichText(text: string, fontSize: number, fontFamily: string, maxW
       } else if (element.tagName === 'H3') {
         elementLineHeight = fontSize * 1.2 * 1.2;
       }
+      // Check if element has ruled lines
+      if (element.querySelector && element.querySelector('[data-ruled="true"]')) {
+        elementLineHeight = fontSize * 2.5;
+      }
       currentY += elementLineHeight;
     }
   };
@@ -176,7 +182,7 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
   const [hasOverflow, setHasOverflow] = useState(false);
 
   const fontSize = element.fontSize || 16;
-  const lineHeight = element.lineHeight || 1.2;
+  const lineHeight = element.lineHeight || (element.text && element.text.includes('data-ruled="true"') ? 2.5 : 1.2);
   const align = element.align || 'left';
   const fontFamily = element.fontFamily || 'Arial, sans-serif';
   
@@ -295,8 +301,15 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       saveBtn.onclick = () => {
         let htmlContent = quill.root.innerHTML;
         
+        // Check if ruled lines are active
+        const hasRuledLines = quill.root.hasAttribute('data-ruled');
+        if (hasRuledLines) {
+          // Wrap content with ruled lines marker
+          htmlContent = `<div data-ruled="true">${htmlContent}</div>`;
+        }
+        
         // Clean up Quill's automatic <p> wrapping for simple text
-        if (htmlContent.startsWith('<p>') && htmlContent.endsWith('</p>') && !htmlContent.includes('</p><p>')) {
+        if (htmlContent.startsWith('<p>') && htmlContent.endsWith('</p>') && !htmlContent.includes('</p><p>') && !hasRuledLines) {
           htmlContent = htmlContent.slice(3, -4); // Remove <p> and </p>
         }
         
@@ -343,8 +356,27 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
               [{ 'font': ['georgia', 'helvetica', 'arial', 'courier', 'kalam', 'shadows', 'playwrite', 'msmadi', 'giveyouglory', 'meowscript'] }],
               ['bold', 'italic', 'underline'],
               [{ 'color': userColors }],
+              ['ruled-lines'],
               ['clean']
-            ]
+            ],
+            handlers: {
+              'ruled-lines': function() {
+                const button = document.querySelector('.ql-ruled-lines');
+                const isActive = button.classList.contains('ql-active');
+                
+                if (isActive) {
+                  // Remove ruled lines
+                  button.classList.remove('ql-active');
+                  quill.root.removeAttribute('data-ruled');
+                  quill.root.style.lineHeight = '';
+                } else {
+                  // Add ruled lines
+                  button.classList.add('ql-active');
+                  quill.root.setAttribute('data-ruled', 'true');
+                  quill.root.style.lineHeight = '2.5';
+                }
+              }
+            }
           }
         }
       });
@@ -354,6 +386,26 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       googleFonts.rel = 'stylesheet';
       googleFonts.href = 'https://fonts.googleapis.com/css2?family=Kalam:wght@300;400;700&family=Shadows+Into+Light&family=Playwrite+DE+SAS&family=Ms+Madi&family=Give+You+Glory&family=Meow+Script&display=swap';
       document.head.appendChild(googleFonts);
+      
+      // Register custom ruled lines format only once globally
+      if (!window.ruledLinesRegistered) {
+        const Inline = window.Quill.import('blots/inline');
+        class RuledLinesBlot extends Inline {
+          static create() {
+            const node = super.create();
+            node.setAttribute('data-ruled', 'true');
+            return node;
+          }
+          
+          static formats(node) {
+            return node.getAttribute('data-ruled') === 'true';
+          }
+        }
+        RuledLinesBlot.blotName = 'ruled-lines';
+        RuledLinesBlot.tagName = 'span';
+        window.Quill.register(RuledLinesBlot);
+        window.ruledLinesRegistered = true;
+      }
       
       // Add CSS for font families and dropdown labels
       const fontCSS = document.createElement('style');
@@ -409,12 +461,45 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
         .ql-picker.ql-font .ql-picker-item[data-value="meowscript"]::before {
           content: 'Meow Script';
         }
+        
+        .ql-toolbar .ql-ruled-lines {
+          width: 28px;
+          height: 28px;
+        }
+        .ql-toolbar .ql-ruled-lines:before {
+          content: '≡';
+          font-size: 18px;
+          line-height: 1;
+        }
+        .ql-toolbar .ql-ruled-lines.ql-active {
+          color: #06c;
+        }
+        
+        .ql-editor span[data-ruled="true"] {
+          line-height: 2.5 !important;
+        }
       `;
       document.head.appendChild(fontCSS);
       
-      // Set initial content
+      // Set initial content and ruled lines state
       if (element.text) {
-        quill.root.innerHTML = element.text;
+        if (element.text.includes('data-ruled="true"')) {
+          // Extract content from ruled wrapper
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = element.text;
+          const ruledDiv = tempDiv.querySelector('[data-ruled="true"]');
+          if (ruledDiv) {
+            quill.root.innerHTML = ruledDiv.innerHTML;
+            quill.root.setAttribute('data-ruled', 'true');
+            quill.root.style.lineHeight = '2.5';
+            setTimeout(() => {
+              const button = document.querySelector('.ql-ruled-lines');
+              if (button) button.classList.add('ql-active');
+            }, 100);
+          }
+        } else {
+          quill.root.innerHTML = element.text;
+        }
       }
       
       quill.focus();
@@ -526,6 +611,38 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
         </>
       )}
       
+      {/* Ruled lines background */}
+      {element.text && element.text.includes('data-ruled="true"') && (
+        <Group>
+          {Array.from({ length: Math.floor((element.height - 8) / (fontSize * 2.5)) + 1 }, (_, i) => {
+            const y = 8 + (i + 1) * fontSize * 2.5 - fontSize * 0.5;
+            const lineWidth = element.width - 16;
+            
+            const lineElement: CanvasElement = {
+              id: `ruled-line-${element.id}-${i}`,
+              type: 'line',
+              x: 8,
+              y: y,
+              width: lineWidth,
+              height: 2,
+              stroke: '#1f2937',
+              strokeWidth: 2,
+              roughness: 3
+            };
+            
+            return (
+              <RoughShape
+                key={i}
+                element={lineElement}
+                isSelected={false}
+                onSelect={() => {}}
+                onDragEnd={() => {}}
+              />
+            );
+          })}
+        </Group>
+      )}
+      
       {/* Text content with clipping */}
       <Group
         clipX={0}
@@ -533,7 +650,7 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
         clipWidth={element.width}
         clipHeight={element.height}
       >
-        {element.text && (element.text.includes('<') && (element.text.includes('<strong>') || element.text.includes('<em>') || element.text.includes('<u>') || element.text.includes('color:') || element.text.includes('font-family:') || element.text.includes('ql-font-') || element.text.includes('<h'))) ? (
+        {element.text && (element.text.includes('<') && (element.text.includes('<strong>') || element.text.includes('<em>') || element.text.includes('<u>') || element.text.includes('color:') || element.text.includes('font-family:') || element.text.includes('ql-font-') || element.text.includes('data-ruled=') || element.text.includes('<h'))) ? (
           <>
             {formatRichText(element.text, fontSize, fontFamily, element.width - 8).map((textPart, index) => (
               <Text
