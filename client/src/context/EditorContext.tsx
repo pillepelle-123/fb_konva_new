@@ -46,6 +46,8 @@ export interface EditorState {
   activeTool: 'select' | 'text' | 'question' | 'answer' | 'photo' | 'line' | 'circle' | 'rect' | 'brush' | 'pan';
   selectedElementIds: string[];
   user?: { id: number; role: string } | null;
+  editorBarVisible: boolean;
+  toolbarVisible: boolean;
 }
 
 type EditorAction =
@@ -59,7 +61,9 @@ type EditorAction =
   | { type: 'DELETE_ELEMENT'; payload: string }
   | { type: 'ADD_PAGE' }
   | { type: 'DELETE_PAGE'; payload: number }
-  | { type: 'DUPLICATE_PAGE'; payload: number };
+  | { type: 'DUPLICATE_PAGE'; payload: number }
+  | { type: 'TOGGLE_EDITOR_BAR' }
+  | { type: 'TOGGLE_TOOLBAR' };
 
 const initialState: EditorState = {
   currentBook: null,
@@ -67,6 +71,8 @@ const initialState: EditorState = {
   activeTool: 'select',
   selectedElementIds: [],
   user: null,
+  editorBarVisible: true,
+  toolbarVisible: true,
 };
 
 function editorReducer(state: EditorState, action: EditorAction): EditorState {
@@ -178,6 +184,12 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         },
         activePageIndex: action.payload + 1
       };
+    
+    case 'TOGGLE_EDITOR_BAR':
+      return { ...state, editorBarVisible: !state.editorBarVisible };
+    
+    case 'TOGGLE_TOOLBAR':
+      return { ...state, toolbarVisible: !state.toolbarVisible };
     
     default:
       return state;
