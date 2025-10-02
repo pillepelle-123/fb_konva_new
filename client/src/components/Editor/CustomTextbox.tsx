@@ -35,16 +35,19 @@ function formatRichText(text: string, fontSize: number, fontFamily: string, maxW
     if (element.tagName === 'U') {
       styles.underline = true;
     }
+    /* Label "Huge" */
     if (element.tagName === 'H1') {
-      styles.bold = true;
+      styles.bold = false;
       styles.fontSize = fontSize * 1.8;
     }
+    /* Label "Big" */
     if (element.tagName === 'H2') {
-      styles.bold = true;
+      styles.bold = false;
       styles.fontSize = fontSize * 1.5;
     }
+    /* Label "Normal" */
     if (element.tagName === 'H3') {
-      styles.bold = true;
+      styles.bold = false;
       styles.fontSize = fontSize * 1.2;
     }
     
@@ -501,8 +504,9 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       // Set default formatting
       quill.format('font', 'helvetica');
       quill.format('color', '#000000');
+      quill.format('header', 3);
       
-      // Handle global font changes
+      // Handle global font changes and fix header labels
       setTimeout(() => {
         const fontItems = document.querySelectorAll('.ql-font .ql-picker-item');
         fontItems.forEach(item => {
@@ -513,6 +517,8 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
             }
           });
         });
+        
+
       }, 100);
       
       // Handle paste events to process ruled line content
@@ -617,6 +623,27 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
         .ql-picker.ql-font .ql-picker-label[data-value="meowscript"]::before,
         .ql-picker.ql-font .ql-picker-item[data-value="meowscript"]::before {
           content: 'Meow Script';
+        }
+        
+        .ql-snow .ql-picker.ql-header .ql-picker-label[data-value="false"]::before,
+        .ql-snow .ql-picker.ql-header .ql-picker-item[data-value="false"]::before,
+        .ql-snow .ql-picker.ql-header .ql-picker-item:not([data-value])::before {
+          content: 'S' !important;
+        }
+        .ql-snow .ql-picker.ql-header .ql-picker-label[data-value="3"]::before,
+        .ql-snow .ql-picker.ql-header .ql-picker-item[data-value="3"]::before {
+          content: 'M' !important;
+        }
+        .ql-snow .ql-picker.ql-header .ql-picker-label[data-value="2"]::before,
+        .ql-snow .ql-picker.ql-header .ql-picker-item[data-value="2"]::before {
+          content: 'L' !important;
+        }
+        .ql-snow .ql-picker.ql-header .ql-picker-label[data-value="1"]::before,
+        .ql-snow .ql-picker.ql-header .ql-picker-item[data-value="1"]::before {
+          content: 'XL' !important;
+        }
+        .ql-snow .ql-picker.ql-header .ql-picker-label:not([data-value])::before {
+          content: 'Small' !important;
         }
         
         .ql-toolbar .ql-ruled-lines {
@@ -772,14 +799,15 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
               const selection = quill.getSelection();
               if (selection) {
                 const prevFormat = quill.getFormat(selection.index - 2, 1);
-                if (prevFormat.font && prevFormat.header) {
+                if (prevFormat.header) {
                   setTimeout(() => {
+                    if (prevFormat.header) quill.format('header', prevFormat.header);
                     if (prevFormat.font) quill.format('font', prevFormat.font);
                     if (prevFormat.color) quill.format('color', prevFormat.color);
                     if (prevFormat.bold) quill.format('bold', true);
                     if (prevFormat.italic) quill.format('italic', true);
                     if (prevFormat.underline) quill.format('underline', true);
-                  }, 10);
+                  }, 0);
                 }
               }
             }
@@ -931,7 +959,7 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
             x={70}
             y={-10}
             radius={30}
-            stroke="#64748b77"
+            stroke="#64748b99"
             strokeWidth={4}
             fill="white"
           />
@@ -942,7 +970,7 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
             fontSize={element.textType === 'answer' ? 48 : 42}
             fontFamily="Arial"
             fontStyle="bold"
-            fill="#64748b77"
+            fill="#64748b99"
             align="center"
             verticalAlign="middle"
             offsetX={16}

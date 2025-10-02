@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import { Stage, Layer, Rect, Circle, Transformer, Line, Group } from 'react-konva';
 import Konva from 'konva';
 import { v4 as uuidv4 } from 'uuid';
@@ -882,6 +882,39 @@ export default function Canvas() {
   }
   
   const pageScale = pageDisplayWidth / canvasWidth;
+
+  // Auto-fit function to show entire CanvasPageEditArea
+  const fitToView = useCallback(() => {
+    if (!containerRef.current) return;
+    
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const containerWidth = containerRect.width;
+    const containerHeight = containerRect.height;
+    
+    // Calculate zoom to fit the entire page with some padding
+    const padding = 40;
+    const availableWidth = containerWidth - padding * 2;
+    const availableHeight = containerHeight - padding * 2;
+    
+    const scaleX = availableWidth / canvasWidth;
+    const scaleY = availableHeight / canvasHeight;
+    const optimalZoom = Math.min(scaleX, scaleY, 1); // Don't zoom in beyond 100%
+    
+    // Center the page in the container
+    const scaledPageWidth = canvasWidth * optimalZoom;
+    const scaledPageHeight = canvasHeight * optimalZoom;
+    
+    const centerX = (containerWidth - scaledPageWidth) / 2;
+    const centerY = (containerHeight - scaledPageHeight) / 2;
+    
+    setZoom(optimalZoom);
+    setStagePos({ x: centerX, y: centerY });
+  }, [canvasWidth, canvasHeight]);
+
+  // Auto-fit when entering the canvas editor or when container size changes
+  useEffect(() => {
+    fitToView();
+  }, [fitToView, containerSize]);
 
   return (
     <CanvasPageContainer>
