@@ -16,6 +16,7 @@ build/
 .env.production.local
 */.env
 */.env.local
+*/.env.production
 
 # Logs
 npm-debug.log*
@@ -94,3 +95,6 @@ Thumbs.db
 # Uploaded files
 uploads/
 public/uploads/
+
+# My own files
+.pillepelle/

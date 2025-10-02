@@ -9,7 +9,7 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 // Register - DISABLED
 router.post('/register', async (req, res) => {
-  res.status(403).json({ error: 'Registration is currently not allowed' });
+  res.status(403).json({ error: 'Registration is currently disabled!' });
 });
 
 // Login
