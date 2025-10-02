@@ -5,9 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { 
   MousePointer, 
   Hand, 
-  Type, 
-  HelpCircle, 
-  MessageSquare, 
+  MessageCircleMore, 
+  MessageCircleQuestion, 
+  MessageCircleHeart, 
   Image, 
   Minus, 
   Circle, 
@@ -32,9 +32,9 @@ export default function Toolbar() {
     {
       name: 'Text',
       tools: [
-        { id: 'text', label: 'Text', icon: Type },
-        { id: 'question', label: 'Question', icon: HelpCircle },
-        { id: 'answer', label: 'Answer', icon: MessageSquare },
+        { id: 'text', label: 'Text', icon: MessageCircleMore },
+        { id: 'question', label: 'Question', icon: MessageCircleQuestion },
+        { id: 'answer', label: 'Answer', icon: MessageCircleHeart },
       ]
     },
     {
@@ -108,7 +108,7 @@ export default function Toolbar() {
                     }`}
                     title={!isExpanded ? tool.label : undefined}
                   >
-                    <Icon className="h-4 w-4 flex-shrink-0" />
+                    <Icon className="h-5 w-5 flex-shrink-0" />
                     {isExpanded && (
                       <span className="text-sm">{tool.label}</span>
                     )}

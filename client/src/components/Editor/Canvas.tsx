@@ -367,7 +367,7 @@ export default function Canvas() {
             y: y - 120,
             width: 800,
             height: 240,
-            fill: '#7c2d12',
+            //fill: '#7c2d12',
             text: '',
             fontSize: 64,
             lineHeight: 1.2,
@@ -383,7 +383,7 @@ export default function Canvas() {
             y: y - 120,
             width: 800,
             height: 240,
-            fill: '#1e40af',
+            //fill: '#1e40af',
             text: '',
             fontSize: 64,
             lineHeight: 1.2,
@@ -495,8 +495,8 @@ export default function Canvas() {
     
     let smoothed = [...points];
     
-    // Apply multiple smoothing passes for better curves
-    for (let pass = 0; pass < 3; pass++) {
+    // Apply multiple smoothing passes for more natural brush curves
+    for (let pass = 0; pass < 5; pass++) {
       const newSmoothed: number[] = [];
       newSmoothed.push(smoothed[0], smoothed[1]); // Keep first point
       
@@ -508,9 +508,9 @@ export default function Canvas() {
         const x2 = smoothed[i + 2];
         const y2 = smoothed[i + 3];
         
-        // Stronger smoothing with more weight on neighbors
-        const smoothX = (x0 + 4 * x1 + x2) / 6;
-        const smoothY = (y0 + 4 * y1 + y2) / 6;
+        // Enhanced smoothing with weighted averaging for natural brush feel
+        const smoothX = (x0 + 6 * x1 + x2) / 8;
+        const smoothY = (y0 + 6 * y1 + y2) / 8;
         
         newSmoothed.push(smoothX, smoothY);
       }
@@ -522,6 +522,7 @@ export default function Canvas() {
     return smoothed;
   };
 
+  /* Brush */
   const handleMouseUp = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (isPanning) {
       setIsPanning(false);
@@ -540,7 +541,7 @@ export default function Canvas() {
         points: adjustedPoints,
         stroke: '#1f2937',
         roughness: 1,
-        strokeWidth: 2
+        strokeWidth: 3
       };
       dispatch({ type: 'ADD_ELEMENT', payload: newElement });
       dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });

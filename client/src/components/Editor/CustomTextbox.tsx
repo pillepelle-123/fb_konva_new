@@ -189,9 +189,9 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
   const fontFamily = element.fontFamily || 'Arial, sans-serif';
   
   const getPlaceholderText = () => {
-    if (element.textType === 'question') return 'Click to edit question...';
+    if (element.textType === 'question') return 'Double-click to pose a question...';
     if (element.textType === 'answer') return 'Double-click to answer...';
-    return 'Double click to edit';
+    return 'Double-click add text...';
   };
 
   const displayText = element.text || getPlaceholderText();
@@ -846,6 +846,7 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
   };
 
   const [lastClickTime, setLastClickTime] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
   
   const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (state.activeTool === 'select') {
@@ -891,6 +892,8 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       draggable={state.activeTool === 'select' && !isEditing && isSelected && !isMovingGroup}
       onClick={handleClick}
       onDragEnd={onDragEnd}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
       {/* Background rectangle - this defines the selection bounds */}
       <Rect
@@ -902,6 +905,51 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
         cornerRadius={4}
         name="selectableRect"
       />
+      
+      {/* Light grey dashed border for print exclusion - only on hover */}
+      {isHovered && (
+        <Rect
+          width={element.width}
+          height={element.height}
+          fill="transparent" 
+          stroke="#64748b"
+          strokeWidth={2}
+          dash={[18, 18]}
+          cornerRadius={8}
+          name="no-print"
+        />
+      )}
+      
+      {/* Type icon in upper right corner - only on hover */}
+      {isHovered && (
+        <Group
+          x={element.width - 70}
+          y={10}
+          name="no-print"
+        >
+          <Circle
+            x={70}
+            y={-10}
+            radius={30}
+            stroke="#64748b77"
+            strokeWidth={4}
+            fill="white"
+          />
+          <Text
+            x={element.textType === 'question' ? 72 : 68}
+            y={element.textType === 'question' ? -12 : -14}
+            text={element.textType === 'question' ? '?' : element.textType === 'answer' ? '♡' : '⋯'}
+            fontSize={element.textType === 'answer' ? 48 : 42}
+            fontFamily="Arial"
+            fontStyle="bold"
+            fill="#64748b77"
+            align="center"
+            verticalAlign="middle"
+            offsetX={16}
+            offsetY={16}
+          />
+        </Group>
+      )}
       
       {/* Red dashed bottom border for overflow */}
       {hasOverflow && isSelected && (
@@ -1059,6 +1107,7 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
             ellipsis={false}
             opacity={element.text ? 1 : 0.6}
             listening={false}
+            name={element.text ? undefined : 'no-print'}
           />
         )}
       </Group>

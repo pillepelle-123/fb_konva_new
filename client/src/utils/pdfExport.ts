@@ -104,6 +104,10 @@ export const exportBookToPDF = async (
         pageRect.destroy();
       }
       
+      // Remove elements with no-print name
+      const noPrintElements = clonedLayer.find('.no-print');
+      noPrintElements.forEach(element => element.destroy());
+      
       tempStage.add(clonedLayer);
       
       // Find the page content group and adjust positioning

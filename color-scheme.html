@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Color Scheme Preview</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .theme { margin-bottom: 40px; }
+        .color-row { display: flex; align-items: center; margin-bottom: 8px; }
+        .color-box { width: 40px; height: 40px; border: 1px solid #ccc; margin-right: 15px; }
+        .color-info { font-family: monospace; }
+        .row { display: flex; flex-direction: row; gap: 50px; }
+        h2 { border-bottom: 2px solid #333; padding-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Color Scheme Preview</h1>
+    <div class="row">
+        <div class="theme">
+            <h2>Light Theme (:root)</h2>
+            <div class="color-row"><div class="color-box" style="background-color: #ffffff;"></div><div class="color-info">--background: #ffffff</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #0f172a;"></div><div class="color-info">--foreground: #0f172a</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #ffffff;"></div><div class="color-info">--card: #ffffff</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #0f172a;"></div><div class="color-info">--card-foreground: #0f172a</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #ffffff;"></div><div class="color-info">--popover: #ffffff</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #0f172a;"></div><div class="color-info">--popover-foreground: #0f172a</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #304050;"></div><div class="color-info">--primary: #304050</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #f8fafc;"></div><div class="color-info">--primary-foreground: #f8fafc</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #f1f5f9;"></div><div class="color-info">--secondary: #f1f5f9</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #0f172a;"></div><div class="color-info">--secondary-foreground: #0f172a</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #f1f5f9;"></div><div class="color-info">--muted: #f1f5f9</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #64748b;"></div><div class="color-info">--muted-foreground: #64748b</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #f1f5f9;"></div><div class="color-info">--accent: #f1f5f9</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #0f172a;"></div><div class="color-info">--accent-foreground: #0f172a</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #ef4444;"></div><div class="color-info">--destructive: #ef4444</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #f8fafc;"></div><div class="color-info">--destructive-foreground: #f8fafc</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #e2e8f0;"></div><div class="color-info">--border: #e2e8f0</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #e2e8f0;"></div><div class="color-info">--input: #e2e8f0</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #3b82f6;"></div><div class="color-info">--ring: #3b82f6</div></div>
+        </div>
+
+        <div class="theme">
+            <h2>Dark Theme (.dark)</h2>
+            <div class="color-row"><div class="color-box" style="background-color: #0f172a;"></div><div class="color-info">--background: #0f172a</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #f8fafc;"></div><div class="color-info">--foreground: #f8fafc</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #0f172a;"></div><div class="color-info">--card: #0f172a</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #f8fafc;"></div><div class="color-info">--card-foreground: #f8fafc</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #0f172a;"></div><div class="color-info">--popover: #0f172a</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #f8fafc;"></div><div class="color-info">--popover-foreground: #f8fafc</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #304050;"></div><div class="color-info">--primary: #304050</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #0f172a;"></div><div class="color-info">--primary-foreground: #0f172a</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #1e293b;"></div><div class="color-info">--secondary: #1e293b</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #f8fafc;"></div><div class="color-info">--secondary-foreground: #f8fafc</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #1e293b;"></div><div class="color-info">--muted: #1e293b</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #94a3b8;"></div><div class="color-info">--muted-foreground: #94a3b8</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #1e293b;"></div><div class="color-info">--accent: #1e293b</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #f8fafc;"></div><div class="color-info">--accent-foreground: #f8fafc</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #dc2626;"></div><div class="color-info">--destructive: #dc2626</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #f8fafc;"></div><div class="color-info">--destructive-foreground: #f8fafc</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #1e293b;"></div><div class="color-info">--border: #1e293b</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #1e293b;"></div><div class="color-info">--input: #1e293b</div></div>
+            <div class="color-row"><div class="color-box" style="background-color: #e0e7ff;"></div><div class="color-info">--ring: #e0e7ff</div></div>
+        </div>
+    </div>
+</body>
+</html>
