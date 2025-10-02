@@ -120,7 +120,6 @@ export default function RoughBrush({ element, isSelected, onSelect, onDragStart,
           if (e.evt.button === 0) {
             // Only handle left-click for selection
             e.cancelBubble = true;
-            console.log('RoughBrush clicked:', element.id);
             onSelect();
           } else if (e.evt.button === 2) {
             // Prevent right-click selection when multi-selection is active
@@ -137,7 +136,6 @@ export default function RoughBrush({ element, isSelected, onSelect, onDragStart,
       }}
       onTap={(e) => {
         e.cancelBubble = true;
-        console.log('RoughBrush tapped:', element.id);
         onSelect();
       }}
       onDragStart={onDragStart}

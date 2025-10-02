@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import QuestionsManager from './QuestionsManager';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
@@ -20,10 +19,10 @@ interface Book {
 
 export default function BooksList() {
   const { token } = useAuth();
+  const navigate = useNavigate();
   const [books, setBooks] = useState<Book[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showCollaboratorModal, setShowCollaboratorModal] = useState<number | null>(null);
-  const [showQuestionsModal, setShowQuestionsModal] = useState<{ bookId: number; bookName: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -197,7 +196,7 @@ export default function BooksList() {
                       <Button 
                         variant="outline" 
                         size="sm"
-                        onClick={() => setShowQuestionsModal({ bookId: book.id, bookName: book.name })}
+                        onClick={() => navigate(`/questions/${book.id}`)}
                         className="space-x-2"
                       >
                         <Settings className="h-3 w-3" />
@@ -264,14 +263,7 @@ export default function BooksList() {
           </DialogContent>
         </Dialog>
 
-        {/* Questions Manager Dialog */}
-        {showQuestionsModal && (
-          <QuestionsManager 
-            bookId={showQuestionsModal.bookId} 
-            bookName={showQuestionsModal.bookName}
-            onClose={() => setShowQuestionsModal(null)} 
-          />
-        )}
+
         
         {/* Alert Dialog */}
         <Dialog open={!!showAlert} onOpenChange={() => setShowAlert(null)}>

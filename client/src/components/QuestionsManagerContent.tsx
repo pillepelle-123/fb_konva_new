@@ -170,14 +170,19 @@ export default function QuestionsManagerContent({
         </DialogHeader>
       )}
 
-      {showAsContent && mode === 'select' && (
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold flex items-center space-x-2 mb-2">
-            <HelpCircle className="h-5 w-5" />
-            <span>Select Question - {bookName}</span>
-          </h2>
-          <p className="text-sm text-muted-foreground mb-3">
-            Choose a question from the list below
+      {showAsContent && (
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold flex items-center space-x-2">
+              <HelpCircle className="h-6 w-6" />
+              <span>{mode === 'select' ? 'Select Question' : 'Manage Questions'} - {bookName}</span>
+            </h1>
+            <Button variant="outline" onClick={onClose}>
+              Back
+            </Button>
+          </div>
+          <p className="text-muted-foreground">
+            {mode === 'select' ? 'Choose a question from the list below' : 'Add, edit, and organize questions for this book'}
           </p>
         </div>
       )}
@@ -303,10 +308,10 @@ export default function QuestionsManagerContent({
         </Card>
       </div>
 
-      {mode === 'select' && (
+      {mode === 'select' && !showAsContent && (
         <div className="flex justify-end mt-4">
           <Button variant="outline" onClick={onClose}>
-            Cancel
+            Back
           </Button>
         </div>
       )}

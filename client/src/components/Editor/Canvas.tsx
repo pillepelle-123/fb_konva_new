@@ -1023,6 +1023,7 @@ export default function Canvas() {
                   lineJoin="round"
                   listening={false}
                   opacity={0.7}
+                  dash={[18, 18]}
                 />
               )}
               
@@ -1035,7 +1036,7 @@ export default function Canvas() {
                   lineCap="round"
                   listening={false}
                   opacity={0.7}
-                  dash={[5, 5]}
+                  dash={[18, 18]}
                 />
               )}
               
@@ -1052,7 +1053,7 @@ export default function Canvas() {
                     fill="transparent"
                     listening={false}
                     opacity={0.7}
-                    dash={[5, 5]}
+                    dash={[18, 18]}
                   />
                 ) : (
                   <Circle
@@ -1064,7 +1065,7 @@ export default function Canvas() {
                     fill="transparent"
                     listening={false}
                     opacity={0.7}
-                    dash={[5, 5]}
+                    dash={[18, 18]}
                   />
                 )
               )}
