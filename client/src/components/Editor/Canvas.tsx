@@ -184,6 +184,9 @@ export default function Canvas() {
   const [isDrawingShape, setIsDrawingShape] = useState(false);
   const [shapeStart, setShapeStart] = useState<{ x: number; y: number } | null>(null);
   const [previewShape, setPreviewShape] = useState<{ x: number; y: number; width: number; height: number; type: string } | null>(null);
+  const [isDrawingTextbox, setIsDrawingTextbox] = useState(false);
+  const [textboxStart, setTextboxStart] = useState<{ x: number; y: number } | null>(null);
+  const [previewTextbox, setPreviewTextbox] = useState<{ x: number; y: number; width: number; height: number; type: string } | null>(null);
 
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const pageSize = state.currentBook?.pageSize || 'A4';
@@ -291,6 +294,20 @@ export default function Canvas() {
           setPreviewShape({ x, y, width: 0, height: 0, type: state.activeTool });
         }
       }
+    } else if (state.activeTool === 'text' || state.activeTool === 'question' || state.activeTool === 'answer') {
+      const pos = e.target.getStage()?.getPointerPosition();
+      if (pos) {
+        const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
+        const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
+        const isBackgroundClick = e.target === e.target.getStage() || 
+          (e.target.getClassName() === 'Rect' && !e.target.id());
+        
+        if (isBackgroundClick) {
+          setIsDrawingTextbox(true);
+          setTextboxStart({ x, y });
+          setPreviewTextbox({ x, y, width: 0, height: 0, type: state.activeTool });
+        }
+      }
     } else if (state.activeTool === 'select') {
       // Only handle background clicks for selection rectangle
       const isBackgroundClick = e.target === e.target.getStage() || 
@@ -343,54 +360,6 @@ export default function Canvas() {
             fill: '#f3f4f6',
             stroke: '#d1d5db'
           };
-        } else if (state.activeTool === 'text') {
-          newElement = {
-            id: uuidv4(),
-            type: 'text',
-            x: x - 300,
-            y: y - 100,
-            width: 600,
-            height: 200,
-            fill: '#1f2937',
-            text: '',
-            fontSize: 64,
-            lineHeight: 1.2,
-            align: 'left',
-            fontFamily: 'Arial, sans-serif',
-            textType: 'regular'
-          };
-        } else if (state.activeTool === 'question') {
-          newElement = {
-            id: uuidv4(),
-            type: 'text',
-            x: x - 400,
-            y: y - 120,
-            width: 800,
-            height: 240,
-            //fill: '#7c2d12',
-            text: '',
-            fontSize: 64,
-            lineHeight: 1.2,
-            align: 'left',
-            fontFamily: 'Arial, sans-serif',
-            textType: 'question'
-          };
-        } else if (state.activeTool === 'answer') {
-          newElement = {
-            id: uuidv4(),
-            type: 'text',
-            x: x - 400,
-            y: y - 120,
-            width: 800,
-            height: 240,
-            //fill: '#1e40af',
-            text: '',
-            fontSize: 64,
-            lineHeight: 1.2,
-            align: 'left',
-            fontFamily: 'Arial, sans-serif',
-            textType: 'answer'
-          };
         }
         
         if (newElement) {
@@ -437,6 +406,21 @@ export default function Canvas() {
           width: Math.abs(width), 
           height: Math.abs(height), 
           type: previewShape?.type || 'rect' 
+        });
+      }
+    } else if (isDrawingTextbox && textboxStart) {
+      const pos = e.target.getStage()?.getPointerPosition();
+      if (pos) {
+        const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
+        const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
+        const width = x - textboxStart.x;
+        const height = y - textboxStart.y;
+        setPreviewTextbox({ 
+          x: Math.min(textboxStart.x, x), 
+          y: Math.min(textboxStart.y, y), 
+          width: Math.abs(width), 
+          height: Math.abs(height), 
+          type: previewTextbox?.type || 'text' 
         });
       }
     } else if (isMovingGroup && groupMoveStart) {
@@ -587,6 +571,64 @@ export default function Canvas() {
       setIsDrawingShape(false);
       setShapeStart(null);
       setPreviewShape(null);
+    } else if (isDrawingTextbox && textboxStart && previewTextbox) {
+      if (previewTextbox.width > 50 || previewTextbox.height > 20) {
+        let newElement: CanvasElement;
+        
+        if (previewTextbox.type === 'text') {
+          newElement = {
+            id: uuidv4(),
+            type: 'text',
+            x: previewTextbox.x,
+            y: previewTextbox.y,
+            width: previewTextbox.width,
+            height: previewTextbox.height,
+            fill: '#1f2937',
+            text: '',
+            fontSize: 64,
+            lineHeight: 1.2,
+            align: 'left',
+            fontFamily: 'Arial, sans-serif',
+            textType: 'regular'
+          };
+        } else if (previewTextbox.type === 'question') {
+          newElement = {
+            id: uuidv4(),
+            type: 'text',
+            x: previewTextbox.x,
+            y: previewTextbox.y,
+            width: previewTextbox.width,
+            height: previewTextbox.height,
+            text: '',
+            fontSize: 64,
+            lineHeight: 1.2,
+            align: 'left',
+            fontFamily: 'Arial, sans-serif',
+            textType: 'question'
+          };
+        } else {
+          newElement = {
+            id: uuidv4(),
+            type: 'text',
+            x: previewTextbox.x,
+            y: previewTextbox.y,
+            width: previewTextbox.width,
+            height: previewTextbox.height,
+            text: '',
+            fontSize: 64,
+            lineHeight: 1.2,
+            align: 'left',
+            fontFamily: 'Arial, sans-serif',
+            textType: 'answer'
+          };
+        }
+        
+        dispatch({ type: 'ADD_ELEMENT', payload: newElement });
+        dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+      }
+      setIsDrawingTextbox(false);
+      setTextboxStart(null);
+      setPreviewTextbox(null);
     } else if (isMovingGroup) {
       setIsMovingGroup(false);
       setGroupMoveStart(null);
@@ -1025,6 +1067,22 @@ export default function Canvas() {
                     dash={[5, 5]}
                   />
                 )
+              )}
+              
+              {/* Textbox preview */}
+              {previewTextbox && (
+                <Rect
+                  x={previewTextbox.x}
+                  y={previewTextbox.y}
+                  width={previewTextbox.width}
+                  height={previewTextbox.height}
+                  stroke="#2563eb"
+                  strokeWidth={2}
+                  fill="rgba(37, 99, 235, 0.1)"
+                  listening={false}
+                  opacity={0.7}
+                  dash={[18, 18]}
+                />
               )}
             </Group>
             
