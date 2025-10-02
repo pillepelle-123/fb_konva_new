@@ -44,7 +44,8 @@ export default function QuestionsManagerContent({
 
   const fetchQuestions = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/books/${bookId}/questions`, {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+      const response = await fetch(`${apiUrl}/books/${bookId}/questions`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.ok) {
@@ -63,7 +64,8 @@ export default function QuestionsManagerContent({
     if (!newQuestion.trim()) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/books/${bookId}/questions`, {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+      const response = await fetch(`${apiUrl}/books/${bookId}/questions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -84,7 +86,8 @@ export default function QuestionsManagerContent({
     if (!editText.trim()) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/questions/${questionId}`, {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+      const response = await fetch(`${apiUrl}/questions/${questionId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -110,7 +113,8 @@ export default function QuestionsManagerContent({
     if (!showDeleteConfirm) return;
     
     try {
-      const response = await fetch(`http://localhost:5000/api/questions/${showDeleteConfirm}`, {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+      const response = await fetch(`${apiUrl}/questions/${showDeleteConfirm}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });

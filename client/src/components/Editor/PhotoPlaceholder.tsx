@@ -46,7 +46,8 @@ export default function PhotoPlaceholder({ element, isSelected, onSelect, onDrag
       const formData = new FormData();
       formData.append('image', file);
 
-      const response = await fetch('http://localhost:5000/api/upload', {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+      const response = await fetch(`${apiUrl}/upload`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`

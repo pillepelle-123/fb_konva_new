@@ -29,7 +29,8 @@ export default function BookArchive() {
 
   const fetchArchivedBooks = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/books/archived', {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+      const response = await fetch(`${apiUrl}/books/archived`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.ok) {
@@ -51,7 +52,8 @@ export default function BookArchive() {
     if (!showRestoreConfirm) return;
     
     try {
-      const response = await fetch(`http://localhost:5000/api/books/${showRestoreConfirm}/archive`, {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+      const response = await fetch(`${apiUrl}/books/${showRestoreConfirm}/archive`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -72,7 +74,8 @@ export default function BookArchive() {
     if (!showDeleteConfirm) return;
     
     try {
-      const response = await fetch(`http://localhost:5000/api/books/${showDeleteConfirm}`, {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+      const response = await fetch(`${apiUrl}/books/${showDeleteConfirm}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });

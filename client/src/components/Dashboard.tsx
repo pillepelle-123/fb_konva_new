@@ -31,7 +31,8 @@ export default function Dashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/books/dashboard', {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+      const response = await fetch(`${apiUrl}/books/dashboard`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.ok) {

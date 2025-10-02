@@ -49,6 +49,44 @@ CREATE TABLE questions (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- ###############################
+
+-- Answers Table
+CREATE TABLE answers (
+  id SERIAL PRIMARY KEY,
+  question_id INTEGER REFERENCES questions(id) ON DELETE CASCADE,
+  page_id INTEGER REFERENCES pages(id) ON DELETE CASCADE,
+  answered_by INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  answer_text TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(question_id, page_id, answered_by)
+);
+
+-- Create index for better performance
+CREATE INDEX idx_answers_question_id ON answers(question_id);
+CREATE INDEX idx_answers_page_id ON answers(page_id);
+CREATE INDEX idx_answers_answered_by ON answers(answered_by);
+
+
+-- Photos Table
+CREATE TABLE photos (
+  id SERIAL PRIMARY KEY,
+  book_id INTEGER REFERENCES books(id) ON DELETE CASCADE,
+  uploaded_by INTEGER REFERENCES users(id) ON DELETE NO ACTION,
+  filename VARCHAR(255) NOT NULL,
+  original_name VARCHAR(255) NOT NULL,
+  file_path VARCHAR(500) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create indexes for better performance
+CREATE INDEX idx_photos_book_id ON photos(book_id);
+CREATE INDEX idx_photos_uploaded_by ON photos(uploaded_by);
+
+-- ###############################
+
 -- Insert initial admin user (password: admin123)
 INSERT INTO users (name, email, password_hash, role) 
 VALUES ('Admin User', 'admin@example.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin');

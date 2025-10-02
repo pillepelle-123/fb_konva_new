@@ -36,7 +36,8 @@ export default function BooksList() {
 
   const fetchBooks = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/books', {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+      const response = await fetch(`${apiUrl}/books`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.ok) {
@@ -58,7 +59,8 @@ export default function BooksList() {
     if (!showArchiveConfirm) return;
     
     try {
-      const response = await fetch(`http://localhost:5000/api/books/${showArchiveConfirm}/archive`, {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+      const response = await fetch(`${apiUrl}/books/${showArchiveConfirm}/archive`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -321,7 +323,8 @@ function AddBookForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await fetch('http://localhost:5000/api/books', {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+      const response = await fetch(`${apiUrl}/books`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -413,7 +416,8 @@ function CollaboratorModal({ bookId, onClose }: { bookId: number; onClose: () =>
   const handleAddCollaborator = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await fetch(`http://localhost:5000/api/books/${bookId}/collaborators`, {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+      const response = await fetch(`${apiUrl}/books/${bookId}/collaborators`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

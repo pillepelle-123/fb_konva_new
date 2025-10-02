@@ -30,7 +30,9 @@ function AppContent() {
   const isEditorRoute = location.pathname.startsWith('/editor/')
 
   useEffect(() => {
-    fetch('http://localhost:5000')
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+    const baseUrl = apiUrl.replace('/api', '')
+    fetch(baseUrl)
       .then(res => res.json())
       .then(data => setServerMessage(data.message))
       .catch(err => console.error('Error connecting to server:', err))

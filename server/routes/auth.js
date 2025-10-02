@@ -7,29 +7,9 @@ const { authenticateToken } = require('../middleware/auth');
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-// Register
+// Register - DISABLED
 router.post('/register', async (req, res) => {
-  try {
-    const { name, email, password } = req.body;
-    
-    const hashedPassword = await bcrypt.hash(password, 10);
-    
-    const result = await pool.query(
-      'INSERT INTO public.users (name, email, password_hash) VALUES ($1, $2, $3) RETURNING id, name, email, role',
-      [name, email, hashedPassword]
-    );
-    
-    const user = result.rows[0];
-    const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, process.env.JWT_SECRET);
-    
-    res.json({ token, user });
-  } catch (error) {
-    if (error.code === '23505') {
-      res.status(400).json({ error: 'Email already exists' });
-    } else {
-      res.status(500).json({ error: 'Server error' });
-    }
-  }
+  res.status(403).json({ error: 'Registration is currently not allowed' });
 });
 
 // Login

@@ -230,7 +230,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/books/${state.currentBook.id}`, {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+      const response = await fetch(`${apiUrl}/books/${state.currentBook.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -249,7 +250,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
   const loadBook = useCallback(async (bookId: number) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/books/${bookId}`, {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+      const response = await fetch(`${apiUrl}/books/${bookId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -259,7 +261,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       const book = await response.json();
       
       // Update linked question textboxes with latest database text
-      const questionsResponse = await fetch(`http://localhost:5000/api/questions/${bookId}`, {
+      const questionsResponse = await fetch(`${apiUrl}/questions/${bookId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -281,7 +283,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         });
         
         if (updated) {
-          await fetch(`http://localhost:5000/api/books/${bookId}`, {
+          await fetch(`${apiUrl}/books/${bookId}`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
