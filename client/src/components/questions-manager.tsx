@@ -1,5 +1,5 @@
 import { useAuth } from '../context/auth-context';
-import { Dialog, DialogContent } from './ui/feedback/dialog';
+import { Dialog, DialogContent } from './ui/overlays/dialog';
 import QuestionsManagerContent from './questions-manager-content';
 
 interface QuestionsManagerProps {

@@ -1,4 +1,4 @@
-import { Button } from './primitives/button';
+import { Button } from '../../ui/primitives/button';
 import { Plus, Copy, Trash2 } from 'lucide-react';
 
 interface PageActionsProps {

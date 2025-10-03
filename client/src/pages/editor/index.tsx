@@ -2,8 +2,8 @@ import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useEditor, createSampleBook } from '../../context/editor-context';
 import EditorBar from '../../components/editor/editor-bar';
-import Toolbar from '../../components/editor/toolbar';
-import Canvas from '../../components/editor/canvas';
+import Toolbar from '../../components/editor/toolbar/index.tsx';
+import Canvas from '../../components/editor/canvas/index.tsx';
 
 
 function EditorContent() {

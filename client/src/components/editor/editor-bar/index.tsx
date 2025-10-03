@@ -1,15 +1,15 @@
 import { useState } from 'react';
-import { useEditor } from '../../context/editor-context';
-import PDFExportModal from './pdf-export-modal';
-import { Card, CardContent } from '../ui/card';
-import { FloatingActionButtons } from '../ui/floating-action-buttons';
-import { PageNavigation } from '../ui/page-navigation';
-import { PageActions } from '../ui/page-actions';
-import { BookTitle } from '../ui/book-title';
-import { BookActions } from '../ui/book-actions';
-import UnsavedChangesDialog from '../cards/unsaved-changes-dialog';
-import ConfirmationDialog from '../cards/confirmation-dialog';
-import AlertDialog from '../cards/alert-dialog';
+import { useEditor } from '../../../context/editor-context';
+import PDFExportModal from '../pdf-export-modal';
+import { Card, CardContent } from '../../ui/card';
+import { FloatingActionButtons } from '../floating-action-buttons';
+import { PageNavigation } from './page-navigation';
+import { PageActions } from './page-actions';
+import { BookTitle } from './book-title';
+import { BookActions } from './book-actions';
+import UnsavedChangesDialog from '../../cards/unsaved-changes-dialog';
+import ConfirmationDialog from '../../cards/confirmation-dialog';
+import AlertDialog from '../../cards/alert-dialog';
 
 export default function EditorBar() {
   const { state, dispatch, saveBook } = useEditor();

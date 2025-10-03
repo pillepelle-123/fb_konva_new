@@ -4,7 +4,7 @@ import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Input } from '../../components/ui/primitives/input';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/feedback/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
 import { BookOpen, Plus, Users, Archive, Edit, Settings, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Book {

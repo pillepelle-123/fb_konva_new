@@ -1,16 +1,10 @@
 import { useRef, useState, useEffect } from 'react';
 import { Group, Rect, Text, Circle, Path } from 'react-konva';
 import Konva from 'konva';
-import rough from 'roughjs';
 import { useEditor } from '../../context/editor-context';
 import type { CanvasElement } from '../../context/editor-context';
 import RoughShape from './canvas/rough-shape';
-import { ModalOverlay } from '../ui/layout/modal-overlay';
-import { EditorContainer } from '../ui/editor-container';
-import { ButtonContainer } from '../ui/button-container';
-import { ActionButton } from '../ui/action-button';
 import QuestionSelectionCard from '../cards/question-selection-card';
-import { QuillEditorContainer } from '../ui/quill-editor-container';
 
 // Rich text formatting function for Quill HTML output
 function formatRichText(text: string, fontSize: number, fontFamily: string, maxWidth: number, hasRuledLines: boolean = false) {

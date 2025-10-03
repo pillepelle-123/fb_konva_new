@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useEditor } from '../../context/editor-context';
 import { exportBookToPDF, type PDFExportOptions } from '../../utils/pdf-export';
-import { ModalOverlay, ModalContainer, ModalHeader, ModalActions, ModalButton } from '../ui';
+import { Modal } from '../ui/overlays/modal';
+import { Button } from '../ui/primitives/button';
 import { QualitySelector } from '../cards/quality-selector';
 import { PageRangeSelector } from '../cards/page-range-selector';
 import { ExportProgress } from '../cards/export-progress';
@@ -60,37 +61,38 @@ export default function PDFExportModal({ isOpen, onClose }: PDFExportModalProps)
   };
 
   return (
-    <ModalOverlay>
-      <ModalContainer>
-        <ModalHeader>Export to PDF</ModalHeader>
-        
-        <QualitySelector value={quality} onChange={setQuality} />
-        
-        <PageRangeSelector
-          pageRange={pageRange}
-          startPage={startPage}
-          endPage={endPage}
-          maxPages={state.currentBook.pages.length}
-          onPageRangeChange={setPageRange}
-          onStartPageChange={setStartPage}
-          onEndPageChange={setEndPage}
-        />
-        
-        {isExporting && <ExportProgress progress={progress} />}
-        
-        <ModalActions>
-          <ModalButton onClick={isExporting ? handleCancel : onClose}>
+    <Modal
+      isOpen={isOpen}
+      onClose={isExporting ? handleCancel : onClose}
+      title="Export to PDF"
+      actions={
+        <>
+          <Button onClick={isExporting ? handleCancel : onClose} variant="outline">
             Cancel
-          </ModalButton>
-          <ModalButton 
+          </Button>
+          <Button 
             onClick={handleExport} 
             disabled={isExporting} 
-            variant="primary"
+            variant="default"
           >
             {isExporting ? 'Exporting...' : 'Print PDF'}
-          </ModalButton>
-        </ModalActions>
-      </ModalContainer>
-    </ModalOverlay>
+          </Button>
+        </>
+      }
+    >
+      <QualitySelector value={quality} onChange={setQuality} />
+      
+      <PageRangeSelector
+        pageRange={pageRange}
+        startPage={startPage}
+        endPage={endPage}
+        maxPages={state.currentBook.pages.length}
+        onPageRangeChange={setPageRange}
+        onStartPageChange={setStartPage}
+        onEndPageChange={setEndPage}
+      />
+      
+      {isExporting && <ExportProgress progress={progress} />}
+    </Modal>
   );
 }

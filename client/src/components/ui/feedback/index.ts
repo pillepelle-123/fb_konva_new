@@ -10,4 +10,4 @@ export {
   DialogFooter,
   DialogTitle,
   DialogDescription,
-} from './dialog';
+} from '../overlays/dialog';

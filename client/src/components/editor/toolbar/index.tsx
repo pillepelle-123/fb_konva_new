@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useEditor } from '../../context/editor-context';
-import { ToolbarContainer } from '../cards/toolbar-container';
-import { ToolbarHeader } from './toolbar/toolbar-header';
-import { ToolbarContent } from '../cards/toolbar-content';
+import { useEditor } from '../../../context/editor-context';
+import { ToolbarContainer } from '../../cards/toolbar-container';
+import { ToolbarHeader } from './toolbar-header';
+import { ToolbarContent } from '../../cards/toolbar-content';
 import { 
   MousePointer, 
   Hand, 
@@ -76,3 +76,11 @@ export default function Toolbar() {
     </ToolbarContainer>
   );
 }
+
+// Re-export components for external use
+export { ToolButton } from './tool-button';
+export { ToolGroup } from './tool-group';
+export { ToolGroupLabel } from './tool-group-label';
+export { ToolGroupSeparator } from './tool-group-separator';
+export { ToolbarHeader } from './toolbar-header';
+export { ToolbarToggle } from './toolbar-toggle';

@@ -1,4 +1,4 @@
-import { Button } from './primitives/button';
+import { Button } from '../../ui/primitives/button';
 import { Save, Download, X } from 'lucide-react';
 
 interface BookActionsProps {

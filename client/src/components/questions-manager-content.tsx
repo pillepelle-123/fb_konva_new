@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from './ui/primitives/button';
 import { Card, CardContent, CardDescription } from './ui/card';
 import { Input } from './ui/primitives/input';
-import { DialogDescription, DialogHeader, DialogTitle } from './ui/feedback/dialog';
+import { DialogDescription, DialogHeader, DialogTitle } from './ui/overlays/dialog';
 import { HelpCircle, Plus, Edit, Trash2, Save, Calendar, X } from 'lucide-react';
 
 interface Question {

@@ -1,4 +1,4 @@
-import { Button } from './primitives/button';
+import { Button } from '../ui/primitives/button';
 import { PanelTop, Wrench } from 'lucide-react';
 
 interface FloatingActionButtonsProps {

@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/feedback/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/overlays/dialog';
 import { Button } from '../ui/primitives/button';
 
 interface UnsavedChangesDialogProps {
