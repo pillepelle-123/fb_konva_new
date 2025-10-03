@@ -1,7 +1,7 @@
 import { type Icon } from 'lucide-react';
-import { ToolButton } from '../ui/tool-button';
-import { ToolGroupLabel } from '../ui/tool-group-label';
-import { ToolGroupSeparator } from '../ui/tool-group-separator';
+import { ToolButton } from './tool-button';
+import { ToolGroupLabel } from './tool-group-label';
+import { ToolGroupSeparator } from './tool-group-separator';
 
 interface Tool {
   id: string;

@@ -2,7 +2,7 @@ interface EditorContainerProps {
   children: React.ReactNode;
 }
 
-export default function EditorContainer({ children }: EditorContainerProps) {
+export function EditorContainer({ children }: EditorContainerProps) {
   return (
     <div
       style={{

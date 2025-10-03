@@ -32,4 +32,4 @@ const CanvasContainer = forwardRef<HTMLDivElement, CanvasContainerProps>(({
 
 CanvasContainer.displayName = 'CanvasContainer';
 
-export default CanvasContainer;
+export { CanvasContainer };

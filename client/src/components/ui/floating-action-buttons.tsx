@@ -1,4 +1,4 @@
-import { Button } from './button';
+import { Button } from './primitives/button';
 import { PanelTop, Wrench } from 'lucide-react';
 
 interface FloatingActionButtonsProps {
@@ -8,7 +8,7 @@ interface FloatingActionButtonsProps {
   onToggleToolbar: () => void;
 }
 
-export default function FloatingActionButtons({
+export function FloatingActionButtons({
   editorBarVisible,
   toolbarVisible,
   onToggleEditorBar,

@@ -1,4 +1,4 @@
-import { CardHeader, CardTitle } from './card';
+import { CardHeader, CardTitle } from '../../ui/card';
 import { ToolbarToggle } from './toolbar-toggle';
 
 interface ToolbarHeaderProps {

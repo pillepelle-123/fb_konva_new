@@ -5,7 +5,7 @@ interface ActionButtonProps {
   style?: React.CSSProperties;
 }
 
-export default function ActionButton({ children, onClick, variant = 'secondary', style }: ActionButtonProps) {
+export function ActionButton({ children, onClick, variant = 'secondary', style }: ActionButtonProps) {
   const getVariantStyles = () => {
     switch (variant) {
       case 'primary':

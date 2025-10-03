@@ -1,4 +1,4 @@
-import { Button } from './button';
+import { Button } from './primitives/button';
 import { ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
 
 interface PageNavigationProps {
@@ -10,7 +10,7 @@ interface PageNavigationProps {
   canGoNext: boolean;
 }
 
-export default function PageNavigation({
+export function PageNavigation({
   currentPage,
   totalPages,
   onPrevPage,

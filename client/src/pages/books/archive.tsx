@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/auth-context';
-import { Button } from '../../components/ui/button';
+import { Button } from '../../components/ui/primitives/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/feedback/dialog';
 import { Archive, RotateCcw, Trash2, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface ArchivedBook {

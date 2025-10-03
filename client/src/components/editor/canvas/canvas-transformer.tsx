@@ -30,4 +30,4 @@ const CanvasTransformer = forwardRef<Konva.Transformer, CanvasTransformerProps>(
 
 CanvasTransformer.displayName = 'CanvasTransformer';
 
-export default CanvasTransformer;
+export { CanvasTransformer };

@@ -4,7 +4,7 @@ import { AuthProvider, useAuth } from './context/auth-context'
 import { EditorProvider } from './context/editor-context'
 import PageContainer from './components/layout/page-container'
 import Navigation from './components/layout/navigation'
-import EditorBar from './components/editor/editor-bar'
+
 import Login from './pages/auth/login'
 import Register from './pages/auth/register'
 import Dashboard from './pages/dashboard/index'
@@ -12,7 +12,7 @@ import BooksList from './pages/books/index'
 import BookArchive from './pages/books/archive'
 import PhotosList from './pages/photos/index'
 import QuestionsList from './pages/questions/index'
-import Editor from './components/editor/editor'
+import Editor from './pages/editor'
 import ProtectedRoute from './components/layout/protected-route'
 
 
@@ -87,12 +87,7 @@ function Home({ serverMessage }: { serverMessage: string }) {
 function EditorWithBar() {
   return (
     <EditorProvider>
-      <div className="h-full flex flex-col">
-        <EditorBar />
-        <div className="flex-1 min-h-0">
-          <Editor />
-        </div>
-      </div>
+      <Editor />
     </EditorProvider>
   );
 }

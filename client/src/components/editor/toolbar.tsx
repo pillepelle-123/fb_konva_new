@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useEditor } from '../../context/editor-context';
 import { ToolbarContainer } from '../cards/toolbar-container';
-import { ToolbarHeader } from '../ui/toolbar-header';
+import { ToolbarHeader } from './toolbar/toolbar-header';
 import { ToolbarContent } from '../cards/toolbar-content';
 import { 
   MousePointer, 

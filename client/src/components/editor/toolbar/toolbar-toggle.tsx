@@ -1,4 +1,4 @@
-import { Button } from './button';
+import { Button } from '../../ui/primitives/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface ToolbarToggleProps {

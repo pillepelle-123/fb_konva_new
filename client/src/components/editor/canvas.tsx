@@ -5,15 +5,15 @@ import { v4 as uuidv4 } from 'uuid';
 import { useEditor } from '../../context/editor-context';
 import type { CanvasElement } from '../../context/editor-context';
 import CustomTextbox from './custom-textbox';
-import RoughShape from './rough-shape';
+import RoughShape from './canvas/rough-shape';
 import PhotoPlaceholder from './photo-placeholder';
-import RoughBrush from './rough-brush';
-import CanvasStage from '../ui/canvas-stage';
-import CanvasTransformer from '../ui/canvas-transformer';
-import SelectionRectangle from '../ui/selection-rectangle';
-import { PreviewLine, PreviewShape, PreviewTextbox, PreviewBrush } from '../ui/preview-elements';
+import RoughBrush from './canvas/rough-brush';
+import { CanvasStage } from './canvas/canvas-stage';
+import { CanvasTransformer } from './canvas/canvas-transformer';
+import { SelectionRectangle } from './canvas/selection-rectangle';
+import { PreviewLine, PreviewShape, PreviewTextbox, PreviewBrush } from './canvas/preview-elements';
+import { CanvasContainer } from './canvas/canvas-container';
 import ContextMenu from '../cards/context-menu';
-import CanvasContainer from '../ui/canvas-container';
 
 function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
   return (

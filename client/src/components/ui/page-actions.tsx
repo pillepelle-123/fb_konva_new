@@ -1,4 +1,4 @@
-import { Button } from './button';
+import { Button } from './primitives/button';
 import { Plus, Copy, Trash2 } from 'lucide-react';
 
 interface PageActionsProps {
@@ -8,7 +8,7 @@ interface PageActionsProps {
   canDelete: boolean;
 }
 
-export default function PageActions({
+export function PageActions({
   onAddPage,
   onDuplicatePage,
   onDeletePage,

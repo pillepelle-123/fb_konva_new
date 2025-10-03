@@ -8,7 +8,7 @@ interface SelectionRectangleProps {
   visible: boolean;
 }
 
-export default function SelectionRectangle({ x, y, width, height, visible }: SelectionRectangleProps) {
+export function SelectionRectangle({ x, y, width, height, visible }: SelectionRectangleProps) {
   if (!visible) return null;
 
   return (

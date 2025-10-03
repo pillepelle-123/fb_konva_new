@@ -62,4 +62,4 @@ const CanvasStage = forwardRef<Konva.Stage, CanvasStageProps>(({
 
 CanvasStage.displayName = 'CanvasStage';
 
-export default CanvasStage;
+export { CanvasStage };

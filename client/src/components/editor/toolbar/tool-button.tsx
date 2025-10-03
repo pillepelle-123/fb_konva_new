@@ -1,4 +1,4 @@
-import { Button } from './button';
+import { Button } from '../../ui/primitives/button';
 import { type Icon } from 'lucide-react';
 
 interface ToolButtonProps {

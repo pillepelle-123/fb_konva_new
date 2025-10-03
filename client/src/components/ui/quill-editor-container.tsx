@@ -2,7 +2,7 @@ interface QuillEditorContainerProps {
   children?: React.ReactNode;
 }
 
-export default function QuillEditorContainer({ children }: QuillEditorContainerProps) {
+export function QuillEditorContainer({ children }: QuillEditorContainerProps) {
   return (
     <div
       style={{

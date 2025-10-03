@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { useEditor } from '../../context/editor-context';
 import { exportBookToPDF, type PDFExportOptions } from '../../utils/pdf-export';
+import { ModalOverlay, ModalContainer, ModalHeader, ModalActions, ModalButton } from '../ui';
+import { QualitySelector } from '../cards/quality-selector';
+import { PageRangeSelector } from '../cards/page-range-selector';
+import { ExportProgress } from '../cards/export-progress';
 
 interface PDFExportModalProps {
   isOpen: boolean;
@@ -56,160 +60,37 @@ export default function PDFExportModal({ isOpen, onClose }: PDFExportModalProps)
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100%',
-      height: '100%',
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 1000
-    }}>
-      <div style={{
-        backgroundColor: 'white',
-        borderRadius: '8px',
-        padding: '24px',
-        minWidth: '400px',
-        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)'
-      }}>
-        <h2 style={{ margin: '0 0 20px 0', fontSize: '20px', fontWeight: 'bold' }}>
-          Export to PDF
-        </h2>
-
-        <div style={{ marginBottom: '16px' }}>
-          <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>
-            PDF Quality:
-          </label>
-          <select
-            value={quality}
-            onChange={(e) => setQuality(e.target.value as any)}
-            style={{
-              width: '100%',
-              padding: '8px',
-              border: '1px solid #d1d5db',
-              borderRadius: '4px'
-            }}
-          >
-            <option value="preview">Preview</option>
-            <option value="medium">Medium</option>
-            <option value="printing">For Printing</option>
-          </select>
-        </div>
-
-        <div style={{ marginBottom: '16px' }}>
-          <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>
-            Page Range:
-          </label>
-          <div style={{ marginBottom: '8px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
-              <input
-                type="radio"
-                value="all"
-                checked={pageRange === 'all'}
-                onChange={(e) => setPageRange(e.target.value as any)}
-                style={{ marginRight: '8px' }}
-              />
-              Print all pages
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center' }}>
-              <input
-                type="radio"
-                value="range"
-                checked={pageRange === 'range'}
-                onChange={(e) => setPageRange(e.target.value as any)}
-                style={{ marginRight: '8px' }}
-              />
-              Pages
-            </label>
-          </div>
-          {pageRange === 'range' && (
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginLeft: '24px' }}>
-              <input
-                type="number"
-                min="1"
-                max={state.currentBook.pages.length}
-                value={startPage}
-                onChange={(e) => setStartPage(parseInt(e.target.value))}
-                style={{
-                  width: '60px',
-                  padding: '4px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '4px'
-                }}
-              />
-              <span>to</span>
-              <input
-                type="number"
-                min="1"
-                max={state.currentBook.pages.length}
-                value={endPage}
-                onChange={(e) => setEndPage(parseInt(e.target.value))}
-                style={{
-                  width: '60px',
-                  padding: '4px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '4px'
-                }}
-              />
-            </div>
-          )}
-        </div>
-
-        {isExporting && (
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{ marginBottom: '4px', fontSize: '14px' }}>
-              Exporting... {Math.round(progress)}%
-            </div>
-            <div style={{
-              width: '100%',
-              height: '8px',
-              backgroundColor: '#e5e7eb',
-              borderRadius: '4px',
-              overflow: 'hidden'
-            }}>
-              <div style={{
-                width: `${progress}%`,
-                height: '100%',
-                backgroundColor: '#2563eb',
-                transition: 'width 0.3s ease'
-              }} />
-            </div>
-          </div>
-        )}
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-          <button
-            onClick={isExporting ? handleCancel : onClose}
-            style={{
-              padding: '8px 16px',
-              border: '1px solid #d1d5db',
-              borderRadius: '4px',
-              backgroundColor: 'white',
-              cursor: 'pointer'
-            }}
-          >
+    <ModalOverlay>
+      <ModalContainer>
+        <ModalHeader>Export to PDF</ModalHeader>
+        
+        <QualitySelector value={quality} onChange={setQuality} />
+        
+        <PageRangeSelector
+          pageRange={pageRange}
+          startPage={startPage}
+          endPage={endPage}
+          maxPages={state.currentBook.pages.length}
+          onPageRangeChange={setPageRange}
+          onStartPageChange={setStartPage}
+          onEndPageChange={setEndPage}
+        />
+        
+        {isExporting && <ExportProgress progress={progress} />}
+        
+        <ModalActions>
+          <ModalButton onClick={isExporting ? handleCancel : onClose}>
             Cancel
-          </button>
-          <button
-            onClick={handleExport}
-            disabled={isExporting}
-            style={{
-              padding: '8px 16px',
-              border: 'none',
-              borderRadius: '4px',
-              backgroundColor: '#2563eb',
-              color: 'white',
-              cursor: isExporting ? 'not-allowed' : 'pointer',
-              opacity: isExporting ? 0.5 : 1
-            }}
+          </ModalButton>
+          <ModalButton 
+            onClick={handleExport} 
+            disabled={isExporting} 
+            variant="primary"
           >
             {isExporting ? 'Exporting...' : 'Print PDF'}
-          </button>
-        </div>
-      </div>
-    </div>
+          </ModalButton>
+        </ModalActions>
+      </ModalContainer>
+    </ModalOverlay>
   );
 }

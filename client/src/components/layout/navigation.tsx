@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
-import { Button } from '../ui/button';
+import { Button } from '../ui/primitives/button';
 import { BookOpen, Home, Archive, LogOut, User, Menu, Image } from 'lucide-react';
 import { useState } from 'react';
 

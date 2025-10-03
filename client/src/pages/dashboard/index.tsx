@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
-import { Button } from '../../components/ui/button';
+import { Button } from '../../components/ui/primitives/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { BookOpen, Users, FileText, Plus, ArrowRight, Calendar } from 'lucide-react';
 

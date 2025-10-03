@@ -1,5 +1,5 @@
 import { CardContent } from '../ui/card';
-import { ToolGroup } from './tool-group';
+import { ToolGroup } from '../editor/toolbar/tool-group';
 import { type Icon } from 'lucide-react';
 
 interface Tool {

@@ -1,4 +1,4 @@
-import { Button } from './button';
+import { Button } from './primitives/button';
 import { Save, Download, X } from 'lucide-react';
 
 interface BookActionsProps {
@@ -8,7 +8,7 @@ interface BookActionsProps {
   isSaving: boolean;
 }
 
-export default function BookActions({
+export function BookActions({
   onSave,
   onExport,
   onClose,
