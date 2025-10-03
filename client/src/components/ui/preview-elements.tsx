@@ -77,10 +77,10 @@ export function PreviewTextbox({ x, y, width, height }: PreviewTextboxProps) {
       width={width}
       height={height}
       stroke="#60B3F9"
-      strokeWidth={2}
-      fill="rgba(37, 99, 235, 0.1)"
+      strokeWidth={6}
+      fill="transparent"
       listening={false}
-      opacity={0.7}
+      // opacity={0.7}
       dash={[18, 18]}
     />
   );
