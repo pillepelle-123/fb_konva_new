@@ -33,6 +33,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/books', require('./routes/books'));
 app.use('/api/questions', require('./routes/questions'));
 app.use('/api/upload', require('./routes/upload'));
+app.use('/api/photos', require('./routes/photos'));
 
 app.get('/', (req, res) => {
   res.json({ message: 'Hello World from Express server!' });

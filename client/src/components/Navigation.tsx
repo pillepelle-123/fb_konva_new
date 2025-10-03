@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button } from './ui/button';
-import { BookOpen, Home, Archive, LogOut, User, Menu } from 'lucide-react';
+import { BookOpen, Home, Archive, LogOut, User, Menu, Image } from 'lucide-react';
 import { useState } from 'react';
 
 export default function Navigation() {
@@ -14,6 +14,7 @@ export default function Navigation() {
   const navItems = user ? [
     { path: '/dashboard', label: 'Dashboard', icon: Home },
     { path: '/books', label: 'My Books', icon: BookOpen },
+    { path: '/photos', label: 'Photos', icon: Image },
     { path: '/books/archive', label: 'Archive', icon: Archive },
   ] : [
     { path: '/', label: 'Home', icon: Home },

@@ -10,6 +10,7 @@ import Register from './components/Register'
 import Dashboard from './components/Dashboard'
 import BooksList from './components/BooksList'
 import BookArchive from './components/BookArchive'
+import PhotosList from './components/PhotosList'
 import QuestionsList from './components/QuestionsList'
 import Editor from './components/Editor/Editor'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -50,6 +51,7 @@ function AppContent() {
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/books" element={<ProtectedRoute><BooksList /></ProtectedRoute>} />
           <Route path="/books/archive" element={<ProtectedRoute><BookArchive /></ProtectedRoute>} />
+          <Route path="/photos" element={<ProtectedRoute><PhotosList /></ProtectedRoute>} />
           <Route path="/questions/:bookId" element={<ProtectedRoute><QuestionsList /></ProtectedRoute>} />
           <Route path="/editor/:bookId" element={<ProtectedRoute><EditorWithBar /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminPanel /></ProtectedRoute>} />
