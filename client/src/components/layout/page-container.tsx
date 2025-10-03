@@ -4,7 +4,7 @@ interface PageContainerProps {
 
 export default function PageContainer({ children }: PageContainerProps) {
   return (
-    <div className="min-h-screen h-screen flex flex-col">
+    <div className="h-full flex flex-col overflow-hidden">
       {children}
     </div>
   );

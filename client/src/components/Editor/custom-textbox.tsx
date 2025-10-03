@@ -2,9 +2,9 @@ import { useRef, useState, useEffect } from 'react';
 import { Group, Rect, Text, Circle, Path } from 'react-konva';
 import Konva from 'konva';
 import rough from 'roughjs';
-import { useEditor } from '../../context/EditorContext';
-import type { CanvasElement } from '../../context/EditorContext';
-import RoughShape from './RoughShape';
+import { useEditor } from '../../context/editor-context';
+import type { CanvasElement } from '../../context/editor-context';
+import RoughShape from './rough-shape';
 
 // Rich text formatting function for Quill HTML output
 function formatRichText(text: string, fontSize: number, fontFamily: string, maxWidth: number, hasRuledLines: boolean = false) {
@@ -347,7 +347,7 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
         // Import React and ReactDOM dynamically
         import('react').then(React => {
           import('react-dom/client').then(ReactDOM => {
-            import('../QuestionsManagerContent').then(({ default: QuestionsManagerContent }) => {
+            import('../questions-manager-content').then(({ default: QuestionsManagerContent }) => {
               // Create React container
               const reactContainer = document.createElement('div');
               container.insertBefore(reactContainer, buttonContainer);

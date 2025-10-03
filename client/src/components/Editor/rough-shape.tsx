@@ -2,76 +2,67 @@ import { useRef } from 'react';
 import { Group, Path, Rect } from 'react-konva';
 import Konva from 'konva';
 import rough from 'roughjs';
-import { useEditor } from '../../context/EditorContext';
-import type { CanvasElement } from '../../context/EditorContext';
+import { useEditor } from '../../context/editor-context';
+import type { CanvasElement } from '../../context/editor-context';
 
-interface RoughBrushProps {
+interface RoughShapeProps {
   element: CanvasElement;
   isSelected: boolean;
   onSelect: () => void;
   onDragStart?: () => void;
-  onDragEnd?: (e: Konva.KonvaEventObject<DragEvent>) => void;
+  onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
   isMovingGroup?: boolean;
 }
 
-export default function RoughBrush({ element, isSelected, onSelect, onDragStart, onDragEnd, isMovingGroup }: RoughBrushProps) {
+export default function RoughShape({ element, isSelected, onSelect, onDragStart, onDragEnd, isMovingGroup }: RoughShapeProps) {
   const { state, dispatch } = useEditor();
   const groupRef = useRef<Konva.Group>(null);
 
-  const getBounds = (points: number[]) => {
-    let minX = points[0], maxX = points[0];
-    let minY = points[1], maxY = points[1];
-    
-    for (let i = 2; i < points.length; i += 2) {
-      minX = Math.min(minX, points[i]);
-      maxX = Math.max(maxX, points[i]);
-      minY = Math.min(minY, points[i + 1]);
-      maxY = Math.max(maxY, points[i + 1]);
-    }
-    
-    return {
-      minX,
-      minY,
-      width: maxX - minX,
-      height: maxY - minY
-    };
-  };
-
   const generateRoughPath = () => {
-    if (!element.points || element.points.length < 4) return '';
-
     const roughness = element.roughness || 1;
     const strokeWidth = element.strokeWidth || 2;
     const stroke = element.stroke || '#1f2937';
+    const fill = element.fill || 'transparent';
     
     // Use element ID as seed for consistent rendering
     const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-
+    
+    // Create SVG element for rough.js
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const rc = rough.svg(svg);
+    
+    let roughElement;
+    
     try {
-      // Create SVG element for rough.js
-      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      const rc = rough.svg(svg);
-
-      // Convert points to path string
-      const pathPoints = [];
-      for (let i = 0; i < element.points.length; i += 2) {
-        pathPoints.push([element.points[i], element.points[i + 1]]);
-      }
-
-      if (pathPoints.length > 1) {
-        // Create SVG path string
-        let pathString = `M ${pathPoints[0][0]} ${pathPoints[0][1]}`;
-        for (let i = 1; i < pathPoints.length; i++) {
-          pathString += ` L ${pathPoints[i][0]} ${pathPoints[i][1]}`;
-        }
-
-        const roughElement = rc.path(pathString, {
+      if (element.type === 'rect') {
+        roughElement = rc.rectangle(0, 0, element.width, element.height, {
+          roughness,
+          strokeWidth,
+          stroke,
+          fill: fill !== 'transparent' ? fill : undefined,
+          fillStyle: 'solid',
+          seed
+        });
+      } else if (element.type === 'circle') {
+        const radius = Math.min(element.width, element.height) / 2;
+        roughElement = rc.circle(element.width / 2, element.height / 2, radius * 2, {
+          roughness,
+          strokeWidth,
+          stroke,
+          fill: fill !== 'transparent' ? fill : undefined,
+          fillStyle: 'solid',
+          seed
+        });
+      } else if (element.type === 'line') {
+        roughElement = rc.line(0, 0, element.width, element.height, {
           roughness,
           strokeWidth,
           stroke,
           seed
         });
-
+      }
+      
+      if (roughElement) {
         // Extract path data from SVG
         const paths = roughElement.querySelectorAll('path');
         let combinedPath = '';
@@ -82,35 +73,35 @@ export default function RoughBrush({ element, isSelected, onSelect, onDragStart,
         return combinedPath.trim();
       }
     } catch (error) {
-      console.error('Error generating rough brush path:', error);
+      // Fallback to simple paths
     }
-
-    // Fallback to simple path
-    if (element.points && element.points.length >= 4) {
-      let pathString = `M ${element.points[0]} ${element.points[1]}`;
-      for (let i = 2; i < element.points.length; i += 2) {
-        pathString += ` L ${element.points[i]} ${element.points[i + 1]}`;
-      }
-      return pathString;
+    
+    // Fallback to simple paths
+    if (element.type === 'rect') {
+      return `M 0 0 L ${element.width} 0 L ${element.width} ${element.height} L 0 ${element.height} Z`;
+    } else if (element.type === 'circle') {
+      const r = Math.min(element.width, element.height) / 2;
+      const cx = element.width / 2;
+      const cy = element.height / 2;
+      return `M ${cx - r} ${cy} A ${r} ${r} 0 1 0 ${cx + r} ${cy} A ${r} ${r} 0 1 0 ${cx - r} ${cy}`;
+    } else if (element.type === 'line') {
+      return `M 0 0 L ${element.width} ${element.height}`;
     }
-
+    
     return '';
   };
 
   const pathData = generateRoughPath();
   const strokeWidth = element.strokeWidth || 2;
   const stroke = element.stroke || '#1f2937';
-
-  if (!pathData || !element.points) return null;
-
-  const bounds = getBounds(element.points);
+  const fill = element.fill !== 'transparent' ? element.fill : undefined;
 
   return (
     <Group
       ref={groupRef}
       id={element.id}
-      x={(element.x || 0)}
-      y={(element.y || 0)}
+      x={element.x}
+      y={element.y}
       scaleX={element.scaleX || 1}
       scaleY={element.scaleY || 1}
       rotation={element.rotation || 0}
@@ -138,7 +129,9 @@ export default function RoughBrush({ element, isSelected, onSelect, onDragStart,
         e.cancelBubble = true;
         onSelect();
       }}
-      onDragStart={onDragStart}
+      onDragStart={() => {
+        onDragStart?.();
+      }}
       onDragEnd={(e) => {
         dispatch({
           type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
@@ -147,17 +140,17 @@ export default function RoughBrush({ element, isSelected, onSelect, onDragStart,
             updates: { x: e.target.x(), y: e.target.y() }
           }
         });
-        onDragEnd?.(e);
+        onDragEnd(e);
       }}
     >
       {/* Invisible hit area for easier selection */}
       <Rect
-        x={bounds.minX - 10}
-        y={bounds.minY - 10}
-        width={bounds.width + 20}
-        height={bounds.height + 20}
+        width={element.width}
+        height={element.height}
         fill="transparent"
         listening={true}
+        strokeWidth={10}
+        stroke="transparent"
       />
       
       {/* Visible rough path */}
@@ -166,7 +159,7 @@ export default function RoughBrush({ element, isSelected, onSelect, onDragStart,
         stroke={stroke}
         strokeWidth={strokeWidth}
         strokeScaleEnabled={false}
-        fill={undefined}
+        fill={fill}
         listening={false}
       />
     </Group>

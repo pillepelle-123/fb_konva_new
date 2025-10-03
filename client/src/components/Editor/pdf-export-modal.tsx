@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useEditor } from '../../context/EditorContext';
-import { exportBookToPDF, type PDFExportOptions } from '../../utils/pdfExport';
+import { useEditor } from '../../context/editor-context';
+import { exportBookToPDF, type PDFExportOptions } from '../../utils/pdf-export';
 
 interface PDFExportModalProps {
   isOpen: boolean;

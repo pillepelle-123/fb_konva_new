@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { useEditor, createSampleBook } from '../../context/EditorContext';
-import Toolbar from './Toolbar';
-import Canvas from './Canvas';
+import { useEditor, createSampleBook } from '../../context/editor-context';
+import Toolbar from './toolbar';
+import Canvas from './canvas';
 
 
 function EditorContent() {

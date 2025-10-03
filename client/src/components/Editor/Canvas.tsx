@@ -2,12 +2,12 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import { Stage, Layer, Rect, Circle, Transformer, Line, Group } from 'react-konva';
 import Konva from 'konva';
 import { v4 as uuidv4 } from 'uuid';
-import { useEditor } from '../../context/EditorContext';
-import type { CanvasElement } from '../../context/EditorContext';
-import CustomTextbox from './CustomTextbox';
-import RoughShape from './RoughShape';
-import PhotoPlaceholder from './PhotoPlaceholder';
-import RoughBrush from './RoughBrush';
+import { useEditor } from '../../context/editor-context';
+import type { CanvasElement } from '../../context/editor-context';
+import CustomTextbox from './custom-textbox';
+import RoughShape from './rough-shape';
+import PhotoPlaceholder from './photo-placeholder';
+import RoughBrush from './rough-brush';
 
 function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
   return (

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useEditor } from '../../context/EditorContext';
-import PDFExportModal from './PDFExportModal';
+import { useEditor } from '../../context/editor-context';
+import PDFExportModal from './pdf-export-modal';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';

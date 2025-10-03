@@ -1,23 +1,24 @@
 import { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../../context/auth-context';
 import { Link } from 'react-router-dom';
-import { Button } from './ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Input } from './ui/input';
-import { LogIn, Mail, Lock } from 'lucide-react';
+import { Button } from '../../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Input } from '../../components/ui/input';
+import { UserPlus, User, Mail, Lock } from 'lucide-react';
 
-export default function Login() {
+export default function Register() {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const { login } = useAuth();
+  const { register } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await login(email, password);
+      await register(name, email, password);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      setError(err instanceof Error ? err.message : 'Registration failed');
     }
   };
 
@@ -27,11 +28,11 @@ export default function Login() {
         <Card className="border-0 shadow-lg">
           <CardHeader className="text-center space-y-2">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-              <LogIn className="h-6 w-6 text-primary" />
+              <UserPlus className="h-6 w-6 text-primary" />
             </div>
-            <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
+            <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
             <CardDescription>
-              Enter your credentials to access your account
+              Enter your details to get started
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -41,6 +42,19 @@ export default function Login() {
               </div>
             )}
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <div className="relative">
+                  <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Full name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    className="pl-10"
+                  />
+                </div>
+              </div>
               <div className="space-y-2">
                 <div className="relative">
                   <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -68,17 +82,17 @@ export default function Login() {
                 </div>
               </div>
               <Button type="submit" className="w-full" size="lg">
-                <LogIn className="mr-2 h-4 w-4" />
-                Sign in
+                <UserPlus className="mr-2 h-4 w-4" />
+                Create account
               </Button>
             </form>
             <div className="text-center text-sm text-muted-foreground">
-              Don't have an account?{' '}
+              Already have an account?{' '}
               <Link 
-                to="/register" 
+                to="/login" 
                 className="text-primary font-medium hover:underline transition-colors"
               >
-                Create one
+                Sign in
               </Link>
             </div>
           </CardContent>

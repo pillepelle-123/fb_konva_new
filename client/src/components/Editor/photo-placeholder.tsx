@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
 import { Group, Rect, Text, Image as KonvaImage } from 'react-konva';
 import Konva from 'konva';
-import { useAuth } from '../../context/AuthContext';
-import { useEditor } from '../../context/EditorContext';
-import type { CanvasElement } from '../../context/EditorContext';
+import { useAuth } from '../../context/auth-context';
+import { useEditor } from '../../context/editor-context';
+import type { CanvasElement } from '../../context/editor-context';
 
 interface PhotoPlaceholderProps {
   element: CanvasElement;

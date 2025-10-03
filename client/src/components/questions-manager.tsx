@@ -1,6 +1,6 @@
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/auth-context';
 import { Dialog, DialogContent } from './ui/dialog';
-import QuestionsManagerContent from './QuestionsManagerContent';
+import QuestionsManagerContent from './questions-manager-content';
 
 interface QuestionsManagerProps {
   bookId: number;

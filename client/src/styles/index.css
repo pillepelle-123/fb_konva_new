@@ -54,8 +54,15 @@
   @apply border-border;
 }
 
-body {
+html, body {
   @apply bg-background text-foreground font-sans antialiased;
+  height: 100%;
+  overflow: hidden;
+}
+
+#root {
+  height: 100%;
+  overflow: hidden;
 }
 
 /* Custom scrollbar */

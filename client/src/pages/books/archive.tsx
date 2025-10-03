@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { Button } from './ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
+import { useAuth } from '../../context/auth-context';
+import { Button } from '../../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Archive, RotateCcw, Trash2, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface ArchivedBook {
@@ -259,7 +259,7 @@ export default function BookArchive() {
                 Cancel
               </Button>
               <Button variant="destructive" onClick={handleConfirmDelete} className="flex-1">
-                Delete Permanently
+                Delete Forever
               </Button>
             </div>
           </DialogContent>

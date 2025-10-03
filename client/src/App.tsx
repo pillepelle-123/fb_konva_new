@@ -1,19 +1,19 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { AuthProvider, useAuth } from './context/AuthContext'
-import { EditorProvider } from './context/EditorContext'
-import PageContainer from './components/PageContainer'
-import Navigation from './components/Navigation'
-import EditorBar from './components/Editor/EditorBar'
-import Login from './components/Login'
-import Register from './components/Register'
-import Dashboard from './components/Dashboard'
-import BooksList from './components/BooksList'
-import BookArchive from './components/BookArchive'
-import PhotosList from './components/PhotosList'
-import QuestionsList from './components/QuestionsList'
-import Editor from './components/Editor/Editor'
-import ProtectedRoute from './components/ProtectedRoute'
+import { AuthProvider, useAuth } from './context/auth-context'
+import { EditorProvider } from './context/editor-context'
+import PageContainer from './components/layout/page-container'
+import Navigation from './components/layout/navigation'
+import EditorBar from './components/Editor/editor-bar'
+import Login from './pages/auth/login'
+import Register from './pages/auth/register'
+import Dashboard from './pages/dashboard/index'
+import BooksList from './pages/books/index'
+import BookArchive from './pages/books/archive'
+import PhotosList from './pages/photos/index'
+import QuestionsList from './pages/questions/index'
+import Editor from './components/Editor/editor'
+import ProtectedRoute from './components/layout/protected-route'
 
 function App() {
   return (
@@ -43,7 +43,7 @@ function AppContent() {
   return (
     <PageContainer>
       <Navigation />
-      <main className={`flex-1 ${isEditorRoute ? 'overflow-hidden' : 'overflow-auto'} w-full`}>
+      <main className={`flex-1 min-h-0 ${isEditorRoute ? 'overflow-hidden' : 'overflow-auto'} w-full`}>
         <Routes>
           <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Home serverMessage={serverMessage} />} />
           <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <Login />} />

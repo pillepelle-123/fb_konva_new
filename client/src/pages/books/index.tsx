@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { Button } from './ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Input } from './ui/input';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
+import { useAuth } from '../../context/auth-context';
+import { Button } from '../../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Input } from '../../components/ui/input';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { BookOpen, Plus, Users, Archive, Edit, Settings, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Book {
@@ -263,7 +263,6 @@ export default function BooksList() {
           </DialogContent>
         </Dialog>
 
-
         
         {/* Alert Dialog */}
         <Dialog open={!!showAlert} onOpenChange={() => setShowAlert(null)}>
@@ -419,10 +418,10 @@ function CollaboratorModal({ bookId, onClose }: { bookId: number; onClose: () =>
       });
       if (response.ok) {
         setEmail('');
-        setShowAlert({ title: 'Success', message: 'Collaborator added successfully!' });
+        // setShowAlert({ title: 'Success', message: 'Collaborator added successfully!' });
       } else {
         const error = await response.json();
-        setShowAlert({ title: 'Error', message: error.error || 'Failed to add collaborator' });
+        // setShowAlert({ title: 'Error', message: error.error || 'Failed to add collaborator' });
       }
     } catch (error) {
       console.error('Error adding collaborator:', error);

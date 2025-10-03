@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import QuestionsManagerContent from './QuestionsManagerContent';
+import QuestionsManagerContent from '../../components/questions-manager-content';
 
 export default function QuestionsList() {
   const { bookId } = useParams<{ bookId: string }>();

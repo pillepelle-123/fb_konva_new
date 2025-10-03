@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useEditor } from '../../context/EditorContext';
+import { useEditor } from '../../context/editor-context';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { 
