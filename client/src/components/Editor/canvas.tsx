@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { Stage, Layer, Rect, Circle, Transformer, Line, Group } from 'react-konva';
+import { Layer, Rect, Group } from 'react-konva';
 import Konva from 'konva';
 import { v4 as uuidv4 } from 'uuid';
 import { useEditor } from '../../context/editor-context';
@@ -8,6 +8,12 @@ import CustomTextbox from './custom-textbox';
 import RoughShape from './rough-shape';
 import PhotoPlaceholder from './photo-placeholder';
 import RoughBrush from './rough-brush';
+import CanvasStage from '../ui/canvas-stage';
+import CanvasTransformer from '../ui/canvas-transformer';
+import SelectionRectangle from '../ui/selection-rectangle';
+import { PreviewLine, PreviewShape, PreviewTextbox, PreviewBrush } from '../ui/preview-elements';
+import ContextMenu from '../cards/context-menu';
+import CanvasContainer from '../ui/canvas-container';
 
 function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
   return (
@@ -960,42 +966,20 @@ export default function Canvas() {
 
   return (
     <CanvasPageContainer>
-      <div 
-        ref={containerRef}
-        data-page-id={currentPage?.id}
-        style={{
-          backgroundColor: 'white',
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-          borderRadius: '14px',
-          padding: '.5rem',
-          flex: 1,
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          backgroundColor: '#F9FAFB',
-        }}>
-        <Stage
+      <CanvasContainer ref={containerRef} pageId={currentPage?.id}>
+        <CanvasStage
           ref={stageRef}
           width={containerSize.width}
           height={containerSize.height}
-          scaleX={zoom}
-          scaleY={zoom}
+          zoom={zoom}
+          stagePos={stagePos}
+          activeTool={state.activeTool}
           onClick={handleStageClick}
-          onTap={handleStageClick}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
-          onTouchStart={handleMouseDown}
-          onTouchMove={handleMouseMove}
-          onTouchEnd={handleMouseUp}
           onContextMenu={handleContextMenu}
           onWheel={handleWheel}
-          x={stagePos.x}
-          y={stagePos.y}
-          style={{ 
-            cursor: state.activeTool === 'pan' ? 'grab' : 'default',
-            backgroundColor: '#F9FAFB' 
-          }}
         >
           <Layer>
             {/* Page boundary */}
@@ -1013,107 +997,52 @@ export default function Canvas() {
                 />
               ))}
               
-              {/* Brush preview line */}
+              {/* Preview elements */}
               {isDrawing && currentPath.length > 2 && (
-                <Line
-                  points={currentPath}
-                  stroke="#1f2937"
-                  strokeWidth={2}
-                  lineCap="round"
-                  lineJoin="round"
-                  listening={false}
-                  opacity={0.7}
-                  dash={[18, 18]}
-                />
+                <PreviewBrush points={currentPath} />
               )}
               
-              {/* Line preview */}
               {previewLine && (
-                <Line
-                  points={[previewLine.x1, previewLine.y1, previewLine.x2, previewLine.y2]}
-                  stroke="#1f2937"
-                  strokeWidth={2}
-                  lineCap="round"
-                  listening={false}
-                  opacity={0.7}
-                  dash={[18, 18]}
+                <PreviewLine
+                  x1={previewLine.x1}
+                  y1={previewLine.y1}
+                  x2={previewLine.x2}
+                  y2={previewLine.y2}
                 />
               )}
               
-              {/* Shape preview */}
               {previewShape && (
-                previewShape.type === 'rect' ? (
-                  <Rect
-                    x={previewShape.x}
-                    y={previewShape.y}
-                    width={previewShape.width}
-                    height={previewShape.height}
-                    stroke="#1f2937"
-                    strokeWidth={2}
-                    fill="transparent"
-                    listening={false}
-                    opacity={0.7}
-                    dash={[18, 18]}
-                  />
-                ) : (
-                  <Circle
-                    x={previewShape.x + previewShape.width / 2}
-                    y={previewShape.y + previewShape.height / 2}
-                    radius={Math.min(previewShape.width, previewShape.height) / 2}
-                    stroke="#1f2937"
-                    strokeWidth={2}
-                    fill="transparent"
-                    listening={false}
-                    opacity={0.7}
-                    dash={[18, 18]}
-                  />
-                )
+                <PreviewShape
+                  x={previewShape.x}
+                  y={previewShape.y}
+                  width={previewShape.width}
+                  height={previewShape.height}
+                  type={previewShape.type}
+                />
               )}
               
-              {/* Textbox preview */}
               {previewTextbox && (
-                <Rect
+                <PreviewTextbox
                   x={previewTextbox.x}
                   y={previewTextbox.y}
                   width={previewTextbox.width}
                   height={previewTextbox.height}
-                  stroke="#2563eb"
-                  strokeWidth={2}
-                  fill="rgba(37, 99, 235, 0.1)"
-                  listening={false}
-                  opacity={0.7}
-                  dash={[18, 18]}
                 />
               )}
             </Group>
             
             {/* Selection rectangle */}
-            {selectionRect.visible && (
-              <Rect
-                x={selectionRect.x}
-                y={selectionRect.y}
-                width={selectionRect.width}
-                height={selectionRect.height}
-                fill="rgba(37, 99, 235, 0.1)"
-                stroke="#2563eb"
-                strokeWidth={1}
-                dash={[5, 5]}
-                listening={false}
-              />
-            )}
+            <SelectionRectangle
+              x={selectionRect.x}
+              y={selectionRect.y}
+              width={selectionRect.width}
+              height={selectionRect.height}
+              visible={selectionRect.visible}
+            />
             
             {/* Transformer for selected elements */}
-            <Transformer
+            <CanvasTransformer
               ref={transformerRef}
-              keepRatio={false}
-              enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right', 'top-center', 'middle-left', 'middle-right', 'bottom-center']}
-              boundBoxFunc={(oldBox, newBox) => {
-                // Limit resize
-                if (newBox.width < 5 || newBox.height < 5) {
-                  return oldBox;
-                }
-                return newBox;
-              }}
               onDragEnd={(e) => {
                 // Update positions after drag
                 const nodes = transformerRef.current?.nodes() || [];
@@ -1176,61 +1105,16 @@ export default function Canvas() {
               }}
             />
           </Layer>
-        </Stage>
+        </CanvasStage>
         
-        {/* Context Menu */}
-        {contextMenu.visible && (
-          <div
-            style={{
-              position: 'absolute',
-              left: contextMenu.x,
-              top: contextMenu.y,
-              backgroundColor: 'white',
-              border: '1px solid #d1d5db',
-              borderRadius: '4px',
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-              zIndex: 1000,
-              minWidth: '120px'
-            }}
-          >
-            <button
-              onClick={handleDuplicateItems}
-              style={{
-                display: 'block',
-                width: '100%',
-                padding: '8px 12px',
-                border: 'none',
-                backgroundColor: 'transparent',
-                textAlign: 'left',
-                cursor: 'pointer',
-                fontSize: '14px'
-              }}
-              onMouseEnter={(e) => e.target.style.backgroundColor = '#f3f4f6'}
-              onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-            >
-              Duplicate {state.selectedElementIds.length > 1 ? 'Items' : 'Item'}
-            </button>
-            <button
-              onClick={handleDeleteItems}
-              style={{
-                display: 'block',
-                width: '100%',
-                padding: '8px 12px',
-                border: 'none',
-                backgroundColor: 'transparent',
-                textAlign: 'left',
-                cursor: 'pointer',
-                fontSize: '14px',
-                color: '#dc2626'
-              }}
-              onMouseEnter={(e) => e.target.style.backgroundColor = '#fef2f2'}
-              onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-            >
-              Delete {state.selectedElementIds.length > 1 ? 'Items' : 'Item'}
-            </button>
-          </div>
-        )}
-      </div>
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          visible={contextMenu.visible}
+          onDuplicate={handleDuplicateItems}
+          onDelete={handleDeleteItems}
+        />
+      </CanvasContainer>
     </CanvasPageContainer>
   );
 }
