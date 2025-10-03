@@ -5,6 +5,12 @@ import rough from 'roughjs';
 import { useEditor } from '../../context/editor-context';
 import type { CanvasElement } from '../../context/editor-context';
 import RoughShape from './rough-shape';
+import ModalOverlay from '../ui/modal-overlay';
+import EditorContainer from '../ui/editor-container';
+import ButtonContainer from '../ui/button-container';
+import ActionButton from '../ui/action-button';
+import QuestionSelectionCard from '../cards/question-selection-card';
+import QuillEditorContainer from '../ui/quill-editor-container';
 
 // Rich text formatting function for Quill HTML output
 function formatRichText(text: string, fontSize: number, fontFamily: string, maxWidth: number, hasRuledLines: boolean = false) {
@@ -249,608 +255,610 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
     }
     
     function initQuillEditor() {
-      // Create modal overlay
-      const modal = document.createElement('div');
-      modal.style.position = 'fixed';
-      modal.style.top = '0';
-      modal.style.left = '0';
-      modal.style.width = '100%';
-      modal.style.height = '100%';
-      modal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-      modal.style.display = 'flex';
-      modal.style.justifyContent = 'center';
-      modal.style.alignItems = 'center';
-      modal.style.zIndex = '10000';
-
-      // Create editor container
-      const container = document.createElement('div');
-      container.style.backgroundColor = 'white';
-      container.style.borderRadius = '8px';
-      container.style.padding = '20px';
-      container.style.width = '80vw';
-      container.style.maxWidth = '900px';
-      container.style.minWidth = '400px';
-      container.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.3)';
-
-      // Create Quill editor container
-      const editorContainer = document.createElement('div');
-      editorContainer.style.minHeight = '200px';
-      editorContainer.style.marginBottom = '12px';
-
-      // Create buttons
-      const buttonContainer = document.createElement('div');
-      buttonContainer.style.display = 'flex';
-      buttonContainer.style.justifyContent = 'flex-end';
-      buttonContainer.style.gap = '8px';
-      buttonContainer.style.marginTop = '12px';
-
-      const cancelBtn = document.createElement('button');
-      cancelBtn.textContent = 'Cancel';
-      cancelBtn.style.padding = '8px 16px';
-      cancelBtn.style.border = '1px solid #ccc';
-      cancelBtn.style.borderRadius = '4px';
-      cancelBtn.style.cursor = 'pointer';
-      cancelBtn.onclick = () => {
-        document.body.removeChild(modal);
-        setIsEditing(false);
-      };
-
-      // Create different buttons based on text type
-      let saveBtn, saveQuestionBtn, resetBtn, selectQuestionBtn;
+      // Create modal using React components
+      const modalRoot = document.createElement('div');
+      document.body.appendChild(modalRoot);
       
-      if (element.textType === 'question') {
-        saveQuestionBtn = document.createElement('button');
-        saveQuestionBtn.textContent = '💾';
-        saveQuestionBtn.style.padding = '8px 12px';
-        saveQuestionBtn.style.border = 'none';
-        saveQuestionBtn.style.borderRadius = '4px';
-        saveQuestionBtn.style.backgroundColor = '#f59e0b';
-        saveQuestionBtn.style.color = 'white';
-        saveQuestionBtn.style.cursor = 'pointer';
-        saveQuestionBtn.style.display = 'none';
-        
-        resetBtn = document.createElement('button');
-        resetBtn.textContent = '↺';
-        resetBtn.style.padding = '8px 12px';
-        resetBtn.style.border = 'none';
-        resetBtn.style.borderRadius = '4px';
-        resetBtn.style.backgroundColor = '#ef4444';
-        resetBtn.style.color = 'white';
-        resetBtn.style.cursor = 'pointer';
-        resetBtn.style.display = 'none';
-        
-        selectQuestionBtn = document.createElement('button');
-        selectQuestionBtn.textContent = 'Select Question';
-        selectQuestionBtn.style.padding = '8px 16px';
-        selectQuestionBtn.style.border = '1px solid #ccc';
-        selectQuestionBtn.style.borderRadius = '4px';
-        selectQuestionBtn.style.cursor = 'pointer';
-        selectQuestionBtn.onclick = () => {
-          // Show question list
-          editorContainer.style.display = 'none';
-          buttonContainer.style.display = 'none';
-          const toolbar = container.querySelector('.ql-toolbar');
-          if (toolbar) toolbar.style.display = 'none';
-          showQuestionList();
-        };
-      }
+      // Import React and ReactDOM dynamically
+      import('react').then(React => {
+        import('react-dom/client').then(ReactDOM => {
+          const root = ReactDOM.createRoot(modalRoot);
+          
+          const closeModal = () => {
+            root.unmount();
+            document.body.removeChild(modalRoot);
+            setIsEditing(false);
+          };
+          
+          // Create Quill editor container
+          const editorContainer = document.createElement('div');
+          editorContainer.style.minHeight = '200px';
+          editorContainer.style.marginBottom = '12px';
+
+          // Create different buttons based on text type
+          let saveBtn, saveQuestionBtn, resetBtn, selectQuestionBtn;
+          
+          const showQuestionListHandler = () => {
+            // Show question list
+            editorContainer.style.display = 'none';
+            buttonContainerEl.style.display = 'none';
+            const toolbar = modal.querySelector('.ql-toolbar');
+            if (toolbar) toolbar.style.display = 'none';
+            showQuestionList();
+          };
+          
+          if (element.textType === 'question') {
+            saveQuestionBtn = document.createElement('button');
+            saveQuestionBtn.textContent = '💾';
+            saveQuestionBtn.style.padding = '8px 12px';
+            saveQuestionBtn.style.border = 'none';
+            saveQuestionBtn.style.borderRadius = '4px';
+            saveQuestionBtn.style.backgroundColor = '#f59e0b';
+            saveQuestionBtn.style.color = 'white';
+            saveQuestionBtn.style.cursor = 'pointer';
+            saveQuestionBtn.style.display = 'none';
+            
+            resetBtn = document.createElement('button');
+            resetBtn.textContent = '↺';
+            resetBtn.style.padding = '8px 12px';
+            resetBtn.style.border = 'none';
+            resetBtn.style.borderRadius = '4px';
+            resetBtn.style.backgroundColor = '#ef4444';
+            resetBtn.style.color = 'white';
+            resetBtn.style.cursor = 'pointer';
+            resetBtn.style.display = 'none';
+          }
+          
+          saveBtn = document.createElement('button');
+          saveBtn.textContent = 'OK';
+          saveBtn.style.padding = '8px 16px';
+          saveBtn.style.border = 'none';
+          saveBtn.style.borderRadius = '4px';
+          saveBtn.style.backgroundColor = '#2563eb';
+          saveBtn.style.color = 'white';
+          saveBtn.style.cursor = 'pointer';
+          let showQuestionList: () => void;
       
-      saveBtn = document.createElement('button');
-      saveBtn.textContent = 'OK';
-      saveBtn.style.padding = '8px 16px';
-      saveBtn.style.border = 'none';
-      saveBtn.style.borderRadius = '4px';
-      saveBtn.style.backgroundColor = '#2563eb';
-      saveBtn.style.color = 'white';
-      saveBtn.style.cursor = 'pointer';
-      const showQuestionList = () => {
-        // Import React and ReactDOM dynamically
-        import('react').then(React => {
-          import('react-dom/client').then(ReactDOM => {
-            import('../questions-manager-content').then(({ default: QuestionsManagerContent }) => {
-              // Create React container
-              const reactContainer = document.createElement('div');
-              container.insertBefore(reactContainer, buttonContainer);
-              
-              const root = ReactDOM.createRoot(reactContainer);
-              
-              const handleQuestionSelect = (questionId: number, questionText: string) => {
-                quill.root.innerHTML = questionText;
-                dispatch({
-                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                  payload: {
-                    id: element.id,
-                    updates: { text: questionText, questionId: questionId }
+
+          
+          // Create button container element
+          const buttonContainerEl = document.createElement('div');
+          buttonContainerEl.setAttribute('data-button-container', 'true');
+          buttonContainerEl.style.display = 'flex';
+          buttonContainerEl.style.justifyContent = 'flex-end';
+          buttonContainerEl.style.gap = '8px';
+          buttonContainerEl.style.marginTop = '12px';
+          
+          // Create cancel button
+          const cancelBtn = document.createElement('button');
+          cancelBtn.textContent = 'Cancel';
+          cancelBtn.style.padding = '8px 16px';
+          cancelBtn.style.border = '1px solid #ccc';
+          cancelBtn.style.borderRadius = '4px';
+          cancelBtn.style.cursor = 'pointer';
+          cancelBtn.onclick = closeModal;
+          
+          if (element.textType === 'question') {
+            const selectQuestionBtn = document.createElement('button');
+            selectQuestionBtn.textContent = 'Select Question';
+            selectQuestionBtn.style.padding = '8px 16px';
+            selectQuestionBtn.style.border = '1px solid #ccc';
+            selectQuestionBtn.style.borderRadius = '4px';
+            selectQuestionBtn.style.cursor = 'pointer';
+            selectQuestionBtn.onclick = showQuestionListHandler;
+            
+            buttonContainerEl.appendChild(selectQuestionBtn);
+            if (saveQuestionBtn) buttonContainerEl.appendChild(saveQuestionBtn);
+            if (resetBtn) buttonContainerEl.appendChild(resetBtn);
+            buttonContainerEl.appendChild(cancelBtn);
+            buttonContainerEl.appendChild(saveBtn);
+          } else {
+            buttonContainerEl.appendChild(cancelBtn);
+            buttonContainerEl.appendChild(saveBtn);
+          }
+          
+          // Create modal overlay using DOM (simpler approach)
+          const modal = document.createElement('div');
+          modal.style.position = 'fixed';
+          modal.style.top = '0';
+          modal.style.left = '0';
+          modal.style.width = '100%';
+          modal.style.height = '100%';
+          modal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+          modal.style.display = 'flex';
+          modal.style.justifyContent = 'center';
+          modal.style.alignItems = 'center';
+          modal.style.zIndex = '10000';
+          
+          // Create main container
+          const containerEl = document.createElement('div');
+          containerEl.setAttribute('data-editor-container', 'true');
+          containerEl.style.backgroundColor = 'white';
+          containerEl.style.borderRadius = '8px';
+          containerEl.style.padding = '20px';
+          containerEl.style.width = '80vw';
+          containerEl.style.maxWidth = '900px';
+          containerEl.style.minWidth = '400px';
+          containerEl.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.3)';
+          
+          containerEl.appendChild(editorContainer);
+          containerEl.appendChild(buttonContainerEl);
+          modal.appendChild(containerEl);
+          
+          // Clean up React root and use pure DOM
+          root.unmount();
+          document.body.removeChild(modalRoot);
+          document.body.appendChild(modal);
+          
+          // Update closeModal to work with DOM
+          const closeModalDOM = () => {
+            document.body.removeChild(modal);
+            setIsEditing(false);
+          };
+          
+          // Update cancel button
+          cancelBtn.onclick = closeModalDOM;
+          
+          // Initialize Quill after DOM is attached
+          setTimeout(() => {
+            const userColors = [
+              '#000000', '#e60000', '#ff9900', '#ffff00', '#008a00', '#0066cc', 
+              '#9933ff', '#ffffff', '#facccc', '#ffebcc', '#ffffcc', '#cce8cc', 
+              '#cce0f5', '#ebd6ff', '#bbbbbb', '#f06666', '#ffc266', '#ffff66', 
+              '#66b966', '#66a3e0', '#c285ff', '#888888', '#a10000', '#b26b00', 
+              '#b2b200', '#006100', '#0047b2', '#6b24b2', '#444444', '#5c0000'
+            ];
+            
+            // Register custom fonts with Quill
+            const Font = window.Quill.import('formats/font');
+            Font.whitelist = ['georgia', 'helvetica', 'arial', 'courier', 'kalam', 'shadows', 'playwrite', 'msmadi', 'giveyouglory', 'meowscript'];
+            window.Quill.register(Font, true);
+            
+            const quill = new window.Quill(editorContainer, {
+              theme: 'snow',
+              formats: ['bold', 'italic', 'underline', 'color', 'font', 'header'],
+              modules: {
+                toolbar: {
+                  container: [
+                    [{ 'header': [1, 2, 3, false] }],
+
+                    ['bold', 'italic', 'underline'],
+                    [{ 'color': userColors }],
+                    [{ 'font': ['helvetica', 'georgia', 'arial', 'courier', 'kalam', 'shadows', 'playwrite', 'msmadi', 'giveyouglory', 'meowscript'] }],
+                    ['ruled-lines'],
+                    ['clean']
+                  ],
+                  handlers: {
+                    'ruled-lines': function() {
+                      const button = document.querySelector('.ql-ruled-lines');
+                      const hasRuledAttr = quill.root.hasAttribute('data-ruled');
+                      
+                      if (hasRuledAttr) {
+                        button.classList.remove('ql-active');
+                        quill.root.removeAttribute('data-ruled');
+                        quill.root.style.lineHeight = '';
+                      } else {
+                        button.classList.add('ql-active');
+                        quill.root.setAttribute('data-ruled', 'true');
+                        quill.root.style.lineHeight = '2.5';
+                      }
+                    }
+                  }
+                }
+              }
+            });
+      
+            // Set default formatting
+            quill.format('font', 'helvetica');
+            quill.format('color', '#000000');
+            quill.format('header', 3);
+            
+            // Handle global font changes and fix header labels
+            setTimeout(() => {
+              const fontItems = document.querySelectorAll('.ql-font .ql-picker-item');
+              fontItems.forEach(item => {
+                item.addEventListener('click', function() {
+                  const selectedFont = this.getAttribute('data-value');
+                  if (selectedFont) {
+                    quill.formatText(0, quill.getLength(), 'font', selectedFont);
                   }
                 });
-                
-                // Clean up React component
-                root.unmount();
-                reactContainer.remove();
-                
-                // Show editor again
-                editorContainer.style.display = 'block';
-                buttonContainer.style.display = 'flex';
-                const toolbar = container.querySelector('.ql-toolbar');
-                if (toolbar) toolbar.style.display = 'block';
-                
-                setTimeout(() => {
-                  updateContainerVisibility();
-                  quill.focus();
-                }, 0);
-              };
+              });
+            }, 100);
+            
+            // Handle paste events to process ruled line content
+            quill.root.addEventListener('paste', function(e) {
+              const clipboardData = e.clipboardData;
+              const htmlData = clipboardData?.getData('text/html');
               
-              const handleCancel = () => {
-                // Clean up React component
-                root.unmount();
-                reactContainer.remove();
+              if (htmlData && htmlData.includes('data-ruled="true"')) {
+                e.preventDefault();
                 
-                // Show editor again
-                editorContainer.style.display = 'block';
-                buttonContainer.style.display = 'flex';
-                const toolbar = container.querySelector('.ql-toolbar');
-                if (toolbar) toolbar.style.display = 'block';
-                updateContainerVisibility();
-              };
-              
-              // Render QuestionsManagerContent
-              root.render(
-                React.createElement(QuestionsManagerContent, {
-                  bookId: state.currentBook?.id || 0,
-                  bookName: state.currentBook?.name || '',
-                  onQuestionSelect: handleQuestionSelect,
-                  mode: 'select',
-                  token: localStorage.getItem('token') || '',
-                  onClose: handleCancel,
-                  showAsContent: true
-                })
-              );
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = htmlData;
+                const ruledDiv = tempDiv.querySelector('[data-ruled="true"]');
+                
+                if (ruledDiv) {
+                  const content = ruledDiv.innerHTML;
+                  const selection = quill.getSelection();
+                  
+                  if (selection) {
+                    quill.clipboard.dangerouslyPasteHTML(selection.index, content);
+                  }
+                }
+              }
             });
-          });
-        });
-      };
-      
-      saveBtn.onclick = () => {
-        let htmlContent = quill.root.innerHTML;
-        
-        // Check if ruled lines are active
-        const hasRuledLines = quill.root.hasAttribute('data-ruled');
-        if (hasRuledLines) {
-          // Wrap content with ruled lines marker
-          htmlContent = `<div data-ruled="true">${htmlContent}</div>`;
-        }
-        
-        // Clean up Quill's automatic <p> wrapping for simple text
-        if (htmlContent.startsWith('<p>') && htmlContent.endsWith('</p>') && !htmlContent.includes('</p><p>') && !hasRuledLines && !htmlContent.includes('<span') && !htmlContent.includes('<strong') && !htmlContent.includes('<em')) {
-          htmlContent = htmlContent.slice(3, -4);
-        }
-        
-        dispatch({
-          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-          payload: {
-            id: element.id,
-            updates: { text: htmlContent }
-          }
-        });
-        document.body.removeChild(modal);
-        setIsEditing(false);
-      };
-
-      if (element.textType === 'question') {
-        buttonContainer.appendChild(selectQuestionBtn);
-        buttonContainer.appendChild(saveQuestionBtn);
-        buttonContainer.appendChild(resetBtn);
-        buttonContainer.appendChild(cancelBtn);
-        buttonContainer.appendChild(saveBtn);
-      } else {
-        buttonContainer.appendChild(cancelBtn);
-        buttonContainer.appendChild(saveBtn);
-      }
-
-      container.appendChild(editorContainer);
-      container.appendChild(buttonContainer);
-      modal.appendChild(container);
-      
-      document.body.appendChild(modal);
-      
-      // Initialize Quill after DOM is attached
-      const userColors = [
-        '#000000', '#e60000', '#ff9900', '#ffff00', '#008a00', '#0066cc', 
-        '#9933ff', '#ffffff', '#facccc', '#ffebcc', '#ffffcc', '#cce8cc', 
-        '#cce0f5', '#ebd6ff', '#bbbbbb', '#f06666', '#ffc266', '#ffff66', 
-        '#66b966', '#66a3e0', '#c285ff', '#888888', '#a10000', '#b26b00', 
-        '#b2b200', '#006100', '#0047b2', '#6b24b2', '#444444', '#5c0000'
-      ];
-      
-      // Register custom fonts with Quill
-      const Font = window.Quill.import('formats/font');
-      Font.whitelist = ['georgia', 'helvetica', 'arial', 'courier', 'kalam', 'shadows', 'playwrite', 'msmadi', 'giveyouglory', 'meowscript'];
-      window.Quill.register(Font, true);
-      
-      const quill = new window.Quill(editorContainer, {
-        theme: 'snow',
-        formats: ['bold', 'italic', 'underline', 'color', 'font', 'header'],
-        modules: {
-          toolbar: {
-            container: [
-              [{ 'header': [1, 2, 3, false] }],
-
-              ['bold', 'italic', 'underline'],
-              [{ 'color': userColors }],
-              [{ 'font': ['helvetica', 'georgia', 'arial', 'courier', 'kalam', 'shadows', 'playwrite', 'msmadi', 'giveyouglory', 'meowscript'] }],
-              ['ruled-lines'],
-              ['clean']
-            ],
-            handlers: {
-              'ruled-lines': function() {
-                const button = document.querySelector('.ql-ruled-lines');
-                const hasRuledAttr = quill.root.hasAttribute('data-ruled');
+            
+            // Load Google Fonts for handwriting styles
+            const googleFonts = document.createElement('link');
+            googleFonts.rel = 'stylesheet';
+            googleFonts.href = 'https://fonts.googleapis.com/css2?family=Kalam:wght@300;400;700&family=Shadows+Into+Light&family=Playwrite+DE+SAS&family=Ms+Madi&family=Give+You+Glory&family=Meow+Script&display=swap';
+            document.head.appendChild(googleFonts);
+            
+            // Register custom ruled lines format only once globally
+            if (!window.ruledLinesRegistered) {
+              const Inline = window.Quill.import('blots/inline');
+              class RuledLinesBlot extends Inline {
+                static create() {
+                  const node = super.create();
+                  node.setAttribute('data-ruled', 'true');
+                  return node;
+                }
                 
-                if (hasRuledAttr) {
-                  button.classList.remove('ql-active');
-                  quill.root.removeAttribute('data-ruled');
-                  quill.root.style.lineHeight = '';
+                static formats(node) {
+                  return node.getAttribute('data-ruled') === 'true';
+                }
+              }
+              RuledLinesBlot.blotName = 'ruled-lines';
+              RuledLinesBlot.tagName = 'span';
+              window.Quill.register(RuledLinesBlot);
+              window.ruledLinesRegistered = true;
+            }
+            
+            // Add CSS for font families and dropdown labels
+            const fontCSS = document.createElement('style');
+            fontCSS.textContent = `
+              .ql-font-georgia { font-family: Georgia, serif; }
+              .ql-font-helvetica { font-family: Helvetica, sans-serif; }
+              .ql-font-arial { font-family: Arial, sans-serif; }
+              .ql-font-courier { font-family: 'Courier New', monospace; }
+              .ql-font-kalam { font-family: 'Kalam', cursive; }
+              .ql-font-shadows { font-family: 'Shadows Into Light', cursive; }
+              .ql-font-playwrite { font-family: 'Playwrite DE SAS', cursive; }
+              .ql-font-msmadi { font-family: 'Ms Madi', cursive; }
+              .ql-font-giveyouglory { font-family: 'Give You Glory', cursive; }
+              .ql-font-meowscript { font-family: 'Meow Script', cursive; }
+              
+              .ql-picker.ql-font .ql-picker-label[data-value="georgia"]::before,
+              .ql-picker.ql-font .ql-picker-item[data-value="georgia"]::before {
+                content: 'Georgia';
+              }
+              .ql-picker.ql-font .ql-picker-label[data-value="helvetica"]::before,
+              .ql-picker.ql-font .ql-picker-item[data-value="helvetica"]::before {
+                content: 'Helvetica';
+              }
+              .ql-picker.ql-font .ql-picker-label[data-value="arial"]::before,
+              .ql-picker.ql-font .ql-picker-item[data-value="arial"]::before {
+                content: 'Arial';
+              }
+              .ql-picker.ql-font .ql-picker-label[data-value="courier"]::before,
+              .ql-picker.ql-font .ql-picker-item[data-value="courier"]::before {
+                content: 'Courier New';
+              }
+              .ql-picker.ql-font .ql-picker-label[data-value="kalam"]::before,
+              .ql-picker.ql-font .ql-picker-item[data-value="kalam"]::before {
+                content: 'Kalam';
+              }
+              .ql-picker.ql-font .ql-picker-label[data-value="shadows"]::before,
+              .ql-picker.ql-font .ql-picker-item[data-value="shadows"]::before {
+                content: 'Shadows Into Light';
+              }
+              .ql-picker.ql-font .ql-picker-label[data-value="playwrite"]::before,
+              .ql-picker.ql-font .ql-picker-item[data-value="playwrite"]::before {
+                content: 'Playwrite Deutschland';
+              }
+              .ql-picker.ql-font .ql-picker-label[data-value="msmadi"]::before,
+              .ql-picker.ql-font .ql-picker-item[data-value="msmadi"]::before {
+                content: 'Ms Madi';
+              }
+              .ql-picker.ql-font .ql-picker-label[data-value="giveyouglory"]::before,
+              .ql-picker.ql-font .ql-picker-item[data-value="giveyouglory"]::before {
+                content: 'Give You Glory';
+              }
+              .ql-picker.ql-font .ql-picker-label[data-value="meowscript"]::before,
+              .ql-picker.ql-font .ql-picker-item[data-value="meowscript"]::before {
+                content: 'Meow Script';
+              }
+              
+              .ql-snow .ql-picker.ql-header .ql-picker-label[data-value="false"]::before,
+              .ql-snow .ql-picker.ql-header .ql-picker-item[data-value="false"]::before,
+              .ql-snow .ql-picker.ql-header .ql-picker-item:not([data-value])::before {
+                content: 'S' !important;
+              }
+              .ql-snow .ql-picker.ql-header .ql-picker-label[data-value="3"]::before,
+              .ql-snow .ql-picker.ql-header .ql-picker-item[data-value="3"]::before {
+                content: 'M' !important;
+              }
+              .ql-snow .ql-picker.ql-header .ql-picker-label[data-value="2"]::before,
+              .ql-snow .ql-picker.ql-header .ql-picker-item[data-value="2"]::before {
+                content: 'L' !important;
+              }
+              .ql-snow .ql-picker.ql-header .ql-picker-label[data-value="1"]::before,
+              .ql-snow .ql-picker.ql-header .ql-picker-item[data-value="1"]::before {
+                content: 'XL' !important;
+              }
+              .ql-snow .ql-picker.ql-header .ql-picker-label:not([data-value])::before {
+                content: 'Small' !important;
+              }
+              
+              .ql-toolbar .ql-ruled-lines {
+                width: 28px;
+                height: 28px;
+              }
+              .ql-toolbar .ql-ruled-lines:before {
+                content: '≡';
+                font-size: 18px;
+                line-height: 1;
+              }
+              .ql-toolbar .ql-ruled-lines.ql-active {
+                color: #06c;
+              }
+              
+              .ql-editor span[data-ruled="true"] {
+                line-height: 2.5 !important;
+              }
+            `;
+            document.head.appendChild(fontCSS);
+      
+            // Create "Add question" button for empty content using React component
+            const addQuestionButtonContainer = document.createElement('div');
+            const addQuestionRoot = ReactDOM.createRoot(addQuestionButtonContainer);
+            
+            addQuestionRoot.render(
+              React.createElement(QuestionSelectionCard, {
+                onSelect: () => {
+                  editorContainer.style.display = 'none';
+                  buttonContainerEl.style.display = 'none';
+                  const toolbar = modal.querySelector('.ql-toolbar');
+                  if (toolbar) toolbar.style.display = 'none';
+                  showQuestionList();
+                }
+              })
+            );
+            
+            const updateContainerVisibility = () => {
+              if (element.textType === 'question') {
+                const isEmpty = !quill.getText().trim();
+                const qlContainer = editorContainer.querySelector('.ql-container');
+                if (isEmpty) {
+                  if (qlContainer) qlContainer.style.display = 'none';
+                  quill.root.style.pointerEvents = 'none';
+                  quill.blur();
+                  if (!editorContainer.contains(addQuestionButtonContainer)) {
+                    editorContainer.appendChild(addQuestionButtonContainer);
+                  }
                 } else {
-                  button.classList.add('ql-active');
+                  if (qlContainer) qlContainer.style.display = 'block';
+                  quill.root.style.pointerEvents = 'auto';
+                  if (editorContainer.contains(addQuestionButtonContainer)) {
+                    editorContainer.removeChild(addQuestionButtonContainer);
+                  }
+                }
+              }
+            };
+            
+            // Set initial content and ruled lines state
+            if (element.text) {
+              if (element.text.includes('data-ruled="true"')) {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = element.text;
+                const ruledDiv = tempDiv.querySelector('[data-ruled="true"]');
+                if (ruledDiv) {
+                  quill.root.innerHTML = ruledDiv.innerHTML;
                   quill.root.setAttribute('data-ruled', 'true');
                   quill.root.style.lineHeight = '2.5';
-                }
-              }
-            }
-          }
-        }
-      });
-      
-      // Set default formatting
-      quill.format('font', 'helvetica');
-      quill.format('color', '#000000');
-      quill.format('header', 3);
-      
-      // Handle global font changes and fix header labels
-      setTimeout(() => {
-        const fontItems = document.querySelectorAll('.ql-font .ql-picker-item');
-        fontItems.forEach(item => {
-          item.addEventListener('click', function() {
-            const selectedFont = this.getAttribute('data-value');
-            if (selectedFont) {
-              quill.formatText(0, quill.getLength(), 'font', selectedFont);
-            }
-          });
-        });
-        
-
-      }, 100);
-      
-      // Handle paste events to process ruled line content
-      quill.root.addEventListener('paste', function(e) {
-        const clipboardData = e.clipboardData;
-        const htmlData = clipboardData?.getData('text/html');
-        
-        if (htmlData && htmlData.includes('data-ruled="true"')) {
-          e.preventDefault();
-          
-          const tempDiv = document.createElement('div');
-          tempDiv.innerHTML = htmlData;
-          const ruledDiv = tempDiv.querySelector('[data-ruled="true"]');
-          
-          if (ruledDiv) {
-            const content = ruledDiv.innerHTML;
-            const selection = quill.getSelection();
-            
-            if (selection) {
-              quill.clipboard.dangerouslyPasteHTML(selection.index, content);
-            }
-          }
-        }
-      });
-      
-      // Load Google Fonts for handwriting styles
-      const googleFonts = document.createElement('link');
-      googleFonts.rel = 'stylesheet';
-      googleFonts.href = 'https://fonts.googleapis.com/css2?family=Kalam:wght@300;400;700&family=Shadows+Into+Light&family=Playwrite+DE+SAS&family=Ms+Madi&family=Give+You+Glory&family=Meow+Script&display=swap';
-      document.head.appendChild(googleFonts);
-      
-      // Register custom ruled lines format only once globally
-      if (!window.ruledLinesRegistered) {
-        const Inline = window.Quill.import('blots/inline');
-        class RuledLinesBlot extends Inline {
-          static create() {
-            const node = super.create();
-            node.setAttribute('data-ruled', 'true');
-            return node;
-          }
-          
-          static formats(node) {
-            return node.getAttribute('data-ruled') === 'true';
-          }
-        }
-        RuledLinesBlot.blotName = 'ruled-lines';
-        RuledLinesBlot.tagName = 'span';
-        window.Quill.register(RuledLinesBlot);
-        window.ruledLinesRegistered = true;
-      }
-      
-      // Add CSS for font families and dropdown labels
-      const fontCSS = document.createElement('style');
-      fontCSS.textContent = `
-        .ql-font-georgia { font-family: Georgia, serif; }
-        .ql-font-helvetica { font-family: Helvetica, sans-serif; }
-        .ql-font-arial { font-family: Arial, sans-serif; }
-        .ql-font-courier { font-family: 'Courier New', monospace; }
-        .ql-font-kalam { font-family: 'Kalam', cursive; }
-        .ql-font-shadows { font-family: 'Shadows Into Light', cursive; }
-        .ql-font-playwrite { font-family: 'Playwrite DE SAS', cursive; }
-        .ql-font-msmadi { font-family: 'Ms Madi', cursive; }
-        .ql-font-giveyouglory { font-family: 'Give You Glory', cursive; }
-        .ql-font-meowscript { font-family: 'Meow Script', cursive; }
-        
-        .ql-picker.ql-font .ql-picker-label[data-value="georgia"]::before,
-        .ql-picker.ql-font .ql-picker-item[data-value="georgia"]::before {
-          content: 'Georgia';
-        }
-        .ql-picker.ql-font .ql-picker-label[data-value="helvetica"]::before,
-        .ql-picker.ql-font .ql-picker-item[data-value="helvetica"]::before {
-          content: 'Helvetica';
-        }
-        .ql-picker.ql-font .ql-picker-label[data-value="arial"]::before,
-        .ql-picker.ql-font .ql-picker-item[data-value="arial"]::before {
-          content: 'Arial';
-        }
-        .ql-picker.ql-font .ql-picker-label[data-value="courier"]::before,
-        .ql-picker.ql-font .ql-picker-item[data-value="courier"]::before {
-          content: 'Courier New';
-        }
-        .ql-picker.ql-font .ql-picker-label[data-value="kalam"]::before,
-        .ql-picker.ql-font .ql-picker-item[data-value="kalam"]::before {
-          content: 'Kalam';
-        }
-        .ql-picker.ql-font .ql-picker-label[data-value="shadows"]::before,
-        .ql-picker.ql-font .ql-picker-item[data-value="shadows"]::before {
-          content: 'Shadows Into Light';
-        }
-        .ql-picker.ql-font .ql-picker-label[data-value="playwrite"]::before,
-        .ql-picker.ql-font .ql-picker-item[data-value="playwrite"]::before {
-          content: 'Playwrite Deutschland';
-        }
-        .ql-picker.ql-font .ql-picker-label[data-value="msmadi"]::before,
-        .ql-picker.ql-font .ql-picker-item[data-value="msmadi"]::before {
-          content: 'Ms Madi';
-        }
-        .ql-picker.ql-font .ql-picker-label[data-value="giveyouglory"]::before,
-        .ql-picker.ql-font .ql-picker-item[data-value="giveyouglory"]::before {
-          content: 'Give You Glory';
-        }
-        .ql-picker.ql-font .ql-picker-label[data-value="meowscript"]::before,
-        .ql-picker.ql-font .ql-picker-item[data-value="meowscript"]::before {
-          content: 'Meow Script';
-        }
-        
-        .ql-snow .ql-picker.ql-header .ql-picker-label[data-value="false"]::before,
-        .ql-snow .ql-picker.ql-header .ql-picker-item[data-value="false"]::before,
-        .ql-snow .ql-picker.ql-header .ql-picker-item:not([data-value])::before {
-          content: 'S' !important;
-        }
-        .ql-snow .ql-picker.ql-header .ql-picker-label[data-value="3"]::before,
-        .ql-snow .ql-picker.ql-header .ql-picker-item[data-value="3"]::before {
-          content: 'M' !important;
-        }
-        .ql-snow .ql-picker.ql-header .ql-picker-label[data-value="2"]::before,
-        .ql-snow .ql-picker.ql-header .ql-picker-item[data-value="2"]::before {
-          content: 'L' !important;
-        }
-        .ql-snow .ql-picker.ql-header .ql-picker-label[data-value="1"]::before,
-        .ql-snow .ql-picker.ql-header .ql-picker-item[data-value="1"]::before {
-          content: 'XL' !important;
-        }
-        .ql-snow .ql-picker.ql-header .ql-picker-label:not([data-value])::before {
-          content: 'Small' !important;
-        }
-        
-        .ql-toolbar .ql-ruled-lines {
-          width: 28px;
-          height: 28px;
-        }
-        .ql-toolbar .ql-ruled-lines:before {
-          content: '≡';
-          font-size: 18px;
-          line-height: 1;
-        }
-        .ql-toolbar .ql-ruled-lines.ql-active {
-          color: #06c;
-        }
-        
-        .ql-editor span[data-ruled="true"] {
-          line-height: 2.5 !important;
-        }
-      `;
-      document.head.appendChild(fontCSS);
-      
-      // Create "Add question" button for empty content
-      const addQuestionButton = document.createElement('button');
-      addQuestionButton.style.width = '100%';
-      addQuestionButton.style.height = 'auto';
-      addQuestionButton.style.padding = '16px 24px';
-      addQuestionButton.style.display = 'flex';
-      addQuestionButton.style.alignItems = 'center';
-      addQuestionButton.style.justifyContent = 'flex-start';
-      addQuestionButton.style.gap = '12px';
-      addQuestionButton.style.border = '1px solid #e2e8f0';
-      addQuestionButton.style.borderRadius = '6px';
-      addQuestionButton.style.backgroundColor = 'white';
-      addQuestionButton.style.cursor = 'pointer';
-      addQuestionButton.style.fontSize = '14px';
-      addQuestionButton.style.fontWeight = '500';
-      addQuestionButton.style.color = '#0f172a';
-      addQuestionButton.style.transition = 'background-color 0.2s';
-      
-      const plusIcon = document.createElement('span');
-      plusIcon.innerHTML = '+';
-      plusIcon.style.fontSize = '20px';
-      plusIcon.style.fontWeight = 'bold';
-      
-      const buttonText = document.createElement('div');
-      buttonText.style.textAlign = 'left';
-      buttonText.innerHTML = '<div style="font-weight: 500;">Select question</div><div style="font-size: 12px; color: #64748b; margin-top: 2px;">Select from existing questions or add new</div>';
-      
-      addQuestionButton.appendChild(plusIcon);
-      addQuestionButton.appendChild(buttonText);
-      
-      addQuestionButton.onmouseover = () => {
-        addQuestionButton.style.backgroundColor = '#f8fafc';
-      };
-      addQuestionButton.onmouseout = () => {
-        addQuestionButton.style.backgroundColor = 'white';
-      };
-      
-      addQuestionButton.onclick = () => {
-        editorContainer.style.display = 'none';
-        buttonContainer.style.display = 'none';
-        const toolbar = container.querySelector('.ql-toolbar');
-        if (toolbar) toolbar.style.display = 'none';
-        showQuestionList();
-      };
-      
-      const updateContainerVisibility = () => {
-        if (element.textType === 'question') {
-          const isEmpty = !quill.getText().trim();
-          const qlContainer = editorContainer.querySelector('.ql-container');
-          if (isEmpty) {
-            if (qlContainer) qlContainer.style.display = 'none';
-            quill.root.style.pointerEvents = 'none';
-            quill.blur();
-            if (!editorContainer.contains(addQuestionButton)) {
-              editorContainer.appendChild(addQuestionButton);
-            }
-          } else {
-            if (qlContainer) qlContainer.style.display = 'block';
-            quill.root.style.pointerEvents = 'auto';
-            if (editorContainer.contains(addQuestionButton)) {
-              editorContainer.removeChild(addQuestionButton);
-            }
-          }
-        }
-      };
-      
-      // Set initial content and ruled lines state
-      if (element.text) {
-        if (element.text.includes('data-ruled="true"')) {
-          const tempDiv = document.createElement('div');
-          tempDiv.innerHTML = element.text;
-          const ruledDiv = tempDiv.querySelector('[data-ruled="true"]');
-          if (ruledDiv) {
-            quill.root.innerHTML = ruledDiv.innerHTML;
-            quill.root.setAttribute('data-ruled', 'true');
-            quill.root.style.lineHeight = '2.5';
-            setTimeout(() => {
-              const button = document.querySelector('.ql-ruled-lines');
-              if (button) button.classList.add('ql-active');
-            }, 100);
-          }
-        } else {
-          // Check if content has HTML formatting
-          if (element.text.includes('<span') || element.text.includes('<strong') || element.text.includes('<em') || element.text.includes('ql-font-')) {
-            quill.root.innerHTML = element.text;
-          } else {
-            // Plain text - remove paragraph tags if present
-            let content = element.text;
-            if (content.startsWith('<p>') && content.endsWith('</p>') && !content.includes('</p><p>')) {
-              content = content.slice(3, -4);
-            }
-            quill.setText(content);
-            quill.formatText(0, content.length, 'font', 'helvetica');
-          }
-          // Ensure ruled lines button state matches content
-          setTimeout(() => {
-            const button = document.querySelector('.ql-ruled-lines');
-            if (button) {
-              button.classList.remove('ql-active');
-              quill.root.removeAttribute('data-ruled');
-              quill.root.style.lineHeight = '';
-            }
-          }, 100);
-        }
-      } else {
-        quill.format('font', 'helvetica');
-      }
-      
-      setTimeout(() => {
-        updateContainerVisibility();
-      }, 0);
-      
-      // Update button state on focus
-      quill.on('selection-change', function() {
-        const button = document.querySelector('.ql-ruled-lines');
-        const hasRuledAttr = quill.root.hasAttribute('data-ruled');
-        if (button) {
-          if (hasRuledAttr) {
-            button.classList.add('ql-active');
-          } else {
-            button.classList.remove('ql-active');
-          }
-        }
-        updateContainerVisibility();
-      });
-      
-      // Preserve formatting on Enter from headers
-      quill.on('text-change', function(delta, oldDelta, source) {
-        if (source === 'user') {
-          delta.ops?.forEach(op => {
-            if (op.insert === '\n') {
-              const selection = quill.getSelection();
-              if (selection) {
-                const prevFormat = quill.getFormat(selection.index - 2, 1);
-                if (prevFormat.header) {
                   setTimeout(() => {
-                    if (prevFormat.header) quill.format('header', prevFormat.header);
-                    if (prevFormat.font) quill.format('font', prevFormat.font);
-                    if (prevFormat.color) quill.format('color', prevFormat.color);
-                    if (prevFormat.bold) quill.format('bold', true);
-                    if (prevFormat.italic) quill.format('italic', true);
-                    if (prevFormat.underline) quill.format('underline', true);
-                  }, 0);
+                    const button = document.querySelector('.ql-ruled-lines');
+                    if (button) button.classList.add('ql-active');
+                  }, 100);
+                }
+              } else {
+                // Check if content has HTML formatting
+                if (element.text.includes('<span') || element.text.includes('<strong') || element.text.includes('<em') || element.text.includes('ql-font-')) {
+                  quill.root.innerHTML = element.text;
+                } else {
+                  // Plain text - remove paragraph tags if present
+                  let content = element.text;
+                  if (content.startsWith('<p>') && content.endsWith('</p>') && !content.includes('</p><p>')) {
+                    content = content.slice(3, -4);
+                  }
+                  quill.setText(content);
+                  quill.formatText(0, content.length, 'font', 'helvetica');
+                }
+                // Ensure ruled lines button state matches content
+                setTimeout(() => {
+                  const button = document.querySelector('.ql-ruled-lines');
+                  if (button) {
+                    button.classList.remove('ql-active');
+                    quill.root.removeAttribute('data-ruled');
+                    quill.root.style.lineHeight = '';
+                  }
+                }, 100);
+              }
+            } else {
+              quill.format('font', 'helvetica');
+            }
+            
+            setTimeout(() => {
+              updateContainerVisibility();
+            }, 0);
+            
+            // Update button state on focus
+            quill.on('selection-change', function() {
+              const button = document.querySelector('.ql-ruled-lines');
+              const hasRuledAttr = quill.root.hasAttribute('data-ruled');
+              if (button) {
+                if (hasRuledAttr) {
+                  button.classList.add('ql-active');
+                } else {
+                  button.classList.remove('ql-active');
                 }
               }
-            }
-          });
-        }
-      });
+              updateContainerVisibility();
+            });
+            
+            // Preserve formatting on Enter from headers
+            quill.on('text-change', function(delta, oldDelta, source) {
+              if (source === 'user') {
+                delta.ops?.forEach(op => {
+                  if (op.insert === '\n') {
+                    const selection = quill.getSelection();
+                    if (selection) {
+                      const prevFormat = quill.getFormat(selection.index - 2, 1);
+                      if (prevFormat.header) {
+                        setTimeout(() => {
+                          if (prevFormat.header) quill.format('header', prevFormat.header);
+                          if (prevFormat.font) quill.format('font', prevFormat.font);
+                          if (prevFormat.color) quill.format('color', prevFormat.color);
+                          if (prevFormat.bold) quill.format('bold', true);
+                          if (prevFormat.italic) quill.format('italic', true);
+                          if (prevFormat.underline) quill.format('underline', true);
+                        }, 0);
+                      }
+                    }
+                  }
+                });
+              }
+            });
+            
+            // Disable text input but allow formatting
+            quill.root.addEventListener('beforeinput', (e) => {
+              if (element.textType === 'question' && (e.inputType.includes('insert') || e.inputType.includes('delete'))) {
+                e.preventDefault();
+              }
+            });
+            
+            quill.root.addEventListener('keydown', (e) => {
+              if (element.textType === 'question' && !e.ctrlKey && !e.metaKey && e.key.length === 1) {
+                e.preventDefault();
+              }
+              if (element.textType === 'question' && (e.key === 'Backspace' || e.key === 'Delete' || e.key === 'Enter')) {
+                e.preventDefault();
+              }
+              if (element.textType === 'question' && (e.ctrlKey || e.metaKey) && e.key === 'v') {
+                e.preventDefault();
+              }
+            });
+            
+            quill.root.addEventListener('paste', (e) => {
+              if (element.textType === 'question') {
+                e.preventDefault();
+              }
+            });
+            
+            // Define showQuestionList function now that quill is available
+            showQuestionList = () => {
+              import('../questions-manager-content').then(({ default: QuestionsManagerContent }) => {
+                // Create React container
+                const reactContainer = document.createElement('div');
+                containerEl.insertBefore(reactContainer, buttonContainerEl);
+                
+                const questionRoot = ReactDOM.createRoot(reactContainer);
+                
+                const handleQuestionSelect = (questionId: number, questionText: string) => {
+                  quill.root.innerHTML = questionText;
+                  dispatch({
+                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                    payload: {
+                      id: element.id,
+                      updates: { text: questionText, questionId: questionId }
+                    }
+                  });
+                  
+                  // Clean up React component
+                  questionRoot.unmount();
+                  reactContainer.remove();
+                  
+                  // Show editor again
+                  editorContainer.style.display = 'block';
+                  buttonContainerEl.style.display = 'flex';
+                  const toolbar = modal.querySelector('.ql-toolbar');
+                  if (toolbar) toolbar.style.display = 'block';
+                  
+                  setTimeout(() => {
+                    updateContainerVisibility();
+                    quill.focus();
+                  }, 0);
+                };
+                
+                const handleCancel = () => {
+                  // Clean up React component
+                  questionRoot.unmount();
+                  reactContainer.remove();
+                  
+                  // Show editor again
+                  editorContainer.style.display = 'block';
+                  buttonContainerEl.style.display = 'flex';
+                  const toolbar = modal.querySelector('.ql-toolbar');
+                  if (toolbar) toolbar.style.display = 'block';
+                  updateContainerVisibility();
+                };
+                
+                // Render QuestionsManagerContent
+                questionRoot.render(
+                  React.createElement(QuestionsManagerContent, {
+                    bookId: state.currentBook?.id || 0,
+                    bookName: state.currentBook?.name || '',
+                    onQuestionSelect: handleQuestionSelect,
+                    mode: 'select',
+                    token: localStorage.getItem('token') || '',
+                    onClose: handleCancel,
+                    showAsContent: true
+                  })
+                );
+              });
+            };
+            
+            // Set up save button handler now that quill is available
+            saveBtn.onclick = () => {
+              let htmlContent = quill.root.innerHTML;
+              
+              // Check if ruled lines are active
+              const hasRuledLines = quill.root.hasAttribute('data-ruled');
+              if (hasRuledLines) {
+                // Wrap content with ruled lines marker
+                htmlContent = `<div data-ruled="true">${htmlContent}</div>`;
+              }
+              
+              // Clean up Quill's automatic <p> wrapping for simple text
+              if (htmlContent.startsWith('<p>') && htmlContent.endsWith('</p>') && !htmlContent.includes('</p><p>') && !hasRuledLines && !htmlContent.includes('<span') && !htmlContent.includes('<strong') && !htmlContent.includes('<em')) {
+                htmlContent = htmlContent.slice(3, -4);
+              }
+              
+              dispatch({
+                type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                payload: {
+                  id: element.id,
+                  updates: { text: htmlContent }
+                }
+              });
+              closeModalDOM();
+            };
+            
+            quill.focus();
       
-      // Disable text input but allow formatting
-      quill.root.addEventListener('beforeinput', (e) => {
-        if (element.textType === 'question' && (e.inputType.includes('insert') || e.inputType.includes('delete'))) {
-          e.preventDefault();
-        }
-      });
-      
-      quill.root.addEventListener('keydown', (e) => {
-        if (element.textType === 'question' && !e.ctrlKey && !e.metaKey && e.key.length === 1) {
-          e.preventDefault();
-        }
-        if (element.textType === 'question' && (e.key === 'Backspace' || e.key === 'Delete' || e.key === 'Enter')) {
-          e.preventDefault();
-        }
-        if (element.textType === 'question' && (e.ctrlKey || e.metaKey) && e.key === 'v') {
-          e.preventDefault();
-        }
-      });
-      
-      quill.root.addEventListener('paste', (e) => {
-        if (element.textType === 'question') {
-          e.preventDefault();
-        }
-      });
-      
-      quill.focus();
-      
-      // Handle escape key
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') {
-          document.body.removeChild(modal);
-          setIsEditing(false);
-        }
-      };
-      
-      modal.addEventListener('keydown', handleKeyDown);
+            // Handle escape key
+            const handleKeyDown = (e: KeyboardEvent) => {
+              if (e.key === 'Escape') {
+                closeModalDOM();
+              }
+            };
+            
+            modal.addEventListener('keydown', handleKeyDown);
+            
+          }, 100); // End setTimeout
+        }); // End ReactDOM import
+      }); // End React import
     }
 
     const cleanupHTML = (html: string) => {
