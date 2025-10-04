@@ -5,6 +5,7 @@ import { useEditor } from '../../context/editor-context';
 import type { CanvasElement } from '../../context/editor-context';
 import RoughShape from './canvas/rough-shape';
 import QuestionSelectionCard from '../cards/question-selection-card';
+import { SelectionHoverRectangle } from './canvas/selection-hover-rectangle';
 
 // Rich text formatting function for Quill HTML output
 function formatRichText(text: string, fontSize: number, fontFamily: string, maxWidth: number, hasRuledLines: boolean = false) {
@@ -175,9 +176,10 @@ interface CustomTextboxProps {
   onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
   scale: number;
   isMovingGroup?: boolean;
+  isWithinSelection?: boolean;
 }
 
-export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd, scale, isMovingGroup }: CustomTextboxProps) {
+export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd, scale, isMovingGroup, isWithinSelection }: CustomTextboxProps) {
   const { state, dispatch } = useEditor();
   const groupRef = useRef<Konva.Group>(null);
   const textRef = useRef<Konva.Text>(null);
@@ -194,7 +196,7 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
   const getPlaceholderText = () => {
     if (element.textType === 'question') return 'Double-click to pose a question...';
     if (element.textType === 'answer') return 'Double-click to answer...';
-    return 'Double-click add text...';
+    return 'Double-click to add text...';
   };
 
   const displayText = element.text || getPlaceholderText();
@@ -283,7 +285,7 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
           
           if (element.textType === 'question') {
             saveQuestionBtn = document.createElement('button');
-            saveQuestionBtn.textContent = '💾';
+            saveQuestionBtn.textContent = '🖫';
             saveQuestionBtn.style.padding = '8px 12px';
             saveQuestionBtn.style.border = 'none';
             saveQuestionBtn.style.borderRadius = '4px';
@@ -304,13 +306,19 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
           }
           
           saveBtn = document.createElement('button');
-          saveBtn.textContent = 'OK';
+          saveBtn.textContent = 'Save';
           saveBtn.style.padding = '8px 16px';
           saveBtn.style.border = 'none';
           saveBtn.style.borderRadius = '4px';
-          saveBtn.style.backgroundColor = '#2563eb';
+          saveBtn.style.backgroundColor = '#304050';
           saveBtn.style.color = 'white';
           saveBtn.style.cursor = 'pointer';
+          saveBtn.addEventListener('mouseenter', () => {
+            saveBtn.style.backgroundColor = '#303a50e6';
+          });
+          saveBtn.addEventListener('mouseleave', () => {
+            saveBtn.style.backgroundColor = '#304050';
+          });
           let showQuestionList: () => void;
       
 
@@ -322,24 +330,42 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
           buttonContainerEl.style.justifyContent = 'flex-end';
           buttonContainerEl.style.gap = '8px';
           buttonContainerEl.style.marginTop = '12px';
+          buttonContainerEl.style.fontSize = '.875rem';
+          buttonContainerEl.style.fontWeight = '500';
+          buttonContainerEl.style.lineHeight = '1.25rem';
+          buttonContainerEl.style.color = 'hsl(var(--foreground))';
+          buttonContainerEl.style.padding = '0 12px';
+
           
           // Create cancel button
           const cancelBtn = document.createElement('button');
           cancelBtn.textContent = 'Cancel';
           cancelBtn.style.padding = '8px 16px';
-          cancelBtn.style.border = '1px solid #ccc';
+          cancelBtn.style.border = '1px solid #e2e8f0';
           cancelBtn.style.borderRadius = '4px';
           cancelBtn.style.cursor = 'pointer';
           cancelBtn.onclick = closeModal;
+          cancelBtn.addEventListener('mouseenter', () => {
+            cancelBtn.style.backgroundColor = '#f1f5f9';
+          });
+          cancelBtn.addEventListener('mouseleave', () => {
+            cancelBtn.style.backgroundColor = '#fff';
+          });
           
           if (element.textType === 'question') {
             const selectQuestionBtn = document.createElement('button');
             selectQuestionBtn.textContent = 'Select Question';
             selectQuestionBtn.style.padding = '8px 16px';
-            selectQuestionBtn.style.border = '1px solid #ccc';
+            selectQuestionBtn.style.border = '1px solid #e2e8f0';
             selectQuestionBtn.style.borderRadius = '4px';
             selectQuestionBtn.style.cursor = 'pointer';
             selectQuestionBtn.onclick = showQuestionListHandler;
+            selectQuestionBtn.addEventListener('mouseenter', () => {
+              selectQuestionBtn.style.backgroundColor = '#f1f5f9';
+            });
+            selectQuestionBtn.addEventListener('mouseleave', () => { 
+              selectQuestionBtn.style.backgroundColor = '#fff';
+            });
             
             buttonContainerEl.appendChild(selectQuestionBtn);
             if (saveQuestionBtn) buttonContainerEl.appendChild(saveQuestionBtn);
@@ -358,7 +384,8 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
           modal.style.left = '0';
           modal.style.width = '100%';
           modal.style.height = '100%';
-          modal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+          modal.style.backgroundColor = 'hsl(var(--background) / 0.8)';
+          modal.style.backdropFilter = 'blur(2px)';
           modal.style.display = 'flex';
           modal.style.justifyContent = 'center';
           modal.style.alignItems = 'center';
@@ -919,8 +946,13 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       y={element.y}
       scaleX={1}
       scaleY={1}
-      draggable={state.activeTool === 'select' && !isEditing && isSelected && !isMovingGroup}
+      draggable={state.activeTool === 'select' && !isEditing && !isMovingGroup}
       onClick={handleClick}
+      onDragStart={() => {
+        if (!isSelected) {
+          onSelect();
+        }
+      }}
       onDragEnd={onDragEnd}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -936,17 +968,12 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
         name="selectableRect"
       />
       
-      {/* Light grey dashed border for print exclusion - only on hover */}
-      {isHovered && (
-        <Rect
+      {/* Light grey dashed border for print exclusion - on hover or within selection */}
+      {(isHovered || isWithinSelection) && (
+        <SelectionHoverRectangle
           width={element.width}
           height={element.height}
-          fill="transparent" 
-          stroke="#64748b"
-          strokeWidth={2}
-          dash={[18, 18]}
           cornerRadius={8}
-          name="no-print"
         />
       )}
       
@@ -1130,8 +1157,8 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
             width={element.width - 8}
             x={4}
             y={4}
-            align={align}
-            verticalAlign="top"
+            align="center"
+            verticalAlign="middle"
             lineHeight={lineHeight}
             wrap="word"
             ellipsis={false}

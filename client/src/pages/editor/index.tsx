@@ -27,7 +27,7 @@ function EditorContent() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="flex items-center gap-2 text-muted-foreground">
-          <span>⏳</span>
+          <span>⟲</span>
           <p>Loading editor...</p>
         </div>
       </div>

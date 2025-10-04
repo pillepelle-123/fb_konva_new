@@ -3,6 +3,7 @@ import { useEditor } from '../../../context/editor-context';
 import { ToolbarContainer } from '../../cards/toolbar-container';
 import { ToolbarHeader } from './toolbar-header';
 import { ToolbarContent } from '../../cards/toolbar-content';
+import { TooltipProvider } from '../../ui/tooltip';
 import { 
   MousePointer, 
   Hand, 
@@ -59,21 +60,23 @@ export default function Toolbar() {
   ];
 
   return (
-    <ToolbarContainer 
-      isExpanded={isExpanded} 
-      isVisible={state.toolbarVisible}
-    >
-      <ToolbarHeader 
+    <TooltipProvider>
+      <ToolbarContainer 
         isExpanded={isExpanded} 
-        onToggle={() => setIsExpanded(!isExpanded)} 
-      />
-      <ToolbarContent 
-        toolGroups={toolGroups}
-        activeTool={state.activeTool}
-        isExpanded={isExpanded}
-        onToolSelect={(toolId) => dispatch({ type: 'SET_ACTIVE_TOOL', payload: toolId as any })}
-      />
-    </ToolbarContainer>
+        isVisible={state.toolbarVisible}
+      >
+        <ToolbarHeader 
+          isExpanded={isExpanded} 
+          onToggle={() => setIsExpanded(!isExpanded)} 
+        />
+        <ToolbarContent 
+          toolGroups={toolGroups}
+          activeTool={state.activeTool}
+          isExpanded={isExpanded}
+          onToolSelect={(toolId) => dispatch({ type: 'SET_ACTIVE_TOOL', payload: toolId as any })}
+        />
+      </ToolbarContainer>
+    </TooltipProvider>
   );
 }
 

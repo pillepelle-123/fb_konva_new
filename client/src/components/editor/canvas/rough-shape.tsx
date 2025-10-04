@@ -1,5 +1,6 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Group, Path, Rect } from 'react-konva';
+import { SelectionHoverRectangle } from './selection-hover-rectangle';
 import Konva from 'konva';
 import rough from 'roughjs';
 import { useEditor } from '../../../context/editor-context';
@@ -12,11 +13,13 @@ interface RoughShapeProps {
   onDragStart?: () => void;
   onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
   isMovingGroup?: boolean;
+  isWithinSelection?: boolean;
 }
 
-export default function RoughShape({ element, isSelected, onSelect, onDragStart, onDragEnd, isMovingGroup }: RoughShapeProps) {
+export default function RoughShape({ element, isSelected, onSelect, onDragStart, onDragEnd, isMovingGroup, isWithinSelection }: RoughShapeProps) {
   const { state, dispatch } = useEditor();
   const groupRef = useRef<Konva.Group>(null);
+  const [isHovered, setIsHovered] = useState(false);
 
   const generateRoughPath = () => {
     const roughness = element.roughness || 1;
@@ -105,7 +108,15 @@ export default function RoughShape({ element, isSelected, onSelect, onDragStart,
       scaleX={element.scaleX || 1}
       scaleY={element.scaleY || 1}
       rotation={element.rotation || 0}
-      draggable={state.activeTool === 'select' && isSelected && !isMovingGroup}
+      draggable={state.activeTool === 'select' && !isMovingGroup}
+      onMouseDown={(e) => {
+        if (state.activeTool === 'select' && e.evt.button === 0) {
+          e.cancelBubble = true;
+          if (!isSelected) {
+            onSelect();
+          }
+        }
+      }}
       onClick={(e) => {
         if (state.activeTool === 'select') {
           if (e.evt.button === 0) {
@@ -129,9 +140,7 @@ export default function RoughShape({ element, isSelected, onSelect, onDragStart,
         e.cancelBubble = true;
         onSelect();
       }}
-      onDragStart={() => {
-        onDragStart?.();
-      }}
+      onDragStart={onDragStart}
       onDragEnd={(e) => {
         dispatch({
           type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
@@ -142,6 +151,8 @@ export default function RoughShape({ element, isSelected, onSelect, onDragStart,
         });
         onDragEnd(e);
       }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
       {/* Invisible hit area for easier selection */}
       <Rect
@@ -152,6 +163,14 @@ export default function RoughShape({ element, isSelected, onSelect, onDragStart,
         strokeWidth={10}
         stroke="transparent"
       />
+      
+      {/* Dashed border on hover or within selection */}
+      {(isHovered || isWithinSelection) && (
+        <SelectionHoverRectangle
+          width={element.width}
+          height={element.height}
+        />
+      )}
       
       {/* Visible rough path */}
       <Path

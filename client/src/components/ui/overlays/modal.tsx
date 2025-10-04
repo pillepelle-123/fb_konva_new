@@ -17,7 +17,7 @@ export function Modal({ isOpen, onClose, title, children, actions }: ModalProps)
       onClick={onClose}
     >
       <div 
-        className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg sm:rounded-lg"
+        className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-4xl max-h-[90vh] translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg sm:rounded-lg overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex flex-col space-y-1.5 text-center sm:text-left">
@@ -26,7 +26,7 @@ export function Modal({ isOpen, onClose, title, children, actions }: ModalProps)
           </h2>
         </div>
         
-        <div className="space-y-4">
+        <div className="space-y-4 overflow-y-auto max-h-[70vh]">
           {children}
         </div>
         

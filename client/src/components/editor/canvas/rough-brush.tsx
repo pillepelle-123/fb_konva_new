@@ -1,5 +1,6 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Group, Path, Rect } from 'react-konva';
+import { SelectionHoverRectangle } from './selection-hover-rectangle';
 import Konva from 'konva';
 import rough from 'roughjs';
 import { useEditor } from '../../../context/editor-context';
@@ -12,11 +13,13 @@ interface RoughBrushProps {
   onDragStart?: () => void;
   onDragEnd?: (e: Konva.KonvaEventObject<DragEvent>) => void;
   isMovingGroup?: boolean;
+  isWithinSelection?: boolean;
 }
 
-export default function RoughBrush({ element, isSelected, onSelect, onDragStart, onDragEnd, isMovingGroup }: RoughBrushProps) {
+export default function RoughBrush({ element, isSelected, onSelect, onDragStart, onDragEnd, isMovingGroup, isWithinSelection }: RoughBrushProps) {
   const { state, dispatch } = useEditor();
   const groupRef = useRef<Konva.Group>(null);
+  const [isHovered, setIsHovered] = useState(false);
 
   const getBounds = (points: number[]) => {
     let minX = points[0], maxX = points[0];
@@ -114,7 +117,15 @@ export default function RoughBrush({ element, isSelected, onSelect, onDragStart,
       scaleX={element.scaleX || 1}
       scaleY={element.scaleY || 1}
       rotation={element.rotation || 0}
-      draggable={state.activeTool === 'select' && isSelected && !isMovingGroup}
+      draggable={state.activeTool === 'select' && !isMovingGroup}
+      onMouseDown={(e) => {
+        if (state.activeTool === 'select' && e.evt.button === 0) {
+          e.cancelBubble = true;
+          if (!isSelected) {
+            onSelect();
+          }
+        }
+      }}
       onClick={(e) => {
         if (state.activeTool === 'select') {
           if (e.evt.button === 0) {
@@ -149,6 +160,8 @@ export default function RoughBrush({ element, isSelected, onSelect, onDragStart,
         });
         onDragEnd?.(e);
       }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
       {/* Invisible hit area for easier selection */}
       <Rect
@@ -159,6 +172,16 @@ export default function RoughBrush({ element, isSelected, onSelect, onDragStart,
         fill="transparent"
         listening={true}
       />
+      
+      {/* Dashed border on hover or within selection */}
+      {(isHovered || isWithinSelection) && (
+        <SelectionHoverRectangle
+          x={bounds.minX - 10}
+          y={bounds.minY - 10}
+          width={bounds.width + 20}
+          height={bounds.height + 20}
+        />
+      )}
       
       {/* Visible rough path */}
       <Path

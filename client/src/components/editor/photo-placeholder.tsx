@@ -4,6 +4,7 @@ import Konva from 'konva';
 import { useAuth } from '../../context/auth-context';
 import { useEditor } from '../../context/editor-context';
 import type { CanvasElement } from '../../context/editor-context';
+import { SelectionHoverRectangle } from './canvas/selection-hover-rectangle';
 
 interface PhotoPlaceholderProps {
   element: CanvasElement;
@@ -19,6 +20,7 @@ export default function PhotoPlaceholder({ element, isSelected, onSelect, onDrag
   const groupRef = useRef<Konva.Group>(null);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
 
   const handleClick = () => {
     onSelect();
@@ -99,31 +101,51 @@ export default function PhotoPlaceholder({ element, isSelected, onSelect, onDrag
       id={element.id}
       x={element.x}
       y={element.y}
-      draggable={state.activeTool === 'select' && isSelected && !isMovingGroup}
+      draggable={state.activeTool === 'select' && !isMovingGroup}
       onClick={handleClick}
       onTap={handleClick}
       onDblClick={handleDoubleClick}
       onDblTap={handleDoubleClick}
       onDragEnd={onDragEnd}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
       {element.type === 'placeholder' ? (
         <>
+          {/* Background rectangle - transparent like textbox */}
           <Rect
             width={element.width}
             height={element.height}
-            fill="#f3f4f6"
-            stroke={isSelected ? '#2563eb' : '#d1d5db'}
-            strokeWidth={isSelected ? 2 : 1}
-            dash={[5, 5]}
+            fill="transparent"
+            stroke={isSelected ? '#2563eb' : 'transparent'}
+            strokeWidth={1}
+            cornerRadius={4}
           />
+          
+          {/* Hover border - same as textbox */}
+          {isHovered && (
+            <SelectionHoverRectangle
+              width={element.width}
+              height={element.height}
+              cornerRadius={8}
+            />
+          )}
+          
+          {/* Placeholder text - same styling as textbox */}
           <Text
-            text={isUploading ? "Uploading..." : "📷\nClick to upload"}
-            fontSize={36}
-            fill="#6b7280"
-            width={element.width}
-            height={element.height}
+            text={isUploading ? "Uploading..." : "Double-click to chose photo"}
+            fontSize={66}
+            // fontFamily="Arial, sans-serif"
+            fill="#1f2937"
+            width={element.width - 8}
+            height={element.height - 8}
+            x={4}
+            y={4}
             align="center"
-            verticalAlign="middle"
+            verticalAlign="top"
+            opacity={0.6}
+            listening={false}
+            name='no-print'
           />
         </>
       ) : (

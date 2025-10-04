@@ -3,6 +3,7 @@ import { Layer, Rect, Group } from 'react-konva';
 import Konva from 'konva';
 import { v4 as uuidv4 } from 'uuid';
 import { useEditor } from '../../../context/editor-context';
+import { useAuth } from '../../../context/auth-context';
 import type { CanvasElement } from '../../../context/editor-context';
 import CustomTextbox from '../custom-textbox';
 import RoughShape from './rough-shape';
@@ -14,6 +15,8 @@ import { SelectionRectangle } from './selection-rectangle';
 import { PreviewLine, PreviewShape, PreviewTextbox, PreviewBrush } from './preview-elements';
 import { CanvasContainer } from './canvas-container';
 import ContextMenu from '../../cards/context-menu';
+import { Modal } from '../../ui/overlays/modal';
+import PhotosContent from '../../photos-content';
 
 function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
   return (
@@ -53,15 +56,61 @@ const PAGE_DIMENSIONS = {
   Square: { width: 2480, height: 2480 }
 };
 
-function CanvasElementComponent({ element, isMovingGroup, onDragStart, onDragEnd }: { 
+function CanvasElementComponent({ element, isMovingGroup, onDragStart, onDragEnd, selectionRect, pageOffsetX, pageOffsetY }: { 
   element: CanvasElement; 
   isMovingGroup: boolean;
-  onDragStart: () => void;
+  onDragStart: (elementId: string) => void;
   onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
+  selectionRect: { x: number; y: number; width: number; height: number; visible: boolean };
+  pageOffsetX: number;
+  pageOffsetY: number;
 }) {
   const { state, dispatch } = useEditor();
   const shapeRef = useRef<any>(null);
   const isSelected = state.selectedElementIds.includes(element.id);
+  
+  // Check if element is within selection rectangle
+  const isWithinSelection = selectionRect.visible && (() => {
+    const adjustedSelectionRect = {
+      x: selectionRect.x - pageOffsetX,
+      y: selectionRect.y - pageOffsetY,
+      width: selectionRect.width,
+      height: selectionRect.height
+    };
+    
+    let elementBounds = {
+      x: element.x,
+      y: element.y,
+      width: element.width || 100,
+      height: element.height || 100
+    };
+    
+    if (element.type === 'roughPath' && element.points) {
+      let minX = element.points[0], maxX = element.points[0];
+      let minY = element.points[1], maxY = element.points[1];
+      
+      for (let i = 2; i < element.points.length; i += 2) {
+        minX = Math.min(minX, element.points[i]);
+        maxX = Math.max(maxX, element.points[i]);
+        minY = Math.min(minY, element.points[i + 1]);
+        maxY = Math.max(maxY, element.points[i + 1]);
+      }
+      
+      elementBounds = {
+        x: element.x + minX - 10,
+        y: element.y + minY - 10,
+        width: maxX - minX + 20,
+        height: maxY - minY + 20
+      };
+    }
+    
+    return (
+      adjustedSelectionRect.x < elementBounds.x + elementBounds.width &&
+      adjustedSelectionRect.x + adjustedSelectionRect.width > elementBounds.x &&
+      adjustedSelectionRect.y < elementBounds.y + elementBounds.height &&
+      adjustedSelectionRect.y + adjustedSelectionRect.height > elementBounds.y
+    );
+  })();
 
   const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (state.activeTool === 'select') {
@@ -95,6 +144,7 @@ function CanvasElementComponent({ element, isMovingGroup, onDragStart, onDragEnd
         onDragEnd={handleDragEnd}
         scale={0.8}
         isMovingGroup={isMovingGroup}
+        isWithinSelection={isWithinSelection}
       />
     );
   }
@@ -105,7 +155,7 @@ function CanvasElementComponent({ element, isMovingGroup, onDragStart, onDragEnd
         element={element}
         isSelected={isSelected}
         onSelect={() => dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] })}
-        onDragStart={onDragStart}
+        onDragStart={() => onDragStart(element.id)}
         onDragEnd={handleDragEnd}
         isMovingGroup={isMovingGroup}
       />
@@ -118,9 +168,10 @@ function CanvasElementComponent({ element, isMovingGroup, onDragStart, onDragEnd
         element={element}
         isSelected={isSelected}
         onSelect={() => dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] })}
-        onDragStart={onDragStart}
+        onDragStart={() => onDragStart(element.id)}
         onDragEnd={handleDragEnd}
         isMovingGroup={isMovingGroup}
+        isWithinSelection={isWithinSelection}
       />
     );
   }
@@ -131,9 +182,10 @@ function CanvasElementComponent({ element, isMovingGroup, onDragStart, onDragEnd
         element={element}
         isSelected={isSelected}
         onSelect={() => dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] })}
-        onDragStart={onDragStart}
+        onDragStart={() => onDragStart(element.id)}
         onDragEnd={handleDragEnd}
         isMovingGroup={isMovingGroup}
+        isWithinSelection={isWithinSelection}
       />
     );
   }
@@ -160,6 +212,7 @@ function CanvasElementComponent({ element, isMovingGroup, onDragStart, onDragEnd
 
 export default function Canvas() {
   const { state, dispatch } = useEditor();
+  const { token } = useAuth();
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -193,6 +246,8 @@ export default function Canvas() {
   const [isDrawingTextbox, setIsDrawingTextbox] = useState(false);
   const [textboxStart, setTextboxStart] = useState<{ x: number; y: number } | null>(null);
   const [previewTextbox, setPreviewTextbox] = useState<{ x: number; y: number; width: number; height: number; type: string } | null>(null);
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [pendingPhotoPosition, setPendingPhotoPosition] = useState<{ x: number; y: number } | null>(null);
 
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const pageSize = state.currentBook?.pageSize || 'A4';
@@ -356,16 +411,9 @@ export default function Canvas() {
         let newElement: CanvasElement | null = null;
         
         if (state.activeTool === 'photo') {
-          newElement = {
-            id: uuidv4(),
-            type: 'placeholder',
-            x: x - 300,
-            y: y - 200,
-            width: 600,
-            height: 400,
-            fill: '#f3f4f6',
-            stroke: '#d1d5db'
-          };
+          setPendingPhotoPosition({ x: x - 300, y: y - 200 });
+          setShowPhotoModal(true);
+          return;
         }
         
         if (newElement) {
@@ -964,6 +1012,42 @@ export default function Canvas() {
     fitToView();
   }, [fitToView, containerSize]);
 
+  const handlePhotoSelect = (photoId: number, photoUrl: string) => {
+    if (!pendingPhotoPosition) return;
+    
+    // Load image to get original dimensions
+    const img = new window.Image();
+    img.onload = () => {
+      const maxWidth = 600;
+      const aspectRatio = img.width / img.height;
+      const width = maxWidth;
+      const height = maxWidth / aspectRatio;
+      
+      const newElement: CanvasElement = {
+        id: uuidv4(),
+        type: 'image',
+        x: pendingPhotoPosition.x,
+        y: pendingPhotoPosition.y,
+        width,
+        height,
+        src: photoUrl
+      };
+      
+      dispatch({ type: 'ADD_ELEMENT', payload: newElement });
+    };
+    img.src = photoUrl;
+    
+    dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+    setShowPhotoModal(false);
+    setPendingPhotoPosition(null);
+  };
+
+  const handlePhotoModalClose = () => {
+    setShowPhotoModal(false);
+    setPendingPhotoPosition(null);
+    dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+  };
+
   return (
     <CanvasPageContainer>
       <CanvasContainer ref={containerRef} pageId={currentPage?.id}>
@@ -992,8 +1076,16 @@ export default function Canvas() {
                   key={element.id}
                   element={element}
                   isMovingGroup={isMovingGroup}
-                  onDragStart={() => setIsDragging(true)}
+                  onDragStart={(elementId) => {
+                    setIsDragging(true);
+                    if (!state.selectedElementIds.includes(elementId)) {
+                      dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [elementId] });
+                    }
+                  }}
                   onDragEnd={() => setTimeout(() => setIsDragging(false), 10)}
+                  selectionRect={selectionRect}
+                  pageOffsetX={pageOffsetX}
+                  pageOffsetY={pageOffsetY}
                 />
               ))}
               
@@ -1043,6 +1135,7 @@ export default function Canvas() {
             {/* Transformer for selected elements */}
             <CanvasTransformer
               ref={transformerRef}
+              keepRatio={state.selectedElementIds.length === 1 && currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.type === 'image'}
               onDragEnd={(e) => {
                 // Update positions after drag
                 const nodes = transformerRef.current?.nodes() || [];
@@ -1067,14 +1160,14 @@ export default function Canvas() {
                 if (element) {
                   const updates: any = {};
                   
-                  // For text elements, convert scale to width/height changes
-                  if (element.type === 'text') {
+                  // For text and image elements, convert scale to width/height changes
+                  if (element.type === 'text' || element.type === 'image') {
                     const scaleX = node.scaleX();
                     const scaleY = node.scaleY();
                     
                     // Calculate new dimensions
-                    updates.width = Math.max(50, (element.width || 150) * scaleX);
-                    updates.height = Math.max(20, (element.height || 50) * scaleY);
+                    updates.width = Math.max(element.type === 'text' ? 50 : 20, (element.width || 150) * scaleX);
+                    updates.height = Math.max(element.type === 'text' ? 20 : 20, (element.height || 50) * scaleY);
                     
                     // For position, use node position directly
                     updates.x = node.x();
@@ -1082,7 +1175,7 @@ export default function Canvas() {
                     
                     updates.rotation = node.rotation();
                     
-                    // Reset scale to 1 for text elements
+                    // Reset scale to 1
                     node.scaleX(1);
                     node.scaleY(1);
                   } else {
@@ -1115,6 +1208,20 @@ export default function Canvas() {
           onDelete={handleDeleteItems}
         />
       </CanvasContainer>
+      
+      <Modal
+        isOpen={showPhotoModal}
+        onClose={handlePhotoModalClose}
+        title="Select Photo"
+      >
+        <PhotosContent
+          token={token || ''}
+          mode="select"
+          onPhotoSelect={handlePhotoSelect}
+          onPhotoUpload={(photoUrl) => handlePhotoSelect(0, photoUrl)}
+          onClose={handlePhotoModalClose}
+        />
+      </Modal>
     </CanvasPageContainer>
   );
 }
