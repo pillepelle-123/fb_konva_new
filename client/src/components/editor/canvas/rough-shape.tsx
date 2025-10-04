@@ -63,6 +63,96 @@ export default function RoughShape({ element, isSelected, onSelect, onDragStart,
           stroke,
           seed
         });
+      } else if (element.type === 'heart') {
+        const w = element.width;
+        const h = element.height;
+        const heartPath = `M ${w/2} ${h*0.8} C ${w/2} ${h*0.8} ${w*0.1} ${h*0.4} ${w*0.1} ${h*0.25} C ${w*0.1} ${h*0.1} ${w*0.25} ${h*0.05} ${w/2} ${h*0.25} C ${w*0.75} ${h*0.05} ${w*0.9} ${h*0.1} ${w*0.9} ${h*0.25} C ${w*0.9} ${h*0.4} ${w/2} ${h*0.8} ${w/2} ${h*0.8} Z`;
+        roughElement = rc.path(heartPath, {
+          roughness,
+          strokeWidth,
+          stroke,
+          fill: fill !== 'transparent' ? fill : undefined,
+          fillStyle: 'solid',
+          seed
+        });
+      } else if (element.type === 'star') {
+        const cx = element.width / 2;
+        const cy = element.height / 2;
+        const r = Math.min(element.width, element.height) / 2 * 0.8;
+        const points = [];
+        for (let i = 0; i < 10; i++) {
+          const angle = (i * Math.PI) / 5;
+          const radius = i % 2 === 0 ? r : r * 0.4;
+          points.push([cx + radius * Math.cos(angle - Math.PI/2), cy + radius * Math.sin(angle - Math.PI/2)]);
+        }
+        const starPath = `M ${points[0][0]} ${points[0][1]} ` + points.slice(1).map(p => `L ${p[0]} ${p[1]}`).join(' ') + ' Z';
+        roughElement = rc.path(starPath, {
+          roughness,
+          strokeWidth,
+          stroke,
+          fill: fill !== 'transparent' ? fill : undefined,
+          fillStyle: 'solid',
+          seed
+        });
+      } else if (element.type === 'speech-bubble') {
+        const w = element.width;
+        const h = element.height;
+        const bubblePath = `M ${w*0.1} ${h*0.2} Q ${w*0.1} ${h*0.1} ${w*0.2} ${h*0.1} L ${w*0.8} ${h*0.1} Q ${w*0.9} ${h*0.1} ${w*0.9} ${h*0.2} L ${w*0.9} ${h*0.6} Q ${w*0.9} ${h*0.7} ${w*0.8} ${h*0.7} L ${w*0.3} ${h*0.7} L ${w*0.2} ${h*0.9} L ${w*0.25} ${h*0.7} L ${w*0.2} ${h*0.7} Q ${w*0.1} ${h*0.7} ${w*0.1} ${h*0.6} Z`;
+        roughElement = rc.path(bubblePath, {
+          roughness,
+          strokeWidth,
+          stroke,
+          fill: fill !== 'transparent' ? fill : undefined,
+          fillStyle: 'solid',
+          seed
+        });
+      } else if (element.type === 'dog') {
+        const w = element.width;
+        const h = element.height;
+        const dogPath = `M ${w*0.2} ${h*0.3} C ${w*0.1} ${h*0.2} ${w*0.1} ${h*0.1} ${w*0.2} ${h*0.1} L ${w*0.25} ${h*0.05} C ${w*0.3} ${h*0.02} ${w*0.35} ${h*0.05} ${w*0.4} ${h*0.1} L ${w*0.6} ${h*0.1} C ${w*0.65} ${h*0.05} ${w*0.7} ${h*0.02} ${w*0.75} ${h*0.05} L ${w*0.8} ${h*0.1} C ${w*0.9} ${h*0.1} ${w*0.9} ${h*0.2} ${w*0.8} ${h*0.3} C ${w*0.85} ${h*0.4} ${w*0.85} ${h*0.5} ${w*0.8} ${h*0.6} C ${w*0.75} ${h*0.8} ${w*0.6} ${h*0.9} ${w*0.5} ${h*0.9} C ${w*0.4} ${h*0.9} ${w*0.25} ${h*0.8} ${w*0.2} ${h*0.6} C ${w*0.15} ${h*0.5} ${w*0.15} ${h*0.4} ${w*0.2} ${h*0.3} Z M ${w*0.35} ${h*0.4} C ${w*0.32} ${h*0.37} ${w*0.32} ${h*0.43} ${w*0.35} ${h*0.4} M ${w*0.65} ${h*0.4} C ${w*0.68} ${h*0.37} ${w*0.68} ${h*0.43} ${w*0.65} ${h*0.4} M ${w*0.45} ${h*0.55} L ${w*0.5} ${h*0.6} L ${w*0.55} ${h*0.55}`;
+
+        roughElement = rc.path(dogPath, {
+          roughness,
+          strokeWidth,
+          stroke,
+          fill: fill !== 'transparent' ? fill : undefined,
+          fillStyle: 'solid',
+          seed
+        });
+      } else if (element.type === 'cat') {
+        const w = element.width;
+        const h = element.height;
+        const catPath = `M ${w*0.2} ${h*0.1} L ${w*0.35} ${h*0.3} C ${w*0.4} ${h*0.25} ${w*0.6} ${h*0.25} ${w*0.65} ${h*0.3} L ${w*0.8} ${h*0.1} C ${w*0.85} ${h*0.15} ${w*0.85} ${h*0.25} ${w*0.8} ${h*0.35} C ${w*0.85} ${h*0.5} ${w*0.85} ${h*0.65} ${w*0.8} ${h*0.8} C ${w*0.7} ${h*0.9} ${w*0.3} ${h*0.9} ${w*0.2} ${h*0.8} C ${w*0.15} ${h*0.65} ${w*0.15} ${h*0.5} ${w*0.2} ${h*0.35} C ${w*0.15} ${h*0.25} ${w*0.15} ${h*0.15} ${w*0.2} ${h*0.1} Z M ${w*0.35} ${h*0.45} C ${w*0.32} ${h*0.42} ${w*0.32} ${h*0.48} ${w*0.35} ${h*0.45} M ${w*0.65} ${h*0.45} C ${w*0.68} ${h*0.42} ${w*0.68} ${h*0.48} ${w*0.65} ${h*0.45}`;
+
+        roughElement = rc.path(catPath, {
+          roughness,
+          strokeWidth,
+          stroke,
+          fill: fill !== 'transparent' ? fill : undefined,
+          fillStyle: 'solid',
+          seed
+        });
+      } else if (element.type === 'smiley') {
+        const w = element.width;
+        const h = element.height;
+        const cx = w / 2;
+        const cy = h / 2;
+        const r = Math.min(w, h) / 2 * 0.9;
+        // Circle face + filled circle eyes + smile
+        const eyeRadius = r * 0.08;
+        const leftEyeX = cx - r * 0.3;
+        const rightEyeX = cx + r * 0.3;
+        const eyeY = cy - r * 0.2;
+        const smileyPath = `M ${cx - r} ${cy} A ${r} ${r} 0 1 0 ${cx + r} ${cy} A ${r} ${r} 0 1 0 ${cx - r} ${cy} M ${leftEyeX - eyeRadius} ${eyeY} A ${eyeRadius} ${eyeRadius} 0 1 1 ${leftEyeX + eyeRadius} ${eyeY} A ${eyeRadius} ${eyeRadius} 0 1 1 ${leftEyeX - eyeRadius} ${eyeY} Z M ${rightEyeX - eyeRadius} ${eyeY} A ${eyeRadius} ${eyeRadius} 0 1 1 ${rightEyeX + eyeRadius} ${eyeY} A ${eyeRadius} ${eyeRadius} 0 1 1 ${rightEyeX - eyeRadius} ${eyeY} Z M ${cx - r*0.4} ${cy + r*0.2} Q ${cx} ${cy + r*0.5} ${cx + r*0.4} ${cy + r*0.2}`;
+
+        roughElement = rc.path(smileyPath, {
+          roughness,
+          strokeWidth,
+          stroke,
+          fill: fill !== 'transparent' ? fill : undefined,
+          fillStyle: 'solid',
+          seed
+        });
       }
       
       if (roughElement) {
@@ -89,6 +179,44 @@ export default function RoughShape({ element, isSelected, onSelect, onDragStart,
       return `M ${cx - r} ${cy} A ${r} ${r} 0 1 0 ${cx + r} ${cy} A ${r} ${r} 0 1 0 ${cx - r} ${cy}`;
     } else if (element.type === 'line') {
       return `M 0 0 L ${element.width} ${element.height}`;
+    } else if (element.type === 'heart') {
+      const w = element.width;
+      const h = element.height;
+      return `M ${w/2} ${h*0.8} C ${w/2} ${h*0.8} ${w*0.1} ${h*0.4} ${w*0.1} ${h*0.25} C ${w*0.1} ${h*0.1} ${w*0.25} ${h*0.05} ${w/2} ${h*0.25} C ${w*0.75} ${h*0.05} ${w*0.9} ${h*0.1} ${w*0.9} ${h*0.25} C ${w*0.9} ${h*0.4} ${w/2} ${h*0.8} ${w/2} ${h*0.8} Z`;
+    } else if (element.type === 'star') {
+      const cx = element.width / 2;
+      const cy = element.height / 2;
+      const r = Math.min(element.width, element.height) / 2 * 0.8;
+      const points = [];
+      for (let i = 0; i < 10; i++) {
+        const angle = (i * Math.PI) / 5;
+        const radius = i % 2 === 0 ? r : r * 0.4;
+        points.push([cx + radius * Math.cos(angle - Math.PI/2), cy + radius * Math.sin(angle - Math.PI/2)]);
+      }
+      return `M ${points[0][0]} ${points[0][1]} ` + points.slice(1).map(p => `L ${p[0]} ${p[1]}`).join(' ') + ' Z';
+    } else if (element.type === 'speech-bubble') {
+      const w = element.width;
+      const h = element.height;
+      return `M ${w*0.1} ${h*0.2} Q ${w*0.1} ${h*0.1} ${w*0.2} ${h*0.1} L ${w*0.8} ${h*0.1} Q ${w*0.9} ${h*0.1} ${w*0.9} ${h*0.2} L ${w*0.9} ${h*0.6} Q ${w*0.9} ${h*0.7} ${w*0.8} ${h*0.7} L ${w*0.3} ${h*0.7} L ${w*0.2} ${h*0.9} L ${w*0.25} ${h*0.7} L ${w*0.2} ${h*0.7} Q ${w*0.1} ${h*0.7} ${w*0.1} ${h*0.6} Z`;
+    } else if (element.type === 'dog') {
+      const w = element.width;
+      const h = element.height;
+      return `M ${w*0.3} ${h*0.2} Q ${w*0.2} ${h*0.1} ${w*0.1} ${h*0.2} Q ${w*0.1} ${h*0.3} ${w*0.2} ${h*0.35} Q ${w*0.25} ${h*0.4} ${w*0.3} ${h*0.4} Q ${w*0.4} ${h*0.35} ${w*0.5} ${h*0.4} Q ${w*0.6} ${h*0.35} ${w*0.7} ${h*0.4} Q ${w*0.75} ${h*0.4} ${w*0.8} ${h*0.35} Q ${w*0.9} ${h*0.3} ${w*0.9} ${h*0.2} Q ${w*0.8} ${h*0.1} ${w*0.7} ${h*0.2} Q ${w*0.6} ${h*0.3} ${w*0.5} ${h*0.35} Q ${w*0.4} ${h*0.3} ${w*0.3} ${h*0.2} M ${w*0.2} ${h*0.5} Q ${w*0.1} ${h*0.4} ${w*0.1} ${h*0.6} Q ${w*0.15} ${h*0.8} ${w*0.3} ${h*0.9} Q ${w*0.7} ${h*0.9} ${w*0.85} ${h*0.8} Q ${w*0.9} ${h*0.6} ${w*0.9} ${h*0.4} Q ${w*0.8} ${h*0.5} ${w*0.8} ${h*0.5} Q ${w*0.2} ${h*0.5} ${w*0.2} ${h*0.5} Z`;
+    } else if (element.type === 'cat') {
+      const w = element.width;
+      const h = element.height;
+      return `M ${w*0.2} ${h*0.1} L ${w*0.3} ${h*0.3} Q ${w*0.5} ${h*0.2} ${w*0.7} ${h*0.3} L ${w*0.8} ${h*0.1} Q ${w*0.85} ${h*0.2} ${w*0.8} ${h*0.35} Q ${w*0.9} ${h*0.5} ${w*0.85} ${h*0.7} Q ${w*0.8} ${h*0.9} ${w*0.6} ${h*0.9} Q ${w*0.4} ${h*0.9} ${w*0.2} ${h*0.9} Q ${w*0.1} ${h*0.7} ${w*0.15} ${h*0.5} Q ${w*0.2} ${h*0.35} ${w*0.15} ${h*0.2} Q ${w*0.2} ${h*0.1} ${w*0.2} ${h*0.1} Z`;
+    } else if (element.type === 'smiley') {
+      const w = element.width;
+      const h = element.height;
+      const cx = w / 2;
+      const cy = h / 2;
+      const r = Math.min(w, h) / 2 * 0.9;
+      const eyeRadius = r * 0.08;
+      const leftEyeX = cx - r * 0.3;
+      const rightEyeX = cx + r * 0.3;
+      const eyeY = cy - r * 0.2;
+      return `M ${cx - r} ${cy} A ${r} ${r} 0 1 0 ${cx + r} ${cy} A ${r} ${r} 0 1 0 ${cx - r} ${cy} M ${leftEyeX - eyeRadius} ${eyeY} A ${eyeRadius} ${eyeRadius} 0 1 1 ${leftEyeX + eyeRadius} ${eyeY} A ${eyeRadius} ${eyeRadius} 0 1 1 ${leftEyeX - eyeRadius} ${eyeY} Z M ${rightEyeX - eyeRadius} ${eyeY} A ${eyeRadius} ${eyeRadius} 0 1 1 ${rightEyeX + eyeRadius} ${eyeY} A ${eyeRadius} ${eyeRadius} 0 1 1 ${rightEyeX - eyeRadius} ${eyeY} Z M ${cx - r*0.4} ${cy + r*0.2} Q ${cx} ${cy + r*0.5} ${cx + r*0.4} ${cy + r*0.2}`;
     }
     
     return '';

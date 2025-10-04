@@ -17,7 +17,13 @@ import {
   Paintbrush,
   Palette,
   Wrench,
-  Settings
+  Settings,
+  Heart,
+  Star,
+  MessageSquare,
+  Dog,
+  Cat,
+  Smile
 } from 'lucide-react';
 
 export default function Toolbar() {
@@ -53,6 +59,12 @@ export default function Toolbar() {
         { id: 'line', label: 'Line', icon: Minus },
         { id: 'circle', label: 'Circle', icon: Circle },
         { id: 'rect', label: 'Rectangle', icon: Square },
+        { id: 'heart', label: 'Heart', icon: Heart },
+        { id: 'star', label: 'Star', icon: Star },
+        { id: 'speech-bubble', label: 'Speech Bubble', icon: MessageSquare },
+        { id: 'dog', label: 'Dog', icon: Dog },
+        { id: 'cat', label: 'Cat', icon: Cat },
+        { id: 'smiley', label: 'Smiley', icon: Smile },
       ]
     },
     {

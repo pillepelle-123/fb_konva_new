@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 export interface CanvasElement {
   id: string;
-  type: 'text' | 'image' | 'placeholder' | 'line' | 'circle' | 'rect' | 'roughPath';
+  type: 'text' | 'image' | 'placeholder' | 'line' | 'circle' | 'rect' | 'roughPath' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley';
   x: number;
   y: number;
   width: number;
@@ -44,7 +44,7 @@ export interface Book {
 export interface EditorState {
   currentBook: Book | null;
   activePageIndex: number;
-  activeTool: 'select' | 'text' | 'question' | 'answer' | 'photo' | 'line' | 'circle' | 'rect' | 'brush' | 'pan';
+  activeTool: 'select' | 'text' | 'question' | 'answer' | 'photo' | 'line' | 'circle' | 'rect' | 'brush' | 'pan' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley';
   selectedElementIds: string[];
   user?: { id: number; role: string } | null;
   editorBarVisible: boolean;

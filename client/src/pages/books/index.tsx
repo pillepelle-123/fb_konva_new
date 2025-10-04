@@ -5,7 +5,7 @@ import { Button } from '../../components/ui/primitives/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Input } from '../../components/ui/primitives/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
-import { BookOpen, Plus, Users, Archive, Edit, Settings, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Book, Plus, Users, Archive, Edit, Settings, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Book {
   id: number;
@@ -131,7 +131,7 @@ export default function BooksList() {
         {books.length === 0 ? (
           <Card className="border shadow-sm">
             <CardContent className="text-center py-12">
-              <BookOpen className="h-12 w-12 text-muted-foreground mx-auto opacity-50 mb-4" />
+              <Book className="h-12 w-12 text-muted-foreground mx-auto opacity-50 mb-4" />
               <h3 className="text-lg font-medium text-foreground mb-2">No books yet</h3>
               <p className="text-muted-foreground mb-6">
                 Create your first book to get started with your projects.
@@ -160,12 +160,12 @@ export default function BooksList() {
                       </CardDescription>
                     </div>
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-                      <BookOpen className="h-4 w-4 text-primary" />
+                      <Book className="h-4 w-4 text-primary" />
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <div className="flex items-center justify-between text-sm text-ref-icon">
                     <div className="flex items-center space-x-4">
                       <div className="flex items-center space-x-1">
                         <FileText className="h-3 w-3" />

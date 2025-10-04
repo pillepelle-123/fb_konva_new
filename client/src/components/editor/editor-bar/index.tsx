@@ -114,7 +114,7 @@ export default function EditorBar() {
               </Tooltip>
               {/* <span>Controls</span> */}
             </AccordionTrigger>
-            <AccordionContent className="">
+            <AccordionContent className="overflow-x-auto scrollbar-hide">
               <div className="flex items-center gap-2 md:gap-4 w-full">
                 {/* Page Controls */}
                 <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
@@ -164,7 +164,7 @@ export default function EditorBar() {
               </Tooltip>
               {/* <span>Settings</span> */}
             </AccordionTrigger>
-            <AccordionContent className="">
+            <AccordionContent className="overflow-x-auto scrollbar-hide">
               <div className="flex items-center justify-center py-2">
                 <Button
                   variant="ghost"

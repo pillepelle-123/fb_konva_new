@@ -176,7 +176,7 @@ function CanvasElementComponent({ element, isMovingGroup, onDragStart, onDragEnd
     );
   }
 
-  if (['line', 'circle', 'rect'].includes(element.type)) {
+  if (['line', 'circle', 'rect', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(element.type)) {
     return (
       <RoughShape
         element={element}
@@ -341,7 +341,7 @@ export default function Canvas() {
           setPreviewLine({ x1: x, y1: y, x2: x, y2: y });
         }
       }
-    } else if (state.activeTool === 'rect' || state.activeTool === 'circle') {
+    } else if (['rect', 'circle', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(state.activeTool)) {
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
         const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
@@ -609,7 +609,7 @@ export default function Canvas() {
       if (previewShape.width > 5 || previewShape.height > 5) {
         const newElement: CanvasElement = {
           id: uuidv4(),
-          type: previewShape.type as 'rect' | 'circle',
+          type: previewShape.type as any,
           x: previewShape.x,
           y: previewShape.y,
           width: previewShape.width,
