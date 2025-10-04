@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useEditor } from '../../../context/editor-context';
 import PDFExportModal from '../pdf-export-modal';
-import { Card, CardContent } from '../../ui/card';
+
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '../../ui/accordion-horizontal';
+
 import { FloatingActionButtons } from '../floating-action-buttons';
 import { PageNavigation } from './page-navigation';
 import { PageActions } from './page-actions';
@@ -10,6 +12,11 @@ import { BookActions } from './book-actions';
 import UnsavedChangesDialog from '../../cards/unsaved-changes-dialog';
 import ConfirmationDialog from '../../cards/confirmation-dialog';
 import AlertDialog from '../../cards/alert-dialog';
+import { LayoutGrid, Settings, Palette, Divide, Book } from 'lucide-react';
+import { Button } from '../../ui/primitives/button';
+import { X } from 'lucide-react';
+import { Tooltip } from '../../ui/tooltip';
+import { EditorBarContainer } from './editor-bar-container';
 
 export default function EditorBar() {
   const { state, dispatch, saveBook } = useEditor();
@@ -18,6 +25,9 @@ export default function EditorBar() {
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showAlert, setShowAlert] = useState<{ title: string; message: string } | null>(null);
+
+
+
 
   if (!state.currentBook) return null;
 
@@ -95,46 +105,96 @@ export default function EditorBar() {
       />
 
       {/* Editor Bar */}
-      <Card className={`rounded-none border-x-0 border-t-0 shadow-sm ${
-        !state.editorBarVisible ? 'hidden md:block' : ''
-      }`}>
-        <CardContent className="p-2 md:p-4 overflow-x-auto scrollbar-hide">
-          <div className="flex items-center gap-2 md:gap-4 min-w-max">
-            {/* Page Controls */}
-            <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
-              <PageNavigation
-                currentPage={currentPage}
-                totalPages={pages.length}
-                onPrevPage={handlePrevPage}
-                onNextPage={handleNextPage}
-                canGoPrev={state.activePageIndex > 0}
-                canGoNext={state.activePageIndex < pages.length - 1}
-              />
+      <EditorBarContainer isVisible={state.editorBarVisible}>
+        <Accordion type="single" collapsible defaultValue="controls">
+          <AccordionItem value="controls">
+            <AccordionTrigger className="flex items-center space-x-2 py-2">
+              <Tooltip content="Show controls for book and pages" side="bottom" backgroundColor="bg-background" textColor="text-foreground">
+                <LayoutGrid className="h-6 w-6" />
+              </Tooltip>
+              {/* <span>Controls</span> */}
+            </AccordionTrigger>
+            <AccordionContent className="">
+              <div className="flex items-center gap-2 md:gap-4 w-full">
+                {/* Page Controls */}
+                <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
+                  <PageNavigation
+                    currentPage={currentPage}
+                    totalPages={pages.length}
+                    onPrevPage={handlePrevPage}
+                    onNextPage={handleNextPage}
+                    canGoPrev={state.activePageIndex > 0}
+                    canGoNext={state.activePageIndex < pages.length - 1}
+                  />
 
-              <div className="hidden md:block h-6 w-px bg-border" />
+                  <div className="hidden md:block h-6 w-px bg-border" />
 
-              <PageActions
-                onAddPage={handleAddPage}
-                onDuplicatePage={handleDuplicatePage}
-                onDeletePage={handleDeletePage}
-                canDelete={pages.length > 1}
-              />
-            </div>
+                  <PageActions
+                    onAddPage={handleAddPage}
+                    onDuplicatePage={handleDuplicatePage}
+                    onDeletePage={handleDeletePage}
+                    canDelete={pages.length > 1}
+                  />
+                </div>
 
-            {/* Book Info and Actions */}
-            <div className="flex items-center gap-2 md:gap-4 flex-shrink-0 ml-auto">
-              <BookTitle title={state.currentBook.name} />
+                {/* Book Info and Actions */}
+                <div className="flex items-center gap-4 md:gap-8 flex-shrink-0 ml-auto">
+                  <div className="flex items-center gap-2">
+                    <BookTitle title={state.currentBook.name} />
+                    <Book className="h-4 w-4 text-ref-icon" />
+                  </div>
 
-              <BookActions
-                onSave={handleSave}
-                onExport={() => setShowPDFModal(true)}
-                onClose={handleClose}
-                isSaving={isSaving}
-              />
-            </div>
+                  <BookActions
+                    onSave={handleSave}
+                    onExport={() => setShowPDFModal(true)}
+                    onClose={handleClose}
+                    isSaving={isSaving}
+                  />
+                </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+          
+          <div className="w-px bg-gray-200 mx-1 self-stretch" />
+          
+          <AccordionItem value="settings">
+            <AccordionTrigger className="flex items-center space-x-2 py-2">
+              <Tooltip content="Show settings" side="bottom">
+                <Settings className="h-6 w-6" />
+              </Tooltip>
+              {/* <span>Settings</span> */}
+            </AccordionTrigger>
+            <AccordionContent className="">
+              <div className="flex items-center justify-center py-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center gap-2"
+                  onClick={() => console.log('Settings:', 'theme')}
+                >
+                  <Palette className="h-4 w-4" />
+                  <span>Theme</span>
+                </Button>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+          
+          <div className="w-px bg-gray-200 mx-1 self-stretch" />
+          
+          <div className="flex items-center py-2">
+            <Tooltip content="Close editor and return to books" side="bottom" backgroundColor="bg-background" textColor="text-foreground">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleClose}
+                className="h-8 w-8 p-0 md:h-9 md:w-9"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </Tooltip>
           </div>
-        </CardContent>
-      </Card>
+        </Accordion>
+      </EditorBarContainer>
       
       <PDFExportModal 
         isOpen={showPDFModal} 

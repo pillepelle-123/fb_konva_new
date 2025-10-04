@@ -101,6 +101,9 @@ export default function PhotoPlaceholder({ element, isSelected, onSelect, onDrag
       id={element.id}
       x={element.x}
       y={element.y}
+      rotation={element.rotation || 0}
+      scaleX={element.scaleX || 1}
+      scaleY={element.scaleY || 1}
       draggable={state.activeTool === 'select' && !isMovingGroup}
       onClick={handleClick}
       onTap={handleClick}

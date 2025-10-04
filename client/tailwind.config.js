@@ -40,6 +40,7 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        "ref-icon": "hsl(var(--ref-icon))",
       },
       borderRadius: {
         lg: "var(--radius)",

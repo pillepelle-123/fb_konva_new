@@ -14,12 +14,16 @@ import {
   Minus, 
   Circle, 
   Square, 
-  Paintbrush
+  Paintbrush,
+  Palette,
+  Wrench,
+  Settings
 } from 'lucide-react';
 
 export default function Toolbar() {
   const { state, dispatch } = useEditor();
   const [isExpanded, setIsExpanded] = useState(true);
+
 
   const toolGroups = [
     {
@@ -67,14 +71,16 @@ export default function Toolbar() {
       >
         <ToolbarHeader 
           isExpanded={isExpanded} 
-          onToggle={() => setIsExpanded(!isExpanded)} 
+          onToggle={() => setIsExpanded(!isExpanded)}
         />
-        <ToolbarContent 
-          toolGroups={toolGroups}
-          activeTool={state.activeTool}
-          isExpanded={isExpanded}
-          onToolSelect={(toolId) => dispatch({ type: 'SET_ACTIVE_TOOL', payload: toolId as any })}
-        />
+        <div className="px-2">
+          <ToolbarContent 
+            toolGroups={toolGroups}
+            activeTool={state.activeTool}
+            isExpanded={isExpanded}
+            onToolSelect={(toolId) => dispatch({ type: 'SET_ACTIVE_TOOL', payload: toolId as any })}
+          />
+        </div>
       </ToolbarContainer>
     </TooltipProvider>
   );

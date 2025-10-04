@@ -22,7 +22,7 @@ interface ToolbarContentProps {
 
 export function ToolbarContent({ toolGroups, activeTool, isExpanded, onToolSelect }: ToolbarContentProps) {
   return (
-    <CardContent className="p-2 overflow-y-auto scrollbar-hide flex-1 min-h-0">
+    <CardContent className="p-1 overflow-y-auto scrollbar-hide flex-1 min-h-0">
       {toolGroups.map((group, groupIndex) => (
         <ToolGroup
           key={group.name}

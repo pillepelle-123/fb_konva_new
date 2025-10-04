@@ -24,7 +24,9 @@
   --destructive-foreground: 210 40% 98%; /* #f8fafc */
   --border: 214.3 31.8% 91.4%; /* #e2e8f0 */
   --input: 214.3 31.8% 91.4%; /* #e2e8f0 */
-  --ring: 221.2 83.2% 53.3%; /* #3b82f6 */ 
+  --ring: 221.2 83.2% 53.3%; /* #3b82f6 */
+  --ref-icon: 0 0% 61%; /* #9b9b9b */ 
+  /* non-color variables */
   --radius: 0.5rem;
 }
 
@@ -48,6 +50,9 @@
   --border: 217.2 32.6% 17.5%; /* #1e293b */
   --input: 217.2 32.6% 17.5%; /* #1e293b */
   --ring: 224.3 76.3% 94.1%; /* #e0e7ff */
+  --ref-icon: 0 0% 61%; /* #9b9b9b */ 
+  /* non-color variables */
+  --radius: 0.5rem;
 }
 
 * {
@@ -102,6 +107,33 @@ html, body {
   .no-print {
     display: none !important;
   }
+}
+
+/* Accordion animations */
+@keyframes accordion-down {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+  }
+}
+
+@keyframes accordion-up {
+  from {
+    height: var(--radix-accordion-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
+
+.animate-accordion-down {
+  animation: accordion-down 0.2s ease-out;
+}
+
+.animate-accordion-up {
+  animation: accordion-up 0.2s ease-out;
 }
 
 /* Smooth transitions */

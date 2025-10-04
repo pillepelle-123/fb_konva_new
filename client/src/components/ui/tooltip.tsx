@@ -8,23 +8,36 @@ interface TooltipProps {
   title?: string;
   description?: string;
   side?: "top" | "right" | "bottom" | "left";
+  backgroundColor?: string;
+  textColor?: string;
 }
 
-export function Tooltip({ children, content, title, description, side = "right" }: TooltipProps) {
+export function Tooltip({ children, content, title, description, side = "right", backgroundColor = "bg-background", textColor = "text-foreground" }: TooltipProps) {
   const [isVisible, setIsVisible] = React.useState(false);
+  const [isMounted, setIsMounted] = React.useState(false);
   const [position, setPosition] = React.useState({ x: 0, y: 0 });
   const triggerRef = React.useRef<HTMLDivElement>(null);
 
   const updatePosition = () => {
     if (triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
-      setPosition({ x: rect.right + 8, y: rect.top + rect.height / 2 });
+      if (side === "bottom") {
+        setPosition({ x: window.innerWidth / 2, y: rect.bottom + 12 });
+      } else {
+        setPosition({ x: rect.right + 6, y: rect.top + rect.height / 2 });
+      }
     }
   };
 
   const handleMouseEnter = () => {
     updatePosition();
-    setIsVisible(true);
+    setIsMounted(true);
+    setTimeout(() => setIsVisible(true), 10);
+  };
+
+  const handleMouseLeave = () => {
+    setIsVisible(false);
+    setTimeout(() => setIsMounted(false), 200);
   };
 
   return (
@@ -32,12 +45,17 @@ export function Tooltip({ children, content, title, description, side = "right" 
       ref={triggerRef}
       className="relative block"
       onMouseEnter={handleMouseEnter}
-      onMouseLeave={() => setIsVisible(false)}
+      onMouseLeave={handleMouseLeave}
     >
       {children}
-      {isVisible && createPortal(
+      {isMounted && createPortal(
         <div
-          className="fixed z-[9999] px-3 py-2 text-sm text-white bg-gray-900 rounded-md shadow-lg transform -translate-y-1/2 w-48"
+          className={cn(
+            "fixed z-[9999] px-3 py-2 text-sm rounded-md shadow-lg break-words transition-all duration-200 ease-out pointer-events-none",
+            backgroundColor, textColor,
+            side === "bottom" ? "transform -translate-x-1/2 max-w-xs" : "transform -translate-y-1/2 w-60",
+            isVisible ? "opacity-100 scale-100" : "opacity-0 scale-95"
+          )}
           style={{
             left: position.x,
             top: position.y,
@@ -46,7 +64,14 @@ export function Tooltip({ children, content, title, description, side = "right" 
           {title && description ? (
             <div>
               <div className="font-medium">{title}</div>
-              <div className="text-xs text-gray-300 mt-1">{description}</div>
+              <div className={cn(
+                "text-xs",
+                textColor,
+                "mt-1"
+              )}
+              >
+            {description}</div>
+              {/* <div className="text-xs text-gray-300 mt-1">{description}</div> */}
             </div>
           ) : (
             content

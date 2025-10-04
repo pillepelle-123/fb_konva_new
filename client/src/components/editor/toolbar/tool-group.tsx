@@ -2,6 +2,7 @@ import { type Icon } from 'lucide-react';
 import { ToolButton } from './tool-button';
 import { ToolGroupLabel } from './tool-group-label';
 import { ToolGroupSeparator } from './tool-group-separator';
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '../../ui/accordion';
 
 interface Tool {
   id: string;
@@ -22,22 +23,44 @@ export function ToolGroup({ name, tools, activeTool, isExpanded, showSeparator, 
   return (
     <div>
       {showSeparator && <ToolGroupSeparator />}
-      {isExpanded && (
-        <ToolGroupLabel>{name}</ToolGroupLabel>
+      {isExpanded ? (
+        <Accordion type="single" collapsible>
+          <AccordionItem value={name}>
+            <AccordionTrigger className="py-2">
+              <ToolGroupLabel>{name}</ToolGroupLabel>
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="space-y-1 border-b-0">
+                {tools.map(tool => (
+                  <ToolButton
+                    key={tool.id}
+                    id={tool.id}
+                    label={tool.label}
+                    icon={tool.icon}
+                    isActive={activeTool === tool.id}
+                    isExpanded={isExpanded}
+                    onClick={() => onToolSelect(tool.id)}
+                  />
+                ))}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      ) : (
+        <div className="space-y-1">
+          {tools.map(tool => (
+            <ToolButton
+              key={tool.id}
+              id={tool.id}
+              label={tool.label}
+              icon={tool.icon}
+              isActive={activeTool === tool.id}
+              isExpanded={isExpanded}
+              onClick={() => onToolSelect(tool.id)}
+            />
+          ))}
+        </div>
       )}
-      <div className="space-y-1">
-        {tools.map(tool => (
-          <ToolButton
-            key={tool.id}
-            id={tool.id}
-            label={tool.label}
-            icon={tool.icon}
-            isActive={activeTool === tool.id}
-            isExpanded={isExpanded}
-            onClick={() => onToolSelect(tool.id)}
-          />
-        ))}
-      </div>
     </div>
   );
 }

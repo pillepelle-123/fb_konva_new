@@ -12,7 +12,7 @@ export function ToolbarToggle({ isExpanded, onToggle }: ToolbarToggleProps) {
       variant="ghost"
       size="sm"
       onClick={onToggle}
-      className="h-8 w-8 p-0"
+      className="h-8 w-8 p-0 flex items-center justify-end"
     >
       {isExpanded ? (
         <ChevronLeft className="h-4 w-4" />
