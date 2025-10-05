@@ -4,7 +4,7 @@ CREATE TABLE users (
   name VARCHAR(100) NOT NULL,
   email VARCHAR(255) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
-  role VARCHAR(50) NOT NULL DEFAULT 'editor', -- 'admin' or 'editor'
+  role VARCHAR(50) NOT NULL DEFAULT 'user', -- 'admin' or 'user'
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -31,11 +31,11 @@ CREATE TABLE pages (
 );
 
 -- Book Collaborators Table
-CREATE TABLE book_collaborators (
+CREATE TABLE book_friends (
   id SERIAL PRIMARY KEY,
   book_id INTEGER REFERENCES books(id) ON DELETE CASCADE,
   user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-  role VARCHAR(50) NOT NULL DEFAULT 'editor', -- 'admin' or 'editor'
+  role VARCHAR(50) NOT NULL DEFAULT 'author', -- 'author' or 'publisher'
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(book_id, user_id)
 );
@@ -94,6 +94,6 @@ VALUES ('Admin User', 'admin@example.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3
 -- Create indexes for better performance
 CREATE INDEX idx_books_owner_id ON books(owner_id);
 CREATE INDEX idx_pages_book_id ON pages(book_id);
-CREATE INDEX idx_book_collaborators_book_id ON book_collaborators(book_id);
-CREATE INDEX idx_book_collaborators_user_id ON book_collaborators(user_id);
+CREATE INDEX idx_book_friends_book_id ON book_friends(book_id);
+CREATE INDEX idx_book_friends_user_id ON book_friends(user_id);
 CREATE INDEX idx_questions_book_id ON questions(book_id);

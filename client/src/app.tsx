@@ -12,6 +12,7 @@ import BooksList from './pages/books/index'
 import BookArchive from './pages/books/archive'
 import PhotosList from './pages/photos/index'
 import QuestionsList from './pages/questions/index'
+import FriendsList from './pages/friends/index'
 import Editor from './pages/editor'
 import ProtectedRoute from './components/layout/protected-route'
 
@@ -54,6 +55,7 @@ function AppContent() {
           <Route path="/books/archive" element={<ProtectedRoute><BookArchive /></ProtectedRoute>} />
           <Route path="/photos" element={<ProtectedRoute><PhotosList /></ProtectedRoute>} />
           <Route path="/questions/:bookId" element={<ProtectedRoute><QuestionsList /></ProtectedRoute>} />
+          <Route path="/friends/:bookId" element={<ProtectedRoute><FriendsList /></ProtectedRoute>} />
           <Route path="/editor/:bookId" element={<ProtectedRoute><EditorWithBar /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminPanel /></ProtectedRoute>} />
         </Routes>
@@ -102,7 +104,7 @@ function AdminPanel() {
         <div className="bg-card border rounded-lg p-6 shadow-sm">
           <h2 className="text-lg font-semibold mb-2">Admin Features</h2>
           <p className="text-muted-foreground">
-            Manage books, questions, and invite editors.
+            Manage books, questions, and invite authors.
           </p>
         </div>
       </div>

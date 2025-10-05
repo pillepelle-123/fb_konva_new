@@ -18,25 +18,25 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
 
     // Get collaborated books count
     const collaboratedBooks = await pool.query(
-      'SELECT COUNT(*) FROM public.book_collaborators WHERE user_id = $1',
+      'SELECT COUNT(*) FROM public.book_friends WHERE user_id = $1',
       [userId]
     );
 
     // Get total collaborators across all user's books
     const collaborators = await pool.query(`
-      SELECT COUNT(DISTINCT bc.user_id) 
-      FROM public.book_collaborators bc
-      JOIN public.books b ON bc.book_id = b.id
-      WHERE b.owner_id = $1 OR bc.user_id = $1
+      SELECT COUNT(DISTINCT bf.user_id) 
+      FROM public.book_friends bf
+      JOIN public.books b ON bf.book_id = b.id
+      WHERE b.owner_id = $1 OR bf.user_id = $1
     `, [userId]);
 
     // Get recent books (owned + collaborated)
     const recentBooks = await pool.query(`
       SELECT DISTINCT b.id, b.name, b.updated_at, b.owner_id,
-        (SELECT COUNT(*) FROM public.book_collaborators WHERE book_id = b.id) as collaborator_count
+        (SELECT COUNT(*) FROM public.book_friends WHERE book_id = b.id) as collaborator_count
       FROM public.books b
-      LEFT JOIN public.book_collaborators bc ON b.id = bc.book_id
-      WHERE (b.owner_id = $1 OR bc.user_id = $1) AND b.archived = FALSE
+      LEFT JOIN public.book_friends bf ON b.id = bf.book_id
+      WHERE (b.owner_id = $1 OR bf.user_id = $1) AND b.archived = FALSE
       ORDER BY b.updated_at DESC
       LIMIT 5
     `, [userId]);
@@ -68,10 +68,10 @@ router.get('/', authenticateToken, async (req, res) => {
     const books = await pool.query(`
       SELECT DISTINCT b.id, b.name, b.page_size, b.orientation, b.owner_id, b.created_at,
         COALESCE((SELECT COUNT(*) FROM public.pages WHERE book_id = b.id), 0) as page_count,
-        COALESCE((SELECT COUNT(*) FROM public.book_collaborators WHERE book_id = b.id), 0) as collaborator_count
+        COALESCE((SELECT COUNT(*) FROM public.book_friends WHERE book_id = b.id), 0) as collaborator_count
       FROM public.books b
-      LEFT JOIN public.book_collaborators bc ON b.id = bc.book_id
-      WHERE (b.owner_id = $1 OR bc.user_id = $1) AND b.archived = FALSE
+      LEFT JOIN public.book_friends bf ON b.id = bf.book_id
+      WHERE (b.owner_id = $1 OR bf.user_id = $1) AND b.archived = FALSE
       ORDER BY b.created_at DESC
     `, [userId]);
 
@@ -98,8 +98,8 @@ router.get('/archived', authenticateToken, async (req, res) => {
     const books = await pool.query(`
       SELECT DISTINCT b.id, b.name, b.page_size, b.orientation, b.owner_id, b.created_at
       FROM public.books b
-      LEFT JOIN public.book_collaborators bc ON b.id = bc.book_id
-      WHERE (b.owner_id = $1 OR bc.user_id = $1) AND b.archived = TRUE
+      LEFT JOIN public.book_friends bf ON b.id = bf.book_id
+      WHERE (b.owner_id = $1 OR bf.user_id = $1) AND b.archived = TRUE
       ORDER BY b.created_at DESC
     `, [userId]);
 
@@ -126,8 +126,8 @@ router.get('/:id', authenticateToken, async (req, res) => {
     // Check if user has access to this book
     const bookAccess = await pool.query(`
       SELECT b.* FROM public.books b
-      LEFT JOIN public.book_collaborators bc ON b.id = bc.book_id
-      WHERE b.id = $1 AND (b.owner_id = $2 OR bc.user_id = $2)
+      LEFT JOIN public.book_friends bf ON b.id = bf.book_id
+      WHERE b.id = $1 AND (b.owner_id = $2 OR bf.user_id = $2)
     `, [bookId, userId]);
 
     if (bookAccess.rows.length === 0) {
@@ -169,8 +169,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
     // Check if user has access to this book
     const bookAccess = await pool.query(`
       SELECT b.* FROM public.books b
-      LEFT JOIN public.book_collaborators bc ON b.id = bc.book_id
-      WHERE b.id = $1 AND (b.owner_id = $2 OR bc.user_id = $2)
+      LEFT JOIN public.book_friends bf ON b.id = bf.book_id
+      WHERE b.id = $1 AND (b.owner_id = $2 OR bf.user_id = $2)
     `, [bookId, userId]);
 
     if (bookAccess.rows.length === 0) {
@@ -220,10 +220,10 @@ router.post('/', authenticateToken, async (req, res) => {
       [bookId, 1, JSON.stringify([])]
     );
 
-    // Add owner as admin collaborator
+    // Add owner as publisher collaborator
     await pool.query(
-      'INSERT INTO public.book_collaborators (book_id, user_id, role) VALUES ($1, $2, $3)',
-      [bookId, userId, 'admin']
+      'INSERT INTO public.book_friends (book_id, user_id, role) VALUES ($1, $2, $3)',
+      [bookId, userId, 'publisher']
     );
 
     res.json(result.rows[0]);
@@ -296,8 +296,8 @@ router.post('/:id/collaborators', authenticateToken, async (req, res) => {
 
     // Add collaborator
     await pool.query(
-      'INSERT INTO public.book_collaborators (book_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-      [bookId, user.rows[0].id, 'editor']
+      'INSERT INTO public.book_friends (book_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+      [bookId, user.rows[0].id, 'author']
     );
 
     res.json({ success: true });
@@ -320,7 +320,7 @@ router.delete('/:id/collaborators/:userId', authenticateToken, async (req, res) 
     }
 
     await pool.query(
-      'DELETE FROM public.book_collaborators WHERE book_id = $1 AND user_id = $2',
+      'DELETE FROM public.book_friends WHERE book_id = $1 AND user_id = $2',
       [bookId, collaboratorId]
     );
 
@@ -375,6 +375,99 @@ router.post('/:id/questions', authenticateToken, async (req, res) => {
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Question create error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get friends for a book
+router.get('/:id/friends', authenticateToken, async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const userId = req.user.id;
+
+    // Check if user has access to this book
+    const bookAccess = await pool.query(`
+      SELECT b.* FROM public.books b
+      LEFT JOIN public.book_friends bf ON b.id = bf.book_id
+      WHERE b.id = $1 AND (b.owner_id = $2 OR bf.user_id = $2)
+    `, [bookId, userId]);
+
+    if (bookAccess.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const friends = await pool.query(`
+      SELECT u.id, u.name, u.email, bf.role
+      FROM public.book_friends bf
+      JOIN public.users u ON bf.user_id = u.id
+      WHERE bf.book_id = $1 AND bf.user_id != $2
+      ORDER BY u.name ASC
+    `, [bookId, userId]);
+
+    res.json(friends.rows);
+  } catch (error) {
+    console.error('Friends fetch error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Update friend role
+router.put('/:id/friends/:friendId/role', authenticateToken, async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const friendId = req.params.friendId;
+    const { role } = req.body;
+    const userId = req.user.id;
+
+    // Check if user is owner or publisher
+    const bookAccess = await pool.query(`
+      SELECT b.*, bf.role as user_role FROM public.books b
+      LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
+      WHERE b.id = $1 AND (b.owner_id = $2 OR bf.role = 'publisher')
+    `, [bookId, userId]);
+
+    if (bookAccess.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    await pool.query(
+      'UPDATE public.book_friends SET role = $1 WHERE book_id = $2 AND user_id = $3',
+      [role, bookId, friendId]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Role update error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Remove friend from book
+router.delete('/:id/friends/:friendId', authenticateToken, async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const friendId = req.params.friendId;
+    const userId = req.user.id;
+
+    // Check if user is owner or publisher
+    const bookAccess = await pool.query(`
+      SELECT b.*, bf.role as user_role FROM public.books b
+      LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
+      WHERE b.id = $1 AND (b.owner_id = $2 OR bf.role = 'publisher')
+    `, [bookId, userId]);
+
+    if (bookAccess.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    await pool.query(
+      'DELETE FROM public.book_friends WHERE book_id = $1 AND user_id = $2',
+      [bookId, friendId]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Friend removal error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

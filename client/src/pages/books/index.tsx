@@ -5,7 +5,7 @@ import { Button } from '../../components/ui/primitives/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Input } from '../../components/ui/primitives/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
-import { Book, Plus, Users, Archive, Edit, Settings, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Image, Book, Plus, Users, Archive, Edit, Settings, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Book {
   id: number;
@@ -146,7 +146,7 @@ export default function BooksList() {
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {books.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(book => (
-              <Card key={book.id} className="border shadow-sm hover:shadow-md transition-all duration-200 hover:border-primary/20">
+              <Card key={book.id} className="border shadow-sm hover:shadow-md transition-all duration-200 hover:border-primary/20 overflow-hidden">
                 <CardHeader className="pb-4">
                   <div className="flex items-start justify-between">
                     <div className="space-y-1">
@@ -159,12 +159,10 @@ export default function BooksList() {
                         <span className="capitalize">{book.orientation}</span>
                       </CardDescription>
                     </div>
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/5">
                       <Book className="h-4 w-4 text-primary" />
                     </div>
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
                   <div className="flex items-center justify-between text-sm text-ref-icon">
                     <div className="flex items-center space-x-4">
                       <div className="flex items-center space-x-1">
@@ -184,14 +182,28 @@ export default function BooksList() {
                       {book.isOwner ? 'Owner' : 'Collaborator'}
                     </span>
                   </div>
+                </CardHeader>
+                <BookCardPreview book={book} />
+                <CardContent className="space-y-4">
                   
-                  <div className="flex flex-wrap gap-2">
+                  
+                  
+                  <div className="flex flex-wrap gap-2 border-t pt-4">
                     <Link to={`/editor/${book.id}`} className="flex-1">
                       <Button variant="default" size="sm" className="w-full space-x-2">
-                        <Edit className="h-3 w-3" />
-                        <span>Edit</span>
+                        <Edit className="h-4 w-4" />
+                        {/* <span>Edit</span> */}
                       </Button>
                     </Link>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => navigate(`/friends/${book.id}`)}
+                      className="space-x-2"
+                    >
+                      <Users className="h-4 w-4" />
+                      {/* <span>Friends</span> */}
+                    </Button>
                     {book.isOwner && (
                       <Button 
                         variant="outline" 
@@ -199,13 +211,13 @@ export default function BooksList() {
                         onClick={() => navigate(`/questions/${book.id}`)}
                         className="space-x-2"
                       >
-                        <Settings className="h-3 w-3" />
-                        <span>Questions</span>
+                        <Settings className="h-4 w-4" />
+                        {/* <span>Questions</span> */}
                       </Button>
                     )}
                   </div>
                   
-                  <div className="flex justify-between items-center pt-2 border-t">
+                  {/* <div className="flex justify-between items-center pt-2 border-t">
                     {book.isOwner && (
                       <Button 
                         variant="ghost" 
@@ -218,7 +230,7 @@ export default function BooksList() {
                       </Button>
                     )}
                     <Button 
-                      variant="ghost" 
+                      variant="outline" 
                       size="sm"
                       onClick={() => handleArchive(book.id)}
                       className="space-x-2 text-destructive hover:text-destructive"
@@ -226,7 +238,7 @@ export default function BooksList() {
                       <Archive className="h-3 w-3" />
                       <span>Archive</span>
                     </Button>
-                  </div>
+                  </div> */}
                 </CardContent>
               </Card>
               ))}
@@ -450,5 +462,48 @@ function CollaboratorModal({ bookId, onClose }: { bookId: number; onClose: () =>
         </Button>
       </div>
     </form>
+  );
+}
+
+function BookCardPreview({ book }: { book: any }) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const { token } = useAuth();
+
+  useEffect(() => {
+    const fetchBookData = async () => {
+      try {
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+        const response = await fetch(`${apiUrl}/books/${book.id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const bookData = await response.json();
+          const firstImage = bookData.pages?.flatMap(page => page.elements || [])
+            .find(element => element.type === 'image' && element.src);
+          
+          if (firstImage?.src) {
+            setPreviewUrl(firstImage.src);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching book data:', error);
+      }
+    };
+
+    fetchBookData();
+  }, [book.id, token]);
+
+  return (
+    <div className="h-32 overflow-hidden bg-white flex items-center justify-center">
+      {previewUrl ? (
+        <img 
+          src={previewUrl} 
+          alt="Book preview" 
+          className="w-full h-full object-cover"
+        />
+      ) : (
+        <Image className="h-16 w-16 text-gray-200" />
+      )}
+    </div>
   );
 }
