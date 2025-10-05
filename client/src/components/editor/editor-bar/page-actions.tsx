@@ -17,7 +17,7 @@ export function PageActions({
 }: PageActionsProps) {
   return (
     <div className="flex items-center gap-1 md:gap-2">
-      <Tooltip content="Add new page" side="bottom" backgroundColor="bg-background" textColor="text-foreground">
+      <Tooltip content="Add new page" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
         <Button
           variant="outline"
           size="sm"
@@ -29,7 +29,7 @@ export function PageActions({
         </Button>
       </Tooltip>
 
-      <Tooltip content="Duplicate current page" side="bottom" backgroundColor="bg-background" textColor="text-foreground">
+      <Tooltip content="Duplicate current page" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
         <Button
           variant="outline"
           size="sm"
@@ -41,7 +41,7 @@ export function PageActions({
         </Button>
       </Tooltip>
 
-      <Tooltip content={canDelete ? "Delete current page" : "Cannot delete the last page"} side="bottom" backgroundColor="bg-background" textColor="text-foreground">
+      <Tooltip content={canDelete ? "Delete current page" : "Cannot delete the last page"} side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
         <Button
           variant="outline"
           size="sm"

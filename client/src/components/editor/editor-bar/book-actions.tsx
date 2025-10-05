@@ -16,7 +16,7 @@ export function BookActions({
 }: BookActionsProps) {
   return (
     <div className="flex items-center gap-1 md:gap-2">
-      <Tooltip content={isSaving ? 'Saving...' : 'Save book'} side="bottom" backgroundColor="bg-background" textColor="text-foreground">
+      <Tooltip content={isSaving ? 'Saving...' : 'Save book'} side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
         <Button
           variant="outline"
           size="sm"
@@ -29,7 +29,7 @@ export function BookActions({
         </Button>
       </Tooltip>
 
-      <Tooltip content="Export as PDF" side="bottom" backgroundColor="bg-background" textColor="text-foreground">
+      <Tooltip content="Export as PDF" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
         <Button
           variant="outline"
           size="sm"

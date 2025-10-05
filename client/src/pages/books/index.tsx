@@ -5,7 +5,8 @@ import { Button } from '../../components/ui/primitives/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Input } from '../../components/ui/primitives/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
-import { Image, Book, Plus, Users, Archive, Edit, Settings, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Tooltip } from '../../components/ui/tooltip';
+import { Image, Book, Plus, Users, Archive, Edit, Settings, FileText, ChevronLeft, ChevronRight, MessageCircleQuestionMark } from 'lucide-react';
 
 interface Book {
   id: number;
@@ -189,32 +190,47 @@ export default function BooksList() {
                   
                   
                   <div className="flex flex-wrap gap-2 border-t pt-4">
-                    <Link to={`/editor/${book.id}`} className="flex-1">
-                      <Button variant="default" size="sm" className="w-full space-x-2">
-                        <Edit className="h-4 w-4" />
-                        {/* <span>Edit</span> */}
-                      </Button>
-                    </Link>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => navigate(`/friends/${book.id}`)}
-                      className="space-x-2"
-                    >
-                      <Users className="h-4 w-4" />
-                      {/* <span>Friends</span> */}
-                    </Button>
-                    {book.isOwner && (
+                    <div className="flex-1">
+                      <Tooltip content="Edit" side="top">
+                        <Link to={`/editor/${book.id}`} className="block">
+                          <Button variant="default" size="sm" className="w-full space-x-2">
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                      </Tooltip>
+                    </div>
+                    <Tooltip content="Friends" side="bottom2">
                       <Button 
                         variant="outline" 
                         size="sm"
-                        onClick={() => navigate(`/questions/${book.id}`)}
+                        onClick={() => navigate(`/friends/${book.id}`)}
                         className="space-x-2"
                       >
-                        <Settings className="h-4 w-4" />
-                        {/* <span>Questions</span> */}
+                        <Users className="h-4 w-4" />
                       </Button>
+                    </Tooltip>
+                    {book.isOwner && (
+                      <Tooltip content="Questions" side="bottom2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => navigate(`/questions/${book.id}`)}
+                          className="space-x-2"
+                        >
+                          <Settings className="h-4 w-4" />
+                        </Button>
+                      </Tooltip>
                     )}
+                    <Tooltip content="Archive" side="bottom2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleArchive(book.id)}
+                        className="space-x-2 text-destructive hover:text-destructive"
+                      >
+                        <Archive className="h-3 w-3" />
+                      </Button>
+                    </Tooltip>
                   </div>
                   
                   {/* <div className="flex justify-between items-center pt-2 border-t">

@@ -95,6 +95,10 @@ export default function EditorBar() {
     dispatch({ type: 'DUPLICATE_PAGE', payload: state.activePageIndex });
   };
 
+  const handleGoToPage = (page: number) => {
+    dispatch({ type: 'SET_ACTIVE_PAGE', payload: page - 1 });
+  };
+
   return (
     <>
       <FloatingActionButtons
@@ -109,7 +113,7 @@ export default function EditorBar() {
         <Accordion type="single" collapsible defaultValue="controls">
           <AccordionItem value="controls">
             <AccordionTrigger className="flex items-center space-x-2 py-2">
-              <Tooltip content="Show controls for book and pages" side="bottom" backgroundColor="bg-background" textColor="text-foreground">
+              <Tooltip content="Show controls for book and pages" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
                 <LayoutGrid className="h-6 w-6" />
               </Tooltip>
               {/* <span>Controls</span> */}
@@ -123,6 +127,7 @@ export default function EditorBar() {
                     totalPages={pages.length}
                     onPrevPage={handlePrevPage}
                     onNextPage={handleNextPage}
+                    onGoToPage={handleGoToPage}
                     canGoPrev={state.activePageIndex > 0}
                     canGoNext={state.activePageIndex < pages.length - 1}
                   />
@@ -159,7 +164,7 @@ export default function EditorBar() {
           
           <AccordionItem value="settings">
             <AccordionTrigger className="flex items-center space-x-2 py-2">
-              <Tooltip content="Show settings" side="bottom">
+              <Tooltip content="Show settings" side="bottom_editor_bar">
                 <Settings className="h-6 w-6" />
               </Tooltip>
               {/* <span>Settings</span> */}
@@ -182,7 +187,7 @@ export default function EditorBar() {
           <div className="w-px bg-gray-200 mx-1 self-stretch" />
           
           <div className="flex items-center py-2">
-            <Tooltip content="Close editor and return to books" side="bottom" backgroundColor="bg-background" textColor="text-foreground">
+            <Tooltip content="Close editor and return to books" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
               <Button
                 variant="ghost"
                 size="sm"

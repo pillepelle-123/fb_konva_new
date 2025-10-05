@@ -7,7 +7,7 @@ interface TooltipProps {
   content?: string;
   title?: string;
   description?: string;
-  side?: "top" | "right" | "bottom" | "left";
+  side?: "top" | "right" | "bottom_editor_bar" | "left" | "bottom";
   backgroundColor?: string;
   textColor?: string;
 }
@@ -21,8 +21,14 @@ export function Tooltip({ children, content, title, description, side = "right",
   const updatePosition = () => {
     if (triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
-      if (side === "bottom") {
+      if (side === "bottom_editor_bar") {
         setPosition({ x: window.innerWidth / 2, y: rect.bottom + 12 });
+      } else if (side === "bottom") {
+        setPosition({ x: rect.left + rect.width / 2, y: rect.bottom + 8 });
+      } else if (side === "top") {
+        setPosition({ x: rect.left + rect.width / 2, y: rect.top - 36 });
+      } else if (side === "left") {
+        setPosition({ x: rect.left - 6, y: rect.top + rect.height / 2 });
       } else {
         setPosition({ x: rect.right + 6, y: rect.top + rect.height / 2 });
       }
@@ -53,7 +59,7 @@ export function Tooltip({ children, content, title, description, side = "right",
           className={cn(
             "fixed z-[9999] px-3 py-2 text-sm rounded-md shadow-lg break-words transition-all duration-200 ease-out pointer-events-none",
             backgroundColor, textColor,
-            side === "bottom" ? "transform -translate-x-1/2 max-w-xs" : "transform -translate-y-1/2 w-60",
+            side === "bottom_editor_bar" || side === "bottom" || side === "top" ? "transform -translate-x-1/2 max-w-xs" : side === "left" ? "transform -translate-x-full -translate-y-1/2 max-w-xs" : "transform -translate-y-1/2 w-60",
             isVisible ? "opacity-100 scale-100" : "opacity-0 scale-95"
           )}
           style={{
