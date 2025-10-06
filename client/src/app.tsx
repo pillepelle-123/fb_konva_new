@@ -13,6 +13,8 @@ import BookArchive from './pages/books/archive'
 import PhotosList from './pages/photos/index'
 import QuestionsList from './pages/questions/index'
 import FriendsList from './pages/friends/index'
+import Profile from './pages/profile/index'
+import Settings from './pages/profile/settings'
 import Editor from './pages/editor'
 import ProtectedRoute from './components/layout/protected-route'
 
@@ -56,6 +58,9 @@ function AppContent() {
           <Route path="/photos" element={<ProtectedRoute><PhotosList /></ProtectedRoute>} />
           <Route path="/questions/:bookId" element={<ProtectedRoute><QuestionsList /></ProtectedRoute>} />
           <Route path="/friends/:bookId" element={<ProtectedRoute><FriendsList /></ProtectedRoute>} />
+          <Route path="/profile/:userId" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="/profile/my" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
           <Route path="/editor/:bookId" element={<ProtectedRoute><EditorWithBar /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminPanel /></ProtectedRoute>} />
         </Routes>

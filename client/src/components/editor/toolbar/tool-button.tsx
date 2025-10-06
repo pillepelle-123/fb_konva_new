@@ -8,6 +8,8 @@ interface ToolButtonProps {
   icon: Icon;
   isActive: boolean;
   isExpanded: boolean;
+  userRole?: 'author' | 'publisher' | null;
+  isOnAssignedPage?: boolean;
   onClick: () => void;
 }
 
@@ -27,18 +29,21 @@ const getToolInstruction = (toolId: string): { title: string; description: strin
   return instructions[toolId] || { title: `${toolId} Tool`, description: `Use ${toolId} tool` };
 };
 
-export function ToolButton({ id, label, icon: Icon, isActive, isExpanded, onClick }: ToolButtonProps) {
+export function ToolButton({ id, label, icon: Icon, isActive, isExpanded, userRole, isOnAssignedPage, onClick }: ToolButtonProps) {
   const instruction = getToolInstruction(id);
+  const isAuthor = userRole === 'author';
+  const isDisabled = (isAuthor && id !== 'pan' && !isOnAssignedPage) || (isAuthor && id === 'question');
   
   return (
     <Tooltip title={instruction.title} description={instruction.description} side="right">
       <Button
         variant={isActive ? "default" : "ghost"}
         size="sm"
-        onClick={onClick}
+        onClick={isDisabled ? undefined : onClick}
+        disabled={isDisabled}
         className={`w-full justify-start space-x-2 ${
           isExpanded ? 'px-3' : 'px-2'
-        }`}
+        } ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
         <Icon className="h-5 w-5 flex-shrink-0" />
         {isExpanded && (

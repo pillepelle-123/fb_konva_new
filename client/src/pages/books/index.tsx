@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Card, CardContent } from '../../components/ui/card';
 import { Input } from '../../components/ui/primitives/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
-import { Tooltip } from '../../components/ui/tooltip';
-import { Image, Book, Plus, Users, Archive, Edit, Settings, FileText, ChevronLeft, ChevronRight, MessageCircleQuestionMark } from 'lucide-react';
+import BooksGrid from '../../components/books-grid';
+import { Book, Plus } from 'lucide-react';
 
 interface Book {
   id: number;
@@ -25,8 +25,7 @@ export default function BooksList() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showCollaboratorModal, setShowCollaboratorModal] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+
   const [showAlert, setShowAlert] = useState<{ title: string; message: string } | null>(null);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState<number | null>(null);
 
@@ -103,31 +102,6 @@ export default function BooksList() {
           </Button>
         </div>
 
-        {/* Pagination */}
-        {books.length > itemsPerPage && (
-          <div className="flex justify-center items-center space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-              disabled={currentPage === 1}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              Page {currentPage} of {Math.ceil(books.length / itemsPerPage)}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(books.length / itemsPerPage)))}
-              disabled={currentPage === Math.ceil(books.length / itemsPerPage)}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
-
         {/* Books Grid */}
         {books.length === 0 ? (
           <Card className="border shadow-sm">
@@ -144,123 +118,7 @@ export default function BooksList() {
             </CardContent>
           </Card>
         ) : (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {books.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(book => (
-              <Card key={book.id} className="border shadow-sm hover:shadow-md transition-all duration-200 hover:border-primary/20 overflow-hidden">
-                <CardHeader className="pb-4">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <CardTitle className="text-lg font-semibold line-clamp-2">
-                        {book.name}
-                      </CardTitle>
-                      <CardDescription className="flex items-center space-x-2 text-sm">
-                        <span>{book.pageSize}</span>
-                        <span>•</span>
-                        <span className="capitalize">{book.orientation}</span>
-                      </CardDescription>
-                    </div>
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/5">
-                      <Book className="h-4 w-4 text-primary" />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between text-sm text-ref-icon">
-                    <div className="flex items-center space-x-4">
-                      <div className="flex items-center space-x-1">
-                        <FileText className="h-3 w-3" />
-                        <span>{book.pageCount} pages</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <Users className="h-3 w-3" />
-                        <span>{book.collaboratorCount}</span>
-                      </div>
-                    </div>
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      book.isOwner 
-                        ? 'bg-blue-100 text-blue-800' 
-                        : 'bg-green-100 text-green-800'
-                    }`}>
-                      {book.isOwner ? 'Owner' : 'Collaborator'}
-                    </span>
-                  </div>
-                </CardHeader>
-                <BookCardPreview book={book} />
-                <CardContent className="space-y-4">
-                  
-                  
-                  
-                  <div className="flex flex-wrap gap-2 border-t pt-4">
-                    <div className="flex-1">
-                      <Tooltip content="Edit" side="top">
-                        <Link to={`/editor/${book.id}`} className="block">
-                          <Button variant="default" size="sm" className="w-full space-x-2">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        </Link>
-                      </Tooltip>
-                    </div>
-                    <Tooltip content="Friends" side="bottom2">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => navigate(`/friends/${book.id}`)}
-                        className="space-x-2"
-                      >
-                        <Users className="h-4 w-4" />
-                      </Button>
-                    </Tooltip>
-                    {book.isOwner && (
-                      <Tooltip content="Questions" side="bottom2">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => navigate(`/questions/${book.id}`)}
-                          className="space-x-2"
-                        >
-                          <Settings className="h-4 w-4" />
-                        </Button>
-                      </Tooltip>
-                    )}
-                    <Tooltip content="Archive" side="bottom2">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleArchive(book.id)}
-                        className="space-x-2 text-destructive hover:text-destructive"
-                      >
-                        <Archive className="h-3 w-3" />
-                      </Button>
-                    </Tooltip>
-                  </div>
-                  
-                  {/* <div className="flex justify-between items-center pt-2 border-t">
-                    {book.isOwner && (
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => setShowCollaboratorModal(book.id)}
-                        className="space-x-2 text-muted-foreground hover:text-foreground"
-                      >
-                        <Users className="h-3 w-3" />
-                        <span>Collaborators</span>
-                      </Button>
-                    )}
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => handleArchive(book.id)}
-                      className="space-x-2 text-destructive hover:text-destructive"
-                    >
-                      <Archive className="h-3 w-3" />
-                      <span>Archive</span>
-                    </Button>
-                  </div> */}
-                </CardContent>
-              </Card>
-              ))}
-            </div>
-
-          </>
+          <BooksGrid books={books} />
         )}
 
         {/* Add Book Dialog */}

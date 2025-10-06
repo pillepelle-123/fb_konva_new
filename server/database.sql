@@ -5,6 +5,8 @@ CREATE TABLE users (
   email VARCHAR(255) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
   role VARCHAR(50) NOT NULL DEFAULT 'user', -- 'admin' or 'user'
+  profile_picture_192 VARCHAR(255),
+  profile_picture_32 VARCHAR(255),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -91,9 +93,22 @@ CREATE INDEX idx_photos_uploaded_by ON photos(uploaded_by);
 INSERT INTO users (name, email, password_hash, role) 
 VALUES ('Admin User', 'admin@example.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin');
 
+-- Page Assignments Table
+CREATE TABLE page_assignments (
+  id SERIAL PRIMARY KEY,
+  page_id INTEGER NOT NULL,
+  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  book_id INTEGER REFERENCES books(id) ON DELETE CASCADE,
+  assigned_by INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(page_id, user_id, book_id)
+);
+
 -- Create indexes for better performance
 CREATE INDEX idx_books_owner_id ON books(owner_id);
 CREATE INDEX idx_pages_book_id ON pages(book_id);
 CREATE INDEX idx_book_friends_book_id ON book_friends(book_id);
 CREATE INDEX idx_book_friends_user_id ON book_friends(user_id);
 CREATE INDEX idx_questions_book_id ON questions(book_id);
+CREATE INDEX idx_page_assignments_book_id ON page_assignments(book_id);
+CREATE INDEX idx_page_assignments_page_id ON page_assignments(page_id);

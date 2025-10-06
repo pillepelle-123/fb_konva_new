@@ -16,10 +16,12 @@ interface ToolGroupProps {
   activeTool: string;
   isExpanded: boolean;
   showSeparator: boolean;
+  userRole?: 'author' | 'publisher' | null;
+  isOnAssignedPage?: boolean;
   onToolSelect: (toolId: string) => void;
 }
 
-export function ToolGroup({ name, tools, activeTool, isExpanded, showSeparator, onToolSelect }: ToolGroupProps) {
+export function ToolGroup({ name, tools, activeTool, isExpanded, showSeparator, userRole, isOnAssignedPage, onToolSelect }: ToolGroupProps) {
   return (
     <div>
       {showSeparator && <ToolGroupSeparator />}
@@ -39,6 +41,8 @@ export function ToolGroup({ name, tools, activeTool, isExpanded, showSeparator, 
                     icon={tool.icon}
                     isActive={activeTool === tool.id}
                     isExpanded={isExpanded}
+                    userRole={userRole}
+                    isOnAssignedPage={isOnAssignedPage}
                     onClick={() => onToolSelect(tool.id)}
                   />
                 ))}
@@ -56,6 +60,8 @@ export function ToolGroup({ name, tools, activeTool, isExpanded, showSeparator, 
               icon={tool.icon}
               isActive={activeTool === tool.id}
               isExpanded={isExpanded}
+              userRole={userRole}
+              isOnAssignedPage={isOnAssignedPage}
               onClick={() => onToolSelect(tool.id)}
             />
           ))}

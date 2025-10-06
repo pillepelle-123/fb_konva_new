@@ -29,6 +29,10 @@ import {
 export default function Toolbar() {
   const { state, dispatch } = useEditor();
   const [isExpanded, setIsExpanded] = useState(true);
+  
+  const isOnAssignedPage = state.userRole === 'author' 
+    ? state.assignedPages.includes(state.activePageIndex + 1)
+    : true;
 
 
   const toolGroups = [
@@ -90,6 +94,8 @@ export default function Toolbar() {
             toolGroups={toolGroups}
             activeTool={state.activeTool}
             isExpanded={isExpanded}
+            userRole={state.userRole}
+            isOnAssignedPage={isOnAssignedPage}
             onToolSelect={(toolId) => dispatch({ type: 'SET_ACTIVE_TOOL', payload: toolId as any })}
           />
         </div>

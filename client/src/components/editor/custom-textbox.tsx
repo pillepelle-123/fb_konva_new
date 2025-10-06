@@ -223,17 +223,27 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
   }, [element.text, element.width, element.height, fontSize, lineHeight, displayText]);
 
   const handleDoubleClick = () => {
-    if (state.activeTool !== 'select') return;
-    
-    // Check permissions for editing
-    if (element.textType === 'question' && state.currentBook?.owner_id !== state.user?.id) {
-      return; // Only admins can edit questions
+    console.log('Double-click detected on textbox', element.textType, 'activeTool:', state.activeTool, 'isEditing:', isEditing);
+    if (state.activeTool !== 'select') {
+      console.log('Not in select tool, returning');
+      return;
+    }
+    if (isEditing) {
+      console.log('Already editing, returning');
+      return;
     }
     
+    // Questions can be edited by anyone
+    // Only restrict if there are specific permission requirements
+    
+    console.log('Setting isEditing to true');
     setIsEditing(true);
+    
+    console.log('Starting QuillEditor initialization...');
     
     // Load Quill.js if not already loaded
     if (!window.Quill) {
+      console.log('Quill not loaded, loading from CDN...');
       const quillCSS = document.createElement('link');
       quillCSS.rel = 'stylesheet';
       quillCSS.href = 'https://cdn.quilljs.com/1.3.6/quill.snow.css';
@@ -244,16 +254,26 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       document.head.appendChild(quillJS);
       
       // Wait for Quill to load
-      quillJS.onload = () => initQuillEditor();
+      quillJS.onload = () => {
+        console.log('Quill loaded from CDN');
+        initQuillEditor();
+      };
+      quillJS.onerror = () => {
+        console.error('Failed to load Quill from CDN');
+      };
       return;
     } else {
+      console.log('Quill already loaded');
       initQuillEditor();
     }
     
     function initQuillEditor() {
-      // Create modal using React components
-      const modalRoot = document.createElement('div');
-      document.body.appendChild(modalRoot);
+      console.log('initQuillEditor called');
+      try {
+        // Create modal using React components
+        const modalRoot = document.createElement('div');
+        document.body.appendChild(modalRoot);
+        console.log('Modal root created');
       
       // Import React and ReactDOM dynamically
       import('react').then(React => {
@@ -878,9 +898,16 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
             modal.addEventListener('keydown', handleKeyDown);
             
           }, 100); // End setTimeout
+        }).catch(err => {
+          console.error('Failed to import ReactDOM:', err);
         }); // End ReactDOM import
+      }).catch(err => {
+        console.error('Failed to import React:', err);
       }); // End React import
+    } catch (error) {
+      console.error('Error in initQuillEditor:', error);
     }
+  }
 
     const cleanupHTML = (html: string) => {
       // Create temporary div to decode HTML entities
@@ -910,8 +937,13 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       if (e.evt.button === 0) {
         // Check for double-click with left button only
         const currentTime = Date.now();
-        if (currentTime - lastClickTime < 300) {
+        const timeDiff = currentTime - lastClickTime;
+        console.log('Click detected, time diff:', timeDiff);
+        if (timeDiff < 500 && timeDiff > 50) {
+          console.log('Double-click timing met');
+          e.cancelBubble = true;
           handleDoubleClick();
+          return;
         }
         setLastClickTime(currentTime);
         
@@ -921,6 +953,15 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
         // Right-click on selected item - don't change selection
         return;
       }
+    }
+  };
+
+  const handleDoubleClickDirect = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    console.log('Direct double-click handler called');
+    if (state.activeTool === 'select' && e.evt.button === 0) {
+      e.cancelBubble = true;
+      e.evt.stopPropagation();
+      handleDoubleClick();
     }
   };
 
@@ -946,8 +987,9 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       y={element.y}
       scaleX={1}
       scaleY={1}
-      draggable={state.activeTool === 'select' && !isEditing && !isMovingGroup}
+      draggable={false}
       onClick={handleClick}
+      onDblClick={handleDoubleClickDirect}
       onDragStart={() => {
         if (!isSelected) {
           onSelect();

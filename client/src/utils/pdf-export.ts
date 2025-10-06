@@ -21,8 +21,13 @@ export const exportBookToPDF = async (
   book: Book,
   options: PDFExportOptions,
   onProgress?: (progress: number) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  userRole?: 'author' | 'publisher' | null
 ): Promise<void> => {
+  // Restrict printing quality for authors
+  if (userRole === 'author' && options.quality === 'printing') {
+    throw new Error('Authors cannot export in printing quality');
+  }
   // Determine which pages to export
   let pagesToExport = book.pages;
   if (options.pageRange === 'range' && options.startPage && options.endPage) {

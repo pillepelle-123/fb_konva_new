@@ -66,7 +66,7 @@ router.get('/', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     const books = await pool.query(`
-      SELECT DISTINCT b.id, b.name, b.page_size, b.orientation, b.owner_id, b.created_at,
+      SELECT DISTINCT b.id, b.name, b.page_size, b.orientation, b.owner_id, b.created_at, b.updated_at,
         COALESCE((SELECT COUNT(*) FROM public.pages WHERE book_id = b.id), 0) as page_count,
         COALESCE((SELECT COUNT(*) FROM public.book_friends WHERE book_id = b.id), 0) as collaborator_count
       FROM public.books b
@@ -83,7 +83,8 @@ router.get('/', authenticateToken, async (req, res) => {
       pageCount: parseInt(book.page_count) || 0,
       collaboratorCount: parseInt(book.collaborator_count) || 0,
       isOwner: book.owner_id === userId,
-      createdAt: book.created_at
+      created_at: book.created_at,
+      updated_at: book.updated_at
     })));
   } catch (error) {
     console.error('Books fetch error:', error);
@@ -147,6 +148,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
       name: book.name,
       pageSize: book.page_size,
       orientation: book.orientation,
+      owner_id: book.owner_id,
       pages: pages.rows.map(page => ({
         id: page.id,
         pageNumber: page.page_number,
@@ -155,6 +157,53 @@ router.get('/:id', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Book fetch error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Update book pages for authors (only assigned pages)
+router.put('/:id/author-save', authenticateToken, async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const userId = req.user.id;
+    const { pages } = req.body;
+
+    // Check if user is author
+    const collaborator = await pool.query(
+      'SELECT role FROM public.book_friends WHERE book_id = $1 AND user_id = $2',
+      [bookId, userId]
+    );
+
+    if (collaborator.rows.length === 0 || collaborator.rows[0].role !== 'author') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Get assigned pages
+    const assignments = await pool.query(
+      'SELECT page_id FROM public.page_assignments WHERE book_id = $1 AND user_id = $2',
+      [bookId, userId]
+    );
+    const assignedPageIds = assignments.rows.map(row => row.page_id);
+
+    // Update only assigned pages
+    for (const page of pages) {
+      if (assignedPageIds.includes(page.pageNumber)) {
+        await pool.query(
+          'UPDATE public.pages SET elements = $1 WHERE book_id = $2 AND page_number = $3',
+          [JSON.stringify(page.elements), bookId, page.pageNumber]
+        );
+      }
+    }
+
+    // Update book timestamp
+    await pool.query(
+      'UPDATE public.books SET updated_at = CURRENT_TIMESTAMP WHERE id = $1',
+      [bookId]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Author save error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -375,6 +424,49 @@ router.post('/:id/questions', authenticateToken, async (req, res) => {
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Question create error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get user role and page assignments for a book
+router.get('/:id/user-role', authenticateToken, async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const userId = req.user.id;
+
+    // Check if user is owner
+    const book = await pool.query('SELECT owner_id FROM public.books WHERE id = $1', [bookId]);
+    if (book.rows.length === 0) {
+      return res.status(404).json({ error: 'Book not found' });
+    }
+
+    if (book.rows[0].owner_id === userId) {
+      return res.json({ role: 'publisher', assignedPages: [] });
+    }
+
+    // Check if user is collaborator
+    const collaborator = await pool.query(
+      'SELECT role FROM public.book_friends WHERE book_id = $1 AND user_id = $2',
+      [bookId, userId]
+    );
+
+    if (collaborator.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Get assigned pages for authors
+    let assignedPages = [];
+    if (collaborator.rows[0].role === 'author') {
+      const assignments = await pool.query(
+        'SELECT page_id FROM public.page_assignments WHERE book_id = $1 AND user_id = $2',
+        [bookId, userId]
+      );
+      assignedPages = assignments.rows.map(row => row.page_id);
+    }
+
+    res.json({ role: collaborator.rows[0].role, assignedPages });
+  } catch (error) {
+    console.error('User role fetch error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

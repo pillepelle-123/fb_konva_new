@@ -1,6 +1,7 @@
-import { createContext, useContext, useReducer, useCallback } from 'react';
+import { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import { useAuth } from './auth-context';
 
 export interface CanvasElement {
   id: string;
@@ -47,6 +48,8 @@ export interface EditorState {
   activeTool: 'select' | 'text' | 'question' | 'answer' | 'photo' | 'line' | 'circle' | 'rect' | 'brush' | 'pan' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley';
   selectedElementIds: string[];
   user?: { id: number; role: string } | null;
+  userRole?: 'author' | 'publisher' | null;
+  assignedPages: number[];
   editorBarVisible: boolean;
   toolbarVisible: boolean;
   hasUnsavedChanges: boolean;
@@ -57,6 +60,8 @@ type EditorAction =
   | { type: 'SET_ACTIVE_PAGE'; payload: number }
   | { type: 'SET_ACTIVE_TOOL'; payload: EditorState['activeTool'] }
   | { type: 'SET_SELECTED_ELEMENTS'; payload: string[] }
+  | { type: 'SET_USER'; payload: { id: number; role: string } | null }
+  | { type: 'SET_USER_ROLE'; payload: { role: 'author' | 'publisher' | null; assignedPages: number[] } }
   | { type: 'ADD_ELEMENT'; payload: CanvasElement }
   | { type: 'UPDATE_ELEMENT'; payload: { id: string; updates: Partial<CanvasElement> } }
   | { type: 'UPDATE_ELEMENT_PRESERVE_SELECTION'; payload: { id: string; updates: Partial<CanvasElement> } }
@@ -74,6 +79,8 @@ const initialState: EditorState = {
   activeTool: 'select',
   selectedElementIds: [],
   user: null,
+  userRole: null,
+  assignedPages: [],
   editorBarVisible: true,
   toolbarVisible: true,
   hasUnsavedChanges: false,
@@ -85,7 +92,12 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       return { ...state, currentBook: action.payload, activePageIndex: 0 };
     
     case 'SET_ACTIVE_PAGE':
-      return { ...state, activePageIndex: action.payload, selectedElementIds: [] };
+      const newState = { ...state, activePageIndex: action.payload, selectedElementIds: [] };
+      // Auto-set pan tool for authors on non-assigned pages
+      if (newState.userRole === 'author' && !newState.assignedPages.includes(action.payload + 1)) {
+        newState.activeTool = 'pan';
+      }
+      return newState;
     
     case 'SET_ACTIVE_TOOL':
       return { ...state, activeTool: action.payload };
@@ -93,8 +105,21 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case 'SET_SELECTED_ELEMENTS':
       return { ...state, selectedElementIds: action.payload };
     
+    case 'SET_USER':
+      return { ...state, user: action.payload };
+    
+    case 'SET_USER_ROLE':
+      const roleState = { ...state, userRole: action.payload.role, assignedPages: action.payload.assignedPages };
+      // Auto-set pan tool for authors on non-assigned pages
+      if (roleState.userRole === 'author' && !roleState.assignedPages.includes(roleState.activePageIndex + 1)) {
+        roleState.activeTool = 'pan';
+      }
+      return roleState;
+    
     case 'ADD_ELEMENT':
       if (!state.currentBook || !state.currentBook.pages[state.activePageIndex]) return state;
+      // Check if author is assigned to current page
+      if (state.userRole === 'author' && !state.assignedPages.includes(state.activePageIndex + 1)) return state;
       const newBook = {
         ...state.currentBook,
         pages: state.currentBook.pages.map((page, index) => 
@@ -107,6 +132,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'UPDATE_ELEMENT':
       if (!state.currentBook) return state;
+      // Check if author is assigned to current page
+      if (state.userRole === 'author' && !state.assignedPages.includes(state.activePageIndex + 1)) return state;
       const updatedBook = { ...state.currentBook };
       const page = updatedBook.pages[state.activePageIndex];
       const elementIndex = page.elements.findIndex(el => el.id === action.payload.id);
@@ -127,6 +154,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'DELETE_ELEMENT':
       if (!state.currentBook) return state;
+      // Check if author is assigned to current page
+      if (state.userRole === 'author' && !state.assignedPages.includes(state.activePageIndex + 1)) return state;
       const filteredBook = { ...state.currentBook };
       filteredBook.pages[state.activePageIndex].elements = 
         filteredBook.pages[state.activePageIndex].elements.filter(el => el.id !== action.payload);
@@ -138,7 +167,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       };
     
     case 'ADD_PAGE':
-      if (!state.currentBook) return state;
+      if (!state.currentBook || state.userRole === 'author') return state;
       const newPageNumber = state.currentBook.pages.length + 1;
       const newPage: Page = {
         id: Date.now(),
@@ -156,7 +185,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       };
     
     case 'DELETE_PAGE':
-      if (!state.currentBook || state.currentBook.pages.length <= 1) return state;
+      if (!state.currentBook || state.currentBook.pages.length <= 1 || state.userRole === 'author') return state;
       const pagesAfterDelete = state.currentBook.pages.filter((_, index) => index !== action.payload);
       const newActiveIndex = action.payload >= pagesAfterDelete.length ? pagesAfterDelete.length - 1 : state.activePageIndex;
       return {
@@ -171,7 +200,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       };
     
     case 'DUPLICATE_PAGE':
-      if (!state.currentBook) return state;
+      if (!state.currentBook || state.userRole === 'author') return state;
       const pageToDuplicate = state.currentBook.pages[action.payload];
       const duplicatedPage: Page = {
         id: Date.now(),
@@ -224,6 +253,13 @@ export const useEditor = () => {
 
 export const EditorProvider = ({ children }: { children: ReactNode }) => {
   const [state, dispatch] = useReducer(editorReducer, initialState);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (user) {
+      dispatch({ type: 'SET_USER', payload: { id: user.id, role: user.role } });
+    }
+  }, [user]);
 
   const saveBook = async () => {
     if (!state.currentBook) return;
@@ -231,16 +267,38 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     try {
       const token = localStorage.getItem('token');
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-      const response = await fetch(`${apiUrl}/books/${state.currentBook.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(state.currentBook)
-      });
       
-      if (!response.ok) throw new Error('Failed to save book');
+      let bookToSave = state.currentBook;
+      
+      // For authors, only save assigned pages
+      if (state.userRole === 'author' && state.assignedPages.length > 0) {
+        const response = await fetch(`${apiUrl}/books/${state.currentBook.id}/author-save`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            pages: state.currentBook.pages.filter((_, index) => 
+              state.assignedPages.includes(index + 1)
+            )
+          })
+        });
+        
+        if (!response.ok) throw new Error('Failed to save book');
+      } else {
+        const response = await fetch(`${apiUrl}/books/${state.currentBook.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(bookToSave)
+        });
+        
+        if (!response.ok) throw new Error('Failed to save book');
+      }
+      
       dispatch({ type: 'MARK_SAVED' });
     } catch (error) {
       throw error;
@@ -295,6 +353,16 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       }
       
       dispatch({ type: 'SET_BOOK', payload: book });
+      
+      // Fetch user role and page assignments
+      const roleResponse = await fetch(`${apiUrl}/books/${bookId}/user-role`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (roleResponse.ok) {
+        const roleData = await roleResponse.json();
+        dispatch({ type: 'SET_USER_ROLE', payload: { role: roleData.role, assignedPages: roleData.assignedPages || [] } });
+      }
     } catch (error) {
       throw error;
     }

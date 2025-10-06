@@ -17,10 +17,12 @@ interface ToolbarContentProps {
   toolGroups: ToolGroupData[];
   activeTool: string;
   isExpanded: boolean;
+  userRole?: 'author' | 'publisher' | null;
+  isOnAssignedPage?: boolean;
   onToolSelect: (toolId: string) => void;
 }
 
-export function ToolbarContent({ toolGroups, activeTool, isExpanded, onToolSelect }: ToolbarContentProps) {
+export function ToolbarContent({ toolGroups, activeTool, isExpanded, userRole, isOnAssignedPage, onToolSelect }: ToolbarContentProps) {
   return (
     <CardContent className="p-1 overflow-y-auto scrollbar-hide flex-1 min-h-0">
       {toolGroups.map((group, groupIndex) => (
@@ -31,6 +33,8 @@ export function ToolbarContent({ toolGroups, activeTool, isExpanded, onToolSelec
           activeTool={activeTool}
           isExpanded={isExpanded}
           showSeparator={groupIndex > 0}
+          userRole={userRole}
+          isOnAssignedPage={isOnAssignedPage}
           onToolSelect={onToolSelect}
         />
       ))}

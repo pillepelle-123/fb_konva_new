@@ -39,7 +39,7 @@ export default function PDFExportModal({ isOpen, onClose }: PDFExportModalProps)
 
     try {
       // Fix TypeScript error by ensuring state.currentBook is not null
-      await exportBookToPDF(state.currentBook, options, setProgress, controller.signal);
+      await exportBookToPDF(state.currentBook, options, setProgress, controller.signal, state.userRole);
       onClose();
     } catch (error) {
       // Fix TypeScript error by checking error type properly
@@ -80,7 +80,7 @@ export default function PDFExportModal({ isOpen, onClose }: PDFExportModalProps)
         </>
       }
     >
-      <QualitySelector value={quality} onChange={setQuality} />
+      <QualitySelector value={quality} onChange={setQuality} userRole={state.userRole} />
       
       <PageRangeSelector
         pageRange={pageRange}

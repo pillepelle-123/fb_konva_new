@@ -286,16 +286,17 @@ export default function Canvas() {
           }
           
           return node;
-        }).filter(Boolean);
+        }).filter(node => node && node.getStage());
         
         transformer.nodes(selectedNodes);
+        transformer.moveToTop();
         transformer.getLayer()?.batchDraw();
       } else {
         transformer.nodes([]);
         transformer.getLayer()?.batchDraw();
       }
     }
-  }, [state.selectedElementIds, isDragging]);
+  }, [state.selectedElementIds, isDragging, currentPage]);
 
   const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
     const currentTime = Date.now();
@@ -386,8 +387,17 @@ export default function Canvas() {
       if (isDoubleClick && state.selectedElementIds.length > 0) {
         const isWithinSelection = isPointWithinSelectedElements(x, y);
         if (isWithinSelection) {
-          setIsMovingGroup(true);
-          setGroupMoveStart({ x, y });
+          // Don't start group move if clicking on a text element - let it handle double-click
+          const clickedElement = currentPage?.elements.find(el => {
+            return state.selectedElementIds.includes(el.id) && 
+                   x >= el.x && x <= el.x + (el.width || 100) &&
+                   y >= el.y && y <= el.y + (el.height || 100);
+          });
+          
+          if (clickedElement?.type !== 'text') {
+            setIsMovingGroup(true);
+            setGroupMoveStart({ x, y });
+          }
           return;
         }
       }

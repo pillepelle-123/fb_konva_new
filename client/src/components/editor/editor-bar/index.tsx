@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useEditor } from '../../../context/editor-context';
+import { useAuth } from '../../../context/auth-context';
 import PDFExportModal from '../pdf-export-modal';
+import StackedAvatarGroup from '../../stacked-avatar-group';
 
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '../../ui/accordion-horizontal';
 
@@ -12,7 +15,7 @@ import { BookActions } from './book-actions';
 import UnsavedChangesDialog from '../../cards/unsaved-changes-dialog';
 import ConfirmationDialog from '../../cards/confirmation-dialog';
 import AlertDialog from '../../cards/alert-dialog';
-import { LayoutGrid, Settings, Palette, Divide, Book } from 'lucide-react';
+import { LayoutGrid, Settings, Palette, Divide, Book, UserPen, UserStar, Users } from 'lucide-react';
 import { Button } from '../../ui/primitives/button';
 import { X } from 'lucide-react';
 import { Tooltip } from '../../ui/tooltip';
@@ -20,6 +23,7 @@ import { EditorBarContainer } from './editor-bar-container';
 
 export default function EditorBar() {
   const { state, dispatch, saveBook } = useEditor();
+  const navigate = useNavigate();
   const [isSaving, setIsSaving] = useState(false);
   const [showPDFModal, setShowPDFModal] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
@@ -139,7 +143,25 @@ export default function EditorBar() {
                     onDuplicatePage={handleDuplicatePage}
                     onDeletePage={handleDeletePage}
                     canDelete={pages.length > 1}
+                    showAssignFriends={false}
+                    userRole={state.userRole}
                   />
+                  
+                  <div className="hidden md:block h-6 w-px bg-border" />
+                  
+                  <Tooltip content="Assign friends to this page" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate(`/friends/${state.currentBook.id}?page=${currentPage}`)}
+                      disabled={state.userRole === 'author'}
+                      className={`h-8 md:h-9 px-2 md:px-3 ${state.userRole === 'author' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      <Users className="h-3 w-3 md:h-4 md:w-4" />
+                    </Button>
+                  </Tooltip>
+                  
+                  <PageAssignments currentPage={currentPage} bookId={state.currentBook.id} />
                 </div>
 
                 {/* Book Info and Actions */}
@@ -233,5 +255,109 @@ export default function EditorBar() {
         onClose={() => setShowAlert(null)}
       />
     </>
+  );
+}
+
+function PageAssignments({ currentPage, bookId }: { currentPage: number; bookId: number }) {
+  const { token } = useAuth();
+  const { state } = useEditor();
+  const [assignedUsers, setAssignedUsers] = useState<any[]>([]);
+  const [publisher, setPublisher] = useState<any>(null);
+
+  useEffect(() => {
+    fetchPageAssignments();
+    fetchPublisher();
+  }, [currentPage, bookId]);
+
+  const fetchPageAssignments = async () => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/page-assignments/book/${bookId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const pageAssignments = data.filter((assignment: any) => assignment.page_id === currentPage);
+        setAssignedUsers(pageAssignments.map((assignment: any) => ({
+          id: assignment.user_id,
+          name: assignment.name,
+          email: assignment.email
+        })));
+      }
+    } catch (error) {
+      console.error('Error fetching page assignments:', error);
+    }
+  };
+
+  const fetchPublisher = async () => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      console.log('Fetching book data for bookId:', bookId);
+      const response = await fetch(`${apiUrl}/books/${bookId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const bookData = await response.json();
+        console.log('Book data received:', bookData);
+        console.log('Available book fields:', Object.keys(bookData));
+        const ownerId = bookData.owner_id || bookData.user_id || bookData.created_by || bookData.publisher_id;
+        if (ownerId) {
+          console.log('Fetching user data for owner_id:', ownerId);
+          const userResponse = await fetch(`${apiUrl}/users/${ownerId}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (userResponse.ok) {
+            const userData = await userResponse.json();
+            console.log('Publisher data:', userData);
+            setPublisher({
+              id: userData.id,
+              name: userData.name,
+              email: userData.email
+            });
+          } else {
+            console.log('Failed to fetch user data, status:', userResponse.status);
+          }
+        } else {
+          console.log('No owner_id in book data');
+        }
+      } else {
+        console.log('Failed to fetch book data, status:', response.status);
+      }
+    } catch (error) {
+      console.error('Error fetching publisher:', error);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-4">
+      {assignedUsers.length > 0 && (
+        <div className="flex items-center gap-2">
+          <Tooltip content="Assigned author(s)" side="bottom_editor_bar">
+            <span className="text-xs text-muted-foreground">
+              <UserPen className="h-3 w-3 md:h-4 md:w-4" />
+            </span>
+          </Tooltip>
+          <StackedAvatarGroup users={assignedUsers} maxVisible={2} />
+      <div className="hidden md:block h-6 w-px bg-border" />
+
+        </div>
+      )}
+      {publisher ? (
+        <div className="flex items-center gap-2">
+          <Tooltip content="Book's publisher" side="bottom_editor_bar">
+            <span className="text-xs text-muted-foreground">
+              <UserStar className="h-3 w-3 md:h-4 md:w-4" />
+            </span>
+          </Tooltip>
+          <StackedAvatarGroup users={[publisher]} maxVisible={1} />
+        </div>
+      ) : (
+        <Tooltip content="Book's publisher" side="bottom">
+          <div className="text-xs text-muted-foreground">
+            <UserStar className="h-3 w-3 md:h-4 md:w-4" />
+          </div>
+        </Tooltip>
+      )}
+    </div>
   );
 }

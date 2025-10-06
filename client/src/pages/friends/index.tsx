@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { Avatar, AvatarFallback } from '../../components/ui/avatar';
+import ProfilePicture from '../../components/users/profile-picture';
 import { Input } from '../../components/ui/primitives/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
 import { Users, MessageCircle, UserCog, UserMinus, ArrowLeft, Plus } from 'lucide-react';
@@ -13,10 +13,13 @@ interface Friend {
   name: string;
   email: string;
   role: string;
+  assignedToPage?: boolean;
 }
 
 export default function FriendsList() {
   const { bookId } = useParams<{ bookId: string }>();
+  const [searchParams] = useSearchParams();
+  const pageNumber = searchParams.get('page');
   const { token } = useAuth();
   const navigate = useNavigate();
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -25,6 +28,7 @@ export default function FriendsList() {
   const [showRoleModal, setShowRoleModal] = useState<Friend | null>(null);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState<Friend | null>(null);
   const [showCollaboratorModal, setShowCollaboratorModal] = useState(false);
+  const [pendingAssignments, setPendingAssignments] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (bookId) {
@@ -36,12 +40,36 @@ export default function FriendsList() {
   const fetchFriends = async () => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/books/${bookId}/friends`, {
+      const friendsResponse = await fetch(`${apiUrl}/books/${bookId}/friends`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (response.ok) {
-        const data = await response.json();
-        setFriends(data);
+      
+      if (friendsResponse.ok) {
+        const friendsData = await friendsResponse.json();
+        
+        if (pageNumber) {
+          try {
+            const assignmentsResponse = await fetch(`${apiUrl}/page-assignments/book/${bookId}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            
+            if (assignmentsResponse.ok) {
+              const assignmentsData = await assignmentsResponse.json();
+              const pageAssignments = assignmentsData.filter(a => a.page_id == pageNumber);
+              const assignedUserIds = new Set(pageAssignments.map(a => a.user_id));
+              
+              friendsData.forEach(friend => {
+                friend.assignedToPage = assignedUserIds.has(friend.id);
+              });
+              
+              setPendingAssignments(assignedUserIds);
+            }
+          } catch (error) {
+            console.log('No existing assignments found');
+          }
+        }
+        
+        setFriends(friendsData);
       }
     } catch (error) {
       console.error('Error fetching friends:', error);
@@ -101,6 +129,56 @@ export default function FriendsList() {
     }
   };
 
+  const handlePageAssignment = (friendId: number, assign: boolean) => {
+    const newAssignments = new Set(pendingAssignments);
+    if (assign) {
+      newAssignments.add(friendId);
+    } else {
+      newAssignments.delete(friendId);
+    }
+    setPendingAssignments(newAssignments);
+    
+    setFriends(friends.map(friend => 
+      friend.id === friendId 
+        ? { ...friend, assignedToPage: assign }
+        : friend
+    ));
+  };
+
+  const handleSaveAssignments = async () => {
+    if (!pageNumber) return;
+    
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      
+      // Clear all existing assignments for this page
+      await fetch(`${apiUrl}/page-assignments/page/${pageNumber}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Add new assignments
+      for (const userId of pendingAssignments) {
+        await fetch(`${apiUrl}/page-assignments`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ 
+            pageNumber: parseInt(pageNumber), 
+            userId, 
+            bookId: parseInt(bookId!) 
+          })
+        });
+      }
+      
+      navigate(`/editor/${bookId}`);
+    } catch (error) {
+      console.error('Error saving assignments:', error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -124,22 +202,45 @@ export default function FriendsList() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate('/books')}
+                onClick={() => navigate(pageNumber ? `/editor/${bookId}` : '/books')}
                 className="space-x-2"
               >
                 <ArrowLeft className="h-4 w-4" />
-                <span>Back to Books</span>
+                <span>{pageNumber ? 'Back to Editor' : 'Back to Books'}</span>
               </Button>
             </div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Friends</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">
+              {pageNumber ? `Assign Friends to Page ${pageNumber}` : 'Friends'}
+            </h1>
             <p className="text-muted-foreground">
-              Manage friends working on "{bookName}"
+              {pageNumber 
+                ? `Select which friends can edit page ${pageNumber} of "${bookName}"`
+                : `Manage friends working on "${bookName}"`
+              }
             </p>
           </div>
-          <Button onClick={() => setShowCollaboratorModal(true)} className="space-x-2">
-            <Plus className="h-4 w-4" />
-            <span>Add Friend</span>
-          </Button>
+          {pageNumber ? (
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => navigate(`/editor/${bookId}`)}
+                className="space-x-2"
+              >
+                <span>Cancel</span>
+              </Button>
+              <Button 
+                onClick={handleSaveAssignments}
+                className="space-x-2"
+              >
+                <span>Save and Return to Editor</span>
+              </Button>
+            </div>
+          ) : (
+            <Button onClick={() => setShowCollaboratorModal(true)} className="space-x-2">
+              <Plus className="h-4 w-4" />
+              <span>Add Friend</span>
+            </Button>
+          )}
         </div>
 
         {/* Friends Grid */}
@@ -159,11 +260,9 @@ export default function FriendsList() {
               <Card key={friend.id} className="border shadow-sm hover:shadow-md transition-all duration-200 hover:border-primary/20">
                 <CardHeader className="pb-4">
                   <div className="flex items-start space-x-4">
-                    <Avatar className="h-12 w-12">
-                      <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                        {friend.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
+                    <Link to={`/profile/${friend.id}`}>
+                      <ProfilePicture name={friend.name} size="md" userId={friend.id} />
+                    </Link>
                     <div className="flex-1 space-y-1">
                       <CardTitle className="text-lg font-semibold line-clamp-1">
                         {friend.name}
@@ -182,37 +281,51 @@ export default function FriendsList() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="flex flex-col gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      className="w-full space-x-2"
-                      onClick={() => {/* TODO: Implement messaging */}}
-                    >
-                      <MessageCircle className="h-4 w-4" />
-                      <span>Send Message</span>
-                    </Button>
-                    
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      className="w-full space-x-2"
-                      onClick={() => setShowRoleModal(friend)}
-                    >
-                      <UserCog className="h-4 w-4" />
-                      <span>Change Role</span>
-                    </Button>
-                    
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      className="w-full space-x-2 text-destructive hover:text-destructive"
-                      onClick={() => setShowRemoveConfirm(friend)}
-                    >
-                      <UserMinus className="h-4 w-4" />
-                      <span>Remove Access</span>
-                    </Button>
-                  </div>
+                  {pageNumber ? (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">
+                        Assign to page {pageNumber}
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={pendingAssignments.has(friend.id)}
+                        onChange={(e) => handlePageAssignment(friend.id, e.target.checked)}
+                        className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="w-full space-x-2"
+                        onClick={() => {/* TODO: Implement messaging */}}
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                        <span>Send Message</span>
+                      </Button>
+                      
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="w-full space-x-2"
+                        onClick={() => setShowRoleModal(friend)}
+                      >
+                        <UserCog className="h-4 w-4" />
+                        <span>Change Role</span>
+                      </Button>
+                      
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="w-full space-x-2 text-destructive hover:text-destructive"
+                        onClick={() => setShowRemoveConfirm(friend)}
+                      >
+                        <UserMinus className="h-4 w-4" />
+                        <span>Remove Access</span>
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))}
