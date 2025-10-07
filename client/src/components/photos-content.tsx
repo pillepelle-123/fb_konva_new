@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { Button } from './ui/primitives/button';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { ButtonGroup } from './ui/button-group';
+import { Card, CardContent } from './ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/overlays/dialog';
-import { Image, Plus, Trash2, ChevronLeft, ChevronRight, CircleCheckBig, Circle, Calendar, BookOpen, X } from 'lucide-react';
+import { Image, Plus, Trash2, ChevronLeft, ChevronRight, X, SquareCheckBig, SquareX, Copy, CopyCheck } from 'lucide-react';
+import PhotoCard from './photos/photos-card';
 
 interface Photo {
   id: number;
@@ -194,47 +196,55 @@ export default function PhotosContent({
       <div className="space-y-6">
         {/* Header Controls */}
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setMultiSelectMode(!multiSelectMode)}
-          >
-            {multiSelectMode ? 'Exit Multi-Select' : 'Multi-Select'}
-          </Button>
-          <Button onClick={() => fileInputRef.current?.click()} className="space-x-2">
+          {multiSelectMode ? (
+            <ButtonGroup>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setMultiSelectMode(false);
+                  deselectAllPhotos();
+                }}
+              >
+                <SquareX className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                onClick={selectAllPhotos}
+                disabled={selectedPhotos.size === photos.length}
+              >
+                <CopyCheck className="h-4 w-4" />
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={deselectAllPhotos}
+                disabled={selectedPhotos.size === 0}
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => setShowDeleteConfirm(Array.from(selectedPhotos))}
+                disabled={selectedPhotos.size === 0}
+                className="space-x-2"
+              >
+                <Trash2 className="h-3 w-3" />
+                <span> ({selectedPhotos.size})</span>
+              </Button>
+            </ButtonGroup>
+          ) : (
+            <Button
+              variant="outline"
+              onClick={() => setMultiSelectMode(true)}
+            >
+              <SquareCheckBig className="h-4 w-4" />
+            </Button>
+          )}
+
+          <Button variant="default" onClick={() => fileInputRef.current?.click()} className="space-x-2">
             <Plus className="h-4 w-4" />
             <span>Add Photos</span>
           </Button>
         </div>
-
-        {/* Multi-select controls */}
-        {multiSelectMode && (
-          <div className="flex gap-2 items-center">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={selectAllPhotos}
-              disabled={selectedPhotos.size === photos.length}
-            >
-              Select All
-            </Button>
-            {selectedPhotos.size > 0 && (
-              <>
-                <Button variant="outline" size="sm" onClick={deselectAllPhotos}>
-                  Deselect All
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setShowDeleteConfirm(Array.from(selectedPhotos))}
-                  className="space-x-2"
-                >
-                  <Trash2 className="h-3 w-3" />
-                  <span>Delete Selected ({selectedPhotos.size})</span>
-                </Button>
-              </>
-            )}
-          </div>
-        )}
 
         {/* Upload Area */}
         <div
@@ -292,69 +302,19 @@ export default function PhotosContent({
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {photos.map(photo => (
-              <Card key={photo.id} className="border shadow-sm hover:shadow-md transition-all duration-200 relative">
-                {multiSelectMode && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="absolute top-2 right-2 z-10 h-8 w-8 p-0"
-                    onClick={() => togglePhotoSelection(photo.id)}
-                  >
-                    {selectedPhotos.has(photo.id) ? (
-                      <CircleCheckBig className="h-5 w-5 text-primary" />
-                    ) : (
-                      <Circle className="h-5 w-5" />
-                    )}
-                  </Button>
-                )}
-                <CardHeader className="p-0">
-                  <div
-                    className={`aspect-square bg-muted rounded-t-lg overflow-hidden ${mode === 'select' ? 'cursor-pointer' : 'cursor-pointer'}`}
-                    onClick={() => {
-                      if (mode === 'select') {
-                        onPhotoSelect?.(photo.id, getPhotoUrl(photo));
-                      } else {
-                        setLightboxPhoto(photo);
-                      }
-                    }}
-                  >
-                    <img
-                      src={getThumbUrl(photo)}
-                      alt={photo.original_name}
-                      className="w-full h-full object-cover hover:scale-105 transition-transform"
-                      onError={(e) => {
-                        e.currentTarget.src = getPhotoUrl(photo);
-                      }}
-                    />
-                  </div>
-                </CardHeader>
-                <CardContent className="p-3 space-y-2">
-                  <CardTitle className="text-sm font-medium line-clamp-1">
-                    {photo.original_name}
-                  </CardTitle>
-                  <div className="space-y-1 text-xs text-muted-foreground">
-                    <div className="flex items-center space-x-1">
-                      <BookOpen className="h-3 w-3" />
-                      <span className="line-clamp-1">{photo.book_name || 'No book'}</span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <Calendar className="h-3 w-3" />
-                      <span>{new Date(photo.created_at).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                  {!multiSelectMode && mode !== 'select' && (
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="w-full space-x-1"
-                      onClick={() => setShowDeleteConfirm([photo.id])}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                      <span>Delete</span>
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
+              <PhotoCard
+                key={photo.id}
+                photo={photo}
+                multiSelectMode={multiSelectMode}
+                isSelected={selectedPhotos.has(photo.id)}
+                mode={mode}
+                onPhotoClick={() => setLightboxPhoto(photo)}
+                onPhotoSelect={onPhotoSelect}
+                onToggleSelection={togglePhotoSelection}
+                onDelete={(photoId) => setShowDeleteConfirm([photoId])}
+                getThumbUrl={getThumbUrl}
+                getPhotoUrl={getPhotoUrl}
+              />
             ))}
           </div>
         )}

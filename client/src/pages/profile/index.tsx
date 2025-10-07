@@ -35,7 +35,7 @@ export default function Profile() {
   const [sharedBooks, setSharedBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const isMyProfile = location.pathname === '/profile/my';
+  const isMyProfile = location.pathname === '/my-profile';
   const targetUserId = isMyProfile ? currentUser?.id?.toString() : userId;
 
   useEffect(() => {

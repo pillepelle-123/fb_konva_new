@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../ui/primitives/button';
-import { BookOpen, Home, Archive, LogOut, User, Menu, Image, IdCard, Settings, ChevronDown } from 'lucide-react';
+import { BookOpen, Home, Archive, LogOut, User, Menu, Image, IdCard, Settings, ChevronDown, Contact } from 'lucide-react';
 import { useState } from 'react';
 import ProfilePicture from '../users/profile-picture';
 
@@ -113,6 +113,21 @@ export default function Navigation() {
                     <span>Photos</span>
                   </Button>
                 </Link>
+                
+                <Link to="/friends">
+                  <Button
+                    variant={isActive('/friends') ? "secondary" : "ghost"}
+                    size="sm"
+                    className={`flex items-center space-x-2 ${
+                      isActive('/friends') 
+                        ? 'bg-white text-primary hover:bg-white/90 hover:text-primary' 
+                        : 'text-white hover:bg-white/10 hover:text-white'
+                    }`}
+                  >
+                    <Contact className="h-4 w-4" />
+                    <span>Friends</span>
+                  </Button>
+                </Link>
               </>
             ) : (
               <>
@@ -181,7 +196,7 @@ export default function Navigation() {
                 </Button>
                 {userMenuOpen && (
                   <div className="absolute top-full right-0 mt-1 bg-white border rounded-md shadow-lg py-1 min-w-[160px] z-50">
-                    <Link to="/profile/my" onClick={() => setUserMenuOpen(false)}>
+                    <Link to="/my-profile" onClick={() => setUserMenuOpen(false)}>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -308,6 +323,20 @@ export default function Navigation() {
                     <span>Photos</span>
                   </Button>
                 </Link>
+                
+                <Link to="/friends" onClick={() => setIsMobileMenuOpen(false)}>
+                  <Button
+                    variant={isActive('/friends') ? "default" : "ghost"}
+                    className={`w-full justify-start space-x-2 ${
+                      isActive('/friends') 
+                        ? 'bg-white text-primary hover:bg-white/90 hover:text-primary' 
+                        : 'text-white hover:bg-white/10 hover:text-white'
+                    }`}
+                  >
+                    <Contact className="h-4 w-4" />
+                    <span>Friends</span>
+                  </Button>
+                </Link>
               </>
             ) : (
               <>
@@ -372,7 +401,7 @@ export default function Navigation() {
                 </Button>
                 {userMenuOpen && (
                   <div className="pl-4 space-y-1">
-                    <Link to="/profile/my" onClick={() => {
+                    <Link to="/my-profile" onClick={() => {
                       setIsMobileMenuOpen(false);
                       setUserMenuOpen(false);
                     }}>

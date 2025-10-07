@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Card, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Badge } from './ui/badge';
 import { Book, Users, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from './ui/primitives/button';
 
@@ -89,13 +90,9 @@ export default function BooksList({ books, itemsPerPage = 10 }: BooksListProps) 
                     <span>{book.collaboratorCount}</span>
                   </div>
                 </div>
-                <span className={`px-2 py-1 rounded-full text-xs ${
-                  book.isOwner 
-                    ? 'bg-blue-100 text-blue-800' 
-                    : 'bg-green-100 text-green-800'
-                }`}>
+                <Badge variant={book.isOwner ? 'highlight' : 'secondary'}>
                   {book.isOwner ? 'You are the publisher' : 'You are an author'}
-                </span>
+                </Badge>
               </div>
             </CardHeader>
           </Card>

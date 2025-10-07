@@ -104,6 +104,14 @@ CREATE TABLE page_assignments (
   UNIQUE(page_id, user_id, book_id)
 );
 
+CREATE TABLE friendships (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  friend_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, friend_id)
+);
+
 -- Create indexes for better performance
 CREATE INDEX idx_books_owner_id ON books(owner_id);
 CREATE INDEX idx_pages_book_id ON pages(book_id);

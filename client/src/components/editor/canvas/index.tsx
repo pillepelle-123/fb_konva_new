@@ -834,6 +834,9 @@ export default function Canvas() {
     const pos = e.target.getStage()?.getPointerPosition();
     if (!pos) return;
     
+    // Temporarily allow all users - permission logic needs to be fixed in editor context
+    // TODO: Implement proper permission check when state.canEditCurrentPage is correctly set
+    
     const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
     const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
     

@@ -12,11 +12,14 @@ import BooksList from './pages/books/index'
 import BookArchive from './pages/books/archive'
 import PhotosList from './pages/photos/index'
 import QuestionsList from './pages/questions/index'
+import BookFriendsList from './pages/books/friends'
 import FriendsList from './pages/friends/index'
 import Profile from './pages/profile/index'
 import Settings from './pages/profile/settings'
 import Editor from './pages/editor'
+import NotFound from './pages/404'
 import ProtectedRoute from './components/layout/protected-route'
+import BookAccessGuard from './components/layout/book-access-guard'
 
 
 function App() {
@@ -56,12 +59,14 @@ function AppContent() {
           <Route path="/books" element={<ProtectedRoute><BooksList /></ProtectedRoute>} />
           <Route path="/books/archive" element={<ProtectedRoute><BookArchive /></ProtectedRoute>} />
           <Route path="/photos" element={<ProtectedRoute><PhotosList /></ProtectedRoute>} />
-          <Route path="/questions/:bookId" element={<ProtectedRoute><QuestionsList /></ProtectedRoute>} />
-          <Route path="/friends/:bookId" element={<ProtectedRoute><FriendsList /></ProtectedRoute>} />
+          <Route path="/questions/:bookId" element={<ProtectedRoute><BookAccessGuard><QuestionsList /></BookAccessGuard></ProtectedRoute>} />
+          <Route path="/books/:bookId/friends" element={<ProtectedRoute><BookAccessGuard><BookFriendsList /></BookAccessGuard></ProtectedRoute>} />
+          <Route path="/friends" element={<ProtectedRoute><FriendsList /></ProtectedRoute>} />
           <Route path="/profile/:userId" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-          <Route path="/profile/my" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="/my-profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-          <Route path="/editor/:bookId" element={<ProtectedRoute><EditorWithBar /></ProtectedRoute>} />
+          <Route path="/editor/:bookId" element={<ProtectedRoute><BookAccessGuard><EditorWithBar /></BookAccessGuard></ProtectedRoute>} />
+          <Route path="/404" element={<NotFound />} />
           <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminPanel /></ProtectedRoute>} />
         </Routes>
       </main>

@@ -35,6 +35,29 @@ const profileUpload = multer({
   }
 });
 
+// Search users
+router.get('/search', authenticateToken, async (req, res) => {
+  try {
+    const { q } = req.query;
+    const currentUserId = req.user.id;
+    
+    if (!q || q.trim().length === 0) {
+      return res.json([]);
+    }
+    
+    const searchTerm = `%${q.trim()}%`;
+    const result = await pool.query(
+      'SELECT id, name, email FROM public.users WHERE (name ILIKE $1 OR email ILIKE $1) AND id != $2 LIMIT 20',
+      [searchTerm, currentUserId]
+    );
+    
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error searching users:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Get user profile
 router.get('/:userId', authenticateToken, async (req, res) => {
   try {

@@ -279,8 +279,8 @@ export default function RoughShape({ element, isSelected, onSelect, onDragStart,
         });
         onDragEnd(e);
       }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={state.activeTool === 'select' ? () => setIsHovered(true) : undefined}
+      onMouseLeave={state.activeTool === 'select' ? () => setIsHovered(false) : undefined}
     >
       {/* Invisible hit area for easier selection */}
       <Rect
@@ -293,7 +293,7 @@ export default function RoughShape({ element, isSelected, onSelect, onDragStart,
       />
       
       {/* Dashed border on hover or within selection */}
-      {(isHovered || isWithinSelection) && (
+      {(isHovered || isWithinSelection) && state.activeTool === 'select' && (
         <SelectionHoverRectangle
           width={element.width}
           height={element.height}

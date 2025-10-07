@@ -118,7 +118,7 @@ export default function BooksList() {
             </CardContent>
           </Card>
         ) : (
-          <BooksGrid books={books} />
+          <BooksGrid books={books} onArchive={handleArchive} />
         )}
 
         {/* Add Book Dialog */}

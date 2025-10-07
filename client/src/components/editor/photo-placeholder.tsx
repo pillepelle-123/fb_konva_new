@@ -105,13 +105,13 @@ export default function PhotoPlaceholder({ element, isSelected, onSelect, onDrag
       scaleX={element.scaleX || 1}
       scaleY={element.scaleY || 1}
       draggable={state.activeTool === 'select' && !isMovingGroup}
-      onClick={handleClick}
-      onTap={handleClick}
-      onDblClick={handleDoubleClick}
-      onDblTap={handleDoubleClick}
+      onClick={state.activeTool === 'select' ? handleClick : undefined}
+      onTap={state.activeTool === 'select' ? handleClick : undefined}
+      onDblClick={state.activeTool === 'select' ? handleDoubleClick : undefined}
+      onDblTap={state.activeTool === 'select' ? handleDoubleClick : undefined}
       onDragEnd={onDragEnd}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={state.activeTool === 'select' ? () => setIsHovered(true) : undefined}
+      onMouseLeave={state.activeTool === 'select' ? () => setIsHovered(false) : undefined}
     >
       {element.type === 'placeholder' ? (
         <>
@@ -126,7 +126,7 @@ export default function PhotoPlaceholder({ element, isSelected, onSelect, onDrag
           />
           
           {/* Hover border - same as textbox */}
-          {isHovered && (
+          {isHovered && state.activeTool === 'select' && (
             <SelectionHoverRectangle
               width={element.width}
               height={element.height}

@@ -153,7 +153,7 @@ export default function EditorBar() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => navigate(`/friends/${state.currentBook.id}?page=${currentPage}`)}
+                      onClick={() => navigate(`/books/${state.currentBook.id}/friends?page=${currentPage}`)}
                       disabled={state.userRole === 'author'}
                       className={`h-8 md:h-9 px-2 md:px-3 ${state.userRole === 'author' ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
@@ -197,7 +197,7 @@ export default function EditorBar() {
                   variant="ghost"
                   size="sm"
                   className="flex items-center gap-2"
-                  onClick={() => console.log('Settings:', 'theme')}
+                  onClick={() => {}}
                 >
                   <Palette className="h-4 w-4" />
                   <span>Theme</span>
@@ -285,46 +285,37 @@ function PageAssignments({ currentPage, bookId }: { currentPage: number; bookId:
         })));
       }
     } catch (error) {
-      console.error('Error fetching page assignments:', error);
+      // Error fetching page assignments
     }
   };
 
   const fetchPublisher = async () => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      console.log('Fetching book data for bookId:', bookId);
+
       const response = await fetch(`${apiUrl}/books/${bookId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.ok) {
         const bookData = await response.json();
-        console.log('Book data received:', bookData);
-        console.log('Available book fields:', Object.keys(bookData));
         const ownerId = bookData.owner_id || bookData.user_id || bookData.created_by || bookData.publisher_id;
         if (ownerId) {
-          console.log('Fetching user data for owner_id:', ownerId);
           const userResponse = await fetch(`${apiUrl}/users/${ownerId}`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           if (userResponse.ok) {
             const userData = await userResponse.json();
-            console.log('Publisher data:', userData);
+
             setPublisher({
               id: userData.id,
               name: userData.name,
               email: userData.email
             });
-          } else {
-            console.log('Failed to fetch user data, status:', userResponse.status);
           }
-        } else {
-          console.log('No owner_id in book data');
         }
-      } else {
-        console.log('Failed to fetch book data, status:', response.status);
       }
     } catch (error) {
-      console.error('Error fetching publisher:', error);
+      // Error fetching publisher
     }
   };
 

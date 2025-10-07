@@ -223,27 +223,21 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
   }, [element.text, element.width, element.height, fontSize, lineHeight, displayText]);
 
   const handleDoubleClick = () => {
-    console.log('Double-click detected on textbox', element.textType, 'activeTool:', state.activeTool, 'isEditing:', isEditing);
     if (state.activeTool !== 'select') {
-      console.log('Not in select tool, returning');
       return;
     }
     if (isEditing) {
-      console.log('Already editing, returning');
       return;
     }
     
     // Questions can be edited by anyone
     // Only restrict if there are specific permission requirements
     
-    console.log('Setting isEditing to true');
     setIsEditing(true);
     
-    console.log('Starting QuillEditor initialization...');
     
     // Load Quill.js if not already loaded
     if (!window.Quill) {
-      console.log('Quill not loaded, loading from CDN...');
       const quillCSS = document.createElement('link');
       quillCSS.rel = 'stylesheet';
       quillCSS.href = 'https://cdn.quilljs.com/1.3.6/quill.snow.css';
@@ -255,25 +249,18 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       
       // Wait for Quill to load
       quillJS.onload = () => {
-        console.log('Quill loaded from CDN');
         initQuillEditor();
-      };
-      quillJS.onerror = () => {
-        console.error('Failed to load Quill from CDN');
       };
       return;
     } else {
-      console.log('Quill already loaded');
       initQuillEditor();
     }
     
     function initQuillEditor() {
-      console.log('initQuillEditor called');
       try {
         // Create modal using React components
         const modalRoot = document.createElement('div');
         document.body.appendChild(modalRoot);
-        console.log('Modal root created');
       
       // Import React and ReactDOM dynamically
       import('react').then(React => {
@@ -938,9 +925,7 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
         // Check for double-click with left button only
         const currentTime = Date.now();
         const timeDiff = currentTime - lastClickTime;
-        console.log('Click detected, time diff:', timeDiff);
         if (timeDiff < 500 && timeDiff > 50) {
-          console.log('Double-click timing met');
           e.cancelBubble = true;
           handleDoubleClick();
           return;
@@ -957,7 +942,6 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
   };
 
   const handleDoubleClickDirect = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    console.log('Direct double-click handler called');
     if (state.activeTool === 'select' && e.evt.button === 0) {
       e.cancelBubble = true;
       e.evt.stopPropagation();
@@ -988,16 +972,16 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       scaleX={1}
       scaleY={1}
       draggable={false}
-      onClick={handleClick}
-      onDblClick={handleDoubleClickDirect}
-      onDragStart={() => {
+      onClick={state.activeTool === 'select' ? handleClick : undefined}
+      onDblClick={state.activeTool === 'select' ? handleDoubleClickDirect : undefined}
+      onDragStart={state.activeTool === 'select' ? () => {
         if (!isSelected) {
           onSelect();
         }
-      }}
+      } : undefined}
       onDragEnd={onDragEnd}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={state.activeTool === 'select' ? () => setIsHovered(true) : undefined}
+      onMouseLeave={state.activeTool === 'select' ? () => setIsHovered(false) : undefined}
     >
       {/* Background rectangle - this defines the selection bounds */}
       <Rect
@@ -1011,7 +995,7 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       />
       
       {/* Light grey dashed border for print exclusion - on hover or within selection */}
-      {(isHovered || isWithinSelection) && (
+      {(isHovered || isWithinSelection) && state.activeTool === 'select' && (
         <SelectionHoverRectangle
           width={element.width}
           height={element.height}
@@ -1020,7 +1004,7 @@ export default function CustomTextbox({ element, isSelected, onSelect, onDragEnd
       )}
       
       {/* Type icon in upper right corner - only on hover */}
-      {isHovered && (
+      {isHovered && state.activeTool === 'select' && (
         <Group
           x={element.width - 70}
           y={10}

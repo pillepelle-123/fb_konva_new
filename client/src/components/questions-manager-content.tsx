@@ -3,7 +3,7 @@ import { Button } from './ui/primitives/button';
 import { Card, CardContent, CardDescription } from './ui/card';
 import { Input } from './ui/primitives/input';
 import { DialogDescription, DialogHeader, DialogTitle } from './ui/overlays/dialog';
-import { HelpCircle, Plus, Edit, Trash2, Save, Calendar, X } from 'lucide-react';
+import { HelpCircle, Plus, Edit, Trash2, Save, Calendar, X, CircleQuestionMark, CircleQuestionMarkIcon, MessageCircleQuestionMark } from 'lucide-react';
 
 interface Question {
   id: number;
@@ -161,11 +161,11 @@ export default function QuestionsManagerContent({
       {!showAsContent && (
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-2">
-            <HelpCircle className="h-5 w-5" />
+            
             <span>{mode === 'select' ? 'Select Question' : 'Manage Questions'} - {bookName}</span>
           </DialogTitle>
           <DialogDescription>
-            {mode === 'select' ? 'Choose a question from the list below' : 'Add, edit, and organize questions for this book'}
+            {mode === 'select' ? 'Choose a question from the list for book "' + bookName + '"'  : 'Add, edit, and organize questions for book "' + bookName  + '"' }
           </DialogDescription>
         </DialogHeader>
       )}
@@ -174,15 +174,15 @@ export default function QuestionsManagerContent({
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-2xl font-bold flex items-center space-x-2">
-              <HelpCircle className="h-6 w-6" />
-              <span>{mode === 'select' ? 'Select Question' : 'Manage Questions'} - {bookName}</span>
+              {/* <MessageCircleQuestionMark className="h-6 w-6" /> */}
+              <span>{mode === 'select' ? 'Select Question' : 'Manage Questions'}</span>
             </h1>
             <Button variant="outline" onClick={onClose}>
               Back
             </Button>
           </div>
           <p className="text-muted-foreground">
-            {mode === 'select' ? 'Choose a question from the list below' : 'Add, edit, and organize questions for this book'}
+            {mode === 'select' ? 'Choose a question from the list for book "' + bookName + '"' : 'Add, edit, and organize questions for book "' + bookName  + '"' }
           </p>
         </div>
       )}
@@ -214,7 +214,7 @@ export default function QuestionsManagerContent({
           <CardContent className="p-0">
             {questions.length === 0 ? (
               <div className="text-center py-12">
-                <HelpCircle className="h-12 w-12 text-muted-foreground mx-auto opacity-50 mb-4" />
+                <MessageCircleQuestionMark className="h-12 w-12 text-muted-foreground mx-auto opacity-50 mb-4" />
                 <h3 className="text-lg font-medium text-foreground mb-2">No questions yet</h3>
                 <p className="text-muted-foreground">
                   Add your first question above to get started.

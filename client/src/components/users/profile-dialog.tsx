@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../ui/primitives/button';
+import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/overlays/dialog';
 import ProfilePicture from './profile-picture';
 import BooksList from '../books-list';
@@ -111,10 +112,10 @@ export default function ProfileDialog({ userId, open, onOpenChange }: ProfileDia
                 
                 {isOwnProfile ? (
                   <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">This is you</p>
-                    <Button variant="outline" size="sm">
+                    <Badge variant="highlight" >This is you</Badge>
+                    {/* <Button variant="outline" size="sm">
                       Your books
-                    </Button>
+                    </Button> */}
                   </div>
                 ) : (
                   <div className="flex space-x-2">

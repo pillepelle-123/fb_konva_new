@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useEditor, createSampleBook } from '../../context/editor-context';
 import EditorBar from '../../components/editor/editor-bar';
 import Toolbar from '../../components/editor/toolbar/index.tsx';
@@ -8,6 +8,7 @@ import Canvas from '../../components/editor/canvas/index.tsx';
 
 function EditorContent() {
   const { bookId } = useParams<{ bookId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { state, dispatch, loadBook } = useEditor();
 
   useEffect(() => {
@@ -22,6 +23,28 @@ function EditorContent() {
       dispatch({ type: 'SET_BOOK', payload: sampleBook });
     }
   }, [bookId, loadBook]);
+
+  // Handle page URL parameter
+  useEffect(() => {
+    const pageParam = searchParams.get('page');
+    if (pageParam && !isNaN(Number(pageParam))) {
+      const pageIndex = Number(pageParam) - 1;
+      if (pageIndex >= 0 && state.currentBook && pageIndex < state.currentBook.pages.length) {
+        dispatch({ type: 'SET_ACTIVE_PAGE', payload: pageIndex });
+      }
+    }
+  }, [searchParams, state.currentBook]);
+
+  // Update URL when page changes
+  useEffect(() => {
+    if (state.currentBook && bookId) {
+      const currentPage = state.activePageIndex + 1;
+      const pageParam = searchParams.get('page');
+      if (pageParam !== currentPage.toString()) {
+        setSearchParams({ page: currentPage.toString() });
+      }
+    }
+  }, [state.activePageIndex, state.currentBook, bookId, searchParams, setSearchParams]);
 
   if (!state.currentBook) {
     return (

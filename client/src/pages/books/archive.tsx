@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Card, CardContent } from '../../components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
-import { Archive, RotateCcw, Trash2, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Archive, ChevronLeft, ChevronRight } from 'lucide-react';
+import BookCard from '../../components/books/books-card';
 
 interface ArchivedBook {
   id: number;
@@ -88,13 +89,7 @@ export default function BookArchive() {
     setShowDeleteConfirm(null);
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
+
 
   if (loading) {
     return (
@@ -159,67 +154,24 @@ export default function BookArchive() {
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {books.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(book => (
-              <Card key={book.id} className="border shadow-sm hover:shadow-md transition-all duration-200 hover:border-primary/20">
-                <CardHeader className="pb-4">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <CardTitle className="text-lg font-semibold line-clamp-2">
-                        {book.name}
-                      </CardTitle>
-                      <CardDescription className="flex items-center space-x-2 text-sm">
-                        <span>{book.pageSize}</span>
-                        <span>•</span>
-                        <span className="capitalize">{book.orientation}</span>
-                      </CardDescription>
-                    </div>
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-                      <Archive className="h-4 w-4 text-primary" />
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between text-sm text-muted-foreground">
-                    <div className="flex items-center space-x-4">
-                      <div className="flex items-center space-x-1">
-                        <Calendar className="h-3 w-3" />
-                        <span>{formatDate(book.createdAt)}</span>
-                      </div>
-                    </div>
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      book.isOwner 
-                        ? 'bg-blue-100 text-blue-800' 
-                        : 'bg-green-100 text-green-800'
-                    }`}>
-                      {book.isOwner ? 'Owner' : 'Collaborator'}
-                    </span>
-                  </div>
-                  
-                  <div className="flex flex-wrap gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => handleRestore(book.id)}
-                      className="space-x-2 flex-1"
-                    >
-                      <RotateCcw className="h-3 w-3" />
-                      <span>Restore</span>
-                    </Button>
-                    {book.isOwner && (
-                      <Button 
-                        variant="destructive" 
-                        size="sm"
-                        onClick={() => handleDelete(book.id)}
-                        className="space-x-2"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                        <span>Delete</span>
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-              ))}
+              {books.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(book => {
+                const adaptedBook = {
+                  ...book,
+                  created_at: book.createdAt,
+                  updated_at: book.createdAt,
+                  pageCount: 0,
+                  collaboratorCount: 0
+                };
+                return (
+                  <BookCard 
+                    key={book.id} 
+                    book={adaptedBook} 
+                    isArchived={true}
+                    onRestore={handleRestore}
+                    onDelete={handleDelete}
+                  />
+                );
+              })}
             </div>
 
           </>
