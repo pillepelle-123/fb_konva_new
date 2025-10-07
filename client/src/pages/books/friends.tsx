@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
-import { Card, CardContent } from '../../components/ui/card';
+import { Card, CardContent } from '../../components/ui/composites/card';
 import { Input } from '../../components/ui/primitives/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
-import FriendsCard from '../../components/friends/friends-card';
+import FriendsCard from '../../components/features/friends/friend-card';
 import { Contact, ArrowLeft, Plus, UserPlus } from 'lucide-react';
 
 interface Friend {

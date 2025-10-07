@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
-import { Card, CardContent } from '../../components/ui/card';
+import { Card, CardContent } from '../../components/ui/composites/card';
 import { Input } from '../../components/ui/primitives/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
-import FriendsCard from '../../components/friends/friends-card';
-import FindFriendsDialog from '../../components/friends/find-friends-dialog';
+import FriendsCard from '../../components/features/friends/friend-card';
+import FindFriendsDialog from '../../components/features/friends/find-friends-dialog';
 import { Contact, UserSearch, UserPlus } from 'lucide-react';
 
 interface Friend {
@@ -51,7 +51,18 @@ export default function FriendsList() {
   };
 
   const handleRemoveFriend = async (friendId: number) => {
-    // TODO: Implement global friend removal
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/friendships/${friendId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.ok) {
+        fetchFriends();
+      }
+    } catch (error) {
+      console.error('Error removing friend:', error);
+    }
     setShowRemoveConfirm(null);
   };
 
@@ -112,6 +123,7 @@ export default function FriendsList() {
                 friend={friend}
                 onRoleChange={setShowRoleModal}
                 onRemove={setShowRemoveConfirm}
+                showFriendActions={true}
               />
             ))}
           </div>
@@ -177,7 +189,9 @@ export default function FriendsList() {
         {/* Find Friends Dialog */}
         <FindFriendsDialog 
           open={showFindFriendsDialog} 
-          onOpenChange={setShowFindFriendsDialog} 
+          onOpenChange={setShowFindFriendsDialog}
+          friends={friends}
+          onFriendAdded={fetchFriends}
         />
 
         {/* Add Friend Dialog */}

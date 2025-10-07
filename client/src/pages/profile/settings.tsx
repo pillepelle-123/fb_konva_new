@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/composites/card';
 import { Input } from '../../components/ui/primitives/input';
 import { Settings, User, Mail, Lock, Save } from 'lucide-react';
 

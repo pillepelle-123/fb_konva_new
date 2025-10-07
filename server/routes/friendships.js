@@ -61,4 +61,23 @@ router.post('/', authenticateToken, async (req, res) => {
   }
 });
 
+// Remove friend
+router.delete('/:friendId', authenticateToken, async (req, res) => {
+  try {
+    const { friendId } = req.params;
+    const userId = req.user.id;
+    
+    await pool.query(
+      'DELETE FROM public.friendships WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)',
+      [userId, friendId]
+    );
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error removing friend:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
 module.exports = router;

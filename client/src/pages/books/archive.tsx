@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
-import { Card, CardContent } from '../../components/ui/card';
+import { Card, CardContent } from '../../components/ui/composites/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
 import { Archive, ChevronLeft, ChevronRight } from 'lucide-react';
-import BookCard from '../../components/books/books-card';
+import BookCard from '../../components/features/books/book-card';
 
 interface ArchivedBook {
   id: number;

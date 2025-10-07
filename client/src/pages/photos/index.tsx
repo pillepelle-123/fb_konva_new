@@ -1,5 +1,5 @@
 import { useAuth } from '../../context/auth-context';
-import PhotosContent from '../../components/photos-content';
+import PhotosContent from '../../components/features/photos/photos-content';
 
 export default function PhotosList() {
   const { token } = useAuth();

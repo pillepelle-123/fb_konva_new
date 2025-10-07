@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../../context/auth-context';
 import { Link } from 'react-router-dom';
 import { Button } from '../../components/ui/primitives/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/composites/card';
 import { Input } from '../../components/ui/primitives/input';
 import { LogIn, Mail, Lock } from 'lucide-react';
 

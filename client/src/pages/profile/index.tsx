@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
-import BooksGrid from '../../components/books-grid';
-import ProfilePicture from '../../components/users/profile-picture';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/composites/card';
+import BooksGrid from '../../components/features/books/book-grid';
+import ProfilePicture from '../../components/features/users/profile-picture';
 import { MessageCircle, Heart } from 'lucide-react';
 
 interface User {

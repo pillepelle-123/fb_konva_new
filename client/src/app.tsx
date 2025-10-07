@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/auth-context'
 import { EditorProvider } from './context/editor-context'
-import PageContainer from './components/layout/page-container'
-import Navigation from './components/layout/navigation'
+import PageContainer from './components/layouts/page-container'
+import Navigation from './components/layouts/navigation'
 
 import Login from './pages/auth/login'
 import Register from './pages/auth/register'
@@ -18,8 +18,8 @@ import Profile from './pages/profile/index'
 import Settings from './pages/profile/settings'
 import Editor from './pages/editor'
 import NotFound from './pages/404'
-import ProtectedRoute from './components/layout/protected-route'
-import BookAccessGuard from './components/layout/book-access-guard'
+import ProtectedRoute from './components/layouts/protected-route'
+import BookAccessGuard from './components/layouts/book-access-guard'
 
 
 function App() {

@@ -180,7 +180,6 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           ...state.currentBook,
           pages: [...state.currentBook.pages, newPage]
         },
-        activePageIndex: state.currentBook.pages.length,
         hasUnsavedChanges: true
       };
     
@@ -218,7 +217,6 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           ...state.currentBook,
           pages: pagesWithDuplicate
         },
-        activePageIndex: action.payload + 1,
         hasUnsavedChanges: true
       };
     
