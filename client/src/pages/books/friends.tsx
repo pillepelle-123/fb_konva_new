@@ -6,7 +6,8 @@ import { Card, CardContent } from '../../components/ui/composites/card';
 import { Input } from '../../components/ui/primitives/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
 import FriendsCard from '../../components/features/friends/friend-card';
-import { Contact, ArrowLeft, Plus, UserPlus } from 'lucide-react';
+import FriendsBookAssignCard from '../../components/features/friends/friends-book-assign-card';
+import { Contact, ArrowLeft, Plus, UserPlus, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Friend {
   id: number;
@@ -28,7 +29,10 @@ export default function FriendsList() {
   const [showRoleModal, setShowRoleModal] = useState<Friend | null>(null);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState<Friend | null>(null);
   const [showCollaboratorModal, setShowCollaboratorModal] = useState(false);
+  const [showAddFriendModal, setShowAddFriendModal] = useState(false);
   const [pendingAssignments, setPendingAssignments] = useState<Set<number>>(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 15;
 
   useEffect(() => {
     if (bookId) {
@@ -237,9 +241,9 @@ export default function FriendsList() {
             </div>
           ) : (
             <div className="flex gap-2">
-            <Button onClick={() => setShowCollaboratorModal(true)} className="space-x-2">
+            <Button onClick={() => setShowAddFriendModal(true)} className="space-x-2">
               <Plus className="h-4 w-4" />
-              <span>Add Friend</span>
+              <span>Add from Friends List</span>
             </Button>
             <Button variant={'highlight'} onClick={() => setShowCollaboratorModal(true)} className="space-x-2">
               <UserPlus className="h-4 w-4" />
@@ -261,18 +265,46 @@ export default function FriendsList() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {friends.map(friend => (
-              <FriendsCard
-                key={friend.id}
-                friend={friend}
-                pageNumber={pageNumber}
-                pendingAssignments={pendingAssignments}
-                onPageAssignment={handlePageAssignment}
-                onRoleChange={setShowRoleModal}
-                onRemove={setShowRemoveConfirm}
-              />
-            ))}
+          <div className="space-y-6">
+            {/* Pagination */}
+            {friends.length > itemsPerPage && (
+              <div className="flex justify-center items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {currentPage} of {Math.ceil(friends.length / itemsPerPage)}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(friends.length / itemsPerPage)))}
+                  disabled={currentPage === Math.ceil(friends.length / itemsPerPage)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+
+            {/* Friends Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {friends.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(friend => (
+                <FriendsCard
+                  key={friend.id}
+                  friend={friend}
+                  pageNumber={pageNumber}
+                  pendingAssignments={pendingAssignments}
+                  onPageAssignment={handlePageAssignment}
+                  onRoleChange={setShowRoleModal}
+                  onRemove={setShowRemoveConfirm}
+                />
+              ))}
+            </div>
           </div>
         )}
 
@@ -291,7 +323,7 @@ export default function FriendsList() {
                 className="w-full justify-start"
                 onClick={() => showRoleModal && handleRoleChange(showRoleModal.id, 'author')}
               >
-                Author - Can edit and contribute to the book
+                Author - Can edit assigned pages
               </Button>
               <Button
                 variant="outline"
@@ -334,17 +366,164 @@ export default function FriendsList() {
         </Dialog>
 
         {/* Add Friend Dialog */}
+        <Dialog open={showAddFriendModal} onOpenChange={setShowAddFriendModal}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Add Friend to Book</DialogTitle>
+              <DialogDescription>
+                Select friends from your network to add to this book.
+              </DialogDescription>
+            </DialogHeader>
+            <AddFriendModal bookId={bookId!} onClose={() => setShowAddFriendModal(false)} onSuccess={fetchFriends} />
+          </DialogContent>
+        </Dialog>
+
+        {/* Invite Friend Dialog */}
         <Dialog open={showCollaboratorModal} onOpenChange={setShowCollaboratorModal}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Add Friend</DialogTitle>
+              <DialogTitle>Invite Friend</DialogTitle>
               <DialogDescription>
-                Add a collaborator to work on this book with you.
+                Invite a new friend to join your network and this book.
               </DialogDescription>
             </DialogHeader>
             <CollaboratorModal bookId={bookId!} onClose={() => setShowCollaboratorModal(false)} onSuccess={fetchFriends} />
           </DialogContent>
         </Dialog>
+      </div>
+    </div>
+  );
+}
+
+function AddFriendModal({ bookId, onClose, onSuccess }: { bookId: string; onClose: () => void; onSuccess: () => void }) {
+  const { token } = useAuth();
+  const [allFriends, setAllFriends] = useState<Friend[]>([]);
+  const [bookFriends, setBookFriends] = useState<Set<number>>(new Set());
+  const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 15;
+
+  useEffect(() => {
+    fetchAllFriends();
+    fetchBookFriends();
+  }, []);
+
+  const fetchAllFriends = async () => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/friendships/friends`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAllFriends(data);
+      }
+    } catch (error) {
+      console.error('Error fetching friends:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchBookFriends = async () => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/books/${bookId}/friends`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setBookFriends(new Set(data.map((f: Friend) => f.id)));
+      }
+    } catch (error) {
+      console.error('Error fetching book friends:', error);
+    }
+  };
+
+  const handleAssignToBook = async (friendId: number) => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/books/${bookId}/friends`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ friendId, role: 'author' })
+      });
+      if (response.ok) {
+        setBookFriends(prev => new Set([...prev, friendId]));
+        onSuccess();
+        onClose();
+      }
+    } catch (error) {
+      console.error('Error assigning friend to book:', error);
+    }
+  };
+
+  const totalPages = Math.ceil(allFriends.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const currentFriends = allFriends.slice(startIndex, startIndex + itemsPerPage);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {allFriends.length === 0 ? (
+        <div className="text-center py-8">
+          <p className="text-muted-foreground">No friends found. Invite friends first.</p>
+        </div>
+      ) : (
+        <>
+          {/* Pagination */}
+          {allFriends.length > itemsPerPage && (
+            <div className="flex justify-center items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+
+          {/* Friends List */}
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {currentFriends.map(friend => (
+              <FriendsBookAssignCard
+                key={friend.id}
+                friend={friend}
+                onAssignToBook={handleAssignToBook}
+                isAlreadyAssigned={bookFriends.has(friend.id)}
+              />
+            ))}
+          </div>
+        </>
+      )}
+      
+      <div className="flex justify-end pt-4">
+        <Button variant="outline" onClick={onClose}>
+          Close
+        </Button>
       </div>
     </div>
   );
@@ -382,7 +561,7 @@ function CollaboratorModal({ bookId, onClose, onSuccess }: { bookId: string; onC
   return (
     <form onSubmit={handleAddCollaborator} className="space-y-4">
       <div className="space-y-2">
-        <label htmlFor="email" className="text-sm font-medium">Add Friend by Email</label>
+        <label htmlFor="email" className="text-sm font-medium">Invite Friend by Email</label>
         <Input
           id="email"
           type="email"
@@ -397,7 +576,7 @@ function CollaboratorModal({ bookId, onClose, onSuccess }: { bookId: string; onC
           Cancel
         </Button>
         <Button type="submit">
-          Add Friend
+          Invite Friend
         </Button>
       </div>
     </form>

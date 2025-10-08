@@ -37,6 +37,7 @@ app.use('/api/photos', require('./routes/photos'));
 app.use('/api/page-assignments', require('./routes/page-assignments'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/friendships', require('./routes/friendships'));
+app.use('/api/answers', require('./routes/answers'));
 
 app.get('/', (req, res) => {
   res.json({ message: 'Hello World from Express server!' });

@@ -45,6 +45,7 @@ export default function ToolSettingsPanel() {
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
   const [selectedQuestionElementId, setSelectedQuestionElementId] = useState<string | null>(null);
+  const [activeLinkedElement, setActiveLinkedElement] = useState<string | null>(null);
   
   const toolSettings = state.toolSettings || {};
   const activeTool = state.activeTool;
@@ -62,12 +63,69 @@ export default function ToolSettingsPanel() {
     if (shouldExpand) {
       setIsCollapsed(false);
     }
-  }, [activeTool, state.selectedElementIds.length]);
+    
+    // Set default active element for linked pairs
+    if (state.selectedElementIds.length === 2 && state.currentBook) {
+      const selectedElements = state.currentBook.pages[state.activePageIndex]?.elements.filter(
+        el => state.selectedElementIds.includes(el.id)
+      ) || [];
+      
+      const questionElement = selectedElements.find(el => el.textType === 'question');
+      const answerElement = selectedElements.find(el => el.textType === 'answer' && el.questionElementId === questionElement?.id);
+      
+      if (questionElement && answerElement && !activeLinkedElement) {
+        setActiveLinkedElement(questionElement.id);
+      }
+    } else {
+      setActiveLinkedElement(null);
+    }
+  }, [activeTool, state.selectedElementIds.length, state.currentBook, state.activePageIndex, activeLinkedElement]);
 
   const shouldShowPanel = !['select', 'pan'].includes(activeTool) || state.selectedElementIds.length > 0;
 
   const renderToolSettings = () => {
-    // If multiple elements are selected, show selection list
+    // Check if we have linked question-answer pair selected
+    if (state.selectedElementIds.length === 2 && state.currentBook) {
+      const selectedElements = state.currentBook.pages[state.activePageIndex]?.elements.filter(
+        el => state.selectedElementIds.includes(el.id)
+      ) || [];
+      
+      // Check if they are linked question-answer pair
+      const questionElement = selectedElements.find(el => el.textType === 'question');
+      const answerElement = selectedElements.find(el => el.textType === 'answer' && el.questionElementId === questionElement?.id);
+      
+      if (questionElement && answerElement) {
+        const activeElement = activeLinkedElement === questionElement.id ? questionElement : answerElement;
+        
+        return (
+          <div className="space-y-4">
+            <ButtonGroup className="w-full">
+              <Button
+                variant={activeLinkedElement === questionElement.id ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setActiveLinkedElement(questionElement.id)}
+                className="flex-1"
+              >
+                <MessageCircleQuestion className="h-4 w-4 mr-1" />
+                Question
+              </Button>
+              <Button
+                variant={activeLinkedElement === answerElement.id ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setActiveLinkedElement(answerElement.id)}
+                className="flex-1"
+              >
+                <MessageCircleHeart className="h-4 w-4 mr-1" />
+                Answer
+              </Button>
+            </ButtonGroup>
+            {renderElementSettings(activeElement)}
+          </div>
+        );
+      }
+    }
+    
+    // If multiple elements are selected (not linked pair), show selection list
     if (state.selectedElementIds.length > 1 && state.currentBook) {
       const selectedElements = state.currentBook.pages[state.activePageIndex]?.elements.filter(
         el => state.selectedElementIds.includes(el.id)
@@ -582,6 +640,25 @@ export default function ToolSettingsPanel() {
           {!isCollapsed && (
             <h3 className="font-semibold text-sm flex items-center gap-2">
               {(() => {
+                // Check for linked question-answer pair
+                if (state.selectedElementIds.length === 2 && state.currentBook) {
+                  const selectedElements = state.currentBook.pages[state.activePageIndex]?.elements.filter(
+                    el => state.selectedElementIds.includes(el.id)
+                  ) || [];
+                  
+                  const questionElement = selectedElements.find(el => el.textType === 'question');
+                  const answerElement = selectedElements.find(el => el.textType === 'answer' && el.questionElementId === questionElement?.id);
+                  
+                  if (questionElement && answerElement) {
+                    return (
+                      <>
+                        <MessageCircleQuestion className="h-4 w-4" />
+                        Question & Answer Settings
+                      </>
+                    );
+                  }
+                }
+                
                 if (state.selectedElementIds.length > 1) {
                   const IconComponent = TOOL_ICONS.select;
                   return (
@@ -650,11 +727,14 @@ export default function ToolSettingsPanel() {
               token={token}
               onQuestionSelect={(questionId, questionText) => {
                 if (selectedQuestionElementId) {
+                  const updates = questionId === 0 
+                    ? { text: '', fill: '#9ca3af', questionId: undefined }
+                    : { text: questionText, fill: '#1f2937', questionId: questionId };
                   dispatch({
                     type: 'UPDATE_ELEMENT',
                     payload: {
                       id: selectedQuestionElementId,
-                      updates: { text: questionText }
+                      updates
                     }
                   });
                 }

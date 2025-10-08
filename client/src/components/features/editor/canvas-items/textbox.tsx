@@ -227,6 +227,15 @@ export default function Textbox(props: CanvasItemProps) {
 
   const handleDoubleClick = () => {
     if (state.activeTool !== 'select') return;
+    
+    if (element.textType === 'question') {
+      // Open question selection dialog for question elements
+      window.dispatchEvent(new CustomEvent('openQuestionModal', {
+        detail: { elementId: element.id }
+      }));
+      return;
+    }
+    
     window.dispatchEvent(new CustomEvent('editText', {
       detail: { elementId: element.id }
     }));
@@ -304,6 +313,7 @@ export default function Textbox(props: CanvasItemProps) {
             lineHeight={lineHeight}
             listening={false}
             opacity={element.text ? 1 : 0.6}
+            name={element.text ? '' : 'no-print'}
           />
         )}
         

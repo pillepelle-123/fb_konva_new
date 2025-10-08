@@ -15,7 +15,7 @@ interface PDFExportModalProps {
 export default function PDFExportModal({ isOpen, onClose }: PDFExportModalProps) {
   const { state } = useEditor();
   const [quality, setQuality] = useState<'preview' | 'medium' | 'printing'>('medium');
-  const [pageRange, setPageRange] = useState<'all' | 'range'>('all');
+  const [pageRange, setPageRange] = useState<'all' | 'range' | 'current'>('all');
   const [startPage, setStartPage] = useState(1);
   const [endPage, setEndPage] = useState(state.currentBook?.pages.length || 1);
   const [isExporting, setIsExporting] = useState(false);
@@ -35,6 +35,7 @@ export default function PDFExportModal({ isOpen, onClose }: PDFExportModalProps)
       pageRange,
       startPage: pageRange === 'range' ? startPage : undefined,
       endPage: pageRange === 'range' ? endPage : undefined,
+      currentPageIndex: pageRange === 'current' ? state.activePageIndex : undefined,
     };
 
     try {

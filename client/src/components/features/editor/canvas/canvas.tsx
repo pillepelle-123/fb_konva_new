@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { Layer, Rect, Group } from 'react-konva';
+import { Layer, Rect, Group, Text } from 'react-konva';
 import Konva from 'konva';
 import { v4 as uuidv4 } from 'uuid';
 import { useEditor } from '../../../../context/editor-context';
@@ -13,7 +13,9 @@ import { PreviewLine, PreviewShape, PreviewTextbox, PreviewBrush } from './previ
 import { CanvasContainer } from './canvas-container';
 import ContextMenu from '../../../ui/overlays/context-menu';
 import { Modal } from '../../../ui/overlays/modal';
+import { Dialog, DialogContent } from '../../../ui/overlays/dialog';
 import PhotosContent from '../../photos/photos-content';
+import QuestionsManagerContent from '../../questions/questions-manager-content';
 import TextEditorModal from '../text-editor-modal';
 import ToolSettingsPanel from '../tool-settings/tool-settings-panel';
 
@@ -96,6 +98,9 @@ export default function Canvas() {
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [pendingPhotoPosition, setPendingPhotoPosition] = useState<{ x: number; y: number } | null>(null);
   const [editingElement, setEditingElement] = useState<CanvasElement | null>(null);
+  const [showQuestionDialog, setShowQuestionDialog] = useState(false);
+  const [selectedQuestionElementId, setSelectedQuestionElementId] = useState<string | null>(null);
+  const [selectionModeState, setSelectionModeState] = useState<Map<string, number>>(new Map());
   const editingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentPage = state.currentBook?.pages[state.activePageIndex];
@@ -146,6 +151,13 @@ export default function Canvas() {
       }
     }
   }, [state.selectedElementIds, isDragging, currentPage]);
+
+  // Reset selection mode state when no elements are selected
+  useEffect(() => {
+    if (state.selectedElementIds.length === 0) {
+      setSelectionModeState(new Map());
+    }
+  }, [state.selectedElementIds.length]);
 
   const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
     const currentTime = Date.now();
@@ -510,20 +522,45 @@ export default function Canvas() {
           };
         } else if (previewTextbox.type === 'question') {
           const questionSettings = state.toolSettings.question || {};
-          newElement = {
+          const questionHeight = Math.max(40, previewTextbox.height * 0.3);
+          const answerHeight = previewTextbox.height - questionHeight - 10;
+          
+          // Create question text element (non-editable)
+          const questionElement: CanvasElement = {
             id: uuidv4(),
             type: 'text',
             x: previewTextbox.x,
             y: previewTextbox.y,
             width: previewTextbox.width,
-            height: previewTextbox.height,
+            height: questionHeight,
             text: '',
             fontSize: questionSettings.fontSize || 64,
             lineHeight: 1.2,
             align: questionSettings.align || 'left',
             fontFamily: questionSettings.fontFamily || 'Arial, sans-serif',
-            textType: 'question'
+            textType: 'question',
+            fill: '#9ca3af'
           };
+          
+          // Create answer textbox (editable)
+          newElement = {
+            id: uuidv4(),
+            type: 'text',
+            x: previewTextbox.x,
+            y: previewTextbox.y + questionHeight + 10,
+            width: previewTextbox.width,
+            height: answerHeight,
+            text: '',
+            fontSize: questionSettings.fontSize || 64,
+            lineHeight: 1.2,
+            align: questionSettings.align || 'left',
+            fontFamily: questionSettings.fontFamily || 'Arial, sans-serif',
+            textType: 'answer',
+            questionElementId: questionElement.id
+          };
+          
+          // Add question element first
+          dispatch({ type: 'ADD_ELEMENT', payload: questionElement });
         } else {
           const answerSettings = state.toolSettings.answer || {};
           newElement = {
@@ -833,9 +870,40 @@ export default function Canvas() {
       }, 50);
     };
     
+    const handleOpenQuestionModal = (event: CustomEvent) => {
+      const element = currentPage?.elements.find(el => el.id === event.detail.elementId);
+      if (element && element.textType === 'question') {
+        setSelectedQuestionElementId(element.id);
+        setShowQuestionDialog(true);
+      }
+    };
+    
+    const handleFindQuestionElement = (event: CustomEvent) => {
+      const { questionElementId, callback } = event.detail;
+      const questionElement = currentPage?.elements.find(el => el.id === questionElementId);
+      callback(questionElement);
+    };
+    
+    const handleUpdateAnswerId = (event: CustomEvent) => {
+      const { elementId, answerId } = event.detail;
+      dispatch({
+        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+        payload: {
+          id: elementId,
+          updates: { answerId }
+        }
+      });
+    };
+    
     window.addEventListener('editText', handleTextEdit as EventListener);
+    window.addEventListener('openQuestionModal', handleOpenQuestionModal as EventListener);
+    window.addEventListener('findQuestionElement', handleFindQuestionElement as EventListener);
+    window.addEventListener('updateAnswerId', handleUpdateAnswerId as EventListener);
     return () => {
       window.removeEventListener('editText', handleTextEdit as EventListener);
+      window.removeEventListener('openQuestionModal', handleOpenQuestionModal as EventListener);
+      window.removeEventListener('findQuestionElement', handleFindQuestionElement as EventListener);
+      window.removeEventListener('updateAnswerId', handleUpdateAnswerId as EventListener);
       if (editingTimeoutRef.current) {
         clearTimeout(editingTimeoutRef.current);
       }
@@ -966,12 +1034,75 @@ export default function Canvas() {
             {/* Canvas elements */}
             <Group x={pageOffsetX} y={pageOffsetY}>
               {currentPage?.elements.map(element => (
-                <CanvasItemComponent
-                  key={element.id}
-                  element={element}
-                  isSelected={state.selectedElementIds.includes(element.id)}
-                  onSelect={() => {
-                    dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] });
+                <Group key={element.id}>
+                  <CanvasItemComponent
+                    element={element}
+                    isSelected={state.selectedElementIds.includes(element.id)}
+                    onSelect={() => {
+                    if (element.textType === 'question' || element.textType === 'answer') {
+                      const currentTime = Date.now();
+                      const timeSinceLastClick = currentTime - lastClickTime;
+                      
+                      // Find linked element
+                      let linkedElement: CanvasElement | undefined;
+                      if (element.textType === 'question') {
+                        linkedElement = currentPage?.elements.find(el => el.questionElementId === element.id);
+                      } else if (element.questionElementId) {
+                        linkedElement = currentPage?.elements.find(el => el.id === element.questionElementId);
+                      }
+                      
+                      if (!linkedElement) {
+                        dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] });
+                        setLastClickTime(currentTime);
+                        return;
+                      }
+                      
+                      const pairKey = `${Math.min(element.x, linkedElement.x)}-${Math.min(element.y, linkedElement.y)}`;
+                      
+                      // Check if elements overlap at click position
+                      const elementsOverlap = (
+                        Math.abs(element.x - linkedElement.x) < 50 && 
+                        Math.abs(element.y - linkedElement.y) < 50
+                      );
+                      
+                      let nextMode;
+                      
+                      const currentMode = selectionModeState.get(pairKey) ?? -1;
+                      const maxModes = elementsOverlap ? 3 : 2;
+                      nextMode = (currentMode + 1) % maxModes;
+                      
+                      setSelectionModeState(prev => {
+                        const newMap = new Map(prev);
+                        newMap.set(pairKey, nextMode);
+                        return newMap;
+                      });
+                      
+
+                      
+                      let elementsToSelect: string[] = [];
+                      
+                      if (nextMode === 0) {
+                        // Group selection (always first)
+                        elementsToSelect = [element.id, linkedElement.id];
+                      } else if (nextMode === 1) {
+                        // First element selection
+                        elementsToSelect = [element.id];
+                      } else if (nextMode === 2 && elementsOverlap) {
+                        // Second element selection (only when overlapping)
+                        elementsToSelect = [linkedElement.id];
+                      }
+                      
+                      dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: elementsToSelect });
+                      
+                      if (elementsToSelect.length === 2) {
+                        dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+                      }
+                      
+                      setLastClickTime(currentTime);
+                    } else {
+                      // Regular element selection
+                      dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] });
+                    }
                   }}
                   isMovingGroup={isMovingGroup}
                   onDragStart={() => {
@@ -983,8 +1114,10 @@ export default function Canvas() {
                   onDragEnd={() => setTimeout(() => setIsDragging(false), 10)}
                   isWithinSelection={selectionRect.visible && getElementsInSelection().includes(element.id)}
                 />
+
+                </Group>
               ))}
-              
+            
               {/* Preview elements */}
               {isDrawing && currentPath.length > 2 && (
                 <PreviewBrush points={currentPath} />
@@ -1061,9 +1194,15 @@ export default function Canvas() {
                     const scaleX = node.scaleX();
                     const scaleY = node.scaleY();
                     
-                    // Calculate new dimensions
-                    updates.width = Math.max(element.type === 'text' ? 50 : 20, (element.width || 150) * scaleX);
-                    updates.height = Math.max(element.type === 'text' ? 20 : 20, (element.height || 50) * scaleY);
+                    // For question and answer elements, only update dimensions without scaling text
+                    if (element.textType === 'question' || element.textType === 'answer') {
+                      updates.width = Math.max(50, (element.width || 150) * scaleX);
+                      updates.height = Math.max(20, (element.height || 50) * scaleY);
+                    } else {
+                      // For regular text elements, calculate new dimensions
+                      updates.width = Math.max(element.type === 'text' ? 50 : 20, (element.width || 150) * scaleX);
+                      updates.height = Math.max(element.type === 'text' ? 20 : 20, (element.height || 50) * scaleY);
+                    }
                     
                     // For position, use node position directly
                     updates.x = node.x();
@@ -1090,6 +1229,81 @@ export default function Canvas() {
                       updates
                     }
                   });
+                  
+                  // Handle linked question-answer pair transformation
+                  if (element.textType === 'question') {
+                    const linkedAnswer = currentPage?.elements.find(el => el.questionElementId === element.id);
+                    if (linkedAnswer) {
+                      const linkedNode = stageRef.current?.findOne(`#${linkedAnswer.id}`);
+                      if (linkedNode) {
+                        // Reset scale for linked element too
+                        linkedNode.scaleX(1);
+                        linkedNode.scaleY(1);
+                      }
+                      
+                      const deltaX = updates.x - element.x;
+                      const deltaY = updates.y - element.y;
+                      const deltaRotation = (updates.rotation || 0) - (element.rotation || 0);
+                      
+                      const answerUpdates: any = {
+                        x: linkedAnswer.x + deltaX,
+                        y: linkedAnswer.y + deltaY,
+                        rotation: (linkedAnswer.rotation || 0) + deltaRotation
+                      };
+                      
+                      // Also update dimensions if resizing
+                      if (updates.width !== undefined) {
+                        answerUpdates.width = updates.width;
+                      }
+                      if (updates.height !== undefined) {
+                        answerUpdates.height = updates.height;
+                      }
+                      
+                      dispatch({
+                        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                        payload: {
+                          id: linkedAnswer.id,
+                          updates: answerUpdates
+                        }
+                      });
+                    }
+                  } else if (element.textType === 'answer' && element.questionElementId) {
+                    const linkedQuestion = currentPage?.elements.find(el => el.id === element.questionElementId);
+                    if (linkedQuestion) {
+                      const linkedNode = stageRef.current?.findOne(`#${linkedQuestion.id}`);
+                      if (linkedNode) {
+                        // Reset scale for linked element too
+                        linkedNode.scaleX(1);
+                        linkedNode.scaleY(1);
+                      }
+                      
+                      const deltaX = updates.x - element.x;
+                      const deltaY = updates.y - element.y;
+                      const deltaRotation = (updates.rotation || 0) - (element.rotation || 0);
+                      
+                      const questionUpdates: any = {
+                        x: linkedQuestion.x + deltaX,
+                        y: linkedQuestion.y + deltaY,
+                        rotation: (linkedQuestion.rotation || 0) + deltaRotation
+                      };
+                      
+                      // Also update dimensions if resizing
+                      if (updates.width !== undefined) {
+                        questionUpdates.width = updates.width;
+                      }
+                      if (updates.height !== undefined) {
+                        questionUpdates.height = updates.height;
+                      }
+                      
+                      dispatch({
+                        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                        payload: {
+                          id: linkedQuestion.id,
+                          updates: questionUpdates
+                        }
+                      });
+                    }
+                  }
                 }
               }}
             />
@@ -1145,6 +1359,39 @@ export default function Canvas() {
           bookName={state.currentBook?.name}
           token={token}
         />
+      )}
+      
+      {showQuestionDialog && state.currentBook && token && (
+        <Dialog open={showQuestionDialog} onOpenChange={setShowQuestionDialog}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden">
+            <QuestionsManagerContent
+              bookId={state.currentBook.id}
+              bookName={state.currentBook.name}
+              mode="select"
+              token={token}
+              onQuestionSelect={(questionId, questionText) => {
+                if (selectedQuestionElementId) {
+                  const updates = questionId === 0 
+                    ? { text: '', fill: '#9ca3af', questionId: undefined }
+                    : { text: questionText, fill: '#1f2937', questionId: questionId };
+                  dispatch({
+                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                    payload: {
+                      id: selectedQuestionElementId,
+                      updates
+                    }
+                  });
+                }
+                setShowQuestionDialog(false);
+                setSelectedQuestionElementId(null);
+              }}
+              onClose={() => {
+                setShowQuestionDialog(false);
+                setSelectedQuestionElementId(null);
+              }}
+            />
+          </DialogContent>
+        </Dialog>
       )}
       </CanvasPageContainer>
       

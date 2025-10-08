@@ -16,6 +16,15 @@ interface TextEditorModalProps {
 // Global flag to prevent multiple modals
 let isModalOpen = false;
 
+// Helper function to find question element
+const findQuestionElement = async (questionElementId: string) => {
+  return new Promise((resolve) => {
+    window.dispatchEvent(new CustomEvent('findQuestionElement', {
+      detail: { questionElementId, callback: resolve }
+    }));
+  });
+};
+
 export default function TextEditorModal({ element, onSave, onClose, onSelectQuestion, bookId, bookName, token }: TextEditorModalProps) {
   const modalRef = useRef<HTMLDivElement | null>(null);
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
@@ -132,8 +141,41 @@ export default function TextEditorModal({ element, onSave, onClose, onSelectQues
           }
         }
         
-        saveBtn.onclick = () => {
+        saveBtn.onclick = async () => {
           const htmlContent = quill.root.innerHTML;
+          
+          // If this is an answer element, save to database
+          if (element.textType === 'answer' && element.questionElementId && bookId && token) {
+            try {
+              // Find the linked question element to get questionId
+              const questionElement = await findQuestionElement(element.questionElementId);
+              if (questionElement && questionElement.questionId) {
+                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+                const response = await fetch(`${apiUrl}/answers`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                  },
+                  body: JSON.stringify({
+                    questionId: questionElement.questionId,
+                    answerText: htmlContent
+                  })
+                });
+                
+                if (response.ok) {
+                  const answerData = await response.json();
+                  // Update element with answerId
+                  window.dispatchEvent(new CustomEvent('updateAnswerId', {
+                    detail: { elementId: element.id, answerId: answerData.id }
+                  }));
+                }
+              }
+            } catch (error) {
+              console.error('Error saving answer:', error);
+            }
+          }
+          
           onSave(htmlContent);
           closeModal();
         };

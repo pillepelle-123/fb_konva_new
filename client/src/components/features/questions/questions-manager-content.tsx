@@ -177,9 +177,16 @@ export default function QuestionsManagerContent({
               {/* <MessageCircleQuestionMark className="h-6 w-6" /> */}
               <span>{mode === 'select' ? 'Select Question' : 'Manage Questions'}</span>
             </h1>
-            <Button variant="outline" onClick={onClose}>
-              Back
-            </Button>
+            <div className="flex gap-2">
+              {mode === 'select' && (
+                <Button variant="outline" onClick={() => onQuestionSelect?.(0, '')}>
+                  Reset Question
+                </Button>
+              )}
+              <Button variant="outline" onClick={onClose}>
+                Back
+              </Button>
+            </div>
           </div>
           <p className="text-muted-foreground">
             {mode === 'select' ? 'Choose a question from the list for book "' + bookName + '"' : 'Add, edit, and organize questions for book "' + bookName  + '"' }
@@ -309,7 +316,10 @@ export default function QuestionsManagerContent({
       </div>
 
       {mode === 'select' && !showAsContent && (
-        <div className="flex justify-end mt-4">
+        <div className="flex justify-end gap-2 mt-4">
+          <Button variant="outline" onClick={() => onQuestionSelect?.(0, '')}>
+            Reset Question
+          </Button>
           <Button variant="outline" onClick={onClose}>
             Back
           </Button>

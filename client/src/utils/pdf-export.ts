@@ -4,9 +4,10 @@ import type { Book } from '../context/EditorContext';
 
 export interface PDFExportOptions {
   quality: 'preview' | 'medium' | 'printing';
-  pageRange: 'all' | 'range';
+  pageRange: 'all' | 'range' | 'current';
   startPage?: number;
   endPage?: number;
+  currentPageIndex?: number;
 }
 
 const PAGE_DIMENSIONS = {
@@ -34,6 +35,8 @@ export const exportBookToPDF = async (
     const start = Math.max(1, options.startPage) - 1;
     const end = Math.min(book.pages.length, options.endPage);
     pagesToExport = book.pages.slice(start, end);
+  } else if (options.pageRange === 'current' && options.currentPageIndex !== undefined) {
+    pagesToExport = [book.pages[options.currentPageIndex]];
   }
 
   // Get PDF dimensions

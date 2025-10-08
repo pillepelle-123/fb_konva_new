@@ -3,11 +3,11 @@ import { RadioGroup } from '../../ui/primitives/radio-group';
 import { NumberInput } from '../../ui/primitives/number-input';
 
 interface PageRangeSelectorProps {
-  pageRange: 'all' | 'range';
+  pageRange: 'all' | 'range' | 'current';
   startPage: number;
   endPage: number;
   maxPages: number;
-  onPageRangeChange: (value: 'all' | 'range') => void;
+  onPageRangeChange: (value: 'all' | 'range' | 'current') => void;
   onStartPageChange: (value: number) => void;
   onEndPageChange: (value: number) => void;
 }
@@ -23,6 +23,7 @@ export function PageRangeSelector({
 }: PageRangeSelectorProps) {
   const radioOptions = [
     { value: 'all', label: 'Print all pages' },
+    { value: 'current', label: 'Print current page' },
     { value: 'range', label: 'Pages' }
   ];
 

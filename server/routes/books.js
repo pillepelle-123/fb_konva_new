@@ -324,7 +324,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Add collaborator
+// Add collaborator by email
 router.post('/:id/collaborators', authenticateToken, async (req, res) => {
   try {
     const bookId = req.params.id;
@@ -351,6 +351,47 @@ router.post('/:id/collaborators', authenticateToken, async (req, res) => {
 
     res.json({ success: true });
   } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Add friend to book by friend ID
+router.post('/:id/friends', authenticateToken, async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const { friendId, role = 'author' } = req.body;
+    const userId = req.user.id;
+
+    // Check if user has access to manage this book
+    const bookAccess = await pool.query(`
+      SELECT b.*, bf.role as user_role FROM public.books b
+      LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
+      WHERE b.id = $1 AND (b.owner_id = $2 OR bf.role = 'publisher')
+    `, [bookId, userId]);
+
+    if (bookAccess.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Verify the friend relationship exists
+    const friendship = await pool.query(
+      'SELECT * FROM public.friendships WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)',
+      [userId, friendId]
+    );
+
+    if (friendship.rows.length === 0) {
+      return res.status(403).json({ error: 'Not friends with this user' });
+    }
+
+    // Add friend to book
+    await pool.query(
+      'INSERT INTO public.book_friends (book_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+      [bookId, friendId, role]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Add friend to book error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

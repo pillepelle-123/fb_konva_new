@@ -1,4 +1,4 @@
-import { useRef, useState, ReactNode } from 'react';
+import { useRef, useState, ReactNode, useEffect } from 'react';
 import { Group, Rect } from 'react-konva';
 import { SelectionHoverRectangle } from '../canvas/selection-hover-rectangle';
 import Konva from 'konva';
@@ -36,6 +36,31 @@ export default function BaseCanvasItem({
   const { state, dispatch } = useEditor();
   const groupRef = useRef<Konva.Group>(null);
   const [isHovered, setIsHovered] = useState(false);
+  const [partnerHovered, setPartnerHovered] = useState(false);
+
+  useEffect(() => {
+    const handlePartnerHover = (event: CustomEvent) => {
+      const { elementId, hover } = event.detail;
+      
+      // Check if this element is the partner of the hovered element
+      let isPartner = false;
+      if (element.textType === 'question') {
+        // Find if any answer element has this as questionElementId
+        const currentPage = state.currentBook?.pages[state.activePageIndex];
+        isPartner = currentPage?.elements.some(el => el.id === elementId && el.questionElementId === element.id) || false;
+      } else if (element.textType === 'answer' && element.questionElementId) {
+        // Check if the hovered element is our linked question
+        isPartner = elementId === element.questionElementId;
+      }
+      
+      if (isPartner) {
+        setPartnerHovered(hover);
+      }
+    };
+    
+    window.addEventListener('hoverPartner', handlePartnerHover as EventListener);
+    return () => window.removeEventListener('hoverPartner', handlePartnerHover as EventListener);
+  }, [element.id, element.textType, element.questionElementId, state.currentBook, state.activePageIndex]);
   const [lastClickTime, setLastClickTime] = useState(0);
 
   const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -52,7 +77,11 @@ export default function BaseCanvasItem({
         setLastClickTime(currentTime);
         
         e.cancelBubble = true;
-        onSelect();
+        // For question-answer pairs, always call onSelect to handle sequential selection
+        // For other elements, only call if not already selected
+        if (element.textType === 'question' || element.textType === 'answer' || !isSelected) {
+          onSelect();
+        }
       } else if (e.evt.button === 2) {
         // Prevent right-click selection when multi-selection is active
         if (state.selectedElementIds.length > 1) {
@@ -70,7 +99,9 @@ export default function BaseCanvasItem({
   const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (state.activeTool === 'select' && e.evt.button === 0) {
       e.cancelBubble = true;
-      if (!isSelected) {
+      // For regular elements, select on mouseDown if not already selected
+      // Skip for question-answer pairs as they use onClick for sequential selection
+      if (!isSelected && !(element.textType === 'question' || element.textType === 'answer')) {
         onSelect();
       }
     }
@@ -103,12 +134,28 @@ export default function BaseCanvasItem({
       onClick={handleClick}
       onTap={(e) => {
         e.cancelBubble = true;
-        onSelect();
+        // For question-answer pairs, always call onSelect for sequential selection
+        // For other elements, only call if not already selected
+        if (element.textType === 'question' || element.textType === 'answer' || !isSelected) {
+          onSelect();
+        }
       }}
       onDragStart={onDragStart}
       onDragEnd={handleDragEnd}
-      onMouseEnter={state.activeTool === 'select' ? () => setIsHovered(true) : undefined}
-      onMouseLeave={state.activeTool === 'select' ? () => setIsHovered(false) : undefined}
+      onMouseEnter={state.activeTool === 'select' ? () => {
+        setIsHovered(true);
+        // Trigger hover on partner element for question-answer pairs
+        if (element.textType === 'question' || element.textType === 'answer') {
+          window.dispatchEvent(new CustomEvent('hoverPartner', { detail: { elementId: element.id, hover: true } }));
+        }
+      } : undefined}
+      onMouseLeave={state.activeTool === 'select' ? () => {
+        setIsHovered(false);
+        // Remove hover from partner element for question-answer pairs
+        if (element.textType === 'question' || element.textType === 'answer') {
+          window.dispatchEvent(new CustomEvent('hoverPartner', { detail: { elementId: element.id, hover: false } }));
+        }
+      } : undefined}
     >
       {/* Invisible hit area for easier selection */}
       <Rect
@@ -123,7 +170,7 @@ export default function BaseCanvasItem({
       />
       
       {/* Dashed border on hover or within selection */}
-      {(isHovered || isWithinSelection) && state.activeTool === 'select' && (
+      {(isHovered || partnerHovered || isWithinSelection) && state.activeTool === 'select' && (
         <SelectionHoverRectangle
           x={defaultHitArea.x}
           y={defaultHitArea.y}

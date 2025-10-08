@@ -19,6 +19,8 @@ export interface CanvasElement {
   fontFamily?: string;
   textType?: 'question' | 'answer' | 'text';
   questionId?: number;
+  answerId?: number;
+  questionElementId?: string;
   src?: string;
   points?: number[];
   roughness?: number;
@@ -336,11 +338,12 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
+      let updated = false;
+      
       if (questionsResponse.ok) {
         const questions = await questionsResponse.json();
         const questionMap = new Map(questions.map(q => [q.id, q.question_text]));
         
-        let updated = false;
         book.pages.forEach(page => {
           page.elements.forEach(element => {
             if (element.textType === 'question' && element.questionId && questionMap.has(element.questionId)) {
@@ -352,17 +355,48 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
             }
           });
         });
+      }
+      
+      // Update linked answer textboxes with latest database text
+      try {
+        const answersResponse = await fetch(`${apiUrl}/answers/book/${bookId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
         
-        if (updated) {
-          await fetch(`${apiUrl}/books/${bookId}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify(book)
+        if (answersResponse.ok) {
+          const answers = await answersResponse.json();
+          const answerMap = new Map(answers.map(a => [a.question_id, { id: a.id, text: a.answer_text }]));
+          
+          book.pages.forEach(page => {
+            page.elements.forEach(element => {
+              if (element.textType === 'answer' && element.questionElementId) {
+                // Find the linked question element
+                const questionElement = page.elements.find(el => el.id === element.questionElementId);
+                if (questionElement && questionElement.questionId && answerMap.has(questionElement.questionId)) {
+                  const answerData = answerMap.get(questionElement.questionId);
+                  if (element.text !== answerData.text || element.answerId !== answerData.id) {
+                    element.text = answerData.text;
+                    element.answerId = answerData.id;
+                    updated = true;
+                  }
+                }
+              }
+            });
           });
         }
+      } catch (error) {
+        console.log('Answers API not available yet:', error.message);
+      }
+      
+      if (updated) {
+        await fetch(`${apiUrl}/books/${bookId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(book)
+        });
       }
       
       dispatch({ type: 'SET_BOOK', payload: book });

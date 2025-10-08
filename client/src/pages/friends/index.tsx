@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/primitives/button';
 import { Card, CardContent } from '../../components/ui/composites/card';
 import { Input } from '../../components/ui/primitives/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
-import FriendsCard from '../../components/features/friends/friend-card';
+import FriendGrid from '../../components/features/friends/friend-grid';
 import FindFriendsDialog from '../../components/features/friends/find-friends-dialog';
 import { Contact, UserSearch, UserPlus } from 'lucide-react';
 
@@ -113,20 +113,22 @@ export default function FriendsList() {
               <p className="text-muted-foreground mb-6">
                 Start building your network by inviting friends to collaborate.
               </p>
+              <Button 
+                variant={'highlight'} 
+                onClick={() => setShowCollaboratorModal(true)} 
+                className="space-x-2"
+              >
+                <UserPlus className="h-4 w-4" />
+                <span>Invite Your First Friend</span>
+              </Button>
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {friends.map(friend => (
-              <FriendsCard
-                key={friend.id}
-                friend={friend}
-                onRoleChange={setShowRoleModal}
-                onRemove={setShowRemoveConfirm}
-                showFriendActions={true}
-              />
-            ))}
-          </div>
+          <FriendGrid 
+            friends={friends} 
+            onRoleChange={setShowRoleModal} 
+            onRemove={setShowRemoveConfirm} 
+          />
         )}
 
         {/* Role Change Dialog */}
@@ -144,7 +146,7 @@ export default function FriendsList() {
                 className="w-full justify-start"
                 onClick={() => showRoleModal && handleRoleChange(showRoleModal.id, 'author')}
               >
-                Author - Can edit and contribute to books
+                Author - Can edit assigned pages.
               </Button>
               <Button
                 variant="outline"
@@ -243,7 +245,7 @@ function CollaboratorModal({ onClose, onSuccess }: { onClose: () => void; onSucc
   return (
     <form onSubmit={handleAddCollaborator} className="space-y-4">
       <div className="space-y-2">
-        <label htmlFor="email" className="text-sm font-medium">Invite Friend by Email</label>
+        <label htmlFor="email" className="text-sm font-medium">Add Friend by Email</label>
         <Input
           id="email"
           type="email"
@@ -258,7 +260,7 @@ function CollaboratorModal({ onClose, onSuccess }: { onClose: () => void; onSucc
           Cancel
         </Button>
         <Button type="submit">
-          Send Invitation
+          Invite Friend
         </Button>
       </div>
     </form>

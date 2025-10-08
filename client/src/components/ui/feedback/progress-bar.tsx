@@ -21,7 +21,7 @@ export function ProgressBar({ progress, label }: ProgressBarProps) {
         <div style={{
           width: `${progress}%`,
           height: '100%',
-          backgroundColor: '#2563eb',
+          backgroundColor: 'hsl(var(--primary))',
           transition: 'width 0.3s ease'
         }} />
       </div>
