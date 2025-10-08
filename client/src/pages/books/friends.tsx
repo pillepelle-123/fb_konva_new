@@ -477,7 +477,14 @@ function AddFriendModal({ bookId, onClose, onSuccess }: { bookId: string; onClos
     <div className="space-y-4">
       {allFriends.length === 0 ? (
         <div className="text-center py-8">
-          <p className="text-muted-foreground">No friends found. Invite friends first.</p>
+          <p className="text-muted-foreground">No friends found. Add or invite friends first.</p>
+          <Button 
+            variant="link" 
+            onClick={() => navigate('/friends')}
+            className="mt-2"
+          >
+            Go to Friends Page
+          </Button>
         </div>
       ) : (
         <>
@@ -522,7 +529,7 @@ function AddFriendModal({ bookId, onClose, onSuccess }: { bookId: string; onClos
       
       <div className="flex justify-end pt-4">
         <Button variant="outline" onClick={onClose}>
-          Close
+          Cancel
         </Button>
       </div>
     </div>

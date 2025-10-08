@@ -13,8 +13,14 @@ interface QuestionsManagerProps {
 }
 
 export default function QuestionsManager({ bookId, bookName, onClose, onQuestionSelect, mode = 'manage', token: propToken, showAsContent = false }: QuestionsManagerProps) {
-  const { token: contextToken } = mode === 'manage' ? useAuth() : { token: null };
+  const { token: contextToken, user } = mode === 'manage' ? useAuth() : { token: null, user: null };
   const token = propToken || contextToken;
+
+  // Prevent authors from accessing questions manager
+  if (user?.role === 'author') {
+    onClose();
+    return null;
+  }
 
   return (
     <Dialog open={true} onOpenChange={onClose}>

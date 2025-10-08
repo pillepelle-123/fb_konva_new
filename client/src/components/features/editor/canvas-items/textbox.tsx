@@ -2,6 +2,7 @@ import { useRef, useState, useEffect } from 'react';
 import { Text, Rect } from 'react-konva';
 import Konva from 'konva';
 import { useEditor } from '../../../../context/editor-context';
+import { useAuth } from '../../../../context/auth-context';
 import type { CanvasElement } from '../../../../context/editor-context';
 import BaseCanvasItem from './base-canvas-item';
 import type { CanvasItemProps } from './base-canvas-item';
@@ -172,6 +173,7 @@ function formatRichText(text: string, fontSize: number, fontFamily: string, maxW
 export default function Textbox(props: CanvasItemProps) {
   const { element } = props;
   const { state, dispatch } = useEditor();
+  const { user } = useAuth();
   const textRef = useRef<Konva.Text>(null);
 
   const [hasOverflow, setHasOverflow] = useState(false);
@@ -229,6 +231,12 @@ export default function Textbox(props: CanvasItemProps) {
     if (state.activeTool !== 'select') return;
     
     if (element.textType === 'question') {
+      // Prevent authors from opening question manager - comprehensive check
+      if (!user || user.role === 'author') {
+        console.log('Blocking question manager access - user:', user, 'role:', user?.role);
+        return;
+      }
+      console.log('User role:', user?.role, 'Opening question manager');
       // Open question selection dialog for question elements
       window.dispatchEvent(new CustomEvent('openQuestionModal', {
         detail: { elementId: element.id }
@@ -244,6 +252,10 @@ export default function Textbox(props: CanvasItemProps) {
 
 
   const handleSelectQuestion = () => {
+    // Prevent authors from opening question manager
+    if (user?.role === 'author') {
+      return;
+    }
     window.dispatchEvent(new CustomEvent('openQuestionModal', {
       detail: { elementId: element.id }
     }));

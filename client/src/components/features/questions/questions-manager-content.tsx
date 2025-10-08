@@ -3,6 +3,7 @@ import { Button } from '../../ui/primitives/button';
 import { Card, CardContent, CardDescription } from '../../ui/composites/card';
 import { Input } from '../../ui/primitives/input';
 import { DialogDescription, DialogHeader, DialogTitle } from '../../ui/overlays/dialog';
+import { useAuth } from '../../../context/auth-context';
 import { HelpCircle, Plus, Edit, Trash2, Save, Calendar, X, CircleQuestionMark, CircleQuestionMarkIcon, MessageCircleQuestionMark } from 'lucide-react';
 
 interface Question {
@@ -31,6 +32,22 @@ export default function QuestionsManagerContent({
   onClose,
   showAsContent = false
 }: QuestionsManagerContentProps) {
+  const { user } = useAuth();
+  
+  // Immediate effect to close dialog for authors
+  useEffect(() => {
+    if (user?.role === 'author') {
+      console.log('QuestionsManagerContent: Author detected, closing dialog');
+      onClose();
+    }
+  }, [user, onClose]);
+  
+  // Prevent authors from accessing questions manager - aggressive check
+  if (!user || user.role === 'author') {
+    console.log('QuestionsManagerContent: Blocking access - user:', user, 'role:', user?.role);
+    return null;
+  }
+  
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);

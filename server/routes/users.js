@@ -41,13 +41,15 @@ router.get('/search', authenticateToken, async (req, res) => {
     const { q } = req.query;
     const currentUserId = req.user.id;
     
-    if (!q || q.trim().length === 0) {
+    if (!q || q.trim().length < 3) {
       return res.json([]);
     }
     
     const searchTerm = `%${q.trim()}%`;
     const result = await pool.query(
-      'SELECT id, name, email FROM public.users WHERE (name ILIKE $1 OR email ILIKE $1) AND id != $2 LIMIT 20',
+      `SELECT id, name, email FROM public.users 
+       WHERE (name ILIKE $1 OR SPLIT_PART(email, '@', 1) ILIKE $1) 
+       AND id != $2 LIMIT 20`,
       [searchTerm, currentUserId]
     );
     

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent } from '../../ui/overlays/dialog';
 import QuestionsManagerContent from '../questions/questions-manager-content';
+import { useAuth } from '../../../context/auth-context';
 import type { CanvasElement } from '../../../context/editor-context';
 
 interface TextEditorModalProps {
@@ -26,6 +27,7 @@ const findQuestionElement = async (questionElementId: string) => {
 };
 
 export default function TextEditorModal({ element, onSave, onClose, onSelectQuestion, bookId, bookName, token }: TextEditorModalProps) {
+  const { user } = useAuth();
   const modalRef = useRef<HTMLDivElement | null>(null);
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
   const questionDialogTrigger = useRef<(() => void) | null>(null);
@@ -93,7 +95,7 @@ export default function TextEditorModal({ element, onSave, onClose, onSelectQues
       
       cancelBtn.onclick = closeModal;
       
-      if (element.textType === 'question') {
+      if (element.textType === 'question' && user?.role !== 'author') {
         const selectQuestionBtn = document.createElement('button');
         selectQuestionBtn.textContent = 'Select Question';
         selectQuestionBtn.style.cssText = 'padding:8px 16px;border:1px solid #e2e8f0;border-radius:4px;cursor:pointer;background:white';

@@ -26,7 +26,7 @@ export default function FindFriendsDialog({ open, onOpenChange, friends, onFrien
   const [loading, setLoading] = useState(false);
 
   const handleSearch = async () => {
-    if (!searchText.trim()) return;
+    if (!searchText.trim() || searchText.trim().length < 3) return;
     
     setLoading(true);
     try {
@@ -80,12 +80,12 @@ export default function FindFriendsDialog({ open, onOpenChange, friends, onFrien
         <div className="space-y-4">
           <div className="flex space-x-2">
             <Input
-              placeholder="Search by name or email..."
+              placeholder="Search by name or email (min 3 characters)..."
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+              onKeyPress={(e) => e.key === 'Enter' && searchText.trim().length >= 3 && handleSearch()}
             />
-            <Button onClick={handleSearch} disabled={loading} className="space-x-2">
+            <Button onClick={handleSearch} disabled={loading || searchText.trim().length < 3} className="space-x-2">
               <Search className="h-4 w-4" />
               <span>Search</span>
             </Button>

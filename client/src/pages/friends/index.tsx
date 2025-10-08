@@ -111,16 +111,16 @@ export default function FriendsList() {
               <Contact className="h-12 w-12 text-muted-foreground mx-auto opacity-50 mb-4" />
               <h3 className="text-lg font-medium text-foreground mb-2">No friends yet</h3>
               <p className="text-muted-foreground mb-6">
-                Start building your network by inviting friends to collaborate.
+                Start building your network by searching for friends or inviting new users to collaborate.
               </p>
-              <Button 
+              {/* <Button 
                 variant={'highlight'} 
                 onClick={() => setShowCollaboratorModal(true)} 
                 className="space-x-2"
               >
                 <UserPlus className="h-4 w-4" />
                 <span>Invite Your First Friend</span>
-              </Button>
+              </Button> */}
             </CardContent>
           </Card>
         ) : (

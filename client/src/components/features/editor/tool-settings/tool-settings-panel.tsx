@@ -41,7 +41,7 @@ const TOOL_ICONS = {
 
 export default function ToolSettingsPanel() {
   const { state, dispatch } = useEditor();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
   const [selectedQuestionElementId, setSelectedQuestionElementId] = useState<string | null>(null);
@@ -603,7 +603,7 @@ export default function ToolSettingsPanel() {
               </ButtonGroup>
             </div>
             
-            {element.textType === 'question' && (
+            {element.textType === 'question' && user?.role !== 'author' && (
               <div>
                 <Button
                   variant="outline"

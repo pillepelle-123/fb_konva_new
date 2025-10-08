@@ -61,7 +61,7 @@ const PAGE_DIMENSIONS = {
 
 export default function Canvas() {
   const { state, dispatch } = useEditor();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -99,6 +99,15 @@ export default function Canvas() {
   const [pendingPhotoPosition, setPendingPhotoPosition] = useState<{ x: number; y: number } | null>(null);
   const [editingElement, setEditingElement] = useState<CanvasElement | null>(null);
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
+  
+  // Prevent authors from opening question dialog
+  useEffect(() => {
+    if (showQuestionDialog && user?.role === 'author') {
+      console.log('Canvas: Author detected, closing question dialog');
+      setShowQuestionDialog(false);
+      setSelectedQuestionElementId(null);
+    }
+  }, [showQuestionDialog, user]);
   const [selectedQuestionElementId, setSelectedQuestionElementId] = useState<string | null>(null);
   const [selectionModeState, setSelectionModeState] = useState<Map<string, number>>(new Map());
   const editingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -871,8 +880,15 @@ export default function Canvas() {
     };
     
     const handleOpenQuestionModal = (event: CustomEvent) => {
+      // Prevent authors from opening question manager - comprehensive check
+      console.log('Canvas handleOpenQuestionModal - User:', user, 'Role:', user?.role);
+      if (!user || user.role === 'author') {
+        console.log('Canvas: Blocking question manager - user:', user, 'role:', user?.role);
+        return;
+      }
       const element = currentPage?.elements.find(el => el.id === event.detail.elementId);
       if (element && element.textType === 'question') {
+        console.log('Canvas: Opening question dialog for element:', element.id);
         setSelectedQuestionElementId(element.id);
         setShowQuestionDialog(true);
       }
@@ -1361,7 +1377,7 @@ export default function Canvas() {
         />
       )}
       
-      {showQuestionDialog && state.currentBook && token && (
+      {showQuestionDialog && state.currentBook && token && user?.role !== 'author' && (
         <Dialog open={showQuestionDialog} onOpenChange={setShowQuestionDialog}>
           <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden">
             <QuestionsManagerContent
