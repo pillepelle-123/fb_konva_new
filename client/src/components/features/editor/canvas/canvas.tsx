@@ -5,10 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import type { CanvasElement } from '../../../../context/editor-context';
-import CustomTextbox from '../custom-textbox';
-import RoughShape from './rough-shape';
-import PhotoPlaceholder from '../photo-placeholder';
-import RoughBrush from './rough-brush';
+import CanvasItemComponent from '../canvas-items';
 import { CanvasStage } from './canvas-stage';
 import { CanvasTransformer } from './canvas-transformer';
 import { SelectionRectangle } from './selection-rectangle';
@@ -17,6 +14,7 @@ import { CanvasContainer } from './canvas-container';
 import ContextMenu from '../../../ui/overlays/context-menu';
 import { Modal } from '../../../ui/overlays/modal';
 import PhotosContent from '../../photos/photos-content';
+import TextEditorModal from '../text-editor-modal';
 
 function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
   return (
@@ -56,159 +54,7 @@ const PAGE_DIMENSIONS = {
   Square: { width: 2480, height: 2480 }
 };
 
-function CanvasElementComponent({ element, isMovingGroup, onDragStart, onDragEnd, selectionRect, pageOffsetX, pageOffsetY }: { 
-  element: CanvasElement; 
-  isMovingGroup: boolean;
-  onDragStart: (elementId: string) => void;
-  onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
-  selectionRect: { x: number; y: number; width: number; height: number; visible: boolean };
-  pageOffsetX: number;
-  pageOffsetY: number;
-}) {
-  const { state, dispatch } = useEditor();
-  const shapeRef = useRef<any>(null);
-  const isSelected = state.selectedElementIds.includes(element.id);
-  
-  // Check if element is within selection rectangle
-  const isWithinSelection = selectionRect.visible && (() => {
-    const adjustedSelectionRect = {
-      x: selectionRect.x - pageOffsetX,
-      y: selectionRect.y - pageOffsetY,
-      width: selectionRect.width,
-      height: selectionRect.height
-    };
-    
-    let elementBounds = {
-      x: element.x,
-      y: element.y,
-      width: element.width || 100,
-      height: element.height || 100
-    };
-    
-    if (element.type === 'roughPath' && element.points) {
-      let minX = element.points[0], maxX = element.points[0];
-      let minY = element.points[1], maxY = element.points[1];
-      
-      for (let i = 2; i < element.points.length; i += 2) {
-        minX = Math.min(minX, element.points[i]);
-        maxX = Math.max(maxX, element.points[i]);
-        minY = Math.min(minY, element.points[i + 1]);
-        maxY = Math.max(maxY, element.points[i + 1]);
-      }
-      
-      elementBounds = {
-        x: element.x + minX - 10,
-        y: element.y + minY - 10,
-        width: maxX - minX + 20,
-        height: maxY - minY + 20
-      };
-    }
-    
-    return (
-      adjustedSelectionRect.x < elementBounds.x + elementBounds.width &&
-      adjustedSelectionRect.x + adjustedSelectionRect.width > elementBounds.x &&
-      adjustedSelectionRect.y < elementBounds.y + elementBounds.height &&
-      adjustedSelectionRect.y + adjustedSelectionRect.height > elementBounds.y
-    );
-  })();
 
-  const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (state.activeTool === 'select') {
-      if (e.evt.button === 0) {
-        // Only handle left-click for selection
-        dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] });
-      } else if (e.evt.button === 2 && isSelected) {
-        // Right-click on selected item - don't change selection
-        return;
-      }
-    }
-  };
-
-  const handleDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
-    dispatch({
-      type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-      payload: {
-        id: element.id,
-        updates: { x: e.target.x(), y: e.target.y() }
-      }
-    });
-    onDragEnd(e);
-  };
-
-  if (element.type === 'text') {
-    return (
-      <CustomTextbox
-        element={element}
-        isSelected={isSelected}
-        onSelect={() => dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] })}
-        onDragEnd={handleDragEnd}
-        scale={0.8}
-        isMovingGroup={isMovingGroup}
-        isWithinSelection={isWithinSelection}
-      />
-    );
-  }
-
-  if (element.type === 'placeholder' || element.type === 'image') {
-    return (
-      <PhotoPlaceholder
-        element={element}
-        isSelected={isSelected}
-        onSelect={() => dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] })}
-        onDragStart={() => onDragStart(element.id)}
-        onDragEnd={handleDragEnd}
-        isMovingGroup={isMovingGroup}
-      />
-    );
-  }
-
-  if (element.type === 'roughPath') {
-    return (
-      <RoughBrush
-        element={element}
-        isSelected={isSelected}
-        onSelect={() => dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] })}
-        onDragStart={() => onDragStart(element.id)}
-        onDragEnd={handleDragEnd}
-        isMovingGroup={isMovingGroup}
-        isWithinSelection={isWithinSelection}
-      />
-    );
-  }
-
-  if (['line', 'circle', 'rect', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(element.type)) {
-    return (
-      <RoughShape
-        element={element}
-        isSelected={isSelected}
-        onSelect={() => dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] })}
-        onDragStart={() => onDragStart(element.id)}
-        onDragEnd={handleDragEnd}
-        isMovingGroup={isMovingGroup}
-        isWithinSelection={isWithinSelection}
-      />
-    );
-  }
-
-  return (
-    <Rect
-      ref={shapeRef}
-      id={element.id}
-      x={element.x}
-      y={element.y}
-      width={element.width}
-      height={element.height}
-      fill={element.fill}
-      stroke={element.stroke}
-      strokeWidth={isSelected ? 2 : 1}
-      draggable={state.activeTool === 'select' && isSelected}
-      onClick={handleClick}
-      onTap={handleClick}
-      onDragStart={onDragStart}
-      onDragEnd={handleDragEnd}
-    />
-  );
-}
 
 export default function Canvas() {
   const { state, dispatch } = useEditor();
@@ -248,6 +94,8 @@ export default function Canvas() {
   const [previewTextbox, setPreviewTextbox] = useState<{ x: number; y: number; width: number; height: number; type: string } | null>(null);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [pendingPhotoPosition, setPendingPhotoPosition] = useState<{ x: number; y: number } | null>(null);
+  const [editingElement, setEditingElement] = useState<CanvasElement | null>(null);
+  const editingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const pageSize = state.currentBook?.pageSize || 'A4';
@@ -961,6 +809,31 @@ export default function Canvas() {
       window.removeEventListener('changePage', handlePageChange as EventListener);
     };
   }, []);
+  
+  useEffect(() => {
+    const handleTextEdit = (event: CustomEvent) => {
+      // Clear any existing timeout
+      if (editingTimeoutRef.current) {
+        clearTimeout(editingTimeoutRef.current);
+      }
+      
+      // Debounce to prevent multiple modals
+      editingTimeoutRef.current = setTimeout(() => {
+        const element = currentPage?.elements.find(el => el.id === event.detail.elementId);
+        if (element && !editingElement) {
+          setEditingElement(element);
+        }
+      }, 50);
+    };
+    
+    window.addEventListener('editText', handleTextEdit as EventListener);
+    return () => {
+      window.removeEventListener('editText', handleTextEdit as EventListener);
+      if (editingTimeoutRef.current) {
+        clearTimeout(editingTimeoutRef.current);
+      }
+    };
+  }, [currentPage, editingElement]);
 
   // Expose stage reference for PDF export
   useEffect(() => {
@@ -1085,20 +958,22 @@ export default function Canvas() {
             {/* Canvas elements */}
             <Group x={pageOffsetX} y={pageOffsetY}>
               {currentPage?.elements.map(element => (
-                <CanvasElementComponent
+                <CanvasItemComponent
                   key={element.id}
                   element={element}
+                  isSelected={state.selectedElementIds.includes(element.id)}
+                  onSelect={() => {
+                    dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] });
+                  }}
                   isMovingGroup={isMovingGroup}
-                  onDragStart={(elementId) => {
+                  onDragStart={() => {
                     setIsDragging(true);
-                    if (!state.selectedElementIds.includes(elementId)) {
-                      dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [elementId] });
+                    if (!state.selectedElementIds.includes(element.id)) {
+                      dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] });
                     }
                   }}
                   onDragEnd={() => setTimeout(() => setIsDragging(false), 10)}
-                  selectionRect={selectionRect}
-                  pageOffsetX={pageOffsetX}
-                  pageOffsetY={pageOffsetY}
+                  isWithinSelection={selectionRect.visible && getElementsInSelection().includes(element.id)}
                 />
               ))}
               
@@ -1235,6 +1110,34 @@ export default function Canvas() {
           onClose={handlePhotoModalClose}
         />
       </Modal>
+      
+      {editingElement && (
+        <TextEditorModal
+          key={editingElement.id}
+          element={editingElement}
+          onSave={(content) => {
+            dispatch({
+              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+              payload: {
+                id: editingElement.id,
+                updates: { text: content }
+              }
+            });
+            setEditingElement(null);
+          }}
+          onClose={() => {
+            // Clear any pending timeouts
+            if (editingTimeoutRef.current) {
+              clearTimeout(editingTimeoutRef.current);
+            }
+            setEditingElement(null);
+          }}
+          onSelectQuestion={editingElement.textType === 'question' ? () => {} : undefined}
+          bookId={state.currentBook?.id}
+          bookName={state.currentBook?.name}
+          token={token}
+        />
+      )}
     </CanvasPageContainer>
   );
 }
@@ -1244,5 +1147,3 @@ export { CanvasStage } from './canvas-stage';
 export { CanvasTransformer } from './canvas-transformer';
 export { SelectionRectangle } from './selection-rectangle';
 export { PreviewLine, PreviewShape, PreviewTextbox, PreviewBrush } from './preview-elements';
-export { default as RoughBrush } from './rough-brush';
-export { default as RoughShape } from './rough-shape';

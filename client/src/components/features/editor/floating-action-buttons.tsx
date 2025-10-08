@@ -8,6 +8,8 @@ interface FloatingActionButtonsProps {
   onToggleToolbar: () => void;
 }
 
+/* Button only in Mobile Mode to open toolbar and editor-bar */
+
 export function FloatingActionButtons({
   editorBarVisible,
   toolbarVisible,

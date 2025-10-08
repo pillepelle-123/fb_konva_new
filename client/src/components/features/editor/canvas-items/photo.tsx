@@ -1,30 +1,16 @@
-import { useRef, useState } from 'react';
-import { Group, Rect, Text, Image as KonvaImage } from 'react-konva';
-import Konva from 'konva';
-import { useAuth } from '../../../context/auth-context';
-import { useEditor } from '../../../context/editor-context';
-import type { CanvasElement } from '../../context/editor-context';
-import { SelectionHoverRectangle } from './canvas/selection-hover-rectangle';
+import { useState } from 'react';
+import { Rect, Text, Image as KonvaImage } from 'react-konva';
+import { useAuth } from '../../../../context/auth-context';
+import { useEditor } from '../../../../context/editor-context';
+import BaseCanvasItem from './base-canvas-item';
+import type { CanvasItemProps } from './base-canvas-item';
 
-interface PhotoPlaceholderProps {
-  element: CanvasElement;
-  isSelected: boolean;
-  onSelect: () => void;
-  onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
-  isMovingGroup?: boolean;
-}
-
-export default function PhotoPlaceholder({ element, isSelected, onSelect, onDragEnd, isMovingGroup }: PhotoPlaceholderProps) {
+export default function Photo(props: CanvasItemProps) {
+  const { element } = props;
   const { token } = useAuth();
-  const { state, dispatch } = useEditor();
-  const groupRef = useRef<Konva.Group>(null);
+  const { dispatch } = useEditor();
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
-
-  const handleClick = () => {
-    onSelect();
-  };
 
   const handleDoubleClick = () => {
     // Only allow upload if it's a placeholder
@@ -66,7 +52,6 @@ export default function PhotoPlaceholder({ element, isSelected, onSelect, onDrag
         img.onload = () => {
           setImage(img);
           
-          // Update element to image type
           dispatch({
             type: 'UPDATE_ELEMENT',
             payload: {
@@ -96,23 +81,7 @@ export default function PhotoPlaceholder({ element, isSelected, onSelect, onDrag
   }
 
   return (
-    <Group
-      ref={groupRef}
-      id={element.id}
-      x={element.x}
-      y={element.y}
-      rotation={element.rotation || 0}
-      scaleX={element.scaleX || 1}
-      scaleY={element.scaleY || 1}
-      draggable={state.activeTool === 'select' && !isMovingGroup}
-      onClick={state.activeTool === 'select' ? handleClick : undefined}
-      onTap={state.activeTool === 'select' ? handleClick : undefined}
-      onDblClick={state.activeTool === 'select' ? handleDoubleClick : undefined}
-      onDblTap={state.activeTool === 'select' ? handleDoubleClick : undefined}
-      onDragEnd={onDragEnd}
-      onMouseEnter={state.activeTool === 'select' ? () => setIsHovered(true) : undefined}
-      onMouseLeave={state.activeTool === 'select' ? () => setIsHovered(false) : undefined}
-    >
+    <BaseCanvasItem {...props} onDoubleClick={handleDoubleClick}>
       {element.type === 'placeholder' ? (
         <>
           {/* Background rectangle - transparent like textbox */}
@@ -120,19 +89,13 @@ export default function PhotoPlaceholder({ element, isSelected, onSelect, onDrag
             width={element.width}
             height={element.height}
             fill="transparent"
-            stroke={isSelected ? '#2563eb' : 'transparent'}
+            stroke="transparent"
             strokeWidth={1}
             cornerRadius={4}
+            listening={false}
           />
           
-          {/* Hover border - same as textbox */}
-          {isHovered && state.activeTool === 'select' && (
-            <SelectionHoverRectangle
-              width={element.width}
-              height={element.height}
-              cornerRadius={8}
-            />
-          )}
+
           
           {/* Placeholder text - same styling as textbox */}
           <Text
@@ -158,8 +121,7 @@ export default function PhotoPlaceholder({ element, isSelected, onSelect, onDrag
               image={image}
               width={element.width}
               height={element.height}
-              stroke={isSelected ? '#2563eb' : 'transparent'}
-              strokeWidth={isSelected ? 2 : 0}
+              listening={false}
             />
           )}
           {!image && (
@@ -169,10 +131,11 @@ export default function PhotoPlaceholder({ element, isSelected, onSelect, onDrag
               fill="#f3f4f6"
               stroke="#d1d5db"
               strokeWidth={1}
+              listening={false}
             />
           )}
         </>
       )}
-    </Group>
+    </BaseCanvasItem>
   );
 }
