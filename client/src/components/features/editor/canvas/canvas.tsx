@@ -15,6 +15,7 @@ import ContextMenu from '../../../ui/overlays/context-menu';
 import { Modal } from '../../../ui/overlays/modal';
 import PhotosContent from '../../photos/photos-content';
 import TextEditorModal from '../text-editor-modal';
+import ToolSettingsPanel from '../tool-settings/tool-settings-panel';
 
 function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
   return (
@@ -425,6 +426,7 @@ export default function Canvas() {
       setPanStart({ x: 0, y: 0 });
     } else if (isDrawing && state.activeTool === 'brush' && currentPath.length > 2) {
       const smoothedPath = smoothPath(currentPath);
+      const brushSettings = state.toolSettings.brush || {};
       // Points are already relative to Group position
       const adjustedPoints = smoothedPath;
       const newElement: CanvasElement = {
@@ -435,9 +437,9 @@ export default function Canvas() {
         width: 0,
         height: 0,
         points: adjustedPoints,
-        stroke: '#1f2937',
+        stroke: brushSettings.stroke || '#1f2937',
         roughness: 1,
-        strokeWidth: 3
+        strokeWidth: brushSettings.strokeWidth || 3
       };
       dispatch({ type: 'ADD_ELEMENT', payload: newElement });
       dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
@@ -446,6 +448,7 @@ export default function Canvas() {
       const height = previewLine.y2 - previewLine.y1;
       
       if (Math.abs(width) > 5 || Math.abs(height) > 5) {
+        const lineSettings = state.toolSettings.line || {};
         const newElement: CanvasElement = {
           id: uuidv4(),
           type: 'line',
@@ -453,9 +456,9 @@ export default function Canvas() {
           y: previewLine.y1,
           width: width,
           height: height,
-          stroke: '#1f2937',
+          stroke: lineSettings.stroke || '#1f2937',
           roughness: 3,
-          strokeWidth: 2
+          strokeWidth: lineSettings.strokeWidth || 2
         };
         dispatch({ type: 'ADD_ELEMENT', payload: newElement });
         dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
@@ -465,6 +468,7 @@ export default function Canvas() {
       setPreviewLine(null);
     } else if (isDrawingShape && shapeStart && previewShape) {
       if (previewShape.width > 5 || previewShape.height > 5) {
+        const shapeSettings = state.toolSettings[previewShape.type] || {};
         const newElement: CanvasElement = {
           id: uuidv4(),
           type: previewShape.type as any,
@@ -472,10 +476,10 @@ export default function Canvas() {
           y: previewShape.y,
           width: previewShape.width,
           height: previewShape.height,
-          fill: 'transparent',
-          stroke: '#1f2937',
+          fill: shapeSettings.fill || 'transparent',
+          stroke: shapeSettings.stroke || '#1f2937',
           roughness: 3,
-          strokeWidth: 2
+          strokeWidth: shapeSettings.strokeWidth || 2
         };
         dispatch({ type: 'ADD_ELEMENT', payload: newElement });
         dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
@@ -488,6 +492,7 @@ export default function Canvas() {
         let newElement: CanvasElement;
         
         if (previewTextbox.type === 'text') {
+          const textSettings = state.toolSettings.text || {};
           newElement = {
             id: uuidv4(),
             type: 'text',
@@ -495,15 +500,16 @@ export default function Canvas() {
             y: previewTextbox.y,
             width: previewTextbox.width,
             height: previewTextbox.height,
-            fill: '#1f2937',
+            fill: textSettings.fill || '#1f2937',
             text: '',
-            fontSize: 64,
+            fontSize: textSettings.fontSize || 64,
             lineHeight: 1.2,
-            align: 'left',
-            fontFamily: 'Arial, sans-serif',
+            align: textSettings.align || 'left',
+            fontFamily: textSettings.fontFamily || 'Arial, sans-serif',
             textType: 'regular'
           };
         } else if (previewTextbox.type === 'question') {
+          const questionSettings = state.toolSettings.question || {};
           newElement = {
             id: uuidv4(),
             type: 'text',
@@ -512,13 +518,14 @@ export default function Canvas() {
             width: previewTextbox.width,
             height: previewTextbox.height,
             text: '',
-            fontSize: 64,
+            fontSize: questionSettings.fontSize || 64,
             lineHeight: 1.2,
-            align: 'left',
-            fontFamily: 'Arial, sans-serif',
+            align: questionSettings.align || 'left',
+            fontFamily: questionSettings.fontFamily || 'Arial, sans-serif',
             textType: 'question'
           };
         } else {
+          const answerSettings = state.toolSettings.answer || {};
           newElement = {
             id: uuidv4(),
             type: 'text',
@@ -527,10 +534,10 @@ export default function Canvas() {
             width: previewTextbox.width,
             height: previewTextbox.height,
             text: '',
-            fontSize: 64,
+            fontSize: answerSettings.fontSize || 64,
             lineHeight: 1.2,
-            align: 'left',
-            fontFamily: 'Arial, sans-serif',
+            align: answerSettings.align || 'left',
+            fontFamily: answerSettings.fontFamily || 'Arial, sans-serif',
             textType: 'answer'
           };
         }
@@ -935,8 +942,9 @@ export default function Canvas() {
   };
 
   return (
-    <CanvasPageContainer>
-      <CanvasContainer ref={containerRef} pageId={currentPage?.id}>
+    <>
+      <CanvasPageContainer>
+        <CanvasContainer ref={containerRef} pageId={currentPage?.id}>
         <CanvasStage
           ref={stageRef}
           width={containerSize.width}
@@ -1138,7 +1146,10 @@ export default function Canvas() {
           token={token}
         />
       )}
-    </CanvasPageContainer>
+      </CanvasPageContainer>
+      
+      <ToolSettingsPanel />
+    </>
   );
 }
 // Re-export components for external use

@@ -4,6 +4,7 @@ import { useEditor, createSampleBook } from '../../context/editor-context';
 import EditorBar from '../../components/features/editor/editor-bar';
 import Toolbar from '../../components/features/editor/toolbar';
 import Canvas from '../../components/features/editor/canvas';
+import ToolSettingsPanel from '../../components/features/editor/tool-settings/tool-settings-panel';
 
 
 function EditorContent() {
@@ -44,6 +45,7 @@ function EditorContent() {
             <div className="flex-1 overflow-hidden bg-muted">
               <Canvas />
             </div>
+            <ToolSettingsPanel />
           </div>
           
           {/* Status bar */}

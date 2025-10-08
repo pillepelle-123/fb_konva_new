@@ -53,6 +53,7 @@ export interface EditorState {
   editorBarVisible: boolean;
   toolbarVisible: boolean;
   hasUnsavedChanges: boolean;
+  toolSettings: Record<string, Record<string, any>>;
 }
 
 type EditorAction =
@@ -71,7 +72,8 @@ type EditorAction =
   | { type: 'DUPLICATE_PAGE'; payload: number }
   | { type: 'TOGGLE_EDITOR_BAR' }
   | { type: 'TOGGLE_TOOLBAR' }
-  | { type: 'MARK_SAVED' };
+  | { type: 'MARK_SAVED' }
+  | { type: 'UPDATE_TOOL_SETTINGS'; payload: { tool: string; settings: Record<string, any> } };
 
 const initialState: EditorState = {
   currentBook: null,
@@ -84,6 +86,7 @@ const initialState: EditorState = {
   editorBarVisible: true,
   toolbarVisible: true,
   hasUnsavedChanges: false,
+  toolSettings: {},
 };
 
 function editorReducer(state: EditorState, action: EditorAction): EditorState {
@@ -228,6 +231,18 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'MARK_SAVED':
       return { ...state, hasUnsavedChanges: false };
+    
+    case 'UPDATE_TOOL_SETTINGS':
+      return {
+        ...state,
+        toolSettings: {
+          ...state.toolSettings,
+          [action.payload.tool]: {
+            ...state.toolSettings[action.payload.tool],
+            ...action.payload.settings
+          }
+        }
+      };
     
     default:
       return state;
