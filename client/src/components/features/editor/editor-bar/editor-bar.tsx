@@ -82,6 +82,8 @@ export default function EditorBar() {
 
   const handleAddPage = () => {
     dispatch({ type: 'ADD_PAGE' });
+    // Jump to the newly added page
+    dispatch({ type: 'SET_ACTIVE_PAGE', payload: pages.length });
   };
 
   const handleDeletePage = () => {

@@ -1,8 +1,12 @@
 import { useEditor } from '../../../../context/editor-context';
 import { Button } from '../../../ui/primitives/button';
-import { ChevronRight, ChevronLeft, MousePointer, Hand, MessageCircleMore, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile } from 'lucide-react';
+import { ChevronRight, ChevronLeft, MousePointer, Hand, MessageCircleMore, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, AlignLeft, AlignCenter, AlignRight, AlignJustify } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { ToolSettingsContainer } from './tool-settings-container';
+import { Dialog, DialogContent } from '../../../ui/overlays/dialog';
+import QuestionsManagerContent from '../../questions/questions-manager-content';
+import { useAuth } from '../../../../context/auth-context';
+import { ButtonGroup } from '../../../ui/composites/button-group';
 
 const COLORS = [
   '#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff', 
@@ -37,7 +41,10 @@ const TOOL_ICONS = {
 
 export default function ToolSettingsPanel() {
   const { state, dispatch } = useEditor();
+  const { token } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(true);
+  const [showQuestionDialog, setShowQuestionDialog] = useState(false);
+  const [selectedQuestionElementId, setSelectedQuestionElementId] = useState<string | null>(null);
   
   const toolSettings = state.toolSettings || {};
   const activeTool = state.activeTool;
@@ -60,8 +67,38 @@ export default function ToolSettingsPanel() {
   const shouldShowPanel = !['select', 'pan'].includes(activeTool) || state.selectedElementIds.length > 0;
 
   const renderToolSettings = () => {
-    // If elements are selected, show settings for the selected element type
-    if (state.selectedElementIds.length > 0 && state.currentBook) {
+    // If multiple elements are selected, show selection list
+    if (state.selectedElementIds.length > 1 && state.currentBook) {
+      const selectedElements = state.currentBook.pages[state.activePageIndex]?.elements.filter(
+        el => state.selectedElementIds.includes(el.id)
+      ) || [];
+      
+      return (
+        <div className="space-y-2">
+          <div className="text-sm font-medium mb-3">Selected Items ({selectedElements.length})</div>
+          {selectedElements.map((element, index) => {
+            const elementType = element.type === 'text' && element.textType 
+              ? element.textType 
+              : element.type;
+            const IconComponent = TOOL_ICONS[elementType as keyof typeof TOOL_ICONS];
+            return (
+              <div key={element.id} className="flex items-center gap-2 p-2 bg-muted rounded text-sm">
+                {IconComponent && <IconComponent className="h-3 w-3" />}
+                <span>{elementType.charAt(0).toUpperCase() + elementType.slice(1)}</span>
+                {element.text && (
+                  <span className="text-muted-foreground truncate max-w-20">
+                    - {element.text.length > 15 ? element.text.substring(0, 15) + '...' : element.text}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+    
+    // If single element is selected, show settings for that element
+    if (state.selectedElementIds.length === 1 && state.currentBook) {
       const selectedElement = state.currentBook.pages[state.activePageIndex]?.elements.find(
         el => el.id === state.selectedElementIds[0]
       );
@@ -263,20 +300,43 @@ export default function ToolSettingsPanel() {
             
             <div>
               <label className="text-sm font-medium block mb-2">Text Align</label>
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                {['left', 'center', 'right', 'justify'].map(align => (
-                  <Button
-                    key={align}
-                    variant={settings.align === align ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => updateToolSetting('align', align)}
-                    className="text-xs"
-                  >
-                    {align}
-                  </Button>
-                ))}
-              </div>
+              <ButtonGroup className="mt-2">
+                <Button
+                  variant={settings.align === 'left' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => updateToolSetting('align', 'left')}
+                  className="px-2"
+                >
+                  <AlignLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={settings.align === 'center' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => updateToolSetting('align', 'center')}
+                  className="px-2"
+                >
+                  <AlignCenter className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={settings.align === 'right' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => updateToolSetting('align', 'right')}
+                  className="px-2"
+                >
+                  <AlignRight className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={settings.align === 'justify' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => updateToolSetting('align', 'justify')}
+                  className="px-2"
+                >
+                  <AlignJustify className="h-4 w-4" />
+                </Button>
+              </ButtonGroup>
             </div>
+            
+
           </div>
         );
 
@@ -449,20 +509,57 @@ export default function ToolSettingsPanel() {
             
             <div>
               <label className="text-sm font-medium block mb-2">Text Align</label>
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                {['left', 'center', 'right', 'justify'].map(align => (
-                  <Button
-                    key={align}
-                    variant={element.align === align ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => updateElementSetting('align', align)}
-                    className="text-xs"
-                  >
-                    {align}
-                  </Button>
-                ))}
-              </div>
+              <ButtonGroup className="mt-2">
+                <Button
+                  variant={element.align === 'left' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => updateElementSetting('align', 'left')}
+                  className="px-2"
+                >
+                  <AlignLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={element.align === 'center' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => updateElementSetting('align', 'center')}
+                  className="px-2"
+                >
+                  <AlignCenter className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={element.align === 'right' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => updateElementSetting('align', 'right')}
+                  className="px-2"
+                >
+                  <AlignRight className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={element.align === 'justify' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => updateElementSetting('align', 'justify')}
+                  className="px-2"
+                >
+                  <AlignJustify className="h-4 w-4" />
+                </Button>
+              </ButtonGroup>
             </div>
+            
+            {element.textType === 'question' && (
+              <div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedQuestionElementId(element.id);
+                    setShowQuestionDialog(true);
+                  }}
+                  className="w-full"
+                >
+                  Question...
+                </Button>
+              </div>
+            )}
           </div>
         );
 
@@ -476,62 +573,102 @@ export default function ToolSettingsPanel() {
   };
 
   return (
-    <ToolSettingsContainer 
-      isExpanded={!isCollapsed} 
-      isVisible={true}
-    >
-      <div className="flex items-center justify-between p-4 border-b">
-        {!isCollapsed && (
-          <h3 className="font-semibold text-sm flex items-center gap-2">
-            {(() => {
-              if (state.selectedElementIds.length > 0 && state.currentBook) {
-                const selectedElement = state.currentBook.pages[state.activePageIndex]?.elements.find(
-                  el => el.id === state.selectedElementIds[0]
-                );
-                if (selectedElement) {
-                  const elementType = selectedElement.type === 'text' && selectedElement.textType 
-                    ? selectedElement.textType 
-                    : selectedElement.type;
-                  const IconComponent = TOOL_ICONS[elementType as keyof typeof TOOL_ICONS];
+    <>
+      <ToolSettingsContainer 
+        isExpanded={!isCollapsed} 
+        isVisible={true}
+      >
+        <div className="flex items-center justify-between p-4 border-b">
+          {!isCollapsed && (
+            <h3 className="font-semibold text-sm flex items-center gap-2">
+              {(() => {
+                if (state.selectedElementIds.length > 1) {
+                  const IconComponent = TOOL_ICONS.select;
                   return (
                     <>
                       {IconComponent && <IconComponent className="h-4 w-4" />}
-                      {elementType.charAt(0).toUpperCase() + elementType.slice(1)} Settings
+                      Select Settings
+                    </>
+                  );
+                } else if (state.selectedElementIds.length === 1 && state.currentBook) {
+                  const selectedElement = state.currentBook.pages[state.activePageIndex]?.elements.find(
+                    el => el.id === state.selectedElementIds[0]
+                  );
+                  if (selectedElement) {
+                    const elementType = selectedElement.type === 'text' && selectedElement.textType 
+                      ? selectedElement.textType 
+                      : selectedElement.type;
+                    const IconComponent = TOOL_ICONS[elementType as keyof typeof TOOL_ICONS];
+                    return (
+                      <>
+                        {IconComponent && <IconComponent className="h-4 w-4" />}
+                        {elementType.charAt(0).toUpperCase() + elementType.slice(1)} Settings
+                      </>
+                    );
+                  }
+                  return `Element Settings (${state.selectedElementIds.length})`;
+                } else {
+                  const IconComponent = TOOL_ICONS[activeTool as keyof typeof TOOL_ICONS];
+                  return (
+                    <>
+                      {IconComponent && <IconComponent className="h-4 w-4" />}
+                      {activeTool.charAt(0).toUpperCase() + activeTool.slice(1)} Settings
                     </>
                   );
                 }
-                return `Element Settings (${state.selectedElementIds.length})`;
-              } else {
-                const IconComponent = TOOL_ICONS[activeTool as keyof typeof TOOL_ICONS];
-                return (
-                  <>
-                    {IconComponent && <IconComponent className="h-4 w-4" />}
-                    {activeTool.charAt(0).toUpperCase() + activeTool.slice(1)} Settings
-                  </>
-                );
-              }
-            })()} 
-          </h3>
-        )}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="h-8 w-8 p-0"
-        >
-          {isCollapsed ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        </Button>
-      </div>
-      
-      {!isCollapsed && (
-        <div className="flex-1 overflow-y-auto p-4">
-          {shouldShowPanel ? renderToolSettings() : (
-            <div className="text-sm text-muted-foreground">
-              Select a tool or element to view settings.
-            </div>
+              })()} 
+            </h3>
           )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="h-8 w-8 p-0"
+          >
+            {isCollapsed ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          </Button>
         </div>
+        
+        {!isCollapsed && (
+          <div className="flex-1 overflow-y-auto p-4">
+            {shouldShowPanel ? renderToolSettings() : (
+              <div className="text-sm text-muted-foreground">
+                Select a tool or element to view settings.
+              </div>
+            )}
+          </div>
+        )}
+      </ToolSettingsContainer>
+      
+      {showQuestionDialog && state.currentBook && token && (
+        <Dialog open={showQuestionDialog} onOpenChange={setShowQuestionDialog}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden">
+            <QuestionsManagerContent
+              bookId={state.currentBook.id}
+              bookName={state.currentBook.name}
+              mode="select"
+              token={token}
+              onQuestionSelect={(questionId, questionText) => {
+                if (selectedQuestionElementId) {
+                  dispatch({
+                    type: 'UPDATE_ELEMENT',
+                    payload: {
+                      id: selectedQuestionElementId,
+                      updates: { text: questionText }
+                    }
+                  });
+                }
+                setShowQuestionDialog(false);
+                setSelectedQuestionElementId(null);
+              }}
+              onClose={() => {
+                setShowQuestionDialog(false);
+                setSelectedQuestionElementId(null);
+              }}
+            />
+          </DialogContent>
+        </Dialog>
       )}
-    </ToolSettingsContainer>
+    </>
   );
 }

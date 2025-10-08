@@ -506,7 +506,7 @@ export default function Canvas() {
             lineHeight: 1.2,
             align: textSettings.align || 'left',
             fontFamily: textSettings.fontFamily || 'Arial, sans-serif',
-            textType: 'regular'
+            textType: 'text'
           };
         } else if (previewTextbox.type === 'question') {
           const questionSettings = state.toolSettings.question || {};

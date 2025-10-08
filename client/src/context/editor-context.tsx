@@ -17,7 +17,7 @@ export interface CanvasElement {
   lineHeight?: number;
   align?: 'left' | 'center' | 'right';
   fontFamily?: string;
-  textType?: 'question' | 'answer' | 'regular';
+  textType?: 'question' | 'answer' | 'text';
   questionId?: number;
   src?: string;
   points?: number[];
