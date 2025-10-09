@@ -37,7 +37,7 @@ CREATE TABLE book_friends (
   id SERIAL PRIMARY KEY,
   book_id INTEGER REFERENCES books(id) ON DELETE CASCADE,
   user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-  role VARCHAR(50) NOT NULL DEFAULT 'author', -- 'author' or 'publisher'
+  book_role VARCHAR(50) NOT NULL DEFAULT 'author', -- 'author' or 'publisher'
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(book_id, user_id)
 );

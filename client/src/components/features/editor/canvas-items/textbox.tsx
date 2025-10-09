@@ -231,12 +231,10 @@ export default function Textbox(props: CanvasItemProps) {
     if (state.activeTool !== 'select') return;
     
     if (element.textType === 'question') {
-      // Prevent authors from opening question manager - comprehensive check
-      if (!user || user.role === 'author') {
-        console.log('Blocking question manager access - user:', user, 'role:', user?.role);
+      // Prevent authors from opening question manager
+      if (state.userRole === 'author') {
         return;
       }
-      console.log('User role:', user?.role, 'Opening question manager');
       // Open question selection dialog for question elements
       window.dispatchEvent(new CustomEvent('openQuestionModal', {
         detail: { elementId: element.id }
@@ -253,7 +251,7 @@ export default function Textbox(props: CanvasItemProps) {
 
   const handleSelectQuestion = () => {
     // Prevent authors from opening question manager
-    if (user?.role === 'author') {
+    if (state.userRole === 'author') {
       return;
     }
     window.dispatchEvent(new CustomEvent('openQuestionModal', {

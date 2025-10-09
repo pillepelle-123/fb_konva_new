@@ -57,7 +57,7 @@ export default function Photo(props: CanvasItemProps) {
             payload: {
               id: element.id,
               updates: {
-                type: 'image',
+                type: 'photo',
                 src: data.url
               }
             }
@@ -73,7 +73,7 @@ export default function Photo(props: CanvasItemProps) {
   };
 
   // Load existing image
-  if (element.type === 'image' && element.src && !image) {
+  if (element.type === 'photo' && element.src && !image) {
     const img = new window.Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => setImage(img);

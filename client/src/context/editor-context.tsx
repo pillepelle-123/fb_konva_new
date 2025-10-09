@@ -5,7 +5,7 @@ import { useAuth } from './auth-context';
 
 export interface CanvasElement {
   id: string;
-  type: 'text' | 'image' | 'placeholder' | 'line' | 'circle' | 'rect' | 'roughPath' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley';
+  type: 'text' | 'photo' | 'placeholder' | 'line' | 'circle' | 'rect' | 'brush' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley';
   x: number;
   y: number;
   width: number;

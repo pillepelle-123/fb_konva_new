@@ -170,11 +170,11 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
 
     // Check if user is author
     const collaborator = await pool.query(
-      'SELECT role FROM public.book_friends WHERE book_id = $1 AND user_id = $2',
+      'SELECT book_role FROM public.book_friends WHERE book_id = $1 AND user_id = $2',
       [bookId, userId]
     );
 
-    if (collaborator.rows.length === 0 || collaborator.rows[0].role !== 'author') {
+    if (collaborator.rows.length === 0 || collaborator.rows[0].book_role !== 'author') {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
@@ -271,7 +271,7 @@ router.post('/', authenticateToken, async (req, res) => {
 
     // Add owner as publisher collaborator
     await pool.query(
-      'INSERT INTO public.book_friends (book_id, user_id, role) VALUES ($1, $2, $3)',
+      'INSERT INTO public.book_friends (book_id, user_id, book_role) VALUES ($1, $2, $3)',
       [bookId, userId, 'publisher']
     );
 
@@ -345,7 +345,7 @@ router.post('/:id/collaborators', authenticateToken, async (req, res) => {
 
     // Add collaborator
     await pool.query(
-      'INSERT INTO public.book_friends (book_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+      'INSERT INTO public.book_friends (book_id, user_id, book_role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
       [bookId, user.rows[0].id, 'author']
     );
 
@@ -364,9 +364,9 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
 
     // Check if user has access to manage this book
     const bookAccess = await pool.query(`
-      SELECT b.*, bf.role as user_role FROM public.books b
+      SELECT b.*, bf.book_role as user_book_role FROM public.books b
       LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
-      WHERE b.id = $1 AND (b.owner_id = $2 OR bf.role = 'publisher')
+      WHERE b.id = $1 AND (b.owner_id = $2 OR bf.book_role = 'publisher')
     `, [bookId, userId]);
 
     if (bookAccess.rows.length === 0) {
@@ -385,7 +385,7 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
 
     // Add friend to book
     await pool.query(
-      'INSERT INTO public.book_friends (book_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+      'INSERT INTO public.book_friends (book_id, user_id, book_role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
       [bookId, friendId, role]
     );
 
@@ -487,7 +487,7 @@ router.get('/:id/user-role', authenticateToken, async (req, res) => {
 
     // Check if user is collaborator
     const collaborator = await pool.query(
-      'SELECT role FROM public.book_friends WHERE book_id = $1 AND user_id = $2',
+      'SELECT book_role FROM public.book_friends WHERE book_id = $1 AND user_id = $2',
       [bookId, userId]
     );
 
@@ -497,7 +497,7 @@ router.get('/:id/user-role', authenticateToken, async (req, res) => {
 
     // Get assigned pages for authors
     let assignedPages = [];
-    if (collaborator.rows[0].role === 'author') {
+    if (collaborator.rows[0].book_role === 'author') {
       const assignments = await pool.query(
         'SELECT page_id FROM public.page_assignments WHERE book_id = $1 AND user_id = $2',
         [bookId, userId]
@@ -505,7 +505,7 @@ router.get('/:id/user-role', authenticateToken, async (req, res) => {
       assignedPages = assignments.rows.map(row => row.page_id);
     }
 
-    res.json({ role: collaborator.rows[0].role, assignedPages });
+    res.json({ role: collaborator.rows[0].book_role, assignedPages });
   } catch (error) {
     console.error('User role fetch error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -530,7 +530,7 @@ router.get('/:id/friends', authenticateToken, async (req, res) => {
     }
 
     const friends = await pool.query(`
-      SELECT u.id, u.name, u.email, bf.role
+      SELECT u.id, u.name, u.email, bf.book_role as role
       FROM public.book_friends bf
       JOIN public.users u ON bf.user_id = u.id
       WHERE bf.book_id = $1 AND bf.user_id != $2
@@ -554,9 +554,9 @@ router.put('/:id/friends/:friendId/role', authenticateToken, async (req, res) =>
 
     // Check if user is owner or publisher
     const bookAccess = await pool.query(`
-      SELECT b.*, bf.role as user_role FROM public.books b
+      SELECT b.*, bf.book_role as user_book_role FROM public.books b
       LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
-      WHERE b.id = $1 AND (b.owner_id = $2 OR bf.role = 'publisher')
+      WHERE b.id = $1 AND (b.owner_id = $2 OR bf.book_role = 'publisher')
     `, [bookId, userId]);
 
     if (bookAccess.rows.length === 0) {
@@ -564,7 +564,7 @@ router.put('/:id/friends/:friendId/role', authenticateToken, async (req, res) =>
     }
 
     await pool.query(
-      'UPDATE public.book_friends SET role = $1 WHERE book_id = $2 AND user_id = $3',
+      'UPDATE public.book_friends SET book_role = $1 WHERE book_id = $2 AND user_id = $3',
       [role, bookId, friendId]
     );
 
@@ -584,9 +584,9 @@ router.delete('/:id/friends/:friendId', authenticateToken, async (req, res) => {
 
     // Check if user is owner or publisher
     const bookAccess = await pool.query(`
-      SELECT b.*, bf.role as user_role FROM public.books b
+      SELECT b.*, bf.book_role as user_book_role FROM public.books b
       LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
-      WHERE b.id = $1 AND (b.owner_id = $2 OR bf.role = 'publisher')
+      WHERE b.id = $1 AND (b.owner_id = $2 OR bf.book_role = 'publisher')
     `, [bookId, userId]);
 
     if (bookAccess.rows.length === 0) {

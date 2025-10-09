@@ -34,17 +34,36 @@ export default function QuestionsManagerContent({
 }: QuestionsManagerContentProps) {
   const { user } = useAuth();
   
-  // Immediate effect to close dialog for authors
+  // Get book-specific role from editor context
+  const [userRole, setUserRole] = useState<string | null>(null);
+  
   useEffect(() => {
-    if (user?.role === 'author') {
-      console.log('QuestionsManagerContent: Author detected, closing dialog');
+    const fetchUserRole = async () => {
+      try {
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+        const response = await fetch(`${apiUrl}/books/${bookId}/user-role`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setUserRole(data.role);
+        }
+      } catch (error) {
+        console.error('Error fetching user role:', error);
+      }
+    };
+    
+    fetchUserRole();
+  }, [bookId, token]);
+  
+  // Prevent authors from accessing questions manager
+  useEffect(() => {
+    if (userRole === 'author') {
       onClose();
     }
-  }, [user, onClose]);
+  }, [userRole, onClose]);
   
-  // Prevent authors from accessing questions manager - aggressive check
-  if (!user || user.role === 'author') {
-    console.log('QuestionsManagerContent: Blocking access - user:', user, 'role:', user?.role);
+  if (userRole === 'author') {
     return null;
   }
   

@@ -12,7 +12,7 @@ interface CanvasItemComponentProps extends CanvasItemProps {
 export default function CanvasItemComponent(props: CanvasItemComponentProps) {
   const { element } = props;
 
-  if (element.type === 'roughPath') {
+  if (element.type === 'brush') {
     return <RoughBrush {...props} />;
   }
 
@@ -24,7 +24,7 @@ export default function CanvasItemComponent(props: CanvasItemComponentProps) {
     return <Textbox {...props} />;
   }
 
-  if (element.type === 'placeholder' || element.type === 'image') {
+  if (element.type === 'placeholder' || element.type === 'photo') {
     return <Photo {...props} />;
   }
 

@@ -452,7 +452,7 @@ export default function Canvas() {
       const adjustedPoints = smoothedPath;
       const newElement: CanvasElement = {
         id: uuidv4(),
-        type: 'roughPath',
+        type: 'brush',
         x: 0,
         y: 0,
         width: 0,
@@ -672,7 +672,7 @@ export default function Canvas() {
       };
       
       // Calculate bounds for ALL toolbar element types
-      if (element.type === 'roughPath' && element.points) {
+      if (element.type === 'brush' && element.points) {
         // Brush strokes - calculate from points
         let minX = element.points[0], maxX = element.points[0];
         let minY = element.points[1], maxY = element.points[1];
@@ -692,7 +692,7 @@ export default function Canvas() {
         // Text, Question, Answer textboxes
         elementBounds.width = element.width || 150;
         elementBounds.height = element.height || 50;
-      } else if (element.type === 'placeholder' || element.type === 'image') {
+      } else if (element.type === 'placeholder' || element.type === 'photo') {
         // Photo placeholders and uploaded images
         elementBounds.width = element.width || 150;
         elementBounds.height = element.height || 100;
@@ -1002,7 +1002,7 @@ export default function Canvas() {
       
       const newElement: CanvasElement = {
         id: uuidv4(),
-        type: 'image',
+        type: 'photo',
         x: pendingPhotoPosition.x,
         y: pendingPhotoPosition.y,
         width,
@@ -1180,7 +1180,7 @@ export default function Canvas() {
             {/* Transformer for selected elements */}
             <CanvasTransformer
               ref={transformerRef}
-              keepRatio={state.selectedElementIds.length === 1 && currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.type === 'image'}
+              keepRatio={state.selectedElementIds.length === 1 && currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.type === 'photo'}
               onDragEnd={(e) => {
                 // Update positions after drag
                 const nodes = transformerRef.current?.nodes() || [];
@@ -1205,8 +1205,8 @@ export default function Canvas() {
                 if (element) {
                   const updates: any = {};
                   
-                  // For text and image elements, convert scale to width/height changes
-                  if (element.type === 'text' || element.type === 'image') {
+                  // For text and photo elements, convert scale to width/height changes
+                  if (element.type === 'text' || element.type === 'photo') {
                     const scaleX = node.scaleX();
                     const scaleY = node.scaleY();
                     

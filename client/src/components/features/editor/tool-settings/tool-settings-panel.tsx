@@ -1,6 +1,6 @@
 import { useEditor } from '../../../../context/editor-context';
 import { Button } from '../../../ui/primitives/button';
-import { ChevronRight, ChevronLeft, MousePointer, Hand, MessageCircleMore, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, AlignLeft, AlignCenter, AlignRight, AlignJustify } from 'lucide-react';
+import { ChevronRight, ChevronLeft, MousePointer, Hand, MessageCircleMore, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, AlignLeft, AlignCenter, AlignRight, AlignJustify, Settings } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { ToolSettingsContainer } from './tool-settings-container';
 import { Dialog, DialogContent } from '../../../ui/overlays/dialog';
@@ -42,10 +42,11 @@ const TOOL_ICONS = {
 export default function ToolSettingsPanel() {
   const { state, dispatch } = useEditor();
   const { token, user } = useAuth();
-  const [isCollapsed, setIsCollapsed] = useState(true);
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
   const [selectedQuestionElementId, setSelectedQuestionElementId] = useState<string | null>(null);
   const [activeLinkedElement, setActiveLinkedElement] = useState<string | null>(null);
+  const [isFlashing, setIsFlashing] = useState(false);
   
   const toolSettings = state.toolSettings || {};
   const activeTool = state.activeTool;
@@ -57,14 +58,8 @@ export default function ToolSettingsPanel() {
     });
   };
 
-  // Auto-expand when tool is selected or elements are selected
+  // Set default active element for linked pairs (removed auto-expand logic)
   useEffect(() => {
-    const shouldExpand = !['select', 'pan'].includes(activeTool) || state.selectedElementIds.length > 0;
-    if (shouldExpand) {
-      setIsCollapsed(false);
-    }
-    
-    // Set default active element for linked pairs
     if (state.selectedElementIds.length === 2 && state.currentBook) {
       const selectedElements = state.currentBook.pages[state.activePageIndex]?.elements.filter(
         el => state.selectedElementIds.includes(el.id)
@@ -79,7 +74,16 @@ export default function ToolSettingsPanel() {
     } else {
       setActiveLinkedElement(null);
     }
-  }, [activeTool, state.selectedElementIds.length, state.currentBook, state.activePageIndex, activeLinkedElement]);
+  }, [state.selectedElementIds.length, state.currentBook, state.activePageIndex, activeLinkedElement]);
+
+  // Flash effect when elements are selected
+  useEffect(() => {
+    if (state.selectedElementIds.length > 0 && isCollapsed) {
+      setIsFlashing(true);
+      const timer = setTimeout(() => setIsFlashing(false), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [state.selectedElementIds.length, isCollapsed]);
 
   const shouldShowPanel = !['select', 'pan'].includes(activeTool) || state.selectedElementIds.length > 0;
 
@@ -416,6 +420,41 @@ export default function ToolSettingsPanel() {
     };
 
     switch (element.type) {
+      case 'brush':
+        return (
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium block mb-2">Brush Size</label>
+              <input
+                type="range"
+                value={element.strokeWidth || 3}
+                onChange={(e) => updateElementSetting('strokeWidth', parseInt(e.target.value))}
+                max={50}
+                min={1}
+                step={1}
+                className="w-full"
+              />
+              <span className="text-xs text-muted-foreground">{element.strokeWidth || 3}px</span>
+            </div>
+            
+            <div>
+              <label className="text-sm font-medium block mb-2">Color</label>
+              <div className="grid grid-cols-5 gap-2 mt-2">
+                {COLORS.map(color => (
+                  <button
+                    key={color}
+                    className={`w-8 h-8 rounded border-2 ${
+                      (element.stroke || '#1f2937') === color ? 'border-gray-400' : 'border-gray-200'
+                    }`}
+                    style={{ backgroundColor: color }}
+                    onClick={() => updateElementSetting('stroke', color)}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+
       case 'line':
         return (
           <div className="space-y-4">
@@ -513,6 +552,16 @@ export default function ToolSettingsPanel() {
                   />
                 ))}
               </div>
+            </div>
+          </div>
+        );
+
+      case 'photo':
+      case 'placeholder':
+        return (
+          <div className="space-y-4">
+            <div className="text-sm text-muted-foreground">
+              Photo element settings
             </div>
           </div>
         );
@@ -705,6 +754,46 @@ export default function ToolSettingsPanel() {
             {isCollapsed ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           </Button>
         </div>
+        
+        {isCollapsed && state.selectedElementIds.length > 0 && (
+          <div className="p-1 pt-3">
+            <div className="flex items-center justify-center p-1">
+              {(() => {
+                // Get the appropriate icon for selected element(s) - same logic as header
+                let IconComponent = null;
+                
+                if (state.selectedElementIds.length === 2 && state.currentBook) {
+                  const selectedElements = state.currentBook.pages[state.activePageIndex]?.elements.filter(
+                    el => state.selectedElementIds.includes(el.id)
+                  ) || [];
+                  
+                  const questionElement = selectedElements.find(el => el.textType === 'question');
+                  const answerElement = selectedElements.find(el => el.textType === 'answer' && el.questionElementId === questionElement?.id);
+                  
+                  if (questionElement && answerElement) {
+                    IconComponent = MessageCircleQuestion;
+                  }
+                } else if (state.selectedElementIds.length > 1) {
+                  IconComponent = TOOL_ICONS.select;
+                } else if (state.selectedElementIds.length === 1 && state.currentBook) {
+                  const selectedElement = state.currentBook.pages[state.activePageIndex]?.elements.find(
+                    el => el.id === state.selectedElementIds[0]
+                  );
+                  if (selectedElement) {
+                    const elementType = selectedElement.type === 'text' && selectedElement.textType 
+                      ? selectedElement.textType 
+                      : selectedElement.type;
+                    IconComponent = TOOL_ICONS[elementType as keyof typeof TOOL_ICONS];
+                  }
+                }
+                
+                return IconComponent ? (
+                  <IconComponent className={`h-6 w-6 ${isFlashing ? 'animate-pulse text-blue-500' : 'text-muted-foreground'}`} />
+                ) : null;
+              })()} 
+            </div>
+          </div>
+        )}
         
         {!isCollapsed && (
           <div className="flex-1 overflow-y-auto p-4">
