@@ -4,6 +4,7 @@ import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/composites/card';
 import { BookOpen, Users, FileText, Plus, ArrowRight, Calendar } from 'lucide-react';
+import FloatingActionButton from '../../components/ui/composites/floating-action-button';
 
 interface DashboardData {
   stats: {
@@ -199,7 +200,7 @@ export default function Dashboard() {
                 <Link to="/books">
                   <Button className="space-x-2">
                     <Plus className="h-4 w-4" />
-                    <span>Create Book</span>
+                    <span>Create a Book</span>
                   </Button>
                 </Link>
               </div>
@@ -245,6 +246,8 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+      
+      <FloatingActionButton />
     </div>
   );
 }

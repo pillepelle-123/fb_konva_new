@@ -9,7 +9,7 @@ import ToolSettingsPanel from '../../components/features/editor/tool-settings/to
 
 function EditorContent() {
   const { bookId } = useParams<{ bookId: string }>();
-  const { state, dispatch, loadBook } = useEditor();
+  const { state, dispatch, loadBook, undo, redo } = useEditor();
 
   useEffect(() => {
     if (bookId && !isNaN(Number(bookId))) {
@@ -23,6 +23,21 @@ function EditorContent() {
       dispatch({ type: 'SET_BOOK', payload: sampleBook });
     }
   }, [bookId, loadBook, dispatch]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        redo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo]);
 
   if (!state.currentBook) {
     return (

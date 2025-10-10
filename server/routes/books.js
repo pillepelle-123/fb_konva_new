@@ -47,13 +47,17 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
         contributedBooks: parseInt(collaboratedBooks.rows[0].count),
         totalCollaborators: parseInt(collaborators.rows[0].count)
       },
-      recentBooks: recentBooks.rows.map(book => ({
-        id: book.id,
-        name: book.name,
-        lastModified: book.updated_at,
-        collaboratorCount: parseInt(book.collaborator_count),
-        isOwner: book.owner_id === userId
-      }))
+      recentBooks: recentBooks.rows.map(book => {
+        const isOwner = book.owner_id === userId;
+        return {
+          id: book.id,
+          name: book.name,
+          lastModified: book.updated_at,
+          collaboratorCount: parseInt(book.collaborator_count),
+          isOwner: isOwner,
+          userRole: isOwner ? 'owner' : 'author' // Default for dashboard, could be enhanced
+        };
+      })
     });
   } catch (error) {
     console.error('Dashboard error:', error);
@@ -68,24 +72,31 @@ router.get('/', authenticateToken, async (req, res) => {
     const books = await pool.query(`
       SELECT DISTINCT b.id, b.name, b.page_size, b.orientation, b.owner_id, b.created_at, b.updated_at,
         COALESCE((SELECT COUNT(*) FROM public.pages WHERE book_id = b.id), 0) as page_count,
-        COALESCE((SELECT COUNT(*) FROM public.book_friends WHERE book_id = b.id), 0) as collaborator_count
+        COALESCE((SELECT COUNT(*) FROM public.book_friends WHERE book_id = b.id), 0) as collaborator_count,
+        bf.book_role
       FROM public.books b
-      LEFT JOIN public.book_friends bf ON b.id = bf.book_id
+      LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $1
       WHERE (b.owner_id = $1 OR bf.user_id = $1) AND b.archived = FALSE
       ORDER BY b.created_at DESC
     `, [userId]);
 
-    res.json(books.rows.map(book => ({
-      id: book.id,
-      name: book.name,
-      pageSize: book.page_size,
-      orientation: book.orientation,
-      pageCount: parseInt(book.page_count) || 0,
-      collaboratorCount: parseInt(book.collaborator_count) || 0,
-      isOwner: book.owner_id === userId,
-      created_at: book.created_at,
-      updated_at: book.updated_at
-    })));
+    res.json(books.rows.map(book => {
+      const isOwner = book.owner_id === userId;
+      const userRole = isOwner ? 'owner' : book.book_role;
+      
+      return {
+        id: book.id,
+        name: book.name,
+        pageSize: book.page_size,
+        orientation: book.orientation,
+        pageCount: parseInt(book.page_count) || 0,
+        collaboratorCount: parseInt(book.collaborator_count) || 0,
+        isOwner: isOwner,
+        userRole: userRole,
+        created_at: book.created_at,
+        updated_at: book.updated_at
+      };
+    }));
   } catch (error) {
     console.error('Books fetch error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -97,21 +108,27 @@ router.get('/archived', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     const books = await pool.query(`
-      SELECT DISTINCT b.id, b.name, b.page_size, b.orientation, b.owner_id, b.created_at
+      SELECT DISTINCT b.id, b.name, b.page_size, b.orientation, b.owner_id, b.created_at, bf.book_role
       FROM public.books b
-      LEFT JOIN public.book_friends bf ON b.id = bf.book_id
+      LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $1
       WHERE (b.owner_id = $1 OR bf.user_id = $1) AND b.archived = TRUE
       ORDER BY b.created_at DESC
     `, [userId]);
 
-    res.json(books.rows.map(book => ({
-      id: book.id,
-      name: book.name,
-      pageSize: book.page_size,
-      orientation: book.orientation,
-      isOwner: book.owner_id === userId,
-      createdAt: book.created_at
-    })));
+    res.json(books.rows.map(book => {
+      const isOwner = book.owner_id === userId;
+      const userRole = isOwner ? 'owner' : book.book_role;
+      
+      return {
+        id: book.id,
+        name: book.name,
+        pageSize: book.page_size,
+        orientation: book.orientation,
+        isOwner: isOwner,
+        userRole: userRole,
+        createdAt: book.created_at
+      };
+    }));
   } catch (error) {
     console.error('Archived books fetch error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -185,13 +202,41 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
     );
     const assignedPageIds = assignments.rows.map(row => row.page_id);
 
-    // Update only assigned pages
+    // Update only assigned pages and handle question associations
     for (const page of pages) {
       if (assignedPageIds.includes(page.pageNumber)) {
-        await pool.query(
-          'UPDATE public.pages SET elements = $1 WHERE book_id = $2 AND page_number = $3',
-          [JSON.stringify(page.elements), bookId, page.pageNumber]
+        // Get the page ID
+        const pageResult = await pool.query(
+          'SELECT id FROM public.pages WHERE book_id = $1 AND page_number = $2',
+          [bookId, page.pageNumber]
         );
+        
+        if (pageResult.rows.length > 0) {
+          const pageId = pageResult.rows[0].id;
+          
+          // Update page elements
+          await pool.query(
+            'UPDATE public.pages SET elements = $1 WHERE id = $2',
+            [JSON.stringify(page.elements), pageId]
+          );
+
+          // Remove existing question associations for this page
+          await pool.query(
+            'DELETE FROM public.question_pages WHERE page_id = $1',
+            [pageId]
+          );
+
+          // Add new question associations
+          const elements = page.elements || [];
+          for (const element of elements) {
+            if (element.textType === 'question' && element.questionId) {
+              await pool.query(
+                'INSERT INTO public.question_pages (question_id, page_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+                [element.questionId, pageId]
+              );
+            }
+          }
+        }
       }
     }
 
@@ -232,15 +277,27 @@ router.put('/:id', authenticateToken, async (req, res) => {
       [name, pageSize, orientation, bookId]
     );
 
-    // Delete existing pages
+    // Delete existing pages and their question associations
     await pool.query('DELETE FROM public.pages WHERE book_id = $1', [bookId]);
 
-    // Insert updated pages
+    // Insert updated pages and handle question associations
     for (const page of pages) {
-      await pool.query(
-        'INSERT INTO public.pages (book_id, page_number, elements) VALUES ($1, $2, $3)',
+      const pageResult = await pool.query(
+        'INSERT INTO public.pages (book_id, page_number, elements) VALUES ($1, $2, $3) RETURNING id',
         [bookId, page.pageNumber, JSON.stringify(page.elements)]
       );
+      const pageId = pageResult.rows[0].id;
+
+      // Find question elements and create question_pages associations
+      const elements = page.elements || [];
+      for (const element of elements) {
+        if (element.textType === 'question' && element.questionId) {
+          await pool.query(
+            'INSERT INTO public.question_pages (question_id, page_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+            [element.questionId, pageId]
+          );
+        }
+      }
     }
 
     res.json({ success: true });
@@ -426,9 +483,14 @@ router.get('/:id/questions', authenticateToken, async (req, res) => {
     const bookId = req.params.id;
     const userId = req.user.id;
 
-    // Check if user is admin of the book
-    const book = await pool.query('SELECT * FROM public.books WHERE id = $1 AND owner_id = $2', [bookId, userId]);
-    if (book.rows.length === 0) {
+    // Check if user has access to this book (owner, publisher, or author)
+    const bookAccess = await pool.query(`
+      SELECT b.* FROM public.books b
+      LEFT JOIN public.book_friends bf ON b.id = bf.book_id
+      WHERE b.id = $1 AND (b.owner_id = $2 OR bf.user_id = $2)
+    `, [bookId, userId]);
+
+    if (bookAccess.rows.length === 0) {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
@@ -444,6 +506,42 @@ router.get('/:id/questions', authenticateToken, async (req, res) => {
   }
 });
 
+// Get questions with page information
+router.get('/:id/questions-with-pages', authenticateToken, async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const userId = req.user.id;
+
+    // Check if user has access to this book
+    const bookAccess = await pool.query(`
+      SELECT b.* FROM public.books b
+      LEFT JOIN public.book_friends bf ON b.id = bf.book_id
+      WHERE b.id = $1 AND (b.owner_id = $2 OR bf.user_id = $2)
+    `, [bookId, userId]);
+
+    if (bookAccess.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const questions = await pool.query(`
+      SELECT q.*, 
+             COALESCE(array_agg(p.page_number) FILTER (WHERE p.page_number IS NOT NULL), '{}') as page_numbers,
+             CASE WHEN COUNT(qp.page_id) = 0 THEN 'draft' ELSE 'published' END as status
+      FROM public.questions q
+      LEFT JOIN public.question_pages qp ON q.id = qp.question_id
+      LEFT JOIN public.pages p ON qp.page_id = p.id
+      WHERE q.book_id = $1
+      GROUP BY q.id
+      ORDER BY q.created_at ASC
+    `, [bookId]);
+
+    res.json(questions.rows);
+  } catch (error) {
+    console.error('Questions with pages fetch error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Create question for a book
 router.post('/:id/questions', authenticateToken, async (req, res) => {
   try {
@@ -451,9 +549,14 @@ router.post('/:id/questions', authenticateToken, async (req, res) => {
     const { questionText } = req.body;
     const userId = req.user.id;
 
-    // Check if user is admin of the book
-    const book = await pool.query('SELECT * FROM public.books WHERE id = $1 AND owner_id = $2', [bookId, userId]);
-    if (book.rows.length === 0) {
+    // Check if user is owner or publisher
+    const bookAccess = await pool.query(`
+      SELECT b.*, bf.book_role FROM public.books b
+      LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
+      WHERE b.id = $1 AND (b.owner_id = $2 OR bf.book_role = 'publisher')
+    `, [bookId, userId]);
+
+    if (bookAccess.rows.length === 0) {
       return res.status(403).json({ error: 'Not authorized' });
     }
 

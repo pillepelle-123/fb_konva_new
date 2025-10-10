@@ -15,6 +15,7 @@ interface Book {
   pageCount: number;
   collaboratorCount: number;
   isOwner: boolean;
+  userRole: 'owner' | 'publisher' | 'author';
   created_at: string;
   updated_at: string;
 }
@@ -109,8 +110,14 @@ export default function BookCard({ book, isArchived = false, onRestore, onDelete
               <span>{book.collaboratorCount}</span>
             </div>
           </div>
-                <Badge variant={book.isOwner ? 'highlight' : 'secondary'}>
-                  {book.isOwner ? 'You are the publisher' : 'You are an author'}
+                <Badge variant={
+                  book.userRole === 'owner' ? 'highlight' : 
+                  book.userRole === 'publisher' ? 'highlight_dense' : 
+                  'secondary'
+                }>
+                  {book.userRole === 'owner' ? 'You are the owner' : 
+                   book.userRole === 'publisher' ? 'You are a publisher' : 
+                   'You are an author'}
                 </Badge>
         </div>
 
@@ -157,18 +164,17 @@ export default function BookCard({ book, isArchived = false, onRestore, onDelete
                   <Contact className="h-4 w-4" />
                 </Button>
               </Tooltip>
-              {book.isOwner && (
-                <Tooltip content="Questions" side="bottom">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => navigate(`/questions/${book.id}`)}
-                    className="space-x-2"
-                  >
-                    <CircleHelp className="h-4 w-4" />
-                  </Button>
-                </Tooltip>
-              )}
+              <Tooltip content="Questions" side="bottom">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => navigate(`/questions/${book.id}`)}
+                  className="space-x-2"
+                >
+                  <CircleHelp className="h-4 w-4" />
+                </Button>
+              </Tooltip>
+              
               <Tooltip content="Archive" side="bottom">
                 <Button 
                   variant="outline" 

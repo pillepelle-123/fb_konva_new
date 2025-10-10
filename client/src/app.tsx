@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/auth-context'
 import { EditorProvider } from './context/editor-context'
+import { SocketProvider } from './context/socket-context'
 import PageContainer from './components/layouts/page-container'
 import Navigation from './components/layouts/navigation'
 
@@ -17,6 +18,7 @@ import FriendsList from './pages/friends/index'
 import Profile from './pages/profile/index'
 import Settings from './pages/profile/settings'
 import Editor from './pages/editor'
+import MessengerPage from './pages/messenger'
 import NotFound from './pages/404'
 import ProtectedRoute from './components/layouts/protected-route'
 import BookAccessGuard from './components/layouts/book-access-guard'
@@ -25,9 +27,11 @@ import BookAccessGuard from './components/layouts/book-access-guard'
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <AppContent />
-      </Router>
+      <SocketProvider>
+        <Router>
+          <AppContent />
+        </Router>
+      </SocketProvider>
     </AuthProvider>
   )
 }
@@ -62,6 +66,7 @@ function AppContent() {
           <Route path="/questions/:bookId" element={<ProtectedRoute><BookAccessGuard><QuestionsList /></BookAccessGuard></ProtectedRoute>} />
           <Route path="/books/:bookId/friends" element={<ProtectedRoute><BookAccessGuard><BookFriendsList /></BookAccessGuard></ProtectedRoute>} />
           <Route path="/friends" element={<ProtectedRoute><FriendsList /></ProtectedRoute>} />
+          <Route path="/messenger" element={<ProtectedRoute><MessengerPage /></ProtectedRoute>} />
           <Route path="/profile/:userId" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/my-profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />

@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from 'react';
-import { Text, Rect } from 'react-konva';
+import { Text, Rect, Path } from 'react-konva';
 import Konva from 'konva';
+import rough from 'roughjs';
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import type { CanvasElement } from '../../../../context/editor-context';
@@ -13,7 +14,7 @@ function formatRichText(text: string, fontSize: number, fontFamily: string, maxW
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d')!;
   
-  const lineHeight = hasRuledLines ? fontSize * 2.5 : fontSize * 1.2;
+  const lineHeight = hasRuledLines ? fontSize * Math.max(2.5, (element.paragraphSpacing === 'small' ? 1.0 : element.paragraphSpacing === 'large' ? 3.0 : 1.5) * 1.5) : fontSize * 1.2;
   const textParts: any[] = [];
   
   // Create temporary div to parse Quill HTML
@@ -172,14 +173,94 @@ function formatRichText(text: string, fontSize: number, fontFamily: string, maxW
 
 export default function Textbox(props: CanvasItemProps) {
   const { element } = props;
-  const { state, dispatch } = useEditor();
+  const { state, dispatch, getQuestionText, getAnswerText } = useEditor();
   const { user } = useAuth();
   const textRef = useRef<Konva.Text>(null);
 
   const [hasOverflow, setHasOverflow] = useState(false);
 
   const fontSize = element.fontSize || 16;
-  const lineHeight = element.lineHeight || (element.text && element.text.includes('data-ruled="true"') ? 2.5 : 1.2);
+  
+  // Calculate lineHeight based on paragraph spacing and ruled lines
+  const getLineHeight = () => {
+    const spacing = element.paragraphSpacing || 'medium';
+    
+    if (element.ruledLines || (element.text && element.text.includes('data-ruled="true"'))) {
+      const ruledSpacingMap = {
+        small: 2.5,
+        medium: 3.0,
+        large: 3.5
+      };
+      return ruledSpacingMap[spacing as keyof typeof ruledSpacingMap];
+    }
+    
+    const spacingMap = {
+      small: 1.2,
+      medium: 1.5,
+      large: 2.0
+    };
+    
+    return element.lineHeight || spacingMap[spacing as keyof typeof spacingMap];
+  };
+  
+  // Generate rough-style ruled lines using rough.js
+  const generateRuledLines = () => {
+    if (!element.ruledLines) return [];
+    
+    const lines = [];
+    const lineSpacing = fontSize * lineHeight;
+    const numLines = Math.floor((element.height - 8) / lineSpacing);
+    const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+    
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const rc = rough.svg(svg);
+    
+    for (let i = 0; i < numLines; i++) {
+      const y = 4 + (i + 1) * lineSpacing - fontSize * 0.3;
+      
+      try {
+        const roughLine = rc.line(4, y, element.width - 4, y, {
+          roughness: 2,
+          strokeWidth: 0.8,
+          stroke: '#1f2937',
+          seed: seed + i
+        });
+        
+        const paths = roughLine.querySelectorAll('path');
+        let combinedPath = '';
+        paths.forEach(path => {
+          const d = path.getAttribute('d');
+          if (d) combinedPath += d + ' ';
+        });
+        
+        if (combinedPath) {
+          lines.push(
+            <Path
+              key={i}
+              data={combinedPath.trim()}
+              stroke="#1f2937"
+              strokeWidth={2}
+              listening={false}
+            />
+          );
+        }
+      } catch (error) {
+        lines.push(
+          <Path
+            key={i}
+            data={`M 4 ${y} L ${element.width - 4} ${y}`}
+            stroke="#1f2937"
+            strokeWidth={2}
+            listening={false}
+          />
+        );
+      }
+    }
+    
+    return lines;
+  };
+  
+  const lineHeight = getLineHeight();
   const align = element.align || 'left';
   const fontFamily = element.fontFamily || 'Arial, sans-serif';
   
@@ -191,17 +272,48 @@ export default function Textbox(props: CanvasItemProps) {
 
   // Process text to handle HTML content from Quill
   const getDisplayText = () => {
-    if (!element.text) return getPlaceholderText();
+    let textToUse = element.formattedText || element.text;
     
-    // Check if text contains HTML tags
-    if (element.text.includes('<') && element.text.includes('>')) {
-      // Extract plain text from HTML for simple display
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = element.text;
-      return tempDiv.textContent || tempDiv.innerText || getPlaceholderText();
+    // Check for temporary question/answer text first
+    if (element.textType === 'question' && element.questionId) {
+      const tempText = getQuestionText(element.questionId);
+      if (tempText) textToUse = tempText;
+    } else if (element.textType === 'answer' && element.questionElementId) {
+      // Find the linked question element to get questionId
+      const currentPage = state.currentBook?.pages[state.activePageIndex];
+      if (currentPage) {
+        const questionElement = currentPage.elements.find(el => el.id === element.questionElementId);
+        if (questionElement?.questionId) {
+          const tempText = getAnswerText(questionElement.questionId);
+          if (tempText) textToUse = tempText;
+        }
+      }
     }
     
-    return element.text;
+    if (!textToUse) return getPlaceholderText();
+    
+    // Check if text contains HTML tags
+    if (textToUse.includes('<') && textToUse.includes('>')) {
+      // Convert HTML to text with line breaks preserved
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = textToUse;
+      
+      // Handle empty paragraphs (just <p></p> or <p><br></p>) as single newlines
+      let textContent = tempDiv.innerHTML;
+      textContent = textContent.replace(/<p[^>]*><\/p>/g, '\n'); // Empty paragraphs
+      textContent = textContent.replace(/<p[^>]*><br[^>]*><\/p>/g, '\n'); // Paragraphs with just <br>
+      textContent = textContent.replace(/<p[^>]*>/g, '').replace(/<\/p>/g, '\n');
+      textContent = textContent.replace(/<br[^>]*>/g, '\n');
+      
+      // Remove other HTML tags and get plain text
+      tempDiv.innerHTML = textContent;
+      const plainText = tempDiv.textContent || tempDiv.innerText || '';
+      
+      // Clean up extra newlines at start/end
+      return plainText.replace(/\n+$/, '').replace(/^\n+/, '') || getPlaceholderText();
+    }
+    
+    return textToUse;
   };
 
   const displayText = getDisplayText();
@@ -209,7 +321,7 @@ export default function Textbox(props: CanvasItemProps) {
   // Check for text overflow and update text wrapping
   useEffect(() => {
     if (textRef.current) {
-      // Reset any scale transforms
+      // Always reset scale transforms to prevent text scaling
       textRef.current.scaleX(1);
       textRef.current.scaleY(1);
       
@@ -225,7 +337,24 @@ export default function Textbox(props: CanvasItemProps) {
       const containerHeight = element.height - 8;
       setHasOverflow(textHeight > containerHeight);
     }
-  }, [element.text, element.width, element.height, fontSize, lineHeight, displayText]);
+  }, [element.text, element.formattedText, element.width, element.height, element.paragraphSpacing, element.ruledLines, fontSize, lineHeight, displayText]);
+
+  // Additional effect to ensure text never scales during transformations
+  useEffect(() => {
+    if (textRef.current && (element.textType === 'question' || element.textType === 'answer')) {
+      const handleTransform = () => {
+        // Immediately reset any scale applied to text nodes
+        textRef.current?.scaleX(1);
+        textRef.current?.scaleY(1);
+      };
+      
+      const group = textRef.current.getParent();
+      if (group) {
+        group.on('transform', handleTransform);
+        return () => group.off('transform', handleTransform);
+      }
+    }
+  }, [element.textType]);
 
   const handleDoubleClick = () => {
     if (state.activeTool !== 'select') return;
@@ -288,10 +417,13 @@ export default function Textbox(props: CanvasItemProps) {
           listening={false}
         />
         
+        {/* Ruled lines */}
+        {generateRuledLines()}
+        
         {/* Text content */}
-        {element.text && (element.text.includes('<') && (element.text.includes('<strong>') || element.text.includes('<em>') || element.text.includes('<u>') || element.text.includes('color:') || element.text.includes('font-family:') || element.text.includes('ql-font-') || element.text.includes('data-ruled=') || element.text.includes('<h'))) ? (
+        {(element.formattedText || element.text) && ((element.formattedText || element.text).includes('<') && ((element.formattedText || element.text).includes('<strong>') || (element.formattedText || element.text).includes('<em>') || (element.formattedText || element.text).includes('<u>') || (element.formattedText || element.text).includes('color:') || (element.formattedText || element.text).includes('font-family:') || (element.formattedText || element.text).includes('ql-font-') || (element.formattedText || element.text).includes('data-ruled=') || (element.formattedText || element.text).includes('<h'))) ? (
           <>
-            {formatRichText(element.text, fontSize, fontFamily, element.width - 8, element.text.includes('data-ruled="true"')).map((textPart, index) => (
+            {formatRichText(element.formattedText || element.text, fontSize, fontFamily, element.width - 8, element.ruledLines || (element.formattedText || element.text).includes('data-ruled="true"')).map((textPart, index) => (
               <Text
                 key={index}
                 text={textPart.text}
@@ -322,8 +454,8 @@ export default function Textbox(props: CanvasItemProps) {
             wrap="word"
             lineHeight={lineHeight}
             listening={false}
-            opacity={element.text ? 1 : 0.6}
-            name={element.text ? '' : 'no-print'}
+            opacity={(element.formattedText || element.text) ? 1 : 0.6}
+            name={(element.formattedText || element.text) ? '' : 'no-print'}
           />
         )}
         

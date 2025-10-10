@@ -1,11 +1,12 @@
 import { useEditor } from '../../../../context/editor-context';
 import { Button } from '../../../ui/primitives/button';
-import { ChevronRight, ChevronLeft, MousePointer, Hand, MessageCircleMore, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, AlignLeft, AlignCenter, AlignRight, AlignJustify, Settings } from 'lucide-react';
+import { ChevronRight, ChevronLeft, MousePointer, Hand, MessageCircleMore, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, AlignLeft, AlignCenter, AlignRight, AlignJustify, Settings, Rows4, Rows3, Rows2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { ToolSettingsContainer } from './tool-settings-container';
 import { Dialog, DialogContent } from '../../../ui/overlays/dialog';
 import QuestionsManagerContent from '../../questions/questions-manager-content';
 import { useAuth } from '../../../../context/auth-context';
+import { Tabs, TabsList, TabsTrigger } from '../../../ui/composites/tabs';
 import { ButtonGroup } from '../../../ui/composites/button-group';
 
 const COLORS = [
@@ -38,6 +39,12 @@ const TOOL_ICONS = {
   cat: Cat,
   smiley: Smile
 };
+
+// Global styles for settings sections
+const SETTINGS_SECTION_CLASS = '';
+const SETTINGS_LABEL_CLASS = 'text-xs font-medium block mb-1';
+const COLOR_GRID_CLASS = 'grid grid-cols-5 gap-1 mt-1';
+const COLOR_BUTTON_CLASS = 'w-6 h-6 rounded border';
 
 export default function ToolSettingsPanel() {
   const { state, dispatch } = useEditor();
@@ -101,31 +108,7 @@ export default function ToolSettingsPanel() {
       if (questionElement && answerElement) {
         const activeElement = activeLinkedElement === questionElement.id ? questionElement : answerElement;
         
-        return (
-          <div className="space-y-4">
-            <ButtonGroup className="w-full">
-              <Button
-                variant={activeLinkedElement === questionElement.id ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setActiveLinkedElement(questionElement.id)}
-                className="flex-1"
-              >
-                <MessageCircleQuestion className="h-4 w-4 mr-1" />
-                Question
-              </Button>
-              <Button
-                variant={activeLinkedElement === answerElement.id ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setActiveLinkedElement(answerElement.id)}
-                className="flex-1"
-              >
-                <MessageCircleHeart className="h-4 w-4 mr-1" />
-                Answer
-              </Button>
-            </ButtonGroup>
-            {renderElementSettings(activeElement)}
-          </div>
-        );
+        return renderElementSettings(activeElement);
       }
     }
     
@@ -136,15 +119,19 @@ export default function ToolSettingsPanel() {
       ) || [];
       
       return (
-        <div className="space-y-2">
-          <div className="text-sm font-medium mb-3">Selected Items ({selectedElements.length})</div>
+        <div className="space-y-1">
+          <div className="text-xs font-medium mb-2">Selected Items ({selectedElements.length})</div>
           {selectedElements.map((element, index) => {
             const elementType = element.type === 'text' && element.textType 
               ? element.textType 
               : element.type;
             const IconComponent = TOOL_ICONS[elementType as keyof typeof TOOL_ICONS];
             return (
-              <div key={element.id} className="flex items-center gap-2 p-2 bg-muted rounded text-sm">
+              <div 
+                key={element.id} 
+                className="flex items-center gap-1 p-1 bg-muted rounded text-xs cursor-pointer hover:bg-muted/80"
+                onClick={() => dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] })}
+              >
                 {IconComponent && <IconComponent className="h-3 w-3" />}
                 <span>{elementType.charAt(0).toUpperCase() + elementType.slice(1)}</span>
                 {element.text && (
@@ -178,7 +165,7 @@ export default function ToolSettingsPanel() {
         return (
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium block mb-2">Stroke Width</label>
+              <label className="text-xs font-medium block mb-2">Stroke Width</label>
               <input
                 type="range"
                 value={settings.strokeWidth || 2}
@@ -211,9 +198,9 @@ export default function ToolSettingsPanel() {
 
       case 'brush':
         return (
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium block mb-2">Brush Size</label>
+          <div className="space-y-2">
+            <div className={SETTINGS_SECTION_CLASS}>
+              <label className={SETTINGS_LABEL_CLASS}>Brush Size</label>
               <input
                 type="range"
                 value={settings.strokeWidth || 3}
@@ -226,13 +213,13 @@ export default function ToolSettingsPanel() {
               <span className="text-xs text-muted-foreground">{settings.strokeWidth || 3}px</span>
             </div>
             
-            <div>
-              <label className="text-sm font-medium block mb-2">Color</label>
-              <div className="grid grid-cols-5 gap-2 mt-2">
+            <div className={SETTINGS_SECTION_CLASS}>
+              <label className={SETTINGS_LABEL_CLASS}>Color</label>
+              <div className={COLOR_GRID_CLASS}>
                 {COLORS.map(color => (
                   <button
                     key={color}
-                    className={`w-8 h-8 rounded border-2 ${
+                    className={`${COLOR_BUTTON_CLASS} ${
                       (settings.stroke || '#1f2937') === color ? 'border-gray-400' : 'border-gray-200'
                     }`}
                     style={{ backgroundColor: color }}
@@ -253,9 +240,9 @@ export default function ToolSettingsPanel() {
       case 'cat':
       case 'smiley':
         return (
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium block mb-2">Stroke Width</label>
+          <div className="space-y-2">
+            <div className={SETTINGS_SECTION_CLASS}>
+              <label className={SETTINGS_LABEL_CLASS}>Stroke Width</label>
               <input
                 type="range"
                 value={settings.strokeWidth || 2}
@@ -268,13 +255,13 @@ export default function ToolSettingsPanel() {
               <span className="text-xs text-muted-foreground">{settings.strokeWidth || 2}px</span>
             </div>
             
-            <div>
-              <label className="text-sm font-medium block mb-2">Stroke Color</label>
-              <div className="grid grid-cols-5 gap-2 mt-2">
+            <div className={SETTINGS_SECTION_CLASS}>
+              <label className={SETTINGS_LABEL_CLASS}>Stroke Color</label>
+              <div className={COLOR_GRID_CLASS}>
                 {COLORS.map(color => (
                   <button
                     key={color}
-                    className={`w-8 h-8 rounded border-2 ${
+                    className={`${COLOR_BUTTON_CLASS} ${
                       (settings.stroke || '#1f2937') === color ? 'border-gray-400' : 'border-gray-200'
                     }`}
                     style={{ backgroundColor: color }}
@@ -284,11 +271,11 @@ export default function ToolSettingsPanel() {
               </div>
             </div>
             
-            <div>
-              <label className="text-sm font-medium block mb-2">Fill Color</label>
-              <div className="grid grid-cols-5 gap-2 mt-2">
+            <div className={SETTINGS_SECTION_CLASS}>
+              <label className={SETTINGS_LABEL_CLASS}>Fill Color</label>
+              <div className={COLOR_GRID_CLASS}>
                 <button
-                  className={`w-8 h-8 rounded border-2 ${
+                  className={`${COLOR_BUTTON_CLASS} ${
                     (settings.fill || 'transparent') === 'transparent' ? 'border-gray-400' : 'border-gray-200'
                   } bg-white relative`}
                   onClick={() => updateToolSetting('fill', 'transparent')}
@@ -298,7 +285,7 @@ export default function ToolSettingsPanel() {
                 {COLORS.slice(0, 9).map(color => (
                   <button
                     key={color}
-                    className={`w-8 h-8 rounded border-2 ${
+                    className={`${COLOR_BUTTON_CLASS} ${
                       (settings.fill || 'transparent') === color ? 'border-gray-400' : 'border-gray-200'
                     }`}
                     style={{ backgroundColor: color }}
@@ -314,9 +301,9 @@ export default function ToolSettingsPanel() {
       case 'question':
       case 'answer':
         return (
-          <div className="space-y-4">
+          <div className="space-y-2">
             <div>
-              <label className="text-sm font-medium block mb-2">Font Size</label>
+              <label className="text-xs font-medium block mb-1">Font Size</label>
               <input
                 type="range"
                 value={settings.fontSize || 64}
@@ -330,11 +317,11 @@ export default function ToolSettingsPanel() {
             </div>
             
             <div>
-              <label className="text-sm font-medium block mb-2">Font Family</label>
+              <label className="text-xs font-medium block mb-1">Font Family</label>
               <select
                 value={settings.fontFamily || 'Arial, sans-serif'}
                 onChange={(e) => updateToolSetting('fontFamily', e.target.value)}
-                className="w-full p-2 border rounded"
+                className="w-full p-1 text-xs border rounded"
               >
                 {FONTS.map(font => (
                   <option key={font.value} value={font.value}>
@@ -345,12 +332,12 @@ export default function ToolSettingsPanel() {
             </div>
             
             <div>
-              <label className="text-sm font-medium block mb-2">Text Color</label>
-              <div className="grid grid-cols-5 gap-2 mt-2">
+              <label className="text-xs font-medium block mb-1">Text Color</label>
+              <div className="grid grid-cols-5 gap-1 mt-1">
                 {COLORS.map(color => (
                   <button
                     key={color}
-                    className={`w-8 h-8 rounded border-2 ${
+                    className={`w-6 h-6 rounded border ${
                       (settings.fill || '#1f2937') === color ? 'border-gray-400' : 'border-gray-200'
                     }`}
                     style={{ backgroundColor: color }}
@@ -361,43 +348,86 @@ export default function ToolSettingsPanel() {
             </div>
             
             <div>
-              <label className="text-sm font-medium block mb-2">Text Align</label>
-              <ButtonGroup className="mt-2">
+              <label className="text-xs font-medium block mb-1">Text Align</label>
+              <ButtonGroup className="mt-1">
                 <Button
                   variant={settings.align === 'left' ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => updateToolSetting('align', 'left')}
-                  className="px-2"
+                  className="px-1 h-6"
                 >
-                  <AlignLeft className="h-4 w-4" />
+                  <AlignLeft className="h-3 w-3" />
                 </Button>
                 <Button
                   variant={settings.align === 'center' ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => updateToolSetting('align', 'center')}
-                  className="px-2"
+                  className="px-1 h-6"
                 >
-                  <AlignCenter className="h-4 w-4" />
+                  <AlignCenter className="h-3 w-3" />
                 </Button>
                 <Button
                   variant={settings.align === 'right' ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => updateToolSetting('align', 'right')}
-                  className="px-2"
+                  className="px-1 h-6"
                 >
-                  <AlignRight className="h-4 w-4" />
+                  <AlignRight className="h-3 w-3" />
                 </Button>
                 <Button
                   variant={settings.align === 'justify' ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => updateToolSetting('align', 'justify')}
-                  className="px-2"
+                  className="px-1 h-6"
                 >
-                  <AlignJustify className="h-4 w-4" />
+                  <AlignJustify className="h-3 w-3" />
                 </Button>
               </ButtonGroup>
             </div>
             
+            {activeTool !== 'question' && (
+              <div>
+                <label className="text-xs font-medium block mb-1">Paragraph Spacing</label>
+                <ButtonGroup className="mt-1">
+                  <Button
+                    variant={settings.paragraphSpacing === 'small' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => updateToolSetting('paragraphSpacing', 'small')}
+                    className="px-1 h-6"
+                  >
+                    <Rows4 className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant={(settings.paragraphSpacing || 'medium') === 'medium' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => updateToolSetting('paragraphSpacing', 'medium')}
+                    className="px-1 h-6"
+                  >
+                    <Rows3 className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant={settings.paragraphSpacing === 'large' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => updateToolSetting('paragraphSpacing', 'large')}
+                    className="px-1 h-6"
+                  >
+                    <Rows2 className="h-3 w-3" />
+                  </Button>
+                </ButtonGroup>
+              </div>
+            )}
+            
+            <div>
+              <label className="flex items-center gap-1 text-xs font-medium">
+                <input
+                  type="checkbox"
+                  checked={settings.ruledLines || false}
+                  onChange={(e) => updateToolSetting('ruledLines', e.target.checked)}
+                  className="rounded w-3 h-3"
+                />
+                Ruled Lines
+              </label>
+            </div>
 
           </div>
         );
@@ -413,8 +443,10 @@ export default function ToolSettingsPanel() {
 
   const renderElementSettings = (element: any) => {
     const updateElementSetting = (key: string, value: any) => {
+      // Save to history before updating element
+      dispatch({ type: 'SAVE_TO_HISTORY', payload: `Update ${element.type} ${key}` });
       dispatch({
-        type: 'UPDATE_ELEMENT',
+        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
         payload: { id: element.id, updates: { [key]: value } }
       });
     };
@@ -457,9 +489,9 @@ export default function ToolSettingsPanel() {
 
       case 'line':
         return (
-          <div className="space-y-4">
+          <div className="space-y-1">
             <div>
-              <label className="text-sm font-medium block mb-2">Stroke Width</label>
+              <label className="text-xs font-medium block mb-1">Stroke Width</label>
               <input
                 type="range"
                 value={element.strokeWidth || 2}
@@ -469,11 +501,11 @@ export default function ToolSettingsPanel() {
                 step={1}
                 className="w-full"
               />
-              <span className="text-xs text-muted-foreground">{element.strokeWidth || 2}px</span>
+              <span className="text-xs text-muted-foreground 0">{element.strokeWidth || 2}px</span>
             </div>
             
             <div>
-              <label className="text-sm font-medium block mb-2">Color</label>
+              <label className="text-xs font-medium block mb-1">Color</label>
               <div className="grid grid-cols-5 gap-2 mt-2">
                 {COLORS.map(color => (
                   <button
@@ -499,9 +531,9 @@ export default function ToolSettingsPanel() {
       case 'cat':
       case 'smiley':
         return (
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium block mb-2">Stroke Width</label>
+          <div className="space-y-2">
+            <div className={SETTINGS_SECTION_CLASS}>
+              <label className={SETTINGS_LABEL_CLASS}>Stroke Width</label>
               <input
                 type="range"
                 value={element.strokeWidth || 2}
@@ -514,13 +546,13 @@ export default function ToolSettingsPanel() {
               <span className="text-xs text-muted-foreground">{element.strokeWidth || 2}px</span>
             </div>
             
-            <div>
-              <label className="text-sm font-medium block mb-2">Stroke Color</label>
-              <div className="grid grid-cols-5 gap-2 mt-2">
+            <div className={SETTINGS_SECTION_CLASS}>
+              <label className={SETTINGS_LABEL_CLASS}>Stroke Color</label>
+              <div className={COLOR_GRID_CLASS}>
                 {COLORS.map(color => (
                   <button
                     key={color}
-                    className={`w-8 h-8 rounded border-2 ${
+                    className={`${COLOR_BUTTON_CLASS} ${
                       (element.stroke || '#1f2937') === color ? 'border-gray-400' : 'border-gray-200'
                     }`}
                     style={{ backgroundColor: color }}
@@ -530,11 +562,11 @@ export default function ToolSettingsPanel() {
               </div>
             </div>
             
-            <div>
-              <label className="text-sm font-medium block mb-2">Fill Color</label>
-              <div className="grid grid-cols-5 gap-2 mt-2">
+            <div className={SETTINGS_SECTION_CLASS}>
+              <label className={SETTINGS_LABEL_CLASS}>Fill Color</label>
+              <div className={COLOR_GRID_CLASS}>
                 <button
-                  className={`w-8 h-8 rounded border-2 ${
+                  className={`${COLOR_BUTTON_CLASS} ${
                     (element.fill || 'transparent') === 'transparent' ? 'border-gray-400' : 'border-gray-200'
                   } bg-white relative`}
                   onClick={() => updateElementSetting('fill', 'transparent')}
@@ -544,7 +576,7 @@ export default function ToolSettingsPanel() {
                 {COLORS.slice(0, 9).map(color => (
                   <button
                     key={color}
-                    className={`w-8 h-8 rounded border-2 ${
+                    className={`${COLOR_BUTTON_CLASS} ${
                       (element.fill || 'transparent') === color ? 'border-gray-400' : 'border-gray-200'
                     }`}
                     style={{ backgroundColor: color }}
@@ -568,9 +600,9 @@ export default function ToolSettingsPanel() {
 
       case 'text':
         return (
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium block mb-2">Font Size</label>
+          <div className="space-y-2">
+            <div className={SETTINGS_SECTION_CLASS}>
+              <label className={SETTINGS_LABEL_CLASS}>Font Size</label>
               <input
                 type="range"
                 value={element.fontSize || 64}
@@ -583,12 +615,12 @@ export default function ToolSettingsPanel() {
               <span className="text-xs text-muted-foreground">{element.fontSize || 64}px</span>
             </div>
             
-            <div>
-              <label className="text-sm font-medium block mb-2">Font Family</label>
+            <div className={SETTINGS_SECTION_CLASS}>
+              <label className={SETTINGS_LABEL_CLASS}>Font Family</label>
               <select
                 value={element.fontFamily || 'Arial, sans-serif'}
                 onChange={(e) => updateElementSetting('fontFamily', e.target.value)}
-                className="w-full p-2 border rounded"
+                className="w-full p-1 text-xs border rounded"
               >
                 {FONTS.map(font => (
                   <option key={font.value} value={font.value}>
@@ -598,13 +630,13 @@ export default function ToolSettingsPanel() {
               </select>
             </div>
             
-            <div>
-              <label className="text-sm font-medium block mb-2">Text Color</label>
-              <div className="grid grid-cols-5 gap-2 mt-2">
+            <div className={SETTINGS_SECTION_CLASS}>
+              <label className={SETTINGS_LABEL_CLASS}>Text Color</label>
+              <div className={COLOR_GRID_CLASS}>
                 {COLORS.map(color => (
                   <button
                     key={color}
-                    className={`w-8 h-8 rounded border-2 ${
+                    className={`${COLOR_BUTTON_CLASS} ${
                       (element.fill || '#1f2937') === color ? 'border-gray-400' : 'border-gray-200'
                     }`}
                     style={{ backgroundColor: color }}
@@ -614,42 +646,86 @@ export default function ToolSettingsPanel() {
               </div>
             </div>
             
-            <div>
-              <label className="text-sm font-medium block mb-2">Text Align</label>
-              <ButtonGroup className="mt-2">
+            <div className={SETTINGS_SECTION_CLASS}>
+              <label className={SETTINGS_LABEL_CLASS}>Text Align</label>
+              <ButtonGroup className="mt-1">
                 <Button
                   variant={element.align === 'left' ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => updateElementSetting('align', 'left')}
-                  className="px-2"
+                  className="px-1 h-6"
                 >
-                  <AlignLeft className="h-4 w-4" />
+                  <AlignLeft className="h-3 w-3" />
                 </Button>
                 <Button
                   variant={element.align === 'center' ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => updateElementSetting('align', 'center')}
-                  className="px-2"
+                  className="px-1 h-6"
                 >
-                  <AlignCenter className="h-4 w-4" />
+                  <AlignCenter className="h-3 w-3" />
                 </Button>
                 <Button
                   variant={element.align === 'right' ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => updateElementSetting('align', 'right')}
-                  className="px-2"
+                  className="px-1 h-6"
                 >
-                  <AlignRight className="h-4 w-4" />
+                  <AlignRight className="h-3 w-3" />
                 </Button>
                 <Button
                   variant={element.align === 'justify' ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => updateElementSetting('align', 'justify')}
-                  className="px-2"
+                  className="px-1 h-6"
                 >
-                  <AlignJustify className="h-4 w-4" />
+                  <AlignJustify className="h-3 w-3" />
                 </Button>
               </ButtonGroup>
+            </div>
+            
+            {element.textType !== 'question' && (
+              <div className={SETTINGS_SECTION_CLASS}>
+                <label className={SETTINGS_LABEL_CLASS}>Paragraph Spacing</label>
+                <ButtonGroup className="mt-1">
+                  <Button
+                    variant={element.paragraphSpacing === 'small' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => updateElementSetting('paragraphSpacing', 'small')}
+                    className="px-1 h-6"
+                  >
+                    <Rows4 className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant={(element.paragraphSpacing || 'medium') === 'medium' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => updateElementSetting('paragraphSpacing', 'medium')}
+                    className="px-1 h-6"
+                  >
+                    <Rows3 className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant={element.paragraphSpacing === 'large' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => updateElementSetting('paragraphSpacing', 'large')}
+                    className="px-1 h-6"
+                  >
+                    <Rows2 className="h-3 w-3" />
+                  </Button>
+                </ButtonGroup>
+              </div>
+            )}
+            
+            <div className={SETTINGS_SECTION_CLASS}>
+              <label className="flex items-center gap-1 text-xs font-medium">
+                <input
+                  type="checkbox"
+                  checked={element.ruledLines || false}
+                  onChange={(e) => updateElementSetting('ruledLines', e.target.checked)}
+                  className="rounded w-3 h-3"
+                />
+                Ruled Lines
+              </label>
             </div>
             
             {element.textType === 'question' && user?.role !== 'author' && (
@@ -685,9 +761,10 @@ export default function ToolSettingsPanel() {
         isExpanded={!isCollapsed} 
         isVisible={true}
       >
-        <div className="flex items-center justify-between p-4 border-b">
+        {/* Header with Collapse Button */}
+        <div className="flex items-center justify-between py-1 px-2 border-b">
           {!isCollapsed && (
-            <h3 className="font-semibold text-sm flex items-center gap-2">
+            <div className="font-semibold text-sm flex items-center gap-2 flex-1">
               {(() => {
                 // Check for linked question-answer pair
                 if (state.selectedElementIds.length === 2 && state.currentBook) {
@@ -700,10 +777,22 @@ export default function ToolSettingsPanel() {
                   
                   if (questionElement && answerElement) {
                     return (
-                      <>
-                        <MessageCircleQuestion className="h-4 w-4" />
-                        Question & Answer Settings
-                      </>
+                      <Tabs 
+                        value={activeLinkedElement || questionElement.id} 
+                        onValueChange={setActiveLinkedElement}
+                        className="flex-1"
+                      >
+                        <TabsList className="grid w-full grid-cols-2">
+                          <TabsTrigger value={questionElement.id} className="text-sm">
+                            <MessageCircleQuestion className="h-4 w-4 mr-1" />
+                            Question
+                          </TabsTrigger>
+                          <TabsTrigger value={answerElement.id} className="text-sm">
+                            <MessageCircleHeart className="h-4 w-4 mr-1" />
+                            Answer
+                          </TabsTrigger>
+                        </TabsList>
+                      </Tabs>
                     );
                   }
                 }
@@ -726,10 +815,17 @@ export default function ToolSettingsPanel() {
                       : selectedElement.type;
                     const IconComponent = TOOL_ICONS[elementType as keyof typeof TOOL_ICONS];
                     return (
-                      <>
-                        {IconComponent && <IconComponent className="h-4 w-4" />}
-                        {elementType.charAt(0).toUpperCase() + elementType.slice(1)} Settings
-                      </>
+                      <Tabs 
+                        value={0} 
+                        className="flex-1"
+                      >
+                        <TabsList className="grid w-full grid-cols-1">
+                          <TabsTrigger value={selectedElement.id} className="text-sm text-primary">
+                            {IconComponent && <IconComponent className="h-4 w-4 mr-1" />}
+                            {elementType.charAt(0).toUpperCase() + elementType.slice(1)}
+                          </TabsTrigger>
+                        </TabsList>
+                      </Tabs>
                     );
                   }
                   return `Element Settings (${state.selectedElementIds.length})`;
@@ -738,12 +834,12 @@ export default function ToolSettingsPanel() {
                   return (
                     <>
                       {IconComponent && <IconComponent className="h-4 w-4" />}
-                      {activeTool.charAt(0).toUpperCase() + activeTool.slice(1)} Settings
+                      {activeTool.charAt(0).toUpperCase() + activeTool.slice(1)} 
                     </>
                   );
                 }
               })()} 
-            </h3>
+            </div>
           )}
           <Button
             variant="ghost"
@@ -755,6 +851,7 @@ export default function ToolSettingsPanel() {
           </Button>
         </div>
         
+        {/* Selected Tool Icon Preview (when collapsed) */}
         {isCollapsed && state.selectedElementIds.length > 0 && (
           <div className="p-1 pt-3">
             <div className="flex items-center justify-center p-1">
@@ -795,10 +892,11 @@ export default function ToolSettingsPanel() {
           </div>
         )}
         
+        {/* Tool Settings Main Area */}
         {!isCollapsed && (
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 overflow-y-auto p-2">
             {shouldShowPanel ? renderToolSettings() : (
-              <div className="text-sm text-muted-foreground">
+              <div className="text-xs text-muted-foreground">
                 Select a tool or element to view settings.
               </div>
             )}

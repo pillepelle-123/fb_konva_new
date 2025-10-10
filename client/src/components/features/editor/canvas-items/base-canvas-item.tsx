@@ -38,6 +38,15 @@ export default function BaseCanvasItem({
   const [isHovered, setIsHovered] = useState(false);
   const [partnerHovered, setPartnerHovered] = useState(false);
 
+  // Prevent scaling for question-answer pairs
+  useEffect(() => {
+    if (groupRef.current && (element.textType === 'question' || element.textType === 'answer')) {
+      // Always ensure scale is 1 for question/answer elements
+      groupRef.current.scaleX(1);
+      groupRef.current.scaleY(1);
+    }
+  }, [element.textType, element.width, element.height, element.scaleX, element.scaleY]);
+
   useEffect(() => {
     const handlePartnerHover = (event: CustomEvent) => {
       const { elementId, hover } = event.detail;
@@ -126,8 +135,8 @@ export default function BaseCanvasItem({
       id={element.id}
       x={element.x}
       y={element.y}
-      scaleX={element.scaleX || 1}
-      scaleY={element.scaleY || 1}
+      scaleX={(element.textType === 'question' || element.textType === 'answer') ? 1 : (element.scaleX || 1)}
+      scaleY={(element.textType === 'question' || element.textType === 'answer') ? 1 : (element.scaleY || 1)}
       rotation={element.rotation || 0}
       draggable={state.activeTool === 'select' && !isMovingGroup}
       onMouseDown={handleMouseDown}

@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import FriendGrid from '../../components/features/friends/friend-grid';
 import FindFriendsDialog from '../../components/features/friends/find-friends-dialog';
 import { Contact, UserSearch, UserPlus } from 'lucide-react';
+import FloatingActionButton from '../../components/ui/composites/floating-action-button';
 
 interface Friend {
   id: number;
@@ -85,7 +86,7 @@ export default function FriendsList() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="space-y-1">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Friends</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">My Friends</h1>
             <p className="text-muted-foreground">Manage your friends and collaborators</p>
           </div>
           <div className="flex gap-2">
@@ -209,6 +210,8 @@ export default function FriendsList() {
           </DialogContent>
         </Dialog>
       </div>
+      
+      <FloatingActionButton />
     </div>
   );
 }

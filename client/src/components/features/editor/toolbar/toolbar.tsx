@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useEditor } from '../../../../context/editor-context';
-import { ToolbarContainer } from '../../../shared/toolbars/toolbar-container';
+import { ToolbarContainer } from './toolbar-container';
 import { ToolbarHeader } from './toolbar-header';
-import { ToolbarContent } from '../../../shared/toolbars/toolbar-content';
+import { ToolbarContent } from './toolbar-content';
 import { TooltipProvider } from '../../../ui/composites/tooltip';
 import { 
   MousePointer, 
@@ -84,8 +84,10 @@ export default function Toolbar() {
         <ToolbarHeader 
           isExpanded={isExpanded} 
           onToggle={() => setIsExpanded(!isExpanded)}
+          activeTool={state.activeTool}
+          toolGroups={toolGroups}
         />
-        <div className="px-2">
+        <div>
           <ToolbarContent 
             toolGroups={toolGroups}
             activeTool={state.activeTool}

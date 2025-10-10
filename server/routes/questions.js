@@ -51,19 +51,23 @@ router.put('/:id', authenticateToken, async (req, res) => {
     const { questionText } = req.body;
     const userId = req.user.id;
 
-    // Check if user is admin of the book that owns this question
+    // Check if user is owner or publisher of the book that owns this question
     const question = await pool.query(`
-      SELECT q.*, b.owner_id 
+      SELECT q.*, b.owner_id, bf.book_role
       FROM public.questions q 
       JOIN public.books b ON q.book_id = b.id 
+      LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
       WHERE q.id = $1
-    `, [questionId]);
+    `, [questionId, userId]);
 
     if (question.rows.length === 0) {
       return res.status(404).json({ error: 'Question not found' });
     }
 
-    if (question.rows[0].owner_id !== userId) {
+    const isOwner = question.rows[0].owner_id === userId;
+    const isPublisher = question.rows[0].book_role === 'publisher';
+
+    if (!isOwner && !isPublisher) {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
@@ -85,19 +89,23 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     const questionId = req.params.id;
     const userId = req.user.id;
 
-    // Check if user is admin of the book that owns this question
+    // Check if user is owner or publisher of the book that owns this question
     const question = await pool.query(`
-      SELECT q.*, b.owner_id 
+      SELECT q.*, b.owner_id, bf.book_role
       FROM public.questions q 
       JOIN public.books b ON q.book_id = b.id 
+      LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
       WHERE q.id = $1
-    `, [questionId]);
+    `, [questionId, userId]);
 
     if (question.rows.length === 0) {
       return res.status(404).json({ error: 'Question not found' });
     }
 
-    if (question.rows[0].owner_id !== userId) {
+    const isOwner = question.rows[0].owner_id === userId;
+    const isPublisher = question.rows[0].book_role === 'publisher';
+
+    if (!isOwner && !isPublisher) {
       return res.status(403).json({ error: 'Not authorized' });
     }
 

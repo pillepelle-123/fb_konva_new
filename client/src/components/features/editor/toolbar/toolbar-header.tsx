@@ -1,17 +1,42 @@
 import { CardHeader, CardTitle } from '../../../ui/composites/card';
 import { ToolbarToggle } from './toolbar-toggle';
+import { Button } from '../../../ui/primitives/button';
+import { type Icon } from 'lucide-react';
 
 interface ToolbarHeaderProps {
   isExpanded: boolean;
   onToggle: () => void;
+  activeTool?: string;
+  toolGroups?: Array<{
+    name: string;
+    tools: Array<{
+      id: string;
+      label: string;
+      icon: Icon;
+    }>;
+  }>;
 }
 
-export function ToolbarHeader({ isExpanded, onToggle }: ToolbarHeaderProps) {
+export function ToolbarHeader({ isExpanded, onToggle, activeTool, toolGroups }: ToolbarHeaderProps) {
+  const getActiveTool = () => {
+    if (!activeTool || !toolGroups) return null;
+    for (const group of toolGroups) {
+      const tool = group.tools.find(t => t.id === activeTool);
+      if (tool) return tool;
+    }
+    return null;
+  };
+
+  const activeToolData = getActiveTool();
+
   return (
-    <CardHeader className="p-3 pr-3 border-b">
-      <div className="flex items-center justify-between">
-        {isExpanded && (
-          <CardTitle className="text-sm font-medium">Tools</CardTitle>
+    <CardHeader className="p-1 pr-1 border-b">
+      <div className="flex items-center justify-center">
+        {isExpanded && activeToolData && (
+          <Button variant="default" size="sm" className="h-10 pointer-events-none flex-1 mr-2">
+            <activeToolData.icon className="h-4 w-4 mr-2" />
+            {activeToolData.label}
+          </Button>
         )}
         <ToolbarToggle isExpanded={isExpanded} onToggle={onToggle} />
       </div>

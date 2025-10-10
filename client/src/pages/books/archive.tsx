@@ -3,8 +3,9 @@ import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
 import { Card, CardContent } from '../../components/ui/composites/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
-import { Archive, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Archive, ChevronLeft, ChevronRight, Book, ChevronUp } from 'lucide-react';
 import BookCard from '../../components/features/books/book-card';
+import { useNavigate } from 'react-router-dom';
 
 interface ArchivedBook {
   id: number;
@@ -17,6 +18,7 @@ interface ArchivedBook {
 
 export default function BookArchive() {
   const { token } = useAuth();
+  const navigate = useNavigate();
   const [books, setBooks] = useState<ArchivedBook[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -108,11 +110,26 @@ export default function BookArchive() {
     <div className="container mx-auto px-4 py-8">
       <div className="space-y-6">
         {/* Header */}
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Book Archive</h1>
-          <p className="text-muted-foreground">
-            View and manage your archived book projects
-          </p>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ">
+          <div className="space-y-1">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">Book Archive</h1>
+            <p className="text-muted-foreground">
+              View and manage your archived book projects
+            </p>
+            <div className="pt-2">
+            </div>
+          </div>
+          <div className="flex flex-col flex-start gap-2 justify-center items-center">
+          <Button 
+            variant="ghost" 
+            onClick={() => navigate('/books')} 
+            className="space-x-2"
+          >
+            <Book className="h-4 w-4" />
+            <span>View My Books</span>
+            <ChevronUp className="h-4 w-4" />
+          </Button>
+          </div>
         </div>
 
         {/* Pagination */}

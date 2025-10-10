@@ -524,10 +524,10 @@ export default function Canvas() {
             fill: textSettings.fill || '#1f2937',
             text: '',
             fontSize: textSettings.fontSize || 64,
-            lineHeight: 1.2,
             align: textSettings.align || 'left',
             fontFamily: textSettings.fontFamily || 'Arial, sans-serif',
-            textType: 'text'
+            textType: 'text',
+            paragraphSpacing: textSettings.paragraphSpacing || 'medium'
           };
         } else if (previewTextbox.type === 'question') {
           const questionSettings = state.toolSettings.question || {};
@@ -544,7 +544,6 @@ export default function Canvas() {
             height: questionHeight,
             text: '',
             fontSize: questionSettings.fontSize || 64,
-            lineHeight: 1.2,
             align: questionSettings.align || 'left',
             fontFamily: questionSettings.fontFamily || 'Arial, sans-serif',
             textType: 'question',
@@ -561,11 +560,11 @@ export default function Canvas() {
             height: answerHeight,
             text: '',
             fontSize: questionSettings.fontSize || 64,
-            lineHeight: 1.2,
             align: questionSettings.align || 'left',
             fontFamily: questionSettings.fontFamily || 'Arial, sans-serif',
             textType: 'answer',
-            questionElementId: questionElement.id
+            questionElementId: questionElement.id,
+            paragraphSpacing: questionSettings.paragraphSpacing || 'medium'
           };
           
           // Add question element first
@@ -581,10 +580,10 @@ export default function Canvas() {
             height: previewTextbox.height,
             text: '',
             fontSize: answerSettings.fontSize || 64,
-            lineHeight: 1.2,
             align: answerSettings.align || 'left',
             fontFamily: answerSettings.fontFamily || 'Arial, sans-serif',
-            textType: 'answer'
+            textType: 'answer',
+            paragraphSpacing: answerSettings.paragraphSpacing || 'medium'
           };
         }
         
@@ -1028,7 +1027,7 @@ export default function Canvas() {
   return (
     <>
       <CanvasPageContainer>
-        <CanvasContainer ref={containerRef} pageId={currentPage?.id}>
+        <CanvasContainer ref={containerRef} pageId={currentPage?.id} activeTool={state.activeTool}>
         <CanvasStage
           ref={stageRef}
           width={containerSize.width}
@@ -1121,13 +1120,17 @@ export default function Canvas() {
                     }
                   }}
                   isMovingGroup={isMovingGroup}
+
                   onDragStart={() => {
-                    setIsDragging(true);
+                    dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Move Element' });
                     if (!state.selectedElementIds.includes(element.id)) {
                       dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] });
                     }
+                    setIsDragging(true);
                   }}
-                  onDragEnd={() => setTimeout(() => setIsDragging(false), 10)}
+                  onDragEnd={() => {
+                    setTimeout(() => setIsDragging(false), 10);
+                  }}
                   isWithinSelection={selectionRect.visible && getElementsInSelection().includes(element.id)}
                 />
 
@@ -1181,6 +1184,9 @@ export default function Canvas() {
             <CanvasTransformer
               ref={transformerRef}
               keepRatio={state.selectedElementIds.length === 1 && currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.type === 'photo'}
+              onDragStart={() => {
+                dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Move Elements' });
+              }}
               onDragEnd={(e) => {
                 // Update positions after drag
                 const nodes = transformerRef.current?.nodes() || [];
@@ -1197,130 +1203,49 @@ export default function Canvas() {
                   }
                 });
               }}
+              onTransformStart={() => {
+                dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Transform Elements' });
+              }}
               onTransformEnd={(e) => {
-                const node = e.target;
-                const elementId = node.id();
-                
-                const element = currentPage?.elements.find(el => el.id === elementId);
-                if (element) {
-                  const updates: any = {};
-                  
-                  // For text and photo elements, convert scale to width/height changes
-                  if (element.type === 'text' || element.type === 'photo') {
-                    const scaleX = node.scaleX();
-                    const scaleY = node.scaleY();
+                // Handle all selected nodes, not just the target
+                const nodes = transformerRef.current?.nodes() || [];
+                nodes.forEach(node => {
+                  const elementId = node.id();
+                  const element = currentPage?.elements.find(el => el.id === elementId);
+                  if (element) {
+                    const updates: any = {};
                     
-                    // For question and answer elements, only update dimensions without scaling text
-                    if (element.textType === 'question' || element.textType === 'answer') {
-                      updates.width = Math.max(50, (element.width || 150) * scaleX);
-                      updates.height = Math.max(20, (element.height || 50) * scaleY);
-                    } else {
-                      // For regular text elements, calculate new dimensions
+                    // For text and photo elements, convert scale to width/height changes
+                    if (element.type === 'text' || element.type === 'photo') {
+                      const scaleX = node.scaleX();
+                      const scaleY = node.scaleY();
+                      
                       updates.width = Math.max(element.type === 'text' ? 50 : 20, (element.width || 150) * scaleX);
                       updates.height = Math.max(element.type === 'text' ? 20 : 20, (element.height || 50) * scaleY);
+                      updates.x = node.x();
+                      updates.y = node.y();
+                      updates.rotation = node.rotation();
+                      
+                      // Reset scale to 1
+                      node.scaleX(1);
+                      node.scaleY(1);
+                    } else {
+                      updates.x = node.x();
+                      updates.y = node.y();
+                      updates.scaleX = node.scaleX();
+                      updates.scaleY = node.scaleY();
+                      updates.rotation = node.rotation();
                     }
                     
-                    // For position, use node position directly
-                    updates.x = node.x();
-                    updates.y = node.y();
-                    
-                    updates.rotation = node.rotation();
-                    
-                    // Reset scale to 1
-                    node.scaleX(1);
-                    node.scaleY(1);
-                  } else {
-                    // For other elements, keep scale behavior
-                    updates.x = node.x();
-                    updates.y = node.y();
-                    updates.scaleX = node.scaleX();
-                    updates.scaleY = node.scaleY();
-                    updates.rotation = node.rotation();
+                    dispatch({
+                      type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                      payload: {
+                        id: element.id,
+                        updates
+                      }
+                    });
                   }
-                  
-                  dispatch({
-                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                    payload: {
-                      id: element.id,
-                      updates
-                    }
-                  });
-                  
-                  // Handle linked question-answer pair transformation
-                  if (element.textType === 'question') {
-                    const linkedAnswer = currentPage?.elements.find(el => el.questionElementId === element.id);
-                    if (linkedAnswer) {
-                      const linkedNode = stageRef.current?.findOne(`#${linkedAnswer.id}`);
-                      if (linkedNode) {
-                        // Reset scale for linked element too
-                        linkedNode.scaleX(1);
-                        linkedNode.scaleY(1);
-                      }
-                      
-                      const deltaX = updates.x - element.x;
-                      const deltaY = updates.y - element.y;
-                      const deltaRotation = (updates.rotation || 0) - (element.rotation || 0);
-                      
-                      const answerUpdates: any = {
-                        x: linkedAnswer.x + deltaX,
-                        y: linkedAnswer.y + deltaY,
-                        rotation: (linkedAnswer.rotation || 0) + deltaRotation
-                      };
-                      
-                      // Also update dimensions if resizing
-                      if (updates.width !== undefined) {
-                        answerUpdates.width = updates.width;
-                      }
-                      if (updates.height !== undefined) {
-                        answerUpdates.height = updates.height;
-                      }
-                      
-                      dispatch({
-                        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                        payload: {
-                          id: linkedAnswer.id,
-                          updates: answerUpdates
-                        }
-                      });
-                    }
-                  } else if (element.textType === 'answer' && element.questionElementId) {
-                    const linkedQuestion = currentPage?.elements.find(el => el.id === element.questionElementId);
-                    if (linkedQuestion) {
-                      const linkedNode = stageRef.current?.findOne(`#${linkedQuestion.id}`);
-                      if (linkedNode) {
-                        // Reset scale for linked element too
-                        linkedNode.scaleX(1);
-                        linkedNode.scaleY(1);
-                      }
-                      
-                      const deltaX = updates.x - element.x;
-                      const deltaY = updates.y - element.y;
-                      const deltaRotation = (updates.rotation || 0) - (element.rotation || 0);
-                      
-                      const questionUpdates: any = {
-                        x: linkedQuestion.x + deltaX,
-                        y: linkedQuestion.y + deltaY,
-                        rotation: (linkedQuestion.rotation || 0) + deltaRotation
-                      };
-                      
-                      // Also update dimensions if resizing
-                      if (updates.width !== undefined) {
-                        questionUpdates.width = updates.width;
-                      }
-                      if (updates.height !== undefined) {
-                        questionUpdates.height = updates.height;
-                      }
-                      
-                      dispatch({
-                        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                        payload: {
-                          id: linkedQuestion.id,
-                          updates: questionUpdates
-                        }
-                      });
-                    }
-                  }
-                }
+                });
               }}
             />
           </Layer>
@@ -1353,12 +1278,15 @@ export default function Canvas() {
         <TextEditorModal
           key={editingElement.id}
           element={editingElement}
-          onSave={(content) => {
+          onSave={(content, formattedContent) => {
             dispatch({
               type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
               payload: {
                 id: editingElement.id,
-                updates: { text: content }
+                updates: { 
+                  text: content,
+                  formattedText: formattedContent 
+                }
               }
             });
             setEditingElement(null);

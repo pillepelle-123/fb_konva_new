@@ -1,19 +1,62 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../ui/primitives/button';
-import { BookOpen, Home, Archive, LogOut, User, Menu, Image, IdCard, Settings, ChevronDown, Contact } from 'lucide-react';
-import { useState } from 'react';
+import { BookOpen, Home, Archive, LogOut, User, Menu, Image, IdCard, Settings, ChevronDown, Contact, Bell, MessageSquare } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import ProfilePicture from '../features/users/profile-picture';
+import { Popover, PopoverTrigger, PopoverContent } from '../ui/overlays/popover';
+import NotificationPopover from '../features/messenger/notification-popover';
+import { useSocket } from '../../context/socket-context';
 
 export default function Navigation() {
   const { user, logout } = useAuth();
+  const { socket } = useSocket();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [booksMenuOpen, setBooksMenuOpen] = useState(false);
   const [mobileBooksMenuOpen, setMobileBooksMenuOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const isActive = (path: string) => location.pathname === path;
+
+  useEffect(() => {
+    if (user) {
+      fetchUnreadCount();
+      const interval = setInterval(fetchUnreadCount, 30000); // Check every 30 seconds
+      
+      // Listen for real-time message notifications
+      if (socket) {
+        socket.on('message_notification', () => {
+          fetchUnreadCount();
+        });
+        
+        return () => {
+          socket.off('message_notification');
+          clearInterval(interval);
+        };
+      }
+      
+      return () => clearInterval(interval);
+    }
+  }, [user, socket]);
+
+  const fetchUnreadCount = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/messenger/unread-count`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setUnreadCount(data.count);
+      }
+    } catch (error) {
+      console.error('Error fetching unread count:', error);
+    }
+  };
 
   const navItems = user ? [
     { path: '/dashboard', label: 'Dashboard', icon: Home },
@@ -55,49 +98,20 @@ export default function Navigation() {
                   </Button>
                 </Link>
                 
-                {/* Books Dropdown */}
-                <div className="relative">
+                <Link to="/books">
                   <Button
-                    variant={isActive('/books') || isActive('/books/archive') ? "secondary" : "ghost"}
+                    variant={isActive('/books') ? "secondary" : "ghost"}
                     size="sm"
-                    onClick={() => setBooksMenuOpen(!booksMenuOpen)}
                     className={`flex items-center space-x-2 ${
-                      isActive('/books') || isActive('/books/archive')
+                      isActive('/books') 
                         ? 'bg-white text-primary hover:bg-white/90 hover:text-primary' 
                         : 'text-white hover:bg-white/10 hover:text-white'
                     }`}
                   >
-                    <BookOpen className="h-4 w-4" />
+                    <Home className="h-4 w-4" />
                     <span>Books</span>
-                    <ChevronDown className={`h-3 w-3 transition-transform ${
-                      booksMenuOpen ? 'rotate-180' : ''
-                    }`} />
                   </Button>
-                  {booksMenuOpen && (
-                    <div className="absolute top-full left-0 mt-1 bg-white border rounded-md shadow-lg py-1 min-w-[160px] z-50">
-                      <Link to="/books" onClick={() => setBooksMenuOpen(false)}>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="w-full justify-start space-x-2 rounded-none text-foreground hover:bg-muted"
-                        >
-                          <BookOpen className="h-4 w-4" />
-                          <span>My Books</span>
-                        </Button>
-                      </Link>
-                      <Link to="/books/archive" onClick={() => setBooksMenuOpen(false)}>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="w-full justify-start space-x-2 rounded-none text-foreground hover:bg-muted"
-                        >
-                          <Archive className="h-4 w-4" />
-                          <span>Archive</span>
-                        </Button>
-                      </Link>
-                    </div>
-                  )}
-                </div>
+                </Link>
                 
                 <Link to="/photos">
                   <Button
@@ -180,7 +194,29 @@ export default function Navigation() {
           {/* User Section */}
           <div className="hidden md:flex items-center space-x-4 ml-auto">
             {user && (
-              <div className="relative">
+              <>
+                {/* Notification Bell */}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="relative text-white hover:bg-white/10 p-2"
+                    >
+                      <Bell className="h-5 w-5" />
+                      {unreadCount > 0 && (
+                        <div className="absolute -top-1 -right-1 bg-highlight text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                          {unreadCount > 99 ? '99+' : unreadCount}
+                        </div>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80">
+                    <NotificationPopover onUpdate={fetchUnreadCount} />
+                  </PopoverContent>
+                </Popover>
+                
+                <div className="relative">
                 <Button
                   variant="ghost"
                   size="sm"
@@ -196,6 +232,16 @@ export default function Navigation() {
                 </Button>
                 {userMenuOpen && (
                   <div className="absolute top-full right-0 mt-1 bg-white border rounded-md shadow-lg py-1 min-w-[160px] z-50">
+                    <Link to="/messenger" onClick={() => setUserMenuOpen(false)}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start space-x-2 rounded-none text-foreground hover:bg-muted"
+                      >
+                        <MessageSquare className="h-4 w-4" />
+                        <span>Messenger</span>
+                      </Button>
+                    </Link>
                     <Link to="/my-profile" onClick={() => setUserMenuOpen(false)}>
                       <Button
                         variant="ghost"
@@ -230,7 +276,8 @@ export default function Navigation() {
                     </Button>
                   </div>
                 )}
-              </div>
+                </div>
+              </>
             )}
           </div>
 
@@ -401,6 +448,18 @@ export default function Navigation() {
                 </Button>
                 {userMenuOpen && (
                   <div className="pl-4 space-y-1">
+                    <Link to="/messenger" onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      setUserMenuOpen(false);
+                    }}>
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-start space-x-2 text-white hover:bg-white/10 hover:text-white"
+                      >
+                        <MessageSquare className="h-4 w-4" />
+                        <span>Messenger</span>
+                      </Button>
+                    </Link>
                     <Link to="/my-profile" onClick={() => {
                       setIsMobileMenuOpen(false);
                       setUserMenuOpen(false);

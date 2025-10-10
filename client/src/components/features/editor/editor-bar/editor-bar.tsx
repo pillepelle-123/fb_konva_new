@@ -12,6 +12,7 @@ import { PageNavigation } from './page-navigation';
 import { PageActions } from './page-actions';
 import { BookTitle } from './book-title';
 import { BookActions } from './book-actions';
+import UndoRedoControls from './undo-redo-controls';
 import UnsavedChangesDialog from '../../../ui/overlays/unsaved-changes-dialog';
 import ConfirmationDialog from '../../../ui/overlays/confirmation-dialog';
 import AlertDialog from '../../../ui/overlays/alert-dialog';
@@ -173,6 +174,8 @@ export default function EditorBar() {
                     <Book className="h-4 w-4 text-ref-icon" />
                   </div>
 
+                  <UndoRedoControls />
+                  
                   <BookActions
                     onSave={handleSave}
                     onExport={() => setShowPDFModal(true)}

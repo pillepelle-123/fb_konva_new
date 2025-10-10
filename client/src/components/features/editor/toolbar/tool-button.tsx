@@ -41,14 +41,9 @@ export function ToolButton({ id, label, icon: Icon, isActive, isExpanded, userRo
         size="sm"
         onClick={isDisabled ? undefined : onClick}
         disabled={isDisabled}
-        className={`w-full justify-start space-x-2 ${
-          isExpanded ? 'px-3' : 'px-2'
-        } ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+        className={`w-full justify-center p-2 ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
-        <Icon className="h-5 w-5 flex-shrink-0" />
-        {isExpanded && (
-          <span className="text-sm">{label}</span>
-        )}
+        <Icon className="h-5 w-5" />
       </Button>
     </Tooltip>
   );

@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent } from '../../ui/overlays/dialog';
 import QuestionsManagerContent from '../questions/questions-manager-content';
 import { useAuth } from '../../../context/auth-context';
+import { useEditor } from '../../../context/editor-context';
 import type { CanvasElement } from '../../../context/editor-context';
 
 interface TextEditorModalProps {
   element: CanvasElement;
-  onSave: (content: string) => void;
+  onSave: (content: string, formattedContent?: string) => void;
   onClose: () => void;
   onSelectQuestion?: () => void;
   bookId?: number;
@@ -28,6 +29,7 @@ const findQuestionElement = async (questionElementId: string) => {
 
 export default function TextEditorModal({ element, onSave, onClose, onSelectQuestion, bookId, bookName, token }: TextEditorModalProps) {
   const { user } = useAuth();
+  const { updateTempQuestion, updateTempAnswer, addNewQuestion, getQuestionText, getAnswerText } = useEditor();
   const modalRef = useRef<HTMLDivElement | null>(null);
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
   const questionDialogTrigger = useRef<(() => void) | null>(null);
@@ -130,55 +132,47 @@ export default function TextEditorModal({ element, onSave, onClose, onSelectQues
           }
         });
         
-        if (element.text) {
-          if (element.text.includes('data-ruled="true"')) {
+        const textToLoad = element.formattedText || element.text;
+        if (textToLoad) {
+          if (textToLoad.includes('data-ruled="true"')) {
             const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = element.text;
+            tempDiv.innerHTML = textToLoad;
             const ruledDiv = tempDiv.querySelector('[data-ruled="true"]');
             if (ruledDiv) {
               quill.root.innerHTML = ruledDiv.innerHTML;
             }
           } else {
-            quill.root.innerHTML = element.text;
+            quill.root.innerHTML = textToLoad;
           }
         }
         
         saveBtn.onclick = async () => {
           const htmlContent = quill.root.innerHTML;
           
-          // If this is an answer element, save to database
-          if (element.textType === 'answer' && element.questionElementId && bookId && token) {
-            try {
-              // Find the linked question element to get questionId
-              const questionElement = await findQuestionElement(element.questionElementId);
-              if (questionElement && questionElement.questionId) {
-                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-                const response = await fetch(`${apiUrl}/answers`, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                  },
-                  body: JSON.stringify({
-                    questionId: questionElement.questionId,
-                    answerText: htmlContent
-                  })
-                });
-                
-                if (response.ok) {
-                  const answerData = await response.json();
-                  // Update element with answerId
-                  window.dispatchEvent(new CustomEvent('updateAnswerId', {
-                    detail: { elementId: element.id, answerId: answerData.id }
-                  }));
-                }
-              }
-            } catch (error) {
-              console.error('Error saving answer:', error);
+          // Extract plain text for database storage
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = htmlContent;
+          const plainText = tempDiv.textContent || tempDiv.innerText || '';
+          
+          // Store in temporary state instead of saving to database immediately
+          if (element.textType === 'question') {
+            if (element.questionId) {
+              // Update existing question in temp storage
+              updateTempQuestion(element.questionId, plainText);
+            } else {
+              // New question - add to temp storage
+              addNewQuestion(element.id, plainText);
+            }
+          } else if (element.textType === 'answer' && element.questionElementId) {
+            // Find the linked question element to get questionId
+            const questionElement = await findQuestionElement(element.questionElementId);
+            if (questionElement && questionElement.questionId) {
+              // Store answer in temp storage
+              updateTempAnswer(questionElement.questionId, plainText);
             }
           }
           
-          onSave(htmlContent);
+          onSave(plainText, htmlContent);
           closeModal();
         };
         
@@ -213,6 +207,9 @@ export default function TextEditorModal({ element, onSave, onClose, onSelectQues
   }, []);
 
   const handleQuestionSelect = (questionId: number, questionText: string) => {
+    // Store question selection in temp storage
+    updateTempQuestion(questionId, questionText);
+    
     onSave(questionText);
     setShowQuestionDialog(false);
     

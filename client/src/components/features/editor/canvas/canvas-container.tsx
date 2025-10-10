@@ -3,12 +3,18 @@ import { forwardRef } from 'react';
 interface CanvasContainerProps {
   children: React.ReactNode;
   pageId?: string;
+  activeTool?: string;
 }
 
 const CanvasContainer = forwardRef<HTMLDivElement, CanvasContainerProps>(({
   children,
-  pageId
+  pageId,
+  activeTool
 }, ref) => {
+  const getCursor = () => {
+    if (!activeTool || activeTool === 'select' || activeTool === 'pan') return 'default';
+    return 'crosshair';
+  };
   return (
     <div 
       ref={ref}
@@ -23,6 +29,7 @@ const CanvasContainer = forwardRef<HTMLDivElement, CanvasContainerProps>(({
         display: 'flex',
         flexDirection: 'column',
         backgroundColor: '#F9FAFB',
+        cursor: getCursor(),
       }}
     >
       {children}

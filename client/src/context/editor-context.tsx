@@ -13,7 +13,9 @@ export interface CanvasElement {
   fill?: string;
   stroke?: string;
   text?: string;
+  formattedText?: string;
   fontSize?: number;
+  paragraphSpacing?: 'small' | 'medium' | 'large';
   lineHeight?: number;
   align?: 'left' | 'center' | 'right';
   fontFamily?: string;
@@ -44,6 +46,13 @@ export interface Book {
   pages: Page[];
 }
 
+export interface HistoryState {
+  currentBook: Book | null;
+  activePageIndex: number;
+  selectedElementIds: string[];
+  toolSettings: Record<string, Record<string, any>>;
+}
+
 export interface EditorState {
   currentBook: Book | null;
   activePageIndex: number;
@@ -56,6 +65,12 @@ export interface EditorState {
   toolbarVisible: boolean;
   hasUnsavedChanges: boolean;
   toolSettings: Record<string, Record<string, any>>;
+  tempQuestions: { [key: number]: string }; // questionId -> text
+  tempAnswers: { [key: number]: string }; // questionId -> text
+  newQuestions: { elementId: string; text: string }[]; // new questions not yet saved
+  history: HistoryState[];
+  historyIndex: number;
+  historyActions: string[];
 }
 
 type EditorAction =
@@ -75,7 +90,16 @@ type EditorAction =
   | { type: 'TOGGLE_EDITOR_BAR' }
   | { type: 'TOGGLE_TOOLBAR' }
   | { type: 'MARK_SAVED' }
-  | { type: 'UPDATE_TOOL_SETTINGS'; payload: { tool: string; settings: Record<string, any> } };
+  | { type: 'UPDATE_TOOL_SETTINGS'; payload: { tool: string; settings: Record<string, any> } }
+  | { type: 'UPDATE_TEMP_QUESTION'; payload: { questionId: number; text: string } }
+  | { type: 'UPDATE_TEMP_ANSWER'; payload: { questionId: number; text: string } }
+  | { type: 'ADD_NEW_QUESTION'; payload: { elementId: string; text: string } }
+  | { type: 'UPDATE_NEW_QUESTION'; payload: { elementId: string; text: string } }
+  | { type: 'CLEAR_TEMP_DATA' }
+  | { type: 'UNDO' }
+  | { type: 'REDO' }
+  | { type: 'GO_TO_HISTORY_STEP'; payload: number }
+  | { type: 'SAVE_TO_HISTORY'; payload: string };
 
 const initialState: EditorState = {
   currentBook: null,
@@ -89,12 +113,56 @@ const initialState: EditorState = {
   toolbarVisible: true,
   hasUnsavedChanges: false,
   toolSettings: {},
+  tempQuestions: {},
+  tempAnswers: {},
+  newQuestions: [],
+  history: [],
+  historyIndex: -1,
+  historyActions: [],
 };
+
+const MAX_HISTORY_SIZE = 50;
+
+function saveToHistory(state: EditorState, actionName: string): EditorState {
+  if (!state.currentBook) return state;
+  
+  const historyState: HistoryState = {
+    currentBook: JSON.parse(JSON.stringify(state.currentBook)),
+    activePageIndex: state.activePageIndex,
+    selectedElementIds: [...state.selectedElementIds],
+    toolSettings: JSON.parse(JSON.stringify(state.toolSettings))
+  };
+  
+  const newHistory = state.history.slice(0, state.historyIndex + 1);
+  newHistory.push(historyState);
+  
+  if (newHistory.length > MAX_HISTORY_SIZE) {
+    newHistory.shift();
+  }
+  
+  const newHistoryActions = state.historyActions.slice(0, state.historyIndex + 1);
+  newHistoryActions.push(actionName);
+  
+  if (newHistoryActions.length > MAX_HISTORY_SIZE) {
+    newHistoryActions.shift();
+  }
+  
+  return {
+    ...state,
+    history: newHistory,
+    historyIndex: newHistory.length - 1,
+    historyActions: newHistoryActions
+  };
+}
 
 function editorReducer(state: EditorState, action: EditorAction): EditorState {
   switch (action.type) {
     case 'SET_BOOK':
-      return { ...state, currentBook: action.payload, activePageIndex: 0 };
+      const bookState = { ...state, currentBook: action.payload, activePageIndex: 0 };
+      if (action.payload) {
+        return saveToHistory(bookState, 'Load Book');
+      }
+      return bookState;
     
     case 'SET_ACTIVE_PAGE':
       const newState = { ...state, activePageIndex: action.payload, selectedElementIds: [] };
@@ -125,15 +193,16 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (!state.currentBook || !state.currentBook.pages[state.activePageIndex]) return state;
       // Check if author is assigned to current page
       if (state.userRole === 'author' && !state.assignedPages.includes(state.activePageIndex + 1)) return state;
+      const savedState = saveToHistory(state, `Add ${action.payload.type}`);
       const newBook = {
-        ...state.currentBook,
-        pages: state.currentBook.pages.map((page, index) => 
-          index === state.activePageIndex 
+        ...savedState.currentBook!,
+        pages: savedState.currentBook!.pages.map((page, index) => 
+          index === savedState.activePageIndex 
             ? { ...page, elements: [...page.elements, action.payload] }
             : page
         )
       };
-      return { ...state, currentBook: newBook, hasUnsavedChanges: true };
+      return { ...savedState, currentBook: newBook, hasUnsavedChanges: true };
     
     case 'UPDATE_ELEMENT':
       if (!state.currentBook) return state;
@@ -161,41 +230,44 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (!state.currentBook) return state;
       // Check if author is assigned to current page
       if (state.userRole === 'author' && !state.assignedPages.includes(state.activePageIndex + 1)) return state;
-      const filteredBook = { ...state.currentBook };
-      filteredBook.pages[state.activePageIndex].elements = 
-        filteredBook.pages[state.activePageIndex].elements.filter(el => el.id !== action.payload);
+      const savedDeleteState = saveToHistory(state, 'Delete Element');
+      const filteredBook = { ...savedDeleteState.currentBook! };
+      filteredBook.pages[savedDeleteState.activePageIndex].elements = 
+        filteredBook.pages[savedDeleteState.activePageIndex].elements.filter(el => el.id !== action.payload);
       return { 
-        ...state, 
+        ...savedDeleteState, 
         currentBook: filteredBook,
-        selectedElementIds: state.selectedElementIds.filter(id => id !== action.payload),
+        selectedElementIds: savedDeleteState.selectedElementIds.filter(id => id !== action.payload),
         hasUnsavedChanges: true
       };
     
     case 'ADD_PAGE':
       if (!state.currentBook || state.userRole === 'author') return state;
-      const newPageNumber = state.currentBook.pages.length + 1;
+      const savedAddPageState = saveToHistory(state, 'Add Page');
+      const newPageNumber = savedAddPageState.currentBook!.pages.length + 1;
       const newPage: Page = {
         id: Date.now(),
         pageNumber: newPageNumber,
         elements: []
       };
       return {
-        ...state,
+        ...savedAddPageState,
         currentBook: {
-          ...state.currentBook,
-          pages: [...state.currentBook.pages, newPage]
+          ...savedAddPageState.currentBook!,
+          pages: [...savedAddPageState.currentBook!.pages, newPage]
         },
         hasUnsavedChanges: true
       };
     
     case 'DELETE_PAGE':
       if (!state.currentBook || state.currentBook.pages.length <= 1 || state.userRole === 'author') return state;
-      const pagesAfterDelete = state.currentBook.pages.filter((_, index) => index !== action.payload);
-      const newActiveIndex = action.payload >= pagesAfterDelete.length ? pagesAfterDelete.length - 1 : state.activePageIndex;
+      const savedDeletePageState = saveToHistory(state, 'Delete Page');
+      const pagesAfterDelete = savedDeletePageState.currentBook!.pages.filter((_, index) => index !== action.payload);
+      const newActiveIndex = action.payload >= pagesAfterDelete.length ? pagesAfterDelete.length - 1 : savedDeletePageState.activePageIndex;
       return {
-        ...state,
+        ...savedDeletePageState,
         currentBook: {
-          ...state.currentBook,
+          ...savedDeletePageState.currentBook!,
           pages: pagesAfterDelete.map((page, index) => ({ ...page, pageNumber: index + 1 }))
         },
         activePageIndex: newActiveIndex,
@@ -205,21 +277,22 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'DUPLICATE_PAGE':
       if (!state.currentBook || state.userRole === 'author') return state;
-      const pageToDuplicate = state.currentBook.pages[action.payload];
+      const savedDuplicateState = saveToHistory(state, 'Duplicate Page');
+      const pageToDuplicate = savedDuplicateState.currentBook!.pages[action.payload];
       const duplicatedPage: Page = {
         id: Date.now(),
         pageNumber: action.payload + 2,
         elements: pageToDuplicate.elements.map(el => ({ ...el, id: uuidv4() }))
       };
       const pagesWithDuplicate = [
-        ...state.currentBook.pages.slice(0, action.payload + 1),
+        ...savedDuplicateState.currentBook!.pages.slice(0, action.payload + 1),
         duplicatedPage,
-        ...state.currentBook.pages.slice(action.payload + 1)
+        ...savedDuplicateState.currentBook!.pages.slice(action.payload + 1)
       ].map((page, index) => ({ ...page, pageNumber: index + 1 }));
       return {
-        ...state,
+        ...savedDuplicateState,
         currentBook: {
-          ...state.currentBook,
+          ...savedDuplicateState.currentBook!,
           pages: pagesWithDuplicate
         },
         hasUnsavedChanges: true
@@ -235,16 +308,111 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       return { ...state, hasUnsavedChanges: false };
     
     case 'UPDATE_TOOL_SETTINGS':
+      const savedToolState = saveToHistory(state, 'Update Tool Settings');
       return {
-        ...state,
+        ...savedToolState,
         toolSettings: {
-          ...state.toolSettings,
+          ...savedToolState.toolSettings,
           [action.payload.tool]: {
-            ...state.toolSettings[action.payload.tool],
+            ...savedToolState.toolSettings[action.payload.tool],
             ...action.payload.settings
           }
         }
       };
+    
+    case 'UPDATE_TEMP_QUESTION':
+      return {
+        ...state,
+        tempQuestions: {
+          ...state.tempQuestions,
+          [action.payload.questionId]: action.payload.text
+        },
+        hasUnsavedChanges: true
+      };
+    
+    case 'UPDATE_TEMP_ANSWER':
+      return {
+        ...state,
+        tempAnswers: {
+          ...state.tempAnswers,
+          [action.payload.questionId]: action.payload.text
+        },
+        hasUnsavedChanges: true
+      };
+    
+    case 'ADD_NEW_QUESTION':
+      return {
+        ...state,
+        newQuestions: [...state.newQuestions, action.payload],
+        hasUnsavedChanges: true
+      };
+    
+    case 'UPDATE_NEW_QUESTION':
+      return {
+        ...state,
+        newQuestions: state.newQuestions.map(q => 
+          q.elementId === action.payload.elementId 
+            ? { ...q, text: action.payload.text }
+            : q
+        ),
+        hasUnsavedChanges: true
+      };
+    
+    case 'CLEAR_TEMP_DATA':
+      return {
+        ...state,
+        tempQuestions: {},
+        tempAnswers: {},
+        newQuestions: []
+      };
+    
+    case 'UNDO':
+      if (state.historyIndex > 0) {
+        const prevState = state.history[state.historyIndex - 1];
+        return {
+          ...state,
+          currentBook: prevState.currentBook,
+          activePageIndex: prevState.activePageIndex,
+          selectedElementIds: prevState.selectedElementIds,
+          toolSettings: prevState.toolSettings,
+          historyIndex: state.historyIndex - 1,
+          hasUnsavedChanges: true
+        };
+      }
+      return state;
+    
+    case 'REDO':
+      if (state.historyIndex < state.history.length - 1) {
+        const nextState = state.history[state.historyIndex + 1];
+        return {
+          ...state,
+          currentBook: nextState.currentBook,
+          activePageIndex: nextState.activePageIndex,
+          selectedElementIds: nextState.selectedElementIds,
+          toolSettings: nextState.toolSettings,
+          historyIndex: state.historyIndex + 1,
+          hasUnsavedChanges: true
+        };
+      }
+      return state;
+    
+    case 'GO_TO_HISTORY_STEP':
+      if (action.payload >= 0 && action.payload < state.history.length) {
+        const targetState = state.history[action.payload];
+        return {
+          ...state,
+          currentBook: targetState.currentBook,
+          activePageIndex: targetState.activePageIndex,
+          selectedElementIds: targetState.selectedElementIds,
+          toolSettings: targetState.toolSettings,
+          historyIndex: action.payload,
+          hasUnsavedChanges: true
+        };
+      }
+      return state;
+    
+    case 'SAVE_TO_HISTORY':
+      return saveToHistory(state, action.payload);
     
     default:
       return state;
@@ -256,6 +424,15 @@ const EditorContext = createContext<{
   dispatch: React.Dispatch<EditorAction>;
   saveBook: () => Promise<void>;
   loadBook: (bookId: number) => Promise<void>;
+  getQuestionText: (questionId: number) => string;
+  getAnswerText: (questionId: number) => string;
+  updateTempQuestion: (questionId: number, text: string) => void;
+  updateTempAnswer: (questionId: number, text: string) => void;
+  addNewQuestion: (elementId: string, text: string) => void;
+  undo: () => void;
+  redo: () => void;
+  goToHistoryStep: (step: number) => void;
+  getHistoryActions: () => string[];
 } | undefined>(undefined);
 
 export const useEditor = () => {
@@ -282,6 +459,54 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     try {
       const token = localStorage.getItem('token');
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+      
+      // Save new questions first
+      for (const newQuestion of state.newQuestions) {
+        const response = await fetch(`${apiUrl}/books/${state.currentBook.id}/questions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ questionText: newQuestion.text })
+        });
+        
+        if (response.ok) {
+          const savedQuestion = await response.json();
+          // Update the element with the new questionId
+          dispatch({ 
+            type: 'UPDATE_ELEMENT', 
+            payload: { 
+              id: newQuestion.elementId, 
+              updates: { questionId: savedQuestion.id } 
+            } 
+          });
+        }
+      }
+      
+      // Save updated questions
+      for (const [questionId, text] of Object.entries(state.tempQuestions)) {
+        await fetch(`${apiUrl}/questions/${questionId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ questionText: text })
+        });
+      }
+      
+      // Save answers
+      for (const [questionId, text] of Object.entries(state.tempAnswers)) {
+        await fetch(`${apiUrl}/answers`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ questionId: parseInt(questionId), answerText: text })
+        });
+      }
       
       let bookToSave = state.currentBook;
       
@@ -314,6 +539,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         if (!response.ok) throw new Error('Failed to save book');
       }
       
+      // Clear temporary data after successful save
+      dispatch({ type: 'CLEAR_TEMP_DATA' });
       dispatch({ type: 'MARK_SAVED' });
     } catch (error) {
       throw error;
@@ -333,31 +560,24 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       if (!response.ok) throw new Error('Failed to load book');
       const book = await response.json();
       
-      // Update linked question textboxes with latest database text
-      const questionsResponse = await fetch(`${apiUrl}/questions/${bookId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      let updated = false;
-      
-      if (questionsResponse.ok) {
-        const questions = await questionsResponse.json();
-        const questionMap = new Map(questions.map(q => [q.id, q.question_text]));
-        
-        book.pages.forEach(page => {
-          page.elements.forEach(element => {
-            if (element.textType === 'question' && element.questionId && questionMap.has(element.questionId)) {
-              const latestText = questionMap.get(element.questionId);
-              if (element.text !== latestText) {
-                element.text = latestText;
-                updated = true;
-              }
-            }
-          });
+      // Load questions and answers into temporary storage without updating canvas elements
+      // This allows users to see the current database state but edit in temporary storage
+      try {
+        const questionsResponse = await fetch(`${apiUrl}/books/${bookId}/questions`, {
+          headers: { 'Authorization': `Bearer ${token}` }
         });
+        
+        if (questionsResponse.ok) {
+          const questions = await questionsResponse.json();
+          // Store current database questions in temp storage as baseline
+          questions.forEach(q => {
+            dispatch({ type: 'UPDATE_TEMP_QUESTION', payload: { questionId: q.id, text: q.question_text } });
+          });
+        }
+      } catch (error) {
+        console.log('Questions API error:', error.message);
       }
       
-      // Update linked answer textboxes with latest database text
       try {
         const answersResponse = await fetch(`${apiUrl}/answers/book/${bookId}`, {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -365,38 +585,13 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         
         if (answersResponse.ok) {
           const answers = await answersResponse.json();
-          const answerMap = new Map(answers.map(a => [a.question_id, { id: a.id, text: a.answer_text }]));
-          
-          book.pages.forEach(page => {
-            page.elements.forEach(element => {
-              if (element.textType === 'answer' && element.questionElementId) {
-                // Find the linked question element
-                const questionElement = page.elements.find(el => el.id === element.questionElementId);
-                if (questionElement && questionElement.questionId && answerMap.has(questionElement.questionId)) {
-                  const answerData = answerMap.get(questionElement.questionId);
-                  if (element.text !== answerData.text || element.answerId !== answerData.id) {
-                    element.text = answerData.text;
-                    element.answerId = answerData.id;
-                    updated = true;
-                  }
-                }
-              }
-            });
+          // Store current database answers in temp storage as baseline
+          answers.forEach(a => {
+            dispatch({ type: 'UPDATE_TEMP_ANSWER', payload: { questionId: a.question_id, text: a.answer_text } });
           });
         }
       } catch (error) {
-        console.log('Answers API not available yet:', error.message);
-      }
-      
-      if (updated) {
-        await fetch(`${apiUrl}/books/${bookId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify(book)
-        });
+        console.log('Answers API error:', error.message);
       }
       
       dispatch({ type: 'SET_BOOK', payload: book });
@@ -415,8 +610,89 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [dispatch]);
 
+  const getQuestionText = (questionId: number): string => {
+    // Check temporary storage first, then fallback to canvas elements
+    if (state.tempQuestions[questionId]) {
+      return state.tempQuestions[questionId];
+    }
+    
+    // Find question text from canvas elements
+    for (const page of state.currentBook?.pages || []) {
+      for (const element of page.elements) {
+        if (element.textType === 'question' && element.questionId === questionId) {
+          return element.text || '';
+        }
+      }
+    }
+    
+    return '';
+  };
+  
+  const getAnswerText = (questionId: number): string => {
+    // Check temporary storage first, then fallback to canvas elements
+    if (state.tempAnswers[questionId]) {
+      return state.tempAnswers[questionId];
+    }
+    
+    // Find answer text from canvas elements
+    for (const page of state.currentBook?.pages || []) {
+      for (const element of page.elements) {
+        if (element.textType === 'answer' && element.questionElementId) {
+          const questionElement = page.elements.find(el => el.id === element.questionElementId);
+          if (questionElement?.questionId === questionId) {
+            return element.text || '';
+          }
+        }
+      }
+    }
+    
+    return '';
+  };
+  
+  const updateTempQuestion = (questionId: number, text: string) => {
+    dispatch({ type: 'UPDATE_TEMP_QUESTION', payload: { questionId, text } });
+  };
+  
+  const updateTempAnswer = (questionId: number, text: string) => {
+    dispatch({ type: 'UPDATE_TEMP_ANSWER', payload: { questionId, text } });
+  };
+  
+  const addNewQuestion = (elementId: string, text: string) => {
+    dispatch({ type: 'ADD_NEW_QUESTION', payload: { elementId, text } });
+  };
+  
+  const undo = () => {
+    dispatch({ type: 'UNDO' });
+  };
+  
+  const redo = () => {
+    dispatch({ type: 'REDO' });
+  };
+  
+  const goToHistoryStep = (step: number) => {
+    dispatch({ type: 'GO_TO_HISTORY_STEP', payload: step });
+  };
+  
+  const getHistoryActions = () => {
+    return state.historyActions;
+  };
+
   return (
-    <EditorContext.Provider value={{ state, dispatch, saveBook, loadBook }}>
+    <EditorContext.Provider value={{ 
+      state, 
+      dispatch, 
+      saveBook, 
+      loadBook, 
+      getQuestionText, 
+      getAnswerText, 
+      updateTempQuestion, 
+      updateTempAnswer, 
+      addNewQuestion,
+      undo,
+      redo,
+      goToHistoryStep,
+      getHistoryActions
+    }}>
       {children}
     </EditorContext.Provider>
   );
