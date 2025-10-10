@@ -8,6 +8,8 @@ import QuestionsManagerContent from '../../questions/questions-manager-content';
 import { useAuth } from '../../../../context/auth-context';
 import { Tabs, TabsList, TabsTrigger } from '../../../ui/composites/tabs';
 import { ButtonGroup } from '../../../ui/composites/button-group';
+import { Modal } from '../../../ui/overlays/modal';
+import ImagesContent from '../../images/images-content';
 
 const COLORS = [
   '#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff', 
@@ -54,6 +56,8 @@ export default function ToolSettingsPanel() {
   const [selectedQuestionElementId, setSelectedQuestionElementId] = useState<string | null>(null);
   const [activeLinkedElement, setActiveLinkedElement] = useState<string | null>(null);
   const [isFlashing, setIsFlashing] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [selectedImageElementId, setSelectedImageElementId] = useState<string | null>(null);
   
   const toolSettings = state.toolSettings || {};
   const activeTool = state.activeTool;
@@ -592,9 +596,18 @@ export default function ToolSettingsPanel() {
       case 'placeholder':
         return (
           <div className="space-y-4">
-            <div className="text-sm text-muted-foreground">
-              Image element settings
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSelectedImageElementId(element.id);
+                setShowImageModal(true);
+              }}
+              className="w-full"
+            >
+              <Image className="h-4 w-4 mr-2" />
+              Change Image
+            </Button>
           </div>
         );
 
@@ -936,6 +949,134 @@ export default function ToolSettingsPanel() {
           </DialogContent>
         </Dialog>
       )}
+      
+      <Modal
+        isOpen={showImageModal}
+        onClose={() => {
+          setShowImageModal(false);
+          setSelectedImageElementId(null);
+        }}
+        title="Select Image"
+      >
+        <ImagesContent
+          token={token || ''}
+          mode="select"
+          onImageSelect={(imageId: number, imageUrl: string) => {
+            if (selectedImageElementId) {
+              const currentElement = state.currentBook?.pages[state.activePageIndex]?.elements.find(el => el.id === selectedImageElementId);
+              if (currentElement) {
+                const img = new window.Image();
+                img.onload = () => {
+                  const currentWidth = currentElement.width;
+                  const currentHeight = currentElement.height;
+                  const newAspectRatio = img.width / img.height;
+                  const currentAspectRatio = currentWidth / currentHeight;
+                  
+                  let newWidth, newHeight;
+                  
+                  if (Math.abs(newAspectRatio - currentAspectRatio) > 0.5) {
+                    // Significant aspect ratio change - swap dimensions
+                    const targetArea = currentWidth * currentHeight;
+                    newHeight = Math.sqrt(targetArea / newAspectRatio);
+                    newWidth = newHeight * newAspectRatio;
+                  } else {
+                    // Similar aspect ratio - maintain current size
+                    if (newAspectRatio > currentAspectRatio) {
+                      newWidth = currentWidth;
+                      newHeight = currentWidth / newAspectRatio;
+                    } else {
+                      newHeight = currentHeight;
+                      newWidth = currentHeight * newAspectRatio;
+                    }
+                  }
+                  
+                  const cacheBustedUrl = `${imageUrl}?t=${Date.now()}`;
+                  dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Change Image' });
+                  dispatch({
+                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                    payload: {
+                      id: selectedImageElementId,
+                      updates: { 
+                        src: cacheBustedUrl,
+                        width: Math.round(newWidth),
+                        height: Math.round(newHeight)
+                      }
+                    }
+                  });
+                  setTimeout(() => {
+                    dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [] });
+                    setTimeout(() => {
+                      dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [selectedImageElementId] });
+                    }, 10);
+                  }, 10);
+                };
+                img.src = imageUrl;
+              }
+            }
+            setShowImageModal(false);
+            setSelectedImageElementId(null);
+          }}
+          onImageUpload={(imageUrl) => {
+            if (selectedImageElementId) {
+              const currentElement = state.currentBook?.pages[state.activePageIndex]?.elements.find(el => el.id === selectedImageElementId);
+              if (currentElement) {
+                const img = new window.Image();
+                img.onload = () => {
+                  const currentWidth = currentElement.width;
+                  const currentHeight = currentElement.height;
+                  const newAspectRatio = img.width / img.height;
+                  const currentAspectRatio = currentWidth / currentHeight;
+                  
+                  let newWidth, newHeight;
+                  
+                  if (Math.abs(newAspectRatio - currentAspectRatio) > 0.5) {
+                    // Significant aspect ratio change - swap dimensions
+                    const targetArea = currentWidth * currentHeight;
+                    newHeight = Math.sqrt(targetArea / newAspectRatio);
+                    newWidth = newHeight * newAspectRatio;
+                  } else {
+                    // Similar aspect ratio - maintain current size
+                    if (newAspectRatio > currentAspectRatio) {
+                      newWidth = currentWidth;
+                      newHeight = currentWidth / newAspectRatio;
+                    } else {
+                      newHeight = currentHeight;
+                      newWidth = currentHeight * newAspectRatio;
+                    }
+                  }
+                  
+                  const cacheBustedUrl = `${imageUrl}?t=${Date.now()}`;
+                  dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Change Image' });
+                  dispatch({
+                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                    payload: {
+                      id: selectedImageElementId,
+                      updates: { 
+                        src: cacheBustedUrl,
+                        width: Math.round(newWidth),
+                        height: Math.round(newHeight)
+                      }
+                    }
+                  });
+                  setTimeout(() => {
+                    dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [] });
+                    setTimeout(() => {
+                      dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [selectedImageElementId] });
+                    }, 10);
+                  }, 10);
+                };
+                img.src = imageUrl;
+              }
+            }
+            setShowImageModal(false);
+            setSelectedImageElementId(null);
+          }}
+          onClose={() => {
+            setShowImageModal(false);
+            setSelectedImageElementId(null);
+          }}
+        />
+      </Modal>
     </>
   );
 }

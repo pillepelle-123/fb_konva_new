@@ -81,7 +81,7 @@ export default function Canvas() {
   const [groupMoveStart, setGroupMoveStart] = useState<{ x: number; y: number } | null>(null);
   const [lastClickTime, setLastClickTime] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; visible: boolean }>({ x: 0, y: 0, visible: false });
+
   const [zoom, setZoom] = useState(0.8);
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
@@ -111,6 +111,8 @@ export default function Canvas() {
   const [selectedQuestionElementId, setSelectedQuestionElementId] = useState<string | null>(null);
   const [selectionModeState, setSelectionModeState] = useState<Map<string, number>>(new Map());
   const editingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [clipboard, setClipboard] = useState<CanvasElement[]>([]);
+  const [lastMousePos, setLastMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const pageSize = state.currentBook?.pageSize || 'A4';
@@ -160,6 +162,17 @@ export default function Canvas() {
       }
     }
   }, [state.selectedElementIds, isDragging, currentPage]);
+  
+  // Force transformer update when element dimensions change
+  useEffect(() => {
+    if (transformerRef.current && state.selectedElementIds.length > 0) {
+      const transformer = transformerRef.current;
+      setTimeout(() => {
+        transformer.forceUpdate();
+        transformer.getLayer()?.batchDraw();
+      }, 10);
+    }
+  }, [currentPage?.elements.map(el => `${el.id}-${el.width}-${el.height}`).join(',')]);
 
   // Reset selection mode state when no elements are selected
   useEffect(() => {
@@ -305,6 +318,11 @@ export default function Canvas() {
   };
 
   const handleMouseMove = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    // Track mouse position for paste functionality
+    const pos = e.target.getStage()?.getPointerPosition();
+    if (pos) {
+      setLastMousePos({ x: pos.x, y: pos.y });
+    }
     if (isPanning) {
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
@@ -729,24 +747,14 @@ export default function Canvas() {
     return selectedIds;
   };
 
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; visible: boolean }>({ x: 0, y: 0, visible: false });
+
   const handleContextMenu = (e: Konva.KonvaEventObject<PointerEvent>) => {
     e.evt.preventDefault();
     const pos = e.target.getStage()?.getPointerPosition();
     if (!pos) return;
     
-    // Temporarily allow all users - permission logic needs to be fixed in editor context
-    // TODO: Implement proper permission check when state.canEditCurrentPage is correctly set
-    
-    const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
-    const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
-    
-    // Check if right-click is on selected elements
-    if (state.selectedElementIds.length > 0 && isPointWithinSelectedElements(x, y)) {
-      // Use page coordinates for proper positioning
-      setContextMenu({ x: e.evt.pageX, y: e.evt.pageY, visible: true });
-    } else {
-      setContextMenu({ x: 0, y: 0, visible: false });
-    }
+    setContextMenu({ x: e.evt.pageX, y: e.evt.pageY, visible: true });
   };
 
   const handleDuplicateItems = () => {
@@ -770,6 +778,36 @@ export default function Canvas() {
   const handleDeleteItems = () => {
     state.selectedElementIds.forEach(elementId => {
       dispatch({ type: 'DELETE_ELEMENT', payload: elementId });
+    });
+    setContextMenu({ x: 0, y: 0, visible: false });
+  };
+
+  const handleCopyItems = () => {
+    if (!currentPage) return;
+    
+    const copiedElements = state.selectedElementIds.map(elementId => {
+      const element = currentPage.elements.find(el => el.id === elementId);
+      return element;
+    }).filter(Boolean) as CanvasElement[];
+    
+    setClipboard(copiedElements);
+    setContextMenu({ x: 0, y: 0, visible: false });
+  };
+
+  const handlePasteItems = () => {
+    if (clipboard.length === 0) return;
+    
+    const x = (lastMousePos.x - stagePos.x) / zoom - pageOffsetX;
+    const y = (lastMousePos.y - stagePos.y) / zoom - pageOffsetY;
+    
+    clipboard.forEach((element, index) => {
+      const pastedElement = {
+        ...element,
+        id: uuidv4(),
+        x: x + (index * 20),
+        y: y + (index * 20)
+      };
+      dispatch({ type: 'ADD_ELEMENT', payload: pastedElement });
     });
     setContextMenu({ x: 0, y: 0, visible: false });
   };
@@ -813,7 +851,6 @@ export default function Canvas() {
   };
 
   const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    // Hide context menu on left click only
     if (e.evt.button !== 2) {
       setContextMenu({ x: 0, y: 0, visible: false });
     }
@@ -843,6 +880,8 @@ export default function Canvas() {
       }
     };
     
+
+    
     const handleClickOutside = () => {
       setContextMenu({ x: 0, y: 0, visible: false });
     };
@@ -854,10 +893,12 @@ export default function Canvas() {
     updateSize();
     window.addEventListener('resize', updateSize);
     window.addEventListener('click', handleClickOutside);
+
     window.addEventListener('changePage', handlePageChange as EventListener);
     return () => {
       window.removeEventListener('resize', updateSize);
       window.removeEventListener('click', handleClickOutside);
+
       window.removeEventListener('changePage', handlePageChange as EventListener);
     };
   }, []);
@@ -1182,6 +1223,7 @@ export default function Canvas() {
             
             {/* Transformer for selected elements */}
             <CanvasTransformer
+              key={state.selectedElementIds.length === 1 ? `${state.selectedElementIds[0]}-${currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.width}-${currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.height}` : 'multi'}
               ref={transformerRef}
               keepRatio={state.selectedElementIds.length === 1 && currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.type === 'image'}
               onDragStart={() => {
@@ -1257,6 +1299,10 @@ export default function Canvas() {
           visible={contextMenu.visible}
           onDuplicate={handleDuplicateItems}
           onDelete={handleDeleteItems}
+          onCopy={handleCopyItems}
+          onPaste={handlePasteItems}
+          hasSelection={state.selectedElementIds.length > 0}
+          hasClipboard={clipboard.length > 0}
         />
       </CanvasContainer>
       

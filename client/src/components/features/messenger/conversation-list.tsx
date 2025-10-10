@@ -4,6 +4,7 @@ import { Button } from '../../ui/primitives/button';
 import { MessageCircle, Plus } from 'lucide-react';
 import NewConversationModal from './new-conversation-modal';
 import ProfilePicture from '../../features/users/profile-picture';
+import { MessageSquare } from 'lucide-react';
 
 interface Conversation {
   id: number;
@@ -42,9 +43,12 @@ export default function ConversationList({
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col ">
       <div className="p-4 border-b flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Messages</h2>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center space-x-2">
+          <MessageSquare className="h-6 w-6" />
+          <span>Messenger</span>
+        </h1>
         <Button
           size="sm"
           onClick={() => setShowNewConversation(true)}

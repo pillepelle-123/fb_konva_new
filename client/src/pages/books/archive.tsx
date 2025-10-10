@@ -3,9 +3,10 @@ import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
 import { Card, CardContent } from '../../components/ui/composites/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
-import { Archive, ChevronLeft, ChevronRight, Book, ChevronUp } from 'lucide-react';
+import { Archive, ChevronLeft, ChevronRight, Book } from 'lucide-react';
 import BookCard from '../../components/features/books/book-card';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import '../../styles/page-transitions.css';
 
 interface ArchivedBook {
   id: number;
@@ -19,16 +20,34 @@ interface ArchivedBook {
 export default function BookArchive() {
   const { token } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [books, setBooks] = useState<ArchivedBook[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [showRestoreConfirm, setShowRestoreConfirm] = useState<number | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [animationClass, setAnimationClass] = useState('');
 
   useEffect(() => {
     fetchArchivedBooks();
-  }, []);
+    
+    // Handle page transition animation
+    const from = location.state?.from;
+    if (from === 'index') {
+      setAnimationClass('slide-from-right-enter');
+      setTimeout(() => setAnimationClass('slide-from-right-enter-active'), 50);
+    }
+  }, [location.state]);
+
+  const handleNavigateToBooks = () => {
+    setIsTransitioning(true);
+    setAnimationClass('slide-to-right-exit-active');
+    setTimeout(() => {
+      navigate('/books', { state: { from: 'archive' } });
+    }, 50);
+  };
 
   const fetchArchivedBooks = async () => {
     try {
@@ -107,8 +126,10 @@ export default function BookArchive() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="space-y-6">
+    <div className={`page-transition-container ${animationClass}`}>
+      <div className="page-transition-wrapper">
+        <div className="container mx-auto px-4 py-8">
+          <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ">
           <div className="space-y-1">
@@ -122,12 +143,12 @@ export default function BookArchive() {
           <div className="flex flex-col flex-start gap-2 justify-center items-center">
           <Button 
             variant="ghost" 
-            onClick={() => navigate('/books')} 
+            onClick={handleNavigateToBooks}
             className="space-x-2"
           >
             <Book className="h-4 w-4" />
             <span>View My Books</span>
-            <ChevronUp className="h-4 w-4" />
+            <ChevronLeft className="h-4 w-4" />
           </Button>
           </div>
         </div>
@@ -233,6 +254,8 @@ export default function BookArchive() {
             </div>
           </DialogContent>
         </Dialog>
+          </div>
+        </div>
       </div>
     </div>
   );

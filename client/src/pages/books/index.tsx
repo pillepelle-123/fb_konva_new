@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
 import { Card, CardContent } from '../../components/ui/composites/card';
@@ -7,8 +7,9 @@ import { Input } from '../../components/ui/primitives/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
 import BooksGrid from '../../components/features/books/book-grid';
 import CreateBookDialog from '../../components/features/books/create-book-dialog';
-import { Book, BookPlus, Archive, ChevronDown, ChevronUp, Plus } from 'lucide-react';
+import { Book, BookPlus, Archive, ChevronRight, ChevronUp, Plus } from 'lucide-react';
 import FloatingActionButton from '../../components/ui/composites/floating-action-button';
+import '../../styles/page-transitions.css';
 
 interface Book {
   id: number;
@@ -24,6 +25,7 @@ interface Book {
 export default function BooksList() {
   const { token } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [books, setBooks] = useState<Book[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showCollaboratorModal, setShowCollaboratorModal] = useState<number | null>(null);
@@ -31,10 +33,21 @@ export default function BooksList() {
 
   const [showAlert, setShowAlert] = useState<{ title: string; message: string } | null>(null);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState<number | null>(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [animationClass, setAnimationClass] = useState('');
 
   useEffect(() => {
     fetchBooks();
   }, []);
+
+  useEffect(() => {
+    // Handle page transition animation
+    const from = location.state?.from;
+    if (from === 'archive') {
+      setAnimationClass('slide-from-left-enter');
+      setTimeout(() => setAnimationClass('slide-from-left-enter-active'), 50);
+    }
+  }, [location.state]);
 
   const fetchBooks = async () => {
     try {
@@ -75,6 +88,13 @@ export default function BooksList() {
     setShowArchiveConfirm(null);
   };
 
+  const handleNavigateToArchive = () => {
+    setIsTransitioning(true);
+    setTimeout(() => {
+      navigate('/books/archive', { state: { from: 'index' } });
+    }, 50);
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -89,12 +109,17 @@ export default function BooksList() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="space-y-6">
+    <div className={`page-transition-container ${isTransitioning ? 'slide-to-left-exit-active' : animationClass}`}>
+      <div className="page-transition-wrapper">
+        <div className="container mx-auto px-4 py-8">
+          <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="space-y-1">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">My Books</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center space-x-2">
+              <Book className="h-6 w-6" />
+              <span>My Books</span>
+            </h1>
             <p className="text-muted-foreground">
               Manage and organize your book projects
             </p>
@@ -104,12 +129,12 @@ export default function BooksList() {
           <div className="flex flex-col gap-2 justify-center items-center">
             <Button 
               variant="ghost" 
-              onClick={() => navigate('/books/archive')} 
+              onClick={handleNavigateToArchive}
               className="space-x-2"
             >
               <Archive className="h-4 w-4" />
               <span>View Archive</span>
-              <ChevronDown className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4" />
             </Button>
             <Button onClick={() => setShowAddForm(true)} className="space-x-2  mt-5">
               <BookPlus className="h-6 w-6" />
@@ -197,9 +222,11 @@ export default function BooksList() {
             </div>
           </DialogContent>
         </Dialog>
+          </div>
+          
+          <FloatingActionButton />
+        </div>
       </div>
-      
-      <FloatingActionButton />
     </div>
   );
 }

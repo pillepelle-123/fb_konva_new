@@ -1,0 +1,75 @@
+/* Page transition animations */
+.page-transition-enter {
+  opacity: 0;
+}
+
+.page-transition-enter-active {
+  opacity: 1;
+  transition: opacity 300ms ease-in-out, transform 300ms ease-in-out;
+}
+
+.page-transition-exit {
+  opacity: 1;
+}
+
+.page-transition-exit-active {
+  opacity: 0;
+  transition: opacity 300ms ease-in-out, transform 300ms ease-in-out;
+}
+
+/* Index to Archive: Archive slides in from right, Index slides out to left */
+.slide-from-right-enter {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+.slide-from-right-enter-active {
+  transform: translateX(0);
+  opacity: 1;
+  transition: transform 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 400ms ease;
+}
+
+.slide-to-left-exit {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.slide-to-left-exit-active {
+  transform: translateX(-100%);
+  opacity: 0;
+  transition: transform 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 400ms ease;
+}
+
+/* Archive to Index: Index slides in from left, Archive slides out to right */
+.slide-from-left-enter {
+  transform: translateX(-100%);
+  opacity: 0;
+}
+
+.slide-from-left-enter-active {
+  transform: translateX(0);
+  opacity: 1;
+  transition: transform 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 400ms ease;
+}
+
+.slide-to-right-exit {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.slide-to-right-exit-active {
+  transform: translateX(100%);
+  opacity: 0;
+  transition: transform 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 400ms ease;
+}
+
+/* Container for transitions */
+.page-transition-container {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+}
+
+.page-transition-wrapper {
+  width: 100%;
+}

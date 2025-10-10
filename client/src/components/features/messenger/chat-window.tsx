@@ -30,6 +30,7 @@ export default function ChatWindow({ conversationId, onMessageSent, shouldFocusI
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
   const inputRef = useRef<HTMLInputElement>(null);
+  const tempIdCounter = useRef(0);
 
   useEffect(() => {
     if (shouldFocusInput && inputRef.current) {
@@ -48,7 +49,18 @@ export default function ChatWindow({ conversationId, onMessageSent, shouldFocusI
       
       // Listen for new messages
       socket.on('new_message', (message) => {
-        setMessages(prev => [...prev, message]);
+        // Don't add messages sent by current user (already handled by optimistic update)
+        if (message.sender_id === user?.id) {
+          return;
+        }
+        
+        setMessages(prev => {
+          // Prevent duplicates
+          if (prev.some(msg => msg.id === message.id)) {
+            return prev;
+          }
+          return [...prev, message];
+        });
         markAsRead();
         onMessageSent();
       });
@@ -118,8 +130,9 @@ export default function ChatWindow({ conversationId, onMessageSent, shouldFocusI
     setNewMessage('');
 
     // Optimistic update - add message immediately
+    const tempId = `temp-${++tempIdCounter.current}`;
     const optimisticMessage: Message = {
-      id: Date.now(), // Temporary ID
+      id: tempId as any, // Temporary string ID
       content: messageContent,
       created_at: new Date().toISOString(),
       sender_id: user?.id || 0,
@@ -200,9 +213,9 @@ export default function ChatWindow({ conversationId, onMessageSent, shouldFocusI
   return (
     <div className="h-full flex flex-col">
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((message) => (
+        {messages.map((message, index) => (
           <div
-            key={message.id}
+            key={`${message.id}-${index}`}
             className={`flex ${message.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}
           >
             <div

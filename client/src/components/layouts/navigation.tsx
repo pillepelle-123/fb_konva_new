@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../ui/primitives/button';
-import { BookOpen, Home, Archive, LogOut, User, Menu, Image, IdCard, Settings, ChevronDown, Contact, Bell, MessageSquare } from 'lucide-react';
+import { Book, BookOpen, Home, Archive, LogOut, User, Menu, Image, IdCard, Settings, ChevronDown, Bell, MessageSquare, Users } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import ProfilePicture from '../features/users/profile-picture';
 import { Popover, PopoverTrigger, PopoverContent } from '../ui/overlays/popover';
@@ -113,7 +113,7 @@ export default function Navigation() {
                         : 'text-white hover:bg-white/10 hover:text-white'
                     }`}
                   >
-                    <Home className="h-4 w-4" />
+                    <Book className="h-5 w-5" />
                     <span>Books</span>
                   </Button>
                 </Link>
@@ -128,7 +128,7 @@ export default function Navigation() {
                         : 'text-white hover:bg-white/10 hover:text-white'
                     }`}
                   >
-                    <Image className="h-4 w-4" />
+                    <Image className="h-5 w-5" />
                     <span>Images</span>
                   </Button>
                 </Link>
@@ -143,7 +143,7 @@ export default function Navigation() {
                         : 'text-white hover:bg-white/10 hover:text-white'
                     }`}
                   >
-                    <Contact className="h-4 w-4" />
+                    <Users className="h-5 w-5" />
                     <span>Friends</span>
                   </Button>
                 </Link>
@@ -160,7 +160,7 @@ export default function Navigation() {
                         : 'text-white hover:bg-white/10 hover:text-white'
                     }`}
                   >
-                    <Home className="h-4 w-4" />
+                    <Home className="h-5 w-5" />
                     <span>Home</span>
                   </Button>
                 </Link>
@@ -174,7 +174,7 @@ export default function Navigation() {
                         : 'text-white hover:bg-white/10 hover:text-white'
                     }`}
                   >
-                    <User className="h-4 w-4" />
+                    <User className="h-5 w-5" />
                     <span>Login</span>
                   </Button>
                 </Link>
@@ -188,7 +188,7 @@ export default function Navigation() {
                         : 'text-white hover:bg-white/10 hover:text-white'
                     }`}
                   >
-                    <User className="h-4 w-4" />
+                    <User className="h-5 w-5" />
                     <span>Register</span>
                   </Button>
                 </Link>
@@ -241,9 +241,9 @@ export default function Navigation() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="w-full justify-start space-x-2 rounded-none text-foreground hover:bg-muted"
+                        className="w-full justify-start space-x-2 py-6 rounded-none text-foreground hover:bg-muted"
                       >
-                        <MessageSquare className="h-4 w-4" />
+                        <MessageSquare className="h-5 w-5" />
                         <span>Messenger</span>
                       </Button>
                     </Link>
@@ -251,9 +251,9 @@ export default function Navigation() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="w-full justify-start space-x-2 rounded-none text-foreground hover:bg-muted"
+                        className="w-full justify-start space-x-2 py-6 rounded-none text-foreground hover:bg-muted"
                       >
-                        <IdCard className="h-4 w-4" />
+                        <IdCard className="h-5 w-5" />
                         <span>Profile</span>
                       </Button>
                     </Link>
@@ -261,9 +261,9 @@ export default function Navigation() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="w-full justify-start space-x-2 rounded-none text-foreground hover:bg-muted"
+                        className="w-full justify-start space-x-2 py-6 rounded-none text-foreground hover:bg-muted"
                       >
-                        <Settings className="h-4 w-4" />
+                        <Settings className="h-5 w-5" />
                         <span>Settings</span>
                       </Button>
                     </Link>
@@ -274,9 +274,9 @@ export default function Navigation() {
                         logout();
                         setUserMenuOpen(false);
                       }}
-                      className="w-full justify-start space-x-2 rounded-none text-foreground hover:bg-muted"
+                      className="w-full justify-start space-x-2 py-6 rounded-none text-foreground hover:bg-muted"
                     >
-                      <LogOut className="h-4 w-4" />
+                      <LogOut className="h-5 w-5" />
                       <span>Logout</span>
                     </Button>
                   </div>
@@ -327,7 +327,7 @@ export default function Navigation() {
                   onClick={() => setMobileBooksMenuOpen(!mobileBooksMenuOpen)}
                   className="w-full justify-start space-x-2 text-white hover:bg-white/10 hover:text-white"
                 >
-                  <BookOpen className="h-4 w-4" />
+                  <Book className="h-4 w-4" />
                   <span>Books</span>
                   <ChevronDown className={`h-3 w-3 ml-auto transition-transform ${
                     mobileBooksMenuOpen ? 'rotate-180' : ''
@@ -343,7 +343,7 @@ export default function Navigation() {
                         variant="ghost"
                         className="w-full justify-start space-x-2 text-white hover:bg-white/10 hover:text-white"
                       >
-                        <BookOpen className="h-4 w-4" />
+                        <Book className="h-4 w-4" />
                         <span>My Books</span>
                       </Button>
                     </Link>
@@ -385,7 +385,7 @@ export default function Navigation() {
                         : 'text-white hover:bg-white/10 hover:text-white'
                     }`}
                   >
-                    <Contact className="h-4 w-4" />
+                    <Users className="h-4 w-4" />
                     <span>Friends</span>
                   </Button>
                 </Link>

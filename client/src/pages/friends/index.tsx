@@ -6,7 +6,7 @@ import { Input } from '../../components/ui/primitives/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
 import FriendGrid from '../../components/features/friends/friend-grid';
 import FindFriendsDialog from '../../components/features/friends/find-friends-dialog';
-import { Contact, UserSearch, UserPlus } from 'lucide-react';
+import { Contact, UserSearch, UserPlus, Users } from 'lucide-react';
 import FloatingActionButton from '../../components/ui/composites/floating-action-button';
 
 interface Friend {
@@ -86,7 +86,10 @@ export default function FriendsList() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="space-y-1">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">My Friends</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center space-x-2">
+              <Users className="h-6 w-6" />
+              <span>My Friends</span>
+            </h1>
             <p className="text-muted-foreground">Manage your friends and collaborators</p>
           </div>
           <div className="flex gap-2">

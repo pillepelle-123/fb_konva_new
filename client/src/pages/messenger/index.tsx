@@ -97,29 +97,31 @@ export default function MessengerPage() {
   }
 
   return (
-    <div className="h-full flex">
-      <div className="w-1/3 border-r">
-        <ConversationList
-          conversations={conversations}
-          selectedConversation={selectedConversation}
-          onConversationSelect={handleConversationSelect}
-          onConversationsUpdate={fetchConversations}
-        />
-      </div>
-      <div className="flex-1">
-        {selectedConversation ? (
-          <ChatWindow
-            conversationId={selectedConversation}
-            onMessageSent={fetchConversations}
-            shouldFocusInput={shouldFocusInput}
-            onInputFocused={() => setShouldFocusInput(false)}
+    // <div className="container h-full mx-auto px-4 py-8 border border-grey-400">
+      <div className="container h-full flex mx-auto border border-grey-400">
+        <div className="w-1/3 border-r">
+          <ConversationList 
+            conversations={conversations}
+            selectedConversation={selectedConversation}
+            onConversationSelect={handleConversationSelect}
+            onConversationsUpdate={fetchConversations}
           />
-        ) : (
-          <div className="flex items-center justify-center h-full text-muted-foreground">
-            Select a conversation to start messaging
-          </div>
-        )}
+        </div>
+        <div className="flex-1">
+          {selectedConversation ? (
+            <ChatWindow
+              conversationId={selectedConversation}
+              onMessageSent={fetchConversations}
+              shouldFocusInput={shouldFocusInput}
+              onInputFocused={() => setShouldFocusInput(false)}
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full text-muted-foreground">
+              Select a conversation to start messaging
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    // </div>
   );
 }

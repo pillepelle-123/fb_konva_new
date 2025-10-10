@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Rect, Text, Image as KonvaImage } from 'react-konva';
 import { useAuth } from '../../../../context/auth-context';
 import { useEditor } from '../../../../context/editor-context';
@@ -72,13 +72,17 @@ export default function Image(props: CanvasItemProps) {
     }
   };
 
-  // Load existing image
-  if (element.type === 'image' && element.src && !image) {
-    const img = new window.Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => setImage(img);
-    img.src = element.src;
-  }
+  // Load existing image when src changes
+  useEffect(() => {
+    if (element.type === 'image' && element.src) {
+      const img = new window.Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => setImage(img);
+      img.src = element.src;
+    } else {
+      setImage(null);
+    }
+  }, [element.type, element.src]);
 
   return (
     <BaseCanvasItem {...props} onDoubleClick={handleDoubleClick}>

@@ -92,14 +92,10 @@ export default function BaseCanvasItem({
           onSelect();
         }
       } else if (e.evt.button === 2) {
-        // Prevent right-click selection when multi-selection is active
-        if (state.selectedElementIds.length > 1) {
-          e.cancelBubble = true;
-          return;
-        }
-        // Right-click on selected item - don't change selection
-        if (isSelected) {
-          return;
+        e.cancelBubble = true;
+        // Right-click: select element if not already selected
+        if (!isSelected) {
+          onSelect();
         }
       }
     }

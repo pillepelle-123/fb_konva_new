@@ -1,34 +1,88 @@
+import * as React from "react"
+import { cn } from "../../../lib/utils"
+
 interface ContextMenuProps {
   x: number;
   y: number;
   visible: boolean;
   onDuplicate: () => void;
   onDelete: () => void;
+  onCopy: () => void;
+  onPaste: () => void;
+  hasSelection: boolean;
+  hasClipboard: boolean;
 }
 
-export default function ContextMenu({ x, y, visible, onDuplicate, onDelete }: ContextMenuProps) {
+const ContextMenu = React.forwardRef<
+  HTMLDivElement,
+  ContextMenuProps
+>(({ x, y, visible, onDuplicate, onDelete, onCopy, onPaste, hasSelection, hasClipboard }, ref) => {
   if (!visible) return null;
 
   return (
     <div
-      className="fixed bg-popover border border-border rounded-md shadow-md z-[1000] min-w-[120px] p-1"
+      ref={ref}
+      className={cn(
+        "fixed z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95"
+      )}
       style={{
         top: y,
         left: x,
       }}
     >
-      <button
-        onClick={onDuplicate}
-        className="w-full text-left px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground cursor-default"
+      <ContextMenuItem
+        disabled={!hasSelection}
+        onClick={hasSelection ? onCopy : undefined}
+      >
+        Copy
+      </ContextMenuItem>
+      <ContextMenuItem
+        disabled={!hasClipboard}
+        onClick={hasClipboard ? onPaste : undefined}
+      >
+        Paste
+      </ContextMenuItem>
+      <ContextMenuItem
+        disabled={!hasSelection}
+        onClick={hasSelection ? onDuplicate : undefined}
       >
         Duplicate
-      </button>
-      <button
-        onClick={onDelete}
-        className="w-full text-left px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground cursor-default text-destructive"
+      </ContextMenuItem>
+      <ContextMenuItem
+        disabled={!hasSelection}
+        onClick={hasSelection ? onDelete : undefined}
+        className="text-destructive focus:text-destructive"
       >
         Delete
-      </button>
+      </ContextMenuItem>
     </div>
   );
+})
+ContextMenu.displayName = "ContextMenu"
+
+interface ContextMenuItemProps {
+  children: React.ReactNode;
+  disabled?: boolean;
+  onClick?: () => void;
+  className?: string;
 }
+
+const ContextMenuItem = React.forwardRef<
+  HTMLButtonElement,
+  ContextMenuItemProps
+>(({ children, disabled, onClick, className }, ref) => (
+  <button
+    ref={ref}
+    disabled={disabled}
+    onClick={onClick}
+    className={cn(
+      "relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-muted hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50",
+      className
+    )}
+  >
+    {children}
+  </button>
+))
+ContextMenuItem.displayName = "ContextMenuItem"
+
+export default ContextMenu
