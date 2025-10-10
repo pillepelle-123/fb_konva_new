@@ -50,11 +50,15 @@ export default function Navigation() {
       });
       
       if (response.ok) {
-        const data = await response.json();
-        setUnreadCount(data.count);
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const data = await response.json();
+          setUnreadCount(data.count);
+        }
       }
     } catch (error) {
       console.error('Error fetching unread count:', error);
+      setUnreadCount(0);
     }
   };
 

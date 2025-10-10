@@ -84,11 +84,15 @@ export default function ChatWindow({ conversationId, onMessageSent, shouldFocusI
       });
       
       if (response.ok) {
-        const data = await response.json();
-        setMessages(data);
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const data = await response.json();
+          setMessages(data);
+        }
       }
     } catch (error) {
       console.error('Error fetching messages:', error);
+      setMessages([]);
     } finally {
       setLoading(false);
     }
@@ -110,6 +114,20 @@ export default function ChatWindow({ conversationId, onMessageSent, shouldFocusI
     e.preventDefault();
     if (!newMessage.trim()) return;
 
+    const messageContent = newMessage;
+    setNewMessage('');
+
+    // Optimistic update - add message immediately
+    const optimisticMessage: Message = {
+      id: Date.now(), // Temporary ID
+      content: messageContent,
+      created_at: new Date().toISOString(),
+      sender_id: user?.id || 0,
+      sender_name: user?.name || '',
+      is_read: true
+    };
+    setMessages(prev => [...prev, optimisticMessage]);
+
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const response = await fetch(`${apiUrl}/messenger/conversations/${conversationId}/messages`, {
@@ -118,15 +136,29 @@ export default function ChatWindow({ conversationId, onMessageSent, shouldFocusI
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ content: newMessage })
+        body: JSON.stringify({ content: messageContent })
       });
 
       if (response.ok) {
-        setNewMessage('');
-        // Real-time update will be handled by Socket.IO
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const savedMessage = await response.json();
+          // Replace optimistic message with real message
+          setMessages(prev => prev.map(msg => 
+            msg.id === optimisticMessage.id ? savedMessage : msg
+          ));
+        }
+        onMessageSent();
+      } else {
+        // Remove optimistic message on error
+        setMessages(prev => prev.filter(msg => msg.id !== optimisticMessage.id));
+        setNewMessage(messageContent); // Restore message text
       }
     } catch (error) {
       console.error('Error sending message:', error);
+      // Remove optimistic message on error
+      setMessages(prev => prev.filter(msg => msg.id !== optimisticMessage.id));
+      setNewMessage(messageContent); // Restore message text
     }
   };
 

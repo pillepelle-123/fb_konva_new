@@ -47,11 +47,15 @@ export default function MessengerPage() {
       });
       
       if (response.ok) {
-        const data = await response.json();
-        setConversations(data);
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const data = await response.json();
+          setConversations(data);
+        }
       }
     } catch (error) {
       console.error('Error fetching conversations:', error);
+      setConversations([]);
     } finally {
       setLoading(false);
     }
