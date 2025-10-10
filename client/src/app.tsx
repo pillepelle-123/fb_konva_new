@@ -11,7 +11,7 @@ import Register from './pages/auth/register'
 import Dashboard from './pages/dashboard/index'
 import BooksList from './pages/books/index'
 import BookArchive from './pages/books/archive'
-import PhotosList from './pages/photos/index'
+import ImagesList from './pages/images/index'
 import QuestionsList from './pages/questions/index'
 import BookFriendsList from './pages/books/friends'
 import FriendsList from './pages/friends/index'
@@ -62,7 +62,7 @@ function AppContent() {
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/books" element={<ProtectedRoute><BooksList /></ProtectedRoute>} />
           <Route path="/books/archive" element={<ProtectedRoute><BookArchive /></ProtectedRoute>} />
-          <Route path="/photos" element={<ProtectedRoute><PhotosList /></ProtectedRoute>} />
+          <Route path="/images" element={<ProtectedRoute><ImagesList /></ProtectedRoute>} />
           <Route path="/questions/:bookId" element={<ProtectedRoute><BookAccessGuard><QuestionsList /></BookAccessGuard></ProtectedRoute>} />
           <Route path="/books/:bookId/friends" element={<ProtectedRoute><BookAccessGuard><BookFriendsList /></BookAccessGuard></ProtectedRoute>} />
           <Route path="/friends" element={<ProtectedRoute><FriendsList /></ProtectedRoute>} />

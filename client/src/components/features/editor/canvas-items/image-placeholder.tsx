@@ -5,7 +5,7 @@ import { useEditor } from '../../../../context/editor-context';
 import BaseCanvasItem from './base-canvas-item';
 import type { CanvasItemProps } from './base-canvas-item';
 
-export default function Photo(props: CanvasItemProps) {
+export default function ImagePlaceholder(props: CanvasItemProps) {
   const { element } = props;
   const { token } = useAuth();
   const { dispatch } = useEditor();
@@ -13,7 +13,6 @@ export default function Photo(props: CanvasItemProps) {
   const [isUploading, setIsUploading] = useState(false);
 
   const handleDoubleClick = () => {
-    // Only allow upload if it's a placeholder
     if (element.type === 'placeholder') {
       const input = document.createElement('input');
       input.type = 'file';
@@ -46,18 +45,16 @@ export default function Photo(props: CanvasItemProps) {
       if (response.ok) {
         const data = await response.json();
         
-        // Load the image
         const img = new window.Image();
         img.crossOrigin = 'anonymous';
         img.onload = () => {
           setImage(img);
-          
           dispatch({
             type: 'UPDATE_ELEMENT',
             payload: {
               id: element.id,
               updates: {
-                type: 'photo',
+                type: 'image',
                 src: data.url
               }
             }
@@ -73,7 +70,7 @@ export default function Photo(props: CanvasItemProps) {
   };
 
   // Load existing image
-  if (element.type === 'photo' && element.src && !image) {
+  if (element.type === 'image' && element.src && !image) {
     const img = new window.Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => setImage(img);
@@ -84,7 +81,6 @@ export default function Photo(props: CanvasItemProps) {
     <BaseCanvasItem {...props} onDoubleClick={handleDoubleClick}>
       {element.type === 'placeholder' ? (
         <>
-          {/* Background rectangle - transparent like textbox */}
           <Rect
             width={element.width}
             height={element.height}
@@ -95,13 +91,9 @@ export default function Photo(props: CanvasItemProps) {
             listening={false}
           />
           
-
-          
-          {/* Placeholder text - same styling as textbox */}
           <Text
-            text={isUploading ? "Uploading..." : "Double-click to chose photo"}
+            text={isUploading ? "Uploading..." : "Double-click to choose image"}
             fontSize={66}
-            // fontFamily="Arial, sans-serif"
             fill="#1f2937"
             width={element.width - 8}
             height={element.height - 8}

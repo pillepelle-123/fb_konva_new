@@ -20,7 +20,7 @@ const getToolInstruction = (toolId: string): { title: string; description: strin
     text: { title: 'Text Tool', description: 'Click and drag to define the size of the text box' },
     question: { title: 'Question Tool', description: 'Click and drag to define the size of the question textbox' },
     answer: { title: 'Answer Tool', description: 'Click and drag to define the size of the answer textbox' },
-    photo: { title: 'Photo Tool', description: 'Click to place a photo from your library' },
+    image: { title: 'Image Tool', description: 'Click to place an image from your library' },
     line: { title: 'Line Tool', description: 'Click and drag to draw a line' },
     circle: { title: 'Circle Tool', description: 'Click and drag to draw a circle' },
     rect: { title: 'Rectangle Tool', description: 'Click and drag to draw a rectangle' },

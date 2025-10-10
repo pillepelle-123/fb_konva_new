@@ -1,6 +1,6 @@
 export * from './books';
 export * from './editor';
 export * from './friends';
-export * from './photos';
+export * from './images';
 export * from './questions';
 export * from './users';

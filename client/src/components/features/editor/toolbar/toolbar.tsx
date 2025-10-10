@@ -48,9 +48,9 @@ export default function Toolbar() {
       ]
     },
     {
-      name: 'Photos',
+      name: 'Images',
       tools: [
-        { id: 'photo', label: 'Photo', icon: Image },
+        { id: 'image', label: 'Image', icon: Image },
       ]
     },
     {

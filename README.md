@@ -7,7 +7,7 @@ A full-stack web application with React frontend and Node.js/Express backend for
 ### Canvas Editor
 - **Drawing Tools**: Brush, line, circle, rectangle with rough.js sketchy styling
 - **Text Elements**: Regular text, questions, and answers with inline editing
-- **Image Management**: Photo placeholders with upload functionality
+- **Image Management**: Image placeholders with upload functionality
 - **Selection & Transformation**: Multi-select, resize, rotate, and group movement
 - **Vector Graphics**: True vector-based shapes with infinite scalability
 

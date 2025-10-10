@@ -111,8 +111,8 @@ CREATE TRIGGER update_answers_updated_at
 
 -- ################################
 
--- Photos Table
-CREATE TABLE photos (
+-- Images Table
+CREATE TABLE images (
   id SERIAL PRIMARY KEY,
   book_id INTEGER REFERENCES books(id) ON DELETE CASCADE,
   uploaded_by INTEGER REFERENCES users(id) ON DELETE NO ACTION,
@@ -124,8 +124,8 @@ CREATE TABLE photos (
 );
 
 -- Create indexes for better performance
-CREATE INDEX idx_photos_book_id ON photos(book_id);
-CREATE INDEX idx_photos_uploaded_by ON photos(uploaded_by);
+CREATE INDEX idx_images_book_id ON images(book_id);
+CREATE INDEX idx_images_uploaded_by ON images(uploaded_by);
 
 -- ###############################
 

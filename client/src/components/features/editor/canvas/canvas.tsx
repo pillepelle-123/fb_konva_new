@@ -14,7 +14,7 @@ import { CanvasContainer } from './canvas-container';
 import ContextMenu from '../../../ui/overlays/context-menu';
 import { Modal } from '../../../ui/overlays/modal';
 import { Dialog, DialogContent } from '../../../ui/overlays/dialog';
-import PhotosContent from '../../photos/photos-content';
+import ImagesContent from '../../images/images-content';
 import QuestionsManagerContent from '../../questions/questions-manager-content';
 import TextEditorModal from '../text-editor-modal';
 import ToolSettingsPanel from '../tool-settings/tool-settings-panel';
@@ -95,8 +95,8 @@ export default function Canvas() {
   const [isDrawingTextbox, setIsDrawingTextbox] = useState(false);
   const [textboxStart, setTextboxStart] = useState<{ x: number; y: number } | null>(null);
   const [previewTextbox, setPreviewTextbox] = useState<{ x: number; y: number; width: number; height: number; type: string } | null>(null);
-  const [showPhotoModal, setShowPhotoModal] = useState(false);
-  const [pendingPhotoPosition, setPendingPhotoPosition] = useState<{ x: number; y: number } | null>(null);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [pendingImagePosition, setPendingImagePosition] = useState<{ x: number; y: number } | null>(null);
   const [editingElement, setEditingElement] = useState<CanvasElement | null>(null);
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
   
@@ -290,9 +290,9 @@ export default function Canvas() {
       if (isBackgroundClick) {
         let newElement: CanvasElement | null = null;
         
-        if (state.activeTool === 'photo') {
-          setPendingPhotoPosition({ x: x - 300, y: y - 200 });
-          setShowPhotoModal(true);
+        if (state.activeTool === 'image') {
+          setPendingImagePosition({ x: x - 300, y: y - 200 });
+          setShowImageModal(true);
           return;
         }
         
@@ -691,8 +691,8 @@ export default function Canvas() {
         // Text, Question, Answer textboxes
         elementBounds.width = element.width || 150;
         elementBounds.height = element.height || 50;
-      } else if (element.type === 'placeholder' || element.type === 'photo') {
-        // Photo placeholders and uploaded images
+      } else if (element.type === 'placeholder' || element.type === 'image') {
+        // Image placeholders and uploaded images
         elementBounds.width = element.width || 150;
         elementBounds.height = element.height || 100;
       } else if (element.type === 'line') {
@@ -988,8 +988,8 @@ export default function Canvas() {
     fitToView();
   }, [fitToView, containerSize]);
 
-  const handlePhotoSelect = (photoId: number, photoUrl: string) => {
-    if (!pendingPhotoPosition) return;
+  const handleImageSelect = (imageId: number, imageUrl: string) => {
+    if (!pendingImagePosition) return;
     
     // Load image to get original dimensions
     const img = new window.Image();
@@ -1001,26 +1001,26 @@ export default function Canvas() {
       
       const newElement: CanvasElement = {
         id: uuidv4(),
-        type: 'photo',
-        x: pendingPhotoPosition.x,
-        y: pendingPhotoPosition.y,
+        type: 'image',
+        x: pendingImagePosition.x,
+        y: pendingImagePosition.y,
         width,
         height,
-        src: photoUrl
+        src: imageUrl
       };
       
       dispatch({ type: 'ADD_ELEMENT', payload: newElement });
     };
-    img.src = photoUrl;
+    img.src = imageUrl;
     
     dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
-    setShowPhotoModal(false);
-    setPendingPhotoPosition(null);
+    setShowImageModal(false);
+    setPendingImagePosition(null);
   };
 
-  const handlePhotoModalClose = () => {
-    setShowPhotoModal(false);
-    setPendingPhotoPosition(null);
+  const handleImageModalClose = () => {
+    setShowImageModal(false);
+    setPendingImagePosition(null);
     dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
   };
 
@@ -1183,7 +1183,7 @@ export default function Canvas() {
             {/* Transformer for selected elements */}
             <CanvasTransformer
               ref={transformerRef}
-              keepRatio={state.selectedElementIds.length === 1 && currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.type === 'photo'}
+              keepRatio={state.selectedElementIds.length === 1 && currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.type === 'image'}
               onDragStart={() => {
                 dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Move Elements' });
               }}
@@ -1215,8 +1215,8 @@ export default function Canvas() {
                   if (element) {
                     const updates: any = {};
                     
-                    // For text and photo elements, convert scale to width/height changes
-                    if (element.type === 'text' || element.type === 'photo') {
+                    // For text and image elements, convert scale to width/height changes
+                    if (element.type === 'text' || element.type === 'image') {
                       const scaleX = node.scaleX();
                       const scaleY = node.scaleY();
                       
@@ -1261,16 +1261,16 @@ export default function Canvas() {
       </CanvasContainer>
       
       <Modal
-        isOpen={showPhotoModal}
-        onClose={handlePhotoModalClose}
-        title="Select Photo"
+        isOpen={showImageModal}
+        onClose={handleImageModalClose}
+        title="Select Image"
       >
-        <PhotosContent
+        <ImagesContent
           token={token || ''}
           mode="select"
-          onPhotoSelect={handlePhotoSelect}
-          onPhotoUpload={(photoUrl) => handlePhotoSelect(0, photoUrl)}
-          onClose={handlePhotoModalClose}
+          onImageSelect={handleImageSelect}
+          onImageUpload={(imageUrl) => handleImageSelect(0, imageUrl)}
+          onClose={handleImageModalClose}
         />
       </Modal>
       

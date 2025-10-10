@@ -5,12 +5,12 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
-async function createPhotosTable() {
+async function createImagesTable() {
   try {
     await pool.query('SET search_path TO public');
     
     const result = await pool.query(`
-      CREATE TABLE photos (
+      CREATE TABLE images (
         id SERIAL PRIMARY KEY,
         book_id INTEGER,
         uploaded_by INTEGER,
@@ -22,12 +22,12 @@ async function createPhotosTable() {
       );
     `);
     
-    console.log('Photos table created successfully');
+    console.log('Images table created successfully');
     process.exit(0);
   } catch (error) {
-    console.error('Error creating photos table:', error);
+    console.error('Error creating images table:', error);
     process.exit(1);
   }
 }
 
-createPhotosTable();
+createImagesTable();

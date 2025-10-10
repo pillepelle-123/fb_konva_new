@@ -3,7 +3,7 @@ import type { CanvasItemProps } from './base-canvas-item';
 import RoughBrush from './rough-brush';
 import RoughShape from './rough-shape';
 import Textbox from './textbox';
-import Photo from './photo';
+import Image from './image';
 
 interface CanvasItemComponentProps extends CanvasItemProps {
   element: CanvasElement;
@@ -24,8 +24,8 @@ export default function CanvasItemComponent(props: CanvasItemComponentProps) {
     return <Textbox {...props} />;
   }
 
-  if (element.type === 'placeholder' || element.type === 'photo') {
-    return <Photo {...props} />;
+  if (element.type === 'placeholder' || element.type === 'image') {
+    return <Image {...props} />;
   }
 
   // Fallback for other element types

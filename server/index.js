@@ -43,7 +43,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/books', require('./routes/books'));
 app.use('/api/questions', require('./routes/questions'));
 app.use('/api/upload', require('./routes/upload'));
-app.use('/api/photos', require('./routes/photos'));
+app.use('/api/images', require('./routes/images'));
 app.use('/api/page-assignments', require('./routes/page-assignments'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/friendships', require('./routes/friendships'));

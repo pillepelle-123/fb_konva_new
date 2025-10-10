@@ -9,7 +9,7 @@ const sharp = require('sharp');
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-// Configure multer for photo uploads
+// Configure multer for image uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const userDir = path.join(__dirname, '../uploads', req.user.id.toString());
@@ -23,7 +23,7 @@ const storage = multer.diskStorage({
     const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
     const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '');
     const ext = path.extname(file.originalname);
-    const filename = `photo_${req.user.id}_${dateStr}_${timeStr}${ext}`;
+    const filename = `image_${req.user.id}_${dateStr}_${timeStr}${ext}`;
     cb(null, filename);
   }
 });
@@ -39,8 +39,8 @@ const upload = multer({
   }
 });
 
-// Upload photos
-router.post('/upload', authenticateToken, upload.array('photos', 10), async (req, res) => {
+// Upload images
+router.post('/upload', authenticateToken, upload.array('images', 10), async (req, res) => {
   try {
     await pool.query('SET search_path TO public');
     
@@ -52,7 +52,7 @@ router.post('/upload', authenticateToken, upload.array('photos', 10), async (req
       return res.status(400).json({ error: 'No files uploaded' });
     }
 
-    const photos = [];
+    const images = [];
     for (const file of files) {
       const filePath = path.join(req.user.id.toString(), file.filename);
       
@@ -71,21 +71,21 @@ router.post('/upload', authenticateToken, upload.array('photos', 10), async (req
       }
       
       const result = await pool.query(
-        'INSERT INTO public.photos (book_id, uploaded_by, filename, original_name, file_path) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+        'INSERT INTO public.images (book_id, uploaded_by, filename, original_name, file_path) VALUES ($1, $2, $3, $4, $5) RETURNING *',
         [finalBookId, req.user.id, file.filename, file.originalname, filePath]
       );
       
-      photos.push(result.rows[0]);
+      images.push(result.rows[0]);
     }
 
-    res.json({ photos });
+    res.json({ images });
   } catch (error) {
     console.error('Upload error:', error);
     res.status(500).json({ error: 'Upload failed' });
   }
 });
 
-// Get photos with pagination
+// Get images with pagination
 router.get('/', authenticateToken, async (req, res) => {
   try {
     await pool.query('SET search_path TO public');
@@ -95,7 +95,7 @@ router.get('/', authenticateToken, async (req, res) => {
     
     let query = `
       SELECT p.*, b.name as book_name 
-      FROM public.photos p 
+      FROM public.images p 
       LEFT JOIN public.books b ON p.book_id = b.id 
       WHERE p.uploaded_by = $1
     `;
@@ -112,52 +112,52 @@ router.get('/', authenticateToken, async (req, res) => {
     const result = await pool.query(query, params);
     
     const countQuery = bookId 
-      ? 'SELECT COUNT(*) FROM public.photos WHERE uploaded_by = $1 AND book_id = $2'
-      : 'SELECT COUNT(*) FROM public.photos WHERE uploaded_by = $1';
+      ? 'SELECT COUNT(*) FROM public.images WHERE uploaded_by = $1 AND book_id = $2'
+      : 'SELECT COUNT(*) FROM public.images WHERE uploaded_by = $1';
     const countParams = bookId ? [req.user.id, bookId] : [req.user.id];
     const countResult = await pool.query(countQuery, countParams);
     
     res.json({
-      photos: result.rows,
+      images: result.rows,
       total: parseInt(countResult.rows[0].count),
       page: parseInt(page),
       totalPages: Math.ceil(countResult.rows[0].count / parseInt(limit))
     });
   } catch (error) {
-    console.error('Error fetching photos:', error);
-    res.status(500).json({ error: 'Failed to fetch photos' });
+    console.error('Error fetching images:', error);
+    res.status(500).json({ error: 'Failed to fetch images' });
   }
 });
 
-// Delete photos
+// Delete images
 router.delete('/', authenticateToken, async (req, res) => {
   try {
     await pool.query('SET search_path TO public');
     
-    const { photoIds } = req.body;
+    const { imageIds } = req.body;
     
-    if (!photoIds || !Array.isArray(photoIds)) {
-      return res.status(400).json({ error: 'Photo IDs required' });
+    if (!imageIds || !Array.isArray(imageIds)) {
+      return res.status(400).json({ error: 'Image IDs required' });
     }
 
-    // Get photo details for file deletion
-    const photosResult = await pool.query(
-      'SELECT * FROM public.photos WHERE id = ANY($1) AND uploaded_by = $2',
-      [photoIds, req.user.id]
+    // Get image details for file deletion
+    const imagesResult = await pool.query(
+      'SELECT * FROM public.images WHERE id = ANY($1) AND uploaded_by = $2',
+      [imageIds, req.user.id]
     );
     
     // Delete files and thumbnails
-    for (const photo of photosResult.rows) {
-      const filePath = path.join(__dirname, '../uploads', photo.file_path);
+    for (const image of imagesResult.rows) {
+      const filePath = path.join(__dirname, '../uploads', image.file_path);
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }
       
       // Delete thumbnail
-      const ext = path.extname(photo.filename);
-      const nameWithoutExt = photo.filename.replace(ext, '');
+      const ext = path.extname(image.filename);
+      const nameWithoutExt = image.filename.replace(ext, '');
       const thumbFilename = `${nameWithoutExt}_thumb${ext}`;
-      const thumbPath = path.join(__dirname, '../uploads', photo.file_path.replace(photo.filename, thumbFilename));
+      const thumbPath = path.join(__dirname, '../uploads', image.file_path.replace(image.filename, thumbFilename));
       if (fs.existsSync(thumbPath)) {
         fs.unlinkSync(thumbPath);
       }
@@ -165,14 +165,14 @@ router.delete('/', authenticateToken, async (req, res) => {
     
     // Delete from database
     await pool.query(
-      'DELETE FROM public.photos WHERE id = ANY($1) AND uploaded_by = $2',
-      [photoIds, req.user.id]
+      'DELETE FROM public.images WHERE id = ANY($1) AND uploaded_by = $2',
+      [imageIds, req.user.id]
     );
     
     res.json({ success: true });
   } catch (error) {
-    console.error('Error deleting photos:', error);
-    res.status(500).json({ error: 'Failed to delete photos' });
+    console.error('Error deleting images:', error);
+    res.status(500).json({ error: 'Failed to delete images' });
   }
 });
 

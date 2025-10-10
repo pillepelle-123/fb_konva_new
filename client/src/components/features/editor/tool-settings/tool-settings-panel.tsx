@@ -27,7 +27,7 @@ const TOOL_ICONS = {
   text: MessageCircleMore,
   question: MessageCircleQuestion,
   answer: MessageCircleHeart,
-  photo: Image,
+  image: Image,
   line: Minus,
   circle: Circle,
   rect: Square,
@@ -588,12 +588,12 @@ export default function ToolSettingsPanel() {
           </div>
         );
 
-      case 'photo':
+      case 'image':
       case 'placeholder':
         return (
           <div className="space-y-4">
             <div className="text-sm text-muted-foreground">
-              Photo element settings
+              Image element settings
             </div>
           </div>
         );

@@ -65,7 +65,7 @@ export default function Navigation() {
 
   const navItems = user ? [
     { path: '/dashboard', label: 'Dashboard', icon: Home },
-    { path: '/photos', label: 'Photos', icon: Image },
+    { path: '/images', label: 'Images', icon: Image },
   ] : [
     { path: '/', label: 'Home', icon: Home },
     { path: '/login', label: 'Login', icon: User },
@@ -118,18 +118,18 @@ export default function Navigation() {
                   </Button>
                 </Link>
                 
-                <Link to="/photos">
+                <Link to="/images">
                   <Button
-                    variant={isActive('/photos') ? "secondary" : "ghost"}
+                    variant={isActive('/images') ? "secondary" : "ghost"}
                     size="sm"
                     className={`flex items-center space-x-2 ${
-                      isActive('/photos') 
+                      isActive('/images') 
                         ? 'bg-white text-primary hover:bg-white/90 hover:text-primary' 
                         : 'text-white hover:bg-white/10 hover:text-white'
                     }`}
                   >
                     <Image className="h-4 w-4" />
-                    <span>Photos</span>
+                    <span>Images</span>
                   </Button>
                 </Link>
                 
@@ -362,17 +362,17 @@ export default function Navigation() {
                   </div>
                 )}
                 
-                <Link to="/photos" onClick={() => setIsMobileMenuOpen(false)}>
+                <Link to="/images" onClick={() => setIsMobileMenuOpen(false)}>
                   <Button
-                    variant={isActive('/photos') ? "default" : "ghost"}
+                    variant={isActive('/images') ? "default" : "ghost"}
                     className={`w-full justify-start space-x-2 ${
-                      isActive('/photos') 
+                      isActive('/images') 
                         ? 'bg-white text-primary hover:bg-white/90 hover:text-primary' 
                         : 'text-white hover:bg-white/10 hover:text-white'
                     }`}
                   >
                     <Image className="h-4 w-4" />
-                    <span>Photos</span>
+                    <span>Images</span>
                   </Button>
                 </Link>
                 
