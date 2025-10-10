@@ -14,9 +14,10 @@ interface UnreadConversation {
 
 interface NotificationPopoverProps {
   onUpdate: () => void;
+  onClose: () => void;
 }
 
-export default function NotificationPopover({ onUpdate }: NotificationPopoverProps) {
+export default function NotificationPopover({ onUpdate, onClose }: NotificationPopoverProps) {
   const { token } = useAuth();
   const [unreadConversations, setUnreadConversations] = useState<UnreadConversation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,6 +42,19 @@ export default function NotificationPopover({ onUpdate }: NotificationPopoverPro
       console.error('Error fetching unread conversations:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const markAsRead = async (conversationId: number) => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      await fetch(`${apiUrl}/messenger/conversations/${conversationId}/read`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      onUpdate();
+    } catch (error) {
+      console.error('Error marking conversation as read:', error);
     }
   };
 
@@ -73,7 +87,7 @@ export default function NotificationPopover({ onUpdate }: NotificationPopoverPro
         <Link 
           to="/messenger" 
           className="text-sm text-primary hover:underline"
-          onClick={onUpdate}
+          onClick={() => { onUpdate(); onClose(); }}
         >
           View all
         </Link>
@@ -89,8 +103,8 @@ export default function NotificationPopover({ onUpdate }: NotificationPopoverPro
           {unreadConversations.map((conversation) => (
             <Link
               key={conversation.id}
-              to="/messenger"
-              onClick={onUpdate}
+              to={`/messenger?friendId=${conversation.friend_id}`}
+              onClick={() => { markAsRead(conversation.id); onClose(); }}
               className="block p-3 rounded-lg hover:bg-muted transition-colors"
             >
               <div className="flex items-center justify-between mb-1">

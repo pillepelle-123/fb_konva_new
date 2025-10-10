@@ -17,6 +17,7 @@ export default function Navigation() {
   const [booksMenuOpen, setBooksMenuOpen] = useState(false);
   const [mobileBooksMenuOpen, setMobileBooksMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationOpen, setNotificationOpen] = useState(false);
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -200,7 +201,7 @@ export default function Navigation() {
             {user && (
               <>
                 {/* Notification Bell */}
-                <Popover>
+                <Popover open={notificationOpen} onOpenChange={setNotificationOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="ghost"
@@ -216,7 +217,7 @@ export default function Navigation() {
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-80">
-                    <NotificationPopover onUpdate={fetchUnreadCount} />
+                    <NotificationPopover onUpdate={fetchUnreadCount} onClose={() => setNotificationOpen(false)} />
                   </PopoverContent>
                 </Popover>
                 

@@ -42,7 +42,7 @@ function BookCardPreview({ book, isArchived }: { book: Book; isArchived?: boolea
         if (response.ok) {
           const bookData = await response.json();
           const firstImage = bookData.pages?.flatMap(page => page.elements || [])
-            .find(element => element.type === 'image' && element.src);
+            .find(element => element.type === 'photo' && element.src);
           
           if (firstImage?.src) {
             setPreviewUrl(firstImage.src);
