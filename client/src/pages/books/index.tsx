@@ -7,7 +7,7 @@ import { Input } from '../../components/ui/primitives/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
 import BooksGrid from '../../components/features/books/book-grid';
 import CreateBookDialog from '../../components/features/books/create-book-dialog';
-import { Book, BookPlus, Archive, ChevronDown, ChevronUp } from 'lucide-react';
+import { Book, BookPlus, Archive, ChevronDown, ChevronUp, Plus } from 'lucide-react';
 import FloatingActionButton from '../../components/ui/composites/floating-action-button';
 
 interface Book {

@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../../ui/primitives/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/composites/card';
 import ProfilePicture from '../users/profile-picture';
@@ -31,6 +31,7 @@ export default function FriendsCard({
   onRemove,
   showFriendActions = false
 }: FriendsCardProps) {
+  const navigate = useNavigate();
   return (
     <Card className="border shadow-sm hover:shadow-md transition-all duration-200 hover:border-primary/20">
       <CardHeader className="pb-4">
@@ -74,7 +75,7 @@ export default function FriendsCard({
               variant="outline" 
               size="sm"
               className="w-full space-x-2"
-              onClick={() => {/* TODO: Implement messaging */}}
+              onClick={() => navigate(`/messenger?friendId=${friend.id}`)}
             >
               <MessageCircle className="h-4 w-4" />
               <span>Send Message</span>

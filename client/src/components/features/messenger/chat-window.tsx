@@ -16,9 +16,11 @@ interface Message {
 interface ChatWindowProps {
   conversationId: number;
   onMessageSent: () => void;
+  shouldFocusInput?: boolean;
+  onInputFocused?: () => void;
 }
 
-export default function ChatWindow({ conversationId, onMessageSent }: ChatWindowProps) {
+export default function ChatWindow({ conversationId, onMessageSent, shouldFocusInput, onInputFocused }: ChatWindowProps) {
   const { token, user } = useAuth();
   const { socket } = useSocket();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -27,6 +29,14 @@ export default function ChatWindow({ conversationId, onMessageSent }: ChatWindow
   const [typingUsers, setTypingUsers] = useState<number[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (shouldFocusInput && inputRef.current) {
+      inputRef.current.focus();
+      onInputFocused?.();
+    }
+  }, [shouldFocusInput, onInputFocused]);
 
   useEffect(() => {
     fetchMessages();
@@ -187,6 +197,7 @@ export default function ChatWindow({ conversationId, onMessageSent }: ChatWindow
       <form onSubmit={sendMessage} className="p-4 border-t">
         <div className="flex gap-2">
           <input
+            ref={inputRef}
             type="text"
             value={newMessage}
             onChange={(e) => {
