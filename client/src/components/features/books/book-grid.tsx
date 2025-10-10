@@ -17,16 +17,17 @@ interface BooksGridProps {
   books: Book[];
   itemsPerPage?: number;
   onArchive?: (bookId: number) => void;
+  onPageUserManager?: (bookId: number) => void;
 }
 
-export default function BooksGrid({ books, itemsPerPage = 10, onArchive }: BooksGridProps) {
+export default function BooksGrid({ books, itemsPerPage = 10, onArchive, onPageUserManager }: BooksGridProps) {
   return (
     <Grid
       items={books}
       itemsPerPage={itemsPerPage}
       keyExtractor={(book) => book.id}
       renderItem={(book) => (
-        <BookCard book={book} onArchive={onArchive} />
+        <BookCard book={book} onArchive={onArchive} onPageUserManager={onPageUserManager} />
       )}
     />
   );

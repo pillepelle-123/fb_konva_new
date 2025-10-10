@@ -14,6 +14,7 @@ import BookArchive from './pages/books/archive'
 import ImagesList from './pages/images/index'
 import QuestionsList from './pages/questions/index'
 import BookFriendsList from './pages/books/friends'
+import PageUserPage from './pages/books/page-user'
 import FriendsList from './pages/friends/index'
 import Profile from './pages/profile/index'
 import Settings from './pages/profile/settings'
@@ -65,6 +66,7 @@ function AppContent() {
           <Route path="/images" element={<ProtectedRoute><ImagesList /></ProtectedRoute>} />
           <Route path="/questions/:bookId" element={<ProtectedRoute><BookAccessGuard><QuestionsList /></BookAccessGuard></ProtectedRoute>} />
           <Route path="/books/:bookId/friends" element={<ProtectedRoute><BookAccessGuard><BookFriendsList /></BookAccessGuard></ProtectedRoute>} />
+          <Route path="/books/:bookId/page-users" element={<ProtectedRoute><BookAccessGuard><PageUserPage /></BookAccessGuard></ProtectedRoute>} />
           <Route path="/friends" element={<ProtectedRoute><FriendsList /></ProtectedRoute>} />
           <Route path="/messenger" element={<ProtectedRoute><MessengerPage /></ProtectedRoute>} />
           <Route path="/profile/:userId" element={<ProtectedRoute><Profile /></ProtectedRoute>} />

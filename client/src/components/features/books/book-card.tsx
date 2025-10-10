@@ -6,6 +6,7 @@ import { Card, CardContent } from '../../ui/composites/card';
 import { Badge } from '../../ui/composites/badge';
 import { Tooltip } from '../../ui/composites/tooltip';
 import { Users, Edit, FileText, Image, CircleHelp, RotateCcw, Trash2, Archive, Contact } from 'lucide-react';
+import PageUserIcon from '../../ui/icons/page-user-icon';
 
 interface Book {
   id: number;
@@ -26,6 +27,7 @@ interface BookCardProps {
   onRestore?: (bookId: number) => void;
   onDelete?: (bookId: number) => void;
   onArchive?: (bookId: number) => void;
+  onPageUserManager?: (bookId: number) => void;
 }
 
 function BookCardPreview({ book, isArchived }: { book: Book; isArchived?: boolean }) {
@@ -79,7 +81,7 @@ function BookCardPreview({ book, isArchived }: { book: Book; isArchived?: boolea
   );
 }
 
-export default function BookCard({ book, isArchived = false, onRestore, onDelete, onArchive }: BookCardProps) {
+export default function BookCard({ book, isArchived = false, onRestore, onDelete, onArchive, onPageUserManager }: BookCardProps) {
   const navigate = useNavigate();
 
   return (
@@ -149,19 +151,19 @@ export default function BookCard({ book, isArchived = false, onRestore, onDelete
             <>
               <div className="flex-1">
                 <Link to={`/editor/${book.id}`} className="block">
-                  <Button variant="default" size="sm" className="w-full space-x-2 bg-gray-600 hover:bg-gray-700">
+                  <Button variant="default" size="sm" className="w-full space-x-2 bg-primary hover:bg-primary/90">
                     <Edit className="h-4 w-4" />
                   </Button>
                 </Link>
               </div>
-              <Tooltip content="Friends" side="bottom">
+              <Tooltip content="Page User Manager" side="bottom">
                 <Button 
                   variant="outline" 
                   size="sm"
-                  onClick={() => navigate(`/books/${book.id}/friends`)}
+                  onClick={() => onPageUserManager?.(book.id)}
                   className="space-x-2"
                 >
-                  <Contact className="h-4 w-4" />
+                  <PageUserIcon className="h-4 w-4" />
                 </Button>
               </Tooltip>
               <Tooltip content="Questions" side="bottom">

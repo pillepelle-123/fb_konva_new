@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import BooksGrid from '../../components/features/books/book-grid';
 import CreateBookDialog from '../../components/features/books/create-book-dialog';
 import { Book, BookPlus, Archive, ChevronRight, ChevronUp, Plus } from 'lucide-react';
+import PageUserIcon from '../../components/ui/icons/page-user-icon';
 import FloatingActionButton from '../../components/ui/composites/floating-action-button';
 import '../../styles/page-transitions.css';
 
@@ -160,7 +161,7 @@ export default function BooksList() {
             </CardContent>
           </Card>
         ) : (
-          <BooksGrid books={books} onArchive={handleArchive} />
+          <BooksGrid books={books} onArchive={handleArchive} onPageUserManager={(bookId) => navigate(`/books/${bookId}/page-users`)} />
         )}
 
         {/* Add Book Dialog */}

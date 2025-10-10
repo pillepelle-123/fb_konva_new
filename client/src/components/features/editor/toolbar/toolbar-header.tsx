@@ -15,9 +15,10 @@ interface ToolbarHeaderProps {
       icon: Icon;
     }>;
   }>;
+  hideToggle?: boolean;
 }
 
-export function ToolbarHeader({ isExpanded, onToggle, activeTool, toolGroups }: ToolbarHeaderProps) {
+export function ToolbarHeader({ isExpanded, onToggle, activeTool, toolGroups, hideToggle }: ToolbarHeaderProps) {
   const getActiveTool = () => {
     if (!activeTool || !toolGroups) return null;
     for (const group of toolGroups) {
@@ -38,7 +39,7 @@ export function ToolbarHeader({ isExpanded, onToggle, activeTool, toolGroups }: 
             {activeToolData.label}
           </Button>
         )}
-        <ToolbarToggle isExpanded={isExpanded} onToggle={onToggle} />
+        {!hideToggle && <ToolbarToggle isExpanded={isExpanded} onToggle={onToggle} />}
       </div>
     </CardHeader>
   );

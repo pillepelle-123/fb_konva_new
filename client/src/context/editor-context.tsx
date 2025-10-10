@@ -61,6 +61,7 @@ export interface EditorState {
   user?: { id: number; role: string } | null;
   userRole?: 'author' | 'publisher' | null;
   assignedPages: number[];
+  pageAssignments: Record<number, any>; // pageNumber -> user
   editorBarVisible: boolean;
   toolbarVisible: boolean;
   hasUnsavedChanges: boolean;
@@ -99,7 +100,9 @@ type EditorAction =
   | { type: 'UNDO' }
   | { type: 'REDO' }
   | { type: 'GO_TO_HISTORY_STEP'; payload: number }
-  | { type: 'SAVE_TO_HISTORY'; payload: string };
+  | { type: 'SAVE_TO_HISTORY'; payload: string }
+  | { type: 'UPDATE_PAGE_NUMBERS'; payload: { pageId: number; newPageNumber: number }[] }
+  | { type: 'SET_PAGE_ASSIGNMENTS'; payload: Record<number, any> };
 
 const initialState: EditorState = {
   currentBook: null,
@@ -109,6 +112,7 @@ const initialState: EditorState = {
   user: null,
   userRole: null,
   assignedPages: [],
+  pageAssignments: {},
   editorBarVisible: true,
   toolbarVisible: true,
   hasUnsavedChanges: false,
@@ -169,6 +173,10 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       // Auto-set pan tool for authors on non-assigned pages
       if (newState.userRole === 'author' && !newState.assignedPages.includes(action.payload + 1)) {
         newState.activeTool = 'pan';
+      }
+      // Auto-set select tool for authors on assigned pages
+      else if (newState.userRole === 'author' && newState.assignedPages.includes(action.payload + 1)) {
+        newState.activeTool = 'select';
       }
       return newState;
     
@@ -289,12 +297,31 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         duplicatedPage,
         ...savedDuplicateState.currentBook!.pages.slice(action.payload + 1)
       ].map((page, index) => ({ ...page, pageNumber: index + 1 }));
+      
+      // Shift page assignments for pages after the duplicated page
+      const updatedPageAssignments = { ...savedDuplicateState.pageAssignments };
+      const insertPosition = action.payload + 2; // New page position
+      
+      // Shift assignments for pages >= insertPosition
+      Object.keys(updatedPageAssignments).forEach(pageNum => {
+        const pageNumber = parseInt(pageNum);
+        if (pageNumber >= insertPosition) {
+          const user = updatedPageAssignments[pageNumber];
+          delete updatedPageAssignments[pageNumber];
+          updatedPageAssignments[pageNumber + 1] = user;
+        }
+      });
+      
+      // Ensure new duplicated page has no assignment
+      updatedPageAssignments[insertPosition] = null;
+      
       return {
         ...savedDuplicateState,
         currentBook: {
           ...savedDuplicateState.currentBook!,
           pages: pagesWithDuplicate
         },
+        pageAssignments: updatedPageAssignments,
         hasUnsavedChanges: true
       };
     
@@ -414,6 +441,18 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case 'SAVE_TO_HISTORY':
       return saveToHistory(state, action.payload);
     
+    case 'UPDATE_PAGE_NUMBERS':
+      if (!state.currentBook) return state;
+      const bookWithUpdatedPages = { ...state.currentBook };
+      bookWithUpdatedPages.pages = bookWithUpdatedPages.pages.map(page => {
+        const update = action.payload.find(u => u.pageId === page.id);
+        return update ? { ...page, pageNumber: update.newPageNumber } : page;
+      });
+      return { ...state, currentBook: bookWithUpdatedPages };
+    
+    case 'SET_PAGE_ASSIGNMENTS':
+      return { ...state, pageAssignments: action.payload, hasUnsavedChanges: true };
+    
     default:
       return state;
   }
@@ -433,6 +472,7 @@ const EditorContext = createContext<{
   redo: () => void;
   goToHistoryStep: (step: number) => void;
   getHistoryActions: () => string[];
+  refreshPageAssignments: () => Promise<void>;
 } | undefined>(undefined);
 
 export const useEditor = () => {
@@ -539,8 +579,27 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         if (!response.ok) throw new Error('Failed to save book');
       }
       
+      // Save page assignments if any exist and have actual assignments
+      const hasAssignments = Object.values(state.pageAssignments).some(user => user !== null);
+      if (hasAssignments) {
+        const assignments = Object.entries(state.pageAssignments).map(([pageNumber, user]) => ({
+          pageNumber: parseInt(pageNumber),
+          userId: user?.id || null
+        }));
+        
+        await fetch(`${apiUrl}/page-assignments/book/${state.currentBook.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ assignments })
+        });
+      }
+      
       // Clear temporary data after successful save
       dispatch({ type: 'CLEAR_TEMP_DATA' });
+      dispatch({ type: 'SET_PAGE_ASSIGNMENTS', payload: {} });
       dispatch({ type: 'MARK_SAVED' });
     } catch (error) {
       throw error;
@@ -597,13 +656,33 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       dispatch({ type: 'SET_BOOK', payload: book });
       
       // Fetch user role and page assignments
-      const roleResponse = await fetch(`${apiUrl}/books/${bookId}/user-role`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const [roleResponse, assignmentsResponse] = await Promise.all([
+        fetch(`${apiUrl}/books/${bookId}/user-role`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        fetch(`${apiUrl}/page-assignments/book/${bookId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+      ]);
       
       if (roleResponse.ok) {
         const roleData = await roleResponse.json();
         dispatch({ type: 'SET_USER_ROLE', payload: { role: roleData.role, assignedPages: roleData.assignedPages || [] } });
+      }
+      
+      // Load page assignments into React state
+      if (assignmentsResponse.ok) {
+        const assignments = await assignmentsResponse.json();
+        const pageAssignments = {};
+        assignments.forEach(assignment => {
+          pageAssignments[assignment.page_id] = {
+            id: assignment.user_id,
+            name: assignment.name,
+            email: assignment.email,
+            role: assignment.role
+          };
+        });
+        dispatch({ type: 'SET_PAGE_ASSIGNMENTS', payload: pageAssignments });
       }
     } catch (error) {
       throw error;
@@ -676,6 +755,27 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
   const getHistoryActions = () => {
     return state.historyActions;
   };
+  
+  const refreshPageAssignments = useCallback(async () => {
+    if (!state.currentBook) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      
+      // Fetch updated user role and page assignments
+      const roleResponse = await fetch(`${apiUrl}/books/${state.currentBook.id}/user-role`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (roleResponse.ok) {
+        const roleData = await roleResponse.json();
+        dispatch({ type: 'SET_USER_ROLE', payload: { role: roleData.role, assignedPages: roleData.assignedPages || [] } });
+      }
+    } catch (error) {
+      console.error('Error refreshing page assignments:', error);
+    }
+  }, [state.currentBook]);
 
   return (
     <EditorContext.Provider value={{ 
@@ -691,7 +791,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       undo,
       redo,
       goToHistoryStep,
-      getHistoryActions
+      getHistoryActions,
+      refreshPageAssignments
     }}>
       {children}
     </EditorContext.Provider>

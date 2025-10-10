@@ -34,6 +34,8 @@ export function ToolButton({ id, label, icon: Icon, isActive, isExpanded, userRo
   const isAuthor = userRole === 'author';
   const isDisabled = (isAuthor && id !== 'pan' && !isOnAssignedPage) || (isAuthor && id === 'question');
   
+
+  
   return (
     <Tooltip title={instruction.title} description={instruction.description} side="right">
       <Button

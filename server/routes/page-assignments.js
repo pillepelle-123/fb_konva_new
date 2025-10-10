@@ -100,4 +100,40 @@ router.delete('/', authenticateToken, async (req, res) => {
   }
 });
 
+// Bulk update page assignments
+router.put('/book/:bookId', authenticateToken, async (req, res) => {
+  try {
+    const { bookId } = req.params;
+    const { assignments } = req.body;
+    
+    // Check if user is publisher/owner
+    const bookCheck = await pool.query(
+      'SELECT owner_id FROM public.books WHERE id = $1',
+      [bookId]
+    );
+    
+    if (bookCheck.rows[0]?.owner_id !== req.user.id) {
+      return res.status(403).json({ error: 'Only book owners can update page assignments' });
+    }
+    
+    // Clear existing assignments for this book
+    await pool.query('DELETE FROM public.page_assignments WHERE book_id = $1', [bookId]);
+    
+    // Insert new assignments
+    for (const assignment of assignments) {
+      if (assignment.userId) {
+        await pool.query(`
+          INSERT INTO public.page_assignments (page_id, user_id, book_id, assigned_by)
+          VALUES ($1, $2, $3, $4)
+        `, [assignment.pageNumber, assignment.userId, bookId, req.user.id]);
+      }
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating page assignments:', error);
+    res.status(500).json({ error: 'Failed to update page assignments' });
+  }
+});
+
 module.exports = router;

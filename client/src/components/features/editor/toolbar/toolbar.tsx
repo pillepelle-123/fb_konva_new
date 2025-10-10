@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useEditor } from '../../../../context/editor-context';
 import { ToolbarContainer } from './toolbar-container';
 import { ToolbarHeader } from './toolbar-header';
@@ -30,6 +30,13 @@ export default function Toolbar() {
   const isOnAssignedPage = state.userRole === 'author' 
     ? state.assignedPages.includes(state.activePageIndex + 1)
     : true;
+  
+  // Force collapsed state for authors on non-assigned pages
+  useEffect(() => {
+    if (state.userRole === 'author' && !isOnAssignedPage) {
+      setIsExpanded(false);
+    }
+  }, [state.userRole, isOnAssignedPage]);
 
   const toolGroups = [
     {
@@ -86,6 +93,7 @@ export default function Toolbar() {
           onToggle={() => setIsExpanded(!isExpanded)}
           activeTool={state.activeTool}
           toolGroups={toolGroups}
+          hideToggle={state.userRole === 'author' && !isOnAssignedPage}
         />
         <div>
           <ToolbarContent 

@@ -47,6 +47,7 @@ app.use('/api/images', require('./routes/images'));
 app.use('/api/page-assignments', require('./routes/page-assignments'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/friendships', require('./routes/friendships'));
+app.use('/api/friends', require('./routes/friends'));
 app.use('/api/answers', require('./routes/answers'));
 app.use('/api/messenger', require('./routes/messenger'));
 app.use('/api/dashboard', require('./routes/dashboard'));

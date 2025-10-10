@@ -16,20 +16,23 @@ import UndoRedoControls from './undo-redo-controls';
 import UnsavedChangesDialog from '../../../ui/overlays/unsaved-changes-dialog';
 import ConfirmationDialog from '../../../ui/overlays/confirmation-dialog';
 import AlertDialog from '../../../ui/overlays/alert-dialog';
-import { LayoutGrid, Settings, Palette, Divide, Book, UserPen, UserStar, Users } from 'lucide-react';
+import { LayoutGrid, Settings, Palette, Divide, Book, UserPen, UserStar, Users, File } from 'lucide-react';
 import { Button } from '../../../ui/primitives/button';
 import { X } from 'lucide-react';
 import { Tooltip } from '../../../ui/composites/tooltip';
 import { EditorBarContainer } from './editor-bar-container';
+import PageUserSheet from '../../books/page-user-sheet';
+import PageUserIcon from '../../../ui/icons/page-user-icon';
 
 export default function EditorBar() {
-  const { state, dispatch, saveBook } = useEditor();
+  const { state, dispatch, saveBook, refreshPageAssignments } = useEditor();
   const navigate = useNavigate();
   const [isSaving, setIsSaving] = useState(false);
   const [showPDFModal, setShowPDFModal] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showAlert, setShowAlert] = useState<{ title: string; message: string } | null>(null);
+  const [showPagesSheet, setShowPagesSheet] = useState(false);
 
 
 
@@ -100,6 +103,8 @@ export default function EditorBar() {
 
   const handleDuplicatePage = () => {
     dispatch({ type: 'DUPLICATE_PAGE', payload: state.activePageIndex });
+    // Navigate to the newly created page (current index + 1)
+    dispatch({ type: 'SET_ACTIVE_PAGE', payload: state.activePageIndex + 1 });
   };
 
   const handleGoToPage = (page: number) => {
@@ -152,17 +157,18 @@ export default function EditorBar() {
                   
                   <div className="hidden md:block h-6 w-px bg-border" />
                   
-                  <Tooltip content="Assign friends to this page" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => navigate(`/books/${state.currentBook.id}/friends?page=${currentPage}`)}
-                      disabled={state.userRole === 'author'}
-                      className={`h-8 md:h-9 px-2 md:px-3 ${state.userRole === 'author' ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                      <Users className="h-3 w-3 md:h-4 md:w-4" />
-                    </Button>
-                  </Tooltip>
+                  {state.userRole === 'publisher' && (
+                    <Tooltip content="Page User Manager" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowPagesSheet(true)}
+                        className="h-8 md:h-9 px-2"
+                      >
+                          <PageUserIcon className="h-8 w-8" />
+                      </Button>
+                    </Tooltip>
+                  )}
                   
                   <PageAssignments currentPage={currentPage} bookId={state.currentBook.id} />
                 </div>
@@ -259,6 +265,16 @@ export default function EditorBar() {
         message={showAlert?.message || ''}
         onClose={() => setShowAlert(null)}
       />
+      
+      <PageUserSheet
+        open={showPagesSheet}
+        onOpenChange={setShowPagesSheet}
+        bookId={state.currentBook.id}
+        onSaved={() => {
+          // Refresh page assignments display
+          refreshPageAssignments();
+        }}
+      />
     </>
   );
 }
@@ -266,28 +282,47 @@ export default function EditorBar() {
 function PageAssignments({ currentPage, bookId }: { currentPage: number; bookId: number }) {
   const { token } = useAuth();
   const { state } = useEditor();
-  const [assignedUsers, setAssignedUsers] = useState<any[]>([]);
+  const [assignedUser, setAssignedUser] = useState<any>(null);
   const [publisher, setPublisher] = useState<any>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
     fetchPageAssignments();
     fetchPublisher();
-  }, [currentPage, bookId]);
+  }, [currentPage, bookId, refreshTrigger, state.pageAssignments]);
+
+  // Listen for page assignment updates
+  useEffect(() => {
+    const handlePageAssignmentUpdate = () => {
+      setRefreshTrigger(prev => prev + 1);
+    };
+    
+    window.addEventListener('pageAssignmentUpdated', handlePageAssignmentUpdate);
+    return () => window.removeEventListener('pageAssignmentUpdated', handlePageAssignmentUpdate);
+  }, []);
 
   const fetchPageAssignments = async () => {
     try {
+      // Always check editor context first for current assignments
+      const assignment = state.pageAssignments[currentPage];
+      if (assignment !== undefined) {
+        setAssignedUser(assignment);
+        return;
+      }
+      
+      // Fallback to database only if no assignment in state
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const response = await fetch(`${apiUrl}/page-assignments/book/${bookId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.ok) {
         const data = await response.json();
-        const pageAssignments = data.filter((assignment: any) => assignment.page_id === currentPage);
-        setAssignedUsers(pageAssignments.map((assignment: any) => ({
-          id: assignment.user_id,
-          name: assignment.name,
-          email: assignment.email
-        })));
+        const pageAssignment = data.find((assignment: any) => assignment.page_id === currentPage);
+        setAssignedUser(pageAssignment ? {
+          id: pageAssignment.user_id,
+          name: pageAssignment.name,
+          email: pageAssignment.email
+        } : null);
       }
     } catch (error) {
       // Error fetching page assignments
@@ -326,19 +361,18 @@ function PageAssignments({ currentPage, bookId }: { currentPage: number; bookId:
 
   return (
     <div className="flex items-center gap-4">
-      {assignedUsers.length > 0 && (
+      {assignedUser && (
         <div className="flex items-center gap-2">
-          <Tooltip content="Assigned author(s)" side="bottom_editor_bar">
+          <Tooltip content="Assigned author" side="bottom_editor_bar">
             <span className="text-xs text-muted-foreground">
               <UserPen className="h-3 w-3 md:h-4 md:w-4" />
             </span>
           </Tooltip>
-          <StackedAvatarGroup users={assignedUsers} maxVisible={2} />
-      <div className="hidden md:block h-6 w-px bg-border" />
-
+          <StackedAvatarGroup users={[assignedUser]} maxVisible={1} />
+          <div className="hidden md:block h-6 w-px bg-border" />
         </div>
       )}
-      {publisher ? (
+      {/* {publisher ? (
         <div className="flex items-center gap-2">
           <Tooltip content="Book's publisher" side="bottom_editor_bar">
             <span className="text-xs text-muted-foreground">
@@ -353,7 +387,7 @@ function PageAssignments({ currentPage, bookId }: { currentPage: number; bookId:
             <UserStar className="h-3 w-3 md:h-4 md:w-4" />
           </div>
         </Tooltip>
-      )}
+      )} */}
     </div>
   );
 }

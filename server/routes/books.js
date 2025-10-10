@@ -416,8 +416,9 @@ router.post('/:id/collaborators', authenticateToken, async (req, res) => {
 router.post('/:id/friends', authenticateToken, async (req, res) => {
   try {
     const bookId = req.params.id;
-    const { friendId, role = 'author' } = req.body;
+    const { friendId, userId: targetUserId, role = 'author' } = req.body;
     const userId = req.user.id;
+    const userToAdd = friendId || targetUserId;
 
     // Check if user has access to manage this book
     const bookAccess = await pool.query(`
@@ -433,7 +434,7 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
     // Verify the friend relationship exists
     const friendship = await pool.query(
       'SELECT * FROM public.friendships WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)',
-      [userId, friendId]
+      [userId, userToAdd]
     );
 
     if (friendship.rows.length === 0) {
@@ -443,7 +444,7 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
     // Add friend to book
     await pool.query(
       'INSERT INTO public.book_friends (book_id, user_id, book_role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-      [bookId, friendId, role]
+      [bookId, userToAdd, role]
     );
 
     res.json({ success: true });
@@ -696,6 +697,13 @@ router.delete('/:id/friends/:friendId', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
+    // Remove page assignments first
+    await pool.query(
+      'DELETE FROM public.page_assignments WHERE book_id = $1 AND user_id = $2',
+      [bookId, friendId]
+    );
+
+    // Remove from book_friends
     await pool.query(
       'DELETE FROM public.book_friends WHERE book_id = $1 AND user_id = $2',
       [bookId, friendId]
@@ -704,6 +712,48 @@ router.delete('/:id/friends/:friendId', authenticateToken, async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('Friend removal error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Update page order
+router.put('/:id/page-order', authenticateToken, async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const { pageOrder } = req.body;
+    const userId = req.user.id;
+
+    // Check if user is owner or publisher
+    const bookAccess = await pool.query(`
+      SELECT b.*, bf.book_role as user_book_role FROM public.books b
+      LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
+      WHERE b.id = $1 AND (b.owner_id = $2 OR bf.book_role = 'publisher')
+    `, [bookId, userId]);
+
+    if (bookAccess.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // First, set all page numbers to negative values to avoid conflicts
+    await pool.query(
+      'UPDATE public.pages SET page_number = -page_number WHERE book_id = $1',
+      [bookId]
+    );
+    
+    // Then update to new page numbers based on order
+    for (let i = 0; i < pageOrder.length; i++) {
+      const newPageNumber = i + 1;
+      const oldPageNumber = pageOrder[i];
+      
+      await pool.query(
+        'UPDATE public.pages SET page_number = $1 WHERE book_id = $2 AND page_number = $3',
+        [newPageNumber, bookId, -oldPageNumber]
+      );
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Page order update error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

@@ -4,4 +4,5 @@ export { ContextMenu, ContextMenuCheckboxItem, ContextMenuContent, ContextMenuIt
 export { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from './dialog';
 export { Modal } from './modal';
 export { Popover, PopoverContent, PopoverTrigger } from './popover';
+export { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from './sheet';
 export { UnsavedChangesDialog } from './unsaved-changes-dialog';

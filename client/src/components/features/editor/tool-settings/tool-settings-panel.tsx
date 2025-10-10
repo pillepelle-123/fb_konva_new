@@ -96,6 +96,17 @@ export default function ToolSettingsPanel() {
     }
   }, [state.selectedElementIds.length, isCollapsed]);
 
+  const isOnAssignedPage = state.userRole === 'author' 
+    ? state.assignedPages.includes(state.activePageIndex + 1)
+    : true;
+  
+  // Force collapsed state for authors on non-assigned pages
+  useEffect(() => {
+    if (state.userRole === 'author' && !isOnAssignedPage) {
+      setIsCollapsed(true);
+    }
+  }, [state.userRole, isOnAssignedPage]);
+
   const shouldShowPanel = !['select', 'pan'].includes(activeTool) || state.selectedElementIds.length > 0;
 
   const renderToolSettings = () => {
@@ -854,14 +865,16 @@ export default function ToolSettingsPanel() {
               })()} 
             </div>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="h-8 w-8 p-0"
-          >
-            {isCollapsed ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          </Button>
+          {!(state.userRole === 'author' && !isOnAssignedPage) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="h-8 w-8 p-0"
+            >
+              {isCollapsed ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </Button>
+          )}
         </div>
         
         {/* Selected Tool Icon Preview (when collapsed) */}

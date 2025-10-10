@@ -26,6 +26,11 @@ interface ToolbarContentProps {
 export function ToolbarContent({ toolGroups, activeTool, isExpanded, userRole, isOnAssignedPage, onToolSelect }: ToolbarContentProps) {
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
 
+  // Hide content for authors on non-assigned pages
+  if (userRole === 'author' && !isOnAssignedPage) {
+    return null;
+  }
+
   return (
     <CardContent className="p-0 overflow-y-auto scrollbar-hide flex-1 min-h-0 relative">
       {toolGroups.map((group, groupIndex) => (
