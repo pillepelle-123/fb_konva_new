@@ -6,17 +6,18 @@ import Konva from 'konva';
 
 interface PagePreviewProps {
   bookId: number;
+  pageId: number;
   pageNumber: number;
 }
 
-export default function PagePreview({ bookId, pageNumber }: PagePreviewProps) {
+export default function PagePreview({ bookId, pageId, pageNumber }: PagePreviewProps) {
   const { token } = useAuth();
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const stageRef = useRef<Konva.Stage | null>(null);
 
   useEffect(() => {
     generatePagePreview();
-  }, [bookId, pageNumber]);
+  }, [bookId, pageId]);
 
   const generatePagePreview = async () => {
     try {
@@ -27,7 +28,7 @@ export default function PagePreview({ bookId, pageNumber }: PagePreviewProps) {
       
       if (response.ok) {
         const book = await response.json();
-        const page = book.pages.find((p: any) => p.pageNumber === pageNumber);
+        const page = book.pages.find((p: any) => p.id === pageId);
         
         console.log('Page elements:', page?.elements);
         

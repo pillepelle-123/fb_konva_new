@@ -62,6 +62,7 @@ export interface EditorState {
   userRole?: 'author' | 'publisher' | null;
   assignedPages: number[];
   pageAssignments: Record<number, any>; // pageNumber -> user
+  bookFriends?: any[];
   editorBarVisible: boolean;
   toolbarVisible: boolean;
   hasUnsavedChanges: boolean;
@@ -102,7 +103,8 @@ type EditorAction =
   | { type: 'GO_TO_HISTORY_STEP'; payload: number }
   | { type: 'SAVE_TO_HISTORY'; payload: string }
   | { type: 'UPDATE_PAGE_NUMBERS'; payload: { pageId: number; newPageNumber: number }[] }
-  | { type: 'SET_PAGE_ASSIGNMENTS'; payload: Record<number, any> };
+  | { type: 'SET_PAGE_ASSIGNMENTS'; payload: Record<number, any> }
+  | { type: 'SET_BOOK_FRIENDS'; payload: any[] };
 
 const initialState: EditorState = {
   currentBook: null,
@@ -113,6 +115,7 @@ const initialState: EditorState = {
   userRole: null,
   assignedPages: [],
   pageAssignments: {},
+  bookFriends: undefined,
   editorBarVisible: true,
   toolbarVisible: true,
   hasUnsavedChanges: false,
@@ -453,6 +456,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case 'SET_PAGE_ASSIGNMENTS':
       return { ...state, pageAssignments: action.payload, hasUnsavedChanges: true };
     
+    case 'SET_BOOK_FRIENDS':
+      return { ...state, bookFriends: action.payload, hasUnsavedChanges: true };
+    
     default:
       return state;
   }
@@ -597,9 +603,61 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         });
       }
       
+      // Save book friends if any exist
+      if (state.bookFriends && state.bookFriends.length > 0) {
+        // Get current book friends from database
+        const currentFriendsResponse = await fetch(`${apiUrl}/books/${state.currentBook.id}/friends`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (currentFriendsResponse.ok) {
+          const currentFriends = await currentFriendsResponse.json();
+          const currentFriendIds = new Set(currentFriends.map(f => f.id));
+          const newFriendIds = new Set(state.bookFriends.map(f => f.id));
+          
+          // Add new friends
+          for (const friend of state.bookFriends) {
+            if (!currentFriendIds.has(friend.id)) {
+              await fetch(`${apiUrl}/books/${state.currentBook.id}/friends`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ friendId: friend.id, role: friend.role })
+              });
+            } else {
+              // Update role if changed
+              const currentFriend = currentFriends.find(f => f.id === friend.id);
+              if (currentFriend && currentFriend.role !== friend.role) {
+                await fetch(`${apiUrl}/books/${state.currentBook.id}/friends/${friend.id}/role`, {
+                  method: 'PUT',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                  },
+                  body: JSON.stringify({ role: friend.role })
+                });
+              }
+            }
+          }
+          
+          // Remove friends that are no longer in the list
+          for (const currentFriend of currentFriends) {
+            if (!newFriendIds.has(currentFriend.id)) {
+              await fetch(`${apiUrl}/books/${state.currentBook.id}/friends/${currentFriend.id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+            }
+          }
+        }
+      }
+      
       // Clear temporary data after successful save
       dispatch({ type: 'CLEAR_TEMP_DATA' });
       dispatch({ type: 'SET_PAGE_ASSIGNMENTS', payload: {} });
+      dispatch({ type: 'SET_BOOK_FRIENDS', payload: [] });
       dispatch({ type: 'MARK_SAVED' });
     } catch (error) {
       throw error;

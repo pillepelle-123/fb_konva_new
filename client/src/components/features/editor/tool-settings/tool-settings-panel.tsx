@@ -100,10 +100,14 @@ export default function ToolSettingsPanel() {
     ? state.assignedPages.includes(state.activePageIndex + 1)
     : true;
   
-  // Force collapsed state for authors on non-assigned pages
+  // Force collapsed state for authors on non-assigned pages, auto-open for assigned pages
   useEffect(() => {
-    if (state.userRole === 'author' && !isOnAssignedPage) {
-      setIsCollapsed(true);
+    if (state.userRole === 'author') {
+      if (!isOnAssignedPage) {
+        setIsCollapsed(true);
+      } else {
+        setIsCollapsed(false);
+      }
     }
   }, [state.userRole, isOnAssignedPage]);
 

@@ -51,7 +51,8 @@ export default function PagesContent({ bookId, bookFriends: propBookFriends, onS
     // Editor context not available, work standalone
   }
   const [pages, setPages] = useState<PageAssignment[]>([]);
-  const [bookFriends, setBookFriends] = useState<BookFriend[]>(propBookFriends || []);
+  const [localBookFriends, setLocalBookFriends] = useState<BookFriend[]>([]);
+  const bookFriends = propBookFriends || localBookFriends;
   const [allFriends, setAllFriends] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
@@ -62,19 +63,15 @@ export default function PagesContent({ bookId, bookFriends: propBookFriends, onS
     fetchData();
   }, [bookId, editorState?.currentBook?.pages?.length, editorState?.pageAssignments]);
 
-  useEffect(() => {
-    if (propBookFriends) {
-      setBookFriends(propBookFriends);
-    }
-  }, [propBookFriends]);
+
 
   const fetchData = async () => {
     try {
-      await Promise.all([
-        fetchPages(),
-        fetchBookFriends(),
-        fetchAllFriends()
-      ]);
+      const promises = [fetchPages(), fetchAllFriends()];
+      if (!propBookFriends) {
+        promises.push(fetchBookFriends());
+      }
+      await Promise.all(promises);
     } finally {
       setLoading(false);
     }
@@ -132,6 +129,9 @@ export default function PagesContent({ bookId, bookFriends: propBookFriends, onS
   };
 
   const fetchBookFriends = async () => {
+    // Skip fetching if bookFriends are provided as prop (sheet context)
+    if (propBookFriends) return;
+    
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const response = await fetch(`${apiUrl}/books/${bookId}/friends`, {
@@ -139,7 +139,7 @@ export default function PagesContent({ bookId, bookFriends: propBookFriends, onS
       });
       if (response.ok) {
         const data = await response.json();
-        setBookFriends(data);
+        setLocalBookFriends(data);
       }
     } catch (error) {
       console.error('Error fetching book friends:', error);
@@ -199,8 +199,10 @@ export default function PagesContent({ bookId, bookFriends: propBookFriends, onS
         : page
     ));
     
-    // Remove from book friends list
-    setBookFriends(bookFriends.filter(friend => friend.id !== userId));
+    // Remove from book friends list (only if managing local state)
+    if (!propBookFriends) {
+      setLocalBookFriends(bookFriends.filter(friend => friend.id !== userId));
+    }
   };
 
   const addUserToBook = async (userId: number) => {
@@ -216,7 +218,9 @@ export default function PagesContent({ bookId, bookFriends: propBookFriends, onS
       });
       
       if (response.ok) {
-        await fetchBookFriends();
+        if (!propBookFriends) {
+          await fetchBookFriends();
+        }
         setShowAddUserDialog(false);
       }
     } catch (error) {
@@ -289,7 +293,7 @@ export default function PagesContent({ bookId, bookFriends: propBookFriends, onS
       <div className="flex-1 overflow-y-auto space-y-4 pr-2">
         <div className="grid gap-4">
         {pages.map((page, index) => (
-          <Card key={page.pageId} className="transition-shadow">
+          <Card key={`${page.pageId}-${index}`} className="transition-shadow">
             <CardContent className="p-4">
               <div className="flex items-center gap-4">
                 {/* Move Controls */}
@@ -316,7 +320,7 @@ export default function PagesContent({ bookId, bookFriends: propBookFriends, onS
 
                 {/* Page Preview */}
                 <div className="flex-shrink-0">
-                  <PagePreview key={page.pageId} bookId={bookId} pageId={page.pageId} pageNumber={page.pageNumber} />
+                  <PagePreview key={`${page.pageId}-${page.pageNumber}`} bookId={bookId} pageId={page.pageId} pageNumber={page.pageNumber} />
                 </div>
 
                 {/* Page Info */}
