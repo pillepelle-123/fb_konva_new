@@ -32,10 +32,22 @@ export interface CanvasElement {
   rotation?: number;
 }
 
+export interface PageBackground {
+  type: 'color' | 'pattern' | 'image';
+  value: string; // color hex, pattern name, or image URL
+  opacity?: number;
+  imageSize?: 'cover' | 'contain' | 'stretch';
+  imageRepeat?: boolean; // for contain mode
+  patternSize?: number; // 1-10 scale for pattern size
+  patternForegroundColor?: string; // pattern drawing color
+  patternBackgroundColor?: string; // pattern background color
+}
+
 export interface Page {
   id: number;
   pageNumber: number;
   elements: CanvasElement[];
+  background?: PageBackground;
 }
 
 export interface Book {
@@ -104,7 +116,8 @@ type EditorAction =
   | { type: 'SAVE_TO_HISTORY'; payload: string }
   | { type: 'UPDATE_PAGE_NUMBERS'; payload: { pageId: number; newPageNumber: number }[] }
   | { type: 'SET_PAGE_ASSIGNMENTS'; payload: Record<number, any> }
-  | { type: 'SET_BOOK_FRIENDS'; payload: any[] };
+  | { type: 'SET_BOOK_FRIENDS'; payload: any[] }
+  | { type: 'UPDATE_PAGE_BACKGROUND'; payload: { pageIndex: number; background: PageBackground } };
 
 const initialState: EditorState = {
   currentBook: null,
@@ -458,6 +471,16 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'SET_BOOK_FRIENDS':
       return { ...state, bookFriends: action.payload, hasUnsavedChanges: true };
+    
+    case 'UPDATE_PAGE_BACKGROUND':
+      if (!state.currentBook) return state;
+      const savedBgState = saveToHistory(state, 'Update Page Background');
+      const updatedBookBg = { ...savedBgState.currentBook! };
+      const targetPage = updatedBookBg.pages[action.payload.pageIndex];
+      if (targetPage) {
+        targetPage.background = action.payload.background;
+      }
+      return { ...savedBgState, currentBook: updatedBookBg, hasUnsavedChanges: true };
     
     default:
       return state;

@@ -34,7 +34,7 @@ export function ToolbarHeader({ isExpanded, onToggle, activeTool, toolGroups, hi
     <CardHeader className="p-1 pr-1 border-b">
       <div className="flex items-center justify-center">
         {isExpanded && activeToolData && (
-          <Button variant="default" size="sm" className="h-10 pointer-events-none flex-1 mr-2">
+          <Button variant="secondary" size="xs" className=" pointer-events-none flex-1 mr-2">
             <activeToolData.icon className="h-4 w-4 mr-2" />
             {activeToolData.label}
           </Button>

@@ -17,7 +17,9 @@ import { Dialog, DialogContent } from '../../../ui/overlays/dialog';
 import ImagesContent from '../../images/images-content';
 import QuestionsManagerContent from '../../questions/questions-manager-content';
 import TextEditorModal from '../text-editor-modal';
-import ToolSettingsPanel from '../tool-settings/tool-settings-panel';
+
+import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
+import type { PageBackground } from '../../../../context/editor-context';
 
 function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
   return (
@@ -254,40 +256,41 @@ export default function Canvas() {
         }
       }
     } else if (state.activeTool === 'select') {
-      // Only handle background clicks for selection rectangle
-      const isBackgroundClick = e.target === e.target.getStage() || 
-        (e.target.getClassName() === 'Rect' && !e.target.id());
-      
-      if (!isBackgroundClick) return;
-      
       const pos = e.target.getStage()?.getPointerPosition();
       if (!pos) return;
       
       const x = (pos.x - stagePos.x) / zoom;
       const y = (pos.y - stagePos.y) / zoom;
       
-      // Check if double-click is within selected elements bounds
-      if (isDoubleClick && state.selectedElementIds.length > 0) {
-        const isWithinSelection = isPointWithinSelectedElements(x, y);
-        if (isWithinSelection) {
-          // Don't start group move if clicking on a text element - let it handle double-click
-          const clickedElement = currentPage?.elements.find(el => {
-            return state.selectedElementIds.includes(el.id) && 
-                   x >= el.x && x <= el.x + (el.width || 100) &&
-                   y >= el.y && y <= el.y + (el.height || 100);
-          });
-          
-          if (clickedElement?.type !== 'text') {
-            setIsMovingGroup(true);
-            setGroupMoveStart({ x, y });
-          }
-          return;
-        }
-      }
+      // Check if clicking on background (stage or page boundary)
+      const isBackgroundClick = e.target === e.target.getStage() || 
+        (e.target.getClassName() === 'Rect' && !e.target.id());
       
-      setIsSelecting(true);
-      setSelectionStart({ x, y });
-      setSelectionRect({ x, y, width: 0, height: 0, visible: true });
+      if (isBackgroundClick) {
+        // Check if double-click is within selected elements bounds
+        if (isDoubleClick && state.selectedElementIds.length > 0) {
+          const isWithinSelection = isPointWithinSelectedElements(x, y);
+          if (isWithinSelection) {
+            // Don't start group move if clicking on a text element - let it handle double-click
+            const clickedElement = currentPage?.elements.find(el => {
+              return state.selectedElementIds.includes(el.id) && 
+                     x >= el.x && x <= el.x + (el.width || 100) &&
+                     y >= el.y && y <= el.y + (el.height || 100);
+            });
+            
+            if (clickedElement?.type !== 'text') {
+              setIsMovingGroup(true);
+              setGroupMoveStart({ x, y });
+            }
+            return;
+          }
+        }
+        
+        // Start selection rectangle for background clicks
+        setIsSelecting(true);
+        setSelectionStart({ x, y });
+        setSelectionRect({ x, y, width: 0, height: 0, visible: true });
+      }
     } else {
       // Handle element creation for other tools
       const pos = e.target.getStage()?.getPointerPosition();
@@ -861,15 +864,112 @@ export default function Canvas() {
     // Don't clear selection on right-click
     if (e.evt.button === 2) return;
     
-    // Only handle select tool clicks here
-    if (state.activeTool === 'select') {
-      const isBackgroundClick = e.target === e.target.getStage() || 
-        (e.target.getClassName() === 'Rect' && !e.target.id());
+    const isBackgroundClick = e.target === e.target.getStage() || 
+      (e.target.getClassName() === 'Rect' && !e.target.id());
+    
+    if (isBackgroundClick) {
+      // Clear selection for all tools when clicking background
+      dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [] });
       
-      if (isBackgroundClick) {
-        dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [] });
+      // Switch to select tool if not already selected (for background settings)
+      if (state.activeTool !== 'select') {
+        dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
       }
     }
+  };
+
+  const renderBackground = () => {
+    const currentPage = state.currentBook?.pages[state.activePageIndex];
+    const background = currentPage?.background;
+    
+    if (!background) return null;
+
+    const opacity = background.opacity || 1;
+    
+    if (background.type === 'color') {
+      return (
+        <Rect
+          x={pageOffsetX}
+          y={pageOffsetY}
+          width={canvasWidth}
+          height={canvasHeight}
+          fill={background.value}
+          opacity={opacity}
+          listening={false}
+        />
+      );
+    }
+    
+    if (background.type === 'pattern') {
+      const pattern = PATTERNS.find(p => p.id === background.value);
+      if (pattern) {
+        const patternImage = new window.Image();
+        const foregroundColor = background.patternForegroundColor || '#666';
+        const backgroundColor = background.patternBackgroundColor || 'transparent';
+        patternImage.src = createPatternDataUrl(pattern, foregroundColor, backgroundColor);
+        const patternScale = Math.pow(1.5, (background.patternSize || 1) - 1); // Exponential scaling from 1x to ~38x
+        
+        return (
+          <Rect
+            x={pageOffsetX}
+            y={pageOffsetY}
+            width={canvasWidth}
+            height={canvasHeight}
+            fillPatternImage={patternImage}
+            fillPatternScaleX={patternScale}
+            fillPatternScaleY={patternScale}
+            fillPatternRepeat="repeat"
+            opacity={opacity}
+            listening={false}
+          />
+        );
+      }
+    }
+    
+    if (background.type === 'image' && background.value) {
+      const bgImage = new window.Image();
+      bgImage.src = background.value;
+      bgImage.crossOrigin = 'anonymous';
+      
+      let fillPatternScaleX = 1;
+      let fillPatternScaleY = 1;
+      let fillPatternRepeat = 'no-repeat';
+      
+      if (background.imageSize === 'cover') {
+        const scaleX = canvasWidth / (bgImage.width || 1);
+        const scaleY = canvasHeight / (bgImage.height || 1);
+        const scale = Math.max(scaleX, scaleY);
+        fillPatternScaleX = fillPatternScaleY = scale;
+      } else if (background.imageSize === 'contain') {
+        const scaleX = canvasWidth / (bgImage.width || 1);
+        const scaleY = canvasHeight / (bgImage.height || 1);
+        const scale = Math.min(scaleX, scaleY);
+        fillPatternScaleX = fillPatternScaleY = scale;
+        if (background.imageRepeat) {
+          fillPatternRepeat = 'repeat';
+        }
+      } else if (background.imageSize === 'stretch') {
+        fillPatternScaleX = canvasWidth / (bgImage.width || 1);
+        fillPatternScaleY = canvasHeight / (bgImage.height || 1);
+      }
+      
+      return (
+        <Rect
+          x={pageOffsetX}
+          y={pageOffsetY}
+          width={canvasWidth}
+          height={canvasHeight}
+          fillPatternImage={bgImage}
+          fillPatternScaleX={fillPatternScaleX}
+          fillPatternScaleY={fillPatternScaleY}
+          fillPatternRepeat={fillPatternRepeat}
+          opacity={opacity}
+          listening={false}
+        />
+      );
+    }
+    
+    return null;
   };
 
   useEffect(() => {
@@ -1086,6 +1186,9 @@ export default function Canvas() {
           <Layer>
             {/* Page boundary */}
             <CanvasPageEditArea width={canvasWidth} height={canvasHeight} x={pageOffsetX} y={pageOffsetY} />
+            
+            {/* Background Layer */}
+            {renderBackground()}
             
             {/* Canvas elements */}
             <Group x={pageOffsetX} y={pageOffsetY}>
@@ -1384,8 +1487,6 @@ export default function Canvas() {
         </Dialog>
       )}
       </CanvasPageContainer>
-      
-      <ToolSettingsPanel />
     </>
   );
 }

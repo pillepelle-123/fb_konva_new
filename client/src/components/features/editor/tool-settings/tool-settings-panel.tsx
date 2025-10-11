@@ -10,6 +10,9 @@ import { Tabs, TabsList, TabsTrigger } from '../../../ui/composites/tabs';
 import { ButtonGroup } from '../../../ui/composites/button-group';
 import { Modal } from '../../../ui/overlays/modal';
 import ImagesContent from '../../images/images-content';
+import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
+import type { PageBackground } from '../../../../context/editor-context';
+import { Checkbox } from '../../../ui/primitives/checkbox';
 
 const COLORS = [
   '#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff', 
@@ -58,6 +61,10 @@ export default function ToolSettingsPanel() {
   const [isFlashing, setIsFlashing] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedImageElementId, setSelectedImageElementId] = useState<string | null>(null);
+  const [showBackgroundImageModal, setShowBackgroundImageModal] = useState(false);
+  const [showPatternSettings, setShowPatternSettings] = useState(false);
+  const [showBackgroundSettings, setShowBackgroundSettings] = useState(false);
+
   
   const toolSettings = state.toolSettings || {};
   const activeTool = state.activeTool;
@@ -111,7 +118,15 @@ export default function ToolSettingsPanel() {
     }
   }, [state.userRole, isOnAssignedPage]);
 
-  const shouldShowPanel = !['select', 'pan'].includes(activeTool) || state.selectedElementIds.length > 0;
+  // Reset settings views when not showing background settings
+  useEffect(() => {
+    if (activeTool !== 'select' || state.selectedElementIds.length > 0) {
+      setShowPatternSettings(false);
+      setShowBackgroundSettings(false);
+    }
+  }, [activeTool, state.selectedElementIds.length]);
+
+  const shouldShowPanel = activeTool !== 'pan' && (state.selectedElementIds.length > 0 || activeTool === 'select');
 
   const renderToolSettings = () => {
     // Check if we have linked question-answer pair selected
@@ -174,6 +189,11 @@ export default function ToolSettingsPanel() {
       if (selectedElement) {
         return renderElementSettings(selectedElement);
       }
+    }
+    
+    // Show general settings when select tool is active and no elements selected
+    if (activeTool === 'select' && state.selectedElementIds.length === 0) {
+      return renderGeneralSettings();
     }
     
     // Otherwise show tool settings
@@ -458,6 +478,292 @@ export default function ToolSettingsPanel() {
           </div>
         );
     }
+  };
+
+  const renderGeneralSettings = () => {
+    if (showBackgroundSettings) {
+      return renderBackgroundSettings();
+    }
+
+    return (
+      <div className="space-y-1">
+        <Button
+          variant="ghost"
+          size="default"
+          onClick={() => setShowBackgroundSettings(true)}
+          className="w-full justify-start"
+        >
+          <Settings className="h-4 w-4 mr-2 hidden" />
+          Background
+        </Button>
+        {/* Separator */}
+        <div className="h-px bg-gray-200 my-1" />
+        <Button
+          variant="ghost"
+          size="default"
+          // onClick={() => setShowBackgroundSettings(true)}
+          className="w-full justify-start"
+        >
+          {/* <Settings className="h-4 w-4 mr-2" /> */}
+          <Settings className="h-4 w-4 mr-2 hidden" />
+          Setting 2
+        </Button>
+        <div className="h-px bg-gray-200 my-1" />
+        <Button
+          variant="ghost"
+          size="default"
+          // onClick={() => setShowBackgroundSettings(true)}
+          className="w-full justify-start"
+        >
+          {/* <Settings className="h-4 w-4 mr-2" /> */}
+          <Settings className="h-4 w-4 mr-2 hidden" />
+          Setting 3
+        </Button>
+        <div className="h-px bg-gray-200 my-1" />
+      </div>
+    );
+  };
+
+  const renderBackgroundSettings = () => {
+    const currentPage = state.currentBook?.pages[state.activePageIndex];
+    const background = currentPage?.background || { type: 'color', value: '#ffffff', opacity: 1 };
+    const isPattern = background.type === 'pattern';
+    const currentColor = isPattern ? (background.patternForegroundColor || '#666666') : background.value;
+
+    const updateBackground = (updates: Partial<PageBackground>) => {
+      const newBackground = { ...background, ...updates };
+      dispatch({
+        type: 'UPDATE_PAGE_BACKGROUND',
+        payload: { pageIndex: state.activePageIndex, background: newBackground }
+      });
+    };
+
+    const togglePattern = (checked: boolean) => {
+      if (checked) {
+        updateBackground({
+          type: 'pattern',
+          value: 'dots',
+          patternForegroundColor: currentColor,
+          patternBackgroundColor: 'transparent'
+        });
+        setShowPatternSettings(true);
+      } else {
+        updateBackground({
+          type: 'color',
+          value: currentColor
+        });
+        setShowPatternSettings(false);
+      }
+    };
+
+    if (showPatternSettings && isPattern) {
+      return (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 mb-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowPatternSettings(false)}
+              className="px-2 h-8"
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Back
+            </Button>
+            <span className="text-xs font-medium">Pattern Settings</span>
+          </div>
+          
+          <div>
+            <label className="text-xs font-medium block mb-1">Pattern</label>
+            <div className="grid grid-cols-2 gap-1">
+              {PATTERNS.map((pattern) => {
+                const patternDataUrl = createPatternDataUrl(
+                  pattern,
+                  background.patternForegroundColor || '#666666',
+                  background.patternBackgroundColor || 'transparent'
+                );
+                
+                return (
+                  <button
+                    key={pattern.id}
+                    className={`w-full h-8 border rounded ${
+                      background.value === pattern.id ? 'border-blue-500' : 'border-gray-200'
+                    }`}
+                    style={{ backgroundImage: `url(${patternDataUrl})` }}
+                    onClick={() => updateBackground({ value: pattern.id })}
+                    title={pattern.name}
+                  />
+                );
+              })}
+            </div>
+          </div>
+          
+          <div>
+            <label className="text-xs font-medium block mb-1">Pattern Size</label>
+            <input
+              type="range"
+              value={background.patternSize || 1}
+              onChange={(e) => updateBackground({ patternSize: parseInt(e.target.value) })}
+              max={10}
+              min={1}
+              step={1}
+              className="w-full"
+            />
+            <span className="text-xs text-muted-foreground">Size: {background.patternSize || 1}</span>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        <div className="flex gap-2 mb-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowBackgroundSettings(false)}
+            className="px-2 h-8"
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+        </div>
+        
+        <div>
+          <label className="text-xs font-medium block mb-2">Background Type</label>
+          <div className="grid grid-cols-2 gap-1">
+            <Button
+              variant={background.type === 'color' || background.type === 'pattern' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => updateBackground({ type: 'color', value: '#ffffff' })}
+              className="text-xs"
+            >
+              Color
+            </Button>
+            <Button
+              variant={background.type === 'image' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => updateBackground({ type: 'image', value: '', imageSize: 'cover' })}
+              className="text-xs"
+            >
+              Image
+            </Button>
+          </div>
+        </div>
+
+        {(background.type === 'color' || background.type === 'pattern') && (
+          <div className="space-y-2">
+            <div>
+              <label className="text-xs font-medium block mb-1">Color</label>
+              <div className="grid grid-cols-5 gap-1">
+                {COLORS.map(color => (
+                  <button
+                    key={color}
+                    className={`w-6 h-6 rounded border ${
+                      currentColor === color ? 'border-gray-400' : 'border-gray-200'
+                    }`}
+                    style={{ backgroundColor: color }}
+                    onClick={() => {
+                      if (isPattern) {
+                        updateBackground({ patternForegroundColor: color });
+                      } else {
+                        updateBackground({ value: color });
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="pattern"
+                checked={isPattern}
+                onCheckedChange={togglePattern}
+              />
+              <label htmlFor="pattern" className="text-xs font-medium cursor-pointer">
+                Pattern
+              </label>
+            </div>
+          </div>
+        )}
+
+        {background.type === 'image' && (
+          <div className="space-y-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowBackgroundImageModal(true)}
+              className="w-full"
+            >
+              <Image className="h-4 w-4 mr-2" />
+              {background.value ? 'Change Image' : 'Select Image'}
+            </Button>
+            
+            {background.value && (
+              <div className="space-y-2">
+                <div>
+                  <label className="text-xs font-medium block mb-1">Size</label>
+                  <div className="grid grid-cols-3 gap-1">
+                    <Button
+                      variant={background.imageSize === 'cover' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => updateBackground({ imageSize: 'cover' })}
+                      className="text-xs"
+                    >
+                      Cover
+                    </Button>
+                    <Button
+                      variant={background.imageSize === 'contain' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => updateBackground({ imageSize: 'contain' })}
+                      className="text-xs"
+                    >
+                      Contain
+                    </Button>
+                    <Button
+                      variant={background.imageSize === 'stretch' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => updateBackground({ imageSize: 'stretch' })}
+                      className="text-xs"
+                    >
+                      Stretch
+                    </Button>
+                  </div>
+                </div>
+                
+                {background.imageSize === 'contain' && (
+                  <div>
+                    <label className="flex items-center gap-1 text-xs font-medium">
+                      <input
+                        type="checkbox"
+                        checked={background.imageRepeat || false}
+                        onChange={(e) => updateBackground({ imageRepeat: e.target.checked })}
+                        className="rounded w-3 h-3"
+                      />
+                      Repeat
+                    </label>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div>
+          <label className="text-xs font-medium block mb-1">Opacity</label>
+          <input
+            type="range"
+            value={(background.opacity || 1) * 100}
+            onChange={(e) => updateBackground({ opacity: parseInt(e.target.value) / 100 })}
+            max={100}
+            min={0}
+            step={5}
+            className="w-full"
+          />
+          <span className="text-xs text-muted-foreground">{Math.round((background.opacity || 1) * 100)}%</span>
+        </div>
+      </div>
+    );
   };
 
   const renderElementSettings = (element: any) => {
@@ -789,6 +1095,7 @@ export default function ToolSettingsPanel() {
         isExpanded={!isCollapsed} 
         isVisible={true}
       >
+
         {/* Header with Collapse Button */}
         <div className="flex items-center justify-between py-1 px-2 border-b">
           {!isCollapsed && (
@@ -847,8 +1154,8 @@ export default function ToolSettingsPanel() {
                         value={0} 
                         className="flex-1"
                       >
-                        <TabsList className="grid w-full grid-cols-1">
-                          <TabsTrigger value={selectedElement.id} className="text-sm text-primary">
+                        <TabsList className="grid w-full grid-cols-1 h-8">
+                          <TabsTrigger value={selectedElement.id} className="text-sm text-primary h-8 -mt-1">
                             {IconComponent && <IconComponent className="h-4 w-4 mr-1" />}
                             {elementType.charAt(0).toUpperCase() + elementType.slice(1)}
                           </TabsTrigger>
@@ -858,6 +1165,22 @@ export default function ToolSettingsPanel() {
                   }
                   return `Element Settings (${state.selectedElementIds.length})`;
                 } else {
+                  if (activeTool === 'select') {
+                    let settingsName = 'Page Settings';
+                    if (showBackgroundSettings) {
+                      if (showPatternSettings) {
+                        settingsName = 'Pattern Settings';
+                      } else {
+                        settingsName = 'Background Settings';
+                      }
+                    }
+                    return (
+                      <>
+                        <Settings className="h-4 w-4" />
+                        {settingsName}
+                      </>
+                    );
+                  }
                   const IconComponent = TOOL_ICONS[activeTool as keyof typeof TOOL_ICONS];
                   return (
                     <>
@@ -924,7 +1247,7 @@ export default function ToolSettingsPanel() {
         
         {/* Tool Settings Main Area */}
         {!isCollapsed && (
-          <div className="flex-1 overflow-y-auto p-2">
+          <div className="flex-1 overflow-y-auto scrollbar-hide p-2">
             {shouldShowPanel ? renderToolSettings() : (
               <div className="text-xs text-muted-foreground">
                 Select a tool or element to view settings.
@@ -1094,6 +1417,23 @@ export default function ToolSettingsPanel() {
           }}
         />
       </Modal>
+      
+      <Modal
+        isOpen={showBackgroundImageModal}
+        onClose={() => setShowBackgroundImageModal(false)}
+        title="Select Background Image"
+      >
+        <ImagesContent
+          token={token || ''}
+          mode="select"
+          onImageSelect={(imageId: number, imageUrl: string) => {
+            updateBackground({ type: 'image', value: imageUrl });
+            setShowBackgroundImageModal(false);
+          }}
+          onClose={() => setShowBackgroundImageModal(false)}
+        />
+      </Modal>
+
     </>
   );
 }

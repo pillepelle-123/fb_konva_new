@@ -28,14 +28,21 @@ export function ToolGroup({ name, tools, activeTool, isExpanded, showSeparator, 
   if (isSubmenuActive) {
     return (
       <div className="absolute inset-0 bg-background z-10">
-        <div className="p-2">
-          <button 
+        <div className="p-1">
+          <div className="flex flex-col">
+
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => onSubmenuChange?.(null)}
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-3"
+            className="px-2 h-8"
           >
-            <ChevronLeft className="h-3 w-3" />
+            <ChevronLeft className="h-4 w-4 mr-1" />
             Back
-          </button>
+          </Button>
+
+          
+          </div>
           <div className="grid grid-cols-2 gap-1">
             {tools.map(tool => (
               <ToolButton
@@ -67,7 +74,7 @@ export function ToolGroup({ name, tools, activeTool, isExpanded, showSeparator, 
       {isExpanded ? (
         <Button 
           variant="ghost" 
-          className="w-full justify-between px-3 py-2 relative overflow-hidden"
+          className="w-full justify-between px-0 py-2 rlative overflow-hidden"
           onClick={() => onSubmenuChange?.(name)}
         >
           <ToolGroupLabel>{name}</ToolGroupLabel>

@@ -32,7 +32,7 @@ export function ToolbarContent({ toolGroups, activeTool, isExpanded, userRole, i
   }
 
   return (
-    <CardContent className="p-0 overflow-y-auto scrollbar-hide flex-1 min-h-0 relative">
+    <CardContent className="p-2 overflow-y-auto scrollbar-hide flex-1 min-h-0 relative">
       {toolGroups.map((group, groupIndex) => (
         <ToolGroup
           key={group.name}
