@@ -1,32 +1,30 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
 const { Pool } = require('pg');
 const { authenticateToken } = require('../middleware/auth');
 const sharp = require('sharp');
+const AWS = require('aws-sdk');
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-// Configure multer for image uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const userDir = path.join(__dirname, '../uploads', req.user.id.toString());
-    if (!fs.existsSync(userDir)) {
-      fs.mkdirSync(userDir, { recursive: true });
-    }
-    cb(null, userDir);
-  },
-  filename: (req, file, cb) => {
-    const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
-    const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '');
-    const ext = path.extname(file.originalname);
-    const filename = `image_${req.user.id}_${dateStr}_${timeStr}${ext}`;
-    cb(null, filename);
-  }
+// Configure AWS S3
+if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+  console.error('AWS credentials missing in environment variables');
+}
+
+AWS.config.update({
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  region: process.env.AWS_REGION || 'us-east-1',
+  signatureVersion: 'v4'
 });
+const s3 = new AWS.S3();
+const bucketName = process.env.AWS_S3_BUCKET || 'fb-konva';
+
+// Configure multer for memory storage (S3 upload)
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage,
@@ -39,7 +37,7 @@ const upload = multer({
   }
 });
 
-// Upload images
+// Upload images to S3
 router.post('/upload', authenticateToken, upload.array('images', 10), async (req, res) => {
   try {
     await pool.query('SET search_path TO public');
@@ -54,25 +52,47 @@ router.post('/upload', authenticateToken, upload.array('images', 10), async (req
 
     const images = [];
     for (const file of files) {
-      const filePath = path.join(req.user.id.toString(), file.filename);
+      const now = new Date();
+      const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+      const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '');
+      const ext = path.extname(file.originalname);
+      const filename = `image_${req.user.id}_${dateStr}_${timeStr}${ext}`;
+      const s3Key = `images/${req.user.id}/${filename}`;
       
-      // Generate thumbnail
-      const ext = path.extname(file.filename);
-      const nameWithoutExt = file.filename.replace(ext, '');
-      const thumbFilename = `${nameWithoutExt}_thumb${ext}`;
-      const thumbPath = path.join(path.dirname(file.path), thumbFilename);
+      // Upload original image to S3
+      const uploadParams = {
+        Bucket: bucketName,
+        Key: s3Key,
+        Body: file.buffer,
+        ContentType: file.mimetype
+      };
+      
+      const s3Result = await s3.upload(uploadParams).promise();
+      
+      // Generate and upload thumbnail
+      const thumbFilename = `${filename.replace(ext, '')}_thumb${ext}`;
+      const thumbS3Key = `images/${req.user.id}/${thumbFilename}`;
       
       try {
-        await sharp(file.path)
+        const thumbnailBuffer = await sharp(file.buffer)
           .resize(200, 200, { fit: 'cover' })
-          .toFile(thumbPath);
+          .toBuffer();
+        
+        const thumbUploadParams = {
+          Bucket: bucketName,
+          Key: thumbS3Key,
+          Body: thumbnailBuffer,
+          ContentType: file.mimetype
+        };
+        
+        await s3.upload(thumbUploadParams).promise();
       } catch (error) {
         console.error('Thumbnail generation failed:', error);
       }
       
       const result = await pool.query(
-        'INSERT INTO public.images (book_id, uploaded_by, filename, original_name, file_path) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-        [finalBookId, req.user.id, file.filename, file.originalname, filePath]
+        'INSERT INTO public.images (book_id, uploaded_by, filename, original_name, file_path, s3_url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+        [finalBookId, req.user.id, filename, file.originalname, s3Key, s3Result.Location]
       );
       
       images.push(result.rows[0]);
@@ -129,7 +149,7 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
-// Delete images
+// Delete images from S3 and database
 router.delete('/', authenticateToken, async (req, res) => {
   try {
     await pool.query('SET search_path TO public');
@@ -140,26 +160,33 @@ router.delete('/', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Image IDs required' });
     }
 
-    // Get image details for file deletion
+    // Get image details for S3 deletion
     const imagesResult = await pool.query(
       'SELECT * FROM public.images WHERE id = ANY($1) AND uploaded_by = $2',
       [imageIds, req.user.id]
     );
     
-    // Delete files and thumbnails
+    // Delete files from S3
     for (const image of imagesResult.rows) {
-      const filePath = path.join(__dirname, '../uploads', image.file_path);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-      
-      // Delete thumbnail
-      const ext = path.extname(image.filename);
-      const nameWithoutExt = image.filename.replace(ext, '');
-      const thumbFilename = `${nameWithoutExt}_thumb${ext}`;
-      const thumbPath = path.join(__dirname, '../uploads', image.file_path.replace(image.filename, thumbFilename));
-      if (fs.existsSync(thumbPath)) {
-        fs.unlinkSync(thumbPath);
+      try {
+        // Delete original image
+        await s3.deleteObject({
+          Bucket: bucketName,
+          Key: image.file_path
+        }).promise();
+        
+        // Delete thumbnail
+        const ext = path.extname(image.filename);
+        const nameWithoutExt = image.filename.replace(ext, '');
+        const thumbFilename = `${nameWithoutExt}_thumb${ext}`;
+        const thumbS3Key = `images/${req.user.id}/${thumbFilename}`;
+        
+        await s3.deleteObject({
+          Bucket: bucketName,
+          Key: thumbS3Key
+        }).promise();
+      } catch (s3Error) {
+        console.error('S3 deletion error:', s3Error);
       }
     }
     

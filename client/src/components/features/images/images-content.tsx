@@ -14,6 +14,8 @@ interface ImageData {
   book_id: number;
   created_at: string;
   file_path: string;
+  s3_url?: string;
+  uploaded_by?: number;
 }
 
 interface ImagesContentProps {
@@ -110,7 +112,7 @@ export default function ImagesContent({
         
         if (mode === 'select' && onImageUpload && data.images && data.images.length > 0) {
           const firstImage = data.images[0];
-          const imageUrl = `${apiUrl.replace('/api', '')}/uploads/${firstImage.file_path}`;
+          const imageUrl = firstImage.s3_url || `${apiUrl.replace('/api', '')}/uploads/${firstImage.file_path}`;
           onImageUpload(imageUrl);
         }
       }
@@ -198,6 +200,10 @@ export default function ImagesContent({
   };
 
   const getImageUrl = (image: ImageData) => {
+    // Use S3 URL if available, fallback to local server
+    if (image.s3_url) {
+      return image.s3_url;
+    }
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
     return `${apiUrl.replace('/api', '')}/uploads/${image.file_path}`;
   };
@@ -206,6 +212,14 @@ export default function ImagesContent({
     const ext = image.filename.split('.').pop();
     const nameWithoutExt = image.filename.replace(`.${ext}`, '');
     const thumbFilename = `${nameWithoutExt}_thumb.${ext}`;
+    
+    // Use S3 URL for thumbnail
+    if (image.s3_url) {
+      const s3BaseUrl = 'https://fb-konva.s3.us-east-1.amazonaws.com/';
+      const thumbS3Key = `images/${image.uploaded_by || 'unknown'}/${thumbFilename}`;
+      return `${s3BaseUrl}${thumbS3Key}`;
+    }
+    
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
     return `${apiUrl.replace('/api', '')}/uploads/${image.file_path.replace(image.filename, thumbFilename)}`;
   };
