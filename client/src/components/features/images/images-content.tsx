@@ -3,7 +3,8 @@ import { Button } from '../../ui/primitives/button';
 import { ButtonGroup } from '../../ui/composites/button-group';
 import { Card, CardContent } from '../../ui/composites/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../ui/overlays/dialog';
-import { Image, Plus, Trash2, ChevronLeft, ChevronRight, X, SquareCheckBig, SquareX, Copy, CopyCheck } from 'lucide-react';
+import { Alert, AlertDescription } from '../../ui/composites/alert';
+import { Image, Plus, Trash2, ChevronLeft, ChevronRight, X, SquareCheckBig, SquareX, Copy, CopyCheck, AlertTriangle } from 'lucide-react';
 import ImageCard from './image-card';
 
 interface ImageData {
@@ -45,6 +46,7 @@ export default function ImagesContent({
   const [lightboxImage, setLightboxImage] = useState<ImageData | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastUploadRef = useRef<string>('');
 
@@ -108,6 +110,7 @@ export default function ImagesContent({
       
       if (response.ok) {
         const data = await response.json();
+        setUploadError(null);
         fetchImages();
         
         if (mode === 'select' && onImageUpload && data.images && data.images.length > 0) {
@@ -115,6 +118,10 @@ export default function ImagesContent({
           const imageUrl = firstImage.s3_url || `${apiUrl.replace('/api', '')}/uploads/${firstImage.file_path}`;
           onImageUpload(imageUrl);
         }
+      } else if (response.status === 413) {
+        setUploadError('File too large. Maximum file size is 2MB per image.');
+      } else {
+        setUploadError('Upload failed. Please try again.');
       }
     } catch (error) {
       console.error('Upload failed:', error);
@@ -255,6 +262,13 @@ export default function ImagesContent({
       )}
 
       <div className="space-y-6">
+        {uploadError && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>{uploadError}</AlertDescription>
+          </Alert>
+        )}
+        
         <div className="flex gap-2">
           {multiSelectMode ? (
             <ButtonGroup>
@@ -319,7 +333,7 @@ export default function ImagesContent({
           <p className="text-lg font-medium mb-2">
             {isUploading ? 'Uploading images...' : 'Drop images here or click "Add Images" to upload'}
           </p>
-          <p className="text-muted-foreground">Supports JPG, PNG, GIF, WebP up to 10MB</p>
+          <p className="text-muted-foreground">Supports JPG, PNG, GIF, WebP up to 5MB</p>
         </div>
 
         {totalPages > 1 && (
