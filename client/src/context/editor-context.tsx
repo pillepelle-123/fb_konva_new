@@ -30,6 +30,11 @@ export interface CanvasElement {
   scaleX?: number;
   scaleY?: number;
   rotation?: number;
+  borderWidth?: number;
+  borderColor?: string;
+  backgroundColor?: string;
+  backgroundOpacity?: number;
+  padding?: number;
 }
 
 export interface PageBackground {

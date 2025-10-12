@@ -29,7 +29,7 @@ export function ToolGroup({ name, tools, activeTool, isExpanded, showSeparator, 
     return (
       <div className="absolute inset-0 bg-background z-10">
         <div className="p-1">
-          <div className="flex flex-col">
+          <div className="flex flex-col items-start">
 
           <Button
             variant="ghost"

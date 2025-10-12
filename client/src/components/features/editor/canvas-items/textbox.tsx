@@ -208,18 +208,19 @@ export default function Textbox(props: CanvasItemProps) {
     if (!element.ruledLines) return [];
     
     const lines = [];
+    const padding = element.padding || 4;
     const lineSpacing = fontSize * lineHeight;
-    const numLines = Math.floor((element.height - 8) / lineSpacing);
+    const numLines = Math.floor((element.height - (padding * 2)) / lineSpacing);
     const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
     
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     const rc = rough.svg(svg);
     
     for (let i = 0; i < numLines; i++) {
-      const y = 4 + (i + 1) * lineSpacing - fontSize * 0.3;
+      const y = padding + (i + 1) * lineSpacing - fontSize * 0.3;
       
       try {
-        const roughLine = rc.line(4, y, element.width - 4, y, {
+        const roughLine = rc.line(padding, y, element.width - padding, y, {
           roughness: 2,
           strokeWidth: 0.8,
           stroke: '#1f2937',
@@ -248,7 +249,7 @@ export default function Textbox(props: CanvasItemProps) {
         lines.push(
           <Path
             key={i}
-            data={`M 4 ${y} L ${element.width - 4} ${y}`}
+            data={`M ${padding} ${y} L ${element.width - padding} ${y}`}
             stroke="#1f2937"
             strokeWidth={2}
             listening={false}
@@ -326,7 +327,8 @@ export default function Textbox(props: CanvasItemProps) {
       textRef.current.scaleY(1);
       
       // Force text to rewrap when width changes
-      textRef.current.width(element.width - 8);
+      const padding = element.padding || 4;
+      textRef.current.width(element.width - (padding * 2));
       
       // Force re-render to apply new width
       textRef.current.text(displayText);
@@ -334,7 +336,7 @@ export default function Textbox(props: CanvasItemProps) {
       
       // Check if text overflows the container
       const textHeight = textRef.current.height();
-      const containerHeight = element.height - 8;
+      const containerHeight = element.height - (padding * 2);
       setHasOverflow(textHeight > containerHeight);
     }
   }, [element.text, element.formattedText, element.width, element.height, element.paragraphSpacing, element.ruledLines, fontSize, lineHeight, displayText]);
@@ -410,54 +412,136 @@ export default function Textbox(props: CanvasItemProps) {
         <Rect
           width={element.width}
           height={element.height}
-          fill="transparent"
-          // stroke="transparent"
-          // strokeWidth={element.textType === 'question' || element.textType === 'answer' ? 1 : 0}
-          dash={element.textType === 'question' || element.textType === 'answer' ? [5, 5] : []}
+          fill={element.backgroundColor || "transparent"}
+          opacity={element.backgroundOpacity || 1}
+          stroke={!element.borderWidth && (element.textType === 'question' || element.textType === 'answer') ? "transparent" : "transparent"}
+          strokeWidth={!element.borderWidth && (element.textType === 'question' || element.textType === 'answer') ? 1 : 0}
+          dash={!element.borderWidth && (element.textType === 'question' || element.textType === 'answer') ? [5, 5] : []}
+          cornerRadius={element.cornerRadius || 0}
           listening={false}
         />
+        
+        {/* Rough border */}
+        {element.borderWidth && element.borderWidth > 0 ? (() => {
+          const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          const rc = rough.svg(svg);
+          
+          try {
+            const roughBorder = element.cornerRadius && element.cornerRadius > 0 
+              ? (() => {
+                  const r = Math.min(element.cornerRadius, element.width / 2, element.height / 2);
+                  const roundedRectPath = `M ${r} 0 L ${element.width - r} 0 Q ${element.width} 0 ${element.width} ${r} L ${element.width} ${element.height - r} Q ${element.width} ${element.height} ${element.width - r} ${element.height} L ${r} ${element.height} Q 0 ${element.height} 0 ${element.height - r} L 0 ${r} Q 0 0 ${r} 0 Z`;
+                  return rc.path(roundedRectPath, {
+                    roughness: 1.5,
+                    strokeWidth: element.borderWidth,
+                    stroke: element.borderColor || '#000000',
+                    fill: 'none',
+                    seed
+                  });
+                })()
+              : rc.rectangle(0, 0, element.width, element.height, {
+                  roughness: 1.5,
+                  strokeWidth: element.borderWidth,
+                  stroke: element.borderColor || '#000000',
+                  fill: 'none',
+                  seed
+                });
+            
+            // Only use the first stroke path to avoid multiple border lines
+            const paths = roughBorder.querySelectorAll('path');
+            let strokePath = '';
+            for (const path of paths) {
+              const fill = path.getAttribute('fill');
+              const stroke = path.getAttribute('stroke');
+              // Only take the first valid stroke path
+              if (stroke && stroke !== 'none' && 
+                  (fill === 'none' || fill === 'transparent' || !fill)) {
+                const d = path.getAttribute('d');
+                if (d) {
+                  strokePath = d;
+                  break; // Only use the first stroke path
+                }
+              }
+            }
+            
+            if (strokePath) {
+              return (
+                <Path
+                  data={strokePath.trim()}
+                  stroke={element.borderColor || '#000000'}
+                  strokeWidth={element.borderWidth}
+                  fill="none"
+                  listening={false}
+                />
+              );
+            }
+          } catch (error) {
+            // Fallback to regular rectangle border
+            const r = element.cornerRadius || 0;
+            const fallbackPath = r > 0 
+              ? `M ${r} 0 L ${element.width - r} 0 Q ${element.width} 0 ${element.width} ${r} L ${element.width} ${element.height - r} Q ${element.width} ${element.height} ${element.width - r} ${element.height} L ${r} ${element.height} Q 0 ${element.height} 0 ${element.height - r} L 0 ${r} Q 0 0 ${r} 0 Z`
+              : `M 0 0 L ${element.width} 0 L ${element.width} ${element.height} L 0 ${element.height} Z`;
+            return (
+              <Path
+                data={fallbackPath}
+                stroke={element.borderColor || '#000000'}
+                strokeWidth={element.borderWidth}
+                fill="none"
+                listening={false}
+              />
+            );
+          }
+          return null;
+        })() : null}
         
         {/* Ruled lines */}
         {generateRuledLines()}
         
         {/* Text content */}
-        {(element.formattedText || element.text) && ((element.formattedText || element.text).includes('<') && ((element.formattedText || element.text).includes('<strong>') || (element.formattedText || element.text).includes('<em>') || (element.formattedText || element.text).includes('<u>') || (element.formattedText || element.text).includes('color:') || (element.formattedText || element.text).includes('font-family:') || (element.formattedText || element.text).includes('ql-font-') || (element.formattedText || element.text).includes('data-ruled=') || (element.formattedText || element.text).includes('<h'))) ? (
-          <>
-            {formatRichText(element.formattedText || element.text, fontSize, fontFamily, element.width - 8, element.ruledLines || (element.formattedText || element.text).includes('data-ruled="true"')).map((textPart, index) => (
-              <Text
-                key={index}
-                text={textPart.text}
-                x={4 + textPart.x}
-                y={4 + textPart.y}
-                fontSize={textPart.fontSize}
-                fontFamily={textPart.fontFamily}
-                fontStyle={textPart.fontStyle}
-                fill={textPart.fill || element.fill || '#1f2937'}
-                textDecoration={textPart.textDecoration}
-                listening={false}
-              />
-            ))}
-          </>
-        ) : (
-          <Text
-            ref={textRef}
-            x={4}
-            y={4}
-            width={element.width - 8}
-            height={element.height - 8}
-            text={displayText}
-            fontSize={fontSize}
-            fontFamily={fontFamily}
-            fill={element.fill || (element.text ? '#1f2937' : '#9ca3af')}
-            align={align}
-            verticalAlign="top"
-            wrap="word"
-            lineHeight={lineHeight}
-            listening={false}
-            opacity={(element.formattedText || element.text) ? 1 : 0.6}
-            name={(element.formattedText || element.text) ? '' : 'no-print'}
-          />
-        )}
+        {(() => {
+          const padding = element.padding || 4;
+          const textWidth = element.width - (padding * 2);
+          const textHeight = element.height - (padding * 2);
+          
+          return (element.formattedText || element.text) && ((element.formattedText || element.text).includes('<') && ((element.formattedText || element.text).includes('<strong>') || (element.formattedText || element.text).includes('<em>') || (element.formattedText || element.text).includes('<u>') || (element.formattedText || element.text).includes('color:') || (element.formattedText || element.text).includes('font-family:') || (element.formattedText || element.text).includes('ql-font-') || (element.formattedText || element.text).includes('data-ruled=') || (element.formattedText || element.text).includes('<h'))) ? (
+            <>
+              {formatRichText(element.formattedText || element.text, fontSize, fontFamily, textWidth, element.ruledLines || (element.formattedText || element.text).includes('data-ruled="true"')).map((textPart, index) => (
+                <Text
+                  key={index}
+                  text={textPart.text}
+                  x={padding + textPart.x}
+                  y={padding + textPart.y}
+                  fontSize={textPart.fontSize}
+                  fontFamily={textPart.fontFamily}
+                  fontStyle={textPart.fontStyle}
+                  fill={textPart.fill || element.fill || '#1f2937'}
+                  textDecoration={textPart.textDecoration}
+                  listening={false}
+                />
+              ))}
+            </>
+          ) : (
+            <Text
+              ref={textRef}
+              x={padding}
+              y={padding}
+              width={textWidth}
+              height={textHeight}
+              text={displayText}
+              fontSize={fontSize}
+              fontFamily={fontFamily}
+              fill={element.fill || (element.text ? '#1f2937' : '#9ca3af')}
+              align={align}
+              verticalAlign="top"
+              wrap="word"
+              lineHeight={lineHeight}
+              listening={false}
+              opacity={(element.formattedText || element.text) ? 1 : 0.6}
+              name={(element.formattedText || element.text) ? '' : 'no-print'}
+            />
+          );
+        })()}
         
         {/* Overflow indicator */}
         {hasOverflow && (

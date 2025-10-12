@@ -1,4 +1,4 @@
-import { useRef, useState, ReactNode, useEffect } from 'react';
+import React, { useRef, useState, ReactNode, useEffect } from 'react';
 import { Group, Rect } from 'react-konva';
 import { SelectionHoverRectangle } from '../canvas/selection-hover-rectangle';
 import Konva from 'konva';
@@ -13,6 +13,8 @@ export interface CanvasItemProps {
   onDragEnd?: (e: Konva.KonvaEventObject<DragEvent>) => void;
   isMovingGroup?: boolean;
   isWithinSelection?: boolean;
+  isDragging?: boolean;
+  zoom?: number;
 }
 
 interface BaseCanvasItemProps extends CanvasItemProps {
@@ -37,6 +39,7 @@ export default function BaseCanvasItem({
   const groupRef = useRef<Konva.Group>(null);
   const [isHovered, setIsHovered] = useState(false);
   const [partnerHovered, setPartnerHovered] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   // Prevent scaling for question-answer pairs
   useEffect(() => {
@@ -145,8 +148,14 @@ export default function BaseCanvasItem({
           onSelect();
         }
       }}
-      onDragStart={onDragStart}
-      onDragEnd={handleDragEnd}
+      onDragStart={(e) => {
+        setIsDragging(true);
+        onDragStart?.();
+      }}
+      onDragEnd={(e) => {
+        setIsDragging(false);
+        handleDragEnd(e);
+      }}
       onMouseEnter={state.activeTool === 'select' ? () => {
         setIsHovered(true);
         // Trigger hover on partner element for question-answer pairs
@@ -184,7 +193,13 @@ export default function BaseCanvasItem({
         />
       )}
       
-      {children}
+      {/* Pass isDragging to children if they are React elements */}
+      {React.Children.map(children, (child) => {
+        if (React.isValidElement(child) && typeof child.type !== 'string' && child.type !== React.Fragment) {
+          return React.cloneElement(child, { isDragging });
+        }
+        return child;
+      })}
     </Group>
   );
 }

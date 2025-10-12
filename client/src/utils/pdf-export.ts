@@ -116,6 +116,18 @@ export const exportBookToPDF = async (
       const noPrintElements = clonedLayer.find('.no-print');
       noPrintElements.forEach(element => element.destroy());
       
+      // Increase stroke widths for rough.js elements to match display appearance
+      const roughPaths = clonedLayer.find('Path');
+      roughPaths.forEach(path => {
+        const currentStrokeWidth = path.strokeWidth();
+        if (currentStrokeWidth) {
+          // Exponential scaling: thicker strokes get higher multipliers
+          // To adjust: increase the number behind the * for bigger scaling overall, increase the number behind the comma for more aggressive scaling on thick strokes
+          const scaleFactor = 1 + (Math.pow(currentStrokeWidth / 2, 2.8) * 0.15);
+          path.strokeWidth(currentStrokeWidth * scaleFactor);
+        }
+      });
+      
       tempStage.add(clonedLayer);
       
       // Find the page content group and adjust positioning

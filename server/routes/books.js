@@ -166,11 +166,15 @@ router.get('/:id', authenticateToken, async (req, res) => {
       pageSize: book.page_size,
       orientation: book.orientation,
       owner_id: book.owner_id,
-      pages: pages.rows.map(page => ({
-        id: page.id,
-        pageNumber: page.page_number,
-        elements: page.elements || []
-      }))
+      pages: pages.rows.map(page => {
+        const pageData = page.elements || {};
+        return {
+          id: page.id,
+          pageNumber: page.page_number,
+          elements: pageData.elements || [],
+          background: pageData.background
+        };
+      })
     });
   } catch (error) {
     console.error('Book fetch error:', error);
@@ -214,10 +218,10 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
         if (pageResult.rows.length > 0) {
           const pageId = pageResult.rows[0].id;
           
-          // Update page elements
+          // Update page data (elements and background)
           await pool.query(
             'UPDATE public.pages SET elements = $1 WHERE id = $2',
-            [JSON.stringify(page.elements), pageId]
+            [JSON.stringify(page), pageId]
           );
 
           // Remove existing question associations for this page
@@ -284,7 +288,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
     for (const page of pages) {
       const pageResult = await pool.query(
         'INSERT INTO public.pages (book_id, page_number, elements) VALUES ($1, $2, $3) RETURNING id',
-        [bookId, page.pageNumber, JSON.stringify(page.elements)]
+        [bookId, page.pageNumber, JSON.stringify(page)]
       );
       const pageId = pageResult.rows[0].id;
 

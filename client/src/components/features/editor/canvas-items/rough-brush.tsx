@@ -1,10 +1,10 @@
-import { Path } from 'react-konva';
+import { Path, Rect } from 'react-konva';
 import rough from 'roughjs';
 import BaseCanvasItem from './base-canvas-item';
 import type { CanvasItemProps } from './base-canvas-item';
 
 export default function RoughBrush(props: CanvasItemProps) {
-  const { element } = props;
+  const { element, isDragging, zoom = 1 } = props;
 
   const getBounds = (points: number[]) => {
     let minX = points[0], maxX = points[0];
@@ -24,7 +24,9 @@ export default function RoughBrush(props: CanvasItemProps) {
     if (!element.points || element.points.length < 4) return '';
 
     const roughness = element.roughness || 1;
-    const strokeWidth = element.strokeWidth || 2;
+    // Scale stroke width with zoom for proper visual scaling
+    const baseStrokeWidth = element.strokeWidth || 2;
+    const strokeWidth = baseStrokeWidth * zoom;
     const stroke = element.stroke || '#1f2937';
     const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
 
@@ -74,11 +76,12 @@ export default function RoughBrush(props: CanvasItemProps) {
     return '';
   };
 
-  const pathData = generateRoughPath();
-  const strokeWidth = element.strokeWidth || 2;
+  // Scale stroke width with zoom for proper visual scaling
+  const baseStrokeWidth = element.strokeWidth || 2;
+  const strokeWidth = baseStrokeWidth * zoom;
   const stroke = element.stroke || '#1f2937';
 
-  if (!pathData || !element.points) return null;
+  if (!element.points) return null;
 
   const bounds = getBounds(element.points);
   const hitArea = {
@@ -87,6 +90,28 @@ export default function RoughBrush(props: CanvasItemProps) {
     width: bounds.width + 20,
     height: bounds.height + 20
   };
+
+  // Use simplified rectangle during dragging for better performance
+  if (isDragging) {
+    return (
+      <BaseCanvasItem {...props} hitArea={hitArea}>
+        <Rect
+          x={bounds.minX}
+          y={bounds.minY}
+          width={bounds.width}
+          height={bounds.height}
+          fill="rgba(0, 0, 255, 0.3)"
+          stroke={stroke}
+          strokeWidth={strokeWidth * 2}
+          opacity={0.8}
+          listening={false}
+        />
+      </BaseCanvasItem>
+    );
+  }
+
+  const pathData = generateRoughPath();
+  if (!pathData) return null;
 
   return (
     <BaseCanvasItem {...props} hitArea={hitArea}>

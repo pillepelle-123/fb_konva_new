@@ -287,7 +287,7 @@ export default function ToolSettingsPanel() {
                 value={settings.strokeWidth || 2}
                 onChange={(e) => updateToolSetting('strokeWidth', parseInt(e.target.value))}
                 max={20}
-                min={0}
+                min={1}
                 step={1}
                 className="w-full"
               />
@@ -333,6 +333,22 @@ export default function ToolSettingsPanel() {
                 ))}
               </div>
             </div>
+            
+            {activeTool === 'rect' && (
+              <div className={SETTINGS_SECTION_CLASS}>
+                <label className={SETTINGS_LABEL_CLASS}>Corner Radius</label>
+                <input
+                  type="range"
+                  value={settings.cornerRadius || 0}
+                  onChange={(e) => updateToolSetting('cornerRadius', parseInt(e.target.value))}
+                  max={50}
+                  min={0}
+                  step={1}
+                  className="w-full"
+                />
+                <span className="text-xs text-muted-foreground">{settings.cornerRadius || 0}px</span>
+              </div>
+            )}
           </div>
         );
 
@@ -467,6 +483,108 @@ export default function ToolSettingsPanel() {
                 Ruled Lines
               </label>
             </div>
+            
+            {(activeTool === 'text' || activeTool === 'question' || activeTool === 'answer') && (
+              <div>
+                <label className="text-xs font-medium block mb-1">Corner Radius</label>
+                <input
+                  type="range"
+                  value={settings.cornerRadius || 0}
+                  onChange={(e) => updateToolSetting('cornerRadius', parseInt(e.target.value))}
+                  max={300}
+                  min={0}
+                  step={1}
+                  className="w-full"
+                />
+                <span className="text-xs text-muted-foreground">{settings.cornerRadius || 0}px</span>
+              </div>
+            )}
+            
+            <div>
+              <label className="text-xs font-medium block mb-1">Border Width</label>
+              <input
+                type="range"
+                value={settings.borderWidth || 0}
+                onChange={(e) => updateToolSetting('borderWidth', parseInt(e.target.value))}
+                max={20}
+                min={0}
+                step={1}
+                className="w-full"
+              />
+              <span className="text-xs text-muted-foreground">{settings.borderWidth || 0}px</span>
+            </div>
+            
+            {(settings.borderWidth || 0) > 0 && (
+              <div>
+                <label className="text-xs font-medium block mb-1">Border Color</label>
+                <div className="grid grid-cols-5 gap-1 mt-1">
+                  {COLORS.map(color => (
+                    <button
+                      key={color}
+                      className={`w-6 h-6 rounded border ${
+                        (settings.borderColor || '#000000') === color ? 'border-gray-400' : 'border-gray-200'
+                      }`}
+                      style={{ backgroundColor: color }}
+                      onClick={() => updateToolSetting('borderColor', color)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            <div>
+              <label className="text-xs font-medium block mb-1">Background Color</label>
+              <div className="grid grid-cols-5 gap-1 mt-1">
+                <button
+                  className={`w-6 h-6 rounded border ${
+                    (settings.backgroundColor || 'transparent') === 'transparent' ? 'border-gray-400' : 'border-gray-200'
+                  } bg-white relative`}
+                  onClick={() => updateToolSetting('backgroundColor', 'transparent')}
+                >
+                  <div className="absolute inset-0 bg-red-500 transform rotate-45 w-px h-full left-1/2 top-0"></div>
+                </button>
+                {COLORS.slice(0, 9).map(color => (
+                  <button
+                    key={color}
+                    className={`w-6 h-6 rounded border ${
+                      (settings.backgroundColor || 'transparent') === color ? 'border-gray-400' : 'border-gray-200'
+                    }`}
+                    style={{ backgroundColor: color }}
+                    onClick={() => updateToolSetting('backgroundColor', color)}
+                  />
+                ))}
+              </div>
+            </div>
+            
+            {(settings.backgroundColor && settings.backgroundColor !== 'transparent') && (
+              <div>
+                <label className="text-xs font-medium block mb-1">Background Opacity</label>
+                <input
+                  type="range"
+                  value={(settings.backgroundOpacity || 1) * 100}
+                  onChange={(e) => updateToolSetting('backgroundOpacity', parseInt(e.target.value) / 100)}
+                  max={100}
+                  min={0}
+                  step={5}
+                  className="w-full"
+                />
+                <span className="text-xs text-muted-foreground">{Math.round((settings.backgroundOpacity || 1) * 100)}%</span>
+              </div>
+            )}
+            
+            <div>
+              <label className="text-xs font-medium block mb-1">Padding</label>
+              <input
+                type="range"
+                value={settings.padding || 4}
+                onChange={(e) => updateToolSetting('padding', parseInt(e.target.value))}
+                max={50}
+                min={0}
+                step={1}
+                className="w-full"
+              />
+              <span className="text-xs text-muted-foreground">{settings.padding || 4}px</span>
+            </div>
 
           </div>
         );
@@ -546,7 +664,7 @@ export default function ToolSettingsPanel() {
           patternForegroundColor: currentColor,
           patternBackgroundColor: 'transparent'
         });
-        setShowPatternSettings(true);
+        // setShowPatternSettings(true);
       } else {
         updateBackground({
           type: 'color',
@@ -569,7 +687,6 @@ export default function ToolSettingsPanel() {
               <ChevronLeft className="h-4 w-4 mr-1" />
               Back
             </Button>
-            <span className="text-xs font-medium">Pattern Settings</span>
           </div>
           
           <div>
@@ -578,15 +695,15 @@ export default function ToolSettingsPanel() {
               {PATTERNS.map((pattern) => {
                 const patternDataUrl = createPatternDataUrl(
                   pattern,
-                  background.patternForegroundColor || '#666666',
-                  background.patternBackgroundColor || 'transparent'
+                  "black",
+                  'transparent'
                 );
                 
                 return (
                   <button
                     key={pattern.id}
                     className={`w-full h-8 border rounded ${
-                      background.value === pattern.id ? 'border-blue-500' : 'border-gray-200'
+                      background.value === pattern.id ? 'border-4 border-[hsl(var(--ring))]' : 'border-gray-200'
                     }`}
                     style={{ backgroundImage: `url(${patternDataUrl})` }}
                     onClick={() => updateBackground({ value: pattern.id })}
@@ -610,6 +727,50 @@ export default function ToolSettingsPanel() {
             />
             <span className="text-xs text-muted-foreground">Size: {background.patternSize || 1}</span>
           </div>
+          
+          <div>
+            <label className="text-xs font-medium block mb-1">Pattern Stroke Width</label>
+            <input
+              type="range"
+              value={background.patternStrokeWidth || 1}
+              onChange={(e) => updateBackground({ patternStrokeWidth: parseInt(e.target.value) })}
+              max={10}
+              min={1}
+              step={background.patternSize > 5 ? 1 : 4}
+              className="w-full"
+            />
+            <span className="text-xs text-muted-foreground">{background.patternStrokeWidth || 1}px</span>
+          </div>
+          
+          <div>
+            <label className="text-xs font-medium block mb-1">Background Color</label>
+            <div className="grid grid-cols-5 gap-1">
+              {COLORS.map(color => (
+                <button
+                  key={color}
+                  className={`w-6 h-6 rounded border ${
+                    (background.patternBackgroundColor || 'transparent') === color ? 'border-gray-400' : 'border-gray-200'
+                  }`}
+                  style={{ backgroundColor: color }}
+                  onClick={() => updateBackground({ patternBackgroundColor: color })}
+                />
+              ))}
+            </div>
+          </div>
+          
+          <div>
+            <label className="text-xs font-medium block mb-1">Opacity</label>
+            <input
+              type="range"
+              value={(background.patternBackgroundOpacity || 1) * 100}
+              onChange={(e) => updateBackground({ patternBackgroundOpacity: parseInt(e.target.value) / 100 })}
+              max={100}
+              min={0}
+              step={5}
+              className="w-full"
+            />
+            <span className="text-xs text-muted-foreground">{Math.round((background.patternBackgroundOpacity || 1) * 100)}%</span>
+          </div>
         </div>
       );
     }
@@ -627,27 +788,22 @@ export default function ToolSettingsPanel() {
             Back
           </Button>
         </div>
-        
         <div>
-          <label className="text-xs font-medium block mb-2">Background Type</label>
-          <div className="grid grid-cols-2 gap-1">
-            <Button
-              variant={background.type === 'color' || background.type === 'pattern' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => updateBackground({ type: 'color', value: '#ffffff' })}
-              className="text-xs"
-            >
-              Color
-            </Button>
-            <Button
-              variant={background.type === 'image' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => updateBackground({ type: 'image', value: '', imageSize: 'cover' })}
-              className="text-xs"
-            >
-              Image
-            </Button>
-          </div>
+          <Tabs 
+            value={background.type === 'image' ? 'image' : 'color'} 
+            onValueChange={(value) => {
+              if (value === 'color') {
+                updateBackground({ type: 'color', value: '#ffffff' });
+              } else {
+                updateBackground({ type: 'image', value: '', imageSize: 'cover' });
+              }
+            }}
+          >
+            <TabsList variant="bootstrap" className='w-full'>
+              <TabsTrigger variant="bootstrap" value="color">Color</TabsTrigger>
+              <TabsTrigger variant="bootstrap" value="image">Image</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
 
         {(background.type === 'color' || background.type === 'pattern') && (
@@ -674,15 +830,40 @@ export default function ToolSettingsPanel() {
               </div>
             </div>
             
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="pattern"
-                checked={isPattern}
-                onCheckedChange={togglePattern}
-              />
-              <label htmlFor="pattern" className="text-xs font-medium cursor-pointer">
-                Pattern
-              </label>
+            <div className="space-y-2">
+              <div className="flex flex-row gap-5 items-center h-12 space-x-2">
+                <span className="flex items-center gap-1 text-xs font-medium">
+                <Checkbox
+                  id="pattern"
+                  checked={isPattern}
+                  onCheckedChange={togglePattern}
+                />
+                <label htmlFor="pattern" className="text-sm font-medium cursor-pointer">
+                  Pattern
+                </label>
+                </span>
+                {isPattern && (
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => setShowPatternSettings(true)}
+                    className="ml-4 w-full"
+                  >
+                    Pattern Settings
+                  </Button>
+                )}
+              </div>
+              
+              {/* {isPattern && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowPatternSettings(true)}
+                  className="w-full"
+                >
+                  Pattern Settings
+                </Button>
+              )} */}
             </div>
           </div>
         )}
@@ -864,7 +1045,7 @@ export default function ToolSettingsPanel() {
                 value={element.strokeWidth || 2}
                 onChange={(e) => updateElementSetting('strokeWidth', parseInt(e.target.value))}
                 max={20}
-                min={0}
+                min={1}
                 step={1}
                 className="w-full"
               />
@@ -910,6 +1091,22 @@ export default function ToolSettingsPanel() {
                 ))}
               </div>
             </div>
+            
+            {element.type === 'rect' && (
+              <div className={SETTINGS_SECTION_CLASS}>
+                <label className={SETTINGS_LABEL_CLASS}>Corner Radius</label>
+                <input
+                  type="range"
+                  value={element.cornerRadius || 0}
+                  onChange={(e) => updateElementSetting('cornerRadius', parseInt(e.target.value))}
+                  max={300}
+                  min={0}
+                  step={1}
+                  className="w-full"
+                />
+                <span className="text-xs text-muted-foreground">{element.cornerRadius || 0}px</span>
+              </div>
+            )}
           </div>
         );
 
@@ -929,6 +1126,20 @@ export default function ToolSettingsPanel() {
               <Image className="h-4 w-4 mr-2" />
               Change Image
             </Button>
+            
+            <div className={SETTINGS_SECTION_CLASS}>
+              <label className={SETTINGS_LABEL_CLASS}>Corner Radius</label>
+              <input
+                type="range"
+                value={element.cornerRadius || 0}
+                onChange={(e) => updateElementSetting('cornerRadius', parseInt(e.target.value))}
+                max={300}
+                min={0}
+                step={1}
+                className="w-full"
+              />
+              <span className="text-xs text-muted-foreground">{element.cornerRadius || 0}px</span>
+            </div>
           </div>
         );
 
@@ -1062,6 +1273,108 @@ export default function ToolSettingsPanel() {
               </label>
             </div>
             
+            {(element.textType === 'text' || element.textType === 'question' || element.textType === 'answer') && (
+              <div className={SETTINGS_SECTION_CLASS}>
+                <label className={SETTINGS_LABEL_CLASS}>Corner Radius</label>
+                <input
+                  type="range"
+                  value={element.cornerRadius || 0}
+                  onChange={(e) => updateElementSetting('cornerRadius', parseInt(e.target.value))}
+                  max={300}
+                  min={0}
+                  step={1}
+                  className="w-full"
+                />
+                <span className="text-xs text-muted-foreground">{element.cornerRadius || 0}px</span>
+              </div>
+            )}
+            
+            <div className={SETTINGS_SECTION_CLASS}>
+              <label className={SETTINGS_LABEL_CLASS}>Border Width</label>
+              <input
+                type="range"
+                value={element.borderWidth || 0}
+                onChange={(e) => updateElementSetting('borderWidth', parseInt(e.target.value))}
+                max={20}
+                min={0}
+                step={1}
+                className="w-full"
+              />
+              <span className="text-xs text-muted-foreground">{element.borderWidth || 0}px</span>
+            </div>
+            
+            {(element.borderWidth || 0) > 0 && (
+              <div className={SETTINGS_SECTION_CLASS}>
+                <label className={SETTINGS_LABEL_CLASS}>Border Color</label>
+                <div className={COLOR_GRID_CLASS}>
+                  {COLORS.map(color => (
+                    <button
+                      key={color}
+                      className={`${COLOR_BUTTON_CLASS} ${
+                        (element.borderColor || '#000000') === color ? 'border-gray-400' : 'border-gray-200'
+                      }`}
+                      style={{ backgroundColor: color }}
+                      onClick={() => updateElementSetting('borderColor', color)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            <div className={SETTINGS_SECTION_CLASS}>
+              <label className={SETTINGS_LABEL_CLASS}>Background Color</label>
+              <div className={COLOR_GRID_CLASS}>
+                <button
+                  className={`${COLOR_BUTTON_CLASS} ${
+                    (element.backgroundColor || 'transparent') === 'transparent' ? 'border-gray-400' : 'border-gray-200'
+                  } bg-white relative`}
+                  onClick={() => updateElementSetting('backgroundColor', 'transparent')}
+                >
+                  <div className="absolute inset-0 bg-red-500 transform rotate-45 w-px h-full left-1/2 top-0"></div>
+                </button>
+                {COLORS.slice(0, 9).map(color => (
+                  <button
+                    key={color}
+                    className={`${COLOR_BUTTON_CLASS} ${
+                      (element.backgroundColor || 'transparent') === color ? 'border-gray-400' : 'border-gray-200'
+                    }`}
+                    style={{ backgroundColor: color }}
+                    onClick={() => updateElementSetting('backgroundColor', color)}
+                  />
+                ))}
+              </div>
+            </div>
+            
+            {(element.backgroundColor && element.backgroundColor !== 'transparent') && (
+              <div className={SETTINGS_SECTION_CLASS}>
+                <label className={SETTINGS_LABEL_CLASS}>Background Opacity</label>
+                <input
+                  type="range"
+                  value={(element.backgroundOpacity || 1) * 100}
+                  onChange={(e) => updateElementSetting('backgroundOpacity', parseInt(e.target.value) / 100)}
+                  max={100}
+                  min={0}
+                  step={5}
+                  className="w-full"
+                />
+                <span className="text-xs text-muted-foreground">{Math.round((element.backgroundOpacity || 1) * 100)}%</span>
+              </div>
+            )}
+            
+            <div className={SETTINGS_SECTION_CLASS}>
+              <label className={SETTINGS_LABEL_CLASS}>Padding</label>
+              <input
+                type="range"
+                value={element.padding || 4}
+                onChange={(e) => updateElementSetting('padding', parseInt(e.target.value))}
+                max={50}
+                min={0}
+                step={1}
+                className="w-full"
+              />
+              <span className="text-xs text-muted-foreground">{element.padding || 4}px</span>
+            </div>
+            
             {element.textType === 'question' && user?.role !== 'author' && (
               <div>
                 <Button
@@ -1097,7 +1410,7 @@ export default function ToolSettingsPanel() {
       >
 
         {/* Header with Collapse Button */}
-        <div className="flex items-center justify-between py-1 px-2 border-b">
+        <div className="flex items-center justify-between px-2 border-b pb-0">
           {!isCollapsed && (
             <div className="font-semibold text-sm flex items-center gap-2 flex-1">
               {(() => {
@@ -1115,14 +1428,14 @@ export default function ToolSettingsPanel() {
                       <Tabs 
                         value={activeLinkedElement || questionElement.id} 
                         onValueChange={setActiveLinkedElement}
-                        className="flex-1"
+                        className="flex-1 h-7"
                       >
-                        <TabsList className="grid w-full grid-cols-2">
-                          <TabsTrigger value={questionElement.id} className="text-sm">
+                        <TabsList variant="bootstrap" className="grid w-full grid-cols-2">
+                          <TabsTrigger variant="bootstrap" value={questionElement.id} className="text-sm h-7">
                             <MessageCircleQuestion className="h-4 w-4 mr-1" />
                             Question
                           </TabsTrigger>
-                          <TabsTrigger value={answerElement.id} className="text-sm">
+                          <TabsTrigger variant="bootstrap" value={answerElement.id} className="text-sm h-7">
                             <MessageCircleHeart className="h-4 w-4 mr-1" />
                             Answer
                           </TabsTrigger>
@@ -1150,17 +1463,22 @@ export default function ToolSettingsPanel() {
                       : selectedElement.type;
                     const IconComponent = TOOL_ICONS[elementType as keyof typeof TOOL_ICONS];
                     return (
-                      <Tabs 
-                        value={0} 
-                        className="flex-1"
-                      >
-                        <TabsList className="grid w-full grid-cols-1 h-8">
-                          <TabsTrigger value={selectedElement.id} className="text-sm text-primary h-8 -mt-1">
-                            {IconComponent && <IconComponent className="h-4 w-4 mr-1" />}
-                            {elementType.charAt(0).toUpperCase() + elementType.slice(1)}
-                          </TabsTrigger>
-                        </TabsList>
-                      </Tabs>
+                      // <Tabs 
+                      //   value={0} 
+                      //   className="flex-1"
+                      // >
+                      //   <TabsList className="grid w-full grid-cols-1 h-8">
+                      //     <TabsTrigger value={selectedElement.id} className="text-sm text-primary h-8 -mt-1">
+                      //       {IconComponent && <IconComponent className="h-4 w-4 mr-1" />}
+                      //       {elementType.charAt(0).toUpperCase() + elementType.slice(1)}
+                      //     </TabsTrigger>
+                      //   </TabsList>
+                      // </Tabs>
+
+                    <Button variant="ghost" size="sm" className="h-8 px-0 gap-2">
+                      {IconComponent && <IconComponent className="h-4 w-4" />}
+                      {elementType.charAt(0).toUpperCase() + elementType.slice(1)} Settings   
+</Button>
                     );
                   }
                   return `Element Settings (${state.selectedElementIds.length})`;

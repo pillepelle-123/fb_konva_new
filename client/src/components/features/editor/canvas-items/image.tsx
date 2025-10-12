@@ -95,7 +95,7 @@ export default function Image(props: CanvasItemProps) {
             fill="transparent"
             stroke="transparent"
             strokeWidth={1}
-            cornerRadius={4}
+            cornerRadius={element.cornerRadius || 4}
             listening={false}
           />
           
@@ -125,6 +125,7 @@ export default function Image(props: CanvasItemProps) {
               image={image}
               width={element.width}
               height={element.height}
+              cornerRadius={element.cornerRadius || 0}
               listening={false}
             />
           )}

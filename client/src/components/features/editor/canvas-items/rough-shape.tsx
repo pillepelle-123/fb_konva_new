@@ -1,14 +1,16 @@
-import { Path } from 'react-konva';
+import { Path, Rect } from 'react-konva';
 import rough from 'roughjs';
 import BaseCanvasItem from './base-canvas-item';
 import type { CanvasItemProps } from './base-canvas-item';
 
 export default function RoughShape(props: CanvasItemProps) {
-  const { element } = props;
+  const { element, isDragging, zoom = 1 } = props;
 
   const generateRoughPath = () => {
     const roughness = element.roughness || 1;
-    const strokeWidth = element.strokeWidth || 2;
+    // Scale stroke width with zoom for proper visual scaling
+    const baseStrokeWidth = element.strokeWidth || 2;
+    const strokeWidth = baseStrokeWidth * zoom;
     const stroke = element.stroke || '#1f2937';
     const fill = element.fill || 'transparent';
     const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
@@ -20,9 +22,18 @@ export default function RoughShape(props: CanvasItemProps) {
     
     try {
       if (element.type === 'rect') {
-        roughElement = rc.rectangle(0, 0, element.width, element.height, {
-          roughness, strokeWidth, stroke, fill: fill !== 'transparent' ? fill : undefined, fillStyle: 'solid', seed
-        });
+        if (element.cornerRadius && element.cornerRadius > 0) {
+          // Generate rough rounded rectangle path
+          const r = Math.min(element.cornerRadius, element.width / 2, element.height / 2);
+          const roundedRectPath = `M ${r} 0 L ${element.width - r} 0 Q ${element.width} 0 ${element.width} ${r} L ${element.width} ${element.height - r} Q ${element.width} ${element.height} ${element.width - r} ${element.height} L ${r} ${element.height} Q 0 ${element.height} 0 ${element.height - r} L 0 ${r} Q 0 0 ${r} 0 Z`;
+          roughElement = rc.path(roundedRectPath, {
+            roughness, strokeWidth, stroke, fill: fill !== 'transparent' ? fill : undefined, fillStyle: 'solid', seed
+          });
+        } else {
+          roughElement = rc.rectangle(0, 0, element.width, element.height, {
+            roughness, strokeWidth, stroke, fill: fill !== 'transparent' ? fill : undefined, fillStyle: 'solid', seed
+          });
+        }
       } else if (element.type === 'circle') {
         const radius = Math.min(element.width, element.height) / 2;
         roughElement = rc.circle(element.width / 2, element.height / 2, radius * 2, {
@@ -90,10 +101,31 @@ export default function RoughShape(props: CanvasItemProps) {
     return '';
   };
 
-  const pathData = generateRoughPath();
-  const strokeWidth = element.strokeWidth || 2;
+  // Scale stroke width with zoom for proper visual scaling
+  const baseStrokeWidth = element.strokeWidth || 2;
+  const strokeWidth = baseStrokeWidth * zoom;
   const stroke = element.stroke || '#1f2937';
   const fill = element.fill !== 'transparent' ? element.fill : undefined;
+
+  // Use simplified rectangle during dragging for better performance
+  if (isDragging) {
+    return (
+      <BaseCanvasItem {...props}>
+        <Rect
+          width={element.width}
+          height={element.height}
+          fill={fill || 'rgba(0, 0, 255, 0.3)'}
+          stroke={stroke}
+          strokeWidth={strokeWidth * 2}
+          cornerRadius={element.type === 'rect' && element.cornerRadius ? element.cornerRadius : 0}
+          opacity={0.8}
+          listening={false}
+        />
+      </BaseCanvasItem>
+    );
+  }
+
+  const pathData = generateRoughPath();
 
   return (
     <BaseCanvasItem {...props}>

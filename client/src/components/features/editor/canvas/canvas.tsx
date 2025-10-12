@@ -59,6 +59,69 @@ const PAGE_DIMENSIONS = {
   Square: { width: 2480, height: 2480 }
 };
 
+const createPatternTile = (pattern: any, color: string, size: number, strokeWidth: number = 1): HTMLCanvasElement => {
+  const tileSize = 20 * size;
+  const canvas = document.createElement('canvas');
+  canvas.width = tileSize;
+  canvas.height = tileSize;
+  const ctx = canvas.getContext('2d')!;
+  
+  ctx.fillStyle = color;
+  ctx.strokeStyle = color;
+  
+  if (pattern.id === 'dots') {
+    ctx.beginPath();
+    ctx.arc(tileSize/2, tileSize/2, tileSize * 0.1, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (pattern.id === 'grid') {
+    ctx.lineWidth = strokeWidth;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(tileSize, 0);
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, tileSize);
+    ctx.stroke();
+  } else if (pattern.id === 'diagonal') {
+    ctx.lineWidth = strokeWidth;
+    ctx.beginPath();
+    ctx.moveTo(0, tileSize);
+    ctx.lineTo(tileSize, 0);
+    ctx.stroke();
+  } else if (pattern.id === 'cross') {
+    ctx.lineWidth = strokeWidth;
+    ctx.beginPath();
+    ctx.moveTo(0, tileSize);
+    ctx.lineTo(tileSize, 0);
+    ctx.moveTo(0, 0);
+    ctx.lineTo(tileSize, tileSize);
+    ctx.stroke();
+  } else if (pattern.id === 'waves') {
+    ctx.lineWidth = strokeWidth * 2;
+    ctx.beginPath();
+    ctx.moveTo(0, tileSize/2);
+    ctx.quadraticCurveTo(tileSize/4, 0, tileSize/2, tileSize/2);
+    ctx.quadraticCurveTo(3*tileSize/4, tileSize, tileSize, tileSize/2);
+    ctx.stroke();
+  } else if (pattern.id === 'hexagon') {
+    ctx.lineWidth = strokeWidth;
+    ctx.beginPath();
+    const centerX = tileSize/2;
+    const centerY = tileSize/2;
+    const radius = tileSize * 0.3;
+    for (let i = 0; i < 6; i++) {
+      const angle = (i * Math.PI) / 3;
+      const x = centerX + radius * Math.cos(angle);
+      const y = centerY + radius * Math.sin(angle);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+  }
+  
+  return canvas;
+};
+
 
 
 export default function Canvas() {
@@ -88,6 +151,7 @@ export default function Canvas() {
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [hasPanned, setHasPanned] = useState(false);
   const [isDrawingLine, setIsDrawingLine] = useState(false);
   const [lineStart, setLineStart] = useState<{ x: number; y: number } | null>(null);
   const [previewLine, setPreviewLine] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
@@ -191,6 +255,7 @@ export default function Canvas() {
     // Right-click drag for panning
     if (e.evt.button === 2) {
       setIsPanning(true);
+      setHasPanned(false);
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
         setPanStart({ x: pos.x - stagePos.x, y: pos.y - stagePos.y });
@@ -329,6 +394,7 @@ export default function Canvas() {
     if (isPanning) {
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
+        setHasPanned(true);
         setStagePos({
           x: pos.x - panStart.x,
           y: pos.y - panStart.y
@@ -521,7 +587,8 @@ export default function Canvas() {
           fill: shapeSettings.fill || 'transparent',
           stroke: shapeSettings.stroke || '#1f2937',
           roughness: 3,
-          strokeWidth: shapeSettings.strokeWidth || 2
+          strokeWidth: shapeSettings.strokeWidth || 2,
+          cornerRadius: shapeSettings.cornerRadius || 0
         };
         dispatch({ type: 'ADD_ELEMENT', payload: newElement });
         dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
@@ -548,7 +615,8 @@ export default function Canvas() {
             align: textSettings.align || 'left',
             fontFamily: textSettings.fontFamily || 'Arial, sans-serif',
             textType: 'text',
-            paragraphSpacing: textSettings.paragraphSpacing || 'medium'
+            paragraphSpacing: textSettings.paragraphSpacing || 'medium',
+            cornerRadius: textSettings.cornerRadius || 0
           };
         } else if (previewTextbox.type === 'question') {
           const questionSettings = state.toolSettings.question || {};
@@ -568,7 +636,8 @@ export default function Canvas() {
             align: questionSettings.align || 'left',
             fontFamily: questionSettings.fontFamily || 'Arial, sans-serif',
             textType: 'question',
-            fill: '#9ca3af'
+            fill: '#9ca3af',
+            cornerRadius: questionSettings.cornerRadius || 0
           };
           
           // Create answer textbox (editable)
@@ -585,7 +654,8 @@ export default function Canvas() {
             fontFamily: questionSettings.fontFamily || 'Arial, sans-serif',
             textType: 'answer',
             questionElementId: questionElement.id,
-            paragraphSpacing: questionSettings.paragraphSpacing || 'medium'
+            paragraphSpacing: questionSettings.paragraphSpacing || 'medium',
+            cornerRadius: questionSettings.cornerRadius || 0
           };
           
           // Add question element first
@@ -604,7 +674,8 @@ export default function Canvas() {
             align: answerSettings.align || 'left',
             fontFamily: answerSettings.fontFamily || 'Arial, sans-serif',
             textType: 'answer',
-            paragraphSpacing: answerSettings.paragraphSpacing || 'medium'
+            paragraphSpacing: answerSettings.paragraphSpacing || 'medium',
+            cornerRadius: answerSettings.cornerRadius || 0
           };
         }
         
@@ -754,6 +825,13 @@ export default function Canvas() {
 
   const handleContextMenu = (e: Konva.KonvaEventObject<PointerEvent>) => {
     e.evt.preventDefault();
+    
+    // Don't show context menu if we just finished panning
+    if (hasPanned) {
+      setHasPanned(false);
+      return;
+    }
+    
     const pos = e.target.getStage()?.getPointerPosition();
     if (!pos) return;
     
@@ -903,25 +981,36 @@ export default function Canvas() {
     if (background.type === 'pattern') {
       const pattern = PATTERNS.find(p => p.id === background.value);
       if (pattern) {
-        const patternImage = new window.Image();
         const foregroundColor = background.patternForegroundColor || '#666';
         const backgroundColor = background.patternBackgroundColor || 'transparent';
-        patternImage.src = createPatternDataUrl(pattern, foregroundColor, backgroundColor);
-        const patternScale = Math.pow(1.5, (background.patternSize || 1) - 1); // Exponential scaling from 1x to ~38x
+        const patternScale = Math.pow(1.5, (background.patternSize || 1) - 1);
+        
+        const patternTile = createPatternTile(pattern, foregroundColor, patternScale, background.patternStrokeWidth || 1);
         
         return (
-          <Rect
-            x={pageOffsetX}
-            y={pageOffsetY}
-            width={canvasWidth}
-            height={canvasHeight}
-            fillPatternImage={patternImage}
-            fillPatternScaleX={patternScale}
-            fillPatternScaleY={patternScale}
-            fillPatternRepeat="repeat"
-            opacity={opacity}
-            listening={false}
-          />
+          <Group>
+            {backgroundColor !== 'transparent' && (
+              <Rect
+                x={pageOffsetX}
+                y={pageOffsetY}
+                width={canvasWidth}
+                height={canvasHeight}
+                fill={backgroundColor}
+                opacity={(background.patternBackgroundOpacity || 1) * opacity}
+                listening={false}
+              />
+            )}
+            <Rect
+              x={pageOffsetX}
+              y={pageOffsetY}
+              width={canvasWidth}
+              height={canvasHeight}
+              fillPatternImage={patternTile}
+              fillPatternRepeat="repeat"
+              opacity={opacity}
+              listening={false}
+            />
+          </Group>
         );
       }
     }
@@ -1147,7 +1236,8 @@ export default function Canvas() {
         y: pendingImagePosition.y,
         width,
         height,
-        src: imageUrl
+        src: imageUrl,
+        cornerRadius: 0
       };
       
       dispatch({ type: 'ADD_ELEMENT', payload: newElement });
@@ -1197,6 +1287,7 @@ export default function Canvas() {
                   <CanvasItemComponent
                     element={element}
                     isSelected={state.selectedElementIds.includes(element.id)}
+                    zoom={zoom}
                     onSelect={() => {
                     if (element.textType === 'question' || element.textType === 'answer') {
                       const currentTime = Date.now();
@@ -1352,6 +1443,9 @@ export default function Canvas() {
                 dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Transform Elements' });
               }}
               onTransformEnd={(e) => {
+                // Store current selection to preserve it
+                const currentSelection = [...state.selectedElementIds];
+                
                 // Handle all selected nodes, not just the target
                 const nodes = transformerRef.current?.nodes() || [];
                 nodes.forEach(node => {
@@ -1391,6 +1485,11 @@ export default function Canvas() {
                     });
                   }
                 });
+                
+                // Restore selection after a brief delay to ensure updates are processed
+                setTimeout(() => {
+                  dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: currentSelection });
+                }, 10);
               }}
             />
           </Layer>
