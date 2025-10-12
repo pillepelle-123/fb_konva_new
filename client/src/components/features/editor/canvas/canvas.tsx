@@ -547,7 +547,8 @@ export default function Canvas() {
         points: adjustedPoints,
         stroke: brushSettings.stroke || '#1f2937',
         roughness: 1,
-        strokeWidth: brushSettings.strokeWidth || 3
+        strokeWidth: brushSettings.strokeWidth || 3,
+        theme: brushSettings.theme || 'rough'
       };
       dispatch({ type: 'ADD_ELEMENT', payload: newElement });
       dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
@@ -566,7 +567,8 @@ export default function Canvas() {
           height: height,
           stroke: lineSettings.stroke || '#1f2937',
           roughness: 3,
-          strokeWidth: lineSettings.strokeWidth || 2
+          strokeWidth: lineSettings.strokeWidth || 2,
+          theme: lineSettings.theme || 'rough'
         };
         dispatch({ type: 'ADD_ELEMENT', payload: newElement });
         dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
@@ -588,7 +590,8 @@ export default function Canvas() {
           stroke: shapeSettings.stroke || '#1f2937',
           roughness: 3,
           strokeWidth: shapeSettings.strokeWidth || 2,
-          cornerRadius: shapeSettings.cornerRadius || 0
+          cornerRadius: shapeSettings.cornerRadius || 0,
+          theme: shapeSettings.theme || 'rough'
         };
         dispatch({ type: 'ADD_ELEMENT', payload: newElement });
         dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });

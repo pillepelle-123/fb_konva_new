@@ -35,6 +35,7 @@ export interface CanvasElement {
   backgroundColor?: string;
   backgroundOpacity?: number;
   padding?: number;
+  theme?: 'rough' | 'default' | 'chalk' | 'watercolor' | 'crayon' | 'candy' | 'zigzag' | 'multi-strokes';
 }
 
 export interface PageBackground {

@@ -1,7 +1,6 @@
 import type { CanvasElement } from '../../../../context/editor-context';
 import type { CanvasItemProps } from './base-canvas-item';
-import RoughBrush from './rough-brush';
-import RoughShape from './rough-shape';
+import ThemedShape from './themed-shape';
 import Textbox from './textbox';
 import Image from './image';
 
@@ -13,11 +12,11 @@ export default function CanvasItemComponent(props: CanvasItemComponentProps) {
   const { element } = props;
 
   if (element.type === 'brush') {
-    return <RoughBrush {...props} />;
+    return <ThemedShape {...props} />;
   }
 
   if (['rect', 'circle', 'line', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(element.type)) {
-    return <RoughShape {...props} />;
+    return <ThemedShape {...props} />;
   }
 
   if (element.type === 'text') {

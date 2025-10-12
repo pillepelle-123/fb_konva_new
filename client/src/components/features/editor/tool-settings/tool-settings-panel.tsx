@@ -13,6 +13,7 @@ import ImagesContent from '../../images/images-content';
 import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
 import type { PageBackground } from '../../../../context/editor-context';
 import { Checkbox } from '../../../ui/primitives/checkbox';
+import { ThemeSelect } from '../../../../utils/theme-options';
 
 const COLORS = [
   '#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff', 
@@ -204,6 +205,14 @@ export default function ToolSettingsPanel() {
         return (
           <div className="space-y-4">
             <div>
+              <label className="text-xs font-medium block mb-2">Theme</label>
+              <ThemeSelect 
+                value={settings.theme}
+                onChange={(value) => updateToolSetting('theme', value)}
+              />
+            </div>
+            
+            <div>
               <label className="text-xs font-medium block mb-2">Stroke Width</label>
               <input
                 type="range"
@@ -238,6 +247,14 @@ export default function ToolSettingsPanel() {
       case 'brush':
         return (
           <div className="space-y-2">
+            <div className={SETTINGS_SECTION_CLASS}>
+              <label className={SETTINGS_LABEL_CLASS}>Theme</label>
+              <ThemeSelect 
+                value={settings.theme}
+                onChange={(value) => updateToolSetting('theme', value)}
+              />
+            </div>
+            
             <div className={SETTINGS_SECTION_CLASS}>
               <label className={SETTINGS_LABEL_CLASS}>Brush Size</label>
               <input
@@ -308,6 +325,14 @@ export default function ToolSettingsPanel() {
                   />
                 ))}
               </div>
+            </div>
+            
+            <div className={SETTINGS_SECTION_CLASS}>
+              <label className={SETTINGS_LABEL_CLASS}>Theme</label>
+              <ThemeSelect 
+                value={settings.theme}
+                onChange={(value) => updateToolSetting('theme', value)}
+              />
             </div>
             
             <div className={SETTINGS_SECTION_CLASS}>
@@ -947,6 +972,33 @@ export default function ToolSettingsPanel() {
     );
   };
 
+  const getMaxStrokeWidth = (elementType: string, theme: string) => {
+    if (elementType === 'brush') {
+      switch (theme) {
+        case 'wobbly': return 500;
+        case 'candy': return 60;
+        case 'rough': return 100;
+        default: return 150;
+      }
+    } else if (elementType === 'line') {
+      switch (theme) {
+        case 'wobbly': return 500;
+        case 'candy': return 60;
+        case 'rough':
+        case 'default':
+        default: return 100;
+      }
+    } else {
+      switch (theme) {
+        case 'wobbly': return 300;
+        case 'candy': return 60;
+        case 'rough':
+        case 'default':
+        default: return 150;
+      }
+    }
+  };
+
   const renderElementSettings = (element: any) => {
     const updateElementSetting = (key: string, value: any) => {
       // Save to history before updating element
@@ -962,18 +1014,65 @@ export default function ToolSettingsPanel() {
         return (
           <div className="space-y-4">
             <div>
+              <label className="text-sm font-medium block mb-2">Theme</label>
+              <ThemeSelect 
+                value={element.theme}
+                onChange={(value) => updateElementSetting('theme', value)}
+              />
+            </div>
+            
+            <div>
               <label className="text-sm font-medium block mb-2">Brush Size</label>
               <input
                 type="range"
                 value={element.strokeWidth || 3}
                 onChange={(e) => updateElementSetting('strokeWidth', parseInt(e.target.value))}
-                max={50}
+                max={getMaxStrokeWidth('brush', element.theme || 'default')}
                 min={1}
                 step={1}
                 className="w-full"
               />
               <span className="text-xs text-muted-foreground">{element.strokeWidth || 3}px</span>
             </div>
+            
+            {element.theme === 'candy' && (
+              <div className="flex items-center gap-2 h-12">
+                <label className="flex items-center gap-1 text-sm font-medium">
+                  <input
+                    type="checkbox"
+                    checked={element.candyRandomness || false}
+                    onChange={(e) => updateElementSetting('candyRandomness', e.target.checked)}
+                    className="rounded w-3 h-3"
+                  />
+                  Random bubble size
+                </label>
+                {element.candyRandomness && (
+                  <ButtonGroup>
+                    <Button
+                      variant={(!element.candyIntensity || element.candyIntensity === 'weak') ? 'default' : 'outline'}
+                      size="xs"
+                      onClick={() => updateElementSetting('candyIntensity', 'weak')}
+                    >
+                      S
+                    </Button>
+                    <Button
+                      variant={element.candyIntensity === 'middle' ? 'default' : 'outline'}
+                      size="xs"
+                      onClick={() => updateElementSetting('candyIntensity', 'middle')}
+                    >
+                      M
+                    </Button>
+                    <Button
+                      variant={element.candyIntensity === 'strong' ? 'default' : 'outline'}
+                      size="xs"
+                      onClick={() => updateElementSetting('candyIntensity', 'strong')}
+                    >
+                      L
+                    </Button>
+                  </ButtonGroup>
+                )}
+              </div>
+            )}
             
             <div>
               <label className="text-sm font-medium block mb-2">Color</label>
@@ -997,12 +1096,20 @@ export default function ToolSettingsPanel() {
         return (
           <div className="space-y-1">
             <div>
+              <label className="text-xs font-medium block mb-1">Theme</label>
+              <ThemeSelect 
+                value={element.theme}
+                onChange={(value) => updateElementSetting('theme', value)}
+              />
+            </div>
+            
+            <div>
               <label className="text-xs font-medium block mb-1">Stroke Width</label>
               <input
                 type="range"
                 value={element.strokeWidth || 2}
                 onChange={(e) => updateElementSetting('strokeWidth', parseInt(e.target.value))}
-                max={20}
+                max={getMaxStrokeWidth('line', element.theme || 'default')}
                 min={1}
                 step={1}
                 className="w-full"
@@ -1039,18 +1146,66 @@ export default function ToolSettingsPanel() {
         return (
           <div className="space-y-2">
             <div className={SETTINGS_SECTION_CLASS}>
+              <label className={SETTINGS_LABEL_CLASS}>Theme</label>
+              <ThemeSelect 
+                value={element.theme}
+                onChange={(value) => updateElementSetting('theme', value)}
+              />
+            </div>
+            
+            {/* Circle */}
+            <div className={SETTINGS_SECTION_CLASS}>
               <label className={SETTINGS_LABEL_CLASS}>Stroke Width</label>
               <input
                 type="range"
                 value={element.strokeWidth || 2}
                 onChange={(e) => updateElementSetting('strokeWidth', parseInt(e.target.value))}
-                max={20}
+                max={getMaxStrokeWidth(element.type, element.theme || 'default')}
                 min={1}
                 step={1}
                 className="w-full"
               />
               <span className="text-xs text-muted-foreground">{element.strokeWidth || 2}px</span>
             </div>
+            
+            {element.theme === 'candy' && (
+              <div className="flex items-center gap-2 h-12">
+                <label className="flex items-center gap-1 text-xs font-medium">
+                  <input
+                    type="checkbox"
+                    checked={element.candyRandomness || false}
+                    onChange={(e) => updateElementSetting('candyRandomness', e.target.checked)}
+                    className="rounded w-3 h-3"
+                  />
+                  Randomness
+                </label>
+                {element.candyRandomness && (
+                  <ButtonGroup>
+                    <Button
+                      variant={(!element.candyIntensity || element.candyIntensity === 'weak') ? 'default' : 'outline'}
+                      size="xs"
+                      onClick={() => updateElementSetting('candyIntensity', 'weak')}
+                    >
+                      weak
+                    </Button>
+                    <Button
+                      variant={element.candyIntensity === 'middle' ? 'default' : 'outline'}
+                      size="xs"
+                      onClick={() => updateElementSetting('candyIntensity', 'middle')}
+                    >
+                      middle
+                    </Button>
+                    <Button
+                      variant={element.candyIntensity === 'strong' ? 'default' : 'outline'}
+                      size="xs"
+                      onClick={() => updateElementSetting('candyIntensity', 'strong')}
+                    >
+                      strong
+                    </Button>
+                  </ButtonGroup>
+                )}
+              </div>
+            )}
             
             <div className={SETTINGS_SECTION_CLASS}>
               <label className={SETTINGS_LABEL_CLASS}>Stroke Color</label>
@@ -1290,7 +1445,7 @@ export default function ToolSettingsPanel() {
             )}
             
             <div className={SETTINGS_SECTION_CLASS}>
-              <label className={SETTINGS_LABEL_CLASS}>Border Width</label>
+              <label className={SETTINGS_LABEL_CLASS}>Border Width <span className='text-gray-500'>{element.borderWidth || 0}px</span></label>
               <input
                 type="range"
                 value={element.borderWidth || 0}
