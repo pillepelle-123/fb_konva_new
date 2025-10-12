@@ -896,6 +896,38 @@ export default function Canvas() {
     setContextMenu({ x: 0, y: 0, visible: false });
   };
 
+  const handleMoveToFront = () => {
+    if (state.selectedElementIds.length === 0) return;
+    state.selectedElementIds.forEach(elementId => {
+      dispatch({ type: 'MOVE_ELEMENT_TO_FRONT', payload: elementId });
+    });
+    setContextMenu({ x: 0, y: 0, visible: false });
+  };
+
+  const handleMoveToBack = () => {
+    if (state.selectedElementIds.length === 0) return;
+    state.selectedElementIds.forEach(elementId => {
+      dispatch({ type: 'MOVE_ELEMENT_TO_BACK', payload: elementId });
+    });
+    setContextMenu({ x: 0, y: 0, visible: false });
+  };
+
+  const handleMoveUp = () => {
+    if (state.selectedElementIds.length === 0) return;
+    state.selectedElementIds.forEach(elementId => {
+      dispatch({ type: 'MOVE_ELEMENT_UP', payload: elementId });
+    });
+    setContextMenu({ x: 0, y: 0, visible: false });
+  };
+
+  const handleMoveDown = () => {
+    if (state.selectedElementIds.length === 0) return;
+    state.selectedElementIds.forEach(elementId => {
+      dispatch({ type: 'MOVE_ELEMENT_DOWN', payload: elementId });
+    });
+    setContextMenu({ x: 0, y: 0, visible: false });
+  };
+
   const handleWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault();
     
@@ -1506,6 +1538,10 @@ export default function Canvas() {
           onDelete={handleDeleteItems}
           onCopy={handleCopyItems}
           onPaste={handlePasteItems}
+          onMoveToFront={handleMoveToFront}
+          onMoveToBack={handleMoveToBack}
+          onMoveUp={handleMoveUp}
+          onMoveDown={handleMoveDown}
           hasSelection={state.selectedElementIds.length > 0}
           hasClipboard={clipboard.length > 0}
         />

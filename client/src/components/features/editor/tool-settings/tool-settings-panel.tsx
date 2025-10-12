@@ -14,6 +14,8 @@ import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
 import type { PageBackground } from '../../../../context/editor-context';
 import { Checkbox } from '../../../ui/primitives/checkbox';
 import { ThemeSelect } from '../../../../utils/theme-options';
+import { ColorPicker } from '../../../ui/primitives/color-picker';
+import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 
 const COLORS = [
   '#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff', 
@@ -65,7 +67,9 @@ export default function ToolSettingsPanel() {
   const [showBackgroundImageModal, setShowBackgroundImageModal] = useState(false);
   const [showPatternSettings, setShowPatternSettings] = useState(false);
   const [showBackgroundSettings, setShowBackgroundSettings] = useState(false);
+  const [showColorSelector, setShowColorSelector] = useState(false);
 
+  const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
   
   const toolSettings = state.toolSettings || {};
   const activeTool = state.activeTool;
@@ -124,6 +128,10 @@ export default function ToolSettingsPanel() {
     if (activeTool !== 'select' || state.selectedElementIds.length > 0) {
       setShowPatternSettings(false);
       setShowBackgroundSettings(false);
+    }
+    // Reset color selector when element selection changes
+    if (state.selectedElementIds.length === 0) {
+      setShowColorSelector(false);
     }
   }, [activeTool, state.selectedElementIds.length]);
 
@@ -999,7 +1007,68 @@ export default function ToolSettingsPanel() {
     }
   };
 
+  const renderColorSelectorDialog = (element: any) => {
+    const updateElementSetting = (key: string, value: any) => {
+      dispatch({ type: 'SAVE_TO_HISTORY', payload: `Update ${element.type} ${key}` });
+      dispatch({
+        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+        payload: { id: element.id, updates: { [key]: value } }
+      });
+    };
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowColorSelector(false)}
+            className="px-2 h-8"
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+        </div>
+        
+        <div>
+          <label className="text-xs font-medium block mb-2">Color Selector</label>
+          <ColorPicker
+            value={element.stroke || '#1f2937'}
+            onChange={(color) => updateElementSetting('stroke', color)}
+            favoriteColors={favoriteStrokeColors}
+            onAddFavorite={addFavoriteStrokeColor}
+            onRemoveFavorite={removeFavoriteStrokeColor}
+          />
+        </div>
+        
+        {favoriteStrokeColors.length > 0 && (
+          <div>
+            <label className="text-xs font-medium block mb-2">Favorite Colors</label>
+            <div className={COLOR_GRID_CLASS}>
+              {favoriteStrokeColors.map((color, index) => (
+                <button
+                  key={index}
+                  className={`${COLOR_BUTTON_CLASS} ${
+                    (element.stroke || '#1f2937') === color ? 'border-gray-400' : 'border-gray-200'
+                  }`}
+                  style={{ backgroundColor: color }}
+                  onClick={() => updateElementSetting('stroke', color)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+
+
   const renderElementSettings = (element: any) => {
+    if (showColorSelector && element.type === 'rect') {
+      return renderColorSelectorDialog(element);
+    }
+
     const updateElementSetting = (key: string, value: any) => {
       // Save to history before updating element
       dispatch({ type: 'SAVE_TO_HISTORY', payload: `Update ${element.type} ${key}` });
@@ -1221,6 +1290,16 @@ export default function ToolSettingsPanel() {
                   />
                 ))}
               </div>
+              {element.type === 'rect' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowColorSelector(true)}
+                  className="w-full mt-2"
+                >
+                  Color Selector
+                </Button>
+              )}
             </div>
             
             <div className={SETTINGS_SECTION_CLASS}>
@@ -1632,8 +1711,8 @@ export default function ToolSettingsPanel() {
 
                     <Button variant="ghost" size="sm" className="h-8 px-0 gap-2">
                       {IconComponent && <IconComponent className="h-4 w-4" />}
-                      {elementType.charAt(0).toUpperCase() + elementType.slice(1)} Settings   
-</Button>
+                      {showColorSelector ? 'Color Selector' : `${elementType.charAt(0).toUpperCase() + elementType.slice(1)} Settings`}
+                    </Button>
                     );
                   }
                   return `Element Settings (${state.selectedElementIds.length})`;
@@ -1646,6 +1725,8 @@ export default function ToolSettingsPanel() {
                       } else {
                         settingsName = 'Background Settings';
                       }
+                    } else if (showColorSelector) {
+                      settingsName = 'Color Selector';
                     }
                     return (
                       <>

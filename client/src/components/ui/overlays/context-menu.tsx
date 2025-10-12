@@ -9,6 +9,10 @@ interface ContextMenuProps {
   onDelete: () => void;
   onCopy: () => void;
   onPaste: () => void;
+  onMoveToFront: () => void;
+  onMoveToBack: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
   hasSelection: boolean;
   hasClipboard: boolean;
 }
@@ -16,7 +20,7 @@ interface ContextMenuProps {
 const ContextMenu = React.forwardRef<
   HTMLDivElement,
   ContextMenuProps
->(({ x, y, visible, onDuplicate, onDelete, onCopy, onPaste, hasSelection, hasClipboard }, ref) => {
+>(({ x, y, visible, onDuplicate, onDelete, onCopy, onPaste, onMoveToFront, onMoveToBack, onMoveUp, onMoveDown, hasSelection, hasClipboard }, ref) => {
   if (!visible) return null;
 
   return (
@@ -47,6 +51,30 @@ const ContextMenu = React.forwardRef<
         onClick={hasSelection ? onDuplicate : undefined}
       >
         Duplicate
+      </ContextMenuItem>
+      <ContextMenuItem
+        disabled={!hasSelection}
+        onClick={hasSelection ? onMoveToFront : undefined}
+      >
+        Bring to Front
+      </ContextMenuItem>
+      <ContextMenuItem
+        disabled={!hasSelection}
+        onClick={hasSelection ? onMoveUp : undefined}
+      >
+        Bring Forward
+      </ContextMenuItem>
+      <ContextMenuItem
+        disabled={!hasSelection}
+        onClick={hasSelection ? onMoveDown : undefined}
+      >
+        Send Backward
+      </ContextMenuItem>
+      <ContextMenuItem
+        disabled={!hasSelection}
+        onClick={hasSelection ? onMoveToBack : undefined}
+      >
+        Send to Back
       </ContextMenuItem>
       <ContextMenuItem
         disabled={!hasSelection}

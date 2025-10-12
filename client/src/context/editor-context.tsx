@@ -104,6 +104,10 @@ type EditorAction =
   | { type: 'UPDATE_ELEMENT'; payload: { id: string; updates: Partial<CanvasElement> } }
   | { type: 'UPDATE_ELEMENT_PRESERVE_SELECTION'; payload: { id: string; updates: Partial<CanvasElement> } }
   | { type: 'DELETE_ELEMENT'; payload: string }
+  | { type: 'MOVE_ELEMENT_TO_FRONT'; payload: string }
+  | { type: 'MOVE_ELEMENT_TO_BACK'; payload: string }
+  | { type: 'MOVE_ELEMENT_UP'; payload: string }
+  | { type: 'MOVE_ELEMENT_DOWN'; payload: string }
   | { type: 'ADD_PAGE' }
   | { type: 'DELETE_PAGE'; payload: number }
   | { type: 'DUPLICATE_PAGE'; payload: number }
@@ -487,6 +491,56 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         targetPage.background = action.payload.background;
       }
       return { ...savedBgState, currentBook: updatedBookBg, hasUnsavedChanges: true };
+    
+    case 'MOVE_ELEMENT_TO_FRONT':
+      if (!state.currentBook) return state;
+      const savedFrontState = saveToHistory(state, 'Move to Front');
+      const bookFront = { ...savedFrontState.currentBook! };
+      const pageFront = bookFront.pages[savedFrontState.activePageIndex];
+      const elementIndexFront = pageFront.elements.findIndex(el => el.id === action.payload);
+      if (elementIndexFront !== -1) {
+        const element = pageFront.elements.splice(elementIndexFront, 1)[0];
+        pageFront.elements.push(element);
+      }
+      return { ...savedFrontState, currentBook: bookFront, hasUnsavedChanges: true };
+    
+    case 'MOVE_ELEMENT_TO_BACK':
+      if (!state.currentBook) return state;
+      const savedBackState = saveToHistory(state, 'Move to Back');
+      const bookBack = { ...savedBackState.currentBook! };
+      const pageBack = bookBack.pages[savedBackState.activePageIndex];
+      const elementIndexBack = pageBack.elements.findIndex(el => el.id === action.payload);
+      if (elementIndexBack !== -1) {
+        const element = pageBack.elements.splice(elementIndexBack, 1)[0];
+        pageBack.elements.unshift(element);
+      }
+      return { ...savedBackState, currentBook: bookBack, hasUnsavedChanges: true };
+    
+    case 'MOVE_ELEMENT_UP':
+      if (!state.currentBook) return state;
+      const savedUpState = saveToHistory(state, 'Move Up');
+      const bookUp = { ...savedUpState.currentBook! };
+      const pageUp = bookUp.pages[savedUpState.activePageIndex];
+      const elementIndexUp = pageUp.elements.findIndex(el => el.id === action.payload);
+      if (elementIndexUp !== -1 && elementIndexUp < pageUp.elements.length - 1) {
+        const element = pageUp.elements[elementIndexUp];
+        pageUp.elements[elementIndexUp] = pageUp.elements[elementIndexUp + 1];
+        pageUp.elements[elementIndexUp + 1] = element;
+      }
+      return { ...savedUpState, currentBook: bookUp, hasUnsavedChanges: true };
+    
+    case 'MOVE_ELEMENT_DOWN':
+      if (!state.currentBook) return state;
+      const savedDownState = saveToHistory(state, 'Move Down');
+      const bookDown = { ...savedDownState.currentBook! };
+      const pageDown = bookDown.pages[savedDownState.activePageIndex];
+      const elementIndexDown = pageDown.elements.findIndex(el => el.id === action.payload);
+      if (elementIndexDown > 0) {
+        const element = pageDown.elements[elementIndexDown];
+        pageDown.elements[elementIndexDown] = pageDown.elements[elementIndexDown - 1];
+        pageDown.elements[elementIndexDown - 1] = element;
+      }
+      return { ...savedDownState, currentBook: bookDown, hasUnsavedChanges: true };
     
     default:
       return state;
