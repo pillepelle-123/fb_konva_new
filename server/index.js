@@ -51,6 +51,7 @@ app.use('/api/friends', require('./routes/friends'));
 app.use('/api/answers', require('./routes/answers'));
 app.use('/api/messenger', require('./routes/messenger'));
 app.use('/api/dashboard', require('./routes/dashboard'));
+app.use('/api/editor-settings', require('./routes/editor-settings'));
 
 // Socket.IO authentication middleware
 io.use((socket, next) => {

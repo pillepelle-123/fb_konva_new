@@ -471,8 +471,6 @@ const wobblyTheme: ThemeRenderer = {
       
       // Simulate hand-drawn rectangle with 4 brush strokes (extended to connect)
       const overlap = 164;
-      console.log('Generating wobbly rectangle with overlap:', overlap);
-      console.log('Base width:', baseWidth);
       const edges = [
         { start: [-overlap, 0], end: [element.width + overlap, 0] },
         { start: [element.width, -overlap], end: [element.width, element.height + overlap] },

@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import { Text, Rect, Path } from 'react-konva';
+import { Text, Rect, Path, Group } from 'react-konva';
 import Konva from 'konva';
 import rough from 'roughjs';
 import { useEditor } from '../../../../context/editor-context';
@@ -7,6 +7,7 @@ import { useAuth } from '../../../../context/auth-context';
 import type { CanvasElement } from '../../../../context/editor-context';
 import BaseCanvasItem from './base-canvas-item';
 import type { CanvasItemProps } from './base-canvas-item';
+import ThemedShape from './themed-shape';
 
 
 // Rich text formatting function for Quill HTML output
@@ -405,9 +406,36 @@ export default function Textbox(props: CanvasItemProps) {
     }
   }, [element.width, element.height]);
 
+  // Create border element for ThemedShape if borderWidth > 0
+  const borderElement = element.borderWidth && element.borderWidth > 0 ? {
+    ...element,
+    id: `${element.id}-border`,
+    type: 'rect' as const,
+    x: 0,
+    y: 0,
+    stroke: element.borderColor || '#000000',
+    strokeWidth: element.borderWidth,
+    fill: 'transparent',
+    roughness: element.theme === 'rough' ? 3 : element.roughness
+  } : null;
+
   return (
-    <>
-      <BaseCanvasItem {...props} onDoubleClick={handleDoubleClick}>
+    <BaseCanvasItem {...props} onDoubleClick={handleDoubleClick}>
+      <Group>
+        {/* Themed border using ThemedShape component */}
+        {borderElement && (
+          <Group listening={false}>
+            <ThemedShape
+              element={borderElement}
+              isSelected={false}
+              isDragging={false}
+              zoom={1}
+              onSelect={() => {}}
+              onTransform={() => {}}
+            />
+          </Group>
+        )}
+        
         {/* Background rectangle */}
         <Rect
           width={element.width}
@@ -420,80 +448,6 @@ export default function Textbox(props: CanvasItemProps) {
           cornerRadius={element.cornerRadius || 0}
           listening={false}
         />
-        
-        {/* Rough border */}
-        {element.borderWidth && element.borderWidth > 0 ? (() => {
-          const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-          const rc = rough.svg(svg);
-          
-          try {
-            const roughBorder = element.cornerRadius && element.cornerRadius > 0 
-              ? (() => {
-                  const r = Math.min(element.cornerRadius, element.width / 2, element.height / 2);
-                  const roundedRectPath = `M ${r} 0 L ${element.width - r} 0 Q ${element.width} 0 ${element.width} ${r} L ${element.width} ${element.height - r} Q ${element.width} ${element.height} ${element.width - r} ${element.height} L ${r} ${element.height} Q 0 ${element.height} 0 ${element.height - r} L 0 ${r} Q 0 0 ${r} 0 Z`;
-                  return rc.path(roundedRectPath, {
-                    roughness: 1.5,
-                    strokeWidth: element.borderWidth,
-                    stroke: element.borderColor || '#000000',
-                    fill: 'none',
-                    seed
-                  });
-                })()
-              : rc.rectangle(0, 0, element.width, element.height, {
-                  roughness: 1.5,
-                  strokeWidth: element.borderWidth,
-                  stroke: element.borderColor || '#000000',
-                  fill: 'none',
-                  seed
-                });
-            
-            // Only use the first stroke path to avoid multiple border lines
-            const paths = roughBorder.querySelectorAll('path');
-            let strokePath = '';
-            for (const path of paths) {
-              const fill = path.getAttribute('fill');
-              const stroke = path.getAttribute('stroke');
-              // Only take the first valid stroke path
-              if (stroke && stroke !== 'none' && 
-                  (fill === 'none' || fill === 'transparent' || !fill)) {
-                const d = path.getAttribute('d');
-                if (d) {
-                  strokePath = d;
-                  break; // Only use the first stroke path
-                }
-              }
-            }
-            
-            if (strokePath) {
-              return (
-                <Path
-                  data={strokePath.trim()}
-                  stroke={element.borderColor || '#000000'}
-                  strokeWidth={element.borderWidth}
-                  fill="none"
-                  listening={false}
-                />
-              );
-            }
-          } catch (error) {
-            // Fallback to regular rectangle border
-            const r = element.cornerRadius || 0;
-            const fallbackPath = r > 0 
-              ? `M ${r} 0 L ${element.width - r} 0 Q ${element.width} 0 ${element.width} ${r} L ${element.width} ${element.height - r} Q ${element.width} ${element.height} ${element.width - r} ${element.height} L ${r} ${element.height} Q 0 ${element.height} 0 ${element.height - r} L 0 ${r} Q 0 0 ${r} 0 Z`
-              : `M 0 0 L ${element.width} 0 L ${element.width} ${element.height} L 0 ${element.height} Z`;
-            return (
-              <Path
-                data={fallbackPath}
-                stroke={element.borderColor || '#000000'}
-                strokeWidth={element.borderWidth}
-                fill="none"
-                listening={false}
-              />
-            );
-          }
-          return null;
-        })() : null}
         
         {/* Ruled lines */}
         {generateRuledLines()}
@@ -555,9 +509,7 @@ export default function Textbox(props: CanvasItemProps) {
             listening={false}
           />
         )}
-      </BaseCanvasItem>
-      
-
-    </>
+      </Group>
+    </BaseCanvasItem>
   );
 }

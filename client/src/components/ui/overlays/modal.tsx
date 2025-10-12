@@ -6,15 +6,16 @@ interface ModalProps {
   title: string;
   children: ReactNode;
   actions?: ReactNode;
+  closeOnBackdrop?: boolean;
 }
 
-export function Modal({ isOpen, onClose, title, children, actions }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, actions, closeOnBackdrop = true }: ModalProps) {
   if (!isOpen) return null;
 
   return (
     <div 
       className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm"
-      onClick={onClose}
+      onClick={closeOnBackdrop ? onClose : undefined}
     >
       <div 
         className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-4xl max-h-[90vh] translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg sm:rounded-lg overflow-hidden"

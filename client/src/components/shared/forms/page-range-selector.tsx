@@ -34,7 +34,7 @@ export function PageRangeSelector({
         onChange={onPageRangeChange as (value: string) => void} 
         options={radioOptions} 
       />
-      {pageRange === 'range' && (
+      
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginLeft: '24px' }}>
           <NumberInput
             value={startPage}
@@ -50,7 +50,7 @@ export function PageRangeSelector({
             max={maxPages}
           />
         </div>
-      )}
+    
     </FormField>
   );
 }

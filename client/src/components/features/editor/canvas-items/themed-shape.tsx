@@ -151,55 +151,53 @@ export default function ThemedShape(props: CanvasItemProps) {
         );
       }
     } else if (element.type === 'rect') {
-      const perimeter = 2 * (element.width + element.height);
-      const numCircles = Math.floor(perimeter / spacing);
+      const topCircles = Math.max(1, Math.floor(element.width / spacing));
+      const rightCircles = Math.max(1, Math.floor(element.height / spacing));
+      const bottomCircles = Math.max(1, Math.floor(element.width / spacing));
+      const leftCircles = Math.max(1, Math.floor(element.height / spacing));
       
-      for (let i = 0; i < numCircles; i++) {
-        const t = (i * spacing) / perimeter;
-        let x, y;
+      const sides = [
+        { count: topCircles, getPos: (i: number) => ({ x: (i + 0.5) * element.width / topCircles, y: 0 }) },
+        { count: rightCircles, getPos: (i: number) => ({ x: element.width, y: (i + 0.5) * element.height / rightCircles }) },
+        { count: bottomCircles, getPos: (i: number) => ({ x: element.width - (i + 0.5) * element.width / bottomCircles, y: element.height }) },
+        { count: leftCircles, getPos: (i: number) => ({ x: 0, y: element.height - (i + 0.5) * element.height / leftCircles }) }
+      ];
+      
+      let circleIndex = 0;
+      sides.forEach(side => {
+        for (let i = 0; i < side.count; i++) {
+          const { x, y } = side.getPos(i);
         
-        if (t < 0.25) {
-          x = t * 4 * element.width;
-          y = 0;
-        } else if (t < 0.5) {
-          x = element.width;
-          y = (t - 0.25) * 4 * element.height;
-        } else if (t < 0.75) {
-          x = element.width - (t - 0.5) * 4 * element.width;
-          y = element.height;
-        } else {
-          x = 0;
-          y = element.height - (t - 0.75) * 4 * element.height;
+          const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 4), 10) || 1;
+          const random = () => {
+            const x = Math.sin(seed + circleIndex) * 10000;
+            return x - Math.floor(x);
+          };
+          const getVariationAmount = () => {
+            if (!hasRandomness) return 0;
+            const intensity = element.candyIntensity || 'weak';
+            switch (intensity) {
+              case 'middle': return 1.0;
+              case 'strong': return 1.4;
+              default: return 0.7; // weak
+            }
+          };
+          const sizeVariation = hasRandomness ? 1 + (random() - 0.5) * getVariationAmount() : 1;
+          const circleSize = baseCircleSize * sizeVariation;
+          
+          circles.push(
+            <Circle
+              key={circleIndex}
+              x={x}
+              y={y}
+              radius={circleSize / 2}
+              fill={strokeProps.stroke}
+              listening={false}
+            />
+          );
+          circleIndex++;
         }
-        
-        const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 4), 10) || 1;
-        const random = () => {
-          const x = Math.sin(seed + i) * 10000;
-          return x - Math.floor(x);
-        };
-        const getVariationAmount = () => {
-          if (!hasRandomness) return 0;
-          const intensity = element.candyIntensity || 'weak';
-          switch (intensity) {
-            case 'middle': return 1.0;
-            case 'strong': return 1.4;
-            default: return 0.7; // weak
-          }
-        };
-        const sizeVariation = hasRandomness ? 1 + (random() - 0.5) * getVariationAmount() : 1;
-        const circleSize = baseCircleSize * sizeVariation;
-        
-        circles.push(
-          <Circle
-            key={i}
-            x={x}
-            y={y}
-            radius={circleSize / 2}
-            fill={strokeProps.stroke}
-            listening={false}
-          />
-        );
-      }
+      });
     } else if (element.type === 'circle') {
       const cx = element.width / 2;
       const cy = element.height / 2;

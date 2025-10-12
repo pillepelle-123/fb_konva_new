@@ -65,6 +65,7 @@ export default function PDFExportModal({ isOpen, onClose }: PDFExportModalProps)
     <Modal
       isOpen={isOpen}
       onClose={isExporting ? handleCancel : onClose}
+      closeOnBackdrop={false}
       title="Export to PDF"
       actions={
         <>
