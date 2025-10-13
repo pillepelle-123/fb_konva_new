@@ -23,7 +23,8 @@ export function useEditorSettings(bookId: number | undefined) {
     const loadSettings = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`http://localhost:5000/api/editor-settings/${bookId}`, {
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+        const response = await fetch(`${apiUrl}/editor-settings/${bookId}`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -32,6 +33,8 @@ export function useEditorSettings(bookId: number | undefined) {
         if (response.ok) {
           const data = await response.json();
           setSettings(data);
+        } else {
+          console.error('Failed to load settings:', response.status, response.statusText);
         }
       } catch (error) {
         console.error('Failed to load editor settings:', error);
@@ -48,7 +51,8 @@ export function useEditorSettings(bookId: number | undefined) {
     if (!bookId || !token) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/editor-settings/${bookId}`, {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/editor-settings/${bookId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -75,6 +79,10 @@ export function useEditorSettings(bookId: number | undefined) {
           }
           return prev;
         });
+      } else {
+        console.error('Failed to save setting:', response.status, response.statusText);
+        const errorText = await response.text();
+        console.error('Error details:', errorText);
       }
     } catch (error) {
       console.error('Failed to save editor setting:', error);
@@ -86,7 +94,8 @@ export function useEditorSettings(bookId: number | undefined) {
     if (!bookId || !token) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/editor-settings/${bookId}/${settingType}/${settingKey}`, {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/editor-settings/${bookId}/${settingType}/${settingKey}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -106,6 +115,8 @@ export function useEditorSettings(bookId: number | undefined) {
           }
           return newSettings;
         });
+      } else {
+        console.error('Failed to delete setting:', response.status, response.statusText);
       }
     } catch (error) {
       console.error('Failed to delete editor setting:', error);

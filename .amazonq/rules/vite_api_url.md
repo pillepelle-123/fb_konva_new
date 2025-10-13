@@ -1,0 +1,1 @@
+Never hardcode "localhost" when addressing the API URL. Instead use VITE_API_URL from .env-file and 'http://localhost:5000/api' as a fallback;
