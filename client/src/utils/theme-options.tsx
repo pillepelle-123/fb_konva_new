@@ -1,12 +1,9 @@
 export const THEME_OPTIONS = [
   { value: 'rough', label: 'Rough (Hand-drawn)' },
   { value: 'default', label: 'Default (Clean)' },
-  { value: 'chalk', label: 'Chalk (Textured)' },
-  { value: 'watercolor', label: 'Watercolor (Soft)' },
-  { value: 'crayon', label: 'Crayon (Waxy)' },
+  { value: 'glow', label: 'Glow (Soft)' },
   { value: 'candy', label: 'Candy (Dotted)' },
   { value: 'zigzag', label: 'Zig-zag (Electric)' },
-  { value: 'multi-strokes', label: 'Multi-strokes (Parallel)' },
   { value: 'wobbly', label: 'Wobbly (Variable width)' }
 ];
 

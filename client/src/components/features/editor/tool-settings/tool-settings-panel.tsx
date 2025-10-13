@@ -1,6 +1,6 @@
 import { useEditor } from '../../../../context/editor-context';
 import { Button } from '../../../ui/primitives/button';
-import { ChevronRight, ChevronLeft, MousePointer, Hand, MessageCircleMore, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, AlignLeft, AlignCenter, AlignRight, AlignJustify, Settings, Rows4, Rows3, Rows2 } from 'lucide-react';
+import { ChevronRight, ChevronLeft, MousePointer, Hand, MessageCircleMore, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, AlignLeft, AlignCenter, AlignRight, AlignJustify, Settings, Rows4, Rows3, Rows2, Palette } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { ToolSettingsContainer } from './tool-settings-container';
 import { Dialog, DialogContent } from '../../../ui/overlays/dialog';
@@ -16,6 +16,9 @@ import { Checkbox } from '../../../ui/primitives/checkbox';
 import { ThemeSelect } from '../../../../utils/theme-options';
 import { ColorPicker } from '../../../ui/primitives/color-picker';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
+import { ColorSelector } from './color-selector';
+import { Slider } from '../../../ui/primitives/slider';
+import { Separator } from '../../../ui/primitives/separator';
 
 const COLORS = [
   '#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff', 
@@ -67,7 +70,7 @@ export default function ToolSettingsPanel() {
   const [showBackgroundImageModal, setShowBackgroundImageModal] = useState(false);
   const [showPatternSettings, setShowPatternSettings] = useState(false);
   const [showBackgroundSettings, setShowBackgroundSettings] = useState(false);
-  const [showColorSelector, setShowColorSelector] = useState(false);
+  const [showColorSelector, setShowColorSelector] = useState<string | null>(null);
 
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
   
@@ -130,14 +133,195 @@ export default function ToolSettingsPanel() {
       setShowBackgroundSettings(false);
     }
     // Reset color selector when element selection changes
-    if (state.selectedElementIds.length === 0) {
-      setShowColorSelector(false);
-    }
-  }, [activeTool, state.selectedElementIds.length]);
+    setShowColorSelector(null);
+  }, [activeTool, state.selectedElementIds]);
 
   const shouldShowPanel = activeTool !== 'pan' && (state.selectedElementIds.length > 0 || activeTool === 'select');
 
+  const getColorSelectorTitle = (colorType: string) => {
+    switch (colorType) {
+      case 'line-stroke':
+      case 'brush-stroke':
+        return 'Color';
+      case 'shape-stroke':
+      case 'element-brush-stroke':
+      case 'element-line-stroke':
+      case 'element-shape-stroke':
+        return 'Stroke Color';
+      case 'shape-fill':
+      case 'element-shape-fill':
+        return 'Fill Color';
+      case 'text-color':
+      case 'element-text-color':
+        return 'Text Color';
+      case 'text-border':
+      case 'element-text-border':
+        return 'Border Color';
+      case 'text-background':
+      case 'element-text-background':
+        return 'Background Color';
+      case 'background-color':
+        return 'Color';
+      case 'pattern-background':
+        return 'Background Color';
+      default:
+        return 'Color Selector';
+    }
+  };
+
+  const renderColorSelectorForTool = (colorType: string) => {
+    const settings = toolSettings[activeTool] || {};
+    const currentPage = state.currentBook?.pages[state.activePageIndex];
+    const background = currentPage?.background || { type: 'color', value: '#ffffff', opacity: 1 };
+    
+    const getColorValue = () => {
+      switch (colorType) {
+        case 'line-stroke':
+        case 'brush-stroke':
+        case 'shape-stroke':
+          return settings.stroke || '#1f2937';
+        case 'shape-fill':
+          return settings.fill || 'transparent';
+        case 'text-color':
+          return settings.fill || '#1f2937';
+        case 'text-border':
+          return settings.borderColor || '#000000';
+        case 'text-background':
+          return settings.backgroundColor || 'transparent';
+        case 'background-color':
+          return background.type === 'pattern' ? (background.patternForegroundColor || '#666666') : background.value;
+        case 'pattern-background':
+          return background.patternBackgroundColor || 'transparent';
+        default:
+          return '#1f2937';
+      }
+    };
+    
+    const getOpacityValue = () => {
+      switch (colorType) {
+        case 'line-stroke':
+        case 'brush-stroke':
+        case 'shape-stroke':
+          return settings.strokeOpacity || 1;
+        case 'shape-fill':
+          return settings.fillOpacity || 1;
+        case 'text-color':
+          return settings.fillOpacity || 1;
+        case 'text-border':
+          return settings.borderOpacity || 1;
+        case 'text-background':
+          return settings.backgroundOpacity || 1;
+        case 'background-color':
+          return background.opacity || 1;
+        case 'pattern-background':
+          return background.patternBackgroundOpacity || 1;
+        default:
+          return 1;
+      }
+    };
+    
+    const handleOpacityChange = (opacity: number) => {
+      switch (colorType) {
+        case 'line-stroke':
+        case 'brush-stroke':
+        case 'shape-stroke':
+          updateToolSetting('strokeOpacity', opacity);
+          break;
+        case 'shape-fill':
+          updateToolSetting('fillOpacity', opacity);
+          break;
+        case 'text-color':
+          updateToolSetting('fillOpacity', opacity);
+          break;
+        case 'text-border':
+          updateToolSetting('borderOpacity', opacity);
+          break;
+        case 'text-background':
+          updateToolSetting('backgroundOpacity', opacity);
+          break;
+        case 'background-color':
+          const updateBackground = (updates: Partial<PageBackground>) => {
+            const newBackground = { ...background, ...updates };
+            dispatch({
+              type: 'UPDATE_PAGE_BACKGROUND',
+              payload: { pageIndex: state.activePageIndex, background: newBackground }
+            });
+          };
+          updateBackground({ opacity });
+          break;
+        case 'pattern-background':
+          const updatePatternBackground = (updates: Partial<PageBackground>) => {
+            const newBackground = { ...background, ...updates };
+            dispatch({
+              type: 'UPDATE_PAGE_BACKGROUND',
+              payload: { pageIndex: state.activePageIndex, background: newBackground }
+            });
+          };
+          updatePatternBackground({ patternBackgroundOpacity: opacity });
+          break;
+      }
+    };
+    
+    const handleColorChange = (color: string) => {
+      const updateBackground = (updates: Partial<PageBackground>) => {
+        const newBackground = { ...background, ...updates };
+        dispatch({
+          type: 'UPDATE_PAGE_BACKGROUND',
+          payload: { pageIndex: state.activePageIndex, background: newBackground }
+        });
+      };
+      
+      switch (colorType) {
+        case 'line-stroke':
+        case 'brush-stroke':
+        case 'shape-stroke':
+          updateToolSetting('stroke', color);
+          break;
+        case 'shape-fill':
+        case 'text-color':
+          updateToolSetting('fill', color);
+          break;
+        case 'text-border':
+          updateToolSetting('borderColor', color);
+          break;
+        case 'text-background':
+          updateToolSetting('backgroundColor', color);
+          break;
+        case 'background-color':
+          if (background.type === 'pattern') {
+            updateBackground({ patternForegroundColor: color });
+          } else {
+            updateBackground({ value: color });
+          }
+          break;
+        case 'pattern-background':
+          updateBackground({ patternBackgroundColor: color });
+          break;
+        default:
+          updateToolSetting('stroke', color);
+      }
+    };
+    
+    const hasOpacity = true; // All colors now support opacity
+    
+    return (
+      <ColorSelector
+        value={getColorValue()}
+        onChange={handleColorChange}
+        opacity={hasOpacity ? getOpacityValue() : undefined}
+        onOpacityChange={hasOpacity ? handleOpacityChange : undefined}
+        favoriteColors={favoriteStrokeColors}
+        onAddFavorite={addFavoriteStrokeColor}
+        onRemoveFavorite={removeFavoriteStrokeColor}
+        onBack={() => setShowColorSelector(null)}
+      />
+    );
+  };
+
   const renderToolSettings = () => {
+    if (showColorSelector && !showColorSelector.startsWith('element-')) {
+      return renderColorSelectorForTool(showColorSelector);
+    }
     // Check if we have linked question-answer pair selected
     if (state.selectedElementIds.length === 2 && state.currentBook) {
       const selectedElements = state.currentBook.pages[state.activePageIndex]?.elements.filter(
@@ -220,34 +404,24 @@ export default function ToolSettingsPanel() {
               />
             </div>
             
-            <div>
-              <label className="text-xs font-medium block mb-2">Stroke Width</label>
-              <input
-                type="range"
-                value={settings.strokeWidth || 2}
-                onChange={(e) => updateToolSetting('strokeWidth', parseInt(e.target.value))}
-                max={20}
-                min={1}
-                step={1}
-                className="w-full"
-              />
-              <span className="text-xs text-muted-foreground">{settings.strokeWidth || 2}px</span>
-            </div>
+            <Slider
+              label="Stroke Width"
+              value={settings.strokeWidth || 2}
+              onChange={(value) => updateToolSetting('strokeWidth', value)}
+              min={1}
+              max={20}
+            />
             
             <div>
-              <label className="text-sm font-medium block mb-2">Color</label>
-              <div className="grid grid-cols-5 gap-2 mt-2">
-                {COLORS.map(color => (
-                  <button
-                    key={color}
-                    className={`w-8 h-8 rounded border-2 ${
-                      (settings.stroke || '#1f2937') === color ? 'border-gray-400' : 'border-gray-200'
-                    }`}
-                    style={{ backgroundColor: color }}
-                    onClick={() => updateToolSetting('stroke', color)}
-                  />
-                ))}
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowColorSelector('line-stroke')}
+                className="w-full"
+              >
+                <Palette className="h-4 w-4 mr-2" />
+                Color
+              </Button>
             </div>
           </div>
         );
@@ -263,34 +437,25 @@ export default function ToolSettingsPanel() {
               />
             </div>
             
-            <div className={SETTINGS_SECTION_CLASS}>
-              <label className={SETTINGS_LABEL_CLASS}>Brush Size</label>
-              <input
-                type="range"
-                value={settings.strokeWidth || 3}
-                onChange={(e) => updateToolSetting('strokeWidth', parseInt(e.target.value))}
-                max={50}
-                min={1}
-                step={1}
-                className="w-full"
-              />
-              <span className="text-xs text-muted-foreground">{settings.strokeWidth || 3}px</span>
-            </div>
+            <Slider
+              label="Brush Size"
+              value={settings.strokeWidth || 3}
+              onChange={(value) => updateToolSetting('strokeWidth', value)}
+              min={1}
+              max={50}
+              className={SETTINGS_SECTION_CLASS}
+            />
             
             <div className={SETTINGS_SECTION_CLASS}>
-              <label className={SETTINGS_LABEL_CLASS}>Color</label>
-              <div className={COLOR_GRID_CLASS}>
-                {COLORS.map(color => (
-                  <button
-                    key={color}
-                    className={`${COLOR_BUTTON_CLASS} ${
-                      (settings.stroke || '#1f2937') === color ? 'border-gray-400' : 'border-gray-200'
-                    }`}
-                    style={{ backgroundColor: color }}
-                    onClick={() => updateToolSetting('stroke', color)}
-                  />
-                ))}
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowColorSelector('brush-stroke')}
+                className="w-full"
+              >
+                <Palette className="h-4 w-4 mr-2" />
+                Color
+              </Button>
             </div>
           </div>
         );
@@ -305,34 +470,25 @@ export default function ToolSettingsPanel() {
       case 'smiley':
         return (
           <div className="space-y-2">
-            <div className={SETTINGS_SECTION_CLASS}>
-              <label className={SETTINGS_LABEL_CLASS}>Stroke Width</label>
-              <input
-                type="range"
-                value={settings.strokeWidth || 2}
-                onChange={(e) => updateToolSetting('strokeWidth', parseInt(e.target.value))}
-                max={20}
-                min={1}
-                step={1}
-                className="w-full"
-              />
-              <span className="text-xs text-muted-foreground">{settings.strokeWidth || 2}px</span>
-            </div>
+            <Slider
+              label="Stroke Width"
+              value={settings.strokeWidth || 2}
+              onChange={(value) => updateToolSetting('strokeWidth', value)}
+              min={1}
+              max={20}
+              className={SETTINGS_SECTION_CLASS}
+            />
             
             <div className={SETTINGS_SECTION_CLASS}>
-              <label className={SETTINGS_LABEL_CLASS}>Stroke Color</label>
-              <div className={COLOR_GRID_CLASS}>
-                {COLORS.map(color => (
-                  <button
-                    key={color}
-                    className={`${COLOR_BUTTON_CLASS} ${
-                      (settings.stroke || '#1f2937') === color ? 'border-gray-400' : 'border-gray-200'
-                    }`}
-                    style={{ backgroundColor: color }}
-                    onClick={() => updateToolSetting('stroke', color)}
-                  />
-                ))}
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowColorSelector('shape-stroke')}
+                className="w-full"
+              >
+                <Palette className="h-4 w-4 mr-2" />
+                Stroke Color
+              </Button>
             </div>
             
             <div className={SETTINGS_SECTION_CLASS}>
@@ -344,43 +500,26 @@ export default function ToolSettingsPanel() {
             </div>
             
             <div className={SETTINGS_SECTION_CLASS}>
-              <label className={SETTINGS_LABEL_CLASS}>Fill Color</label>
-              <div className={COLOR_GRID_CLASS}>
-                <button
-                  className={`${COLOR_BUTTON_CLASS} ${
-                    (settings.fill || 'transparent') === 'transparent' ? 'border-gray-400' : 'border-gray-200'
-                  } bg-white relative`}
-                  onClick={() => updateToolSetting('fill', 'transparent')}
-                >
-                  <div className="absolute inset-0 bg-red-500 transform rotate-45 w-px h-full left-1/2 top-0"></div>
-                </button>
-                {COLORS.slice(0, 9).map(color => (
-                  <button
-                    key={color}
-                    className={`${COLOR_BUTTON_CLASS} ${
-                      (settings.fill || 'transparent') === color ? 'border-gray-400' : 'border-gray-200'
-                    }`}
-                    style={{ backgroundColor: color }}
-                    onClick={() => updateToolSetting('fill', color)}
-                  />
-                ))}
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowColorSelector('shape-fill')}
+                className="w-full"
+              >
+                <Palette className="h-4 w-4 mr-2" />
+                Fill Color
+              </Button>
             </div>
             
             {activeTool === 'rect' && (
-              <div className={SETTINGS_SECTION_CLASS}>
-                <label className={SETTINGS_LABEL_CLASS}>Corner Radius</label>
-                <input
-                  type="range"
-                  value={settings.cornerRadius || 0}
-                  onChange={(e) => updateToolSetting('cornerRadius', parseInt(e.target.value))}
-                  max={50}
-                  min={0}
-                  step={1}
-                  className="w-full"
-                />
-                <span className="text-xs text-muted-foreground">{settings.cornerRadius || 0}px</span>
-              </div>
+              <Slider
+                label="Corner Radius"
+                value={settings.cornerRadius || 0}
+                onChange={(value) => updateToolSetting('cornerRadius', value)}
+                min={0}
+                max={50}
+                className={SETTINGS_SECTION_CLASS}
+              />
             )}
           </div>
         );
@@ -390,20 +529,17 @@ export default function ToolSettingsPanel() {
       case 'answer':
         return (
           <div className="space-y-2">
-            <div>
-              <label className="text-xs font-medium block mb-1">Font Size</label>
-              <input
-                type="range"
-                value={settings.fontSize || 64}
-                onChange={(e) => updateToolSetting('fontSize', parseInt(e.target.value))}
-                max={200}
-                min={12}
-                step={2}
-                className="w-full"
-              />
-              <span className="text-xs text-muted-foreground">{settings.fontSize || 64}px</span>
-            </div>
-            
+            {/* Size & Dimensions */}
+            <Slider
+              label="Font Size"
+              value={settings.fontSize || 64}
+              onChange={(value) => updateToolSetting('fontSize', value)}
+              min={12}
+              max={200}
+              step={2}
+            />
+                        
+            {/* Appearance & Style */}
             <div>
               <label className="text-xs font-medium block mb-1">Font Family</label>
               <select
@@ -418,23 +554,21 @@ export default function ToolSettingsPanel() {
                 ))}
               </select>
             </div>
-            
+                        
+            {/* Colors */}
             <div>
-              <label className="text-xs font-medium block mb-1">Text Color</label>
-              <div className="grid grid-cols-5 gap-1 mt-1">
-                {COLORS.map(color => (
-                  <button
-                    key={color}
-                    className={`w-6 h-6 rounded border ${
-                      (settings.fill || '#1f2937') === color ? 'border-gray-400' : 'border-gray-200'
-                    }`}
-                    style={{ backgroundColor: color }}
-                    onClick={() => updateToolSetting('fill', color)}
-                  />
-                ))}
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowColorSelector('text-color')}
+                className="w-full"
+              >
+                <Palette className="h-4 w-4 mr-2" />
+                Text Color
+              </Button>
             </div>
-            
+                        
+            {/* Layout & Alignment */}
             <div>
               <label className="text-xs font-medium block mb-1">Text Align</label>
               <ButtonGroup className="mt-1">
@@ -504,7 +638,8 @@ export default function ToolSettingsPanel() {
                 </ButtonGroup>
               </div>
             )}
-            
+                        
+            {/* Effects & Decorations */}
             <div>
               <label className="flex items-center gap-1 text-xs font-medium">
                 <input
@@ -518,106 +653,84 @@ export default function ToolSettingsPanel() {
             </div>
             
             {(activeTool === 'text' || activeTool === 'question' || activeTool === 'answer') && (
-              <div>
-                <label className="text-xs font-medium block mb-1">Corner Radius</label>
-                <input
-                  type="range"
-                  value={settings.cornerRadius || 0}
-                  onChange={(e) => updateToolSetting('cornerRadius', parseInt(e.target.value))}
-                  max={300}
-                  min={0}
-                  step={1}
-                  className="w-full"
-                />
-                <span className="text-xs text-muted-foreground">{settings.cornerRadius || 0}px</span>
-              </div>
+              <Slider
+                label="Corner Radius"
+                value={settings.cornerRadius || 0}
+                onChange={(value) => updateToolSetting('cornerRadius', value)}
+                min={0}
+                max={300}
+              />
             )}
             
-            <div>
-              <label className="text-xs font-medium block mb-1">Border Width</label>
-              <input
-                type="range"
-                value={settings.borderWidth || 0}
-                onChange={(e) => updateToolSetting('borderWidth', parseInt(e.target.value))}
-                max={20}
-                min={0}
-                step={1}
-                className="w-full"
-              />
-              <span className="text-xs text-muted-foreground">{settings.borderWidth || 0}px</span>
-            </div>
+            <Separator />
+            
+            {/* Border & Background */}
+            <Slider
+              label="Border Width"
+              value={settings.borderWidth || 0}
+              onChange={(value) => updateToolSetting('borderWidth', value)}
+              min={0}
+              max={20}
+            />
             
             {(settings.borderWidth || 0) > 0 && (
-              <div>
-                <label className="text-xs font-medium block mb-1">Border Color</label>
-                <div className="grid grid-cols-5 gap-1 mt-1">
-                  {COLORS.map(color => (
-                    <button
-                      key={color}
-                      className={`w-6 h-6 rounded border ${
-                        (settings.borderColor || '#000000') === color ? 'border-gray-400' : 'border-gray-200'
-                      }`}
-                      style={{ backgroundColor: color }}
-                      onClick={() => updateToolSetting('borderColor', color)}
-                    />
-                  ))}
+              <>
+                <div>
+                  <label className="text-xs font-medium block mb-2">Theme</label>
+                  <ThemeSelect 
+                    value={settings.theme}
+                    onChange={(value) => updateToolSetting('theme', value)}
+                  />
                 </div>
-              </div>
+                
+                <div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowColorSelector('text-border')}
+                    className="w-full"
+                  >
+                    <Palette className="h-4 w-4 mr-2" />
+                    Border Color
+                  </Button>
+                </div>
+              </>
             )}
             
             <div>
-              <label className="text-xs font-medium block mb-1">Background Color</label>
-              <div className="grid grid-cols-5 gap-1 mt-1">
-                <button
-                  className={`w-6 h-6 rounded border ${
-                    (settings.backgroundColor || 'transparent') === 'transparent' ? 'border-gray-400' : 'border-gray-200'
-                  } bg-white relative`}
-                  onClick={() => updateToolSetting('backgroundColor', 'transparent')}
-                >
-                  <div className="absolute inset-0 bg-red-500 transform rotate-45 w-px h-full left-1/2 top-0"></div>
-                </button>
-                {COLORS.slice(0, 9).map(color => (
-                  <button
-                    key={color}
-                    className={`w-6 h-6 rounded border ${
-                      (settings.backgroundColor || 'transparent') === color ? 'border-gray-400' : 'border-gray-200'
-                    }`}
-                    style={{ backgroundColor: color }}
-                    onClick={() => updateToolSetting('backgroundColor', color)}
-                  />
-                ))}
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowColorSelector('text-background')}
+                className="w-full"
+              >
+                <Palette className="h-4 w-4 mr-2" />
+                Background Color
+              </Button>
             </div>
             
             {(settings.backgroundColor && settings.backgroundColor !== 'transparent') && (
-              <div>
-                <label className="text-xs font-medium block mb-1">Background Opacity</label>
-                <input
-                  type="range"
-                  value={(settings.backgroundOpacity || 1) * 100}
-                  onChange={(e) => updateToolSetting('backgroundOpacity', parseInt(e.target.value) / 100)}
-                  max={100}
-                  min={0}
-                  step={5}
-                  className="w-full"
-                />
-                <span className="text-xs text-muted-foreground">{Math.round((settings.backgroundOpacity || 1) * 100)}%</span>
-              </div>
+              <Slider
+                label="Background Opacity"
+                value={Math.round((settings.backgroundOpacity || 1) * 100)}
+                onChange={(value) => updateToolSetting('backgroundOpacity', value / 100)}
+                min={0}
+                max={100}
+                step={5}
+                unit="%"
+              />
             )}
             
-            <div>
-              <label className="text-xs font-medium block mb-1">Padding</label>
-              <input
-                type="range"
-                value={settings.padding || 4}
-                onChange={(e) => updateToolSetting('padding', parseInt(e.target.value))}
-                max={50}
-                min={0}
-                step={1}
-                className="w-full"
-              />
-              <span className="text-xs text-muted-foreground">{settings.padding || 4}px</span>
-            </div>
+            <Separator />
+            
+            {/* Spacing & Position */}
+            <Slider
+              label="Padding"
+              value={settings.padding || 4}
+              onChange={(value) => updateToolSetting('padding', value)}
+              min={0}
+              max={50}
+            />
 
           </div>
         );
@@ -647,8 +760,7 @@ export default function ToolSettingsPanel() {
           <Settings className="h-4 w-4 mr-2 hidden" />
           Background
         </Button>
-        {/* Separator */}
-        <div className="h-px bg-gray-200 my-1" />
+        <Separator />
         <Button
           variant="ghost"
           size="default"
@@ -659,7 +771,7 @@ export default function ToolSettingsPanel() {
           <Settings className="h-4 w-4 mr-2 hidden" />
           Setting 2
         </Button>
-        <div className="h-px bg-gray-200 my-1" />
+        <Separator />
         <Button
           variant="ghost"
           size="default"
@@ -670,7 +782,7 @@ export default function ToolSettingsPanel() {
           <Settings className="h-4 w-4 mr-2 hidden" />
           Setting 3
         </Button>
-        <div className="h-px bg-gray-200 my-1" />
+        <Separator />
       </div>
     );
   };
@@ -747,63 +859,45 @@ export default function ToolSettingsPanel() {
             </div>
           </div>
           
-          <div>
-            <label className="text-xs font-medium block mb-1">Pattern Size</label>
-            <input
-              type="range"
-              value={background.patternSize || 1}
-              onChange={(e) => updateBackground({ patternSize: parseInt(e.target.value) })}
-              max={10}
-              min={1}
-              step={1}
-              className="w-full"
-            />
-            <span className="text-xs text-muted-foreground">Size: {background.patternSize || 1}</span>
-          </div>
+          <Slider
+            label="Pattern Size"
+            value={background.patternSize || 1}
+            onChange={(value) => updateBackground({ patternSize: value })}
+            min={1}
+            max={10}
+            unit=""
+          />
+          
+          <Slider
+            label="Pattern Stroke Width"
+            value={background.patternStrokeWidth || 1}
+            onChange={(value) => updateBackground({ patternStrokeWidth: value })}
+            min={1}
+            max={10}
+            step={background.patternSize > 5 ? 1 : 4}
+          />
           
           <div>
-            <label className="text-xs font-medium block mb-1">Pattern Stroke Width</label>
-            <input
-              type="range"
-              value={background.patternStrokeWidth || 1}
-              onChange={(e) => updateBackground({ patternStrokeWidth: parseInt(e.target.value) })}
-              max={10}
-              min={1}
-              step={background.patternSize > 5 ? 1 : 4}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowColorSelector('pattern-background')}
               className="w-full"
-            />
-            <span className="text-xs text-muted-foreground">{background.patternStrokeWidth || 1}px</span>
+            >
+              <Palette className="h-4 w-4 mr-2" />
+              Background Color
+            </Button>
           </div>
           
-          <div>
-            <label className="text-xs font-medium block mb-1">Background Color</label>
-            <div className="grid grid-cols-5 gap-1">
-              {COLORS.map(color => (
-                <button
-                  key={color}
-                  className={`w-6 h-6 rounded border ${
-                    (background.patternBackgroundColor || 'transparent') === color ? 'border-gray-400' : 'border-gray-200'
-                  }`}
-                  style={{ backgroundColor: color }}
-                  onClick={() => updateBackground({ patternBackgroundColor: color })}
-                />
-              ))}
-            </div>
-          </div>
-          
-          <div>
-            <label className="text-xs font-medium block mb-1">Opacity</label>
-            <input
-              type="range"
-              value={(background.patternBackgroundOpacity || 1) * 100}
-              onChange={(e) => updateBackground({ patternBackgroundOpacity: parseInt(e.target.value) / 100 })}
-              max={100}
-              min={0}
-              step={5}
-              className="w-full"
-            />
-            <span className="text-xs text-muted-foreground">{Math.round((background.patternBackgroundOpacity || 1) * 100)}%</span>
-          </div>
+          <Slider
+            label="Opacity"
+            value={Math.round((background.patternBackgroundOpacity || 1) * 100)}
+            onChange={(value) => updateBackground({ patternBackgroundOpacity: value / 100 })}
+            min={0}
+            max={100}
+            step={5}
+            unit="%"
+          />
         </div>
       );
     }
@@ -842,25 +936,15 @@ export default function ToolSettingsPanel() {
         {(background.type === 'color' || background.type === 'pattern') && (
           <div className="space-y-2">
             <div>
-              <label className="text-xs font-medium block mb-1">Color</label>
-              <div className="grid grid-cols-5 gap-1">
-                {COLORS.map(color => (
-                  <button
-                    key={color}
-                    className={`w-6 h-6 rounded border ${
-                      currentColor === color ? 'border-gray-400' : 'border-gray-200'
-                    }`}
-                    style={{ backgroundColor: color }}
-                    onClick={() => {
-                      if (isPattern) {
-                        updateBackground({ patternForegroundColor: color });
-                      } else {
-                        updateBackground({ value: color });
-                      }
-                    }}
-                  />
-                ))}
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowColorSelector('background-color')}
+                className="w-full"
+              >
+                <Palette className="h-4 w-4 mr-2" />
+                Color
+              </Button>
             </div>
             
             <div className="space-y-2">
@@ -963,7 +1047,7 @@ export default function ToolSettingsPanel() {
           </div>
         )}
 
-        <div>
+        {/* <div>
           <label className="text-xs font-medium block mb-1">Opacity</label>
           <input
             type="range"
@@ -975,7 +1059,7 @@ export default function ToolSettingsPanel() {
             className="w-full"
           />
           <span className="text-xs text-muted-foreground">{Math.round((background.opacity || 1) * 100)}%</span>
-        </div>
+        </div> */}
       </div>
     );
   };
@@ -984,22 +1068,30 @@ export default function ToolSettingsPanel() {
     if (elementType === 'brush') {
       switch (theme) {
         case 'wobbly': return 500;
-        case 'candy': return 60;
+        case 'candy': return 80;
         case 'rough': return 100;
         default: return 150;
       }
     } else if (elementType === 'line') {
       switch (theme) {
         case 'wobbly': return 500;
-        case 'candy': return 60;
+        case 'candy': return 80;
         case 'rough':
         case 'default':
         default: return 100;
       }
+    } else if (elementType === 'text') {
+      switch (theme) {
+        case 'wobbly': return 80;
+        case 'candy': return 80;
+        case 'rough':
+        case 'default':
+        default: return 30;
+      }
     } else {
       switch (theme) {
         case 'wobbly': return 300;
-        case 'candy': return 60;
+        case 'candy': return 80;
         case 'rough':
         case 'default':
         default: return 150;
@@ -1007,81 +1099,116 @@ export default function ToolSettingsPanel() {
     }
   };
 
-  const renderColorSelectorDialog = (element: any) => {
-    const updateElementSetting = (key: string, value: any) => {
-      dispatch({ type: 'SAVE_TO_HISTORY', payload: `Update ${element.type} ${key}` });
-      dispatch({
-        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-        payload: { id: element.id, updates: { [key]: value } }
-      });
-    };
-
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 mb-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowColorSelector(false)}
-            className="px-2 h-8"
-          >
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Back
-          </Button>
-        </div>
-        
-        <div>
-          <label className="text-xs font-medium block mb-2">Color Selector</label>
-          <ColorPicker
-            value={element.stroke || '#1f2937'}
-            onChange={(color) => updateElementSetting('stroke', color)}
-            favoriteColors={favoriteStrokeColors}
-            onAddFavorite={addFavoriteStrokeColor}
-            onRemoveFavorite={removeFavoriteStrokeColor}
-          />
-        </div>
-        
-        {favoriteStrokeColors.length > 0 && (
-          <div>
-            <label className="text-xs font-medium block mb-2">Favorite Colors</label>
-            <div className={COLOR_GRID_CLASS}>
-              {favoriteStrokeColors.map((color, index) => (
-                <button
-                  key={index}
-                  className={`${COLOR_BUTTON_CLASS} ${
-                    (element.stroke || '#1f2937') === color ? 'border-gray-400' : 'border-gray-200'
-                  }`}
-                  style={{ backgroundColor: color }}
-                  onClick={() => updateElementSetting('stroke', color)}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-
-
   const renderElementSettings = (element: any) => {
-    if (showColorSelector && element.type === 'rect') {
-      return renderColorSelectorDialog(element);
-    }
-
     const updateElementSetting = (key: string, value: any) => {
-      // Save to history before updating element
       dispatch({ type: 'SAVE_TO_HISTORY', payload: `Update ${element.type} ${key}` });
       dispatch({
         type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
         payload: { id: element.id, updates: { [key]: value } }
       });
     };
+
+    if (showColorSelector && showColorSelector.startsWith('element-')) {
+      const getColorValue = () => {
+        switch (showColorSelector) {
+          case 'element-brush-stroke':
+          case 'element-line-stroke':
+          case 'element-shape-stroke':
+            return element.stroke || '#1f2937';
+          case 'element-shape-fill':
+            return element.fill || 'transparent';
+          case 'element-text-color':
+            return element.fill || '#1f2937';
+          case 'element-text-border':
+            return element.borderColor || '#000000';
+          case 'element-text-background':
+            return element.backgroundColor || 'transparent';
+          default:
+            return '#1f2937';
+        }
+      };
+      
+      const getElementOpacityValue = () => {
+        switch (showColorSelector) {
+          case 'element-brush-stroke':
+          case 'element-line-stroke':
+          case 'element-shape-stroke':
+            return element.strokeOpacity || 1;
+          case 'element-shape-fill':
+          case 'element-text-color':
+            return element.fillOpacity || 1;
+          case 'element-text-border':
+            return element.borderOpacity || 1;
+          case 'element-text-background':
+            return element.backgroundOpacity || 1;
+          default:
+            return 1;
+        }
+      };
+      
+      const handleElementOpacityChange = (opacity: number) => {
+        switch (showColorSelector) {
+          case 'element-brush-stroke':
+          case 'element-line-stroke':
+          case 'element-shape-stroke':
+            updateElementSetting('strokeOpacity', opacity);
+            break;
+          case 'element-shape-fill':
+          case 'element-text-color':
+            updateElementSetting('fillOpacity', opacity);
+            break;
+          case 'element-text-border':
+            updateElementSetting('borderOpacity', opacity);
+            break;
+          case 'element-text-background':
+            updateElementSetting('backgroundOpacity', opacity);
+            break;
+        }
+      };
+      
+      const handleElementColorChange = (color: string) => {
+        switch (showColorSelector) {
+          case 'element-brush-stroke':
+          case 'element-line-stroke':
+          case 'element-shape-stroke':
+            updateElementSetting('stroke', color);
+            break;
+          case 'element-shape-fill':
+          case 'element-text-color':
+            updateElementSetting('fill', color);
+            break;
+          case 'element-text-border':
+            updateElementSetting('borderColor', color);
+            break;
+          case 'element-text-background':
+            updateElementSetting('backgroundColor', color);
+            break;
+          default:
+            updateElementSetting('stroke', color);
+        }
+      };
+      
+      const hasElementOpacity = true; // All element colors now support opacity
+      
+      return (
+        <ColorSelector
+          value={getColorValue()}
+          onChange={handleElementColorChange}
+          opacity={hasElementOpacity ? getElementOpacityValue() : undefined}
+          onOpacityChange={hasElementOpacity ? handleElementOpacityChange : undefined}
+          favoriteColors={favoriteStrokeColors}
+          onAddFavorite={addFavoriteStrokeColor}
+          onRemoveFavorite={removeFavoriteStrokeColor}
+          onBack={() => setShowColorSelector(null)}
+        />
+      );
+    }
 
     switch (element.type) {
       case 'brush':
         return (
-          <div className="space-y-4">
+          <div className="space-y-2">
+            {/* Appearance & Style */}
             <div>
               <label className="text-sm font-medium block mb-2">Theme</label>
               <ThemeSelect 
@@ -1090,20 +1217,18 @@ export default function ToolSettingsPanel() {
               />
             </div>
             
-            <div>
-              <label className="text-sm font-medium block mb-2">Brush Size</label>
-              <input
-                type="range"
-                value={element.strokeWidth || 3}
-                onChange={(e) => updateElementSetting('strokeWidth', parseInt(e.target.value))}
-                max={getMaxStrokeWidth('brush', element.theme || 'default')}
-                min={1}
-                step={1}
-                className="w-full"
-              />
-              <span className="text-xs text-muted-foreground">{element.strokeWidth || 3}px</span>
-            </div>
+            <Separator />
+
+            {/* Size & Dimensions */}
+            <Slider
+              label="Brush Size"
+              value={element.strokeWidth || 3}
+              onChange={(value) => updateElementSetting('strokeWidth', value)}
+              min={1}
+              max={getMaxStrokeWidth('brush', element.theme || 'default')}
+            />
             
+            {/* Effects & Decorations */}
             {element.theme === 'candy' && (
               <div className="flex items-center gap-2 h-12">
                 <label className="flex items-center gap-1 text-sm font-medium">
@@ -1141,29 +1266,31 @@ export default function ToolSettingsPanel() {
                   </ButtonGroup>
                 )}
               </div>
-            )}
+            )}            
             
+            <Separator />
+            
+            {/* Colors */}
             <div>
-              <label className="text-sm font-medium block mb-2">Color</label>
-              <div className="grid grid-cols-5 gap-2 mt-2">
-                {COLORS.map(color => (
-                  <button
-                    key={color}
-                    className={`w-8 h-8 rounded border-2 ${
-                      (element.stroke || '#1f2937') === color ? 'border-gray-400' : 'border-gray-200'
-                    }`}
-                    style={{ backgroundColor: color }}
-                    onClick={() => updateElementSetting('stroke', color)}
-                  />
-                ))}
-              </div>
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={() => setShowColorSelector('element-brush-stroke')}
+                className="w-full"
+              >
+                <Palette className="h-4 w-4 mr-2" />
+                Color
+              </Button>
             </div>
+            
           </div>
         );
 
       case 'line':
         return (
-          <div className="space-y-1">
+          <div className="space-y-2">
+
+            {/* Appearance & Style */}
             <div>
               <label className="text-xs font-medium block mb-1">Theme</label>
               <ThemeSelect 
@@ -1172,34 +1299,30 @@ export default function ToolSettingsPanel() {
               />
             </div>
             
-            <div>
-              <label className="text-xs font-medium block mb-1">Stroke Width</label>
-              <input
-                type="range"
-                value={element.strokeWidth || 2}
-                onChange={(e) => updateElementSetting('strokeWidth', parseInt(e.target.value))}
-                max={getMaxStrokeWidth('line', element.theme || 'default')}
-                min={1}
-                step={1}
-                className="w-full"
-              />
-              <span className="text-xs text-muted-foreground 0">{element.strokeWidth || 2}px</span>
-            </div>
+            <Separator />
+
+            {/* Size & Dimensions */}
+            <Slider
+              label="Stroke Width"
+              value={element.strokeWidth || 2}
+              onChange={(value) => updateElementSetting('strokeWidth', value)}
+              min={1}
+              max={getMaxStrokeWidth('line', element.theme || 'default')}
+            />
             
+            <Separator />
+            
+            {/* Colors */}
             <div>
-              <label className="text-xs font-medium block mb-1">Color</label>
-              <div className="grid grid-cols-5 gap-2 mt-2">
-                {COLORS.map(color => (
-                  <button
-                    key={color}
-                    className={`w-8 h-8 rounded border-2 ${
-                      (element.stroke || '#1f2937') === color ? 'border-gray-400' : 'border-gray-200'
-                    }`}
-                    style={{ backgroundColor: color }}
-                    onClick={() => updateElementSetting('stroke', color)}
-                  />
-                ))}
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowColorSelector('element-line-stroke')}
+                className="w-full"
+              >
+                <Palette className="h-4 w-4 mr-2" />
+                Color
+              </Button>
             </div>
           </div>
         );
@@ -1214,30 +1337,54 @@ export default function ToolSettingsPanel() {
       case 'smiley':
         return (
           <div className="space-y-2">
-            <div className={SETTINGS_SECTION_CLASS}>
-              <label className={SETTINGS_LABEL_CLASS}>Theme</label>
+            {/* Appearance & Style */}
+            <div>
+              <label className="text-xs font-medium block mb-1">Theme</label>
               <ThemeSelect 
                 value={element.theme}
                 onChange={(value) => updateElementSetting('theme', value)}
               />
             </div>
             
-            {/* Circle */}
-            <div className={SETTINGS_SECTION_CLASS}>
-              <label className={SETTINGS_LABEL_CLASS}>Stroke Width</label>
-              <input
-                type="range"
-                value={element.strokeWidth || 2}
-                onChange={(e) => updateElementSetting('strokeWidth', parseInt(e.target.value))}
-                max={getMaxStrokeWidth(element.type, element.theme || 'default')}
-                min={1}
-                step={1}
+            <Separator />
+            {/* Size & Dimensions */}
+            <Slider
+              label="Stroke Width"
+              value={element.strokeWidth || 2}
+              onChange={(value) => updateElementSetting('strokeWidth', value)}
+              min={1}
+              max={getMaxStrokeWidth(element.type, element.theme || 'default')}
+            />
+                        
+            {/* Colors */}
+            <div className='flex flex-row gap-3'>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowColorSelector('element-shape-stroke')}
                 className="w-full"
-              />
-              <span className="text-xs text-muted-foreground">{element.strokeWidth || 2}px</span>
+              >
+                <Palette className="h-4 w-4 mr-2" />
+                Stroke Color
+              </Button>
+         
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowColorSelector('element-shape-fill')}
+                className="w-full"
+              >
+                <Palette className="h-4 w-4 mr-2" />
+                Fill Color
+              </Button>
             </div>
             
+            
+            {/* Effects & Decorations */}
             {element.theme === 'candy' && (
+              <div>
+                                            <Separator />
+
               <div className="flex items-center gap-2 h-12">
                 <label className="flex items-center gap-1 text-xs font-medium">
                   <input
@@ -1274,72 +1421,17 @@ export default function ToolSettingsPanel() {
                   </ButtonGroup>
                 )}
               </div>
+              </div>
             )}
             
-            <div className={SETTINGS_SECTION_CLASS}>
-              <label className={SETTINGS_LABEL_CLASS}>Stroke Color</label>
-              <div className={COLOR_GRID_CLASS}>
-                {COLORS.map(color => (
-                  <button
-                    key={color}
-                    className={`${COLOR_BUTTON_CLASS} ${
-                      (element.stroke || '#1f2937') === color ? 'border-gray-400' : 'border-gray-200'
-                    }`}
-                    style={{ backgroundColor: color }}
-                    onClick={() => updateElementSetting('stroke', color)}
-                  />
-                ))}
-              </div>
-              {element.type === 'rect' && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowColorSelector(true)}
-                  className="w-full mt-2"
-                >
-                  Color Selector
-                </Button>
-              )}
-            </div>
-            
-            <div className={SETTINGS_SECTION_CLASS}>
-              <label className={SETTINGS_LABEL_CLASS}>Fill Color</label>
-              <div className={COLOR_GRID_CLASS}>
-                <button
-                  className={`${COLOR_BUTTON_CLASS} ${
-                    (element.fill || 'transparent') === 'transparent' ? 'border-gray-400' : 'border-gray-200'
-                  } bg-white relative`}
-                  onClick={() => updateElementSetting('fill', 'transparent')}
-                >
-                  <div className="absolute inset-0 bg-red-500 transform rotate-45 w-px h-full left-1/2 top-0"></div>
-                </button>
-                {COLORS.slice(0, 9).map(color => (
-                  <button
-                    key={color}
-                    className={`${COLOR_BUTTON_CLASS} ${
-                      (element.fill || 'transparent') === color ? 'border-gray-400' : 'border-gray-200'
-                    }`}
-                    style={{ backgroundColor: color }}
-                    onClick={() => updateElementSetting('fill', color)}
-                  />
-                ))}
-              </div>
-            </div>
-            
-            {element.type === 'rect' && (
-              <div className={SETTINGS_SECTION_CLASS}>
-                <label className={SETTINGS_LABEL_CLASS}>Corner Radius</label>
-                <input
-                  type="range"
-                  value={element.cornerRadius || 0}
-                  onChange={(e) => updateElementSetting('cornerRadius', parseInt(e.target.value))}
-                  max={300}
-                  min={0}
-                  step={1}
-                  className="w-full"
-                />
-                <span className="text-xs text-muted-foreground">{element.cornerRadius || 0}px</span>
-              </div>
+            {element.type === 'rect' && (element.theme !== 'candy' && element.theme !== 'zigzag' && element.theme !== 'wobbly') && ( 
+              <Slider
+                label="Corner Radius"
+                value={element.cornerRadius || 0}
+                onChange={(value) => updateElementSetting('cornerRadius', value)}
+                min={0}
+                max={300}
+              />
             )}
           </div>
         );
@@ -1347,7 +1439,19 @@ export default function ToolSettingsPanel() {
       case 'image':
       case 'placeholder':
         return (
-          <div className="space-y-4">
+          <div className="space-y-2">
+            {/* Effects & Decorations */}
+            <Slider
+              label="Corner Radius"
+              value={element.cornerRadius || 0}
+              onChange={(value) => updateElementSetting('cornerRadius', value)}
+              min={0}
+              max={300}
+            />
+            
+            <Separator />
+            
+            {/* Actions */}
             <Button
               variant="outline"
               size="sm"
@@ -1360,42 +1464,27 @@ export default function ToolSettingsPanel() {
               <Image className="h-4 w-4 mr-2" />
               Change Image
             </Button>
-            
-            <div className={SETTINGS_SECTION_CLASS}>
-              <label className={SETTINGS_LABEL_CLASS}>Corner Radius</label>
-              <input
-                type="range"
-                value={element.cornerRadius || 0}
-                onChange={(e) => updateElementSetting('cornerRadius', parseInt(e.target.value))}
-                max={300}
-                min={0}
-                step={1}
-                className="w-full"
-              />
-              <span className="text-xs text-muted-foreground">{element.cornerRadius || 0}px</span>
-            </div>
           </div>
         );
 
       case 'text':
         return (
           <div className="space-y-2">
-            <div className={SETTINGS_SECTION_CLASS}>
-              <label className={SETTINGS_LABEL_CLASS}>Font Size</label>
-              <input
-                type="range"
-                value={element.fontSize || 64}
-                onChange={(e) => updateElementSetting('fontSize', parseInt(e.target.value))}
-                max={200}
-                min={12}
-                step={2}
-                className="w-full"
-              />
-              <span className="text-xs text-muted-foreground">{element.fontSize || 64}px</span>
-            </div>
+            {/* Size & Dimensions */}
+            <Slider
+              label="Font Size"
+              value={element.fontSize || 64}
+              onChange={(value) => updateElementSetting('fontSize', value)}
+              min={12}
+              max={200}
+              step={2}
+            />
             
-            <div className={SETTINGS_SECTION_CLASS}>
-              <label className={SETTINGS_LABEL_CLASS}>Font Family</label>
+            <Separator />
+            
+            {/* Appearance & Style */}
+            <div>
+              <label className="text-xs font-medium block mb-1">Font Family</label>
               <select
                 value={element.fontFamily || 'Arial, sans-serif'}
                 onChange={(e) => updateElementSetting('fontFamily', e.target.value)}
@@ -1408,70 +1497,72 @@ export default function ToolSettingsPanel() {
                 ))}
               </select>
             </div>
+                        
+            <Separator />
             
-            <div className={SETTINGS_SECTION_CLASS}>
-              <label className={SETTINGS_LABEL_CLASS}>Text Color</label>
-              <div className={COLOR_GRID_CLASS}>
-                {COLORS.map(color => (
-                  <button
-                    key={color}
-                    className={`${COLOR_BUTTON_CLASS} ${
-                      (element.fill || '#1f2937') === color ? 'border-gray-400' : 'border-gray-200'
-                    }`}
-                    style={{ backgroundColor: color }}
-                    onClick={() => updateElementSetting('fill', color)}
-                  />
-                ))}
+            {/* Colors */}
+            <div>
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={() => setShowColorSelector('element-text-color')}
+                className="w-full"
+              >
+                <Palette className="h-4 w-4 mr-2" />
+                Text Color
+              </Button>
+            </div>
+            
+            <Separator />
+                        
+            {/* Layout & Alignment */}
+            <div className='flex flex-row gap-3'>
+              <div className="flex-1">
+                <label className="text-xs font-medium block mb-1">Text Align</label>
+                <ButtonGroup className="mt-1 flex flex-row">
+                  <Button
+                    variant={element.align === 'left' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => updateElementSetting('align', 'left')}
+                    className="px-1 h-6 flex-1"
+                  >
+                    <AlignLeft className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant={element.align === 'center' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => updateElementSetting('align', 'center')}
+                    className="px-1 h-6 flex-1"
+                  >
+                    <AlignCenter className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant={element.align === 'right' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => updateElementSetting('align', 'right')}
+                    className="px-1 h-6 flex-1"
+                  >
+                    <AlignRight className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant={element.align === 'justify' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => updateElementSetting('align', 'justify')}
+                    className="px-1 h-6 flex-1"
+                  >
+                    <AlignJustify className="h-3 w-3" />
+                  </Button>
+                </ButtonGroup>
               </div>
-            </div>
-            
-            <div className={SETTINGS_SECTION_CLASS}>
-              <label className={SETTINGS_LABEL_CLASS}>Text Align</label>
-              <ButtonGroup className="mt-1">
-                <Button
-                  variant={element.align === 'left' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => updateElementSetting('align', 'left')}
-                  className="px-1 h-6"
-                >
-                  <AlignLeft className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant={element.align === 'center' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => updateElementSetting('align', 'center')}
-                  className="px-1 h-6"
-                >
-                  <AlignCenter className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant={element.align === 'right' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => updateElementSetting('align', 'right')}
-                  className="px-1 h-6"
-                >
-                  <AlignRight className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant={element.align === 'justify' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => updateElementSetting('align', 'justify')}
-                  className="px-1 h-6"
-                >
-                  <AlignJustify className="h-3 w-3" />
-                </Button>
-              </ButtonGroup>
-            </div>
-            
-            {element.textType !== 'question' && (
-              <div className={SETTINGS_SECTION_CLASS}>
-                <label className={SETTINGS_LABEL_CLASS}>Paragraph Spacing</label>
-                <ButtonGroup className="mt-1">
+              
+              <div className="flex-1">
+                <label className="text-xs font-medium block mb-1">Paragraph Spacing</label>
+                <ButtonGroup className="mt-1 flex flex-row">
                   <Button
                     variant={element.paragraphSpacing === 'small' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => updateElementSetting('paragraphSpacing', 'small')}
-                    className="px-1 h-6"
+                    className="px-1 h-6 flex-1"
                   >
                     <Rows4 className="h-3 w-3" />
                   </Button>
@@ -1479,7 +1570,7 @@ export default function ToolSettingsPanel() {
                     variant={(element.paragraphSpacing || 'medium') === 'medium' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => updateElementSetting('paragraphSpacing', 'medium')}
-                    className="px-1 h-6"
+                    className="px-1 h-6 flex-1"
                   >
                     <Rows3 className="h-3 w-3" />
                   </Button>
@@ -1487,15 +1578,16 @@ export default function ToolSettingsPanel() {
                     variant={element.paragraphSpacing === 'large' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => updateElementSetting('paragraphSpacing', 'large')}
-                    className="px-1 h-6"
+                    className="px-1 h-6 flex-1"
                   >
                     <Rows2 className="h-3 w-3" />
                   </Button>
                 </ButtonGroup>
               </div>
-            )}
-            
-            <div className={SETTINGS_SECTION_CLASS}>
+            </div>
+                        
+            {/* Effects & Decorations */}
+            <div>
               <label className="flex items-center gap-1 text-xs font-medium">
                 <input
                   type="checkbox"
@@ -1506,111 +1598,92 @@ export default function ToolSettingsPanel() {
                 Ruled Lines
               </label>
             </div>
+
+            <Separator />
             
             {(element.textType === 'text' || element.textType === 'question' || element.textType === 'answer') && (
-              <div className={SETTINGS_SECTION_CLASS}>
-                <label className={SETTINGS_LABEL_CLASS}>Corner Radius</label>
-                <input
-                  type="range"
-                  value={element.cornerRadius || 0}
-                  onChange={(e) => updateElementSetting('cornerRadius', parseInt(e.target.value))}
-                  max={300}
-                  min={0}
-                  step={1}
-                  className="w-full"
-                />
-                <span className="text-xs text-muted-foreground">{element.cornerRadius || 0}px</span>
-              </div>
-            )}
-            
-            <div className={SETTINGS_SECTION_CLASS}>
-              <label className={SETTINGS_LABEL_CLASS}>Border Width <span className='text-gray-500'>{element.borderWidth || 0}px</span></label>
-              <input
-                type="range"
-                value={element.borderWidth || 0}
-                onChange={(e) => updateElementSetting('borderWidth', parseInt(e.target.value))}
-                max={20}
+              <Slider
+                label="Corner Radius"
+                value={element.cornerRadius || 0}
+                onChange={(value) => updateElementSetting('cornerRadius', value)}
                 min={0}
-                step={1}
-                className="w-full"
+                max={300}
               />
-              <span className="text-xs text-muted-foreground">{element.borderWidth || 0}px</span>
-            </div>
+            )}
+                        
+            {/* Border & Background */}
+            <Slider
+              label="Border Width"
+              value={element.borderWidth || 0}
+              onChange={(value) => updateElementSetting('borderWidth', value)}
+              min={0}
+              max={getMaxStrokeWidth('text', element.theme || 'default')}
+            />
             
             {(element.borderWidth || 0) > 0 && (
-              <div className={SETTINGS_SECTION_CLASS}>
-                <label className={SETTINGS_LABEL_CLASS}>Border Color</label>
-                <div className={COLOR_GRID_CLASS}>
-                  {COLORS.map(color => (
-                    <button
-                      key={color}
-                      className={`${COLOR_BUTTON_CLASS} ${
-                        (element.borderColor || '#000000') === color ? 'border-gray-400' : 'border-gray-200'
-                      }`}
-                      style={{ backgroundColor: color }}
-                      onClick={() => updateElementSetting('borderColor', color)}
-                    />
-                  ))}
+              <>
+                <div>
+                  <label className="text-xs font-medium block mb-2">Border Theme</label>
+                  <ThemeSelect 
+                    value={element.theme}
+                    onChange={(value) => updateElementSetting('theme', value)}
+                  />
                 </div>
-              </div>
+                
+                <div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowColorSelector('element-text-border')}
+                    className="w-full"
+                  >
+                    <Palette className="h-4 w-4 mr-2" />
+                    Border Color
+                  </Button>
+                </div>
+              </>
             )}
             
-            <div className={SETTINGS_SECTION_CLASS}>
-              <label className={SETTINGS_LABEL_CLASS}>Background Color</label>
-              <div className={COLOR_GRID_CLASS}>
-                <button
-                  className={`${COLOR_BUTTON_CLASS} ${
-                    (element.backgroundColor || 'transparent') === 'transparent' ? 'border-gray-400' : 'border-gray-200'
-                  } bg-white relative`}
-                  onClick={() => updateElementSetting('backgroundColor', 'transparent')}
-                >
-                  <div className="absolute inset-0 bg-red-500 transform rotate-45 w-px h-full left-1/2 top-0"></div>
-                </button>
-                {COLORS.slice(0, 9).map(color => (
-                  <button
-                    key={color}
-                    className={`${COLOR_BUTTON_CLASS} ${
-                      (element.backgroundColor || 'transparent') === color ? 'border-gray-400' : 'border-gray-200'
-                    }`}
-                    style={{ backgroundColor: color }}
-                    onClick={() => updateElementSetting('backgroundColor', color)}
-                  />
-                ))}
-              </div>
+            <div>
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={() => setShowColorSelector('element-text-background')}
+                className="w-full"
+              >
+                <Palette className="h-4 w-4 mr-2" />
+                Background Color
+              </Button>
             </div>
             
             {(element.backgroundColor && element.backgroundColor !== 'transparent') && (
-              <div className={SETTINGS_SECTION_CLASS}>
-                <label className={SETTINGS_LABEL_CLASS}>Background Opacity</label>
-                <input
-                  type="range"
-                  value={(element.backgroundOpacity || 1) * 100}
-                  onChange={(e) => updateElementSetting('backgroundOpacity', parseInt(e.target.value) / 100)}
-                  max={100}
-                  min={0}
-                  step={5}
-                  className="w-full"
-                />
-                <span className="text-xs text-muted-foreground">{Math.round((element.backgroundOpacity || 1) * 100)}%</span>
-              </div>
+              <Slider
+                label="Background Opacity"
+                value={Math.round((element.backgroundOpacity || 1) * 100)}
+                onChange={(value) => updateElementSetting('backgroundOpacity', value / 100)}
+                min={0}
+                max={100}
+                step={5}
+                unit="%"
+              />
             )}
             
-            <div className={SETTINGS_SECTION_CLASS}>
-              <label className={SETTINGS_LABEL_CLASS}>Padding</label>
-              <input
-                type="range"
-                value={element.padding || 4}
-                onChange={(e) => updateElementSetting('padding', parseInt(e.target.value))}
-                max={50}
-                min={0}
-                step={1}
-                className="w-full"
-              />
-              <span className="text-xs text-muted-foreground">{element.padding || 4}px</span>
-            </div>
+            <Separator />
+            
+            {/* Spacing & Position */}
+            <Slider
+              label="Padding"
+              value={element.padding || 4}
+              onChange={(value) => updateElementSetting('padding', value)}
+              min={0}
+              max={50}
+            />
             
             {element.textType === 'question' && user?.role !== 'author' && (
-              <div>
+              <>
+                <Separator />
+                
+                {/* Actions */}
                 <Button
                   variant="outline"
                   size="sm"
@@ -1622,7 +1695,7 @@ export default function ToolSettingsPanel() {
                 >
                   Question...
                 </Button>
-              </div>
+              </>
             )}
           </div>
         );
@@ -1711,7 +1784,7 @@ export default function ToolSettingsPanel() {
 
                     <Button variant="ghost" size="sm" className="h-8 px-0 gap-2">
                       {IconComponent && <IconComponent className="h-4 w-4" />}
-                      {showColorSelector ? 'Color Selector' : `${elementType.charAt(0).toUpperCase() + elementType.slice(1)} Settings`}
+                      {showColorSelector ? getColorSelectorTitle(showColorSelector) : `${elementType.charAt(0).toUpperCase() + elementType.slice(1)} Settings`}
                     </Button>
                     );
                   }
@@ -1726,7 +1799,7 @@ export default function ToolSettingsPanel() {
                         settingsName = 'Background Settings';
                       }
                     } else if (showColorSelector) {
-                      settingsName = 'Color Selector';
+                      settingsName = getColorSelectorTitle(showColorSelector);
                     }
                     return (
                       <>

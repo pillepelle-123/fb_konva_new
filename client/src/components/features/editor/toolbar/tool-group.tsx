@@ -2,6 +2,7 @@ import { ToolButton } from './tool-button';
 import { ToolGroupLabel } from './tool-group-label';
 import { ChevronLeft } from 'lucide-react';
 import { Button } from '../../../ui/primitives/button';
+import { Separator } from '../../../ui/primitives/separator';
 
 interface Tool {
   id: string;
@@ -68,9 +69,7 @@ export function ToolGroup({ name, tools, activeTool, isExpanded, showSeparator, 
 
   return (
     <div>
-      {showSeparator && (
-        <div className="h-px bg-gray-200 my-1" />
-      )}
+      {showSeparator && <Separator />}
       {isExpanded ? (
         <Button 
           variant="ghost" 

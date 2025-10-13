@@ -1,7 +1,7 @@
 import rough from 'roughjs';
 import type { CanvasElement } from '../context/editor-context';
 
-export type Theme = 'rough' | 'default' | 'chalk' | 'watercolor' | 'crayon' | 'candy' | 'zigzag' | 'multi-strokes' | 'wobbly';
+export type Theme = 'rough' | 'default' | 'glow' | 'candy' | 'zigzag' | 'wobbly';
 
 export interface ThemeRenderer {
   generatePath: (element: CanvasElement, zoom?: number) => string;
@@ -129,32 +129,7 @@ const roughTheme: ThemeRenderer = {
   })
 };
 
-// Chalk theme - chalk-like appearance using Konva's built-in effects
-const chalkTheme: ThemeRenderer = {
-  generatePath: (element: CanvasElement) => {
-    return defaultTheme.generatePath(element);
-  },
-  
-  getStrokeProps: (element: CanvasElement, zoom = 1) => {
-    const baseStrokeWidth = (element.strokeWidth || 2) * zoom;
-    const chalkColor = element.stroke || '#ffffff';
-    
-    // Create a more realistic chalk effect
-    return {
-      stroke: chalkColor,
-      strokeWidth: baseStrokeWidth * 1.2, // Slightly thicker for chalk effect
-      fill: element.fill !== 'transparent' ? element.fill : undefined,
-      opacity: 0.85, // Slightly transparent for chalk effect
-      // Add subtle texture with shadow blur effect
-      shadowColor: chalkColor,
-      shadowBlur: baseStrokeWidth * 0.3,
-      shadowOpacity: 0.3,
-      // Rough edges effect
-      lineCap: 'round',
-      lineJoin: 'round'
-    };
-  }
-};
+
 
 // Helper function for complex shapes
 function generateComplexShapePath(element: CanvasElement): string {
@@ -193,8 +168,8 @@ function generateComplexShapePath(element: CanvasElement): string {
   }
 }
 
-// Watercolor theme - soft, blended brush strokes
-const watercolorTheme: ThemeRenderer = {
+// Glow theme - soft, blended brush strokes
+const glowTheme: ThemeRenderer = {
   generatePath: (element: CanvasElement) => {
     return defaultTheme.generatePath(element);
   },
@@ -215,27 +190,7 @@ const watercolorTheme: ThemeRenderer = {
   }
 };
 
-// Crayon theme - textured, waxy appearance
-const crayonTheme: ThemeRenderer = {
-  generatePath: (element: CanvasElement) => {
-    return defaultTheme.generatePath(element);
-  },
-  
-  getStrokeProps: (element: CanvasElement, zoom = 1) => {
-    const baseStrokeWidth = (element.strokeWidth || 2) * zoom;
-    return {
-      stroke: element.stroke || '#ff0000',
-      strokeWidth: baseStrokeWidth * 1.8,
-      fill: element.fill !== 'transparent' ? element.fill : undefined,
-      opacity: 0.8,
-      strokeDasharray: `${baseStrokeWidth * 0.3} ${baseStrokeWidth * 0.2}`,
-      shadowColor: element.stroke || '#ff0000',
-      shadowBlur: baseStrokeWidth * 0.5,
-      shadowOpacity: 0.3,
-      lineCap: 'round'
-    };
-  }
-};
+
 
 // Candy theme - circle sequence appearance
 const candyTheme: ThemeRenderer = {
@@ -347,71 +302,7 @@ const zigzagTheme: ThemeRenderer = {
   }
 };
 
-// Multi-strokes theme - SVG-based organic strokes
-const multiStrokesTheme: ThemeRenderer = {
-  generatePath: (element: CanvasElement, zoom = 1) => {
-    let seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-    const random = () => {
-      const x = Math.sin(seed++) * 10000;
-      return x - Math.floor(x);
-    };
-    
-    // Generate main shape path
-    const mainPath = defaultTheme.generatePath(element);
-    
-    // Generate organic stroke pattern
-    const organicPattern = generateSVGStrokePattern(element, random);
-    
-    // Combine main shape with organic strokes
-    return `${mainPath} ${organicPattern}`;
-  },
-  
-  getStrokeProps: (element: CanvasElement, zoom = 1) => {
-    const baseStrokeWidth = (element.strokeWidth || 2) * zoom;
-    const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 4), 10) || 1;
-    const opacity = 0.8 + (seed % 3) * 0.05;
-    
-    return {
-      stroke: element.stroke || '#ed6826',
-      strokeWidth: baseStrokeWidth * (0.8 + (seed % 5) * 0.1),
-      fill: element.fill !== 'transparent' ? element.fill : undefined,
-      opacity,
-      lineCap: 'round',
-      lineJoin: 'round'
-    };
-  }
-};
 
-// SVG stroke pattern generator based on provided SVG rectangle border
-function generateSVGStrokePattern(element: CanvasElement, random: () => number): string {
-  const w = element.width, h = element.height;
-  
-  // Extract key organic patterns from the SVG path data
-  const organicPatterns = [
-    // Top border pattern
-    `M 0,${h*0.1} C ${w*0.15},${h*0.05} ${w*0.25},${h*0.15} ${w*0.4},${h*0.08} C ${w*0.6},${h*0.02} ${w*0.8},${h*0.12} ${w},${h*0.06}`,
-    // Right border pattern  
-    `M ${w*0.9},0 C ${w*0.95},${h*0.2} ${w*0.85},${h*0.3} ${w*0.92},${h*0.5} C ${w*0.98},${h*0.7} ${w*0.88},${h*0.9} ${w*0.94},${h}`,
-    // Bottom border pattern
-    `M ${w},${h*0.9} C ${w*0.85},${h*0.95} ${w*0.75},${h*0.85} ${w*0.6},${h*0.92} C ${w*0.4},${h*0.98} ${w*0.2},${h*0.88} 0,${h*0.94}`,
-    // Left border pattern
-    `M ${w*0.1},${h} C ${w*0.05},${h*0.8} ${w*0.15},${h*0.7} ${w*0.08},${h*0.5} C ${w*0.02},${h*0.3} ${w*0.12},${h*0.1} ${w*0.06},0`,
-    // Inner organic strokes
-    `M ${w*0.2},${h*0.2} C ${w*0.3},${h*0.15} ${w*0.4},${h*0.25} ${w*0.5},${h*0.18} C ${w*0.6},${h*0.12} ${w*0.7},${h*0.22} ${w*0.8},${h*0.15}`,
-    `M ${w*0.15},${h*0.8} C ${w*0.25},${h*0.75} ${w*0.35},${h*0.85} ${w*0.45},${h*0.78} C ${w*0.55},${h*0.72} ${w*0.65},${h*0.82} ${w*0.75},${h*0.75}`
-  ];
-  
-  // Randomly select 2-4 patterns for variation
-  const patternCount = 2 + Math.floor(random() * 3);
-  const selectedPatterns = [];
-  
-  for (let i = 0; i < patternCount; i++) {
-    const patternIndex = Math.floor(random() * organicPatterns.length);
-    selectedPatterns.push(organicPatterns[patternIndex]);
-  }
-  
-  return selectedPatterns.join(' ');
-}
 
 // Wobbly theme - alternating stroke width with smooth outline
 const wobblyTheme: ThemeRenderer = {
@@ -666,12 +557,9 @@ const wobblyTheme: ThemeRenderer = {
 export const themes: Record<Theme, ThemeRenderer> = {
   default: defaultTheme,
   rough: roughTheme,
-  chalk: chalkTheme,
-  watercolor: watercolorTheme,
-  crayon: crayonTheme,
+  glow: glowTheme,
   candy: candyTheme,
   zigzag: zigzagTheme,
-  'multi-strokes': multiStrokesTheme,
   wobbly: wobblyTheme
 };
 
@@ -679,4 +567,3 @@ export function getThemeRenderer(theme: Theme = 'rough'): ThemeRenderer {
   return themes[theme] || themes.rough;
 }
 
-export { generateSVGStrokePattern };

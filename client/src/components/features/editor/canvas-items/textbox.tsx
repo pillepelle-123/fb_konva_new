@@ -415,6 +415,7 @@ export default function Textbox(props: CanvasItemProps) {
     y: 0,
     stroke: element.borderColor || '#000000',
     strokeWidth: element.borderWidth,
+    strokeOpacity: element.borderOpacity || 1,
     fill: 'transparent',
     roughness: element.theme === 'rough' ? 3 : element.roughness
   } : null;
@@ -422,6 +423,19 @@ export default function Textbox(props: CanvasItemProps) {
   return (
     <BaseCanvasItem {...props} onDoubleClick={handleDoubleClick}>
       <Group>
+        {/* Background rectangle - render before border for Candy theme */}
+        <Rect
+          width={element.width}
+          height={element.height}
+          fill={element.backgroundColor || "transparent"}
+          opacity={element.backgroundOpacity || 1}
+          stroke={!element.borderWidth && (element.textType === 'question' || element.textType === 'answer') ? "transparent" : "transparent"}
+          strokeWidth={!element.borderWidth && (element.textType === 'question' || element.textType === 'answer') ? 1 : 0}
+          dash={!element.borderWidth && (element.textType === 'question' || element.textType === 'answer') ? [5, 5] : []}
+          cornerRadius={element.cornerRadius || 0}
+          listening={false}
+        />
+        
         {/* Themed border using ThemedShape component */}
         {borderElement && (
           <Group listening={false}>
@@ -435,19 +449,6 @@ export default function Textbox(props: CanvasItemProps) {
             />
           </Group>
         )}
-        
-        {/* Background rectangle */}
-        <Rect
-          width={element.width}
-          height={element.height}
-          fill={element.backgroundColor || "transparent"}
-          opacity={element.backgroundOpacity || 1}
-          stroke={!element.borderWidth && (element.textType === 'question' || element.textType === 'answer') ? "transparent" : "transparent"}
-          strokeWidth={!element.borderWidth && (element.textType === 'question' || element.textType === 'answer') ? 1 : 0}
-          dash={!element.borderWidth && (element.textType === 'question' || element.textType === 'answer') ? [5, 5] : []}
-          cornerRadius={element.cornerRadius || 0}
-          listening={false}
-        />
         
         {/* Ruled lines */}
         {generateRuledLines()}
@@ -470,6 +471,7 @@ export default function Textbox(props: CanvasItemProps) {
                   fontFamily={textPart.fontFamily}
                   fontStyle={textPart.fontStyle}
                   fill={textPart.fill || element.fill || '#1f2937'}
+                  opacity={element.fillOpacity || 1}
                   textDecoration={textPart.textDecoration}
                   listening={false}
                 />
@@ -486,12 +488,12 @@ export default function Textbox(props: CanvasItemProps) {
               fontSize={fontSize}
               fontFamily={fontFamily}
               fill={element.fill || (element.text ? '#1f2937' : '#9ca3af')}
+              opacity={(element.formattedText || element.text) ? (element.fillOpacity || 1) : 0.6}
               align={align}
               verticalAlign="top"
               wrap="word"
               lineHeight={lineHeight}
               listening={false}
-              opacity={(element.formattedText || element.text) ? 1 : 0.6}
               name={(element.formattedText || element.text) ? '' : 'no-print'}
             />
           );

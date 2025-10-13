@@ -116,18 +116,6 @@ export const exportBookToPDF = async (
       const noPrintElements = clonedLayer.find('.no-print');
       noPrintElements.forEach(element => element.destroy());
       
-      // Increase stroke widths for rough.js elements to match display appearance
-      const roughPaths = clonedLayer.find('Path');
-      roughPaths.forEach(path => {
-        const currentStrokeWidth = path.strokeWidth();
-        if (currentStrokeWidth) {
-          // Exponential scaling: thicker strokes get higher multipliers
-          // To adjust: increase the number behind the * for bigger scaling overall, increase the number behind the comma for more aggressive scaling on thick strokes
-          const scaleFactor = 1 + (Math.pow(currentStrokeWidth / 2, 2.8) * 0.15);
-          path.strokeWidth(currentStrokeWidth * scaleFactor);
-        }
-      });
-      
       tempStage.add(clonedLayer);
       
       // Find the page content group and adjust positioning
@@ -137,14 +125,24 @@ export const exportBookToPDF = async (
         pageGroup.y(0);
       }
       
+      // Increase stroke widths to compensate for PDF thinning - do this after adding to stage
+      const allElements = tempStage.find('Path, Line, Rect, Circle, Ellipse, Ring, Arc, RegularPolygon, Star, Shape');
+      allElements.forEach(element => {
+        const currentStrokeWidth = element.strokeWidth();
+        // Eventuell muss die Stroke Width ein wenig angepasst werden:  
+        if (currentStrokeWidth) {
+          element.strokeWidth(currentStrokeWidth * 3.5);
+        }
+      });
+      
       tempStage.draw();
     }
 
-    // Export to data URL
+    // Export to data URL without pixelRatio since stroke widths are already scaled
     const dataURL = tempStage.toDataURL({
       mimeType: 'image/png',
       quality: 1.0,
-      pixelRatio: options.quality === 'printing' ? 1.5 : options.quality === 'medium' ? 1 : 0.8
+      pixelRatio: 1
     });
 
     // Add page to PDF (add new page for subsequent pages)

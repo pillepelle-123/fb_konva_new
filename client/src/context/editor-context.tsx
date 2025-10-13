@@ -236,7 +236,12 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             : page
         )
       };
-      return { ...savedState, currentBook: newBook, hasUnsavedChanges: true };
+      return { 
+        ...savedState, 
+        currentBook: newBook, 
+        selectedElementIds: [action.payload.id], 
+        hasUnsavedChanges: true 
+      };
     
     case 'UPDATE_ELEMENT':
       if (!state.currentBook) return state;

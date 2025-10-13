@@ -45,12 +45,20 @@ export default function ThemedShape(props: CanvasItemProps) {
   const pathData = renderer.generatePath(element, zoom);
   const strokeProps = renderer.getStrokeProps(element, zoom);
 
+  // Apply opacity values from element settings
+  if (element.strokeOpacity !== undefined) {
+    strokeProps.opacity = (strokeProps.opacity || 1) * element.strokeOpacity;
+  }
+  if (element.fillOpacity !== undefined && strokeProps.fill) {
+    strokeProps.fillOpacity = element.fillOpacity;
+  }
+
   if (!pathData) return null;
 
   // Special handling for candy theme - circles along path
   if (theme === 'candy') {
     const circles = [];
-    const baseCircleSize = strokeProps.strokeWidth * 0.8;
+    const baseCircleSize = (element.strokeWidth || 2) * 0.8;
     const spacing = baseCircleSize * 1.5;
     const hasRandomness = element.candyRandomness || false;
     
@@ -111,6 +119,7 @@ export default function ThemedShape(props: CanvasItemProps) {
               y={y}
               radius={circleSize / 2}
               fill={strokeProps.stroke}
+              opacity={strokeProps.opacity}
               listening={false}
             />
           );
@@ -146,11 +155,29 @@ export default function ThemedShape(props: CanvasItemProps) {
             y={element.height * t}
             radius={circleSize / 2}
             fill={strokeProps.stroke}
+            opacity={strokeProps.opacity}
             listening={false}
           />
         );
       }
     } else if (element.type === 'rect') {
+      // Add background rectangle for fill color
+      if (element.fill && element.fill !== 'transparent') {
+        circles.push(
+          <Rect
+            key="background"
+            x={0}
+            y={0}
+            width={element.width}
+            height={element.height}
+            fill={element.fill}
+            opacity={element.fillOpacity || 1}
+            cornerRadius={element.cornerRadius || 0}
+            listening={false}
+          />
+        );
+      }
+      
       const topCircles = Math.max(1, Math.floor(element.width / spacing));
       const rightCircles = Math.max(1, Math.floor(element.height / spacing));
       const bottomCircles = Math.max(1, Math.floor(element.width / spacing));
@@ -192,6 +219,7 @@ export default function ThemedShape(props: CanvasItemProps) {
               y={y}
               radius={circleSize / 2}
               fill={strokeProps.stroke}
+              opacity={strokeProps.opacity}
               listening={false}
             />
           );
@@ -202,6 +230,22 @@ export default function ThemedShape(props: CanvasItemProps) {
       const cx = element.width / 2;
       const cy = element.height / 2;
       const radius = Math.min(element.width, element.height) / 2;
+      
+      // Add background circle for fill color
+      if (element.fill && element.fill !== 'transparent') {
+        circles.push(
+          <Circle
+            key="background"
+            x={cx}
+            y={cy}
+            radius={radius}
+            fill={element.fill}
+            opacity={element.fillOpacity || 1}
+            listening={false}
+          />
+        );
+      }
+      
       const circumference = 2 * Math.PI * radius;
       const numCircles = Math.floor(circumference / spacing);
       
@@ -234,6 +278,7 @@ export default function ThemedShape(props: CanvasItemProps) {
             y={y}
             radius={circleSize / 2}
             fill={strokeProps.stroke}
+            opacity={strokeProps.opacity}
             listening={false}
           />
         );
@@ -282,6 +327,7 @@ export default function ThemedShape(props: CanvasItemProps) {
       <Path
         data={pathData}
         {...strokeProps}
+        fillOpacity={strokeProps.fillOpacity}
         strokeScaleEnabled={false}
         listening={false}
       />
