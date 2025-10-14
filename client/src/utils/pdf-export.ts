@@ -129,9 +129,13 @@ export const exportBookToPDF = async (
       const allElements = tempStage.find('Path, Line, Rect, Circle, Ellipse, Ring, Arc, RegularPolygon, Star, Shape');
       allElements.forEach(element => {
         const currentStrokeWidth = element.strokeWidth();
-        // Eventuell muss die Stroke Width ein wenig angepasst werden:  
         if (currentStrokeWidth) {
-          element.strokeWidth(currentStrokeWidth * 3.5);
+          // Check if this is a ruled line by looking at parent group structure
+          const isRuledLine = element.getParent()?.getParent()?.findOne('Text') !== undefined;
+          // Scale all elements except ruled lines
+          if (!isRuledLine) {
+            element.strokeWidth(currentStrokeWidth * 3.5);
+          }
         }
       });
       

@@ -1,6 +1,7 @@
 import { Button } from '../../../ui/primitives/button';
 import { ChevronLeft, X } from 'lucide-react';
 import { ColorPicker } from '../../../ui/primitives/color-picker';
+import { Label } from '../../../ui/primitives/label';
 
 const STANDARD_COLORS = [
   '#ff595e', '#ff924c', '#ffca3a', '#c5ca30', '#8ac926', 
@@ -44,7 +45,7 @@ export function ColorSelector({
       </div>
       
       <div>
-        <label className="text-xs font-medium block mb-2">Color Selector</label>
+        <Label variant="xs">Color Selector</Label>
         <ColorPicker
           value={value}
           onChange={onChange}
@@ -55,7 +56,7 @@ export function ColorSelector({
       </div>
       
       <div>
-        <label className="text-xs font-medium block mb-2">Standard Colors</label>
+        <Label variant="xs">Standard Colors</Label>
         <div className="grid grid-cols-8 gap-1">
           {STANDARD_COLORS.map((color, index) => (
             <button
@@ -71,7 +72,7 @@ export function ColorSelector({
       
       {onOpacityChange && (
         <div>
-          <label className="text-xs font-medium block mb-2">Opacity</label>
+          <Label variant="xs">Opacity</Label>
           <input
             type="range"
             value={opacity * 100}
@@ -86,7 +87,7 @@ export function ColorSelector({
       )}
       
       <div>
-        <label className="text-xs font-medium block mb-2">Your Favorite Colors</label>
+        <Label variant="xs">Your Favorite Colors</Label>
         {favoriteColors.length > 0 ? (
           <div className="grid grid-cols-6 gap-1">
             {favoriteColors.map((color, index) => (

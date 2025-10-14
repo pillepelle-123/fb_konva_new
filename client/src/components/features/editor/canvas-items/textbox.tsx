@@ -8,6 +8,7 @@ import type { CanvasElement } from '../../../../context/editor-context';
 import BaseCanvasItem from './base-canvas-item';
 import type { CanvasItemProps } from './base-canvas-item';
 import ThemedShape from './themed-shape';
+import { getThemeRenderer } from '../../../../utils/themes';
 
 
 // Rich text formatting function for Quill HTML output
@@ -188,74 +189,134 @@ export default function Textbox(props: CanvasItemProps) {
     
     if (element.ruledLines || (element.text && element.text.includes('data-ruled="true"'))) {
       const ruledSpacingMap = {
-        small: 2.5,
-        medium: 3.0,
-        large: 3.5
+        small: 2.2,
+        medium: 2.5,
+        large: 3.0
       };
       return ruledSpacingMap[spacing as keyof typeof ruledSpacingMap];
     }
     
     const spacingMap = {
-      small: 1.2,
-      medium: 1.5,
-      large: 2.0
+      small: 1.0,
+      medium: 1.2,
+      large: 1.5
     };
     
     return element.lineHeight || spacingMap[spacing as keyof typeof spacingMap];
   };
   
-  // Generate rough-style ruled lines using rough.js
+  // Generate themed ruled lines
   const generateRuledLines = () => {
     if (!element.ruledLines) return [];
     
     const lines = [];
     const padding = element.padding || 4;
-    const lineSpacing = fontSize * lineHeight;
-    const numLines = Math.floor((element.height - (padding * 2)) / lineSpacing);
-    const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+    const lineSpacing = fontSize * getLineHeight(); // Use same spacing as text
+    const theme = element.ruledLinesTheme || 'rough';
+    const ruledLineColor = element.ruledLinesColor || '#1f2937';
+    const ruledLineWidth = element.ruledLinesWidth || 0.8;
     
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    const rc = rough.svg(svg);
-    
-    for (let i = 0; i < numLines; i++) {
-      const y = padding + (i + 1) * lineSpacing - fontSize * 0.3;
-      
-      try {
-        const roughLine = rc.line(padding, y, element.width - padding, y, {
-          roughness: 2,
-          strokeWidth: 0.8,
-          stroke: '#1f2937',
-          seed: seed + i
-        });
+    // Generate lines from top to bottom of textbox (positioned as underlines)
+    for (let y = padding + lineSpacing * 0.8; y < element.height - padding; y += lineSpacing) {
+      if (theme === 'rough') {
+        // Use rough.js for rough theme
+        const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        const rc = rough.svg(svg);
         
-        const paths = roughLine.querySelectorAll('path');
-        let combinedPath = '';
-        paths.forEach(path => {
-          const d = path.getAttribute('d');
-          if (d) combinedPath += d + ' ';
-        });
-        
-        if (combinedPath) {
+        try {
+          const roughLine = rc.line(padding, y, element.width - padding, y, {
+            roughness: 2,
+            strokeWidth: ruledLineWidth,
+            stroke: ruledLineColor,
+            seed: seed + y
+          });
+          
+          const paths = roughLine.querySelectorAll('path');
+          let combinedPath = '';
+          paths.forEach(path => {
+            const d = path.getAttribute('d');
+            if (d) combinedPath += d + ' ';
+          });
+          
+          if (combinedPath) {
+            lines.push(
+              <Path
+                key={y}
+                data={combinedPath.trim()}
+                stroke={ruledLineColor}
+                strokeWidth={ruledLineWidth}
+                listening={false}
+              />
+            );
+          }
+        } catch (error) {
           lines.push(
             <Path
-              key={i}
-              data={combinedPath.trim()}
-              stroke="#1f2937"
-              strokeWidth={2}
+              key={y}
+              data={`M ${padding} ${y} L ${element.width - padding} ${y}`}
+              stroke={ruledLineColor}
+              strokeWidth={ruledLineWidth}
               listening={false}
             />
           );
         }
-      } catch (error) {
-        lines.push(
-          <Path
-            key={i}
-            data={`M ${padding} ${y} L ${element.width - padding} ${y}`}
-            stroke="#1f2937"
-            strokeWidth={2}
-            listening={false}
-          />
-        );
+      } else {
+        if (theme === 'candy') {
+          // Use actual width for candy theme ruled lines
+          lines.push(
+            <Path
+              key={y}
+              data={`M ${padding} ${y} L ${element.width - padding} ${y}`}
+              stroke={ruledLineColor}
+              strokeWidth={ruledLineWidth}
+              lineCap="round"
+              listening={false}
+            />
+          );
+        } else {
+          // Use theme renderer for other themes
+          const lineElement = {
+            id: `${element.id}-line-${y}`,
+            type: 'line' as const,
+            width: element.width - (padding * 2),
+            height: 0,
+            stroke: ruledLineColor,
+            strokeWidth: ruledLineWidth,
+            theme: theme
+          };
+          
+          try {
+            const renderer = getThemeRenderer(theme);
+            const pathData = renderer.generatePath(lineElement, 1);
+            const strokeProps = renderer.getStrokeProps(lineElement, 1);
+            
+            if (pathData) {
+              lines.push(
+                <Path
+                  key={y}
+                  x={padding}
+                  y={y}
+                  data={pathData}
+                  {...strokeProps}
+                  stroke={ruledLineColor}
+                  strokeWidth={ruledLineWidth}
+                  listening={false}
+                />
+              );
+            }
+          } catch (error) {
+            lines.push(
+              <Path
+                key={y}
+                data={`M ${padding} ${y} L ${element.width - padding} ${y}`}
+                stroke={ruledLineColor}
+                strokeWidth={ruledLineWidth}
+                listening={false}
+              />
+            );
+          }
+        }
       }
     }
     
@@ -487,6 +548,7 @@ export default function Textbox(props: CanvasItemProps) {
               text={displayText}
               fontSize={fontSize}
               fontFamily={fontFamily}
+              fontStyle={`${element.fontWeight === 'bold' ? 'bold' : ''} ${element.fontStyle === 'italic' ? 'italic' : ''}`.trim() || 'normal'}
               fill={element.fill || (element.text ? '#1f2937' : '#9ca3af')}
               opacity={(element.formattedText || element.text) ? (element.fillOpacity || 1) : 0.6}
               align={align}

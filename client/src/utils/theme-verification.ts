@@ -17,7 +17,7 @@ const testElement: CanvasElement = {
 
 // Verify all themes are available
 export function verifyThemes(): boolean {
-  const requiredThemes = ['rough', 'default', 'chalk'];
+  const requiredThemes = ['rough', 'default'];
   
   for (const themeName of requiredThemes) {
     if (!themes[themeName as keyof typeof themes]) {

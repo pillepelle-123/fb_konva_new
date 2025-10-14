@@ -19,6 +19,8 @@ import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { ColorSelector } from './color-selector';
 import { Slider } from '../../../ui/primitives/slider';
 import { Separator } from '../../../ui/primitives/separator';
+import { Label } from '../../../ui/primitives/label';
+
 
 const COLORS = [
   '#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff', 
@@ -164,6 +166,9 @@ export default function ToolSettingsPanel() {
         return 'Color';
       case 'pattern-background':
         return 'Background Color';
+      case 'ruled-lines-color':
+      case 'element-ruled-lines-color':
+        return 'Line Color';
       default:
         return 'Color Selector';
     }
@@ -192,6 +197,8 @@ export default function ToolSettingsPanel() {
           return background.type === 'pattern' ? (background.patternForegroundColor || '#666666') : background.value;
         case 'pattern-background':
           return background.patternBackgroundColor || 'transparent';
+        case 'ruled-lines-color':
+          return settings.ruledLinesColor || '#1f2937';
         default:
           return '#1f2937';
       }
@@ -215,6 +222,8 @@ export default function ToolSettingsPanel() {
           return background.opacity || 1;
         case 'pattern-background':
           return background.patternBackgroundOpacity || 1;
+        case 'ruled-lines-color':
+          return 1;
         default:
           return 1;
       }
@@ -259,6 +268,8 @@ export default function ToolSettingsPanel() {
           };
           updatePatternBackground({ patternBackgroundOpacity: opacity });
           break;
+        case 'ruled-lines-color':
+          break;
       }
     };
     
@@ -296,6 +307,9 @@ export default function ToolSettingsPanel() {
           break;
         case 'pattern-background':
           updateBackground({ patternBackgroundColor: color });
+          break;
+        case 'ruled-lines-color':
+          updateToolSetting('ruledLinesColor', color);
           break;
         default:
           updateToolSetting('stroke', color);
@@ -397,7 +411,7 @@ export default function ToolSettingsPanel() {
         return (
           <div className="space-y-4">
             <div>
-              <label className="text-xs font-medium block mb-2">Theme</label>
+              <Label variant="xs">Theme</Label>
               <ThemeSelect 
                 value={settings.theme}
                 onChange={(value) => updateToolSetting('theme', value)}
@@ -430,7 +444,7 @@ export default function ToolSettingsPanel() {
         return (
           <div className="space-y-2">
             <div className={SETTINGS_SECTION_CLASS}>
-              <label className={SETTINGS_LABEL_CLASS}>Theme</label>
+              <Label variant="xs">Theme</Label>
               <ThemeSelect 
                 value={settings.theme}
                 onChange={(value) => updateToolSetting('theme', value)}
@@ -492,7 +506,7 @@ export default function ToolSettingsPanel() {
             </div>
             
             <div className={SETTINGS_SECTION_CLASS}>
-              <label className={SETTINGS_LABEL_CLASS}>Theme</label>
+              <Label variant="xs">Theme</Label>
               <ThemeSelect 
                 value={settings.theme}
                 onChange={(value) => updateToolSetting('theme', value)}
@@ -541,18 +555,36 @@ export default function ToolSettingsPanel() {
                         
             {/* Appearance & Style */}
             <div>
-              <label className="text-xs font-medium block mb-1">Font Family</label>
-              <select
-                value={settings.fontFamily || 'Arial, sans-serif'}
-                onChange={(e) => updateToolSetting('fontFamily', e.target.value)}
-                className="w-full p-1 text-xs border rounded"
-              >
-                {FONTS.map(font => (
-                  <option key={font.value} value={font.value}>
-                    {font.label}
-                  </option>
-                ))}
-              </select>
+              <Label variant="xs">Font Family</Label>
+              <div className="flex gap-2">
+                <select
+                  value={settings.fontFamily || 'Arial, sans-serif'}
+                  onChange={(e) => updateToolSetting('fontFamily', e.target.value)}
+                  className="flex-1 p-1 text-xs border rounded"
+                >
+                  {FONTS.map(font => (
+                    <option key={font.value} value={font.value}>
+                      {font.label}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  variant={settings.fontWeight === 'bold' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => updateToolSetting('fontWeight', settings.fontWeight === 'bold' ? 'normal' : 'bold')}
+                  className="px-3 h-8"
+                >
+                  <strong>B</strong>
+                </Button>
+                <Button
+                  variant={settings.fontStyle === 'italic' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => updateToolSetting('fontStyle', settings.fontStyle === 'italic' ? 'normal' : 'italic')}
+                  className="px-3 h-8"
+                >
+                  <em>I</em>
+                </Button>
+              </div>
             </div>
                         
             {/* Colors */}
@@ -570,7 +602,7 @@ export default function ToolSettingsPanel() {
                         
             {/* Layout & Alignment */}
             <div>
-              <label className="text-xs font-medium block mb-1">Text Align</label>
+              <Label variant="xs">Text Align</Label>
               <ButtonGroup className="mt-1">
                 <Button
                   variant={settings.align === 'left' ? 'default' : 'outline'}
@@ -609,7 +641,7 @@ export default function ToolSettingsPanel() {
             
             {activeTool !== 'question' && (
               <div>
-                <label className="text-xs font-medium block mb-1">Paragraph Spacing</label>
+                <Label variant="xs">Paragraph Spacing</Label>
                 <ButtonGroup className="mt-1">
                   <Button
                     variant={settings.paragraphSpacing === 'small' ? 'default' : 'outline'}
@@ -641,7 +673,7 @@ export default function ToolSettingsPanel() {
                         
             {/* Effects & Decorations */}
             <div>
-              <label className="flex items-center gap-1 text-xs font-medium">
+              <Label className="flex items-center gap-1" variant="xs">
                 <input
                   type="checkbox"
                   checked={settings.ruledLines || false}
@@ -649,8 +681,42 @@ export default function ToolSettingsPanel() {
                   className="rounded w-3 h-3"
                 />
                 Ruled Lines
-              </label>
+              </Label>
             </div>
+            
+            {/* Ruled Lines Settings - only show when checkbox is checked */}
+            {settings.ruledLines && (
+              <div className="space-y-2 ml-4 border-l-2 border-muted pl-2">
+                <div>
+                  <Label variant="xs">Theme</Label>
+                  <ThemeSelect 
+                    value={settings.ruledLinesTheme || 'rough'}
+                    onChange={(value) => updateToolSetting('ruledLinesTheme', value)}
+                  />
+                </div>
+                
+                <div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowColorSelector('ruled-lines-color')}
+                    className="w-full"
+                  >
+                    <Palette className="h-4 w-4 mr-2" />
+                    Line Color
+                  </Button>
+                </div>
+                
+                <Slider
+                  label="Line Width"
+                  value={settings.ruledLinesWidth || 0.8}
+                  onChange={(value) => updateToolSetting('ruledLinesWidth', value)}
+                  min={0.01}
+                  max={5}
+                  step={0.1}
+                />
+              </div>
+            )}
             
             {(activeTool === 'text' || activeTool === 'question' || activeTool === 'answer') && (
               <Slider
@@ -676,7 +742,7 @@ export default function ToolSettingsPanel() {
             {(settings.borderWidth || 0) > 0 && (
               <>
                 <div>
-                  <label className="text-xs font-medium block mb-2">Theme</label>
+                  <Label variant="xs">Theme</Label>
                   <ThemeSelect 
                     value={settings.theme}
                     onChange={(value) => updateToolSetting('theme', value)}
@@ -835,7 +901,7 @@ export default function ToolSettingsPanel() {
           </div>
           
           <div>
-            <label className="text-xs font-medium block mb-1">Pattern</label>
+            <Label variant="xs">Pattern</Label>
             <div className="grid grid-cols-2 gap-1">
               {PATTERNS.map((pattern) => {
                 const patternDataUrl = createPatternDataUrl(
@@ -955,9 +1021,9 @@ export default function ToolSettingsPanel() {
                   checked={isPattern}
                   onCheckedChange={togglePattern}
                 />
-                <label htmlFor="pattern" className="text-sm font-medium cursor-pointer">
+                <Label htmlFor="pattern" className="text-sm font-medium cursor-pointer">
                   Pattern
-                </label>
+                </Label>
                 </span>
                 {isPattern && (
                   <Button
@@ -1000,7 +1066,7 @@ export default function ToolSettingsPanel() {
             {background.value && (
               <div className="space-y-2">
                 <div>
-                  <label className="text-xs font-medium block mb-1">Size</label>
+                  <Label variant="xs">Size</Label>
                   <div className="grid grid-cols-3 gap-1">
                     <Button
                       variant={background.imageSize === 'cover' ? 'default' : 'outline'}
@@ -1031,7 +1097,7 @@ export default function ToolSettingsPanel() {
                 
                 {background.imageSize === 'contain' && (
                   <div>
-                    <label className="flex items-center gap-1 text-xs font-medium">
+                    <Label className="flex items-center gap-1" variant="xs">
                       <input
                         type="checkbox"
                         checked={background.imageRepeat || false}
@@ -1039,7 +1105,7 @@ export default function ToolSettingsPanel() {
                         className="rounded w-3 h-3"
                       />
                       Repeat
-                    </label>
+                    </Label>
                   </div>
                 )}
               </div>
@@ -1123,6 +1189,8 @@ export default function ToolSettingsPanel() {
             return element.borderColor || '#000000';
           case 'element-text-background':
             return element.backgroundColor || 'transparent';
+          case 'element-ruled-lines-color':
+            return element.ruledLinesColor || '#1f2937';
           default:
             return '#1f2937';
         }
@@ -1141,6 +1209,8 @@ export default function ToolSettingsPanel() {
             return element.borderOpacity || 1;
           case 'element-text-background':
             return element.backgroundOpacity || 1;
+          case 'element-ruled-lines-color':
+            return 1;
           default:
             return 1;
         }
@@ -1163,6 +1233,8 @@ export default function ToolSettingsPanel() {
           case 'element-text-background':
             updateElementSetting('backgroundOpacity', opacity);
             break;
+          case 'element-ruled-lines-color':
+            break;
         }
       };
       
@@ -1182,6 +1254,9 @@ export default function ToolSettingsPanel() {
             break;
           case 'element-text-background':
             updateElementSetting('backgroundColor', color);
+            break;
+          case 'element-ruled-lines-color':
+            updateElementSetting('ruledLinesColor', color);
             break;
           default:
             updateElementSetting('stroke', color);
@@ -1210,7 +1285,7 @@ export default function ToolSettingsPanel() {
           <div className="space-y-2">
             {/* Appearance & Style */}
             <div>
-              <label className="text-sm font-medium block mb-2">Theme</label>
+              <Label variant="sm">Theme</Label>
               <ThemeSelect 
                 value={element.theme}
                 onChange={(value) => updateElementSetting('theme', value)}
@@ -1231,7 +1306,7 @@ export default function ToolSettingsPanel() {
             {/* Effects & Decorations */}
             {element.theme === 'candy' && (
               <div className="flex items-center gap-2 h-12">
-                <label className="flex items-center gap-1 text-sm font-medium">
+                <Label className="flex items-center gap-1" variant="sm">
                   <input
                     type="checkbox"
                     checked={element.candyRandomness || false}
@@ -1239,7 +1314,7 @@ export default function ToolSettingsPanel() {
                     className="rounded w-3 h-3"
                   />
                   Random bubble size
-                </label>
+                </Label>
                 {element.candyRandomness && (
                   <ButtonGroup>
                     <Button
@@ -1292,7 +1367,7 @@ export default function ToolSettingsPanel() {
 
             {/* Appearance & Style */}
             <div>
-              <label className="text-xs font-medium block mb-1">Theme</label>
+              <Label variant="xs">Theme</Label>
               <ThemeSelect 
                 value={element.theme}
                 onChange={(value) => updateElementSetting('theme', value)}
@@ -1339,7 +1414,7 @@ export default function ToolSettingsPanel() {
           <div className="space-y-2">
             {/* Appearance & Style */}
             <div>
-              <label className="text-xs font-medium block mb-1">Theme</label>
+              <Label variant="xs">Theme</Label>
               <ThemeSelect 
                 value={element.theme}
                 onChange={(value) => updateElementSetting('theme', value)}
@@ -1386,7 +1461,7 @@ export default function ToolSettingsPanel() {
                                             <Separator />
 
               <div className="flex items-center gap-2 h-12">
-                <label className="flex items-center gap-1 text-xs font-medium">
+                <Label className="flex items-center gap-1" variant="xs">
                   <input
                     type="checkbox"
                     checked={element.candyRandomness || false}
@@ -1394,7 +1469,7 @@ export default function ToolSettingsPanel() {
                     className="rounded w-3 h-3"
                   />
                   Randomness
-                </label>
+                </Label>
                 {element.candyRandomness && (
                   <ButtonGroup>
                     <Button
@@ -1471,35 +1546,47 @@ export default function ToolSettingsPanel() {
         return (
           <div className="space-y-2">
             {/* Size & Dimensions */}
+            <Label variant='xs'>Font</Label>
+            <div>
+              <div className="flex gap-2">
+                <Button
+                  variant={element.fontWeight === 'bold' ? 'default' : 'outline'}
+                  size="xs"
+                  onClick={() => updateElementSetting('fontWeight', element.fontWeight === 'bold' ? 'normal' : 'bold')}
+                  className="px-3"
+                >
+                  <strong>B</strong>
+                </Button>
+                <Button
+                  variant={element.fontStyle === 'italic' ? 'default' : 'outline'}
+                  size="xs"
+                  onClick={() => updateElementSetting('fontStyle', element.fontStyle === 'italic' ? 'normal' : 'italic')}
+                  className="px-3"
+                >
+                  <em>I</em>
+                </Button>
+                <select
+                  value={element.fontFamily || 'Arial, sans-serif'}
+                  onChange={(e) => updateElementSetting('fontFamily', e.target.value)}
+                  className="flex-1 px-1 text-xs border rounded h-7"
+                >
+                  {FONTS.map(font => (
+                    <option key={font.value} value={font.value}>
+                      {font.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
             <Slider
-              label="Font Size"
+              label="Size"
               value={element.fontSize || 64}
               onChange={(value) => updateElementSetting('fontSize', value)}
               min={12}
               max={200}
               step={2}
             />
-            
-            <Separator />
-            
-            {/* Appearance & Style */}
-            <div>
-              <label className="text-xs font-medium block mb-1">Font Family</label>
-              <select
-                value={element.fontFamily || 'Arial, sans-serif'}
-                onChange={(e) => updateElementSetting('fontFamily', e.target.value)}
-                className="w-full p-1 text-xs border rounded"
-              >
-                {FONTS.map(font => (
-                  <option key={font.value} value={font.value}>
-                    {font.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-                        
-            <Separator />
-            
+                           
             {/* Colors */}
             <div>
               <Button
@@ -1508,7 +1595,7 @@ export default function ToolSettingsPanel() {
                 onClick={() => setShowColorSelector('element-text-color')}
                 className="w-full"
               >
-                <Palette className="h-4 w-4 mr-2" />
+                <Palette className="w-4 mr-2" />
                 Text Color
               </Button>
             </div>
@@ -1518,7 +1605,7 @@ export default function ToolSettingsPanel() {
             {/* Layout & Alignment */}
             <div className='flex flex-row gap-3'>
               <div className="flex-1">
-                <label className="text-xs font-medium block mb-1">Text Align</label>
+                <Label variant="xs">Text Align</Label>
                 <ButtonGroup className="mt-1 flex flex-row">
                   <Button
                     variant={element.align === 'left' ? 'default' : 'outline'}
@@ -1556,7 +1643,7 @@ export default function ToolSettingsPanel() {
               </div>
               
               <div className="flex-1">
-                <label className="text-xs font-medium block mb-1">Paragraph Spacing</label>
+                <Label variant="xs">Paragraph Spacing</Label>
                 <ButtonGroup className="mt-1 flex flex-row">
                   <Button
                     variant={element.paragraphSpacing === 'small' ? 'default' : 'outline'}
@@ -1588,7 +1675,7 @@ export default function ToolSettingsPanel() {
                         
             {/* Effects & Decorations */}
             <div>
-              <label className="flex items-center gap-1 text-xs font-medium">
+              <Label className="flex items-center gap-1" variant="xs">
                 <input
                   type="checkbox"
                   checked={element.ruledLines || false}
@@ -1596,8 +1683,42 @@ export default function ToolSettingsPanel() {
                   className="rounded w-3 h-3"
                 />
                 Ruled Lines
-              </label>
+              </Label>
             </div>
+            
+            {/* Ruled Lines Settings - only show when checkbox is checked */}
+            {element.ruledLines && (
+              <div className="space-y-2 ml-4 border-l-2 border-muted pl-2">
+                <div>
+                  <Label variant="xs">Theme</Label>
+                  <ThemeSelect 
+                    value={element.ruledLinesTheme || 'rough'}
+                    onChange={(value) => updateElementSetting('ruledLinesTheme', value)}
+                  />
+                </div>
+                
+                <div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowColorSelector('element-ruled-lines-color')}
+                    className="w-full"
+                  >
+                    <Palette className="h-4 w-4 mr-2" />
+                    Line Color
+                  </Button>
+                </div>
+                
+                <Slider
+                  label="Line Width"
+                  value={element.ruledLinesWidth || 0.8}
+                  onChange={(value) => updateElementSetting('ruledLinesWidth', value)}
+                  min={0.01}
+                  max={30}
+                  step={0.1}
+                />
+              </div>
+            )}
 
             <Separator />
             
@@ -1623,7 +1744,7 @@ export default function ToolSettingsPanel() {
             {(element.borderWidth || 0) > 0 && (
               <>
                 <div>
-                  <label className="text-xs font-medium block mb-2">Border Theme</label>
+                  <Label variant="xs">Border Theme</Label>
                   <ThemeSelect 
                     value={element.theme}
                     onChange={(value) => updateElementSetting('theme', value)}
