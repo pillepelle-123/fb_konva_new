@@ -189,9 +189,9 @@ export default function Textbox(props: CanvasItemProps) {
     
     if (element.ruledLines || (element.text && element.text.includes('data-ruled="true"'))) {
       const ruledSpacingMap = {
-        small: 2.2,
-        medium: 2.5,
-        large: 3.0
+        small: 1.8,
+        medium: 2.2,
+        large: 2.8
       };
       return ruledSpacingMap[spacing as keyof typeof ruledSpacingMap];
     }

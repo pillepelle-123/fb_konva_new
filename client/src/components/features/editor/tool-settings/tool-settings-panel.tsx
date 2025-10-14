@@ -429,7 +429,7 @@ export default function ToolSettingsPanel() {
             <div>
               <Button
                 variant="outline"
-                size="sm"
+                size="xs"
                 onClick={() => setShowColorSelector('line-stroke')}
                 className="w-full"
               >
@@ -463,7 +463,7 @@ export default function ToolSettingsPanel() {
             <div className={SETTINGS_SECTION_CLASS}>
               <Button
                 variant="outline"
-                size="sm"
+                size="xs"
                 onClick={() => setShowColorSelector('brush-stroke')}
                 className="w-full"
               >
@@ -496,7 +496,7 @@ export default function ToolSettingsPanel() {
             <div className={SETTINGS_SECTION_CLASS}>
               <Button
                 variant="outline"
-                size="sm"
+                size="xs"
                 onClick={() => setShowColorSelector('shape-stroke')}
                 className="w-full"
               >
@@ -516,7 +516,7 @@ export default function ToolSettingsPanel() {
             <div className={SETTINGS_SECTION_CLASS}>
               <Button
                 variant="outline"
-                size="sm"
+                size="xs"
                 onClick={() => setShowColorSelector('shape-fill')}
                 className="w-full"
               >
@@ -570,7 +570,7 @@ export default function ToolSettingsPanel() {
                 </select>
                 <Button
                   variant={settings.fontWeight === 'bold' ? 'default' : 'outline'}
-                  size="sm"
+                  size="xs"
                   onClick={() => updateToolSetting('fontWeight', settings.fontWeight === 'bold' ? 'normal' : 'bold')}
                   className="px-3 h-8"
                 >
@@ -578,7 +578,7 @@ export default function ToolSettingsPanel() {
                 </Button>
                 <Button
                   variant={settings.fontStyle === 'italic' ? 'default' : 'outline'}
-                  size="sm"
+                  size="xs"
                   onClick={() => updateToolSetting('fontStyle', settings.fontStyle === 'italic' ? 'normal' : 'italic')}
                   className="px-3 h-8"
                 >
@@ -591,7 +591,7 @@ export default function ToolSettingsPanel() {
             <div>
               <Button
                 variant="outline"
-                size="sm"
+                size="xs"
                 onClick={() => setShowColorSelector('text-color')}
                 className="w-full"
               >
@@ -606,7 +606,7 @@ export default function ToolSettingsPanel() {
               <ButtonGroup className="mt-1">
                 <Button
                   variant={settings.align === 'left' ? 'default' : 'outline'}
-                  size="sm"
+                  size="xs"
                   onClick={() => updateToolSetting('align', 'left')}
                   className="px-1 h-6"
                 >
@@ -614,7 +614,7 @@ export default function ToolSettingsPanel() {
                 </Button>
                 <Button
                   variant={settings.align === 'center' ? 'default' : 'outline'}
-                  size="sm"
+                  size="xs"
                   onClick={() => updateToolSetting('align', 'center')}
                   className="px-1 h-6"
                 >
@@ -622,7 +622,7 @@ export default function ToolSettingsPanel() {
                 </Button>
                 <Button
                   variant={settings.align === 'right' ? 'default' : 'outline'}
-                  size="sm"
+                  size="xs"
                   onClick={() => updateToolSetting('align', 'right')}
                   className="px-1 h-6"
                 >
@@ -630,7 +630,7 @@ export default function ToolSettingsPanel() {
                 </Button>
                 <Button
                   variant={settings.align === 'justify' ? 'default' : 'outline'}
-                  size="sm"
+                  size="xs"
                   onClick={() => updateToolSetting('align', 'justify')}
                   className="px-1 h-6"
                 >
@@ -645,7 +645,7 @@ export default function ToolSettingsPanel() {
                 <ButtonGroup className="mt-1">
                   <Button
                     variant={settings.paragraphSpacing === 'small' ? 'default' : 'outline'}
-                    size="sm"
+                    size="xs"
                     onClick={() => updateToolSetting('paragraphSpacing', 'small')}
                     className="px-1 h-6"
                   >
@@ -653,7 +653,7 @@ export default function ToolSettingsPanel() {
                   </Button>
                   <Button
                     variant={(settings.paragraphSpacing || 'medium') === 'medium' ? 'default' : 'outline'}
-                    size="sm"
+                    size="xs"
                     onClick={() => updateToolSetting('paragraphSpacing', 'medium')}
                     className="px-1 h-6"
                   >
@@ -661,7 +661,7 @@ export default function ToolSettingsPanel() {
                   </Button>
                   <Button
                     variant={settings.paragraphSpacing === 'large' ? 'default' : 'outline'}
-                    size="sm"
+                    size="xs"
                     onClick={() => updateToolSetting('paragraphSpacing', 'large')}
                     className="px-1 h-6"
                   >
@@ -698,7 +698,7 @@ export default function ToolSettingsPanel() {
                 <div>
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="xs"
                     onClick={() => setShowColorSelector('ruled-lines-color')}
                     className="w-full"
                   >
@@ -752,7 +752,7 @@ export default function ToolSettingsPanel() {
                 <div>
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="xs"
                     onClick={() => setShowColorSelector('text-border')}
                     className="w-full"
                   >
@@ -766,7 +766,7 @@ export default function ToolSettingsPanel() {
             <div>
               <Button
                 variant="outline"
-                size="sm"
+                size="xs"
                 onClick={() => setShowColorSelector('text-background')}
                 className="w-full"
               >
@@ -946,7 +946,7 @@ export default function ToolSettingsPanel() {
           <div>
             <Button
               variant="outline"
-              size="sm"
+              size="xs"
               onClick={() => setShowColorSelector('pattern-background')}
               className="w-full"
             >
@@ -1004,7 +1004,7 @@ export default function ToolSettingsPanel() {
             <div>
               <Button
                 variant="outline"
-                size="sm"
+                size="xs"
                 onClick={() => setShowColorSelector('background-color')}
                 className="w-full"
               >
@@ -1040,7 +1040,7 @@ export default function ToolSettingsPanel() {
               {/* {isPattern && (
                 <Button
                   variant="outline"
-                  size="sm"
+                  size="xs"
                   onClick={() => setShowPatternSettings(true)}
                   className="w-full"
                 >
@@ -1055,7 +1055,7 @@ export default function ToolSettingsPanel() {
           <div className="space-y-2">
             <Button
               variant="outline"
-              size="sm"
+              size="xs"
               onClick={() => setShowBackgroundImageModal(true)}
               className="w-full"
             >
@@ -1070,7 +1070,7 @@ export default function ToolSettingsPanel() {
                   <div className="grid grid-cols-3 gap-1">
                     <Button
                       variant={background.imageSize === 'cover' ? 'default' : 'outline'}
-                      size="sm"
+                      size="xs"
                       onClick={() => updateBackground({ imageSize: 'cover' })}
                       className="text-xs"
                     >
@@ -1078,7 +1078,7 @@ export default function ToolSettingsPanel() {
                     </Button>
                     <Button
                       variant={background.imageSize === 'contain' ? 'default' : 'outline'}
-                      size="sm"
+                      size="xs"
                       onClick={() => updateBackground({ imageSize: 'contain' })}
                       className="text-xs"
                     >
@@ -1086,7 +1086,7 @@ export default function ToolSettingsPanel() {
                     </Button>
                     <Button
                       variant={background.imageSize === 'stretch' ? 'default' : 'outline'}
-                      size="sm"
+                      size="xs"
                       onClick={() => updateBackground({ imageSize: 'stretch' })}
                       className="text-xs"
                     >
@@ -1285,7 +1285,7 @@ export default function ToolSettingsPanel() {
           <div className="space-y-2">
             {/* Appearance & Style */}
             <div>
-              <Label variant="sm">Theme</Label>
+              <Label variant="xs">Theme</Label>
               <ThemeSelect 
                 value={element.theme}
                 onChange={(value) => updateElementSetting('theme', value)}
@@ -1306,7 +1306,7 @@ export default function ToolSettingsPanel() {
             {/* Effects & Decorations */}
             {element.theme === 'candy' && (
               <div className="flex items-center gap-2 h-12">
-                <Label className="flex items-center gap-1" variant="sm">
+                <Label className="flex items-center gap-1" variant="xs">
                   <input
                     type="checkbox"
                     checked={element.candyRandomness || false}
@@ -1391,7 +1391,7 @@ export default function ToolSettingsPanel() {
             <div>
               <Button
                 variant="outline"
-                size="sm"
+                size="xs"
                 onClick={() => setShowColorSelector('element-line-stroke')}
                 className="w-full"
               >
@@ -1435,7 +1435,7 @@ export default function ToolSettingsPanel() {
             <div className='flex flex-row gap-3'>
               <Button
                 variant="outline"
-                size="sm"
+                size="xs"
                 onClick={() => setShowColorSelector('element-shape-stroke')}
                 className="w-full"
               >
@@ -1445,7 +1445,7 @@ export default function ToolSettingsPanel() {
          
               <Button
                 variant="outline"
-                size="sm"
+                size="xs"
                 onClick={() => setShowColorSelector('element-shape-fill')}
                 className="w-full"
               >
@@ -1529,7 +1529,7 @@ export default function ToolSettingsPanel() {
             {/* Actions */}
             <Button
               variant="outline"
-              size="sm"
+              size="xs"
               onClick={() => {
                 setSelectedImageElementId(element.id);
                 setShowImageModal(true);
@@ -1609,7 +1609,7 @@ export default function ToolSettingsPanel() {
                 <ButtonGroup className="mt-1 flex flex-row">
                   <Button
                     variant={element.align === 'left' ? 'default' : 'outline'}
-                    size="sm"
+                    size="xs"
                     onClick={() => updateElementSetting('align', 'left')}
                     className="px-1 h-6 flex-1"
                   >
@@ -1617,7 +1617,7 @@ export default function ToolSettingsPanel() {
                   </Button>
                   <Button
                     variant={element.align === 'center' ? 'default' : 'outline'}
-                    size="sm"
+                    size="xs"
                     onClick={() => updateElementSetting('align', 'center')}
                     className="px-1 h-6 flex-1"
                   >
@@ -1625,7 +1625,7 @@ export default function ToolSettingsPanel() {
                   </Button>
                   <Button
                     variant={element.align === 'right' ? 'default' : 'outline'}
-                    size="sm"
+                    size="xs"
                     onClick={() => updateElementSetting('align', 'right')}
                     className="px-1 h-6 flex-1"
                   >
@@ -1633,7 +1633,7 @@ export default function ToolSettingsPanel() {
                   </Button>
                   <Button
                     variant={element.align === 'justify' ? 'default' : 'outline'}
-                    size="sm"
+                    size="xs"
                     onClick={() => updateElementSetting('align', 'justify')}
                     className="px-1 h-6 flex-1"
                   >
@@ -1647,7 +1647,7 @@ export default function ToolSettingsPanel() {
                 <ButtonGroup className="mt-1 flex flex-row">
                   <Button
                     variant={element.paragraphSpacing === 'small' ? 'default' : 'outline'}
-                    size="sm"
+                    size="xs"
                     onClick={() => updateElementSetting('paragraphSpacing', 'small')}
                     className="px-1 h-6 flex-1"
                   >
@@ -1655,7 +1655,7 @@ export default function ToolSettingsPanel() {
                   </Button>
                   <Button
                     variant={(element.paragraphSpacing || 'medium') === 'medium' ? 'default' : 'outline'}
-                    size="sm"
+                    size="xs"
                     onClick={() => updateElementSetting('paragraphSpacing', 'medium')}
                     className="px-1 h-6 flex-1"
                   >
@@ -1663,7 +1663,7 @@ export default function ToolSettingsPanel() {
                   </Button>
                   <Button
                     variant={element.paragraphSpacing === 'large' ? 'default' : 'outline'}
-                    size="sm"
+                    size="xs"
                     onClick={() => updateElementSetting('paragraphSpacing', 'large')}
                     className="px-1 h-6 flex-1"
                   >
@@ -1700,7 +1700,7 @@ export default function ToolSettingsPanel() {
                 <div>
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="xs"
                     onClick={() => setShowColorSelector('element-ruled-lines-color')}
                     className="w-full"
                   >
@@ -1754,7 +1754,7 @@ export default function ToolSettingsPanel() {
                 <div>
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="xs"
                     onClick={() => setShowColorSelector('element-text-border')}
                     className="w-full"
                   >
@@ -1807,7 +1807,7 @@ export default function ToolSettingsPanel() {
                 {/* Actions */}
                 <Button
                   variant="outline"
-                  size="sm"
+                  size="xs"
                   onClick={() => {
                     setSelectedQuestionElementId(element.id);
                     setShowQuestionDialog(true);
