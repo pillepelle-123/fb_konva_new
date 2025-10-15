@@ -1,6 +1,6 @@
 export const THEME_OPTIONS = [
-  { value: 'rough', label: 'Rough (Hand-drawn)' },
   { value: 'default', label: 'Default (Clean)' },
+  { value: 'rough', label: 'Rough (Hand-drawn)' },
   { value: 'glow', label: 'Glow (Soft)' },
   { value: 'candy', label: 'Candy (Dotted)' },
   { value: 'zigzag', label: 'Zig-zag (Electric)' },

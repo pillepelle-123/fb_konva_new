@@ -76,15 +76,26 @@ export function ColorPicker({
 
       {isOpen && (
         <div className="absolute top-10 left-0 z-50">
-          <SketchPicker
-            color={value}
-            onChange={(color) => {
-              onChange(color.hex);
-              setIsOpen(false);
-            }}
-            presetColors={favoriteColors}
-            disableAlpha={true}
-          />
+          <div className="bg-white rounded shadow-lg">
+            <SketchPicker
+              color={value}
+              onChange={(color) => {
+                onChange(color.hex);
+              }}
+              presetColors={favoriteColors}
+              disableAlpha={true}
+            />
+            <div className="p-2 border-t">
+              <Button
+                variant="default"
+                size="xs"
+                onClick={() => setIsOpen(false)}
+                className="w-full"
+              >
+                Ok
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

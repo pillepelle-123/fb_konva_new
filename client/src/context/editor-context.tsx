@@ -2,6 +2,7 @@ import { createContext, useContext, useReducer, useCallback, useEffect } from 'r
 import type { ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from './auth-context';
+import { getToolDefaults } from '../utils/tool-defaults';
 
 export interface CanvasElement {
   id: string;
@@ -228,11 +229,17 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       // Check if author is assigned to current page
       if (state.userRole === 'author' && !state.assignedPages.includes(state.activePageIndex + 1)) return state;
       const savedState = saveToHistory(state, `Add ${action.payload.type}`);
+      
+      // Apply tool defaults to the new element
+      const toolType = action.payload.textType || action.payload.type;
+      const defaults = getToolDefaults(toolType as any);
+      const elementWithDefaults = { ...defaults, ...action.payload };
+      
       const newBook = {
         ...savedState.currentBook!,
         pages: savedState.currentBook!.pages.map((page, index) => 
           index === savedState.activePageIndex 
-            ? { ...page, elements: [...page.elements, action.payload] }
+            ? { ...page, elements: [...page.elements, elementWithDefaults] }
             : page
         )
       };

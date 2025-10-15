@@ -20,6 +20,8 @@ import { ColorSelector } from './color-selector';
 import { Slider } from '../../../ui/primitives/slider';
 import { Separator } from '../../../ui/primitives/separator';
 import { Label } from '../../../ui/primitives/label';
+import { IndentedSection } from '../../../ui/primitives/indented-section';
+import { getThemeDefaults } from '../../../../utils/theme-defaults';
 
 
 const COLORS = [
@@ -403,411 +405,12 @@ export default function ToolSettingsPanel() {
       return renderGeneralSettings();
     }
     
-    // Otherwise show tool settings
-    const settings = toolSettings[activeTool] || {};
-
-    switch (activeTool) {
-      case 'line':
-        return (
-          <div className="space-y-4">
-            <div>
-              <Label variant="xs">Theme</Label>
-              <ThemeSelect 
-                value={settings.theme}
-                onChange={(value) => updateToolSetting('theme', value)}
-              />
-            </div>
-            
-            <Slider
-              label="Stroke Width"
-              value={settings.strokeWidth || 2}
-              onChange={(value) => updateToolSetting('strokeWidth', value)}
-              min={1}
-              max={20}
-            />
-            
-            <div>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => setShowColorSelector('line-stroke')}
-                className="w-full"
-              >
-                <Palette className="h-4 w-4 mr-2" />
-                Color
-              </Button>
-            </div>
-          </div>
-        );
-
-      case 'brush':
-        return (
-          <div className="space-y-2">
-            <div className={SETTINGS_SECTION_CLASS}>
-              <Label variant="xs">Theme</Label>
-              <ThemeSelect 
-                value={settings.theme}
-                onChange={(value) => updateToolSetting('theme', value)}
-              />
-            </div>
-            
-            <Slider
-              label="Brush Size"
-              value={settings.strokeWidth || 3}
-              onChange={(value) => updateToolSetting('strokeWidth', value)}
-              min={1}
-              max={50}
-              className={SETTINGS_SECTION_CLASS}
-            />
-            
-            <div className={SETTINGS_SECTION_CLASS}>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => setShowColorSelector('brush-stroke')}
-                className="w-full"
-              >
-                <Palette className="h-4 w-4 mr-2" />
-                Color
-              </Button>
-            </div>
-          </div>
-        );
-
-      case 'rect':
-      case 'circle':
-      case 'heart':
-      case 'star':
-      case 'speech-bubble':
-      case 'dog':
-      case 'cat':
-      case 'smiley':
-        return (
-          <div className="space-y-2">
-            <Slider
-              label="Stroke Width"
-              value={settings.strokeWidth || 2}
-              onChange={(value) => updateToolSetting('strokeWidth', value)}
-              min={1}
-              max={20}
-              className={SETTINGS_SECTION_CLASS}
-            />
-            
-            <div className={SETTINGS_SECTION_CLASS}>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => setShowColorSelector('shape-stroke')}
-                className="w-full"
-              >
-                <Palette className="h-4 w-4 mr-2" />
-                Stroke Color
-              </Button>
-            </div>
-            
-            <div className={SETTINGS_SECTION_CLASS}>
-              <Label variant="xs">Theme</Label>
-              <ThemeSelect 
-                value={settings.theme}
-                onChange={(value) => updateToolSetting('theme', value)}
-              />
-            </div>
-            
-            <div className={SETTINGS_SECTION_CLASS}>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => setShowColorSelector('shape-fill')}
-                className="w-full"
-              >
-                <Palette className="h-4 w-4 mr-2" />
-                Fill Color
-              </Button>
-            </div>
-            
-            {activeTool === 'rect' && (
-              <Slider
-                label="Corner Radius"
-                value={settings.cornerRadius || 0}
-                onChange={(value) => updateToolSetting('cornerRadius', value)}
-                min={0}
-                max={50}
-                className={SETTINGS_SECTION_CLASS}
-              />
-            )}
-          </div>
-        );
-
-      case 'text':
-      case 'question':
-      case 'answer':
-        return (
-          <div className="space-y-2">
-            {/* Size & Dimensions */}
-            <Slider
-              label="Font Size"
-              value={settings.fontSize || 64}
-              onChange={(value) => updateToolSetting('fontSize', value)}
-              min={12}
-              max={200}
-              step={2}
-            />
-                        
-            {/* Appearance & Style */}
-            <div>
-              <Label variant="xs">Font Family</Label>
-              <div className="flex gap-2">
-                <select
-                  value={settings.fontFamily || 'Arial, sans-serif'}
-                  onChange={(e) => updateToolSetting('fontFamily', e.target.value)}
-                  className="flex-1 p-1 text-xs border rounded"
-                >
-                  {FONTS.map(font => (
-                    <option key={font.value} value={font.value}>
-                      {font.label}
-                    </option>
-                  ))}
-                </select>
-                <Button
-                  variant={settings.fontWeight === 'bold' ? 'default' : 'outline'}
-                  size="xs"
-                  onClick={() => updateToolSetting('fontWeight', settings.fontWeight === 'bold' ? 'normal' : 'bold')}
-                  className="px-3 h-8"
-                >
-                  <strong>B</strong>
-                </Button>
-                <Button
-                  variant={settings.fontStyle === 'italic' ? 'default' : 'outline'}
-                  size="xs"
-                  onClick={() => updateToolSetting('fontStyle', settings.fontStyle === 'italic' ? 'normal' : 'italic')}
-                  className="px-3 h-8"
-                >
-                  <em>I</em>
-                </Button>
-              </div>
-            </div>
-                        
-            {/* Colors */}
-            <div>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => setShowColorSelector('text-color')}
-                className="w-full"
-              >
-                <Palette className="h-4 w-4 mr-2" />
-                Text Color
-              </Button>
-            </div>
-                        
-            {/* Layout & Alignment */}
-            <div>
-              <Label variant="xs">Text Align</Label>
-              <ButtonGroup className="mt-1">
-                <Button
-                  variant={settings.align === 'left' ? 'default' : 'outline'}
-                  size="xs"
-                  onClick={() => updateToolSetting('align', 'left')}
-                  className="px-1 h-6"
-                >
-                  <AlignLeft className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant={settings.align === 'center' ? 'default' : 'outline'}
-                  size="xs"
-                  onClick={() => updateToolSetting('align', 'center')}
-                  className="px-1 h-6"
-                >
-                  <AlignCenter className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant={settings.align === 'right' ? 'default' : 'outline'}
-                  size="xs"
-                  onClick={() => updateToolSetting('align', 'right')}
-                  className="px-1 h-6"
-                >
-                  <AlignRight className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant={settings.align === 'justify' ? 'default' : 'outline'}
-                  size="xs"
-                  onClick={() => updateToolSetting('align', 'justify')}
-                  className="px-1 h-6"
-                >
-                  <AlignJustify className="h-3 w-3" />
-                </Button>
-              </ButtonGroup>
-            </div>
-            
-            {activeTool !== 'question' && (
-              <div>
-                <Label variant="xs">Paragraph Spacing</Label>
-                <ButtonGroup className="mt-1">
-                  <Button
-                    variant={settings.paragraphSpacing === 'small' ? 'default' : 'outline'}
-                    size="xs"
-                    onClick={() => updateToolSetting('paragraphSpacing', 'small')}
-                    className="px-1 h-6"
-                  >
-                    <Rows4 className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    variant={(settings.paragraphSpacing || 'medium') === 'medium' ? 'default' : 'outline'}
-                    size="xs"
-                    onClick={() => updateToolSetting('paragraphSpacing', 'medium')}
-                    className="px-1 h-6"
-                  >
-                    <Rows3 className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    variant={settings.paragraphSpacing === 'large' ? 'default' : 'outline'}
-                    size="xs"
-                    onClick={() => updateToolSetting('paragraphSpacing', 'large')}
-                    className="px-1 h-6"
-                  >
-                    <Rows2 className="h-3 w-3" />
-                  </Button>
-                </ButtonGroup>
-              </div>
-            )}
-                        
-            {/* Effects & Decorations */}
-            <div>
-              <Label className="flex items-center gap-1" variant="xs">
-                <input
-                  type="checkbox"
-                  checked={settings.ruledLines || false}
-                  onChange={(e) => updateToolSetting('ruledLines', e.target.checked)}
-                  className="rounded w-3 h-3"
-                />
-                Ruled Lines
-              </Label>
-            </div>
-            
-            {/* Ruled Lines Settings - only show when checkbox is checked */}
-            {settings.ruledLines && (
-              <div className="space-y-2 ml-4 border-l-2 border-muted pl-2">
-                <div>
-                  <Label variant="xs">Theme</Label>
-                  <ThemeSelect 
-                    value={settings.ruledLinesTheme || 'rough'}
-                    onChange={(value) => updateToolSetting('ruledLinesTheme', value)}
-                  />
-                </div>
-                
-                <div>
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    onClick={() => setShowColorSelector('ruled-lines-color')}
-                    className="w-full"
-                  >
-                    <Palette className="h-4 w-4 mr-2" />
-                    Line Color
-                  </Button>
-                </div>
-                
-                <Slider
-                  label="Line Width"
-                  value={settings.ruledLinesWidth || 0.8}
-                  onChange={(value) => updateToolSetting('ruledLinesWidth', value)}
-                  min={0.01}
-                  max={5}
-                  step={0.1}
-                />
-              </div>
-            )}
-            
-            {(activeTool === 'text' || activeTool === 'question' || activeTool === 'answer') && (
-              <Slider
-                label="Corner Radius"
-                value={settings.cornerRadius || 0}
-                onChange={(value) => updateToolSetting('cornerRadius', value)}
-                min={0}
-                max={300}
-              />
-            )}
-            
-            <Separator />
-            
-            {/* Border & Background */}
-            <Slider
-              label="Border Width"
-              value={settings.borderWidth || 0}
-              onChange={(value) => updateToolSetting('borderWidth', value)}
-              min={0}
-              max={20}
-            />
-            
-            {(settings.borderWidth || 0) > 0 && (
-              <>
-                <div>
-                  <Label variant="xs">Theme</Label>
-                  <ThemeSelect 
-                    value={settings.theme}
-                    onChange={(value) => updateToolSetting('theme', value)}
-                  />
-                </div>
-                
-                <div>
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    onClick={() => setShowColorSelector('text-border')}
-                    className="w-full"
-                  >
-                    <Palette className="h-4 w-4 mr-2" />
-                    Border Color
-                  </Button>
-                </div>
-              </>
-            )}
-            
-            <div>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => setShowColorSelector('text-background')}
-                className="w-full"
-              >
-                <Palette className="h-4 w-4 mr-2" />
-                Background Color
-              </Button>
-            </div>
-            
-            {(settings.backgroundColor && settings.backgroundColor !== 'transparent') && (
-              <Slider
-                label="Background Opacity"
-                value={Math.round((settings.backgroundOpacity || 1) * 100)}
-                onChange={(value) => updateToolSetting('backgroundOpacity', value / 100)}
-                min={0}
-                max={100}
-                step={5}
-                unit="%"
-              />
-            )}
-            
-            <Separator />
-            
-            {/* Spacing & Position */}
-            <Slider
-              label="Padding"
-              value={settings.padding || 4}
-              onChange={(value) => updateToolSetting('padding', value)}
-              min={0}
-              max={50}
-            />
-
-          </div>
-        );
-
-      default:
-        return (
-          <div className="text-sm text-muted-foreground">
-            No settings available for this tool.
-          </div>
-        );
-    }
+    // No tool settings - using defaults from tool-defaults.ts
+    return (
+      <div className="text-sm text-muted-foreground">
+        Select an element to view settings.
+      </div>
+    );
   };
 
   const renderGeneralSettings = () => {
@@ -853,19 +456,21 @@ export default function ToolSettingsPanel() {
     );
   };
 
+  const updateBackground = (updates: Partial<PageBackground>) => {
+    const currentPage = state.currentBook?.pages[state.activePageIndex];
+    const background = currentPage?.background || { type: 'color', value: '#ffffff', opacity: 1 };
+    const newBackground = { ...background, ...updates };
+    dispatch({
+      type: 'UPDATE_PAGE_BACKGROUND',
+      payload: { pageIndex: state.activePageIndex, background: newBackground }
+    });
+  };
+
   const renderBackgroundSettings = () => {
     const currentPage = state.currentBook?.pages[state.activePageIndex];
     const background = currentPage?.background || { type: 'color', value: '#ffffff', opacity: 1 };
     const isPattern = background.type === 'pattern';
     const currentColor = isPattern ? (background.patternForegroundColor || '#666666') : background.value;
-
-    const updateBackground = (updates: Partial<PageBackground>) => {
-      const newBackground = { ...background, ...updates };
-      dispatch({
-        type: 'UPDATE_PAGE_BACKGROUND',
-        payload: { pageIndex: state.activePageIndex, background: newBackground }
-      });
-    };
 
     const togglePattern = (checked: boolean) => {
       if (checked) {
@@ -1112,20 +717,6 @@ export default function ToolSettingsPanel() {
             )}
           </div>
         )}
-
-        {/* <div>
-          <label className="text-xs font-medium block mb-1">Opacity</label>
-          <input
-            type="range"
-            value={(background.opacity || 1) * 100}
-            onChange={(e) => updateBackground({ opacity: parseInt(e.target.value) / 100 })}
-            max={100}
-            min={0}
-            step={5}
-            className="w-full"
-          />
-          <span className="text-xs text-muted-foreground">{Math.round((background.opacity || 1) * 100)}%</span>
-        </div> */}
       </div>
     );
   };
@@ -1288,7 +879,12 @@ export default function ToolSettingsPanel() {
               <Label variant="xs">Theme</Label>
               <ThemeSelect 
                 value={element.theme}
-                onChange={(value) => updateElementSetting('theme', value)}
+                onChange={(value) => {
+                  const themeDefaults = getThemeDefaults(value);
+                  updateElementSetting('theme', value);
+                  updateElementSetting('strokeWidth', themeDefaults.strokeWidth);
+                  updateElementSetting('stroke', themeDefaults.stroke);
+                }}
               />
             </div>
             
@@ -1370,7 +966,12 @@ export default function ToolSettingsPanel() {
               <Label variant="xs">Theme</Label>
               <ThemeSelect 
                 value={element.theme}
-                onChange={(value) => updateElementSetting('theme', value)}
+                onChange={(value) => {
+                  const themeDefaults = getThemeDefaults(value);
+                  updateElementSetting('theme', value);
+                  updateElementSetting('strokeWidth', themeDefaults.strokeWidth);
+                  updateElementSetting('stroke', themeDefaults.stroke);
+                }}
               />
             </div>
             
@@ -1417,7 +1018,13 @@ export default function ToolSettingsPanel() {
               <Label variant="xs">Theme</Label>
               <ThemeSelect 
                 value={element.theme}
-                onChange={(value) => updateElementSetting('theme', value)}
+                onChange={(value) => {
+                  const themeDefaults = getThemeDefaults(value);
+                  updateElementSetting('theme', value);
+                  updateElementSetting('strokeWidth', themeDefaults.strokeWidth);
+                  updateElementSetting('stroke', themeDefaults.stroke);
+                  updateElementSetting('fill', themeDefaults.fill);
+                }}
               />
             </div>
             
@@ -1688,12 +1295,17 @@ export default function ToolSettingsPanel() {
             
             {/* Ruled Lines Settings - only show when checkbox is checked */}
             {element.ruledLines && (
-              <div className="space-y-2 ml-4 border-l-2 border-muted pl-2">
+              <IndentedSection>
                 <div>
-                  <Label variant="xs">Theme</Label>
+                  <Label variant="xs">Ruled Lines Theme</Label>
                   <ThemeSelect 
                     value={element.ruledLinesTheme || 'rough'}
-                    onChange={(value) => updateElementSetting('ruledLinesTheme', value)}
+                    onChange={(value) => {
+                      const themeDefaults = getThemeDefaults(value);
+                      updateElementSetting('ruledLinesTheme', value);
+                      updateElementSetting('ruledLinesWidth', themeDefaults.strokeWidth);
+                      updateElementSetting('ruledLinesColor', themeDefaults.stroke);
+                    }}
                   />
                 </div>
                 
@@ -1717,7 +1329,7 @@ export default function ToolSettingsPanel() {
                   max={30}
                   step={0.1}
                 />
-              </div>
+              </IndentedSection>
             )}
 
             <Separator />
@@ -1733,21 +1345,38 @@ export default function ToolSettingsPanel() {
             )}
                         
             {/* Border & Background */}
-            <Slider
-              label="Border Width"
-              value={element.borderWidth || 0}
-              onChange={(value) => updateElementSetting('borderWidth', value)}
-              min={0}
-              max={getMaxStrokeWidth('text', element.theme || 'default')}
-            />
+            <div>
+              <Label className="flex items-center gap-1" variant="xs">
+                <input
+                  type="checkbox"
+                  checked={(element.borderWidth || 0) > 0}
+                  onChange={(e) => updateElementSetting('borderWidth', e.target.checked ? 1 : 0)}
+                  className="rounded w-3 h-3"
+                />
+                Border
+              </Label>
+            </div>
             
             {(element.borderWidth || 0) > 0 && (
-              <>
+              <IndentedSection>
+                <Slider
+                  label="Border Width"
+                  value={element.borderWidth || 1}
+                  onChange={(value) => updateElementSetting('borderWidth', value)}
+                  min={1}
+                  max={getMaxStrokeWidth('text', element.theme || 'default')}
+                />
+                
                 <div>
                   <Label variant="xs">Border Theme</Label>
                   <ThemeSelect 
                     value={element.theme}
-                    onChange={(value) => updateElementSetting('theme', value)}
+                    onChange={(value) => {
+                      const themeDefaults = getThemeDefaults(value);
+                      updateElementSetting('theme', value);
+                      updateElementSetting('borderWidth', themeDefaults.strokeWidth);
+                      updateElementSetting('borderColor', themeDefaults.stroke);
+                    }}
                   />
                 </div>
                 
@@ -1762,7 +1391,7 @@ export default function ToolSettingsPanel() {
                     Border Color
                   </Button>
                 </div>
-              </>
+              </IndentedSection>
             )}
             
             <div>

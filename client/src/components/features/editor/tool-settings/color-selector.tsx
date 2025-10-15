@@ -2,6 +2,7 @@ import { Button } from '../../../ui/primitives/button';
 import { ChevronLeft, X } from 'lucide-react';
 import { ColorPicker } from '../../../ui/primitives/color-picker';
 import { Label } from '../../../ui/primitives/label';
+import { Slider } from '../../../ui/primitives/slider';
 
 const STANDARD_COLORS = [
   '#ff595e', '#ff924c', '#ffca3a', '#c5ca30', '#8ac926', 
@@ -45,7 +46,7 @@ export function ColorSelector({
       </div>
       
       <div>
-        <Label variant="xs">Color Selector</Label>
+        <Label variant="xs">Selected Color</Label>
         <ColorPicker
           value={value}
           onChange={onChange}
@@ -71,19 +72,15 @@ export function ColorSelector({
       </div>
       
       {onOpacityChange && (
-        <div>
-          <Label variant="xs">Opacity</Label>
-          <input
-            type="range"
-            value={opacity * 100}
-            onChange={(e) => onOpacityChange(parseInt(e.target.value) / 100)}
-            max={100}
-            min={0}
-            step={5}
-            className="w-full"
-          />
-          <span className="text-xs text-muted-foreground">{Math.round(opacity * 100)}%</span>
-        </div>
+        <Slider
+          label="Opacity"
+          value={Math.round(opacity * 100)}
+          onChange={(value) => onOpacityChange(value / 100)}
+          min={0}
+          max={100}
+          step={5}
+          unit="%"
+        />
       )}
       
       <div>

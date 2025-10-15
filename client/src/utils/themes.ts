@@ -192,19 +192,104 @@ const glowTheme: ThemeRenderer = {
 
 
 
-// Candy theme - circle sequence appearance
+// Candy theme - individual circles with randomness support
 const candyTheme: ThemeRenderer = {
-  generatePath: (element: CanvasElement) => {
-    return defaultTheme.generatePath(element);
+  generatePath: (element: CanvasElement, zoom = 1) => {
+    const baseCircleSize = (element.strokeWidth || 2) * 0.8;
+    const spacing = baseCircleSize * 1.5;
+    const hasRandomness = element.candyRandomness || false;
+    const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 4), 10) || 1;
+    
+    const getVariationAmount = () => {
+      if (!hasRandomness) return 0;
+      const intensity = element.candyIntensity || 'weak';
+      switch (intensity) {
+        case 'middle': return 1.0;
+        case 'strong': return 1.4;
+        default: return 0.7;
+      }
+    };
+    
+    let pathString = '';
+    let circleIndex = 0;
+    
+    if (element.type === 'line') {
+      const length = Math.sqrt(element.width * element.width + element.height * element.height);
+      const numCircles = Math.floor(length / spacing) + 1;
+      
+      for (let i = 0; i < numCircles; i++) {
+        const t = i / (numCircles - 1);
+        const x = element.width * t;
+        const y = element.height * t;
+        
+        const random = () => {
+          const x = Math.sin(seed + i) * 10000;
+          return x - Math.floor(x);
+        };
+        const sizeVariation = hasRandomness ? 1 + (random() - 0.5) * getVariationAmount() : 1;
+        const radius = (baseCircleSize * sizeVariation) / 2;
+        
+        pathString += `M ${x - radius} ${y} A ${radius} ${radius} 0 1 0 ${x + radius} ${y} A ${radius} ${radius} 0 1 0 ${x - radius} ${y} `;
+      }
+    } else if (element.type === 'rect') {
+      const topCircles = Math.max(1, Math.floor(element.width / spacing));
+      const rightCircles = Math.max(1, Math.floor(element.height / spacing));
+      const bottomCircles = Math.max(1, Math.floor(element.width / spacing));
+      const leftCircles = Math.max(1, Math.floor(element.height / spacing));
+      
+      const sides = [
+        { count: topCircles, getPos: (i: number) => ({ x: (i + 0.5) * element.width / topCircles, y: 0 }) },
+        { count: rightCircles, getPos: (i: number) => ({ x: element.width, y: (i + 0.5) * element.height / rightCircles }) },
+        { count: bottomCircles, getPos: (i: number) => ({ x: element.width - (i + 0.5) * element.width / bottomCircles, y: element.height }) },
+        { count: leftCircles, getPos: (i: number) => ({ x: 0, y: element.height - (i + 0.5) * element.height / leftCircles }) }
+      ];
+      
+      sides.forEach(side => {
+        for (let i = 0; i < side.count; i++) {
+          const { x, y } = side.getPos(i);
+          
+          const random = () => {
+            const x = Math.sin(seed + circleIndex) * 10000;
+            return x - Math.floor(x);
+          };
+          const sizeVariation = hasRandomness ? 1 + (random() - 0.5) * getVariationAmount() : 1;
+          const radius = (baseCircleSize * sizeVariation) / 2;
+          
+          pathString += `M ${x - radius} ${y} A ${radius} ${radius} 0 1 0 ${x + radius} ${y} A ${radius} ${radius} 0 1 0 ${x - radius} ${y} `;
+          circleIndex++;
+        }
+      });
+    } else if (element.type === 'circle') {
+      const cx = element.width / 2;
+      const cy = element.height / 2;
+      const radius = Math.min(element.width, element.height) / 2;
+      const circumference = 2 * Math.PI * radius;
+      const numCircles = Math.floor(circumference / spacing);
+      
+      for (let i = 0; i < numCircles; i++) {
+        const angle = (i / numCircles) * Math.PI * 2;
+        const x = cx + Math.cos(angle) * radius;
+        const y = cy + Math.sin(angle) * radius;
+        
+        const random = () => {
+          const x = Math.sin(seed + i) * 10000;
+          return x - Math.floor(x);
+        };
+        const sizeVariation = hasRandomness ? 1 + (random() - 0.5) * getVariationAmount() : 1;
+        const circleRadius = (baseCircleSize * sizeVariation) / 2;
+        
+        pathString += `M ${x - circleRadius} ${y} A ${circleRadius} ${circleRadius} 0 1 0 ${x + circleRadius} ${y} A ${circleRadius} ${circleRadius} 0 1 0 ${x - circleRadius} ${y} `;
+      }
+    }
+    
+    return pathString;
   },
   
   getStrokeProps: (element: CanvasElement, zoom = 1) => {
-    const displayWidth = element.strokeWidth || 2;
-    const actualWidth = Math.max(20, displayWidth * 19 + 1) * zoom;
     return {
-      stroke: element.stroke || '#ff0000',
-      strokeWidth: actualWidth,
-      fill: element.fill !== 'transparent' ? element.fill : undefined
+      stroke: 'transparent',
+      strokeWidth: 0,
+      fill: element.stroke || '#ff0000'
     };
   }
 };

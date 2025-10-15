@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useEditor } from '../../../../context/editor-context';
 import { ToolbarContainer } from './toolbar-container';
 import { ToolbarHeader } from './toolbar-header';
@@ -26,6 +26,7 @@ import {
 export default function Toolbar() {
   const { state, dispatch } = useEditor();
   const [isExpanded, setIsExpanded] = useState(true);
+  const toolbarContentRef = useRef<{ closeSubmenus: () => void }>(null);
   
   const isOnAssignedPage = state.userRole === 'author' 
     ? state.assignedPages.includes(state.activePageIndex + 1)
@@ -90,13 +91,19 @@ export default function Toolbar() {
       >
         <ToolbarHeader 
           isExpanded={isExpanded} 
-          onToggle={() => setIsExpanded(!isExpanded)}
+          onToggle={() => {
+            if (isExpanded) {
+              toolbarContentRef.current?.closeSubmenus();
+            }
+            setIsExpanded(!isExpanded);
+          }}
           activeTool={state.activeTool}
           toolGroups={toolGroups}
           hideToggle={state.userRole === 'author' && !isOnAssignedPage}
         />
-        <div>
+        <div className='p-0'>
           <ToolbarContent 
+            ref={toolbarContentRef}
             toolGroups={toolGroups}
             activeTool={state.activeTool}
             isExpanded={isExpanded}

@@ -125,6 +125,13 @@ export const exportBookToPDF = async (
         pageGroup.y(0);
       }
       
+      // Adjust background elements positioning for PDF export
+      const backgroundRects = clonedLayer.find('Rect').filter(rect => !rect.listening());
+      backgroundRects.forEach(rect => {
+        rect.x(0);
+        rect.y(0);
+      });
+      
       // Increase stroke widths to compensate for PDF thinning - do this after adding to stage
       const allElements = tempStage.find('Path, Line, Rect, Circle, Ellipse, Ring, Arc, RegularPolygon, Star, Shape');
       allElements.forEach(element => {

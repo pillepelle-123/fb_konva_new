@@ -1,7 +1,7 @@
 import { CardContent } from '../../../ui/composites/card';
 import { ToolGroup } from './tool-group';
 import { type Icon } from 'lucide-react';
-import { useState } from 'react';
+import { useState, forwardRef, useImperativeHandle } from 'react';
 
 interface Tool {
   id: string;
@@ -23,8 +23,12 @@ interface ToolbarContentProps {
   onToolSelect: (toolId: string) => void;
 }
 
-export function ToolbarContent({ toolGroups, activeTool, isExpanded, userRole, isOnAssignedPage, onToolSelect }: ToolbarContentProps) {
+export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarContentProps>(function ToolbarContent({ toolGroups, activeTool, isExpanded, userRole, isOnAssignedPage, onToolSelect }, ref) {
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
+
+  useImperativeHandle(ref, () => ({
+    closeSubmenus: () => setActiveSubmenu(null)
+  }));
 
   // Hide content for authors on non-assigned pages
   if (userRole === 'author' && !isOnAssignedPage) {
@@ -32,7 +36,7 @@ export function ToolbarContent({ toolGroups, activeTool, isExpanded, userRole, i
   }
 
   return (
-    <CardContent className="p-2 overflow-y-auto scrollbar-hide flex-1 min-h-0 relative">
+    <CardContent className={`p-2 overflow-y-auto scrollbar-hide flex-1 min-h-0 relative`}>
       {toolGroups.map((group, groupIndex) => (
         <ToolGroup
           key={group.name}
@@ -50,4 +54,4 @@ export function ToolbarContent({ toolGroups, activeTool, isExpanded, userRole, i
       ))}
     </CardContent>
   );
-}
+});

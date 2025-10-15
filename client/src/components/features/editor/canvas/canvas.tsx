@@ -17,6 +17,7 @@ import { Dialog, DialogContent } from '../../../ui/overlays/dialog';
 import ImagesContent from '../../images/images-content';
 import QuestionsManagerContent from '../../questions/questions-manager-content';
 import TextEditorModal from '../text-editor-modal';
+import { getToolDefaults } from '../../../../utils/tool-defaults';
 
 import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
 import type { PageBackground } from '../../../../context/editor-context';
@@ -534,7 +535,7 @@ export default function Canvas() {
       setPanStart({ x: 0, y: 0 });
     } else if (isDrawing && state.activeTool === 'brush' && currentPath.length > 2) {
       const smoothedPath = smoothPath(currentPath);
-      const brushSettings = state.toolSettings.brush || {};
+      const brushDefaults = getToolDefaults('brush');
       // Points are already relative to Group position
       const adjustedPoints = smoothedPath;
       const newElement: CanvasElement = {
@@ -545,10 +546,10 @@ export default function Canvas() {
         width: 0,
         height: 0,
         points: adjustedPoints,
-        stroke: brushSettings.stroke || '#1f2937',
+        stroke: brushDefaults.stroke,
         roughness: 1,
-        strokeWidth: brushSettings.strokeWidth || 3,
-        theme: brushSettings.theme || 'rough'
+        strokeWidth: brushDefaults.strokeWidth,
+        theme: brushDefaults.theme
       };
       dispatch({ type: 'ADD_ELEMENT', payload: newElement });
       dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
@@ -557,7 +558,7 @@ export default function Canvas() {
       const height = previewLine.y2 - previewLine.y1;
       
       if (Math.abs(width) > 5 || Math.abs(height) > 5) {
-        const lineSettings = state.toolSettings.line || {};
+        const lineDefaults = getToolDefaults('line');
         const newElement: CanvasElement = {
           id: uuidv4(),
           type: 'line',
@@ -565,10 +566,10 @@ export default function Canvas() {
           y: previewLine.y1,
           width: width,
           height: height,
-          stroke: lineSettings.stroke || '#1f2937',
+          stroke: lineDefaults.stroke,
           roughness: 3,
-          strokeWidth: lineSettings.strokeWidth || 2,
-          theme: lineSettings.theme || 'rough'
+          strokeWidth: lineDefaults.strokeWidth,
+          theme: lineDefaults.theme
         };
         dispatch({ type: 'ADD_ELEMENT', payload: newElement });
         dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
@@ -578,7 +579,7 @@ export default function Canvas() {
       setPreviewLine(null);
     } else if (isDrawingShape && shapeStart && previewShape) {
       if (previewShape.width > 5 || previewShape.height > 5) {
-        const shapeSettings = state.toolSettings[previewShape.type] || {};
+        const shapeDefaults = getToolDefaults(previewShape.type as any);
         const newElement: CanvasElement = {
           id: uuidv4(),
           type: previewShape.type as any,
@@ -586,12 +587,12 @@ export default function Canvas() {
           y: previewShape.y,
           width: previewShape.width,
           height: previewShape.height,
-          fill: shapeSettings.fill || 'transparent',
-          stroke: shapeSettings.stroke || '#1f2937',
+          fill: shapeDefaults.fill || 'transparent',
+          stroke: shapeDefaults.stroke,
           roughness: 3,
-          strokeWidth: shapeSettings.strokeWidth || 2,
-          cornerRadius: shapeSettings.cornerRadius || 0,
-          theme: shapeSettings.theme || 'rough'
+          strokeWidth: shapeDefaults.strokeWidth,
+          cornerRadius: shapeDefaults.cornerRadius || 0,
+          theme: shapeDefaults.theme
         };
         dispatch({ type: 'ADD_ELEMENT', payload: newElement });
         dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
@@ -604,7 +605,7 @@ export default function Canvas() {
         let newElement: CanvasElement;
         
         if (previewTextbox.type === 'text') {
-          const textSettings = state.toolSettings.text || {};
+          const textDefaults = getToolDefaults('text');
           newElement = {
             id: uuidv4(),
             type: 'text',
@@ -612,17 +613,18 @@ export default function Canvas() {
             y: previewTextbox.y,
             width: previewTextbox.width,
             height: previewTextbox.height,
-            fill: textSettings.fill || '#1f2937',
+            fill: textDefaults.fill,
             text: '',
-            fontSize: textSettings.fontSize || 64,
-            align: textSettings.align || 'left',
-            fontFamily: textSettings.fontFamily || 'Arial, sans-serif',
+            fontSize: textDefaults.fontSize,
+            align: textDefaults.align,
+            fontFamily: textDefaults.fontFamily,
             textType: 'text',
-            paragraphSpacing: textSettings.paragraphSpacing || 'medium',
-            cornerRadius: textSettings.cornerRadius || 0
+            paragraphSpacing: textDefaults.paragraphSpacing,
+            cornerRadius: textDefaults.cornerRadius
           };
         } else if (previewTextbox.type === 'question') {
-          const questionSettings = state.toolSettings.question || {};
+          const questionDefaults = getToolDefaults('question');
+          const answerDefaults = getToolDefaults('answer');
           const questionHeight = Math.max(40, previewTextbox.height * 0.3);
           const answerHeight = previewTextbox.height - questionHeight - 10;
           
@@ -635,12 +637,12 @@ export default function Canvas() {
             width: previewTextbox.width,
             height: questionHeight,
             text: '',
-            fontSize: questionSettings.fontSize || 64,
-            align: questionSettings.align || 'left',
-            fontFamily: questionSettings.fontFamily || 'Arial, sans-serif',
+            fontSize: questionDefaults.fontSize,
+            align: questionDefaults.align,
+            fontFamily: questionDefaults.fontFamily,
             textType: 'question',
             fill: '#9ca3af',
-            cornerRadius: questionSettings.cornerRadius || 0
+            cornerRadius: questionDefaults.cornerRadius
           };
           
           // Create answer textbox (editable)
@@ -652,19 +654,19 @@ export default function Canvas() {
             width: previewTextbox.width,
             height: answerHeight,
             text: '',
-            fontSize: questionSettings.fontSize || 64,
-            align: questionSettings.align || 'left',
-            fontFamily: questionSettings.fontFamily || 'Arial, sans-serif',
+            fontSize: answerDefaults.fontSize,
+            align: answerDefaults.align,
+            fontFamily: answerDefaults.fontFamily,
             textType: 'answer',
             questionElementId: questionElement.id,
-            paragraphSpacing: questionSettings.paragraphSpacing || 'medium',
-            cornerRadius: questionSettings.cornerRadius || 0
+            paragraphSpacing: answerDefaults.paragraphSpacing,
+            cornerRadius: answerDefaults.cornerRadius
           };
           
           // Add question element first
           dispatch({ type: 'ADD_ELEMENT', payload: questionElement });
         } else {
-          const answerSettings = state.toolSettings.answer || {};
+          const answerDefaults = getToolDefaults('answer');
           newElement = {
             id: uuidv4(),
             type: 'text',
@@ -673,12 +675,12 @@ export default function Canvas() {
             width: previewTextbox.width,
             height: previewTextbox.height,
             text: '',
-            fontSize: answerSettings.fontSize || 64,
-            align: answerSettings.align || 'left',
-            fontFamily: answerSettings.fontFamily || 'Arial, sans-serif',
+            fontSize: answerDefaults.fontSize,
+            align: answerDefaults.align,
+            fontFamily: answerDefaults.fontFamily,
             textType: 'answer',
-            paragraphSpacing: answerSettings.paragraphSpacing || 'medium',
-            cornerRadius: answerSettings.cornerRadius || 0
+            paragraphSpacing: answerDefaults.paragraphSpacing,
+            cornerRadius: answerDefaults.cornerRadius
           };
         }
         
@@ -1057,6 +1059,8 @@ export default function Canvas() {
       
       let fillPatternScaleX = 1;
       let fillPatternScaleY = 1;
+      let fillPatternOffsetX = 0;
+      let fillPatternOffsetY = 0;
       let fillPatternRepeat = 'no-repeat';
       
       if (background.imageSize === 'cover') {
@@ -1086,6 +1090,8 @@ export default function Canvas() {
           fillPatternImage={bgImage}
           fillPatternScaleX={fillPatternScaleX}
           fillPatternScaleY={fillPatternScaleY}
+          fillPatternOffsetX={fillPatternOffsetX}
+          fillPatternOffsetY={fillPatternOffsetY}
           fillPatternRepeat={fillPatternRepeat}
           opacity={opacity}
           listening={false}
