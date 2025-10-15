@@ -13,7 +13,7 @@ import { PreviewLine, PreviewShape, PreviewTextbox, PreviewBrush } from './previ
 import { CanvasContainer } from './canvas-container';
 import ContextMenu from '../../../ui/overlays/context-menu';
 import { Modal } from '../../../ui/overlays/modal';
-import { Dialog, DialogContent } from '../../../ui/overlays/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../ui/overlays/dialog';
 import ImagesContent from '../../images/images-content';
 import QuestionsManagerContent from '../../questions/questions-manager-content';
 import TextEditorModal from '../text-editor-modal';
@@ -127,7 +127,7 @@ const createPatternTile = (pattern: any, color: string, size: number, strokeWidt
 
 
 export default function Canvas() {
-  const { state, dispatch, getAnswerText } = useEditor();
+  const { state, dispatch, getAnswerText, trackQuestionAssignment } = useEditor();
   const { token, user } = useAuth();
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
@@ -1621,12 +1621,15 @@ export default function Canvas() {
       {showQuestionDialog && state.currentBook && token && user?.role !== 'author' && (
         <Dialog open={showQuestionDialog} onOpenChange={setShowQuestionDialog}>
           <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden">
+            <DialogHeader>
+              <DialogTitle>Select Question</DialogTitle>
+            </DialogHeader>
             <QuestionsManagerContent
               bookId={state.currentBook.id}
               bookName={state.currentBook.name}
               mode="select"
               token={token}
-              onQuestionSelect={(questionId, questionText) => {
+              onQuestionSelect={async (questionId, questionText) => {
                 if (selectedQuestionElementId) {
                   const updates = questionId === 0 
                     ? { text: '', fill: '#9ca3af', questionId: undefined }
@@ -1638,6 +1641,11 @@ export default function Canvas() {
                       updates
                     }
                   });
+                  
+                  // Track question assignment if not resetting
+                  if (questionId !== 0) {
+                    await trackQuestionAssignment(questionId, state.activePageIndex + 1);
+                  }
                   
                   const currentPage = state.currentBook?.pages[state.activePageIndex];
                   if (currentPage) {

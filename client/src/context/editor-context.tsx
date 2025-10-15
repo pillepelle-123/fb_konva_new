@@ -575,6 +575,9 @@ const EditorContext = createContext<{
   goToHistoryStep: (step: number) => void;
   getHistoryActions: () => string[];
   refreshPageAssignments: () => Promise<void>;
+  checkDuplicateQuestion: (questionId: number, userId?: number) => Promise<boolean>;
+  checkPageAssignmentConflicts: (pageNumber: number, userId: number) => Promise<string[]>;
+  trackQuestionAssignment: (questionId: number, pageNumber: number) => Promise<void>;
 } | undefined>(undefined);
 
 export const useEditor = () => {
@@ -835,6 +838,68 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     return state.historyActions;
   };
   
+  const checkDuplicateQuestion = async (questionId: number, userId?: number): Promise<boolean> => {
+    if (!state.currentBook) return false;
+    
+    const userIdToCheck = userId || state.user?.id;
+    if (!userIdToCheck) return false;
+    
+    try {
+      const token = localStorage.getItem('token');
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      
+      const response = await fetch(`${apiUrl}/user-question-assignments/check/${state.currentBook.id}/${userIdToCheck}/${questionId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      return response.ok ? await response.json() : false;
+    } catch {
+      return false;
+    }
+  };
+  
+  const checkPageAssignmentConflicts = async (pageNumber: number, userId: number): Promise<string[]> => {
+    if (!state.currentBook) return [];
+    
+    try {
+      const token = localStorage.getItem('token');
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      
+      const response = await fetch(`${apiUrl}/user-question-assignments/conflicts/${state.currentBook.id}/${userId}/${pageNumber}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      return response.ok ? await response.json() : [];
+    } catch {
+      return [];
+    }
+  };
+  
+  const trackQuestionAssignment = async (questionId: number, pageNumber: number): Promise<void> => {
+    if (!state.currentBook || !state.user) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      
+      await fetch(`${apiUrl}/user-question-assignments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          bookId: state.currentBook.id,
+          userId: state.user.id,
+          questionId,
+          pageNumber
+        })
+      });
+    } catch (error) {
+      console.error('Error tracking question assignment:', error);
+    }
+  };
+  
   const refreshPageAssignments = useCallback(async () => {
     if (!state.currentBook) return;
     
@@ -871,7 +936,10 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       redo,
       goToHistoryStep,
       getHistoryActions,
-      refreshPageAssignments
+      refreshPageAssignments,
+      checkDuplicateQuestion,
+      checkPageAssignmentConflicts,
+      trackQuestionAssignment
     }}>
       {children}
     </EditorContext.Provider>

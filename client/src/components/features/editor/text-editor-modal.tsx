@@ -29,7 +29,7 @@ const findQuestionElement = async (questionElementId: string) => {
 
 export default function TextEditorModal({ element, onSave, onClose, onSelectQuestion, bookId, bookName, token }: TextEditorModalProps) {
   const { user } = useAuth();
-  const { updateTempQuestion, updateTempAnswer, addNewQuestion, getQuestionText, getAnswerText } = useEditor();
+  const { state, updateTempQuestion, updateTempAnswer, addNewQuestion, getQuestionText, getAnswerText, trackQuestionAssignment } = useEditor();
   const modalRef = useRef<HTMLDivElement | null>(null);
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
   const questionDialogTrigger = useRef<(() => void) | null>(null);
@@ -206,9 +206,14 @@ export default function TextEditorModal({ element, onSave, onClose, onSelectQues
     };
   }, []);
 
-  const handleQuestionSelect = (questionId: number, questionText: string) => {
+  const handleQuestionSelect = async (questionId: number, questionText: string) => {
     // Store question selection in temp storage
     updateTempQuestion(questionId, questionText);
+    
+    // Track question assignment
+    if (questionId !== 0) {
+      await trackQuestionAssignment(questionId, state.activePageIndex + 1);
+    }
     
     onSave(questionText);
     setShowQuestionDialog(false);

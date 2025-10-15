@@ -6,7 +6,19 @@ const fs = require('fs');
 const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+// Parse schema from DATABASE_URL
+const url = new URL(process.env.DATABASE_URL);
+const schema = url.searchParams.get('schema') || 'public';
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
+
+// Set search path from DATABASE_URL schema parameter
+pool.on('connect', (client) => {
+  client.query(`SET search_path TO ${schema}`);
+});
 
 const profileStorage = multer.diskStorage({
   destination: (req, file, cb) => {

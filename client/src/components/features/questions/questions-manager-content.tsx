@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription } from '../../ui/composites/card';
 import { Input } from '../../ui/primitives/input';
 import { DialogDescription, DialogHeader, DialogTitle, Dialog, DialogContent, DialogFooter } from '../../ui/overlays/dialog';
 import { useAuth } from '../../../context/auth-context';
+import { useEditor } from '../../../context/editor-context';
 import { HelpCircle, Plus, Edit, Trash2, Save, Calendar, X, CircleQuestionMark, CircleQuestionMarkIcon, MessageCircleQuestionMark } from 'lucide-react';
 import { apiService } from '../../../services/api';
 
@@ -35,6 +36,7 @@ export default function QuestionsManagerContent({
   showAsContent = false
 }: QuestionsManagerContentProps) {
   const { user } = useAuth();
+  const { state, trackQuestionAssignment } = useEditor();
   
   // Get book-specific role from editor context
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -280,11 +282,13 @@ export default function QuestionsManagerContent({
                       <div className="flex items-start justify-between">
                         <div 
                           className={`space-y-1 flex-1 ${mode === 'select' ? 'cursor-pointer hover:bg-muted/30 p-2 rounded' : ''}`}
-                          onClick={mode === 'select' ? (e) => {
+                          onClick={mode === 'select' ? async (e) => {
                             // Prevent click if clicking on Edit or Delete buttons
                             const target = e.target as HTMLElement;
                             if (target.closest('button')) return;
                             onQuestionSelect?.(question.id, question.question_text);
+                            // Track question assignment
+                            await trackQuestionAssignment(question.id, state.activePageIndex + 1);
                           } : undefined}
                         >
                           <div className="flex items-start justify-between mb-2">
