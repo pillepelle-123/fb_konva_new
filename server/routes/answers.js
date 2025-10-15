@@ -241,6 +241,25 @@ router.get('/book/:bookId/stats', authenticateToken, async (req, res) => {
   }
 });
 
+// Delete answer by question ID (for current user)
+router.delete('/question/:questionId', authenticateToken, async (req, res) => {
+  try {
+    const { questionId } = req.params;
+    const userId = req.user.id;
+
+    // Delete user's answer for this question
+    const result = await pool.query(
+      'DELETE FROM public.answers WHERE question_id = $1 AND user_id = $2 RETURNING id',
+      [questionId, userId]
+    );
+
+    res.json({ success: true, deleted: result.rows.length > 0 });
+  } catch (error) {
+    console.error('Answer delete error:', error);
+    res.status(500).json({ error: 'Server error', details: error.message });
+  }
+});
+
 // Delete answer (for publishers deleting their own answers)
 router.delete('/:answerId', authenticateToken, async (req, res) => {
   try {

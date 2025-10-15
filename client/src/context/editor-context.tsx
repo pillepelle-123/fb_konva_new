@@ -637,16 +637,41 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         });
       }
       
-      // Save answers
+      // Save or delete answers
       for (const [questionId, text] of Object.entries(state.tempAnswers)) {
-        await fetch(`${apiUrl}/answers`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ questionId: parseInt(questionId), answerText: text })
-        });
+        if (text.trim() === '') {
+          // Delete answer if text is empty (ignore 404 if answer doesn't exist)
+          try {
+            const response = await fetch(`${apiUrl}/answers/question/${questionId}`, {
+              method: 'DELETE',
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            // Ignore 404 errors - answer may not exist yet
+            if (!response.ok && response.status !== 404) {
+              throw new Error(`Failed to delete answer: ${response.status}`);
+            }
+          } catch (error) {
+            if (error.message && !error.message.includes('404')) {
+              console.error('Error deleting answer:', error);
+            }
+          }
+        } else {
+          // Save answer if text exists
+          try {
+            await fetch(`${apiUrl}/answers`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({ questionId: parseInt(questionId), answerText: text })
+            });
+          } catch (error) {
+            console.error('Error saving answer:', error);
+          }
+        }
       }
       
       let bookToSave = state.currentBook;

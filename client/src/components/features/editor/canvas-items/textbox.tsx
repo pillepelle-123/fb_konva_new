@@ -329,7 +329,21 @@ export default function Textbox(props: CanvasItemProps) {
   
   const getPlaceholderText = () => {
     if (element.textType === 'question') return 'Double-click to pose a question...';
-    if (element.textType === 'answer') return 'Double-click to answer...';
+    if (element.textType === 'answer') {
+      // Check if linked question has a questionId set
+      if (element.questionElementId) {
+        const currentPage = state.currentBook?.pages[state.activePageIndex];
+        if (currentPage) {
+          const questionElement = currentPage.elements.find(el => el.id === element.questionElementId);
+          if (!questionElement?.questionId) {
+            return 'Set a question first...';
+          }
+        }
+      } else {
+        return 'Set a question first...';
+      }
+      return 'Double-click to answer...';
+    }
     return 'Double-click to add text...';
   };
 
@@ -348,7 +362,19 @@ export default function Textbox(props: CanvasItemProps) {
         const questionElement = currentPage.elements.find(el => el.id === element.questionElementId);
         if (questionElement?.questionId) {
           const tempText = getAnswerText(questionElement.questionId);
-          if (tempText) textToUse = tempText;
+          if (tempText) {
+            textToUse = tempText;
+            // Auto-update element text if saved answer exists but element text is empty
+            if (!element.text && !element.formattedText) {
+              dispatch({
+                type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                payload: {
+                  id: element.id,
+                  updates: { text: tempText }
+                }
+              });
+            }
+          }
         }
       }
     }
@@ -433,6 +459,41 @@ export default function Textbox(props: CanvasItemProps) {
         detail: { elementId: element.id }
       }));
       return;
+    }
+    
+    if (element.textType === 'answer') {
+      // Check if linked question element has a questionId set
+      if (element.questionElementId) {
+        const currentPage = state.currentBook?.pages[state.activePageIndex];
+        if (currentPage) {
+          const questionElement = currentPage.elements.find(el => el.id === element.questionElementId);
+          if (!questionElement?.questionId) {
+            // No question is set yet, show alert and prevent editing
+            window.dispatchEvent(new CustomEvent('showAlert', {
+              detail: { 
+                message: 'A question has to be set first.',
+                x: element.x,
+                y: element.y,
+                width: element.width,
+                height: element.height
+              }
+            }));
+            return;
+          }
+        }
+      } else {
+        // No linked question element, show alert and prevent editing
+        window.dispatchEvent(new CustomEvent('showAlert', {
+          detail: { 
+            message: 'A question has to be set first.',
+            x: element.x,
+            y: element.y,
+            width: element.width,
+            height: element.height
+          }
+        }));
+        return;
+      }
     }
     
     window.dispatchEvent(new CustomEvent('editText', {

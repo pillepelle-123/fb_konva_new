@@ -36,7 +36,7 @@ export default function Login() {
           </CardHeader>
           <CardContent className="space-y-4">
             {error && (
-              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3">
+              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-2">
                 <p className="text-sm text-destructive text-center">{error}</p>
               </div>
             )}

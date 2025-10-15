@@ -18,6 +18,7 @@ import ImagesContent from '../../images/images-content';
 import QuestionsManagerContent from '../../questions/questions-manager-content';
 import TextEditorModal from '../text-editor-modal';
 import { getToolDefaults } from '../../../../utils/tool-defaults';
+import { Alert, AlertDescription } from '../../../ui/composites/alert';
 
 import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
 import type { PageBackground } from '../../../../context/editor-context';
@@ -180,6 +181,8 @@ export default function Canvas() {
   const editingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [clipboard, setClipboard] = useState<CanvasElement[]>([]);
   const [lastMousePos, setLastMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  const [alertPosition, setAlertPosition] = useState<{ x: number; y: number } | null>(null);
 
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const pageSize = state.currentBook?.pageSize || 'A4';
@@ -1181,15 +1184,32 @@ export default function Canvas() {
       });
     };
     
+    const handleShowAlert = (event: CustomEvent) => {
+      const { message, x, y, width, height } = event.detail;
+      setAlertMessage(message);
+      
+      // Calculate alert position relative to textbox
+      const alertX = (x + width / 2) * zoom + stagePos.x + pageOffsetX;
+      const alertY = (y + height + 10) * zoom + stagePos.y + pageOffsetY;
+      setAlertPosition({ x: alertX, y: alertY });
+      
+      setTimeout(() => {
+        setAlertMessage(null);
+        setAlertPosition(null);
+      }, 3000);
+    };
+    
     window.addEventListener('editText', handleTextEdit as EventListener);
     window.addEventListener('openQuestionModal', handleOpenQuestionModal as EventListener);
     window.addEventListener('findQuestionElement', handleFindQuestionElement as EventListener);
     window.addEventListener('updateAnswerId', handleUpdateAnswerId as EventListener);
+    window.addEventListener('showAlert', handleShowAlert as EventListener);
     return () => {
       window.removeEventListener('editText', handleTextEdit as EventListener);
       window.removeEventListener('openQuestionModal', handleOpenQuestionModal as EventListener);
       window.removeEventListener('findQuestionElement', handleFindQuestionElement as EventListener);
       window.removeEventListener('updateAnswerId', handleUpdateAnswerId as EventListener);
+      window.removeEventListener('showAlert', handleShowAlert as EventListener);
       if (editingTimeoutRef.current) {
         clearTimeout(editingTimeoutRef.current);
       }
@@ -1618,6 +1638,25 @@ export default function Canvas() {
                       updates
                     }
                   });
+                  
+                  // If resetting question, also clear answer text from linked answer element
+                  if (questionId === 0) {
+                    const currentPage = state.currentBook?.pages[state.activePageIndex];
+                    if (currentPage) {
+                      const answerElement = currentPage.elements.find(el => 
+                        el.textType === 'answer' && el.questionElementId === selectedQuestionElementId
+                      );
+                      if (answerElement) {
+                        dispatch({
+                          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                          payload: {
+                            id: answerElement.id,
+                            updates: { text: '', formattedText: '' }
+                          }
+                        });
+                      }
+                    }
+                  }
                 }
                 setShowQuestionDialog(false);
                 setSelectedQuestionElementId(null);
@@ -1631,6 +1670,19 @@ export default function Canvas() {
         </Dialog>
       )}
       </CanvasPageContainer>
+      
+      {/* Alert notification */}
+      {alertMessage && alertPosition && (
+        <div 
+          className="fixed z-50 w-64"
+          style={{
+            left: `${alertPosition.x - 128}px`,
+            top: `${alertPosition.y}px`
+          }}
+        >
+          <Alert>{alertMessage}</Alert>
+        </div>
+      )}
     </>
   );
 }

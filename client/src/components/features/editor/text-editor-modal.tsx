@@ -167,7 +167,7 @@ export default function TextEditorModal({ element, onSave, onClose, onSelectQues
             // Find the linked question element to get questionId
             const questionElement = await findQuestionElement(element.questionElementId);
             if (questionElement && questionElement.questionId) {
-              // Store answer in temp storage
+              // Store answer in temp storage (including empty text for deletion)
               updateTempAnswer(questionElement.questionId, plainText);
             }
           }

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '../../ui/primitives/button';
 import { Card, CardContent, CardDescription } from '../../ui/composites/card';
 import { Input } from '../../ui/primitives/input';
-import { DialogDescription, DialogHeader, DialogTitle } from '../../ui/overlays/dialog';
+import { DialogDescription, DialogHeader, DialogTitle, Dialog, DialogContent, DialogFooter } from '../../ui/overlays/dialog';
 import { useAuth } from '../../../context/auth-context';
 import { HelpCircle, Plus, Edit, Trash2, Save, Calendar, X, CircleQuestionMark, CircleQuestionMarkIcon, MessageCircleQuestionMark } from 'lucide-react';
 
@@ -11,6 +11,7 @@ interface Question {
   question_text: string;
   created_at: string;
   updated_at: string | null;
+  answered_by_user?: boolean;
 }
 
 interface QuestionsManagerContentProps {
@@ -69,13 +70,16 @@ export default function QuestionsManagerContent({
   
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userAnswers, setUserAnswers] = useState<Set<number>>(new Set());
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editText, setEditText] = useState('');
   const [newQuestion, setNewQuestion] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   useEffect(() => {
     fetchQuestions();
+    fetchUserAnswers();
   }, [bookId]);
 
   const fetchQuestions = async () => {
@@ -92,6 +96,22 @@ export default function QuestionsManagerContent({
       console.error('Error fetching questions:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchUserAnswers = async () => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/answers/book/${bookId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const answers = await response.json();
+        const answeredQuestionIds = new Set(answers.map((answer: any) => answer.question_id));
+        setUserAnswers(answeredQuestionIds);
+      }
+    } catch (error) {
+      console.error('Error fetching user answers:', error);
     }
   };
 
@@ -215,7 +235,7 @@ export default function QuestionsManagerContent({
             </h1>
             <div className="flex gap-2">
               {mode === 'select' && (
-                <Button variant="outline" onClick={() => onQuestionSelect?.(0, '')}>
+                <Button variant="outline" onClick={() => setShowResetConfirm(true)}>
                   Reset Question
                 </Button>
               )}
@@ -304,9 +324,16 @@ export default function QuestionsManagerContent({
                             onQuestionSelect?.(question.id, question.question_text);
                           } : undefined}
                         >
-                          <p className="text-foreground leading-relaxed">
-                            {question.question_text}
-                          </p>
+                          <div className="flex items-start justify-between mb-2">
+                            <p className="text-foreground leading-relaxed flex-1">
+                              {question.question_text}
+                            </p>
+                            {userAnswers.has(question.id) && (
+                              <span className="ml-2 px-2 py-1 text-xs rounded-full bg-ring/10 text-ring border border-ring/20">
+                                Answered by you
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                             <Calendar className="h-3 w-3" />
                             <span>Created {formatDate(question.created_at)}</span>
@@ -353,7 +380,7 @@ export default function QuestionsManagerContent({
 
       {mode === 'select' && !showAsContent && (
         <div className="flex justify-end gap-2 mt-4">
-          <Button variant="outline" onClick={() => onQuestionSelect?.(0, '')}>
+          <Button variant="outline" onClick={() => setShowResetConfirm(true)}>
             Reset Question
           </Button>
           <Button variant="outline" onClick={onClose}>
@@ -381,6 +408,29 @@ export default function QuestionsManagerContent({
           </div>
         </div>
       )}
+      
+      {/* Reset Question Confirmation */}
+      <Dialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset Question</DialogTitle>
+            <DialogDescription>
+              Removing the question will also clear any answer text from the answer box. However, your saved answers will remain in the system and will reappear if you select this question again later.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowResetConfirm(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => {
+              onQuestionSelect?.(0, '');
+              setShowResetConfirm(false);
+            }}>
+              Reset Question
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

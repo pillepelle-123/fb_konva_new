@@ -264,8 +264,8 @@ export default function ImagesContent({
       <div className="space-y-6">
         {uploadError && (
           <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>{uploadError}</AlertDescription>
+            {/* <AlertTriangle className="h-5 w-5" /> */}
+            {uploadError}
           </Alert>
         )}
         
