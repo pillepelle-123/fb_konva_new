@@ -29,7 +29,7 @@ const findQuestionElement = async (questionElementId: string) => {
 
 export default function TextEditorModal({ element, onSave, onClose, onSelectQuestion, bookId, bookName, token }: TextEditorModalProps) {
   const { user } = useAuth();
-  const { state, updateTempQuestion, updateTempAnswer, addNewQuestion, getQuestionText, getAnswerText, trackQuestionAssignment } = useEditor();
+  const { state, updateTempQuestion, updateTempAnswer, addNewQuestion, getQuestionText, getAnswerText, trackQuestionAssignment, removeTempQuestionAssignment } = useEditor();
   const modalRef = useRef<HTMLDivElement | null>(null);
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
   const questionDialogTrigger = useRef<(() => void) | null>(null);
@@ -206,13 +206,32 @@ export default function TextEditorModal({ element, onSave, onClose, onSelectQues
     };
   }, []);
 
-  const handleQuestionSelect = async (questionId: number, questionText: string) => {
+  const handleQuestionSelect = (questionId: number, questionText: string) => {
+    // Find any existing question assignment for this element and remove it
+    // Check current canvas elements to find what question was previously assigned
+    const currentPage = state.currentBook?.pages[state.activePageIndex];
+    const currentElement = currentPage?.elements.find(el => el.id === element.id);
+    
+    if (currentElement?.questionId && currentElement.questionId !== questionId) {
+      removeTempQuestionAssignment(currentElement.questionId);
+    }
+    
+    // Also check temp assignments for this page to remove any conflicting assignments
+    const conflictingAssignment = state.tempQuestionAssignments?.find(assignment => 
+      assignment.pageNumber === state.activePageIndex + 1 && 
+      assignment.questionId !== questionId
+    );
+    
+    if (conflictingAssignment) {
+      removeTempQuestionAssignment(conflictingAssignment.questionId);
+    }
+    
     // Store question selection in temp storage
     updateTempQuestion(questionId, questionText);
     
     // Track question assignment
     if (questionId !== 0) {
-      await trackQuestionAssignment(questionId, state.activePageIndex + 1);
+      trackQuestionAssignment(questionId, state.activePageIndex + 1);
     }
     
     onSave(questionText);

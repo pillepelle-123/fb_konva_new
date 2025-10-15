@@ -35,8 +35,9 @@ export default function QuestionsManagerContent({
   onClose,
   showAsContent = false
 }: QuestionsManagerContentProps) {
+  console.log('QuestionsManagerContent rendered with mode:', mode);
   const { user } = useAuth();
-  const { state, trackQuestionAssignment } = useEditor();
+  const { state, trackQuestionAssignment, removeTempQuestionAssignment, isQuestionAvailableForUser } = useEditor();
   
   // Get book-specific role from editor context
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -84,6 +85,11 @@ export default function QuestionsManagerContent({
     fetchQuestions();
     fetchUserAnswers();
   }, [bookId]);
+
+  // Re-render when question assignments change
+  useEffect(() => {
+    // This effect ensures the component re-renders when temp assignments change
+  }, [state.tempQuestionAssignments, state.existingQuestionAssignments, state.currentBook]);
 
   const fetchQuestions = async () => {
     try {
@@ -166,6 +172,70 @@ export default function QuestionsManagerContent({
     });
   };
 
+  // Local validation function with access to current React state
+  const isQuestionAvailable = (questionId: number): boolean => {
+    if (!state.currentBook || !state.user) return false;
+    
+    // Check if we're in select mode and there's a user assigned to current page
+    if (mode === 'select') {
+      const currentPageNumber = state.activePageIndex + 1;
+      const assignedUser = state.pageAssignments[currentPageNumber];
+      
+      if (assignedUser) {
+        // Check if question is available for this specific user
+        return isQuestionAvailableForUser(questionId, assignedUser.id);
+      }
+    }
+    
+    // Fallback to original logic for manage mode or when no user assigned
+    const existsInTemp = state.tempQuestionAssignments?.some(assignment => 
+      assignment.questionId === questionId
+    );
+    
+    if (existsInTemp) return false;
+    
+    const existsInDB = state.existingQuestionAssignments?.some(assignment => 
+      assignment.questionId === questionId
+    );
+    
+    if (existsInDB) return false;
+    
+    const userPages = state.userRole === 'author' ? state.assignedPages : 
+      Array.from({ length: state.currentBook.pages.length }, (_, i) => i + 1);
+    
+    for (const page of state.currentBook.pages) {
+      if (userPages.includes(page.pageNumber)) {
+        const hasQuestion = page.elements.some(element => 
+          element.textType === 'question' && element.questionId === questionId
+        );
+        if (hasQuestion) return false;
+      }
+    }
+    
+    return true;
+  };
+  
+  const getUnavailableReason = (questionId: number): string | null => {
+    if (mode === 'select') {
+      const currentPageNumber = state.activePageIndex + 1;
+      const assignedUser = state.pageAssignments[currentPageNumber];
+      
+      if (assignedUser && !isQuestionAvailableForUser(questionId, assignedUser.id)) {
+        return `Already assigned to ${assignedUser.name}`;
+      }
+    }
+    return null;
+  };
+  
+  const hasCurrentQuestion = (): boolean => {
+    if (mode !== 'select' || !state.currentBook) return false;
+    
+    const currentPage = state.currentBook.pages[state.activePageIndex];
+    return currentPage?.elements.some(el => 
+      el.textType === 'question' && el.questionId && el.questionId > 0
+    ) || false;
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-32">
@@ -199,7 +269,7 @@ export default function QuestionsManagerContent({
               <span>{mode === 'select' ? 'Select Question' : 'Manage Questions'}</span>
             </h1>
             <div className="flex gap-2">
-              {mode === 'select' && (
+              {mode === 'select' && hasCurrentQuestion() && (
                 <Button variant="outline" onClick={() => setShowResetConfirm(true)}>
                   Reset Question
                 </Button>
@@ -250,8 +320,36 @@ export default function QuestionsManagerContent({
               </div>
             ) : (
               <div className="divide-y max-h-96 overflow-y-auto">
-                {questions.sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime()).map(question => (
-                  <div key={question.id} className="p-4 hover:bg-muted/50 transition-colors">
+                {questions
+                  .sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime()).map(question => {
+                    const isAvailable = isQuestionAvailable(question.id);
+                    const unavailableReason = getUnavailableReason(question.id);
+                    
+                    if (mode === 'select' && !isAvailable) {
+                      return (
+                        <div key={question.id} className="p-4 opacity-50 bg-muted/20">
+                          <div className="space-y-1">
+                            <div className="flex items-start justify-between mb-2">
+                              <p className="text-foreground leading-relaxed flex-1 line-through">
+                                {question.question_text}
+                              </p>
+                              {unavailableReason && (
+                                <span className="ml-2 px-2 py-1 text-xs rounded-full bg-destructive/10 text-destructive border border-destructive/20">
+                                  {unavailableReason}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                              <Calendar className="h-3 w-3" />
+                              <span>Created {formatDate(question.created_at)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    
+                    return (
+                      <div key={question.id} className="p-4 hover:bg-muted/50 transition-colors">
                     {editingId === question.id ? (
                       <div className="space-y-3">
                         <Input
@@ -282,13 +380,26 @@ export default function QuestionsManagerContent({
                       <div className="flex items-start justify-between">
                         <div 
                           className={`space-y-1 flex-1 ${mode === 'select' ? 'cursor-pointer hover:bg-muted/30 p-2 rounded' : ''}`}
-                          onClick={mode === 'select' ? async (e) => {
+                          onClick={mode === 'select' ? (e) => {
                             // Prevent click if clicking on Edit or Delete buttons
                             const target = e.target as HTMLElement;
                             if (target.closest('button')) return;
+                            
+                            // Check if question is available before selecting
+                            if (!isAvailable) return;
+                            
+                            // Emit event for validation
+                            window.dispatchEvent(new CustomEvent('questionSelected', {
+                              detail: { 
+                                elementId: 'current', // Will be handled by the modal
+                                questionId: question.id, 
+                                questionText: question.question_text 
+                              }
+                            }));
+                            
                             onQuestionSelect?.(question.id, question.question_text);
-                            // Track question assignment
-                            await trackQuestionAssignment(question.id, state.activePageIndex + 1);
+                            // Track question assignment in state
+                            trackQuestionAssignment(question.id, state.activePageIndex + 1);
                           } : undefined}
                         >
                           <div className="flex items-start justify-between mb-2">
@@ -337,8 +448,9 @@ export default function QuestionsManagerContent({
                         </div>
                       </div>
                     )}
-                  </div>
-                ))}
+                      </div>
+                    );
+                  })}
               </div>
             )}
           </CardContent>
@@ -347,9 +459,11 @@ export default function QuestionsManagerContent({
 
       {mode === 'select' && !showAsContent && (
         <div className="flex justify-end gap-2 mt-4">
-          <Button variant="outline" onClick={() => setShowResetConfirm(true)}>
-            Reset Question
-          </Button>
+          {hasCurrentQuestion() && (
+            <Button variant="outline" onClick={() => setShowResetConfirm(true)}>
+              Reset Question
+            </Button>
+          )}
           <Button variant="outline" onClick={onClose}>
             Back
           </Button>
@@ -390,6 +504,16 @@ export default function QuestionsManagerContent({
               Cancel
             </Button>
             <Button onClick={() => {
+              // Find the current question element to get its questionId
+              const currentPage = state.currentBook?.pages[state.activePageIndex];
+              const questionElement = currentPage?.elements.find(el => 
+                el.textType === 'question' && el.questionId
+              );
+              
+              if (questionElement?.questionId) {
+                removeTempQuestionAssignment(questionElement.questionId);
+              }
+              
               onQuestionSelect?.(0, '');
               setShowResetConfirm(false);
             }}>

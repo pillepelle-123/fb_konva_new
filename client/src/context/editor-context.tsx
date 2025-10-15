@@ -90,6 +90,9 @@ export interface EditorState {
   tempQuestions: { [key: number]: string }; // questionId -> text
   tempAnswers: { [key: number]: string }; // questionId -> text
   newQuestions: { elementId: string; text: string }[]; // new questions not yet saved
+  tempQuestionAssignments: { questionId: number; pageNumber: number }[]; // question assignments to save
+  existingQuestionAssignments: { questionId: number; pageNumber: number }[]; // existing assignments from DB
+  userQuestionAssignments: Record<number, { questionId: number; pageNumber: number }[]>; // userId -> question assignments
   history: HistoryState[];
   historyIndex: number;
   historyActions: string[];
@@ -121,6 +124,10 @@ type EditorAction =
   | { type: 'UPDATE_TEMP_ANSWER'; payload: { questionId: number; text: string } }
   | { type: 'ADD_NEW_QUESTION'; payload: { elementId: string; text: string } }
   | { type: 'UPDATE_NEW_QUESTION'; payload: { elementId: string; text: string } }
+  | { type: 'ADD_TEMP_QUESTION_ASSIGNMENT'; payload: { questionId: number; pageNumber: number } }
+  | { type: 'REMOVE_TEMP_QUESTION_ASSIGNMENT'; payload: number }
+  | { type: 'SET_EXISTING_QUESTION_ASSIGNMENTS'; payload: { questionId: number; pageNumber: number }[] }
+  | { type: 'UPDATE_USER_QUESTION_ASSIGNMENTS' }
   | { type: 'CLEAR_TEMP_DATA' }
   | { type: 'UNDO' }
   | { type: 'REDO' }
@@ -148,6 +155,9 @@ const initialState: EditorState = {
   tempQuestions: {},
   tempAnswers: {},
   newQuestions: [],
+  tempQuestionAssignments: [],
+  existingQuestionAssignments: [],
+  userQuestionAssignments: {},
   history: [],
   historyIndex: -1,
   historyActions: [],
@@ -197,16 +207,16 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       return bookState;
     
     case 'SET_ACTIVE_PAGE':
-      const newState = { ...state, activePageIndex: action.payload, selectedElementIds: [] };
+      const activePageState = { ...state, activePageIndex: action.payload, selectedElementIds: [] };
       // Auto-set pan tool for authors on non-assigned pages
-      if (newState.userRole === 'author' && !newState.assignedPages.includes(action.payload + 1)) {
-        newState.activeTool = 'pan';
+      if (activePageState.userRole === 'author' && !activePageState.assignedPages.includes(action.payload + 1)) {
+        activePageState.activeTool = 'pan';
       }
       // Auto-set select tool for authors on assigned pages
-      else if (newState.userRole === 'author' && newState.assignedPages.includes(action.payload + 1)) {
-        newState.activeTool = 'select';
+      else if (activePageState.userRole === 'author' && activePageState.assignedPages.includes(action.payload + 1)) {
+        activePageState.activeTool = 'select';
       }
-      return newState;
+      return activePageState;
     
     case 'SET_ACTIVE_TOOL':
       return { ...state, activeTool: action.payload };
@@ -244,12 +254,21 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             : page
         )
       };
-      return { 
+      const newState = { 
         ...savedState, 
         currentBook: newBook, 
         selectedElementIds: [action.payload.id], 
         hasUnsavedChanges: true 
       };
+      
+      // Update user question assignments after adding element
+      if (action.payload.textType === 'question' && action.payload.questionId) {
+        setTimeout(() => {
+          dispatch({ type: 'UPDATE_USER_QUESTION_ASSIGNMENTS' });
+        }, 0);
+      }
+      
+      return newState;
     
     case 'UPDATE_ELEMENT':
       if (!state.currentBook) return state;
@@ -261,7 +280,16 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (elementIndex !== -1) {
         page.elements[elementIndex] = { ...page.elements[elementIndex], ...action.payload.updates };
       }
-      return { ...state, currentBook: updatedBook, hasUnsavedChanges: true };
+      const updatedState = { ...state, currentBook: updatedBook, hasUnsavedChanges: true };
+      
+      // Update user question assignments if questionId changed
+      if (action.payload.updates.questionId !== undefined) {
+        setTimeout(() => {
+          dispatch({ type: 'UPDATE_USER_QUESTION_ASSIGNMENTS' });
+        }, 0);
+      }
+      
+      return updatedState;
     
     case 'UPDATE_ELEMENT_PRESERVE_SELECTION':
       if (!state.currentBook) return state;
@@ -278,15 +306,35 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       // Check if author is assigned to current page
       if (state.userRole === 'author' && !state.assignedPages.includes(state.activePageIndex + 1)) return state;
       const savedDeleteState = saveToHistory(state, 'Delete Element');
+      
+      // Find the element being deleted to check if it's a question
+      const elementToDelete = savedDeleteState.currentBook!.pages[savedDeleteState.activePageIndex].elements
+        .find(el => el.id === action.payload);
+      
       const filteredBook = { ...savedDeleteState.currentBook! };
       filteredBook.pages[savedDeleteState.activePageIndex].elements = 
         filteredBook.pages[savedDeleteState.activePageIndex].elements.filter(el => el.id !== action.payload);
-      return { 
+      
+      let deleteState = { 
         ...savedDeleteState, 
         currentBook: filteredBook,
         selectedElementIds: savedDeleteState.selectedElementIds.filter(id => id !== action.payload),
         hasUnsavedChanges: true
       };
+      
+      // If deleting a question element, remove its temp assignment
+      if (elementToDelete?.textType === 'question' && elementToDelete.questionId) {
+        deleteState.tempQuestionAssignments = deleteState.tempQuestionAssignments.filter(assignment => 
+          assignment.questionId !== elementToDelete.questionId
+        );
+      }
+      
+      // Update user question assignments after element deletion
+      setTimeout(() => {
+        dispatch({ type: 'UPDATE_USER_QUESTION_ASSIGNMENTS' });
+      }, 0);
+      
+      return deleteState;
     
     case 'ADD_PAGE':
       if (!state.currentBook || state.userRole === 'author') return state;
@@ -342,8 +390,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const insertPosition = action.payload + 2; // New page position
       
       // Shift assignments for pages >= insertPosition
-      Object.keys(updatedPageAssignments).forEach(pageNum => {
-        const pageNumber = parseInt(pageNum);
+      const pageNumbers = Object.keys(updatedPageAssignments).map(n => parseInt(n)).sort((a, b) => b - a);
+      pageNumbers.forEach(pageNumber => {
         if (pageNumber >= insertPosition) {
           const user = updatedPageAssignments[pageNumber];
           delete updatedPageAssignments[pageNumber];
@@ -424,12 +472,76 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         hasUnsavedChanges: true
       };
     
+    case 'ADD_TEMP_QUESTION_ASSIGNMENT':
+      // Prevent duplicate assignments
+      const existingAssignment = state.tempQuestionAssignments.find(assignment => 
+        assignment.questionId === action.payload.questionId && 
+        assignment.pageNumber === action.payload.pageNumber
+      );
+      
+      if (existingAssignment) {
+        return state; // Don't add duplicate
+      }
+      
+      return {
+        ...state,
+        tempQuestionAssignments: [...state.tempQuestionAssignments, action.payload],
+        hasUnsavedChanges: true
+      };
+    
+    case 'REMOVE_TEMP_QUESTION_ASSIGNMENT':
+      return {
+        ...state,
+        tempQuestionAssignments: state.tempQuestionAssignments.filter(assignment => 
+          assignment.questionId !== action.payload
+        ),
+        hasUnsavedChanges: true
+      };
+    
+    case 'SET_EXISTING_QUESTION_ASSIGNMENTS':
+      return {
+        ...state,
+        existingQuestionAssignments: action.payload
+      };
+    
+    case 'UPDATE_USER_QUESTION_ASSIGNMENTS':
+      if (!state.currentBook) return state;
+      
+      const userQuestionAssignments: Record<number, { questionId: number; pageNumber: number }[]> = {};
+      
+      // Calculate assignments based on current state
+      state.currentBook.pages.forEach(page => {
+        const assignedUser = state.pageAssignments[page.pageNumber];
+        if (assignedUser) {
+          if (!userQuestionAssignments[assignedUser.id]) {
+            userQuestionAssignments[assignedUser.id] = [];
+          }
+          
+          // Find questions on this page
+          page.elements.forEach(element => {
+            if (element.textType === 'question' && element.questionId) {
+              userQuestionAssignments[assignedUser.id].push({
+                questionId: element.questionId,
+                pageNumber: page.pageNumber
+              });
+            }
+          });
+        }
+      });
+      
+      return {
+        ...state,
+        userQuestionAssignments
+      };
+    
     case 'CLEAR_TEMP_DATA':
       return {
         ...state,
         tempQuestions: {},
         tempAnswers: {},
-        newQuestions: []
+        newQuestions: [],
+        tempQuestionAssignments: []
+        // Keep existingQuestionAssignments - they persist across saves
       };
     
     case 'UNDO':
@@ -577,7 +689,11 @@ const EditorContext = createContext<{
   refreshPageAssignments: () => Promise<void>;
   checkDuplicateQuestion: (questionId: number, userId?: number) => Promise<boolean>;
   checkPageAssignmentConflicts: (pageNumber: number, userId: number) => Promise<string[]>;
-  trackQuestionAssignment: (questionId: number, pageNumber: number) => Promise<void>;
+  trackQuestionAssignment: (questionId: number, pageNumber: number) => void;
+  removeTempQuestionAssignment: (questionId: number) => void;
+  validateQuestionAssignment: (questionId: number, pageNumber: number) => boolean;
+  checkUserQuestionConflicts: (userId: number, pageNumber: number) => { questionId: number; questionText: string; pageNumber: number }[];
+  isQuestionAvailableForUser: (questionId: number, userId: number) => boolean;
 } | undefined>(undefined);
 
 export const useEditor = () => {
@@ -657,9 +773,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         if (!response.ok) throw new Error('Failed to save book');
       }
       
-      // Save page assignments if any exist and have actual assignments
-      const hasAssignments = Object.values(state.pageAssignments).some(user => user !== null);
-      if (hasAssignments) {
+      // Save page assignments if any exist
+      if (Object.keys(state.pageAssignments).length > 0) {
         const assignments = Object.entries(state.pageAssignments).map(([pageNumber, user]) => ({
           pageNumber: parseInt(pageNumber),
           userId: user?.id || null
@@ -726,10 +841,25 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         }
       }
       
+      // Save temp question assignments to database
+      for (const assignment of state.tempQuestionAssignments) {
+        await fetch(`${apiUrl}/user-question-assignments`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            bookId: state.currentBook.id,
+            userId: state.user?.id,
+            questionId: assignment.questionId,
+            pageNumber: assignment.pageNumber
+          })
+        });
+      }
+      
       // Clear temporary data after successful save
       dispatch({ type: 'CLEAR_TEMP_DATA' });
-      dispatch({ type: 'SET_PAGE_ASSIGNMENTS', payload: {} });
-      dispatch({ type: 'SET_BOOK_FRIENDS', payload: [] });
       dispatch({ type: 'MARK_SAVED' });
     } catch (error) {
       throw error;
@@ -755,7 +885,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         dispatch({ type: 'SET_USER_ROLE', payload: { role: userRole.role, assignedPages: userRole.assignedPages || [] } });
       }
       
-      // Load page assignments
+      // Load page assignments - use pageNumber as key for consistency
       const pageAssignmentsMap = {};
       pageAssignments.forEach(assignment => {
         pageAssignmentsMap[assignment.page_id] = {
@@ -766,6 +896,24 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         };
       });
       dispatch({ type: 'SET_PAGE_ASSIGNMENTS', payload: pageAssignmentsMap });
+      
+      // Load existing question assignments for current user
+      try {
+        const token = localStorage.getItem('token');
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+        const response = await fetch(`${apiUrl}/user-question-assignments/book/${bookId}/user`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const assignments = await response.json();
+          dispatch({ type: 'SET_EXISTING_QUESTION_ASSIGNMENTS', payload: assignments });
+        }
+      } catch (error) {
+        console.error('Error loading question assignments:', error);
+      }
+      
+      // Update user question assignments after loading
+      dispatch({ type: 'UPDATE_USER_QUESTION_ASSIGNMENTS' });
     } catch (error) {
       throw error;
     }
@@ -875,29 +1023,108 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     }
   };
   
-  const trackQuestionAssignment = async (questionId: number, pageNumber: number): Promise<void> => {
+  const trackQuestionAssignment = (questionId: number, pageNumber: number): void => {
     if (!state.currentBook || !state.user) return;
     
-    try {
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      
-      await fetch(`${apiUrl}/user-question-assignments`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          bookId: state.currentBook.id,
-          userId: state.user.id,
-          questionId,
-          pageNumber
-        })
-      });
-    } catch (error) {
-      console.error('Error tracking question assignment:', error);
+    dispatch({
+      type: 'ADD_TEMP_QUESTION_ASSIGNMENT',
+      payload: { questionId, pageNumber }
+    });
+  };
+  
+  const removeTempQuestionAssignment = (questionId: number): void => {
+    dispatch({
+      type: 'REMOVE_TEMP_QUESTION_ASSIGNMENT',
+      payload: questionId
+    });
+  };
+  
+  const validateQuestionAssignment = (questionId: number, pageNumber: number): boolean => {
+    if (!state.currentBook || !state.user) return false;
+    
+    // Check if question is already assigned in temp assignments
+    const existsInTemp = state.tempQuestionAssignments?.some(assignment => 
+      assignment.questionId === questionId
+    );
+    
+    if (existsInTemp) return false;
+    
+    // Check if question is already assigned in existing assignments from DB
+    const existsInDB = state.existingQuestionAssignments?.some(assignment => 
+      assignment.questionId === questionId
+    );
+    
+    if (existsInDB) return false;
+    
+    // Check if question is already assigned in current canvas elements
+    const userPages = state.userRole === 'author' ? state.assignedPages : 
+      Array.from({ length: state.currentBook.pages.length }, (_, i) => i + 1);
+    
+    for (const page of state.currentBook.pages) {
+      if (userPages.includes(page.pageNumber)) {
+        const hasQuestion = page.elements.some(element => 
+          element.textType === 'question' && element.questionId === questionId
+        );
+        if (hasQuestion) return false;
+      }
     }
+    
+    return true;
+  };
+  
+  const checkUserQuestionConflicts = (userId: number, pageNumber: number): { questionId: number; questionText: string; pageNumber: number }[] => {
+    if (!state.currentBook) return [];
+    
+    const conflicts: { questionId: number; questionText: string; pageNumber: number }[] = [];
+    
+    // Get questions on the target page
+    const targetPage = state.currentBook.pages.find(p => p.pageNumber === pageNumber);
+    if (!targetPage) return [];
+    
+    targetPage.elements.forEach(element => {
+      if (element.textType === 'question' && element.questionId) {
+        // Check if this question is already assigned to the user on another page
+        for (const page of state.currentBook!.pages) {
+          if (page.pageNumber !== pageNumber) {
+            const assignedUser = state.pageAssignments[page.pageNumber];
+            if (assignedUser && assignedUser.id === userId) {
+              const hasQuestion = page.elements.some(el => 
+                el.textType === 'question' && el.questionId === element.questionId
+              );
+              if (hasQuestion) {
+                conflicts.push({
+                  questionId: element.questionId,
+                  questionText: getQuestionText(element.questionId) || 'Unknown question',
+                  pageNumber: page.pageNumber
+                });
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    return conflicts;
+  };
+  
+  const isQuestionAvailableForUser = (questionId: number, userId: number): boolean => {
+    if (!state.currentBook) return true;
+    
+    // Check all pages assigned to this user for this question
+    for (const page of state.currentBook.pages) {
+      const assignedUser = state.pageAssignments[page.pageNumber];
+      if (assignedUser && assignedUser.id === userId) {
+        // Check if this page has the question
+        const hasQuestion = page.elements.some(element => 
+          element.textType === 'question' && element.questionId === questionId
+        );
+        if (hasQuestion) {
+          return false;
+        }
+      }
+    }
+    
+    return true;
   };
   
   const refreshPageAssignments = useCallback(async () => {
@@ -939,7 +1166,11 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       refreshPageAssignments,
       checkDuplicateQuestion,
       checkPageAssignmentConflicts,
-      trackQuestionAssignment
+      trackQuestionAssignment,
+      removeTempQuestionAssignment,
+      validateQuestionAssignment,
+      checkUserQuestionConflicts,
+      isQuestionAvailableForUser
     }}>
       {children}
     </EditorContext.Provider>

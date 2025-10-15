@@ -63,6 +63,21 @@ export default function PagesContent({ bookId, bookFriends: propBookFriends, onS
     fetchData();
   }, [bookId, editorState?.currentBook?.pages?.length, editorState?.pageAssignments]);
 
+  // Additional effect to handle editor context changes
+  useEffect(() => {
+    if (editorState?.currentBook && editorState.currentBook.id === bookId && editorState.pageAssignments) {
+      const pageAssignments: PageAssignment[] = editorState.currentBook.pages.map((page: any) => {
+        const assignment = editorState.pageAssignments[page.pageNumber];
+        return {
+          pageId: page.id,
+          pageNumber: page.pageNumber,
+          assignedUser: assignment || null
+        };
+      });
+      setPages(pageAssignments);
+    }
+  }, [editorState?.pageAssignments, editorState?.currentBook, bookId]);
+
 
 
   const fetchData = async () => {
@@ -356,8 +371,10 @@ export default function PagesContent({ bookId, bookFriends: propBookFriends, onS
                       className="px-3 py-1 border rounded-md text-sm"
                       onChange={(e) => {
                         const userId = parseInt(e.target.value);
-                        const user = bookFriends.find(f => f.id === userId);
-                        if (user) assignUserToPage(page.pageNumber, user);
+                        if (userId) {
+                          const user = bookFriends.find(f => f.id === userId);
+                          if (user) assignUserToPage(page.pageNumber, user);
+                        }
                       }}
                       value=""
                     >

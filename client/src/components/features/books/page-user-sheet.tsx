@@ -99,13 +99,24 @@ export default function PagesSheet({ open, onOpenChange, bookId, onSaved }: Page
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-      // Store page assignments in editor context (not database)
+      // Save page assignments to database
+      const assignmentData = assignments.map(assignment => ({
+        pageNumber: assignment.pageNumber,
+        userId: assignment.assignedUser?.id || null
+      }));
+      
+      await fetch(`${apiUrl}/page-assignments/book/${bookId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ assignments: assignmentData })
+      });
+
+      // Store page assignments in editor context
       const pageAssignments = assignments.reduce((acc, assignment) => {
-        if (assignment.assignedUser) {
-          acc[assignment.pageNumber] = assignment.assignedUser;
-        } else {
-          acc[assignment.pageNumber] = null; // Explicitly store null for removals
-        }
+        acc[assignment.pageNumber] = assignment.assignedUser;
         return acc;
       }, {} as Record<number, any>);
       

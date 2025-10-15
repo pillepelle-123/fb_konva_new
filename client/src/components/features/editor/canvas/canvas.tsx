@@ -127,7 +127,7 @@ const createPatternTile = (pattern: any, color: string, size: number, strokeWidt
 
 
 export default function Canvas() {
-  const { state, dispatch, getAnswerText, trackQuestionAssignment } = useEditor();
+  const { state, dispatch, getAnswerText, trackQuestionAssignment, validateQuestionAssignment } = useEditor();
   const { token, user } = useAuth();
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
@@ -1629,7 +1629,7 @@ export default function Canvas() {
               bookName={state.currentBook.name}
               mode="select"
               token={token}
-              onQuestionSelect={async (questionId, questionText) => {
+              onQuestionSelect={(questionId, questionText) => {
                 if (selectedQuestionElementId) {
                   const updates = questionId === 0 
                     ? { text: '', fill: '#9ca3af', questionId: undefined }
@@ -1644,7 +1644,7 @@ export default function Canvas() {
                   
                   // Track question assignment if not resetting
                   if (questionId !== 0) {
-                    await trackQuestionAssignment(questionId, state.activePageIndex + 1);
+                    trackQuestionAssignment(questionId, state.activePageIndex + 1);
                   }
                   
                   const currentPage = state.currentBook?.pages[state.activePageIndex];

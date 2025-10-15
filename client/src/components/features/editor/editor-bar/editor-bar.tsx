@@ -16,13 +16,13 @@ import UndoRedoControls from './undo-redo-controls';
 import UnsavedChangesDialog from '../../../ui/overlays/unsaved-changes-dialog';
 import ConfirmationDialog from '../../../ui/overlays/confirmation-dialog';
 import AlertDialog from '../../../ui/overlays/alert-dialog';
-import { LayoutGrid, Settings, Palette, Divide, Book, UserPen, UserStar, Users, File } from 'lucide-react';
+import { LayoutGrid, Settings, Palette, Divide, Book, CircleUser } from 'lucide-react';
 import { Button } from '../../../ui/primitives/button';
 import { X } from 'lucide-react';
 import { Tooltip } from '../../../ui/composites/tooltip';
 import { EditorBarContainer } from './editor-bar-container';
-import PageUserSheet from '../../books/page-user-sheet';
-import PageUserIcon from '../../../ui/icons/page-user-icon';
+import PageAssignmentDialog from '../page-assignment-dialog';
+import ProfilePicture from '../../users/profile-picture';
 
 export default function EditorBar() {
   const { state, dispatch, saveBook, refreshPageAssignments } = useEditor();
@@ -32,7 +32,7 @@ export default function EditorBar() {
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showAlert, setShowAlert] = useState<{ title: string; message: string } | null>(null);
-  const [showPagesSheet, setShowPagesSheet] = useState(false);
+  const [showPageAssignment, setShowPageAssignment] = useState(false);
 
 
 
@@ -157,20 +157,7 @@ export default function EditorBar() {
                   
                   <div className="hidden md:block h-6 w-px bg-border" />
                   
-                  {state.userRole === 'publisher' && (
-                    <Tooltip content="Page User Manager" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowPagesSheet(true)}
-                        className="h-8 md:h-9 px-2"
-                      >
-                          <PageUserIcon className="h-8 w-8" />
-                      </Button>
-                    </Tooltip>
-                  )}
-                  
-                  <PageAssignments currentPage={currentPage} bookId={state.currentBook.id} />
+                  <PageAssignmentButton currentPage={currentPage} bookId={state.currentBook.id} onOpenDialog={() => setShowPageAssignment(true)} />
                 </div>
 
                 {/* Book Info and Actions */}
@@ -266,128 +253,49 @@ export default function EditorBar() {
         onClose={() => setShowAlert(null)}
       />
       
-      <PageUserSheet
-        open={showPagesSheet}
-        onOpenChange={setShowPagesSheet}
+      <PageAssignmentDialog
+        open={showPageAssignment}
+        onOpenChange={setShowPageAssignment}
+        currentPage={currentPage}
         bookId={state.currentBook.id}
-        onSaved={() => {
-          // Refresh page assignments display
-          refreshPageAssignments();
-        }}
       />
     </>
   );
 }
 
-function PageAssignments({ currentPage, bookId }: { currentPage: number; bookId: number }) {
-  const { token } = useAuth();
+function PageAssignmentButton({ currentPage, bookId, onOpenDialog }: { currentPage: number; bookId: number; onOpenDialog: () => void }) {
   const { state } = useEditor();
-  const [assignedUser, setAssignedUser] = useState<any>(null);
-  const [publisher, setPublisher] = useState<any>(null);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const assignedUser = state.pageAssignments[currentPage];
+  
+  // Force re-render when assignments change
+  const assignmentKey = `${currentPage}-${assignedUser?.id || 'none'}`;
 
-  useEffect(() => {
-    fetchPageAssignments();
-    fetchPublisher();
-  }, [currentPage, bookId, refreshTrigger, state.pageAssignments]);
-
-  // Listen for page assignment updates
-  useEffect(() => {
-    const handlePageAssignmentUpdate = () => {
-      setRefreshTrigger(prev => prev + 1);
-    };
-    
-    window.addEventListener('pageAssignmentUpdated', handlePageAssignmentUpdate);
-    return () => window.removeEventListener('pageAssignmentUpdated', handlePageAssignmentUpdate);
-  }, []);
-
-  const fetchPageAssignments = async () => {
-    try {
-      // Always check editor context first for current assignments
-      const assignment = state.pageAssignments[currentPage];
-      if (assignment !== undefined) {
-        setAssignedUser(assignment);
-        return;
-      }
-      
-      // Fallback to database only if no assignment in state
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/page-assignments/book/${bookId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        const pageAssignment = data.find((assignment: any) => assignment.page_id === currentPage);
-        setAssignedUser(pageAssignment ? {
-          id: pageAssignment.user_id,
-          name: pageAssignment.name,
-          email: pageAssignment.email
-        } : null);
-      }
-    } catch (error) {
-      // Error fetching page assignments
-    }
-  };
-
-  const fetchPublisher = async () => {
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
-      const response = await fetch(`${apiUrl}/books/${bookId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const bookData = await response.json();
-        const ownerId = bookData.owner_id || bookData.user_id || bookData.created_by || bookData.publisher_id;
-        if (ownerId) {
-          const userResponse = await fetch(`${apiUrl}/users/${ownerId}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          if (userResponse.ok) {
-            const userData = await userResponse.json();
-
-            setPublisher({
-              id: userData.id,
-              name: userData.name,
-              email: userData.email
-            });
-          }
-        }
-      }
-    } catch (error) {
-      // Error fetching publisher
-    }
-  };
+  if (assignedUser) {
+    return (
+      <Tooltip content="Change page assignment" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onOpenDialog}
+          className="h-8 w-8 p-0 rounded-full"
+          key={assignmentKey}
+        >
+          <ProfilePicture name={assignedUser.name} size="sm" userId={assignedUser.id} />
+        </Button>
+      </Tooltip>
+    );
+  }
 
   return (
-    <div className="flex items-center gap-4">
-      {assignedUser && (
-        <div className="flex items-center gap-2">
-          <Tooltip content="Assigned author" side="bottom_editor_bar">
-            <span className="text-xs text-muted-foreground">
-              <UserPen className="h-3 w-3 md:h-4 md:w-4" />
-            </span>
-          </Tooltip>
-          <StackedAvatarGroup users={[assignedUser]} maxVisible={1} />
-          <div className="hidden md:block h-6 w-px bg-border" />
-        </div>
-      )}
-      {/* {publisher ? (
-        <div className="flex items-center gap-2">
-          <Tooltip content="Book's publisher" side="bottom_editor_bar">
-            <span className="text-xs text-muted-foreground">
-              <UserStar className="h-3 w-3 md:h-4 md:w-4" />
-            </span>
-          </Tooltip>
-          <StackedAvatarGroup users={[publisher]} maxVisible={1} />
-        </div>
-      ) : (
-        <Tooltip content="Book's publisher" side="bottom">
-          <div className="text-xs text-muted-foreground">
-            <UserStar className="h-3 w-3 md:h-4 md:w-4" />
-          </div>
-        </Tooltip>
-      )} */}
-    </div>
+    <Tooltip content="Assign user to page" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={onOpenDialog}
+        className="h-8 w-8 p-0"
+      >
+        <CircleUser className="h-5 w-5" />
+      </Button>
+    </Tooltip>
   );
 }

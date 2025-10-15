@@ -84,6 +84,23 @@ router.post('/', authenticateToken, async (req, res) => {
   }
 });
 
+// Get user's question assignments for a book
+router.get('/book/:bookId/user', authenticateToken, async (req, res) => {
+  try {
+    const { bookId } = req.params;
+    const userId = req.user.id;
+    
+    const result = await pool.query(
+      'SELECT question_id as "questionId", page_number as "pageNumber" FROM user_question_assignments WHERE book_id = $1 AND user_id = $2',
+      [bookId, userId]
+    );
+    
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Remove question assignment
 router.delete('/:bookId/:userId/:questionId', authenticateToken, async (req, res) => {
   try {

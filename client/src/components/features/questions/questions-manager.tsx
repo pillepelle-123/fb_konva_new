@@ -13,11 +13,15 @@ interface QuestionsManagerProps {
 }
 
 export default function QuestionsManager({ bookId, bookName, onClose, onQuestionSelect, mode = 'manage', token: propToken, showAsContent = false }: QuestionsManagerProps) {
+  alert('QuestionsManager loaded!');
   const { token: contextToken, user } = mode === 'manage' ? useAuth() : { token: null, user: null };
   const token = propToken || contextToken;
 
+  console.log('QuestionsManager - user role:', user?.role, 'mode:', mode);
+
   // Prevent authors from accessing questions manager
   if (user?.role === 'author') {
+    console.log('Blocking author access');
     onClose();
     return null;
   }
@@ -32,7 +36,7 @@ export default function QuestionsManager({ bookId, bookName, onClose, onQuestion
           onQuestionSelect={onQuestionSelect}
           mode={mode}
           token={token || ''}
-          showAsContent={showAsContent}
+          showAsContent={true}
         />
       </DialogContent>
     </Dialog>
