@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from './auth-context';
 import { getToolDefaults } from '../utils/tool-defaults';
+import { apiService } from '../services/api';
 
 export interface CanvasElement {
   id: string;
@@ -598,83 +599,31 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     if (!state.currentBook) return;
     
     try {
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+      await apiService.saveBook(
+        state.currentBook,
+        state.tempQuestions,
+        state.tempAnswers,
+        state.newQuestions,
+        state.pageAssignments,
+        state.bookFriends || []
+      );
       
-      // Save new questions first
+      // Update elements with new question IDs
       for (const newQuestion of state.newQuestions) {
-        const response = await fetch(`${apiUrl}/books/${state.currentBook.id}/questions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ questionText: newQuestion.text })
+        const savedQuestion = await apiService.createQuestion(state.currentBook.id, newQuestion.text);
+        dispatch({ 
+          type: 'UPDATE_ELEMENT', 
+          payload: { 
+            id: newQuestion.elementId, 
+            updates: { questionId: savedQuestion.id } 
+          } 
         });
-        
-        if (response.ok) {
-          const savedQuestion = await response.json();
-          // Update the element with the new questionId
-          dispatch({ 
-            type: 'UPDATE_ELEMENT', 
-            payload: { 
-              id: newQuestion.elementId, 
-              updates: { questionId: savedQuestion.id } 
-            } 
-          });
-        }
-      }
-      
-      // Save updated questions
-      for (const [questionId, text] of Object.entries(state.tempQuestions)) {
-        await fetch(`${apiUrl}/questions/${questionId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ questionText: text })
-        });
-      }
-      
-      // Save or delete answers
-      for (const [questionId, text] of Object.entries(state.tempAnswers)) {
-        if (text.trim() === '') {
-          // Delete answer if text is empty (ignore 404 if answer doesn't exist)
-          try {
-            const response = await fetch(`${apiUrl}/answers/question/${questionId}`, {
-              method: 'DELETE',
-              headers: {
-                'Authorization': `Bearer ${token}`
-              }
-            });
-            // Ignore 404 errors - answer may not exist yet
-            if (!response.ok && response.status !== 404) {
-              throw new Error(`Failed to delete answer: ${response.status}`);
-            }
-          } catch (error) {
-            if (error.message && !error.message.includes('404')) {
-              console.error('Error deleting answer:', error);
-            }
-          }
-        } else {
-          // Save answer if text exists
-          try {
-            await fetch(`${apiUrl}/answers`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-              },
-              body: JSON.stringify({ questionId: parseInt(questionId), answerText: text })
-            });
-          } catch (error) {
-            console.error('Error saving answer:', error);
-          }
-        }
       }
       
       let bookToSave = state.currentBook;
+      
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const token = localStorage.getItem('token');
       
       // For authors, only save assigned pages
       if (state.userRole === 'author' && state.assignedPages.length > 0) {
@@ -786,82 +735,34 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
 
   const loadBook = useCallback(async (bookId: number) => {
     try {
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-      const response = await fetch(`${apiUrl}/books/${bookId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      const { book, questions, answers, userRole, pageAssignments } = await apiService.loadBook(bookId);
+      
+      // Store questions and answers in temp storage
+      questions.forEach(q => {
+        dispatch({ type: 'UPDATE_TEMP_QUESTION', payload: { questionId: q.id, text: q.question_text } });
       });
       
-      if (!response.ok) throw new Error('Failed to load book');
-      const book = await response.json();
-      
-      // Load questions and answers into temporary storage without updating canvas elements
-      // This allows users to see the current database state but edit in temporary storage
-      try {
-        const questionsResponse = await fetch(`${apiUrl}/books/${bookId}/questions`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        if (questionsResponse.ok) {
-          const questions = await questionsResponse.json();
-          // Store current database questions in temp storage as baseline
-          questions.forEach(q => {
-            dispatch({ type: 'UPDATE_TEMP_QUESTION', payload: { questionId: q.id, text: q.question_text } });
-          });
-        }
-      } catch (error) {
-        console.log('Questions API error:', error.message);
-      }
-      
-      try {
-        const answersResponse = await fetch(`${apiUrl}/answers/book/${bookId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        if (answersResponse.ok) {
-          const answers = await answersResponse.json();
-          // Store current database answers in temp storage as baseline
-          answers.forEach(a => {
-            dispatch({ type: 'UPDATE_TEMP_ANSWER', payload: { questionId: a.question_id, text: a.answer_text } });
-          });
-        }
-      } catch (error) {
-        console.log('Answers API error:', error.message);
-      }
+      answers.forEach(a => {
+        dispatch({ type: 'UPDATE_TEMP_ANSWER', payload: { questionId: a.question_id, text: a.answer_text } });
+      });
       
       dispatch({ type: 'SET_BOOK', payload: book });
       
-      // Fetch user role and page assignments
-      const [roleResponse, assignmentsResponse] = await Promise.all([
-        fetch(`${apiUrl}/books/${bookId}/user-role`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch(`${apiUrl}/page-assignments/book/${bookId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-      ]);
-      
-      if (roleResponse.ok) {
-        const roleData = await roleResponse.json();
-        dispatch({ type: 'SET_USER_ROLE', payload: { role: roleData.role, assignedPages: roleData.assignedPages || [] } });
+      if (userRole) {
+        dispatch({ type: 'SET_USER_ROLE', payload: { role: userRole.role, assignedPages: userRole.assignedPages || [] } });
       }
       
-      // Load page assignments into React state
-      if (assignmentsResponse.ok) {
-        const assignments = await assignmentsResponse.json();
-        const pageAssignments = {};
-        assignments.forEach(assignment => {
-          pageAssignments[assignment.page_id] = {
-            id: assignment.user_id,
-            name: assignment.name,
-            email: assignment.email,
-            role: assignment.role
-          };
-        });
-        dispatch({ type: 'SET_PAGE_ASSIGNMENTS', payload: pageAssignments });
-      }
+      // Load page assignments
+      const pageAssignmentsMap = {};
+      pageAssignments.forEach(assignment => {
+        pageAssignmentsMap[assignment.page_id] = {
+          id: assignment.user_id,
+          name: assignment.name,
+          email: assignment.email,
+          role: assignment.role
+        };
+      });
+      dispatch({ type: 'SET_PAGE_ASSIGNMENTS', payload: pageAssignmentsMap });
     } catch (error) {
       throw error;
     }

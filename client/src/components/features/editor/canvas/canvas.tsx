@@ -127,7 +127,7 @@ const createPatternTile = (pattern: any, color: string, size: number, strokeWidt
 
 
 export default function Canvas() {
-  const { state, dispatch } = useEditor();
+  const { state, dispatch, getAnswerText } = useEditor();
   const { token, user } = useAuth();
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
@@ -1639,19 +1639,29 @@ export default function Canvas() {
                     }
                   });
                   
-                  // If resetting question, also clear answer text from linked answer element
-                  if (questionId === 0) {
-                    const currentPage = state.currentBook?.pages[state.activePageIndex];
-                    if (currentPage) {
-                      const answerElement = currentPage.elements.find(el => 
-                        el.textType === 'answer' && el.questionElementId === selectedQuestionElementId
-                      );
-                      if (answerElement) {
+                  const currentPage = state.currentBook?.pages[state.activePageIndex];
+                  if (currentPage) {
+                    const answerElement = currentPage.elements.find(el => 
+                      el.textType === 'answer' && el.questionElementId === selectedQuestionElementId
+                    );
+                    if (answerElement) {
+                      if (questionId === 0) {
+                        // If resetting question, clear answer text
                         dispatch({
                           type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
                           payload: {
                             id: answerElement.id,
                             updates: { text: '', formattedText: '' }
+                          }
+                        });
+                      } else {
+                        // Load existing answer for the new question
+                        const answerText = getAnswerText(questionId);
+                        dispatch({
+                          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                          payload: {
+                            id: answerElement.id,
+                            updates: { text: answerText || '', formattedText: answerText || '' }
                           }
                         });
                       }

@@ -5,6 +5,7 @@ import { Input } from '../../ui/primitives/input';
 import { DialogDescription, DialogHeader, DialogTitle, Dialog, DialogContent, DialogFooter } from '../../ui/overlays/dialog';
 import { useAuth } from '../../../context/auth-context';
 import { HelpCircle, Plus, Edit, Trash2, Save, Calendar, X, CircleQuestionMark, CircleQuestionMarkIcon, MessageCircleQuestionMark } from 'lucide-react';
+import { apiService } from '../../../services/api';
 
 interface Question {
   id: number;
@@ -84,14 +85,8 @@ export default function QuestionsManagerContent({
 
   const fetchQuestions = async () => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-      const response = await fetch(`${apiUrl}/books/${bookId}/questions`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setQuestions(data);
-      }
+      const data = await apiService.getQuestions(bookId);
+      setQuestions(data);
     } catch (error) {
       console.error('Error fetching questions:', error);
     } finally {
@@ -101,15 +96,9 @@ export default function QuestionsManagerContent({
 
   const fetchUserAnswers = async () => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/answers/book/${bookId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const answers = await response.json();
-        const answeredQuestionIds = new Set(answers.map((answer: any) => answer.question_id));
-        setUserAnswers(answeredQuestionIds);
-      }
+      const answers = await apiService.getUserAnswers(bookId);
+      const answeredQuestionIds = new Set(answers.map((answer: any) => answer.question_id));
+      setUserAnswers(answeredQuestionIds);
     } catch (error) {
       console.error('Error fetching user answers:', error);
     }
@@ -120,19 +109,9 @@ export default function QuestionsManagerContent({
     if (!newQuestion.trim()) return;
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-      const response = await fetch(`${apiUrl}/books/${bookId}/questions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ questionText: newQuestion })
-      });
-      if (response.ok) {
-        setNewQuestion('');
-        fetchQuestions();
-      }
+      await apiService.createQuestion(bookId, newQuestion);
+      setNewQuestion('');
+      fetchQuestions();
     } catch (error) {
       console.error('Error adding question:', error);
     }
@@ -142,20 +121,10 @@ export default function QuestionsManagerContent({
     if (!editText.trim()) return;
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-      const response = await fetch(`${apiUrl}/questions/${questionId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ questionText: editText })
-      });
-      if (response.ok) {
-        setEditingId(null);
-        setEditText('');
-        fetchQuestions();
-      }
+      await apiService.updateQuestion(questionId, editText);
+      setEditingId(null);
+      setEditText('');
+      fetchQuestions();
     } catch (error) {
       console.error('Error updating question:', error);
     }
@@ -169,14 +138,8 @@ export default function QuestionsManagerContent({
     if (!showDeleteConfirm) return;
     
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-      const response = await fetch(`${apiUrl}/questions/${showDeleteConfirm}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (response.ok) {
-        fetchQuestions();
-      }
+      await apiService.deleteQuestion(showDeleteConfirm);
+      fetchQuestions();
     } catch (error) {
       console.error('Error deleting question:', error);
     }
