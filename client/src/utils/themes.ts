@@ -1,5 +1,6 @@
 import rough from 'roughjs';
 import type { CanvasElement } from '../context/editor-context';
+import { commonToActualStrokeWidth } from './stroke-width-converter';
 
 export type Theme = 'rough' | 'default' | 'glow' | 'candy' | 'zigzag' | 'wobbly';
 
@@ -48,7 +49,7 @@ const defaultTheme: ThemeRenderer = {
   
   getStrokeProps: (element: CanvasElement, zoom = 1) => ({
     stroke: element.stroke || '#1f2937',
-    strokeWidth: (element.strokeWidth || 2) * zoom,
+    strokeWidth: element.strokeWidth ? commonToActualStrokeWidth(element.strokeWidth, element.theme || 'default') * zoom : 0,
     fill: element.fill !== 'transparent' ? element.fill : undefined
   })
 };
@@ -57,7 +58,7 @@ const defaultTheme: ThemeRenderer = {
 const roughTheme: ThemeRenderer = {
   generatePath: (element: CanvasElement, zoom = 1) => {
     const roughness = element.roughness || 1;
-    const strokeWidth = (element.strokeWidth || 2) * zoom;
+    const strokeWidth = element.strokeWidth ? element.strokeWidth * zoom : 0;
     const stroke = element.stroke || '#1f2937';
     const fill = element.fill || 'transparent';
     const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
@@ -124,7 +125,7 @@ const roughTheme: ThemeRenderer = {
   
   getStrokeProps: (element: CanvasElement, zoom = 1) => ({
     stroke: element.stroke || '#1f2937',
-    strokeWidth: (element.strokeWidth || 2) * zoom,
+    strokeWidth: element.strokeWidth ? commonToActualStrokeWidth(element.strokeWidth, element.theme || 'rough') * zoom : 0,
     fill: element.fill !== 'transparent' ? element.fill : undefined
   })
 };
@@ -175,7 +176,7 @@ const glowTheme: ThemeRenderer = {
   },
   
   getStrokeProps: (element: CanvasElement, zoom = 1) => {
-    const baseStrokeWidth = (element.strokeWidth || 2) * zoom;
+    const baseStrokeWidth = element.strokeWidth ? commonToActualStrokeWidth(element.strokeWidth, element.theme || 'glow') * zoom : 0;
     return {
       stroke: element.stroke || '#1f2937',
       strokeWidth: baseStrokeWidth * 2,
@@ -195,7 +196,7 @@ const glowTheme: ThemeRenderer = {
 // Candy theme - individual circles with randomness support
 const candyTheme: ThemeRenderer = {
   generatePath: (element: CanvasElement, zoom = 1) => {
-    const baseCircleSize = (element.strokeWidth || 2) * 0.8;
+    const baseCircleSize = element.strokeWidth ? element.strokeWidth * 0.8 : 1.6;
     const spacing = baseCircleSize * 1.5;
     const hasRandomness = element.candyRandomness || false;
     const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 4), 10) || 1;
@@ -297,9 +298,11 @@ const candyTheme: ThemeRenderer = {
 // Zigzag theme - CSS-styled zigzag lines
 const zigzagTheme: ThemeRenderer = {
   generatePath: (element: CanvasElement, zoom = 1) => {
-    const strokeWidth = (element.strokeWidth || 2) * zoom;
-    const zigzagSize = strokeWidth * 3;
-    const thickness = strokeWidth * 1.5;
+    const strokeWidth = element.strokeWidth || 0;
+    const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+    const isTextboxBorder = element.id.includes('-border');
+    const zigzagSize = isTextboxBorder ? Math.max(8, strokeWidth * 1.5) : Math.max(12, strokeWidth * 2);
+    const thickness = isTextboxBorder ? Math.max(2, strokeWidth * 0.8) : Math.max(3, strokeWidth * 1.2);
     
     if (element.type === 'line') {
       const length = Math.sqrt(element.width * element.width + element.height * element.height);
@@ -379,7 +382,7 @@ const zigzagTheme: ThemeRenderer = {
   getStrokeProps: (element: CanvasElement, zoom = 1) => {
     return {
       stroke: element.stroke || '#bf4d28',
-      strokeWidth: (element.strokeWidth || 2) * zoom,
+      strokeWidth: element.strokeWidth ? commonToActualStrokeWidth(element.strokeWidth, element.theme || 'zigzag') * zoom : 0,
       fill: 'transparent',
       lineCap: 'round',
       lineJoin: 'round'
@@ -392,7 +395,7 @@ const zigzagTheme: ThemeRenderer = {
 // Wobbly theme - alternating stroke width with smooth outline
 const wobblyTheme: ThemeRenderer = {
   generatePath: (element: CanvasElement, zoom = 1) => {
-    const baseWidth = (element.strokeWidth || 2) * zoom;
+    const baseWidth = element.strokeWidth ? element.strokeWidth * zoom : 0;
     
     if (element.type === 'line') {
       const topPath = [];
@@ -633,7 +636,7 @@ const wobblyTheme: ThemeRenderer = {
     
     return {
       stroke: element.stroke || '#1f2937',
-      strokeWidth: (element.strokeWidth || 2) * zoom,
+      strokeWidth: element.strokeWidth ? commonToActualStrokeWidth(element.strokeWidth, element.theme || 'wobbly') * zoom : 0,
       fill: element.fill !== 'transparent' ? element.fill : undefined
     };
   }

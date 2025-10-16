@@ -1,33 +1,33 @@
 // Theme-specific default values for element settings
 export const THEME_DEFAULTS = {
   rough: {
-    strokeWidth: 2,
+    strokeWidth: 2, // Common scale value
     stroke: '#1f2937',
     fill: 'transparent'
   },
   default: {
-    strokeWidth: 1,
-    stroke: '#000000',
+    strokeWidth: 2, // Common scale value
+    stroke: '#1f2937',
     fill: 'transparent'
   },
   glow: {
-    strokeWidth: 10,
-    stroke: '#c5ca30',
+    strokeWidth: 20, // Common scale value
+    stroke: '#1f2937',
     fill: 'transparent'
   },
   candy: {
-    strokeWidth: 24,
-    stroke: '#ec4899',
+    strokeWidth: 10, // Common scale value
+    stroke: '#ff0000',
     fill: 'transparent'
   },
   zigzag: {
-    strokeWidth: 10,
-    stroke: '#966a05',
+    strokeWidth: 40, // Common scale value
+    stroke: '#bf4d28',
     fill: 'transparent'
   },
   wobbly: {
-    strokeWidth: 20,
-    stroke: '#7c3aed',
+    strokeWidth: 3, // Common scale value
+    stroke: '#1f2937',
     fill: 'transparent'
   }
 } as const;

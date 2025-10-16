@@ -42,12 +42,12 @@ export function ColorPicker({
       <div className="flex items-center gap-2">
         <button
           className="w-8 h-8 rounded border-2 border-gray-300"
-          style={{ backgroundColor: value }}
+          style={{ backgroundColor: value === 'transparent' ? '#ffffff' : (value || '#000000') }}
           onClick={() => setIsOpen(!isOpen)}
         />
         <input
           type="text"
-          value={value}
+          value={value === 'transparent' ? 'transparent' : (value || '')}
           onChange={(e) => onChange(e.target.value)}
           className="flex-1 px-2 py-1 text-xs border rounded"
           placeholder="#000000"
@@ -78,7 +78,7 @@ export function ColorPicker({
         <div className="absolute top-10 left-0 z-50">
           <div className="bg-white rounded shadow-lg">
             <SketchPicker
-              color={value}
+              color={value === 'transparent' ? '#ffffff' : (value || '#000000')}
               onChange={(color) => {
                 onChange(color.hex);
               }}

@@ -63,6 +63,24 @@ export default function Image(props: CanvasItemProps) {
             }
           });
         };
+        img.onerror = () => {
+          // Fallback without CORS
+          const fallbackImg = new window.Image();
+          fallbackImg.onload = () => {
+            setImage(fallbackImg);
+            dispatch({
+              type: 'UPDATE_ELEMENT',
+              payload: {
+                id: element.id,
+                updates: {
+                  type: 'image',
+                  src: data.url
+                }
+              }
+            });
+          };
+          fallbackImg.src = data.url;
+        };
         img.src = data.url;
       }
     } catch (error) {
@@ -78,6 +96,14 @@ export default function Image(props: CanvasItemProps) {
       const img = new window.Image();
       img.crossOrigin = 'anonymous';
       img.onload = () => setImage(img);
+      img.onerror = (error) => {
+        console.warn('Failed to load image with CORS, trying without:', error);
+        // Fallback: try loading without CORS
+        const fallbackImg = new window.Image();
+        fallbackImg.onload = () => setImage(fallbackImg);
+        fallbackImg.onerror = () => console.error('Failed to load image:', element.src);
+        fallbackImg.src = element.src;
+      };
       img.src = element.src;
     } else {
       setImage(null);

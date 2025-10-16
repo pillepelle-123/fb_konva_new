@@ -193,6 +193,19 @@ export default function BaseCanvasItem({
         />
       )}
       
+      {/* Permanent dashed border for shapes with no border and no background */}
+      {state.activeTool === 'select' && 
+       ['rect', 'circle', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(element.type) &&
+       (!element.strokeWidth || element.strokeWidth === 0) &&
+       (element.fill === 'transparent' || !element.fill) && (
+        <SelectionHoverRectangle
+          x={defaultHitArea.x}
+          y={defaultHitArea.y}
+          width={defaultHitArea.width}
+          height={defaultHitArea.height}
+        />
+      )}
+      
       {/* Pass isDragging to children if they are React elements */}
       {React.Children.map(children, (child) => {
         if (React.isValidElement(child) && typeof child.type !== 'string' && child.type !== React.Fragment) {

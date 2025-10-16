@@ -23,7 +23,7 @@ export function Slider({
     <div className={className}>
       <div className="flex justify-between items-center mb-1">
         <label className="text-xs font-medium">{label}</label>
-        <span className="text-xs text-muted-foreground">{value}{unit}</span>
+        <span className="text-xs text-muted-foreground">{label === 'Corner Radius' ? Math.trunc(value / 3) : value}</span>
       </div>
       <input
         type="range"

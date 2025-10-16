@@ -13,6 +13,7 @@ import { getThemeDefaults } from '../../../../utils/theme-defaults';
 import { useAuth } from '../../../../context/auth-context';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { GeneralSettings } from './general-settings';
+import { commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth } from '../../../../utils/stroke-width-converter';
 
 const FONTS = [
   { value: 'Arial, sans-serif', label: 'Arial' },
@@ -354,39 +355,8 @@ export function ToolSettingsContent({
 
 
 
-  const getMaxStrokeWidth = (elementType: string, theme: string) => {
-    if (elementType === 'brush') {
-      switch (theme) {
-        case 'wobbly': return 500;
-        case 'candy': return 80;
-        case 'rough': return 100;
-        default: return 150;
-      }
-    } else if (elementType === 'line') {
-      switch (theme) {
-        case 'wobbly': return 500;
-        case 'candy': return 80;
-        case 'rough':
-        case 'default':
-        default: return 100;
-      }
-    } else if (elementType === 'text') {
-      switch (theme) {
-        case 'wobbly': return 80;
-        case 'candy': return 80;
-        case 'rough':
-        case 'default':
-        default: return 30;
-      }
-    } else {
-      switch (theme) {
-        case 'wobbly': return 300;
-        case 'candy': return 80;
-        case 'rough':
-        case 'default':
-        default: return 150;
-      }
-    }
+  const getMaxStrokeWidth = () => {
+    return getMaxCommonWidth(); // Always 100 for common scale
   };
 
   const renderElementSettings = (element: any) => {
@@ -406,13 +376,13 @@ export function ToolSettingsContent({
           case 'element-shape-stroke':
             return element.stroke || '#1f2937';
           case 'element-shape-fill':
-            return element.fill || 'transparent';
+            return element.fill !== undefined ? element.fill : 'transparent';
           case 'element-text-color':
             return element.fill || '#1f2937';
           case 'element-text-border':
             return element.borderColor || '#000000';
           case 'element-text-background':
-            return element.backgroundColor || 'transparent';
+            return element.backgroundColor !== undefined ? element.backgroundColor : 'transparent';
           case 'element-ruled-lines-color':
             return element.ruledLinesColor || '#1f2937';
           default:
@@ -468,16 +438,21 @@ export function ToolSettingsContent({
           case 'element-line-stroke':
           case 'element-shape-stroke':
             updateElementSetting('stroke', color);
+            localStorage.setItem(`shape-border-color-${element.id}`, color);
             break;
           case 'element-shape-fill':
           case 'element-text-color':
             updateElementSetting('fill', color);
+            if (showColorSelector === 'element-shape-fill') {
+              localStorage.setItem(`shape-fill-color-${element.id}`, color);
+            }
             break;
           case 'element-text-border':
             updateElementSetting('borderColor', color);
             break;
           case 'element-text-background':
             updateElementSetting('backgroundColor', color);
+            localStorage.setItem(`text-bg-color-${element.id}`, color);
             break;
           case 'element-ruled-lines-color':
             updateElementSetting('ruledLinesColor', color);
@@ -512,10 +487,7 @@ export function ToolSettingsContent({
               <ThemeSelect 
                 value={element.theme}
                 onChange={(value) => {
-                  const themeDefaults = getThemeDefaults(value);
                   updateElementSetting('theme', value);
-                  updateElementSetting('strokeWidth', themeDefaults.strokeWidth);
-                  updateElementSetting('stroke', themeDefaults.stroke);
                 }}
               />
             </div>
@@ -524,10 +496,10 @@ export function ToolSettingsContent({
 
             <Slider
               label="Brush Size"
-              value={element.strokeWidth || 3}
-              onChange={(value) => updateElementSetting('strokeWidth', value)}
+              value={actualToCommonStrokeWidth(element.strokeWidth || 3, element.theme || 'default')}
+              onChange={(value) => updateElementSetting('strokeWidth', commonToActualStrokeWidth(value, element.theme || 'default'))}
               min={1}
-              max={getMaxStrokeWidth('brush', element.theme || 'default')}
+              max={getMaxStrokeWidth()}
             />
             
             {element.theme === 'candy' && (
@@ -593,10 +565,7 @@ export function ToolSettingsContent({
               <ThemeSelect 
                 value={element.theme}
                 onChange={(value) => {
-                  const themeDefaults = getThemeDefaults(value);
                   updateElementSetting('theme', value);
-                  updateElementSetting('strokeWidth', themeDefaults.strokeWidth);
-                  updateElementSetting('stroke', themeDefaults.stroke);
                 }}
               />
             </div>
@@ -605,10 +574,10 @@ export function ToolSettingsContent({
 
             <Slider
               label="Stroke Width"
-              value={element.strokeWidth || 2}
-              onChange={(value) => updateElementSetting('strokeWidth', value)}
+              value={actualToCommonStrokeWidth(element.strokeWidth || 2, element.theme || 'default')}
+              onChange={(value) => updateElementSetting('strokeWidth', commonToActualStrokeWidth(value, element.theme || 'default'))}
               min={1}
-              max={getMaxStrokeWidth('line', element.theme || 'default')}
+              max={getMaxStrokeWidth()}
             />
             
             <Separator />
@@ -642,46 +611,110 @@ export function ToolSettingsContent({
               <ThemeSelect 
                 value={element.theme}
                 onChange={(value) => {
-                  const themeDefaults = getThemeDefaults(value);
                   updateElementSetting('theme', value);
-                  updateElementSetting('strokeWidth', themeDefaults.strokeWidth);
-                  updateElementSetting('stroke', themeDefaults.stroke);
-                  updateElementSetting('fill', themeDefaults.fill);
                 }}
               />
             </div>
             
             <Separator />
             
-            <Slider
-              label="Stroke Width"
+            {/* <Slider
+              label="Stroke dddd"
               value={element.strokeWidth || 2}
               onChange={(value) => updateElementSetting('strokeWidth', value)}
               min={1}
               max={getMaxStrokeWidth(element.type, element.theme || 'default')}
-            />
+            /> */}
                         
-            <div className='flex flex-row gap-3'>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => setShowColorSelector('element-shape-stroke')}
-                className="w-full"
-              >
-                <Palette className="h-4 w-4 mr-2" />
-                Stroke Color
-              </Button>
-         
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => setShowColorSelector('element-shape-fill')}
-                className="w-full"
-              >
-                <Palette className="h-4 w-4 mr-2" />
-                Fill Color
-              </Button>
+            <div>
+              <Label className="flex items-center gap-1" variant="xs">
+                <input
+                  type="checkbox"
+                  checked={(element.strokeWidth || 0) > 0}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      const lastStrokeWidth = localStorage.getItem(`shape-border-width-${element.id}`) || '2';
+                      const lastStrokeColor = localStorage.getItem(`shape-border-color-${element.id}`) || '#1f2937';
+                      updateElementSetting('strokeWidth', Math.max(1, parseInt(lastStrokeWidth)));
+                      updateElementSetting('stroke', lastStrokeColor);
+                    } else {
+                      if ((element.strokeWidth || 0) > 0) {
+                        localStorage.setItem(`shape-border-width-${element.id}`, String(element.strokeWidth));
+                      }
+                      localStorage.setItem(`shape-border-color-${element.id}`, element.stroke || '#1f2937');
+                      updateElementSetting('theme', 'default');
+                      updateElementSetting('strokeWidth', 0);
+                    }
+                  }}
+                  className="rounded w-3 h-3"
+                />
+                Border
+              </Label>
             </div>
+            
+            {(element.strokeWidth || 0) > 0 && (
+              <IndentedSection>
+                <Slider
+                  label="Border Width"
+                  value={actualToCommonStrokeWidth(element.strokeWidth || 0, element.theme || 'default')}
+                  onChange={(value) => {
+                    const actualWidth = commonToActualStrokeWidth(value, element.theme || 'default');
+                    updateElementSetting('strokeWidth', actualWidth);
+                    localStorage.setItem(`shape-border-width-${element.id}`, String(actualWidth));
+                  }}
+                  min={1}
+                  max={getMaxStrokeWidth()}
+                />
+                
+                <div>
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => setShowColorSelector('element-shape-stroke')}
+                    className="w-full"
+                  >
+                    <Palette className="h-4 w-4 mr-2" />
+                    Border Color
+                  </Button>
+                </div>
+              </IndentedSection>
+            )}
+            
+            <div>
+              <Label className="flex items-center gap-1" variant="xs">
+                <input
+                  type="checkbox"
+                  checked={element.fill !== 'transparent' && element.fill !== undefined}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      const lastFillColor = localStorage.getItem(`shape-fill-color-${element.id}`) || '#ffffff';
+                      updateElementSetting('fill', lastFillColor);
+                    } else {
+                      localStorage.setItem(`shape-fill-color-${element.id}`, element.fill || '#ffffff');
+                      updateElementSetting('fill', 'transparent');
+                    }
+                  }}
+                  className="rounded w-3 h-3"
+                />
+                Background
+              </Label>
+            </div>
+            
+            {element.fill !== 'transparent' && element.fill !== undefined && (
+              <IndentedSection>
+                <div>
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => setShowColorSelector('element-shape-fill')}
+                    className="w-full"
+                  >
+                    <Palette className="h-4 w-4 mr-2" />
+                    Background Color
+                  </Button>
+                </div>
+              </IndentedSection>
+            )}
             
             {element.theme === 'candy' && (
               <div>
@@ -908,15 +941,22 @@ export function ToolSettingsContent({
             
             {element.ruledLines && (
               <IndentedSection>
+                
+                <Slider
+                  label="Line Width"
+                  value={element.ruledLinesWidth || 0.8}
+                  onChange={(value) => updateElementSetting('ruledLinesWidth', value)}
+                  min={0.01}
+                  max={30}
+                  step={0.1}
+                />
+
                 <div>
                   <Label variant="xs">Ruled Lines Theme</Label>
                   <ThemeSelect 
                     value={element.ruledLinesTheme || 'rough'}
                     onChange={(value) => {
-                      const themeDefaults = getThemeDefaults(value);
                       updateElementSetting('ruledLinesTheme', value);
-                      updateElementSetting('ruledLinesWidth', themeDefaults.strokeWidth);
-                      updateElementSetting('ruledLinesColor', themeDefaults.stroke);
                     }}
                   />
                 </div>
@@ -932,15 +972,7 @@ export function ToolSettingsContent({
                     Line Color
                   </Button>
                 </div>
-                
-                <Slider
-                  label="Line Width"
-                  value={element.ruledLinesWidth || 0.8}
-                  onChange={(value) => updateElementSetting('ruledLinesWidth', value)}
-                  min={0.01}
-                  max={30}
-                  step={0.1}
-                />
+
               </IndentedSection>
             )}
 
@@ -962,31 +994,20 @@ export function ToolSettingsContent({
               <IndentedSection>
                 <Slider
                   label="Border Width"
-                  value={element.borderWidth || 1}
-                  onChange={(value) => updateElementSetting('borderWidth', value)}
+                  value={actualToCommonStrokeWidth(element.borderWidth || 1, element.theme || 'default')}
+                  onChange={(value) => updateElementSetting('borderWidth', commonToActualStrokeWidth(value, element.theme || 'default'))}
                   min={1}
-                  max={getMaxStrokeWidth('text', element.theme || 'default')}
+                  max={getMaxStrokeWidth()}
                 />            
-            
-                {(element.textType === 'text' || element.textType === 'question' || element.textType === 'answer') && (
-                  <Slider
-                    label="Corner Radius"
-                    value={element.cornerRadius || 0}
-                    onChange={(value) => updateElementSetting('cornerRadius', value)}
-                    min={0}
-                    max={300}
-                  />
-                )}
+
                 
                 <div>
                   <Label variant="xs">Border Theme</Label>
                   <ThemeSelect 
                     value={element.theme}
                     onChange={(value) => {
-                      const themeDefaults = getThemeDefaults(value);
                       updateElementSetting('theme', value);
-                      updateElementSetting('borderWidth', themeDefaults.strokeWidth);
-                      updateElementSetting('borderColor', themeDefaults.stroke);
+                      updateElementSetting('cornerRadius', 0);
                     }}
                   />
                 </div>
@@ -1005,38 +1026,62 @@ export function ToolSettingsContent({
               </IndentedSection>
             )}
             
+
             <div>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => setShowColorSelector('element-text-background')}
-                className="w-full"
-              >
-                <Palette className="h-4 w-4 mr-2" />
-                Background Color
-              </Button>
+              <Label className="flex items-center gap-1" variant="xs">
+                <input
+                  type="checkbox"
+                  checked={element.backgroundColor !== 'transparent' && element.backgroundColor !== undefined}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      const lastBgColor = localStorage.getItem(`text-bg-color-${element.id}`) || '#ffffff';
+                      updateElementSetting('backgroundColor', lastBgColor);
+                    } else {
+                      localStorage.setItem(`text-bg-color-${element.id}`, element.backgroundColor || '#ffffff');
+                      updateElementSetting('backgroundColor', 'transparent');
+                    }
+                  }}
+                  className="rounded w-3 h-3"
+                />
+                Background
+              </Label>
             </div>
             
-            {(element.backgroundColor && element.backgroundColor !== 'transparent') && (
-              <Slider
-                label="Background Opacity"
-                value={Math.round((element.backgroundOpacity || 1) * 100)}
-                onChange={(value) => updateElementSetting('backgroundOpacity', value / 100)}
-                min={0}
-                max={100}
-                step={5}
-                unit="%"
-              />
+            {element.backgroundColor !== 'transparent' && element.backgroundColor !== undefined && (
+              <IndentedSection>
+                <div>
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => setShowColorSelector('element-text-background')}
+                    className="w-full"
+                  >
+                    <Palette className="h-4 w-4 mr-2" />
+                    Background Color
+                  </Button>
+                </div>
+              </IndentedSection>
             )}
             
             <Separator />
+
+            
+            {(element.textType === 'text' || element.textType === 'question' || element.textType === 'answer') && (
+              <Slider
+                label="Corner Radius"
+                value={element.cornerRadius || 0}
+                onChange={(value) => updateElementSetting('cornerRadius', value)}
+                min={0}
+                max={300}
+              />
+            )}
             
             <Slider
               label="Padding"
               value={element.padding || 4}
               onChange={(value) => updateElementSetting('padding', value)}
               min={0}
-              max={50}
+              max={100}
             />
             
             {element.textType === 'question' && user?.role !== 'author' && (

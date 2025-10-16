@@ -1,4 +1,5 @@
 import type { CanvasElement } from '../context/editor-context';
+import { getPalette } from './global-palettes';
 
 export interface GlobalTheme {
   id: string;
@@ -22,42 +23,42 @@ export const GLOBAL_THEMES: GlobalTheme[] = [
     description: 'Clean and simple',
     elementDefaults: {
       text: {
-        theme: 'default', stroke: '#1f2937', fill: '#1f2937', strokeWidth: 1,
+        theme: 'default', stroke: getPalette('default-palette')?.colors.primary || '#16697a', fill: getPalette('default-palette')?.colors.primary || '#16697a', strokeWidth: 1, // Common scale
         fontSize: 16, fontFamily: 'Arial, sans-serif', align: 'left',
         lineHeight: 1.2, paragraphSpacing: 'medium', roughness: 0,
-        borderWidth: 0, borderColor: 'transparent', backgroundColor: 'transparent',
-        backgroundOpacity: 1, padding: 8, scaleX: 1, scaleY: 1, rotation: 0
+        borderWidth: 0, borderColor: getPalette('default-palette')?.colors.secondary || '#489fb5', backgroundColor: getPalette('default-palette')?.colors.background || '#ede7e3',
+        backgroundOpacity: 0.3, padding: 8, scaleX: 1, scaleY: 1, rotation: 0
       },
       question: {
-        theme: 'default', stroke: '#dc2626', fill: '#dc2626', strokeWidth: 2,
+        theme: 'default', stroke: getPalette('default-palette')?.colors.primary || '#16697a', fill: getPalette('default-palette')?.colors.primary || '#16697a', strokeWidth: 2, // Common scale
         fontSize: 18, fontFamily: 'Arial, sans-serif', align: 'left',
         lineHeight: 1.3, paragraphSpacing: 'medium', roughness: 0,
-        borderWidth: 1, borderColor: '#f87171', backgroundColor: '#fef2f2',
-        backgroundOpacity: 0.9, padding: 12, scaleX: 1, scaleY: 1, rotation: 0
+        borderWidth: 1, borderColor: getPalette('default-palette')?.colors.secondary || '#489fb5', backgroundColor: getPalette('default-palette')?.colors.surface || '#ffa62b',
+        backgroundOpacity: 0.4, padding: 12, scaleX: 1, scaleY: 1, rotation: 0
       },
       answer: {
-        theme: 'default', stroke: '#059669', fill: '#059669', strokeWidth: 1,
+        theme: 'default', stroke: getPalette('default-palette')?.colors.accent || '#82c0cc', fill: getPalette('default-palette')?.colors.accent || '#82c0cc', strokeWidth: 1, // Common scale
         fontSize: 16, fontFamily: 'Arial, sans-serif', align: 'left',
         lineHeight: 1.2, paragraphSpacing: 'medium', roughness: 0,
-        borderWidth: 1, borderColor: '#34d399', backgroundColor: '#ecfdf5',
-        backgroundOpacity: 0.8, padding: 10, scaleX: 1, scaleY: 1, rotation: 0
+        borderWidth: 1, borderColor: getPalette('default-palette')?.colors.secondary || '#489fb5', backgroundColor: getPalette('default-palette')?.colors.background || '#ede7e3',
+        backgroundOpacity: 0.3, padding: 10, scaleX: 1, scaleY: 1, rotation: 0
       },
       image: {
-        theme: 'default', stroke: '#1f2937', strokeWidth: 1, roughness: 0,
+        theme: 'default', stroke: getPalette('default-palette')?.colors.primary || '#16697a', strokeWidth: 1, roughness: 0,
         borderWidth: 0, borderColor: 'transparent', backgroundColor: 'transparent',
         backgroundOpacity: 1, scaleX: 1, scaleY: 1, rotation: 0
       },
       shape: {
-        theme: 'default', stroke: '#1f2937', fill: 'transparent', strokeWidth: 2,
+        theme: 'default', stroke: getPalette('default-palette')?.colors.primary || '#16697a', fill: getPalette('default-palette')?.colors.surface || '#ffa62b', strokeWidth: 2,
         roughness: 0, borderWidth: 0, borderColor: 'transparent',
-        backgroundColor: 'transparent', backgroundOpacity: 1, scaleX: 1, scaleY: 1, rotation: 0
+        backgroundColor: 'transparent', backgroundOpacity: 0.6, scaleX: 1, scaleY: 1, rotation: 0
       },
       brush: {
-        theme: 'default', stroke: '#1f2937', strokeWidth: 2, roughness: 0,
+        theme: 'default', stroke: getPalette('default-palette')?.colors.primary || '#16697a', strokeWidth: 2, roughness: 0,
         scaleX: 1, scaleY: 1, rotation: 0
       },
       line: {
-        theme: 'default', stroke: '#1f2937', strokeWidth: 2, roughness: 0,
+        theme: 'default', stroke: getPalette('default-palette')?.colors.primary || '#16697a', strokeWidth: 2, roughness: 0,
         scaleX: 1, scaleY: 1, rotation: 0
       }
     }
@@ -68,42 +69,42 @@ export const GLOBAL_THEMES: GlobalTheme[] = [
     description: 'Hand-drawn sketchy style',
     elementDefaults: {
       text: {
-        theme: 'rough', stroke: '#2d3748', fill: '#2d3748', strokeWidth: 2,
+        theme: 'rough', stroke: getPalette('rough-palette')?.colors.background || '#003554', fill: getPalette('rough-palette')?.colors.background || '#003554', strokeWidth: 2,
         fontSize: 16, fontFamily: 'Arial, sans-serif', align: 'left',
         lineHeight: 1.2, paragraphSpacing: 'medium', roughness: 1.5,
-        borderWidth: 0, borderColor: 'transparent', backgroundColor: 'transparent',
+        borderWidth: 0, borderColor: getPalette('rough-palette')?.colors.surface || '#051923', backgroundColor: 'transparent',
         backgroundOpacity: 1, padding: 8, scaleX: 1, scaleY: 1, rotation: 0
       },
       question: {
-        theme: 'rough', stroke: '#b91c1c', fill: '#b91c1c', strokeWidth: 3,
+        theme: 'rough', stroke: getPalette('rough-palette')?.colors.background || '#003554', fill: getPalette('rough-palette')?.colors.background || '#003554', strokeWidth: 3,
         fontSize: 18, fontFamily: 'Arial, sans-serif', align: 'left',
         lineHeight: 1.3, paragraphSpacing: 'medium', roughness: 1.5,
-        borderWidth: 2, borderColor: '#dc2626', backgroundColor: '#fef2f2',
-        backgroundOpacity: 0.8, padding: 12, scaleX: 1, scaleY: 1, rotation: 0
+        borderWidth: 2, borderColor: getPalette('rough-palette')?.colors.surface || '#051923', backgroundColor: 'transparent',
+        backgroundOpacity: 1, padding: 12, scaleX: 1, scaleY: 1, rotation: 0
       },
       answer: {
-        theme: 'rough', stroke: '#166534', fill: '#166534', strokeWidth: 2,
-        fontSize: 8, fontFamily: 'Arial, sans-serif', align: 'left',
+        theme: 'rough', stroke: getPalette('rough-palette')?.colors.background || '#003554', fill: getPalette('rough-palette')?.colors.background || '#003554', strokeWidth: 2,
+        fontSize: 16, fontFamily: 'Arial, sans-serif', align: 'left',
         lineHeight: 1.2, paragraphSpacing: 'medium', roughness: 1.5,
-        borderWidth: 1, borderColor: '#22c55e', backgroundColor: '#f0fdf4',
-        backgroundOpacity: 0.7, padding: 10, scaleX: 1, scaleY: 1, rotation: 0
+        borderWidth: 1, borderColor: getPalette('rough-palette')?.colors.surface || '#051923', backgroundColor: 'transparent',
+        backgroundOpacity: 1, padding: 10, scaleX: 1, scaleY: 1, rotation: 0
       },
       image: {
-        theme: 'rough', stroke: '#2d3748', strokeWidth: 2, roughness: 1.5,
+        theme: 'rough', stroke: getPalette('rough-palette')?.colors.surface || '#051923', strokeWidth: 2, roughness: 1.5,
         borderWidth: 0, borderColor: 'transparent', backgroundColor: 'transparent',
         backgroundOpacity: 1, scaleX: 1, scaleY: 1, rotation: 0
       },
       shape: {
-        theme: 'rough', stroke: '#2d3748', fill: 'transparent', strokeWidth: 2,
+        theme: 'rough', stroke: getPalette('rough-palette')?.colors.surface || '#051923', fill: 'transparent', strokeWidth: 2,
         roughness: 1.5, borderWidth: 0, borderColor: 'transparent',
         backgroundColor: 'transparent', backgroundOpacity: 1, scaleX: 1, scaleY: 1, rotation: 0
       },
       brush: {
-        theme: 'rough', stroke: '#2d3748', strokeWidth: 3, roughness: 1.5,
+        theme: 'rough', stroke: getPalette('rough-palette')?.colors.surface || '#051923', strokeWidth: 3, roughness: 1.5,
         scaleX: 1, scaleY: 1, rotation: 0
       },
       line: {
-        theme: 'rough', stroke: '#2d3748', strokeWidth: 2, roughness: 1.5,
+        theme: 'rough', stroke: getPalette('rough-palette')?.colors.surface || '#051923', strokeWidth: 2, roughness: 1.5,
         scaleX: 1, scaleY: 1, rotation: 0
       }
     }

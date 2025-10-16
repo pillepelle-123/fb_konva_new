@@ -571,7 +571,7 @@ export default function Textbox(props: CanvasItemProps) {
               element={borderElement}
               isSelected={false}
               isDragging={false}
-              zoom={1}
+              zoom={props.zoom || 1}
               onSelect={() => {}}
               onTransform={() => {}}
             />

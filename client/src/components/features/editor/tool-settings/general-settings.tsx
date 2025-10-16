@@ -12,6 +12,8 @@ import { Label } from '../../../ui/primitives/label';
 import { GlobalThemeSelector } from '../global-theme-selector';
 import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
+import { PaletteSelector } from '../palette-selector';
+import { useState } from 'react';
 
 interface GeneralSettingsProps {
   showColorSelector: string | null;
@@ -42,6 +44,8 @@ export function GeneralSettings({
 }: GeneralSettingsProps) {
   const { state, dispatch } = useEditor();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
+  const [showPagePalette, setShowPagePalette] = useState(false);
+  const [showBookPalette, setShowBookPalette] = useState(false);
 
   const updateBackground = (updates: Partial<PageBackground>) => {
     const currentPage = state.currentBook?.pages[state.activePageIndex];
@@ -54,45 +58,36 @@ export function GeneralSettings({
   };
 
   const renderPageThemeSettings = () => {
-    return (
-      <GlobalThemeSelector
-        currentTheme={state.currentBook?.pages[state.activePageIndex]?.background?.globalTheme}
-        onThemeSelect={(themeId) => {
-          const currentPage = state.currentBook?.pages[state.activePageIndex];
-          if (currentPage) {
-            currentPage.elements.forEach(element => {
-              const themeDefaults = getGlobalThemeDefaults(themeId, element.type);
-              dispatch({
-                type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                payload: { id: element.id, updates: themeDefaults }
-              });
-            });
-            dispatch({
-              type: 'UPDATE_PAGE_BACKGROUND',
-              payload: { 
-                pageIndex: state.activePageIndex, 
-                background: { 
-                  ...currentPage.background, 
-                  globalTheme: themeId 
-                } 
-              }
-            });
-          }
-          setShowPageTheme(false);
-        }}
-        onBack={() => setShowPageTheme(false)}
-      />
-    );
-  };
+    if (showPagePalette) {
+      return (
+        <PaletteSelector
+          onBack={() => setShowPagePalette(false)}
+          title="Page Theme Settings"
+          isBookLevel={false}
+        />
+      );
+    }
 
-  const renderBookThemeSettings = () => {
     return (
-      <GlobalThemeSelector
-        currentTheme={undefined}
-        onThemeSelect={(themeId) => {
-          if (state.currentBook) {
-            state.currentBook.pages.forEach((page, pageIndex) => {
-              page.elements.forEach(element => {
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowPageTheme(false)}
+            className="px-2 h-8"
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+        </div>
+        
+        <GlobalThemeSelector
+          currentTheme={state.currentBook?.pages[state.activePageIndex]?.background?.globalTheme}
+          onThemeSelect={(themeId) => {
+            const currentPage = state.currentBook?.pages[state.activePageIndex];
+            if (currentPage) {
+              currentPage.elements.forEach(element => {
                 const themeDefaults = getGlobalThemeDefaults(themeId, element.type);
                 dispatch({
                   type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
@@ -102,19 +97,98 @@ export function GeneralSettings({
               dispatch({
                 type: 'UPDATE_PAGE_BACKGROUND',
                 payload: { 
-                  pageIndex, 
+                  pageIndex: state.activePageIndex, 
                   background: { 
-                    ...page.background, 
+                    ...currentPage.background, 
                     globalTheme: themeId 
                   } 
                 }
               });
-            });
-          }
-          setShowBookTheme(false);
-        }}
-        onBack={() => setShowBookTheme(false)}
-      />
+            }
+          }}
+          onBack={() => {}}
+        />
+        
+        <Separator />
+        
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowPagePalette(true)}
+          className="w-full"
+        >
+          <Palette className="h-4 w-4 mr-2" />
+          Palette
+        </Button>
+      </div>
+    );
+  };
+
+  const renderBookThemeSettings = () => {
+    if (showBookPalette) {
+      return (
+        <PaletteSelector
+          onBack={() => setShowBookPalette(false)}
+          title="Book Theme Settings"
+          isBookLevel={true}
+        />
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowBookTheme(false)}
+            className="px-2 h-8"
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+        </div>
+        
+        <GlobalThemeSelector
+          currentTheme={undefined}
+          onThemeSelect={(themeId) => {
+            if (state.currentBook) {
+              state.currentBook.pages.forEach((page, pageIndex) => {
+                page.elements.forEach(element => {
+                  const themeDefaults = getGlobalThemeDefaults(themeId, element.type);
+                  dispatch({
+                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                    payload: { id: element.id, updates: themeDefaults }
+                  });
+                });
+                dispatch({
+                  type: 'UPDATE_PAGE_BACKGROUND',
+                  payload: { 
+                    pageIndex, 
+                    background: { 
+                      ...page.background, 
+                      globalTheme: themeId 
+                    } 
+                  }
+                });
+              });
+            }
+          }}
+          onBack={() => {}}
+        />
+        
+        <Separator />
+        
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowBookPalette(true)}
+          className="w-full"
+        >
+          <Palette className="h-4 w-4 mr-2" />
+          Palette
+        </Button>
+      </div>
     );
   };
 

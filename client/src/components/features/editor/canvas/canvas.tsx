@@ -260,8 +260,10 @@ export default function Canvas() {
     if (transformerRef.current && state.selectedElementIds.length > 0) {
       const transformer = transformerRef.current;
       setTimeout(() => {
-        transformer.forceUpdate();
-        transformer.getLayer()?.batchDraw();
+        if (transformer && transformer.nodes().length > 0) {
+          transformer.forceUpdate();
+          transformer.getLayer()?.batchDraw();
+        }
       }, 10);
     }
   }, [currentPage?.elements.map(el => `${el.id}-${el.width}-${el.height}`).join(',')]);
@@ -871,25 +873,29 @@ export default function Canvas() {
   const handleDuplicateItems = () => {
     if (!currentPage) return;
     
-    // Check if selection contains question or answer elements
-    const hasQuestionAnswer = state.selectedElementIds.some(elementId => {
-      const element = currentPage.elements.find(el => el.id === elementId);
-      return element && (element.textType === 'question' || element.textType === 'answer');
+    // Create ID mapping for question-answer pairs
+    const idMapping = new Map<string, string>();
+    state.selectedElementIds.forEach(elementId => {
+      idMapping.set(elementId, uuidv4());
     });
-    
-    if (hasQuestionAnswer) {
-      setContextMenu({ x: 0, y: 0, visible: false });
-      return; // Prevent duplication of question-answer pairs
-    }
     
     state.selectedElementIds.forEach(elementId => {
       const element = currentPage.elements.find(el => el.id === elementId);
       if (element) {
+        const newId = idMapping.get(elementId)!;
         const duplicatedElement = {
           ...element,
-          id: uuidv4(),
+          id: newId,
           x: element.x + 20,
-          y: element.y + 20
+          y: element.y + 20,
+          // Clear text for question-answer pairs
+          text: (element.textType === 'question' || element.textType === 'answer') ? '' : element.text,
+          formattedText: (element.textType === 'question' || element.textType === 'answer') ? '' : element.formattedText,
+          // Clear question styling for duplicated questions
+          fill: element.textType === 'question' ? '#9ca3af' : element.fill,
+          questionId: element.textType === 'question' ? undefined : element.questionId,
+          // Update questionElementId reference for answer elements
+          questionElementId: element.questionElementId ? idMapping.get(element.questionElementId) : element.questionElementId
         };
         dispatch({ type: 'ADD_ELEMENT', payload: duplicatedElement });
       }
@@ -993,9 +999,12 @@ export default function Canvas() {
         x: x + (element.x - minX),
         y: y + (element.y - minY),
         pageId: state.currentBook?.pages[state.activePageIndex]?.id, // Track source page
-        // Clear answer text when pasting question-answer pairs
-        text: element.textType === 'answer' ? '' : element.text,
-        formattedText: element.textType === 'answer' ? '' : element.formattedText,
+        // Clear text for both question and answer when pasting
+        text: (element.textType === 'question' || element.textType === 'answer') ? '' : element.text,
+        formattedText: (element.textType === 'question' || element.textType === 'answer') ? '' : element.formattedText,
+        // Clear question styling for pasted questions
+        fill: element.textType === 'question' ? '#9ca3af' : element.fill,
+        questionId: element.textType === 'question' ? undefined : element.questionId,
         // Update questionElementId reference for answer elements
         questionElementId: element.questionElementId ? idMapping.get(element.questionElementId) : element.questionElementId
       };
@@ -1740,14 +1749,7 @@ export default function Canvas() {
           x={contextMenu.x}
           y={contextMenu.y}
           visible={contextMenu.visible}
-          onDuplicate={(() => {
-            if (!currentPage) return undefined;
-            const hasQuestionAnswer = state.selectedElementIds.some(elementId => {
-              const element = currentPage.elements.find(el => el.id === elementId);
-              return element && (element.textType === 'question' || element.textType === 'answer');
-            });
-            return hasQuestionAnswer ? undefined : handleDuplicateItems;
-          })()} 
+          onDuplicate={handleDuplicateItems} 
           onDelete={handleDeleteItems}
           onCopy={handleCopyItems}
           onPaste={(() => {

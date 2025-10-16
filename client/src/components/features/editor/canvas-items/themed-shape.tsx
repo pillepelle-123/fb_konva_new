@@ -33,7 +33,7 @@ export default function ThemedShape(props: CanvasItemProps) {
           height={bounds?.height || element.height}
           fill={element.fill !== 'transparent' ? element.fill : 'rgba(0, 0, 255, 0.3)'}
           stroke={element.stroke || '#1f2937'}
-          strokeWidth={(element.strokeWidth || 2) * zoom * 2}
+          strokeWidth={element.strokeWidth ? element.strokeWidth * zoom * 2 : 0}
           cornerRadius={element.type === 'rect' && element.cornerRadius ? element.cornerRadius : 0}
           opacity={0.8}
           listening={false}
