@@ -1,4 +1,3 @@
-import { CardContent } from '../../../ui/composites/card';
 import { ToolGroup } from './tool-group';
 import { type Icon } from 'lucide-react';
 import { useState, forwardRef, useImperativeHandle } from 'react';
@@ -36,7 +35,7 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
   }
 
   return (
-    <CardContent className={`p-2 overflow-y-auto scrollbar-hide flex-1 min-h-0 relative`}>
+    <div className={`p-2 overflow-y-auto scrollbar-hide flex-1 min-h-0 relative`}>
       {toolGroups.map((group, groupIndex) => (
         <ToolGroup
           key={group.name}
@@ -44,7 +43,7 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
           tools={group.tools}
           activeTool={activeTool}
           isExpanded={isExpanded}
-          showSeparator={groupIndex > 0}
+          showSeparator={false}
           userRole={userRole}
           isOnAssignedPage={isOnAssignedPage}
           onToolSelect={onToolSelect}
@@ -52,6 +51,6 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
           onSubmenuChange={setActiveSubmenu}
         />
       ))}
-    </CardContent>
+    </div>
   );
 });

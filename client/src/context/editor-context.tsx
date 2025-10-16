@@ -49,6 +49,7 @@ export interface PageBackground {
   patternSize?: number; // 1-10 scale for pattern size
   patternForegroundColor?: string; // pattern drawing color
   patternBackgroundColor?: string; // pattern background color
+  globalTheme?: string; // global theme ID for this page
 }
 
 export interface Page {
@@ -235,7 +236,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       
       // Apply tool defaults to the new element
       const toolType = action.payload.textType || action.payload.type;
-      const defaults = getToolDefaults(toolType as any);
+      const currentPage = savedState.currentBook!.pages[savedState.activePageIndex];
+      const globalTheme = currentPage?.background?.globalTheme;
+      const defaults = getToolDefaults(toolType as any, globalTheme);
       const elementWithDefaults = { ...defaults, ...action.payload };
       
       const newBook = {

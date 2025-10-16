@@ -30,6 +30,23 @@ export function PagesSubmenu({ pages, activePageIndex, onClose, onPageSelect, on
     e.preventDefault();
     if (draggedIndex !== null && draggedIndex !== dropIndex) {
       onReorderPages(draggedIndex, dropIndex);
+      
+      // Update active page to follow the moved page
+      let newActiveIndex = activePageIndex;
+      if (activePageIndex === draggedIndex) {
+        // User was on the dragged page, follow it to new position
+        newActiveIndex = dropIndex;
+      } else if (activePageIndex > draggedIndex && activePageIndex <= dropIndex) {
+        // Active page shifts left
+        newActiveIndex = activePageIndex - 1;
+      } else if (activePageIndex < draggedIndex && activePageIndex >= dropIndex) {
+        // Active page shifts right
+        newActiveIndex = activePageIndex + 1;
+      }
+      
+      if (newActiveIndex !== activePageIndex) {
+        onPageSelect(newActiveIndex + 1);
+      }
     }
     setDraggedIndex(null);
   };

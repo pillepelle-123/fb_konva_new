@@ -101,7 +101,7 @@ export default function Toolbar() {
           toolGroups={toolGroups}
           hideToggle={state.userRole === 'author' && !isOnAssignedPage}
         />
-        <div className='p-0'>
+        {/* <div className='p-0'> */}
           <ToolbarContent 
             ref={toolbarContentRef}
             toolGroups={toolGroups}
@@ -111,7 +111,7 @@ export default function Toolbar() {
             isOnAssignedPage={isOnAssignedPage}
             onToolSelect={(toolId) => dispatch({ type: 'SET_ACTIVE_TOOL', payload: toolId as any })}
           />
-        </div>
+        {/* </div> */}
       </ToolbarContainer>
     </TooltipProvider>
   );

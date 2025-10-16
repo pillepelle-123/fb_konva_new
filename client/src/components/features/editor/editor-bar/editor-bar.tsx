@@ -26,7 +26,11 @@ import PageAssignmentDialog from '../page-assignment-dialog';
 import ProfilePicture from '../../users/profile-picture';
 import { PagesSubmenu } from './page-explorer';
 
-export default function EditorBar() {
+interface EditorBarProps {
+  toolSettingsPanelRef: React.RefObject<{ openBookTheme: () => void }>;
+}
+
+export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
   const { state, dispatch, saveBook, refreshPageAssignments } = useEditor();
   const navigate = useNavigate();
   const [isSaving, setIsSaving] = useState(false);
@@ -213,10 +217,10 @@ export default function EditorBar() {
                   variant="ghost"
                   size="sm"
                   className="flex items-center gap-2"
-                  onClick={() => {}}
+                  onClick={() => toolSettingsPanelRef.current?.openBookTheme()}
                 >
                   <Palette className="h-4 w-4" />
-                  <span>Theme</span>
+                  <span>Book Theme</span>
                 </Button>
               </div>
             </AccordionContent>
@@ -291,7 +295,7 @@ function PageAssignmentButton({ currentPage, bookId, onOpenDialog }: { currentPa
 
   if (assignedUser) {
     return (
-      <Tooltip content={`Assigned to ${assignedUser.name}`} side="right" backgroundColor="bg-background" textColor="text-foreground">
+      <Tooltip content={`Assigned to ${assignedUser.name}`} side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
         <Button
           variant="ghost"
           size="md"

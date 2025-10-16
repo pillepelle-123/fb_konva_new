@@ -1,15 +1,16 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useEditor, createSampleBook } from '../../context/editor-context';
 import EditorBar from '../../components/features/editor/editor-bar';
 import Toolbar from '../../components/features/editor/toolbar';
 import Canvas from '../../components/features/editor/canvas';
-import ToolSettingsPanel from '../../components/features/editor/tool-settings/tool-settings-panel';
+import ToolSettingsPanel, { type ToolSettingsPanelRef } from '../../components/features/editor/tool-settings/tool-settings-panel';
 
 
 function EditorContent() {
   const { bookId } = useParams<{ bookId: string }>();
   const { state, dispatch, loadBook, undo, redo } = useEditor();
+  const toolSettingsPanelRef = useRef<ToolSettingsPanelRef>(null);
 
   useEffect(() => {
     if (bookId && !isNaN(Number(bookId))) {
@@ -52,7 +53,7 @@ function EditorContent() {
 
   return (
     <div className="h-full flex flex-col">
-      <EditorBar />
+      <EditorBar toolSettingsPanelRef={toolSettingsPanelRef} />
       <div className="flex-1 min-h-0">
         <div className="h-full flex flex-col bg-background">
           <div className="flex-1 flex min-h-0">
@@ -60,7 +61,7 @@ function EditorContent() {
             <div className="flex-1 overflow-hidden bg-muted">
               <Canvas />
             </div>
-            <ToolSettingsPanel />
+            <ToolSettingsPanel ref={toolSettingsPanelRef} />
           </div>
           
           {/* Status bar */}

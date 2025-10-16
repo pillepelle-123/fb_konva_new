@@ -33,7 +33,7 @@ export function ColorSelector({
 }: ColorSelectorProps) {
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex items-center gap-2 mb-2">
         <Button
           variant="ghost"
           size="sm"

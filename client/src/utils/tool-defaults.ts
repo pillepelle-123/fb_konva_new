@@ -1,4 +1,5 @@
 // Centralized default values for all drawing tools
+import { getGlobalThemeDefaults } from './global-themes';
 export const TOOL_DEFAULTS = {
   line: {
     theme: 'default',
@@ -112,6 +113,8 @@ export const TOOL_DEFAULTS = {
 
 export type ToolType = keyof typeof TOOL_DEFAULTS;
 
-export function getToolDefaults(tool: ToolType) {
-  return TOOL_DEFAULTS[tool] || {};
+export function getToolDefaults(tool: ToolType, globalTheme?: string) {
+  const baseDefaults = TOOL_DEFAULTS[tool] || {};
+  const themeDefaults = globalTheme ? getGlobalThemeDefaults(globalTheme, tool) : {};
+  return { ...baseDefaults, ...themeDefaults };
 }

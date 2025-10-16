@@ -39,7 +39,7 @@ export function ToolButton({ id, label, icon: Icon, isActive, isExpanded, userRo
   return (
     <Tooltip title={instruction.title} description={instruction.description} side="right">
       <Button
-        variant={isActive ? "default" : "ghost"}
+        variant={isActive ? "default" : "ghost_hover"}
         size="sm"
         onClick={isDisabled ? undefined : onClick}
         disabled={isDisabled}
