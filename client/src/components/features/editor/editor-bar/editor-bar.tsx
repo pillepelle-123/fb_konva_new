@@ -291,7 +291,7 @@ function PageAssignmentButton({ currentPage, bookId, onOpenDialog }: { currentPa
 
   if (assignedUser) {
     return (
-      <Tooltip content="Change page assignment" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
+      <Tooltip content={`Assigned to ${assignedUser.name}`} side="right" backgroundColor="bg-background" textColor="text-foreground">
         <Button
           variant="ghost"
           size="md"

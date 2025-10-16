@@ -136,12 +136,11 @@ VALUES ('Admin User', 'admin@example.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3
 -- Page Assignments Table
 CREATE TABLE page_assignments (
   id SERIAL PRIMARY KEY,
-  page_id INTEGER NOT NULL,
+  page_id INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
   user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-  book_id INTEGER REFERENCES books(id) ON DELETE CASCADE,
   assigned_by INTEGER REFERENCES users(id) ON DELETE CASCADE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(page_id, user_id, book_id)
+  UNIQUE(page_id, user_id)
 );
 
 CREATE TABLE friendships (
@@ -162,6 +161,7 @@ CREATE INDEX idx_question_pages_question_id ON question_pages(question_id);
 CREATE INDEX idx_question_pages_page_id ON question_pages(page_id);
 CREATE INDEX idx_page_assignments_book_id ON page_assignments(book_id);
 CREATE INDEX idx_page_assignments_page_id ON page_assignments(page_id);
+CREATE INDEX idx_page_assignments_user_id ON page_assignments(user_id);
 
 -- Messenger Tables
 CREATE TABLE conversations (

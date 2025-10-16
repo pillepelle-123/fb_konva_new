@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Avatar } from '../../ui/composites/avatar';
 import { Badge } from '../../ui/composites/badge';
 
-import { ChevronUp, ChevronDown, UserPlus, UserSearch, X, FileText } from 'lucide-react';
+import { ChevronUp, ChevronDown, UserPlus, UserSearch, X, FileText, User } from 'lucide-react';
 import FindFriendsDialog from '../friends/find-friends-dialog';
 import ProfilePicture from '../users/profile-picture';
 import PagePreview from './page-preview';
@@ -122,7 +122,7 @@ export default function PagesContent({ bookId, bookFriends: propBookFriends, onS
           const assignments = assignmentsResponse.ok ? await assignmentsResponse.json() : [];
           
           const pageAssignments: PageAssignment[] = book.pages.map((page: any) => {
-            const assignment = assignments.find((a: any) => a.page_id === page.pageNumber);
+            const assignment = assignments.find((a: any) => a.page_id === page.id);
             return {
               pageId: page.id,
               pageNumber: page.pageNumber,
@@ -130,7 +130,7 @@ export default function PagesContent({ bookId, bookFriends: propBookFriends, onS
                 id: assignment.user_id,
                 name: assignment.name,
                 email: assignment.email,
-                role: assignment.role
+                role: assignment.book_role
               } : null
             };
           });
@@ -342,7 +342,7 @@ export default function PagesContent({ bookId, bookFriends: propBookFriends, onS
                 <div className="flex-1">
                   <h4 className="font-medium">Page {page.pageNumber}</h4>
                   <p className="text-sm text-muted-foreground">
-                    {page.assignedUser ? `Assigned to ${page.assignedUser.name}` : 'No assignment'}
+                    {page.assignedUser ? `Assigned to ${page.assignedUser.name} with role ${page.assignedUser.role}` : 'No assignment'}
                   </p>
                 </div>
 

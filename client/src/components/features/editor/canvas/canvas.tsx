@@ -55,8 +55,8 @@ function getConsistentColor(name: string): string {
 
 function CanvasPageContainer({ children, assignedUser }: { children: React.ReactNode; assignedUser?: { name: string } | null }) {
   const borderStyle = assignedUser ? {
-    borderTop: `3px solid #${getConsistentColor(assignedUser.name)}`,
-    borderBottom: `3px solid #${getConsistentColor(assignedUser.name)}`
+    borderTop: `5px solid #${getConsistentColor(assignedUser.name)}`,
+    borderBottom: `5px solid #${getConsistentColor(assignedUser.name)}`
   } : {};
   
   return (
@@ -67,7 +67,7 @@ function CanvasPageContainer({ children, assignedUser }: { children: React.React
       width: '100%',
       height: '100%',
       backgroundColor: 'hsl(var(--muted))',
-      padding: '2rem',
+      // padding: '2rem
       ...borderStyle
     }}>
       {children}

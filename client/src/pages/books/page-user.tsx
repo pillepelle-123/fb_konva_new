@@ -56,7 +56,9 @@ export default function PageUserPage() {
       
       if (response.ok) {
         const roleData = await response.json();
+        console.log('User role data:', roleData);
         if (roleData.role !== 'owner' && roleData.role !== 'publisher') {
+          console.log('Access denied - user role:', roleData.role);
           navigate('/books');
           return;
         }
@@ -74,6 +76,7 @@ export default function PageUserPage() {
         fetchBookFriends();
         fetchAllFriends();
       } else {
+        console.log('Failed to fetch user role, status:', response.status);
         navigate('/books');
       }
     } catch (error) {

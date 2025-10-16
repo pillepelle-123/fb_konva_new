@@ -18,16 +18,19 @@ interface BooksGridProps {
   itemsPerPage?: number;
   onArchive?: (bookId: number) => void;
   onPageUserManager?: (bookId: number) => void;
+  hideActions?: boolean;
 }
 
-export default function BooksGrid({ books, itemsPerPage = 10, onArchive, onPageUserManager }: BooksGridProps) {
+export default function BooksGrid({ books, itemsPerPage = 10, onArchive, onPageUserManager, hideActions = false }: BooksGridProps) {
+  const sortedBooks = [...books].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+  
   return (
     <Grid
-      items={books}
+      items={sortedBooks}
       itemsPerPage={itemsPerPage}
       keyExtractor={(book) => book.id}
       renderItem={(book) => (
-        <BookCard book={book} onArchive={onArchive} onPageUserManager={onPageUserManager} />
+        <BookCard book={book} onArchive={onArchive} onPageUserManager={onPageUserManager} hideActions={hideActions} />
       )}
     />
   );

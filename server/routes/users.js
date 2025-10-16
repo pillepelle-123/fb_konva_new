@@ -105,7 +105,8 @@ router.get('/:userId/shared-books', authenticateToken, async (req, res) => {
     const result = await pool.query(`
       SELECT DISTINCT b.id, b.name, b.page_size, b.orientation, b.owner_id, b.created_at, b.updated_at,
         COALESCE((SELECT COUNT(*) FROM public.pages WHERE book_id = b.id), 0) as page_count,
-        COALESCE((SELECT COUNT(*) FROM public.book_friends WHERE book_id = b.id), 0) as collaborator_count
+        COALESCE((SELECT COUNT(*) FROM public.book_friends WHERE book_id = b.id), 0) as collaborator_count,
+        bf1.book_role as user_role
       FROM public.books b
       INNER JOIN public.book_friends bf1 ON b.id = bf1.book_id AND bf1.user_id = $1
       INNER JOIN public.book_friends bf2 ON b.id = bf2.book_id AND bf2.user_id = $2
@@ -120,6 +121,7 @@ router.get('/:userId/shared-books', authenticateToken, async (req, res) => {
       pageCount: parseInt(book.page_count) || 0,
       collaboratorCount: parseInt(book.collaborator_count) || 0,
       isOwner: book.owner_id === currentUserId,
+      userRole: book.owner_id === currentUserId ? 'owner' : book.user_role,
       created_at: book.created_at,
       updated_at: book.updated_at
     })));

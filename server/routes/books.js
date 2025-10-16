@@ -212,11 +212,12 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
     }
 
     // Get assigned pages
-    const assignments = await pool.query(
-      'SELECT page_id FROM public.page_assignments WHERE book_id = $1 AND user_id = $2',
-      [bookId, userId]
-    );
-    const assignedPageIds = assignments.rows.map(row => row.page_id);
+    const assignments = await pool.query(`
+      SELECT p.page_number FROM public.page_assignments pa
+      JOIN public.pages p ON pa.page_id = p.id
+      WHERE p.book_id = $1 AND pa.user_id = $2
+    `, [bookId, userId]);
+    const assignedPageIds = assignments.rows.map(row => row.page_number);
 
     // Update only assigned pages and handle question associations
     for (const page of pages) {
@@ -618,11 +619,12 @@ router.get('/:id/user-role', authenticateToken, async (req, res) => {
     // Get assigned pages for authors
     let assignedPages = [];
     if (collaborator.rows[0].book_role === 'author') {
-      const assignments = await pool.query(
-        'SELECT page_id FROM public.page_assignments WHERE book_id = $1 AND user_id = $2',
-        [bookId, userId]
-      );
-      assignedPages = assignments.rows.map(row => row.page_id);
+      const assignments = await pool.query(`
+        SELECT p.page_number FROM public.page_assignments pa
+        JOIN public.pages p ON pa.page_id = p.id
+        WHERE p.book_id = $1 AND pa.user_id = $2
+      `, [bookId, userId]);
+      assignedPages = assignments.rows.map(row => row.page_number);
     }
 
     res.json({ role: collaborator.rows[0].book_role, assignedPages });
@@ -714,10 +716,10 @@ router.delete('/:id/friends/:friendId', authenticateToken, async (req, res) => {
     }
 
     // Remove page assignments first
-    await pool.query(
-      'DELETE FROM public.page_assignments WHERE book_id = $1 AND user_id = $2',
-      [bookId, friendId]
-    );
+    await pool.query(`
+      DELETE FROM public.page_assignments 
+      WHERE page_id IN (SELECT id FROM public.pages WHERE book_id = $1) AND user_id = $2
+    `, [bookId, friendId]);
 
     // Remove from book_friends
     await pool.query(

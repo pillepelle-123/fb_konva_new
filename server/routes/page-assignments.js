@@ -23,10 +23,12 @@ router.get('/book/:bookId', authenticateToken, async (req, res) => {
     const { bookId } = req.params;
     
     const result = await pool.query(`
-      SELECT pa.*, u.email, u.name 
+      SELECT pa.*, u.email, u.name, p.page_number, bf.book_role
       FROM public.page_assignments pa
       JOIN public.users u ON pa.user_id = u.id
-      WHERE pa.book_id = $1
+      JOIN public.pages p ON pa.page_id = p.id
+      LEFT JOIN public.book_friends bf ON bf.user_id = pa.user_id AND bf.book_id = p.book_id
+      WHERE p.book_id = $1
     `, [bookId]);
     
     res.json(result.rows);
@@ -52,12 +54,24 @@ router.post('/', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Only book owners can assign pages' });
     }
     
+    // Get page_id from page_number and book_id
+    const pageResult = await pool.query(
+      'SELECT id FROM public.pages WHERE page_number = $1 AND book_id = $2',
+      [pageNumber, bookId]
+    );
+    
+    if (pageResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Page not found' });
+    }
+    
+    const pageId = pageResult.rows[0].id;
+    
     const result = await pool.query(`
-      INSERT INTO public.page_assignments (page_id, user_id, book_id, assigned_by)
-      VALUES ($1, $2, $3, $4)
-      ON CONFLICT (page_id, user_id, book_id) DO NOTHING
+      INSERT INTO public.page_assignments (page_id, user_id, assigned_by)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (page_id, user_id) DO NOTHING
       RETURNING *
-    `, [pageNumber, userId, bookId, assignedBy]);
+    `, [pageId, userId, assignedBy]);
     
     res.json(result.rows[0]);
   } catch (error) {
@@ -67,14 +81,24 @@ router.post('/', authenticateToken, async (req, res) => {
 });
 
 // Remove all assignments for a page
-router.delete('/page/:pageNumber', authenticateToken, async (req, res) => {
+router.delete('/page/:pageNumber/book/:bookId', authenticateToken, async (req, res) => {
   try {
-    const { pageNumber } = req.params;
+    const { pageNumber, bookId } = req.params;
+    
+    // Get page_id from page_number and book_id
+    const pageResult = await pool.query(
+      'SELECT id FROM public.pages WHERE page_number = $1 AND book_id = $2',
+      [pageNumber, bookId]
+    );
+    
+    if (pageResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Page not found' });
+    }
     
     await pool.query(`
       DELETE FROM public.page_assignments 
       WHERE page_id = $1
-    `, [pageNumber]);
+    `, [pageResult.rows[0].id]);
     
     res.json({ success: true });
   } catch (error) {
@@ -98,10 +122,20 @@ router.delete('/', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Only book owners can remove page assignments' });
     }
     
+    // Get page_id from page_number and book_id
+    const pageResult = await pool.query(
+      'SELECT id FROM public.pages WHERE page_number = $1 AND book_id = $2',
+      [pageNumber, bookId]
+    );
+    
+    if (pageResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Page not found' });
+    }
+    
     await pool.query(`
       DELETE FROM public.page_assignments 
-      WHERE page_id = $1 AND user_id = $2 AND book_id = $3
-    `, [pageNumber, userId, bookId]);
+      WHERE page_id = $1 AND user_id = $2
+    `, [pageResult.rows[0].id, userId]);
     
     res.json({ success: true });
   } catch (error) {
@@ -127,15 +161,26 @@ router.put('/book/:bookId', authenticateToken, async (req, res) => {
     }
     
     // Clear existing assignments for this book
-    await pool.query('DELETE FROM public.page_assignments WHERE book_id = $1', [bookId]);
+    await pool.query(`
+      DELETE FROM public.page_assignments 
+      WHERE page_id IN (SELECT id FROM public.pages WHERE book_id = $1)
+    `, [bookId]);
     
     // Insert new assignments
     for (const assignment of assignments) {
       if (assignment.userId) {
-        await pool.query(`
-          INSERT INTO public.page_assignments (page_id, user_id, book_id, assigned_by)
-          VALUES ($1, $2, $3, $4)
-        `, [assignment.pageNumber, assignment.userId, bookId, req.user.id]);
+        // Get page_id from page_number and book_id
+        const pageResult = await pool.query(
+          'SELECT id FROM public.pages WHERE page_number = $1 AND book_id = $2',
+          [assignment.pageNumber, bookId]
+        );
+        
+        if (pageResult.rows.length > 0) {
+          await pool.query(`
+            INSERT INTO public.page_assignments (page_id, user_id, assigned_by)
+            VALUES ($1, $2, $3)
+          `, [pageResult.rows[0].id, assignment.userId, req.user.id]);
+        }
       }
     }
     

@@ -538,12 +538,23 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       // Update page numbers
       const updatedPages = reorderedPages.map((page, index) => ({ ...page, pageNumber: index + 1 }));
       
+      // Reorder page assignments to match new page order
+      const newPageAssignments = {};
+      updatedPages.forEach((page, newIndex) => {
+        const originalIndex = savedReorderState.currentBook!.pages.findIndex(p => p.id === page.id);
+        const oldAssignment = savedReorderState.pageAssignments[originalIndex + 1];
+        if (oldAssignment) {
+          newPageAssignments[newIndex + 1] = oldAssignment;
+        }
+      });
+      
       return {
         ...savedReorderState,
         currentBook: {
           ...savedReorderState.currentBook!,
           pages: updatedPages
         },
+        pageAssignments: newPageAssignments,
         hasUnsavedChanges: true
       };
     
@@ -799,7 +810,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       // Load page assignments - use pageNumber as key for consistency
       const pageAssignmentsMap = {};
       pageAssignments.forEach(assignment => {
-        pageAssignmentsMap[assignment.page_id] = {
+        pageAssignmentsMap[assignment.page_number] = {
           id: assignment.user_id,
           name: assignment.name,
           email: assignment.email,

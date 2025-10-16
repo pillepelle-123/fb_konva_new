@@ -22,8 +22,8 @@ const CanvasContainer = forwardRef<HTMLDivElement, CanvasContainerProps>(({
       style={{
         backgroundColor: 'white',
         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-        borderRadius: '14px',
-        padding: '.5rem',
+        // borderRadius: '14px',
+        // padding: '.5rem',
         flex: 1,
         height: '100%',
         display: 'flex',

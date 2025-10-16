@@ -23,6 +23,7 @@ interface Book {
   pageCount: number;
   collaboratorCount: number;
   isOwner: boolean;
+  userRole: 'owner' | 'publisher' | 'author';
 }
 
 
@@ -152,7 +153,7 @@ export default function Profile() {
           <h2 className="text-xl font-semibold">
             {isOwnProfile ? 'Your Books' : `Books shared with ${user.name}`}
           </h2>
-          <BooksGrid books={sharedBooks} />
+          <BooksGrid books={sharedBooks} hideActions={true} />
         </div>
       )}
 

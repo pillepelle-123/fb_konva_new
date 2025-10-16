@@ -35,7 +35,7 @@ export function PagesSubmenu({ pages, activePageIndex, onClose, onPageSelect, on
   };
 
   return (
-    <div className="flex items-center justify-between w-full px-4 py-3">
+    <div className="flex items-start justify-between w-full px-4 py-3">
       <Tooltip content="Drag and Drop to re-arrange pages" side="bottom">
       <div className="flex items-center gap-2 flex-1">
         <span className="text-sm font-medium">Pages:</span>
@@ -69,14 +69,16 @@ export function PagesSubmenu({ pages, activePageIndex, onClose, onPageSelect, on
         </div>
       </div>
       </Tooltip>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onClose}
-        className="h-8 w-8 p-0"
-      >
-        <X className="h-4 w-4" />
-      </Button>
+      <div className='items-end h-full'>
+        <Button
+          variant="outline"
+          size="md"
+          onClick={onClose}
+          className="h-8 w-8 p-0"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
   );
 }

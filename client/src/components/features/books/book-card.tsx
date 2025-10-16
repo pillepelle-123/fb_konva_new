@@ -7,6 +7,7 @@ import { Badge } from '../../ui/composites/badge';
 import { Tooltip } from '../../ui/composites/tooltip';
 import { Users, Edit, FileText, Image, CircleHelp, RotateCcw, Trash2, Archive, Contact } from 'lucide-react';
 import PageUserIcon from '../../ui/icons/page-user-icon';
+import BookRoleBadge from './book-role-badge';
 
 interface Book {
   id: number;
@@ -28,6 +29,7 @@ interface BookCardProps {
   onDelete?: (bookId: number) => void;
   onArchive?: (bookId: number) => void;
   onPageUserManager?: (bookId: number) => void;
+  hideActions?: boolean;
 }
 
 function BookCardPreview({ book, isArchived }: { book: Book; isArchived?: boolean }) {
@@ -81,7 +83,7 @@ function BookCardPreview({ book, isArchived }: { book: Book; isArchived?: boolea
   );
 }
 
-export default function BookCard({ book, isArchived = false, onRestore, onDelete, onArchive, onPageUserManager }: BookCardProps) {
+export default function BookCard({ book, isArchived = false, onRestore, onDelete, onArchive, onPageUserManager, hideActions = false }: BookCardProps) {
   const navigate = useNavigate();
 
   return (
@@ -112,17 +114,10 @@ export default function BookCard({ book, isArchived = false, onRestore, onDelete
               <span>{book.collaboratorCount}</span>
             </div>
           </div>
-                <Badge variant={
-                  book.userRole === 'owner' ? 'highlight' : 
-                  book.userRole === 'publisher' ? 'highlight_dense' : 
-                  'secondary'
-                }>
-                  {book.userRole === 'owner' ? 'You are the owner' : 
-                   book.userRole === 'publisher' ? 'You are a publisher' : 
-                   'You are an author'}
-                </Badge>
+                <BookRoleBadge userRole={book.userRole} variant='addressedToUser' />
         </div>
 
+        {!hideActions && (
         <div className="flex gap-2 pt-2">
           {isArchived ? (
             <>
@@ -190,6 +185,7 @@ export default function BookCard({ book, isArchived = false, onRestore, onDelete
             </>
           )}
         </div>
+        )}
       </CardContent>
     </Card>
   );
