@@ -37,7 +37,7 @@ export default function FriendsCard({
       <CardHeader className="pb-4">
         <div className="flex items-start space-x-4">
           <Link to={`/profile/${friend.id}`}>
-            <ProfilePicture name={friend.name} size="md" userId={friend.id} />
+            <ProfilePicture name={friend.name} size="md" userId={friend.id} variant='withColoredBorder'/>
           </Link>
           <div className="flex-1 space-y-1">
             <CardTitle className="text-lg font-semibold line-clamp-1">

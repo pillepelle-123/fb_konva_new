@@ -421,17 +421,17 @@ export default function ToolSettingsPanel() {
     return (
       <div className="space-y-1">
         <Button
-          variant="ghost"
+          variant="ghost_hover"
           size="default"
           onClick={() => setShowBackgroundSettings(true)}
-          className="w-full justify-start"
+          className="w-full justify-start hover:bg-muted/80"
         >
           <Settings className="h-4 w-4 mr-2 hidden" />
           Background
         </Button>
         <Separator />
         <Button
-          variant="ghost"
+          variant="ghost_hover"
           size="default"
           // onClick={() => setShowBackgroundSettings(true)}
           className="w-full justify-start"
@@ -442,7 +442,7 @@ export default function ToolSettingsPanel() {
         </Button>
         <Separator />
         <Button
-          variant="ghost"
+          variant="ghost_hover"
           size="default"
           // onClick={() => setShowBackgroundSettings(true)}
           className="w-full justify-start"
@@ -545,7 +545,8 @@ export default function ToolSettingsPanel() {
             onChange={(value) => updateBackground({ patternStrokeWidth: value })}
             min={1}
             max={10}
-            step={background.patternSize > 5 ? 1 : 4}
+            step={1}
+            // step={background.patternSize > 5 ? 1 : 4}
           />
           
           <div>
@@ -560,7 +561,7 @@ export default function ToolSettingsPanel() {
             </Button>
           </div>
           
-          <Slider
+          {/* <Slider
             label="Opacity"
             value={Math.round((background.patternBackgroundOpacity || 1) * 100)}
             onChange={(value) => updateBackground({ patternBackgroundOpacity: value / 100 })}
@@ -568,7 +569,7 @@ export default function ToolSettingsPanel() {
             max={100}
             step={5}
             unit="%"
-          />
+          /> */}
         </div>
       );
     }
@@ -1333,16 +1334,6 @@ export default function ToolSettingsPanel() {
             )}
 
             <Separator />
-            
-            {(element.textType === 'text' || element.textType === 'question' || element.textType === 'answer') && (
-              <Slider
-                label="Corner Radius"
-                value={element.cornerRadius || 0}
-                onChange={(value) => updateElementSetting('cornerRadius', value)}
-                min={0}
-                max={300}
-              />
-            )}
                         
             {/* Border & Background */}
             <div>
@@ -1365,7 +1356,17 @@ export default function ToolSettingsPanel() {
                   onChange={(value) => updateElementSetting('borderWidth', value)}
                   min={1}
                   max={getMaxStrokeWidth('text', element.theme || 'default')}
-                />
+                />            
+            
+                {(element.textType === 'text' || element.textType === 'question' || element.textType === 'answer') && (
+                  <Slider
+                    label="Corner Radius"
+                    value={element.cornerRadius || 0}
+                    onChange={(value) => updateElementSetting('cornerRadius', value)}
+                    min={0}
+                    max={300}
+                  />
+                )}
                 
                 <div>
                   <Label variant="xs">Border Theme</Label>
@@ -1624,7 +1625,7 @@ export default function ToolSettingsPanel() {
         
         {/* Tool Settings Main Area */}
         {!isCollapsed && (
-          <div className="flex-1 overflow-y-auto scrollbar-hide p-2">
+          <div className="flex-1 overflow-y-auto scrollbar-hide p-2 border">
             {shouldShowPanel ? renderToolSettings() : (
               <div className="text-xs text-muted-foreground">
                 Select a tool or element to view settings.

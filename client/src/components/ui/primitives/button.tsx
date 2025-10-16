@@ -17,6 +17,7 @@ const buttonVariants = cva(
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent/80 hover:text-accent-foreground",
+        ghost_hover: "hover:bg-muted/80 hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
         highlight: "bg-highlight text-primary-foreground hover:bg-highlight/80",
         ring: "bg-ring text-primary-foreground hover:bg-ring/80",
@@ -26,6 +27,7 @@ const buttonVariants = cva(
         xxs: "h-6 px-3 rounded-md",
         xs: "h-7 px-3 rounded-md text-xs",
         sm: "h-9 rounded-md px-3",
+        md: "h-10 rounded-md px-3",
         lg: "h-11 rounded-md px-8",
         icon: "h-10 w-10",
       },

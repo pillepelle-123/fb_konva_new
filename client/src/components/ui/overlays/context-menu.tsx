@@ -5,10 +5,10 @@ interface ContextMenuProps {
   x: number;
   y: number;
   visible: boolean;
-  onDuplicate: () => void;
+  onDuplicate?: () => void;
   onDelete: () => void;
   onCopy: () => void;
-  onPaste: () => void;
+  onPaste?: () => void;
   onMoveToFront: () => void;
   onMoveToBack: () => void;
   onMoveUp: () => void;
@@ -40,18 +40,22 @@ const ContextMenu = React.forwardRef<
       >
         Copy
       </ContextMenuItem>
-      <ContextMenuItem
-        disabled={!hasClipboard}
-        onClick={hasClipboard ? onPaste : undefined}
-      >
-        Paste
-      </ContextMenuItem>
-      <ContextMenuItem
-        disabled={!hasSelection}
-        onClick={hasSelection ? onDuplicate : undefined}
-      >
-        Duplicate
-      </ContextMenuItem>
+      {onPaste && (
+        <ContextMenuItem
+          disabled={!hasClipboard}
+          onClick={hasClipboard ? onPaste : undefined}
+        >
+          Paste
+        </ContextMenuItem>
+      )}
+      {onDuplicate && (
+        <ContextMenuItem
+          disabled={!hasSelection}
+          onClick={hasSelection ? onDuplicate : undefined}
+        >
+          Duplicate
+        </ContextMenuItem>
+      )}
       <ContextMenuItem
         disabled={!hasSelection}
         onClick={hasSelection ? onMoveToFront : undefined}

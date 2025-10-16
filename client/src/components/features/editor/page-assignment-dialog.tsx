@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/overl
 import { Button } from '../../ui/primitives/button';
 import { Plus, Trash2 } from 'lucide-react';
 import List from '../../shared/list';
+import CompactList from '../../shared/list';
 import ProfilePicture from '../users/profile-picture';
 import AlertDialog from '../../ui/overlays/alert-dialog';
 
@@ -108,7 +109,6 @@ export default function PageAssignmentDialog({ open, onOpenChange, currentPage, 
     const updatedAssignments = { ...state.pageAssignments };
     updatedAssignments[currentPage] = user;
     dispatch({ type: 'SET_PAGE_ASSIGNMENTS', payload: updatedAssignments });
-    dispatch({ type: 'UPDATE_USER_QUESTION_ASSIGNMENTS' });
     onOpenChange(false);
   };
 
@@ -116,7 +116,6 @@ export default function PageAssignmentDialog({ open, onOpenChange, currentPage, 
     const updatedAssignments = { ...state.pageAssignments };
     updatedAssignments[currentPage] = null;
     dispatch({ type: 'SET_PAGE_ASSIGNMENTS', payload: updatedAssignments });
-    dispatch({ type: 'UPDATE_USER_QUESTION_ASSIGNMENTS' });
     onOpenChange(false);
   };
 
@@ -144,26 +143,24 @@ export default function PageAssignmentDialog({ open, onOpenChange, currentPage, 
 
   const renderBookFriend = (user: User) => (
     <div 
-      className="flex items-center gap-3 p-3 border rounded-lg hover:bg-accent cursor-pointer"
+      className="flex items-center gap-3 p-2 border rounded-lg hover:bg-accent cursor-pointer"
       onClick={() => handleAssignUser(user)}
     >
-      <ProfilePicture name={user.name} size="sm" userId={user.id} />
+      <ProfilePicture name={user.name} size="sm" userId={user.id} variant='withColoredBorder' />
       <div className="flex-1">
-        <p className="font-medium">{user.name}</p>
-        <p className="text-sm text-muted-foreground">{user.email}</p>
+        <p className="font-medium text-sm">{user.name} <span className="text-muted-foreground font-normal">({user.email})</span></p>
       </div>
     </div>
   );
 
   const renderFriend = (friend: User) => (
     <div 
-      className="flex items-center gap-3 p-3 border rounded-lg hover:bg-accent cursor-pointer"
+      className="flex items-center gap-3 p-2 border rounded-lg hover:bg-accent cursor-pointer"
       onClick={() => handleAddFriend(friend)}
     >
-      <ProfilePicture name={friend.name} size="sm" userId={friend.id} />
+      <ProfilePicture name={friend.name} size="sm" userId={friend.id} variant='withColoredBorder'/>
       <div className="flex-1">
-        <p className="font-medium">{friend.name}</p>
-        <p className="text-sm text-muted-foreground">{friend.email}</p>
+        <p className="font-medium text-sm">{friend.name} <span className="text-muted-foreground font-normal">({friend.email})</span></p>
       </div>
     </div>
   );
@@ -184,7 +181,7 @@ export default function PageAssignmentDialog({ open, onOpenChange, currentPage, 
               ← Back to Page Assignment
             </Button>
             {availableFriends.length > 0 ? (
-              <List
+              <CompactList
                 items={availableFriends}
                 keyExtractor={(friend) => friend.id.toString()}
                 renderItem={renderFriend}
@@ -220,11 +217,10 @@ export default function PageAssignmentDialog({ open, onOpenChange, currentPage, 
           {assignedUser && (
             <div className="space-y-2">
               <p className="text-sm font-medium">Currently assigned:</p>
-              <div className="flex items-center gap-3 p-3 border rounded-lg bg-accent">
-                <ProfilePicture name={assignedUser.name} size="sm" userId={assignedUser.id} />
+              <div className="flex items-center gap-3 p-2 border rounded-lg bg-accent">
+                <ProfilePicture name={assignedUser.name} size="sm" userId={assignedUser.id} variant='withColoredBorder'/>
                 <div className="flex-1">
-                  <p className="font-medium">{assignedUser.name}</p>
-                  <p className="text-sm text-muted-foreground">{assignedUser.email}</p>
+                  <p className="font-medium text-sm">{assignedUser.name} <span className="text-muted-foreground font-normal">({assignedUser.email})</span></p>
                 </div>
               </div>
               <Button 
@@ -242,7 +238,7 @@ export default function PageAssignmentDialog({ open, onOpenChange, currentPage, 
           {bookFriends.length > 0 ? (
             <div className="space-y-2">
               <p className="text-sm font-medium">Book collaborators:</p>
-              <List
+              <CompactList
                 items={bookFriends}
                 keyExtractor={(user) => user.id.toString()}
                 renderItem={renderBookFriend}

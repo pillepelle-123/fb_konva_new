@@ -108,7 +108,7 @@ export function AccordionTrigger({ children, className }: AccordionTriggerProps)
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center py-2 px-2 cursor-pointer transform -rotate-90 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors",
+        "flex flex-col items-center justify-center py-2 px-2 cursor-pointer transform -rotate-90 text-sm font-medium text-muted-foreground/50 hover:text-muted-foreground transition-colors",
         className
       )}
       onClick={() => accordionContext.onValueChange(itemContext.value)}

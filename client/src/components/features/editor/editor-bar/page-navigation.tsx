@@ -12,6 +12,7 @@ interface PageNavigationProps {
   onGoToPage: (page: number) => void;
   canGoPrev: boolean;
   canGoNext: boolean;
+  onOpenPagesSubmenu?: () => void;
 }
 
 export function PageNavigation({
@@ -21,7 +22,8 @@ export function PageNavigation({
   onNextPage,
   onGoToPage,
   canGoPrev,
-  canGoNext
+  canGoNext,
+  onOpenPagesSubmenu
 }: PageNavigationProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [inputValue, setInputValue] = useState(currentPage.toString());
@@ -59,7 +61,7 @@ export function PageNavigation({
   };
   return (
     <div className="flex items-center gap-1 md:gap-2">
-      <Tooltip content={canGoPrev ? "Go to previous page" : "Already on first page"} side="bottom" backgroundColor="bg-background" textColor="text-foreground">
+      <Tooltip content={canGoPrev ? "Go to previous page" : "Already on first page"} side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
         <Button
           variant="outline"
           size="sm"
@@ -72,7 +74,16 @@ export function PageNavigation({
       </Tooltip>
 
       <div className="flex items-center gap-1 md:gap-2 bg-muted rounded-lg px-2 py-1 md:px-3 md:py-1.5">
-        <BookOpen className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
+        <Tooltip content="View all pages" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onOpenPagesSubmenu}
+          className="h-6 w-6 p-0 hover:bg-muted-foreground/10 cursor-pointer"
+        >
+          <BookOpen className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground hover:text-foreground" />
+        </Button>
+        </Tooltip>
         {isEditing ? (
           <Input
             value={inputValue}
@@ -93,7 +104,7 @@ export function PageNavigation({
         <span className="text-xs md:text-sm font-medium text-foreground pl">/</span><span>{totalPages}</span>
       </div>
 
-      <Tooltip content={canGoNext ? "Go to next page" : "Already on last page"} side="bottom" backgroundColor="bg-background" textColor="text-foreground">
+      <Tooltip content={canGoNext ? "Go to next page" : "Already on last page"} side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
         <Button
           variant="outline"
           size="sm"

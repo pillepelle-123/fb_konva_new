@@ -37,7 +37,7 @@ export default function QuestionsManagerContent({
 }: QuestionsManagerContentProps) {
   console.log('QuestionsManagerContent rendered with mode:', mode);
   const { user } = useAuth();
-  const { state, trackQuestionAssignment, removeTempQuestionAssignment, isQuestionAvailableForUser } = useEditor();
+  const { state, isQuestionAvailableForUser } = useEditor();
   
   // Get book-specific role from editor context
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -86,10 +86,10 @@ export default function QuestionsManagerContent({
     fetchUserAnswers();
   }, [bookId]);
 
-  // Re-render when question assignments change
+  // Re-render when page assignments change
   useEffect(() => {
-    // This effect ensures the component re-renders when temp assignments change
-  }, [state.tempQuestionAssignments, state.existingQuestionAssignments, state.currentBook]);
+    // This effect ensures the component re-renders when page assignments change
+  }, [state.pageAssignments, state.currentBook]);
 
   const fetchQuestions = async () => {
     try {
@@ -187,29 +187,9 @@ export default function QuestionsManagerContent({
       }
     }
     
-    // Fallback to original logic for manage mode or when no user assigned
-    const existsInTemp = state.tempQuestionAssignments?.some(assignment => 
-      assignment.questionId === questionId
-    );
-    
-    if (existsInTemp) return false;
-    
-    const existsInDB = state.existingQuestionAssignments?.some(assignment => 
-      assignment.questionId === questionId
-    );
-    
-    if (existsInDB) return false;
-    
-    const userPages = state.userRole === 'author' ? state.assignedPages : 
-      Array.from({ length: state.currentBook.pages.length }, (_, i) => i + 1);
-    
-    for (const page of state.currentBook.pages) {
-      if (userPages.includes(page.pageNumber)) {
-        const hasQuestion = page.elements.some(element => 
-          element.textType === 'question' && element.questionId === questionId
-        );
-        if (hasQuestion) return false;
-      }
+    // For manage mode or when no user assigned, check if current user already has this question
+    if (state.user) {
+      return isQuestionAvailableForUser(questionId, state.user.id);
     }
     
     return true;
@@ -232,7 +212,7 @@ export default function QuestionsManagerContent({
     
     const currentPage = state.currentBook.pages[state.activePageIndex];
     return currentPage?.elements.some(el => 
-      el.textType === 'question' && el.questionId && el.questionId > 0
+      el.textType === 'question' && el.questionId && el.questionId > 0 && el.text && el.text.trim() !== ''
     ) || false;
   };
 
@@ -398,8 +378,6 @@ export default function QuestionsManagerContent({
                             }));
                             
                             onQuestionSelect?.(question.id, question.question_text);
-                            // Track question assignment in state
-                            trackQuestionAssignment(question.id, state.activePageIndex + 1);
                           } : undefined}
                         >
                           <div className="flex items-start justify-between mb-2">
@@ -504,16 +482,6 @@ export default function QuestionsManagerContent({
               Cancel
             </Button>
             <Button onClick={() => {
-              // Find the current question element to get its questionId
-              const currentPage = state.currentBook?.pages[state.activePageIndex];
-              const questionElement = currentPage?.elements.find(el => 
-                el.textType === 'question' && el.questionId
-              );
-              
-              if (questionElement?.questionId) {
-                removeTempQuestionAssignment(questionElement.questionId);
-              }
-              
               onQuestionSelect?.(0, '');
               setShowResetConfirm(false);
             }}>

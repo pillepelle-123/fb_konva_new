@@ -455,22 +455,7 @@ export default function Textbox(props: CanvasItemProps) {
         return;
       }
       
-      // Check if current page has a user assigned
-      const currentPageNumber = state.activePageIndex + 1;
-      const assignedUser = state.pageAssignments[currentPageNumber];
-      
-      if (!assignedUser) {
-        window.dispatchEvent(new CustomEvent('showAlert', {
-          detail: { 
-            message: 'Please assign a user to this page first before adding questions.',
-            x: element.x,
-            y: element.y,
-            width: element.width,
-            height: element.height
-          }
-        }));
-        return;
-      }
+
       
       // Open question selection dialog for question elements
       window.dispatchEvent(new CustomEvent('openQuestionModal', {
@@ -527,22 +512,7 @@ export default function Textbox(props: CanvasItemProps) {
       return;
     }
     
-    // Check if current page has a user assigned
-    const currentPageNumber = state.activePageIndex + 1;
-    const assignedUser = state.pageAssignments[currentPageNumber];
-    
-    if (!assignedUser) {
-      window.dispatchEvent(new CustomEvent('showAlert', {
-        detail: { 
-          message: 'Please assign a user to this page first before adding questions.',
-          x: element.x,
-          y: element.y,
-          width: element.width,
-          height: element.height
-        }
-      }));
-      return;
-    }
+
     
     window.dispatchEvent(new CustomEvent('openQuestionModal', {
       detail: { elementId: element.id }

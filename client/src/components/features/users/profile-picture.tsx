@@ -9,6 +9,7 @@ interface ProfilePictureProps {
   className?: string;
   userId?: number;
   editable?: boolean;
+  variant?: 'default' | 'withColoredBorder';
 }
 
 function getInitials(name: string): string {
@@ -42,7 +43,7 @@ const sizeMap = {
   lg: { class: 'w-48 h-48', pixels: 192 },
 };
 
-export default function ProfilePicture({ name, size = 'md', className = '', userId, editable = false }: ProfilePictureProps) {
+export default function ProfilePicture({ name, size = 'md', className = '', userId, editable = false, variant = 'default' }: ProfilePictureProps) {
   const { class: sizeClass, pixels } = sizeMap[size];
   const { user, token } = useAuth();
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -97,6 +98,9 @@ export default function ProfilePicture({ name, size = 'md', className = '', user
         const newUrl = `${baseUrl}${data.profilePicture192}?t=${Date.now()}`;
         console.log('Setting profile image URL to:', newUrl);
         setProfileImageUrl(newUrl);
+        
+        // Notify other components that profile picture was updated
+        window.dispatchEvent(new CustomEvent('profilePictureUpdated'));
       }
     } catch (error) {
       console.error('Error uploading profile picture:', error);
@@ -104,6 +108,36 @@ export default function ProfilePicture({ name, size = 'md', className = '', user
   };
 
   const imageUrl = profileImageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${getConsistentColor(name)}&color=fff&size=${pixels}`;
+  
+  if (variant === 'withColoredBorder') {
+    return (
+      <div className="relative inline-block">
+        <div 
+          className={`${sizeClass} rounded-full ${size === "lg" || size === "md" ? (size === "lg" ? "p-3" : "p-2") : "p-0.5"} flex items-center justify-center`}
+          style={{ backgroundColor: `#${getConsistentColor(name)}` }}
+        >
+          <img
+            className={`w-full h-full rounded-full ${className}`}
+            src={imageUrl}
+            alt={name}
+          />
+        </div>
+        {canEdit && (
+          <button
+            onClick={() => setIsEditorOpen(true)}
+            className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground rounded-full p-1.5 hover:bg-primary/90 transition-colors"
+          >
+            <Edit2 className="h-3 w-3" />
+          </button>
+        )}
+        <ProfilePictureEditor
+          isOpen={isEditorOpen}
+          onClose={() => setIsEditorOpen(false)}
+          onSave={handleSaveProfilePicture}
+        />
+      </div>
+    );
+  }
   
   return (
     <div className="relative inline-block">

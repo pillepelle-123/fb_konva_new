@@ -72,7 +72,7 @@ export function ToolGroup({ name, tools, activeTool, isExpanded, showSeparator, 
       {showSeparator && <Separator />}
       {isExpanded ? (
         <Button 
-          variant="ghost" 
+          variant="ghost_hover" 
           className="w-full justify-between px-0 py-2 rlative overflow-hidden"
           onClick={() => onSubmenuChange?.(name)}
         >

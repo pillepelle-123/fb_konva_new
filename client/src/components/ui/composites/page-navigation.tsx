@@ -8,6 +8,7 @@ interface PageNavigationProps {
   onNextPage: () => void;
   canGoPrev: boolean;
   canGoNext: boolean;
+  onOpenPagesSubmenu?: () => void;
 }
 
 export function PageNavigation({
@@ -16,7 +17,8 @@ export function PageNavigation({
   onPrevPage,
   onNextPage,
   canGoPrev,
-  canGoNext
+  canGoNext,
+  onOpenPagesSubmenu
 }: PageNavigationProps) {
   return (
     <div className="flex items-center gap-1 md:gap-2">
@@ -31,7 +33,14 @@ export function PageNavigation({
       </Button>
 
       <div className="flex items-center gap-1 md:gap-2 bg-muted rounded-lg px-2 py-1 md:px-3 md:py-1.5">
-        <BookOpen className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onOpenPagesSubmenu}
+          className="h-6 w-6 p-0 hover:bg-muted-foreground/10 cursor-pointer"
+        >
+          <BookOpen className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground hover:text-foreground" />
+        </Button>
         <span className="text-xs md:text-sm font-medium text-foreground min-w-[50px] md:min-w-[60px] text-center">
           {currentPage}/{totalPages}
         </span>

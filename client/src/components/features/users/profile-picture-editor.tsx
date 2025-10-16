@@ -108,7 +108,7 @@ export default function ProfilePictureEditor({ isOpen, onClose, onSave }: Profil
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Edit Profile Picture</DialogTitle>
           <DialogDescription>
@@ -116,7 +116,7 @@ export default function ProfilePictureEditor({ isOpen, onClose, onSave }: Profil
           </DialogDescription>
         </DialogHeader>
         
-        <div className="space-y-4">
+        <div className="flex-1 flex flex-col space-y-4 min-h-0">
           {!imgSrc ? (
             <div className="text-center">
               <input
@@ -132,21 +132,23 @@ export default function ProfilePictureEditor({ isOpen, onClose, onSave }: Profil
             </div>
           ) : (
             <>
-              <ReactCrop
-                crop={crop}
-                onChange={(_, percentCrop) => setCrop(percentCrop)}
-                onComplete={(c) => setCompletedCrop(c)}
-                aspect={1}
-              >
-                <img
-                  ref={imgRef}
-                  alt="Crop me"
-                  src={imgSrc}
-                  onLoad={onImageLoad}
-                  className="max-w-full max-h-80"
-                />
-              </ReactCrop>
-              <div className="flex justify-end space-x-2">
+              <div className="flex-1 overflow-auto">
+                <ReactCrop
+                  crop={crop}
+                  onChange={(_, percentCrop) => setCrop(percentCrop)}
+                  onComplete={(c) => setCompletedCrop(c)}
+                  aspect={1}
+                >
+                  <img
+                    ref={imgRef}
+                    alt="Crop me"
+                    src={imgSrc}
+                    onLoad={onImageLoad}
+                    className="max-w-full"
+                  />
+                </ReactCrop>
+              </div>
+              <div className="flex justify-end space-x-2 flex-shrink-0">
                 <Button variant="outline" onClick={handleClose}>
                   Cancel
                 </Button>

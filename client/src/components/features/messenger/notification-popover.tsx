@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/auth-context';
 import { Link } from 'react-router-dom';
 import { MessageCircle } from 'lucide-react';
+import ProfilePicture from '../users/profile-picture';
 
 interface UnreadConversation {
   id: number;
@@ -107,20 +108,29 @@ export default function NotificationPopover({ onUpdate, onClose }: NotificationP
               onClick={() => { markAsRead(conversation.id); onClose(); }}
               className="block p-3 rounded-lg hover:bg-muted transition-colors"
             >
-              <div className="flex items-center justify-between mb-1">
-                <span className="font-medium text-sm">{conversation.friend_name}</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">
-                    {formatTime(conversation.last_message_time)}
-                  </span>
-                  <div className="bg-highlight text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                    {conversation.unread_count}
+              <div className="flex items-start gap-3">
+                <ProfilePicture 
+                  name={conversation.friend_name} 
+                  size="sm" 
+                  userId={conversation.friend_id}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium text-sm truncate">{conversation.friend_name}</span>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-xs text-muted-foreground">
+                        {formatTime(conversation.last_message_time)}
+                      </span>
+                      <div className="bg-highlight text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
+                        {conversation.unread_count}
+                      </div>
+                    </div>
                   </div>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {conversation.last_message}
+                  </p>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground truncate">
-                {conversation.last_message}
-              </p>
             </Link>
           ))}
         </div>

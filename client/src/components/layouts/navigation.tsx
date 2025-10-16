@@ -7,6 +7,7 @@ import ProfilePicture from '../features/users/profile-picture';
 import { Popover, PopoverTrigger, PopoverContent } from '../ui/overlays/popover';
 import NotificationPopover from '../features/messenger/notification-popover';
 import { useSocket } from '../../context/socket-context';
+import NavigationSubMenu from './navigation-sub-menu';
 
 export default function Navigation() {
   const { user, logout } = useAuth();
@@ -18,6 +19,7 @@ export default function Navigation() {
   const [mobileBooksMenuOpen, setMobileBooksMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notificationOpen, setNotificationOpen] = useState(false);
+  const [profileUpdateKey, setProfileUpdateKey] = useState(0);
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -25,6 +27,13 @@ export default function Navigation() {
     if (user) {
       fetchUnreadCount();
       const interval = setInterval(fetchUnreadCount, 30000); // Check every 30 seconds
+      
+      // Listen for profile picture updates
+      const handleProfileUpdate = () => {
+        setProfileUpdateKey(prev => prev + 1);
+      };
+      
+      window.addEventListener('profilePictureUpdated', handleProfileUpdate);
       
       // Listen for real-time message notifications
       if (socket) {
@@ -35,10 +44,14 @@ export default function Navigation() {
         return () => {
           socket.off('message_notification');
           clearInterval(interval);
+          window.removeEventListener('profilePictureUpdated', handleProfileUpdate);
         };
       }
       
-      return () => clearInterval(interval);
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener('profilePictureUpdated', handleProfileUpdate);
+      };
     }
   }, [user, socket]);
 
@@ -228,7 +241,7 @@ export default function Navigation() {
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
                   className="flex items-center space-x-2 text-sm text-white/80 hover:bg-white/10 hover:text-white p-1"
                 >
-                  <ProfilePicture name={user.name} size="sm" userId={user.id} />
+                  <ProfilePicture name={user.name} size="sm" userId={user.id} key={`desktop-${profileUpdateKey}`} />
                   {/* <User className="h-4 w-4" />
                   <span>{user.name}</span>
                   <ChevronDown className={`h-3 w-3 transition-transform ${
@@ -236,50 +249,7 @@ export default function Navigation() {
                   }`} /> */}
                 </Button>
                 {userMenuOpen && (
-                  <div className="absolute top-full right-0 mt-1 bg-white border rounded-md shadow-lg py-1 min-w-[160px] z-50">
-                    <Link to="/messenger" onClick={() => setUserMenuOpen(false)}>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full justify-start space-x-2 py-6 rounded-none text-foreground hover:bg-muted"
-                      >
-                        <MessageSquare className="h-5 w-5" />
-                        <span>Messenger</span>
-                      </Button>
-                    </Link>
-                    <Link to="/my-profile" onClick={() => setUserMenuOpen(false)}>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full justify-start space-x-2 py-6 rounded-none text-foreground hover:bg-muted"
-                      >
-                        <IdCard className="h-5 w-5" />
-                        <span>Profile</span>
-                      </Button>
-                    </Link>
-                    <Link to="/settings" onClick={() => setUserMenuOpen(false)}>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full justify-start space-x-2 py-6 rounded-none text-foreground hover:bg-muted"
-                      >
-                        <Settings className="h-5 w-5" />
-                        <span>Settings</span>
-                      </Button>
-                    </Link>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        logout();
-                        setUserMenuOpen(false);
-                      }}
-                      className="w-full justify-start space-x-2 py-6 rounded-none text-foreground hover:bg-muted"
-                    >
-                      <LogOut className="h-5 w-5" />
-                      <span>Logout</span>
-                    </Button>
-                  </div>
+                  <NavigationSubMenu onClose={() => setUserMenuOpen(false)} />
                 )}
                 </div>
               </>
@@ -440,7 +410,7 @@ export default function Navigation() {
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
                   className="w-full justify-start space-x-2 text-white hover:bg-white/10 hover:text-white"
                 >
-                  <ProfilePicture name={user.name} size="sm" userId={user.id} />
+                  <ProfilePicture name={user.name} size="sm" userId={user.id} key={`mobile-${profileUpdateKey}`} />
                   <span>{user.name}</span>
                   <ChevronDown className={`h-3 w-3 ml-auto transition-transform ${
                     userMenuOpen ? 'rotate-180' : ''

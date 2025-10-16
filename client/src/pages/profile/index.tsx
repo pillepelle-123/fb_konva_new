@@ -42,18 +42,10 @@ export default function Profile() {
     if (targetUserId) {
       fetchUserProfile();
       fetchSharedBooks();
-    } else if (isMyProfile && currentUser) {
-      setUser(currentUser);
-      fetchSharedBooks();
     }
-  }, [targetUserId, isMyProfile, currentUser]);
+  }, [targetUserId]);
 
   const fetchUserProfile = async () => {
-    if (isMyProfile && currentUser) {
-      setUser(currentUser);
-      return;
-    }
-    
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const response = await fetch(`${apiUrl}/users/${targetUserId}`, {
@@ -120,19 +112,21 @@ export default function Profile() {
         <CardHeader>
           <div className="flex items-start space-x-4 sm:space-x-6">
             <div className="hidden sm:block">
-              <ProfilePicture name={user.name} size="lg" userId={user.id} editable={isOwnProfile} />
+              <ProfilePicture name={user.name} size="lg" userId={user.id} editable={isOwnProfile} variant='withColoredBorder' />
             </div>
             <div className="block sm:hidden">
               <ProfilePicture name={user.name} size="md" userId={user.id} editable={isOwnProfile} />
             </div>
-            <div className="flex-1 space-y-4">
+            <div className="flex-1 space-y-4 pl-5">
               <div>
                 <CardTitle className="text-2xl">{user.name}</CardTitle>
-                <p className="text-muted-foreground">{user.email}</p>
-                <p className="text-sm text-muted-foreground capitalize">
-                  {/* {user.role} •  */}
-                  Member since {new Date(user.created_at).toLocaleDateString()}
-                </p>
+                <CardContent className='flex flex-col gap-4 pt-5 pl-0'>
+                  <p className="text-muted-foreground">{user.email}</p>
+                  <p className="text-sm text-muted-foreground capitalize">
+                    {/* {user.role} •  */}
+                    Member since {new Date(user.created_at).toLocaleDateString()}
+                  </p>
+                </CardContent>
               </div>
               
               {!isOwnProfile && (

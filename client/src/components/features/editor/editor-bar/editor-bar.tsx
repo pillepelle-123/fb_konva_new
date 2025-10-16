@@ -16,13 +16,15 @@ import UndoRedoControls from './undo-redo-controls';
 import UnsavedChangesDialog from '../../../ui/overlays/unsaved-changes-dialog';
 import ConfirmationDialog from '../../../ui/overlays/confirmation-dialog';
 import AlertDialog from '../../../ui/overlays/alert-dialog';
-import { LayoutGrid, Settings, Palette, Divide, Book, CircleUser } from 'lucide-react';
+import { LayoutGrid, Settings, Palette, Divide, Book, CircleUser, BookOpen } from 'lucide-react';
+import PagePreview from '../../books/page-preview';
 import { Button } from '../../../ui/primitives/button';
 import { X } from 'lucide-react';
 import { Tooltip } from '../../../ui/composites/tooltip';
 import { EditorBarContainer } from './editor-bar-container';
 import PageAssignmentDialog from '../page-assignment-dialog';
 import ProfilePicture from '../../users/profile-picture';
+import { PagesSubmenu } from './page-explorer';
 
 export default function EditorBar() {
   const { state, dispatch, saveBook, refreshPageAssignments } = useEditor();
@@ -33,6 +35,7 @@ export default function EditorBar() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showAlert, setShowAlert] = useState<{ title: string; message: string } | null>(null);
   const [showPageAssignment, setShowPageAssignment] = useState(false);
+  const [showPagesSubmenu, setShowPagesSubmenu] = useState(false);
 
 
 
@@ -111,6 +114,10 @@ export default function EditorBar() {
     dispatch({ type: 'SET_ACTIVE_PAGE', payload: page - 1 });
   };
 
+  const handleReorderPages = (fromIndex: number, toIndex: number) => {
+    dispatch({ type: 'REORDER_PAGES', payload: { fromIndex, toIndex } });
+  };
+
   return (
     <>
       <FloatingActionButtons
@@ -122,6 +129,16 @@ export default function EditorBar() {
 
       {/* Editor Bar */}
       <EditorBarContainer isVisible={state.editorBarVisible}>
+        {showPagesSubmenu ? (
+          <PagesSubmenu 
+            pages={pages}
+            activePageIndex={state.activePageIndex}
+            onClose={() => setShowPagesSubmenu(false)}
+            onPageSelect={handleGoToPage}
+            onReorderPages={handleReorderPages}
+            bookId={state.currentBook.id}
+          />
+        ) : (
         <Accordion type="single" collapsible defaultValue="controls">
           <AccordionItem value="controls">
             <AccordionTrigger className="flex items-center space-x-2 py-2">
@@ -142,6 +159,7 @@ export default function EditorBar() {
                     onGoToPage={handleGoToPage}
                     canGoPrev={state.activePageIndex > 0}
                     canGoNext={state.activePageIndex < pages.length - 1}
+                    onOpenPagesSubmenu={() => setShowPagesSubmenu(true)}
                   />
 
                   <div className="hidden md:block h-6 w-px bg-border" />
@@ -206,7 +224,7 @@ export default function EditorBar() {
           
           <div className="w-px bg-gray-200 mx-1 self-stretch" />
           
-          <div className="flex items-center py-2">
+          <div className="flex items-center py-2 ">
             <Tooltip content="Close editor and return to books" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
               <Button
                 variant="ghost"
@@ -214,11 +232,12 @@ export default function EditorBar() {
                 onClick={handleClose}
                 className="h-8 w-8 p-0 md:h-9 md:w-9"
               >
-                <X className="h-4 w-4" />
+                <X className="h-6 w-6" />
               </Button>
             </Tooltip>
           </div>
         </Accordion>
+        )}
       </EditorBarContainer>
       
       <PDFExportModal 
@@ -275,12 +294,12 @@ function PageAssignmentButton({ currentPage, bookId, onOpenDialog }: { currentPa
       <Tooltip content="Change page assignment" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
         <Button
           variant="ghost"
-          size="sm"
+          size="md"
           onClick={onOpenDialog}
-          className="h-8 w-8 p-0 rounded-full"
+          className="h-full w-full p-0 pt-1.5 rounded-full"
           key={assignmentKey}
         >
-          <ProfilePicture name={assignedUser.name} size="sm" userId={assignedUser.id} />
+          <ProfilePicture name={assignedUser.name} size="sm" userId={assignedUser.id} variant='withColoredBorder' className='h-full w-full' />
         </Button>
       </Tooltip>
     );
@@ -299,3 +318,4 @@ function PageAssignmentButton({ currentPage, bookId, onOpenDialog }: { currentPa
     </Tooltip>
   );
 }
+

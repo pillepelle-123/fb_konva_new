@@ -37,7 +37,28 @@ function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; he
   );
 }
 
-function CanvasPageContainer({ children }: { children: React.ReactNode }) {
+function getConsistentColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const colors = [
+    '3b82f6', '8b5cf6', 'ef4444', '10b981', 'f59e0b', 'ec4899', '06b6d4', 'f97316',
+    'f87171', 'fb7185', 'f472b6', 'e879f9', 'c084fc', 'a78bfa', '8b5cf6', '7c3aed',
+    '6366f1', '4f46e5', '3b82f6', '2563eb', '0ea5e9', '0891b2', '0e7490', '0f766e',
+    '059669', '047857', '065f46', '166534', '15803d', '16a34a', '22c55e', '4ade80',
+    '65a30d', '84cc16', 'a3e635', 'bef264', 'eab308', 'f59e0b', 'f97316', 'ea580c',
+    'dc2626', 'b91c1c', '991b1b', '7f1d1d', '78716c', '57534e', '44403c', '292524'
+  ];
+  return colors[Math.abs(hash) % colors.length];
+}
+
+function CanvasPageContainer({ children, assignedUser }: { children: React.ReactNode; assignedUser?: { name: string } | null }) {
+  const borderStyle = assignedUser ? {
+    borderTop: `3px solid #${getConsistentColor(assignedUser.name)}`,
+    borderBottom: `3px solid #${getConsistentColor(assignedUser.name)}`
+  } : {};
+  
   return (
     <div style={{
       display: 'flex',
@@ -46,7 +67,8 @@ function CanvasPageContainer({ children }: { children: React.ReactNode }) {
       width: '100%',
       height: '100%',
       backgroundColor: 'hsl(var(--muted))',
-      padding: '2rem'
+      padding: '2rem',
+      ...borderStyle
     }}>
       {children}
     </div>
@@ -127,7 +149,7 @@ const createPatternTile = (pattern: any, color: string, size: number, strokeWidt
 
 
 export default function Canvas() {
-  const { state, dispatch, getAnswerText, trackQuestionAssignment, validateQuestionAssignment } = useEditor();
+  const { state, dispatch, getAnswerText, getQuestionAssignmentsForUser } = useEditor();
   const { token, user } = useAuth();
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
@@ -849,6 +871,17 @@ export default function Canvas() {
   const handleDuplicateItems = () => {
     if (!currentPage) return;
     
+    // Check if selection contains question or answer elements
+    const hasQuestionAnswer = state.selectedElementIds.some(elementId => {
+      const element = currentPage.elements.find(el => el.id === elementId);
+      return element && (element.textType === 'question' || element.textType === 'answer');
+    });
+    
+    if (hasQuestionAnswer) {
+      setContextMenu({ x: 0, y: 0, visible: false });
+      return; // Prevent duplication of question-answer pairs
+    }
+    
     state.selectedElementIds.forEach(elementId => {
       const element = currentPage.elements.find(el => el.id === elementId);
       if (element) {
@@ -874,9 +907,22 @@ export default function Canvas() {
   const handleCopyItems = () => {
     if (!currentPage) return;
     
-    const copiedElements = state.selectedElementIds.map(elementId => {
+    let elementsToInclude = new Set(state.selectedElementIds);
+    
+    // For question-answer pairs, always include both elements
+    state.selectedElementIds.forEach(elementId => {
       const element = currentPage.elements.find(el => el.id === elementId);
-      return element;
+      if (element?.textType === 'question') {
+        const answerElement = currentPage.elements.find(el => el.questionElementId === elementId);
+        if (answerElement) elementsToInclude.add(answerElement.id);
+      } else if (element?.textType === 'answer' && element.questionElementId) {
+        elementsToInclude.add(element.questionElementId);
+      }
+    });
+    
+    const copiedElements = Array.from(elementsToInclude).map(elementId => {
+      const element = currentPage.elements.find(el => el.id === elementId);
+      return element ? { ...element, pageId: currentPage.id } : null; // Track source page
     }).filter(Boolean) as CanvasElement[];
     
     setClipboard(copiedElements);
@@ -886,15 +932,72 @@ export default function Canvas() {
   const handlePasteItems = () => {
     if (clipboard.length === 0) return;
     
+    // Check if clipboard contains question or answer elements
+    const hasQuestionAnswer = clipboard.some(element => 
+      element.textType === 'question' || element.textType === 'answer'
+    );
+    
+    if (hasQuestionAnswer) {
+      // Check if pasting on same page where it was copied
+      const currentPageId = state.currentBook?.pages[state.activePageIndex]?.id;
+      if (clipboard.some(element => element.pageId === currentPageId)) {
+        setContextMenu({ x: 0, y: 0, visible: false });
+        return; // Prevent pasting on same page
+      }
+      
+      // Check "one question per user" rule
+      const currentPageNumber = state.activePageIndex + 1;
+      const assignedUser = state.pageAssignments[currentPageNumber];
+      
+      if (assignedUser) {
+        const questionElements = clipboard.filter(el => el.textType === 'question' && el.questionId);
+        const userQuestions = getQuestionAssignmentsForUser(assignedUser.id);
+        
+        const hasConflict = questionElements.some(el => userQuestions.has(el.questionId));
+        if (hasConflict) {
+          // Show conflict dialog
+          setAlertMessage('This user already has one of these questions assigned.');
+          const alertX = (lastMousePos.x - stagePos.x) / zoom + pageOffsetX;
+          const alertY = (lastMousePos.y - stagePos.y) / zoom + pageOffsetY;
+          setAlertPosition({ x: alertX, y: alertY });
+          
+          setTimeout(() => {
+            setAlertMessage(null);
+            setAlertPosition(null);
+          }, 3000);
+          
+          setContextMenu({ x: 0, y: 0, visible: false });
+          return;
+        }
+      }
+    }
+    
     const x = (lastMousePos.x - stagePos.x) / zoom - pageOffsetX;
     const y = (lastMousePos.y - stagePos.y) / zoom - pageOffsetY;
     
-    clipboard.forEach((element, index) => {
+    // Create ID mapping for question-answer pairs
+    const idMapping = new Map<string, string>();
+    clipboard.forEach(element => {
+      idMapping.set(element.id, uuidv4());
+    });
+    
+    // Calculate offset based on top-left element to maintain relative positions
+    const minX = Math.min(...clipboard.map(el => el.x));
+    const minY = Math.min(...clipboard.map(el => el.y));
+    
+    clipboard.forEach((element) => {
+      const newId = idMapping.get(element.id)!;
       const pastedElement = {
         ...element,
-        id: uuidv4(),
-        x: x + (index * 20),
-        y: y + (index * 20)
+        id: newId,
+        x: x + (element.x - minX),
+        y: y + (element.y - minY),
+        pageId: state.currentBook?.pages[state.activePageIndex]?.id, // Track source page
+        // Clear answer text when pasting question-answer pairs
+        text: element.textType === 'answer' ? '' : element.text,
+        formattedText: element.textType === 'answer' ? '' : element.formattedText,
+        // Update questionElementId reference for answer elements
+        questionElementId: element.questionElementId ? idMapping.get(element.questionElementId) : element.questionElementId
       };
       dispatch({ type: 'ADD_ELEMENT', payload: pastedElement });
     });
@@ -989,8 +1092,8 @@ export default function Canvas() {
       // Clear selection for all tools when clicking background
       dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [] });
       
-      // Switch to select tool if not already selected (for background settings)
-      if (state.activeTool !== 'select') {
+      // Don't switch away from pan tool
+      if (state.activeTool !== 'select' && state.activeTool !== 'pan') {
         dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
       }
     }
@@ -1318,7 +1421,7 @@ export default function Canvas() {
 
   return (
     <>
-      <CanvasPageContainer>
+      <CanvasPageContainer assignedUser={state.pageAssignments[state.activePageIndex + 1] || null}>
         <CanvasContainer ref={containerRef} pageId={currentPage?.id} activeTool={state.activeTool}>
         <CanvasStage
           ref={stageRef}
@@ -1411,20 +1514,97 @@ export default function Canvas() {
                       
                       setLastClickTime(currentTime);
                     } else {
-                      // Regular element selection
-                      dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] });
+                      // For question-answer pairs, select both elements
+                      if (element.textType === 'question' || element.textType === 'answer') {
+                        let linkedElement: CanvasElement | undefined;
+                        if (element.textType === 'question') {
+                          linkedElement = currentPage?.elements.find(el => el.questionElementId === element.id);
+                        } else if (element.questionElementId) {
+                          linkedElement = currentPage?.elements.find(el => el.id === element.questionElementId);
+                        }
+                        
+                        if (linkedElement) {
+                          dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id, linkedElement.id] });
+                        } else {
+                          dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] });
+                        }
+                      } else {
+                        // Regular element selection
+                        dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] });
+                      }
                     }
                   }}
                   isMovingGroup={isMovingGroup}
 
                   onDragStart={() => {
                     dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Move Element' });
-                    if (!state.selectedElementIds.includes(element.id)) {
+                    
+                    // For question-answer pairs, check if elements are already selected
+                    if (element.textType === 'question' || element.textType === 'answer') {
+                      let linkedElement: CanvasElement | undefined;
+                      if (element.textType === 'question') {
+                        linkedElement = currentPage?.elements.find(el => el.questionElementId === element.id);
+                      } else if (element.questionElementId) {
+                        linkedElement = currentPage?.elements.find(el => el.id === element.questionElementId);
+                      }
+                      
+                      if (linkedElement) {
+                        // Only auto-select both if neither is currently selected
+                        const elementSelected = state.selectedElementIds.includes(element.id);
+                        const linkedSelected = state.selectedElementIds.includes(linkedElement.id);
+                        
+                        if (!elementSelected && !linkedSelected) {
+                          // Neither selected - select both
+                          dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id, linkedElement.id] });
+                          setTimeout(() => {
+                            if (transformerRef.current) {
+                              transformerRef.current.forceUpdate();
+                              transformerRef.current.getLayer()?.batchDraw();
+                            }
+                          }, 0);
+                        } else if (elementSelected && !linkedSelected) {
+                          // Only this element selected - keep single selection
+                          dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] });
+                        } else if (!elementSelected && linkedSelected) {
+                          // Only linked element selected - keep single selection
+                          dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [linkedElement.id] });
+                        }
+                        // If both already selected, keep current selection
+                      } else {
+                        dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] });
+                      }
+                    } else if (!state.selectedElementIds.includes(element.id)) {
                       dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [element.id] });
                     }
                     setIsDragging(true);
                   }}
-                  onDragEnd={() => {
+                  onDragEnd={(e) => {
+                    // Update position of linked element only if both elements are selected
+                    if (element.textType === 'question' || element.textType === 'answer') {
+                      let linkedElement: CanvasElement | undefined;
+                      if (element.textType === 'question') {
+                        linkedElement = currentPage?.elements.find(el => el.questionElementId === element.id);
+                      } else if (element.questionElementId) {
+                        linkedElement = currentPage?.elements.find(el => el.id === element.questionElementId);
+                      }
+                      
+                      // Only move linked element if both are currently selected
+                      if (linkedElement && state.selectedElementIds.includes(linkedElement.id)) {
+                        const deltaX = e.target.x() - element.x;
+                        const deltaY = e.target.y() - element.y;
+                        
+                        dispatch({
+                          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                          payload: {
+                            id: linkedElement.id,
+                            updates: {
+                              x: linkedElement.x + deltaX,
+                              y: linkedElement.y + deltaY
+                            }
+                          }
+                        });
+                      }
+                    }
                     setTimeout(() => setIsDragging(false), 10);
                   }}
                   isWithinSelection={selectionRect.visible && getElementsInSelection().includes(element.id)}
@@ -1560,10 +1740,37 @@ export default function Canvas() {
           x={contextMenu.x}
           y={contextMenu.y}
           visible={contextMenu.visible}
-          onDuplicate={handleDuplicateItems}
+          onDuplicate={(() => {
+            if (!currentPage) return undefined;
+            const hasQuestionAnswer = state.selectedElementIds.some(elementId => {
+              const element = currentPage.elements.find(el => el.id === elementId);
+              return element && (element.textType === 'question' || element.textType === 'answer');
+            });
+            return hasQuestionAnswer ? undefined : handleDuplicateItems;
+          })()} 
           onDelete={handleDeleteItems}
           onCopy={handleCopyItems}
-          onPaste={handlePasteItems}
+          onPaste={(() => {
+            if (clipboard.length === 0) return undefined;
+            const hasQuestionAnswer = clipboard.some(element => 
+              element.textType === 'question' || element.textType === 'answer'
+            );
+            if (hasQuestionAnswer) {
+              const currentPageId = state.currentBook?.pages[state.activePageIndex]?.id;
+              if (clipboard.some(element => element.pageId === currentPageId)) {
+                return undefined; // Hide paste option for same page
+              }
+              const currentPageNumber = state.activePageIndex + 1;
+              const assignedUser = state.pageAssignments[currentPageNumber];
+              if (assignedUser) {
+                const questionElements = clipboard.filter(el => el.textType === 'question' && el.questionId);
+                const userQuestions = getQuestionAssignmentsForUser(assignedUser.id);
+                const hasConflict = questionElements.some(el => userQuestions.has(el.questionId));
+                if (hasConflict) return undefined; // Hide paste option for conflicts
+              }
+            }
+            return handlePasteItems;
+          })()}
           onMoveToFront={handleMoveToFront}
           onMoveToBack={handleMoveToBack}
           onMoveUp={handleMoveUp}
@@ -1571,7 +1778,7 @@ export default function Canvas() {
           hasSelection={state.selectedElementIds.length > 0}
           hasClipboard={clipboard.length > 0}
         />
-      </CanvasContainer>
+        </CanvasContainer>
       
       <Modal
         isOpen={showImageModal}
@@ -1642,10 +1849,7 @@ export default function Canvas() {
                     }
                   });
                   
-                  // Track question assignment if not resetting
-                  if (questionId !== 0) {
-                    trackQuestionAssignment(questionId, state.activePageIndex + 1);
-                  }
+
                   
                   const currentPage = state.currentBook?.pages[state.activePageIndex];
                   if (currentPage) {
