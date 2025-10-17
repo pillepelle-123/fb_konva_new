@@ -85,7 +85,7 @@ function BookCardPreview({ book, isArchived, isEditing, editName, setEditName, h
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
       <div className="absolute bottom-0 left-0 right-0 p-4">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-start items-center gap-2">
           {isEditing ? (
             <input
               value={editName}
@@ -99,11 +99,12 @@ function BookCardPreview({ book, isArchived, isEditing, editName, setEditName, h
               autoFocus
             />
           ) : (
-            <h3 className="text-white font-semibold text-lg line-clamp-2 mb-1 flex-1">
+            <h3 className="text-white font-semibold text-lg line-clamp-2 mb-1 ">
               {book.name}
             </h3>
           )}
           {!isArchived && (
+            <Tooltip content="Edit Book name" side="bottom">
             <Button
               variant="ghost"
               size="xs"
@@ -112,6 +113,7 @@ function BookCardPreview({ book, isArchived, isEditing, editName, setEditName, h
             >
               <Pen className="h-3 w-3" />
             </Button>
+            </Tooltip>
           )}
         </div>
       </div>
@@ -214,11 +216,13 @@ export default function BookCard({ book, isArchived = false, onRestore, onDelete
           ) : (
             <>
               <div className="flex-1">
+                <Tooltip content="Edit Book" side="bottom">
                 <Link to={`/editor/${book.id}`} className="block">
                   <Button variant="default" size="sm" className="w-full space-x-2 bg-primary hover:bg-primary/90">
                     <Edit className="h-4 w-4" />
                   </Button>
                 </Link>
+                </Tooltip>
               </div>
               <Tooltip content="Page User Manager" side="bottom">
                 <Button 

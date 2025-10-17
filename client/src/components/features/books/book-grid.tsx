@@ -21,7 +21,7 @@ interface BooksGridProps {
   hideActions?: boolean;
 }
 
-export default function BooksGrid({ books, itemsPerPage = 10, onArchive, onPageUserManager, hideActions = false }: BooksGridProps) {
+export default function BooksGrid({ books, itemsPerPage = 12, onArchive, onPageUserManager, hideActions = false }: BooksGridProps) {
   const sortedBooks = [...books].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
   
   return (

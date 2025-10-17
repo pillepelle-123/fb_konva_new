@@ -7,6 +7,7 @@ import { Archive, ChevronLeft, ChevronRight, Book } from 'lucide-react';
 import BookCard from '../../components/features/books/book-card';
 import { useNavigate, useLocation } from 'react-router-dom';
 import '../../styles/page-transitions.css';
+import Grid from '../../components/shared/grid';
 
 interface ArchivedBook {
   id: number;
@@ -23,8 +24,7 @@ export default function BookArchive() {
   const location = useLocation();
   const [books, setBooks] = useState<ArchivedBook[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const itemsPerPage = 12;
   const [showRestoreConfirm, setShowRestoreConfirm] = useState<number | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -153,31 +153,6 @@ export default function BookArchive() {
           </div>
         </div>
 
-        {/* Pagination */}
-        {books.length > itemsPerPage && (
-          <div className="flex justify-center items-center space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-              disabled={currentPage === 1}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              Page {currentPage} of {Math.ceil(books.length / itemsPerPage)}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(books.length / itemsPerPage)))}
-              disabled={currentPage === Math.ceil(books.length / itemsPerPage)}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
-
         {/* Archived Books */}
         {books.length === 0 ? (
           <Card className="border shadow-sm">
@@ -190,29 +165,28 @@ export default function BookArchive() {
             </CardContent>
           </Card>
         ) : (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {books.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(book => {
-                const adaptedBook = {
-                  ...book,
-                  created_at: book.createdAt,
-                  updated_at: book.createdAt,
-                  pageCount: 0,
-                  collaboratorCount: 0
-                };
-                return (
-                  <BookCard 
-                    key={book.id} 
-                    book={adaptedBook} 
-                    isArchived={true}
-                    onRestore={handleRestore}
-                    onDelete={handleDelete}
-                  />
-                );
-              })}
-            </div>
-
-          </>
+          <Grid
+            items={books}
+            itemsPerPage={itemsPerPage}
+            keyExtractor={(book) => book.id.toString()}
+            renderItem={(book) => {
+              const adaptedBook = {
+                ...book,
+                created_at: book.createdAt,
+                updated_at: book.createdAt,
+                pageCount: 0,
+                collaboratorCount: 0
+              };
+              return (
+                <BookCard 
+                  book={adaptedBook} 
+                  isArchived={true}
+                  onRestore={handleRestore}
+                  onDelete={handleDelete}
+                />
+              );
+            }}
+          />
         )}
         
         {/* Restore Confirmation Dialog */}

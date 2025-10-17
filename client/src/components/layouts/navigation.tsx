@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../ui/primitives/button';
 import { Book, BookOpen, Home, Archive, LogOut, User, Menu, Image, IdCard, Settings, ChevronDown, Bell, MessageSquare, Users } from 'lucide-react';
@@ -8,11 +8,13 @@ import { Popover, PopoverTrigger, PopoverContent } from '../ui/overlays/popover'
 import NotificationPopover from '../features/messenger/notification-popover';
 import { useSocket } from '../../context/socket-context';
 import NavigationSubMenu from './navigation-sub-menu';
+import UnsavedChangesDialog from '../ui/overlays/unsaved-changes-dialog';
 
 export default function Navigation() {
   const { user, logout } = useAuth();
   const { socket } = useSocket();
   const location = useLocation();
+  const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [booksMenuOpen, setBooksMenuOpen] = useState(false);
@@ -20,8 +22,50 @@ export default function Navigation() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [profileUpdateKey, setProfileUpdateKey] = useState(0);
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
+  
+  const isInEditor = location.pathname.startsWith('/editor/');
 
   const isActive = (path: string) => location.pathname === path;
+  
+  const handleNavigation = (path: string, event?: React.MouseEvent) => {
+    if (event) {
+      event.preventDefault();
+    }
+    
+    if (isInEditor) {
+      setPendingNavigation(path);
+      setShowUnsavedDialog(true);
+      return;
+    }
+    
+    navigate(path);
+    setIsMobileMenuOpen(false);
+  };
+  
+  const handleSaveAndNavigate = async () => {
+    if (pendingNavigation) {
+      window.dispatchEvent(new CustomEvent('saveBookFromNavigation', {
+        detail: { callback: () => navigate(pendingNavigation) }
+      }));
+    }
+    setShowUnsavedDialog(false);
+    setPendingNavigation(null);
+  };
+  
+  const handleNavigateWithoutSaving = () => {
+    if (pendingNavigation) {
+      navigate(pendingNavigation);
+    }
+    setShowUnsavedDialog(false);
+    setPendingNavigation(null);
+  };
+  
+  const handleCancelNavigation = () => {
+    setShowUnsavedDialog(false);
+    setPendingNavigation(null);
+  };
 
   useEffect(() => {
     if (user) {
@@ -101,65 +145,61 @@ export default function Navigation() {
           <div className="hidden md:flex items-center space-x-4 flex-1 justify-center">
             {user ? (
               <>
-                <Link to="/dashboard">
-                  <Button
-                    variant={isActive('/dashboard') ? "secondary" : "ghost"}
-                    size="sm"
-                    className={`flex items-center space-x-2 ${
-                      isActive('/dashboard') 
-                        ? 'bg-white text-primary hover:bg-white/90 hover:text-primary' 
-                        : 'text-white hover:bg-white/10 hover:text-white'
-                    }`}
-                  >
-                    <Home className="h-4 w-4" />
-                    <span>Dashboard</span>
-                  </Button>
-                </Link>
+                <Button
+                  variant={isActive('/dashboard') ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={(e) => handleNavigation('/dashboard', e)}
+                  className={`flex items-center space-x-2 ${
+                    isActive('/dashboard') 
+                      ? 'bg-white text-primary hover:bg-white/90 hover:text-primary' 
+                      : 'text-white hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <Home className="h-4 w-4" />
+                  <span>Dashboard</span>
+                </Button>
                 
-                <Link to="/books">
-                  <Button
-                    variant={isActive('/books') ? "secondary" : "ghost"}
-                    size="sm"
-                    className={`flex items-center space-x-2 ${
-                      isActive('/books') 
-                        ? 'bg-white text-primary hover:bg-white/90 hover:text-primary' 
-                        : 'text-white hover:bg-white/10 hover:text-white'
-                    }`}
-                  >
-                    <Book className="h-5 w-5" />
-                    <span>Books</span>
-                  </Button>
-                </Link>
+                <Button
+                  variant={isActive('/books') ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={(e) => handleNavigation('/books', e)}
+                  className={`flex items-center space-x-2 ${
+                    isActive('/books') 
+                      ? 'bg-white text-primary hover:bg-white/90 hover:text-primary' 
+                      : 'text-white hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <Book className="h-5 w-5" />
+                  <span>Books</span>
+                </Button>
                 
-                <Link to="/images">
-                  <Button
-                    variant={isActive('/images') ? "secondary" : "ghost"}
-                    size="sm"
-                    className={`flex items-center space-x-2 ${
-                      isActive('/images') 
-                        ? 'bg-white text-primary hover:bg-white/90 hover:text-primary' 
-                        : 'text-white hover:bg-white/10 hover:text-white'
-                    }`}
-                  >
-                    <Image className="h-5 w-5" />
-                    <span>Images</span>
-                  </Button>
-                </Link>
+                <Button
+                  variant={isActive('/images') ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={(e) => handleNavigation('/images', e)}
+                  className={`flex items-center space-x-2 ${
+                    isActive('/images') 
+                      ? 'bg-white text-primary hover:bg-white/90 hover:text-primary' 
+                      : 'text-white hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <Image className="h-5 w-5" />
+                  <span>Images</span>
+                </Button>
                 
-                <Link to="/friends">
-                  <Button
-                    variant={isActive('/friends') ? "secondary" : "ghost"}
-                    size="sm"
-                    className={`flex items-center space-x-2 ${
-                      isActive('/friends') 
-                        ? 'bg-white text-primary hover:bg-white/90 hover:text-primary' 
-                        : 'text-white hover:bg-white/10 hover:text-white'
-                    }`}
-                  >
-                    <Users className="h-5 w-5" />
-                    <span>Friends</span>
-                  </Button>
-                </Link>
+                <Button
+                  variant={isActive('/friends') ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={(e) => handleNavigation('/friends', e)}
+                  className={`flex items-center space-x-2 ${
+                    isActive('/friends') 
+                      ? 'bg-white text-primary hover:bg-white/90 hover:text-primary' 
+                      : 'text-white hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <Users className="h-5 w-5" />
+                  <span>Friends</span>
+                </Button>
               </>
             ) : (
               <>
@@ -478,6 +518,14 @@ export default function Navigation() {
           </div>
         )}
       </div>
+      
+      <UnsavedChangesDialog
+        open={showUnsavedDialog}
+        onOpenChange={setShowUnsavedDialog}
+        onSaveAndExit={handleSaveAndNavigate}
+        onExitWithoutSaving={handleNavigateWithoutSaving}
+        onCancel={handleCancelNavigation}
+      />
     </nav>
   );
 }

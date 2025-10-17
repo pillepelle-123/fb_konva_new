@@ -1,16 +1,18 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useEditor, createSampleBook } from '../../context/editor-context';
 import EditorBar from '../../components/features/editor/editor-bar';
 import Toolbar from '../../components/features/editor/toolbar';
 import Canvas from '../../components/features/editor/canvas';
 import ToolSettingsPanel, { type ToolSettingsPanelRef } from '../../components/features/editor/tool-settings/tool-settings-panel';
+import { Toast } from '../../components/ui/overlays/toast';
 
 
 function EditorContent() {
   const { bookId } = useParams<{ bookId: string }>();
-  const { state, dispatch, loadBook, undo, redo } = useEditor();
+  const { state, dispatch, loadBook, undo, redo, saveBook } = useEditor();
   const toolSettingsPanelRef = useRef<ToolSettingsPanelRef>(null);
+  const [showSaveToast, setShowSaveToast] = useState(false);
 
   useEffect(() => {
     if (bookId && !isNaN(Number(bookId))) {
@@ -33,12 +35,17 @@ function EditorContent() {
       } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
         e.preventDefault();
         redo();
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        saveBook().then(() => {
+          setShowSaveToast(true);
+        }).catch(console.error);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo]);
+  }, [undo, redo, saveBook]);
 
   if (!state.currentBook) {
     return (
@@ -54,7 +61,13 @@ function EditorContent() {
   return (
     <div className="h-full flex flex-col">
       <EditorBar toolSettingsPanelRef={toolSettingsPanelRef} />
+      
       <div className="flex-1 min-h-0">
+        <Toast 
+        message="Book saved successfully" 
+        isVisible={showSaveToast} 
+        onClose={() => setShowSaveToast(false)} 
+      />
         <div className="h-full flex flex-col bg-background">
           <div className="flex-1 flex min-h-0">
             <Toolbar />
@@ -82,6 +95,7 @@ function EditorContent() {
           </div>
         </div>
       </div>
+      
     </div>
   );
 }

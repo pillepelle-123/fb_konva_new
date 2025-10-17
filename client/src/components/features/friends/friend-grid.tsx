@@ -17,7 +17,7 @@ interface FriendGridProps {
 
 export default function FriendGrid({ 
   friends, 
-  itemsPerPage = 10, 
+  itemsPerPage = 12, 
   onRoleChange, 
   onRemove 
 }: FriendGridProps) {

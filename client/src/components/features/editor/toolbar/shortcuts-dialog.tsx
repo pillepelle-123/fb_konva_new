@@ -16,7 +16,7 @@ export function ShortcutsDialog({ isOpen, onClose }: ShortcutsDialogProps) {
     { key: 'Ctrl + Z', description: 'Undo last action' },
     { key: 'Ctrl + Y', description: 'Redo last action' },
     { key: 'Ctrl + S', description: 'Save book' },
-    { key: 'Ctrl + W', description: 'Close book' },
+    // { key: 'Ctrl + W', description: 'Close book' },
     { key: 'Ctrl + P', description: 'Export to PDF' },
     { key: 'Ctrl + Click', description: 'Multi-select elements' },
   ];

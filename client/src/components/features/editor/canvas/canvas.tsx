@@ -1349,9 +1349,9 @@ export default function Canvas() {
         } else if (e.key === 's') {
           e.preventDefault();
           window.dispatchEvent(new CustomEvent('saveBook'));
-        } else if (e.key === 'w') {
-          e.preventDefault();
-          window.dispatchEvent(new CustomEvent('closeBook'));
+        // } else if (e.key === 'w') {
+        //   e.preventDefault();
+        //   window.dispatchEvent(new CustomEvent('closeBook'));
         } else if (e.key === 'p') {
           e.preventDefault();
           window.dispatchEvent(new CustomEvent('showPDFExport'));

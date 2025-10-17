@@ -4,6 +4,7 @@ import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import PDFExportModal from '../pdf-export-modal';
 import StackedAvatarGroup from '../../../shared/cards/stacked-avatar-group';
+import { Toast } from '../../../ui/overlays/toast';
 
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '../../../ui/composites/accordion-horizontal';
 
@@ -40,6 +41,7 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
   const [showAlert, setShowAlert] = useState<{ title: string; message: string } | null>(null);
   const [showPageAssignment, setShowPageAssignment] = useState(false);
   const [showPagesSubmenu, setShowPagesSubmenu] = useState(false);
+  const [showSaveToast, setShowSaveToast] = useState(false);
 
 
 
@@ -53,6 +55,7 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
     setIsSaving(true);
     try {
       await saveBook();
+      setShowSaveToast(true);
     } catch (error) {
       setShowAlert({ title: 'Save Failed', message: 'Failed to save book. Please try again.' });
     } finally {
@@ -281,6 +284,11 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
         onOpenChange={setShowPageAssignment}
         currentPage={currentPage}
         bookId={state.currentBook.id}
+      />
+      <Toast 
+        message="Book saved successfully" 
+        isVisible={showSaveToast} 
+        onClose={() => setShowSaveToast(false)} 
       />
     </>
   );

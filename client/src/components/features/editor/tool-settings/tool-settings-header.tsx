@@ -1,6 +1,6 @@
 import { useEditor } from '../../../../context/editor-context';
 import { Button } from '../../../ui/primitives/button';
-import { ChevronRight, ChevronLeft, MousePointer, Hand, MessageCircleMore, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, Settings, PaintBucket, Palette } from 'lucide-react';
+import { ChevronRight, ChevronLeft, MousePointer, Hand, MessageCircleMore, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, Settings, PaintBucket, Palette, MessageCircleQuestionMark } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '../../../ui/composites/tabs';
 
 const TOOL_ICONS = {
@@ -66,22 +66,10 @@ export function ToolSettingsHeader({
               
               if (questionElement && answerElement) {
                 return (
-                  <Tabs 
-                    value={activeLinkedElement || questionElement.id} 
-                    onValueChange={setActiveLinkedElement}
-                    className="flex-1 h-7"
-                  >
-                    <TabsList variant="bootstrap" className="grid w-full grid-cols-2">
-                      <TabsTrigger variant="bootstrap" value={questionElement.id} className="text-sm h-7">
-                        <MessageCircleQuestion className="h-4 w-4 mr-1" />
-                        Question
-                      </TabsTrigger>
-                      <TabsTrigger variant="bootstrap" value={answerElement.id} className="text-sm h-7">
-                        <MessageCircleHeart className="h-4 w-4 mr-1" />
-                        Answer
-                      </TabsTrigger>
-                    </TabsList>
-                  </Tabs>
+                  <>
+                    <MessageCircleQuestionMark className="h-4 w-4" />
+                    Question & Answer
+                  </>
                 );
               }
             }

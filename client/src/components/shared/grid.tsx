@@ -11,7 +11,7 @@ interface GridProps<T> {
 
 export default function Grid<T>({ 
   items, 
-  itemsPerPage = 10, 
+  itemsPerPage = 12, 
   renderItem, 
   keyExtractor 
 }: GridProps<T>) {
@@ -56,6 +56,30 @@ export default function Grid<T>({
           </div>
         ))}
       </div>
+            {/* Pagination */}
+      {items.length > itemsPerPage && (
+        <div className="flex justify-center items-center space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            Page {currentPage} of {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+            disabled={currentPage === totalPages}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
