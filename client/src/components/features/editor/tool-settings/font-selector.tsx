@@ -3,6 +3,7 @@ import { ChevronLeft, Type } from 'lucide-react';
 import { Label } from '../../../ui/primitives/label';
 import { Separator } from '../../../ui/primitives/separator';
 import { FONT_GROUPS, getFontFamily } from '../../../../utils/font-families';
+import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 
 interface FontSelectorProps {
   currentFont: string;
@@ -10,15 +11,34 @@ interface FontSelectorProps {
   isItalic: boolean;
   onFontSelect: (fontName: string) => void;
   onBack: () => void;
+  element?: any;
+  state?: any;
 }
 
-export function FontSelector({ currentFont, isBold, isItalic, onFontSelect, onBack }: FontSelectorProps) {
+export function FontSelector({ currentFont, isBold, isItalic, onFontSelect, onBack, element, state }: FontSelectorProps) {
   const getCurrentFontName = () => {
+    let fontFamily = currentFont;
+    
+    // If no fontFamily provided, try to get from theme defaults
+    if (!fontFamily && element && state) {
+      const currentPage = state.currentBook?.pages[state.activePageIndex];
+      const pageTheme = currentPage?.background?.pageTheme;
+      const bookTheme = state.currentBook?.bookTheme;
+      const activeTheme = pageTheme || bookTheme;
+      
+      if (activeTheme) {
+        const themeDefaults = getGlobalThemeDefaults(activeTheme, element.textType || element.type || 'text');
+        fontFamily = themeDefaults?.font?.fontFamily || themeDefaults?.fontFamily;
+      }
+    }
+    
+    if (!fontFamily) return "Arial";
+    
     for (const group of FONT_GROUPS) {
       const font = group.fonts.find(f => 
-        f.family === currentFont || 
-        f.bold === currentFont || 
-        f.italic === currentFont
+        f.family === fontFamily || 
+        f.bold === fontFamily || 
+        f.italic === fontFamily
       );
       if (font) return font.name;
     }
@@ -61,6 +81,7 @@ export function FontSelector({ currentFont, isBold, isItalic, onFontSelect, onBa
                 >
                   <Type className="h-4 w-4 mr-2 flex-shrink-0" />
                   <span className="truncate">{font.name}</span>
+                  <span className="ml-2 text-xs" style={{ fontFamily: 'Arial, sans-serif' }}>({font.name})</span>
                 </Button>
               );
             })}

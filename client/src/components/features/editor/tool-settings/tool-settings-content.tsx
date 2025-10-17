@@ -16,10 +16,34 @@ import { GeneralSettings } from './general-settings';
 import { commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth } from '../../../../utils/stroke-width-converter';
 import { actualToCommon, commonToActual, COMMON_FONT_SIZE_RANGE } from '../../../../utils/font-size-converter';
 import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE } from '../../../../utils/corner-radius-converter';
-import { getFontFamily, FONT_GROUPS } from '../../../../utils/font-families';
+import { getFontFamily, FONT_GROUPS, hasBoldVariant, hasItalicVariant } from '../../../../utils/font-families';
 import { FontSelector } from './font-selector';
+import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 
-const getCurrentFontName = (fontFamily: string) => {
+const getEffectiveFontFamily = (element: any, state: any) => {
+  // First check element's explicit font
+  let fontFamily = element.font?.fontFamily || element.fontFamily;
+  
+  // If no explicit font, get from theme defaults (page theme, book theme, or element theme)
+  if (!fontFamily) {
+    const currentPage = state.currentBook?.pages[state.activePageIndex];
+    const pageTheme = currentPage?.background?.pageTheme;
+    const bookTheme = state.currentBook?.bookTheme;
+    const elementTheme = element.theme;
+    const activeTheme = pageTheme || bookTheme || elementTheme;
+    
+    if (activeTheme) {
+      const themeDefaults = getGlobalThemeDefaults(activeTheme, element.textType || 'text');
+      fontFamily = themeDefaults?.font?.fontFamily || themeDefaults?.fontFamily;
+    }
+  }
+  
+  return fontFamily || 'Arial, sans-serif';
+};
+
+const getCurrentFontName = (element: any, state: any) => {
+  const fontFamily = getEffectiveFontFamily(element, state);
+  
   for (const group of FONT_GROUPS) {
     const font = group.fonts.find(f => 
       f.family === fontFamily || 
@@ -28,7 +52,30 @@ const getCurrentFontName = (fontFamily: string) => {
     );
     if (font) return font.name;
   }
+  
   return "Arial";
+};
+
+const isFontBold = (element: any, state: any) => {
+  const fontFamily = getEffectiveFontFamily(element, state);
+  
+  for (const group of FONT_GROUPS) {
+    const font = group.fonts.find(f => f.bold === fontFamily);
+    if (font) return true;
+  }
+  
+  return false;
+};
+
+const isFontItalic = (element: any, state: any) => {
+  const fontFamily = getEffectiveFontFamily(element, state);
+  
+  for (const group of FONT_GROUPS) {
+    const font = group.fonts.find(f => f.italic === fontFamily);
+    if (font) return true;
+  }
+  
+  return false;
 };
 
 const TOOL_ICONS = {
@@ -151,8 +198,9 @@ export function ToolSettingsContent({
       switch (colorType) {
         case 'line-stroke':
         case 'brush-stroke':
-        case 'shape-stroke':
           return settings.strokeOpacity || 1;
+        case 'shape-stroke':
+          return settings.opacity || 1;
         case 'shape-fill':
           return settings.fillOpacity || 1;
         case 'text-color':
@@ -176,8 +224,10 @@ export function ToolSettingsContent({
       switch (colorType) {
         case 'line-stroke':
         case 'brush-stroke':
-        case 'shape-stroke':
           updateToolSetting('strokeOpacity', opacity);
+          break;
+        case 'shape-stroke':
+          updateToolSetting('opacity', opacity);
           break;
         case 'shape-fill':
           updateToolSetting('fillOpacity', opacity);
@@ -390,14 +440,20 @@ export function ToolSettingsContent({
     if (showFontSelector) {
       return (
         <FontSelector
-          currentFont={element.fontFamily || 'Arial, sans-serif'}
-          isBold={element.fontWeight === 'bold'}
-          isItalic={element.fontStyle === 'italic'}
+          currentFont={element.font?.fontFamily || element.fontFamily || ''}
+          isBold={element.font?.fontBold || element.fontWeight === 'bold'}
+          isItalic={element.font?.fontItalic || element.fontStyle === 'italic'}
           onFontSelect={(fontName) => {
-            const fontFamily = getFontFamily(fontName, element.fontWeight === 'bold', element.fontStyle === 'italic');
-            updateBothElements('fontFamily', fontFamily);
+            const fontFamily = getFontFamily(fontName, false, false);
+            if (element.font) {
+              updateBothElements('font', { ...element.font, fontFamily });
+            } else {
+              updateBothElements('fontFamily', fontFamily);
+            }
           }}
           onBack={() => setShowFontSelector(false)}
+          element={element}
+          state={state}
         />
       );
     }
@@ -438,9 +494,8 @@ export function ToolSettingsContent({
           case 'element-text-color':
             if (element.font) {
               updateBothElements('font', { ...element.font, fontOpacity: opacity });
-            } else {
-              updateBothElements('fillOpacity', opacity);
             }
+            updateBothElements('fillOpacity', opacity);
             break;
           case 'element-text-border':
             updateBothElements('border', {
@@ -514,13 +569,14 @@ export function ToolSettingsContent({
         <div>
           <div className="flex gap-2">
             <Button
-              variant={(element.font?.fontBold || element.fontWeight === 'bold') ? 'default' : 'outline'}
+              variant={isFontBold(element, state) ? 'default' : 'outline'}
               size="xs"
+              disabled={!hasBoldVariant(getCurrentFontName(element, state))}
               onClick={() => {
-                const currentBold = element.font?.fontBold || element.fontWeight === 'bold';
+                const currentBold = isFontBold(element, state);
                 const newBold = !currentBold;
-                const currentItalic = element.font?.fontItalic || element.fontStyle === 'italic';
-                const fontName = getCurrentFontName(element.font?.fontFamily || element.fontFamily);
+                const currentItalic = isFontItalic(element, state);
+                const fontName = getCurrentFontName(element, state);
                 const newFontFamily = getFontFamily(fontName, newBold, currentItalic);
                 
                 if (element.font) {
@@ -535,13 +591,14 @@ export function ToolSettingsContent({
               <strong>B</strong>
             </Button>
             <Button
-              variant={(element.font?.fontItalic || element.fontStyle === 'italic') ? 'default' : 'outline'}
+              variant={isFontItalic(element, state) ? 'default' : 'outline'}
               size="xs"
+              disabled={!hasItalicVariant(getCurrentFontName(element, state))}
               onClick={() => {
-                const currentItalic = element.font?.fontItalic || element.fontStyle === 'italic';
+                const currentItalic = isFontItalic(element, state);
                 const newItalic = !currentItalic;
-                const currentBold = element.font?.fontBold || element.fontWeight === 'bold';
-                const fontName = getCurrentFontName(element.font?.fontFamily || element.fontFamily);
+                const currentBold = isFontBold(element, state);
+                const fontName = getCurrentFontName(element, state);
                 const newFontFamily = getFontFamily(fontName, currentBold, newItalic);
                 
                 if (element.font) {
@@ -560,15 +617,30 @@ export function ToolSettingsContent({
               size="xs"
               onClick={() => setShowFontSelector(true)}
               className="flex-1 justify-start"
+              style={{ fontFamily: getEffectiveFontFamily(element, state) }}
             >
               <Type className="h-4 w-4 mr-2" />
-              Font
+              <span className="truncate">{getCurrentFontName(element, state)}</span>
             </Button>
           </div>
         </div>
         <Slider
           label="Size"
-          value={actualToCommon(element.font?.fontSize || element.fontSize || 58)}
+          value={actualToCommon((() => {
+            let fontSize = element.font?.fontSize || element.fontSize;
+            if (!fontSize) {
+              const currentPage = state.currentBook?.pages[state.activePageIndex];
+              const pageTheme = currentPage?.background?.pageTheme;
+              const bookTheme = state.currentBook?.bookTheme;
+              const elementTheme = element.theme;
+              const activeTheme = pageTheme || bookTheme || elementTheme;
+              if (activeTheme) {
+                const themeDefaults = getGlobalThemeDefaults(activeTheme, element.textType || 'text');
+                fontSize = themeDefaults?.font?.fontSize;
+              }
+            }
+            return fontSize || 16;
+          })())}
           onChange={(value) => {
             const newSize = commonToActual(value);
             if (element.font) {
@@ -712,15 +784,15 @@ export function ToolSettingsContent({
           <Label className="flex items-center gap-1" variant="xs">
             <input
               type="checkbox"
-              checked={element.ruledLines || false}
-              onChange={(e) => updateBothElements('ruledLines', e.target.checked)}
+              checked={element.ruledLines?.enabled !== undefined ? element.ruledLines.enabled : (element.ruledLines || false)}
+              onChange={(e) => updateBothElements('ruledLines', { ...element.ruledLines, enabled: e.target.checked })}
               className="rounded w-3 h-3"
             />
             Ruled Lines
           </Label>
         </div>
         
-        {element.ruledLines && (
+        {(element.ruledLines?.enabled !== undefined ? element.ruledLines.enabled : (element.ruledLines || false)) && (
           <IndentedSection>
             <Slider
               label="Line Width"
@@ -737,7 +809,7 @@ export function ToolSettingsContent({
                 value={element.ruledLines?.inheritTheme || element.ruledLinesTheme || 'rough'}
                 onChange={(value) => {
                   updateBothElements('ruledLines', { 
-                    enabled: element.ruledLines || false,
+                    enabled: element.ruledLines?.enabled !== undefined ? element.ruledLines.enabled : (element.ruledLines || false),
                     inheritTheme: value,
                     lineWidth: element.ruledLinesWidth || 0.8,
                     lineColor: element.ruledLinesColor || '#1f2937',
@@ -767,16 +839,18 @@ export function ToolSettingsContent({
           <Label className="flex items-center gap-1" variant="xs">
             <input
               type="checkbox"
-              checked={(element.border?.borderWidth || element.borderWidth || 0) > 0}
+              checked={element.border?.enabled !== undefined ? element.border.enabled : (element.border?.borderWidth || element.borderWidth || 0) > 0}
               onChange={(e) => {
-                const newWidth = e.target.checked ? 1 : 0;
+                const storedWidth = element.border?.originalBorderWidth ?? element.originalBorderWidth ?? element.border?.borderWidth ?? element.borderWidth ?? 1;
+                const newWidth = e.target.checked ? storedWidth : 0;
                 updateBothElements('border', {
+                  enabled: e.target.checked,
                   borderWidth: newWidth,
+                  originalBorderWidth: storedWidth,
                   borderColor: element.border?.borderColor || element.borderColor || '#000000',
                   borderOpacity: element.border?.borderOpacity || element.borderOpacity || 1,
-                  inheritTheme: element.border?.inheritTheme || element.theme || 'default'
+                  borderTheme: element.border?.borderTheme || element.border?.inheritTheme || element.theme || 'default'
                 });
-                updateBothElements('borderWidth', newWidth);
               }}
               className="rounded w-3 h-3"
             />
@@ -784,20 +858,20 @@ export function ToolSettingsContent({
           </Label>
         </div>
         
-        {(element.border?.borderWidth || element.borderWidth || 0) > 0 && (
+        {(element.border?.enabled !== undefined ? element.border.enabled : (element.border?.borderWidth || element.borderWidth || 0) > 0) && (
           <IndentedSection>
             <Slider
               label="Border Width"
-              value={actualToCommonStrokeWidth(element.border?.borderWidth || element.borderWidth || 1, element.border?.inheritTheme || element.theme || 'default')}
+              value={actualToCommonStrokeWidth(element.border?.borderWidth ?? element.borderWidth ?? 1, element.border?.borderTheme || element.border?.inheritTheme || element.theme || 'default')}
               onChange={(value) => {
-                const newWidth = commonToActualStrokeWidth(value, element.border?.inheritTheme || element.theme || 'default');
+                const newWidth = commonToActualStrokeWidth(value, element.border?.borderTheme || element.border?.inheritTheme || element.theme || 'default');
                 updateBothElements('border', {
+                  enabled: element.border?.enabled !== undefined ? element.border.enabled : true,
                   borderWidth: newWidth,
                   borderColor: element.border?.borderColor || element.borderColor || '#000000',
-                  borderOpacity: element.border?.borderOpacity || element.borderOpacity || 1,
-                  inheritTheme: element.border?.inheritTheme || element.theme || 'default'
+                  borderOpacity: element.border?.borderOpacity ?? element.borderOpacity ?? 1,
+                  borderTheme: element.border?.borderTheme || element.border?.inheritTheme || element.theme || 'default'
                 });
-                updateBothElements('borderWidth', newWidth);
               }}
               min={1}
               max={getMaxStrokeWidth()}
@@ -806,13 +880,14 @@ export function ToolSettingsContent({
             <div>
               <Label variant="xs">Border Theme</Label>
               <ThemeSelect 
-                value={element.border?.inheritTheme || element.theme || 'default'}
+                value={element.border?.borderTheme || element.border?.inheritTheme || element.theme || 'default'}
                 onChange={(value) => {
                   updateBothElements('border', {
-                    borderWidth: element.border?.borderWidth || element.borderWidth || 1,
+                    enabled: element.border?.enabled !== undefined ? element.border.enabled : true,
+                    borderWidth: element.border?.borderWidth ?? element.borderWidth ?? 1,
                     borderColor: element.border?.borderColor || element.borderColor || '#000000',
-                    borderOpacity: element.border?.borderOpacity || element.borderOpacity || 1,
-                    inheritTheme: value
+                    borderOpacity: element.border?.borderOpacity ?? element.borderOpacity ?? 1,
+                    borderTheme: value
                   });
                   updateBothElements('cornerRadius', 0);
                 }}
@@ -837,21 +912,17 @@ export function ToolSettingsContent({
           <Label className="flex items-center gap-1" variant="xs">
             <input
               type="checkbox"
-              checked={(element.background?.backgroundColor || element.backgroundColor) !== 'transparent' && (element.background?.backgroundColor || element.backgroundColor) !== undefined}
+              checked={element.background?.enabled !== undefined ? element.background.enabled : ((element.background?.backgroundColor || element.backgroundColor) !== 'transparent' && (element.background?.backgroundColor || element.backgroundColor) !== undefined)}
               onChange={(e) => {
-                if (e.target.checked) {
-                  updateBothElements('background', {
-                    backgroundColor: '#ffffff',
-                    backgroundOpacity: element.background?.backgroundOpacity || element.backgroundOpacity || 1
-                  });
-                  updateBothElements('backgroundColor', '#ffffff');
-                } else {
-                  updateBothElements('background', {
-                    backgroundColor: 'transparent',
-                    backgroundOpacity: element.background?.backgroundOpacity || element.backgroundOpacity || 1
-                  });
-                  updateBothElements('backgroundColor', 'transparent');
-                }
+                const storedColor = element.background?.originalBackgroundColor ?? element.originalBackgroundColor ?? element.background?.backgroundColor ?? element.backgroundColor ?? '#ffffff';
+                const storedOpacity = element.background?.originalBackgroundOpacity ?? element.originalBackgroundOpacity ?? element.background?.backgroundOpacity ?? element.backgroundOpacity ?? 1;
+                updateBothElements('background', {
+                  enabled: e.target.checked,
+                  backgroundColor: e.target.checked ? storedColor : 'transparent',
+                  backgroundOpacity: storedOpacity,
+                  originalBackgroundColor: storedColor,
+                  originalBackgroundOpacity: storedOpacity
+                });
               }}
               className="rounded w-3 h-3"
             />
@@ -859,7 +930,7 @@ export function ToolSettingsContent({
           </Label>
         </div>
         
-        {(element.background?.backgroundColor || element.backgroundColor) !== 'transparent' && (element.background?.backgroundColor || element.backgroundColor) !== undefined && (
+        {(element.background?.enabled !== undefined ? element.background.enabled : ((element.background?.backgroundColor || element.backgroundColor) !== 'transparent' && (element.background?.backgroundColor || element.backgroundColor) !== undefined)) && (
           <IndentedSection>
             <div>
               <Button
@@ -916,14 +987,20 @@ export function ToolSettingsContent({
     if (showFontSelector && element.type === 'text') {
       return (
         <FontSelector
-          currentFont={element.fontFamily || 'Arial, sans-serif'}
-          isBold={element.fontWeight === 'bold'}
-          isItalic={element.fontStyle === 'italic'}
+          currentFont={element.font?.fontFamily || element.fontFamily || ''}
+          isBold={element.font?.fontBold || element.fontWeight === 'bold'}
+          isItalic={element.font?.fontItalic || element.fontStyle === 'italic'}
           onFontSelect={(fontName) => {
-            const fontFamily = getFontFamily(fontName, element.fontWeight === 'bold', element.fontStyle === 'italic');
-            updateElementSetting('fontFamily', fontFamily);
+            const fontFamily = getFontFamily(fontName, false, false);
+            if (element.font) {
+              updateElementSetting('font', { ...element.font, fontFamily });
+            } else {
+              updateElementSetting('fontFamily', fontFamily);
+            }
           }}
           onBack={() => setShowFontSelector(false)}
+          element={element}
+          state={state}
         />
       );
     }
@@ -954,8 +1031,9 @@ export function ToolSettingsContent({
         switch (showColorSelector) {
           case 'element-brush-stroke':
           case 'element-line-stroke':
-          case 'element-shape-stroke':
             return element.strokeOpacity || 1;
+          case 'element-shape-stroke':
+            return element.opacity || 1;
           case 'element-shape-fill':
           case 'element-text-color':
             return element.font?.fontOpacity || element.fillOpacity || 1;
@@ -974,8 +1052,10 @@ export function ToolSettingsContent({
         switch (showColorSelector) {
           case 'element-brush-stroke':
           case 'element-line-stroke':
-          case 'element-shape-stroke':
             updateElementSetting('strokeOpacity', opacity);
+            break;
+          case 'element-shape-stroke':
+            updateElementSetting('opacity', opacity);
             break;
           case 'element-shape-fill':
             updateElementSetting('fillOpacity', opacity);
@@ -1056,8 +1136,8 @@ export function ToolSettingsContent({
         <ColorSelector
           value={getColorValue()}
           onChange={handleElementColorChange}
-          opacity={hasElementOpacity ? getElementOpacityValue() : undefined}
-          onOpacityChange={hasElementOpacity ? handleElementOpacityChange : undefined}
+          opacity={showColorSelector === 'element-shape-stroke' || showColorSelector === 'element-shape-fill' ? undefined : (hasElementOpacity ? getElementOpacityValue() : undefined)}
+          onOpacityChange={showColorSelector === 'element-shape-stroke' || showColorSelector === 'element-shape-fill' ? undefined : (hasElementOpacity ? handleElementOpacityChange : undefined)}
           favoriteColors={favoriteStrokeColors}
           onAddFavorite={addFavoriteStrokeColor}
           onRemoveFavorite={removeFavoriteStrokeColor}
@@ -1307,6 +1387,16 @@ export function ToolSettingsContent({
               </IndentedSection>
             )}
             
+            <Slider
+              label="Opacity"
+              value={Math.round((element.strokeOpacity || 1) * 100)}
+              onChange={(value) => updateElementSetting('strokeOpacity', value / 100)}
+              min={0}
+              max={100}
+              step={5}
+              unit="%"
+            />
+            
             {element.theme === 'candy' && (
               <div>
                 <Separator />
@@ -1397,13 +1487,15 @@ export function ToolSettingsContent({
             <div>
               <div className="flex gap-2">
                 <Button
-                  variant={element.fontWeight === 'bold' ? 'default' : 'outline'}
+                  variant={isFontBold(element, state) ? 'default' : 'outline'}
                   size="xs"
+                  disabled={!hasBoldVariant(getCurrentFontName(element, state))}
                   onClick={() => {
-                    const newWeight = element.fontWeight === 'bold' ? 'normal' : 'bold';
-                    updateElementSetting('fontWeight', newWeight);
-                    const fontName = getCurrentFontName(element.fontFamily);
-                    const newFontFamily = getFontFamily(fontName, newWeight === 'bold', element.fontStyle === 'italic');
+                    const currentBold = isFontBold(element, state);
+                    const newBold = !currentBold;
+                    const currentItalic = isFontItalic(element, state);
+                    const fontName = getCurrentFontName(element, state);
+                    const newFontFamily = getFontFamily(fontName, newBold, currentItalic);
                     updateElementSetting('fontFamily', newFontFamily);
                   }}
                   className="px-3"
@@ -1411,13 +1503,15 @@ export function ToolSettingsContent({
                   <strong>B</strong>
                 </Button>
                 <Button
-                  variant={element.fontStyle === 'italic' ? 'default' : 'outline'}
+                  variant={isFontItalic(element, state) ? 'default' : 'outline'}
                   size="xs"
+                  disabled={!hasItalicVariant(getCurrentFontName(element, state))}
                   onClick={() => {
-                    const newStyle = element.fontStyle === 'italic' ? 'normal' : 'italic';
-                    updateElementSetting('fontStyle', newStyle);
-                    const fontName = getCurrentFontName(element.fontFamily);
-                    const newFontFamily = getFontFamily(fontName, element.fontWeight === 'bold', newStyle === 'italic');
+                    const currentItalic = isFontItalic(element, state);
+                    const newItalic = !currentItalic;
+                    const currentBold = isFontBold(element, state);
+                    const fontName = getCurrentFontName(element, state);
+                    const newFontFamily = getFontFamily(fontName, currentBold, newItalic);
                     updateElementSetting('fontFamily', newFontFamily);
                   }}
                   className="px-3"
@@ -1429,16 +1523,38 @@ export function ToolSettingsContent({
                   size="xs"
                   onClick={() => setShowFontSelector(true)}
                   className="flex-1 justify-start"
+                  style={{ fontFamily: getEffectiveFontFamily(element, state) }}
                 >
                   <Type className="h-4 w-4 mr-2" />
-                  Font
+                  <span className="truncate">{getCurrentFontName(element, state)}</span>
                 </Button>
               </div>
             </div>
             <Slider
               label="Size"
-              value={actualToCommon(element.fontSize || 58)}
-              onChange={(value) => updateElementSetting('fontSize', commonToActual(value))}
+              value={actualToCommon((() => {
+                let fontSize = element.font?.fontSize || element.fontSize;
+                if (!fontSize) {
+                  const currentPage = state.currentBook?.pages[state.activePageIndex];
+                  const pageTheme = currentPage?.background?.pageTheme;
+                  const bookTheme = state.currentBook?.bookTheme;
+                  const elementTheme = element.theme;
+                  const activeTheme = pageTheme || bookTheme || elementTheme;
+                  if (activeTheme) {
+                    const themeDefaults = getGlobalThemeDefaults(activeTheme, element.textType || 'text');
+                    fontSize = themeDefaults?.font?.fontSize;
+                  }
+                }
+                return fontSize || 16;
+              })())}
+              onChange={(value) => {
+                const newSize = commonToActual(value);
+                if (element.font) {
+                  updateElementSetting('font', { ...element.font, fontSize: newSize });
+                } else {
+                  updateElementSetting('fontSize', newSize);
+                }
+              }}
               min={COMMON_FONT_SIZE_RANGE.min}
               max={COMMON_FONT_SIZE_RANGE.max}
               step={1}
@@ -1567,15 +1683,15 @@ export function ToolSettingsContent({
               <Label className="flex items-center gap-1" variant="xs">
                 <input
                   type="checkbox"
-                  checked={element.ruledLines || false}
-                  onChange={(e) => updateElementSetting('ruledLines', e.target.checked)}
+                  checked={element.ruledLines?.enabled !== undefined ? element.ruledLines.enabled : (element.ruledLines || false)}
+                  onChange={(e) => updateElementSetting('ruledLines', { ...element.ruledLines, enabled: e.target.checked })}
                   className="rounded w-3 h-3"
                 />
                 Ruled Lines
               </Label>
             </div>
             
-            {element.ruledLines && (
+            {(element.ruledLines?.enabled !== undefined ? element.ruledLines.enabled : (element.ruledLines || false)) && (
               <IndentedSection>
                 
                 <Slider
@@ -1593,7 +1709,7 @@ export function ToolSettingsContent({
                     value={element.ruledLines?.inheritTheme || element.ruledLinesTheme || 'rough'}
                     onChange={(value) => {
                       updateElementSetting('ruledLines', {
-                        enabled: element.ruledLines || false,
+                        enabled: element.ruledLines?.enabled !== undefined ? element.ruledLines.enabled : (element.ruledLines || false),
                         inheritTheme: value,
                         lineWidth: element.ruledLinesWidth || 0.8,
                         lineColor: element.ruledLinesColor || '#1f2937',
@@ -1624,16 +1740,18 @@ export function ToolSettingsContent({
               <Label className="flex items-center gap-1" variant="xs">
                 <input
                   type="checkbox"
-                  checked={(element.border?.borderWidth || element.borderWidth || 0) > 0}
+                  checked={element.border?.enabled !== undefined ? element.border.enabled : (element.border?.borderWidth || element.borderWidth || 0) > 0}
                   onChange={(e) => {
-                    const newWidth = e.target.checked ? 1 : 0;
+                    const storedWidth = element.border?.originalBorderWidth ?? element.originalBorderWidth ?? element.border?.borderWidth ?? element.borderWidth ?? 1;
+                    const newWidth = e.target.checked ? storedWidth : 0;
                     updateElementSetting('border', {
+                      enabled: e.target.checked,
                       borderWidth: newWidth,
+                      originalBorderWidth: storedWidth,
                       borderColor: element.border?.borderColor || element.borderColor || '#000000',
                       borderOpacity: element.border?.borderOpacity || element.borderOpacity || 1,
-                      inheritTheme: element.border?.inheritTheme || element.theme || 'default'
+                      borderTheme: element.border?.borderTheme || element.border?.inheritTheme || element.theme || 'default'
                     });
-                    updateElementSetting('borderWidth', newWidth);
                   }}
                   className="rounded w-3 h-3"
                 />
@@ -1641,20 +1759,20 @@ export function ToolSettingsContent({
               </Label>
             </div>
             
-            {(element.border?.borderWidth || element.borderWidth || 0) > 0 && (
+            {(element.border?.enabled !== undefined ? element.border.enabled : (element.border?.borderWidth || element.borderWidth || 0) > 0) && (
               <IndentedSection>
                 <Slider
                   label="Border Width"
-                  value={actualToCommonStrokeWidth(element.border?.borderWidth || element.borderWidth || 1, element.border?.inheritTheme || element.theme || 'default')}
+                  value={actualToCommonStrokeWidth(element.border?.borderWidth ?? element.borderWidth ?? 1, element.border?.borderTheme || element.border?.inheritTheme || element.theme || 'default')}
                   onChange={(value) => {
-                    const actualWidth = commonToActualStrokeWidth(value, element.border?.inheritTheme || element.theme || 'default');
+                    const actualWidth = commonToActualStrokeWidth(value, element.border?.borderTheme || element.border?.inheritTheme || element.theme || 'default');
                     updateElementSetting('border', {
+                      enabled: element.border?.enabled !== undefined ? element.border.enabled : true,
                       borderWidth: actualWidth,
                       borderColor: element.border?.borderColor || element.borderColor || '#000000',
-                      borderOpacity: element.border?.borderOpacity || element.borderOpacity || 1,
-                      inheritTheme: element.border?.inheritTheme || element.theme || 'default'
+                      borderOpacity: element.border?.borderOpacity ?? element.borderOpacity ?? 1,
+                      borderTheme: element.border?.borderTheme || element.border?.inheritTheme || element.theme || 'default'
                     });
-                    updateElementSetting('borderWidth', actualWidth);
                   }}
                   min={1}
                   max={getMaxStrokeWidth()}
@@ -1664,13 +1782,14 @@ export function ToolSettingsContent({
                 <div>
                   <Label variant="xs">Border Theme</Label>
                   <ThemeSelect 
-                    value={element.border?.inheritTheme || element.theme || 'default'}
+                    value={element.border?.borderTheme || element.border?.inheritTheme || element.theme || 'default'}
                     onChange={(value) => {
                       updateElementSetting('border', {
-                        borderWidth: element.border?.borderWidth || element.borderWidth || 1,
+                        enabled: element.border?.enabled !== undefined ? element.border.enabled : true,
+                        borderWidth: element.border?.borderWidth ?? element.borderWidth ?? 1,
                         borderColor: element.border?.borderColor || element.borderColor || '#000000',
-                        borderOpacity: element.border?.borderOpacity || element.borderOpacity || 1,
-                        inheritTheme: value
+                        borderOpacity: element.border?.borderOpacity ?? element.borderOpacity ?? 1,
+                        borderTheme: value
                       });
                       updateElementSetting('cornerRadius', 0);
                     }}
@@ -1696,23 +1815,17 @@ export function ToolSettingsContent({
               <Label className="flex items-center gap-1" variant="xs">
                 <input
                   type="checkbox"
-                  checked={(element.background?.backgroundColor || element.backgroundColor) !== 'transparent' && (element.background?.backgroundColor || element.backgroundColor) !== undefined}
+                  checked={element.background?.enabled !== undefined ? element.background.enabled : ((element.background?.backgroundColor || element.backgroundColor) !== 'transparent' && (element.background?.backgroundColor || element.backgroundColor) !== undefined)}
                   onChange={(e) => {
-                    if (e.target.checked) {
-                      const lastBgColor = localStorage.getItem(`text-bg-color-${element.id}`) || '#ffffff';
-                      updateElementSetting('background', {
-                        backgroundColor: lastBgColor,
-                        backgroundOpacity: element.background?.backgroundOpacity || element.backgroundOpacity || 1
-                      });
-                      updateElementSetting('backgroundColor', lastBgColor);
-                    } else {
-                      localStorage.setItem(`text-bg-color-${element.id}`, element.background?.backgroundColor || element.backgroundColor || '#ffffff');
-                      updateElementSetting('background', {
-                        backgroundColor: 'transparent',
-                        backgroundOpacity: element.background?.backgroundOpacity || element.backgroundOpacity || 1
-                      });
-                      updateElementSetting('backgroundColor', 'transparent');
-                    }
+                    const storedColor = element.background?.originalBackgroundColor ?? element.originalBackgroundColor ?? element.background?.backgroundColor ?? element.backgroundColor ?? '#ffffff';
+                    const storedOpacity = element.background?.originalBackgroundOpacity ?? element.originalBackgroundOpacity ?? element.background?.backgroundOpacity ?? element.backgroundOpacity ?? 1;
+                    updateElementSetting('background', {
+                      enabled: e.target.checked,
+                      backgroundColor: e.target.checked ? storedColor : 'transparent',
+                      backgroundOpacity: storedOpacity,
+                      originalBackgroundColor: storedColor,
+                      originalBackgroundOpacity: storedOpacity
+                    });
                   }}
                   className="rounded w-3 h-3"
                 />
@@ -1720,7 +1833,7 @@ export function ToolSettingsContent({
               </Label>
             </div>
             
-            {(element.background?.backgroundColor || element.backgroundColor) !== 'transparent' && (element.background?.backgroundColor || element.backgroundColor) !== undefined && (
+            {(element.background?.enabled !== undefined ? element.background.enabled : ((element.background?.backgroundColor || element.backgroundColor) !== 'transparent' && (element.background?.backgroundColor || element.backgroundColor) !== undefined)) && (
               <IndentedSection>
                 <div>
                   <Button

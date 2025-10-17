@@ -17,6 +17,7 @@ export const FONT_GROUPS = [
     name: "Standard Serif",
     fonts: [
       { name: "Georgia", family: "Georgia, serif", bold: "Georgia Bold, serif", italic: "Georgia Italic, serif" },
+      { name: "Consolas", family: "Consolas, monospace", bold: "Consolas Bold, monospace" },
       { name: "Times New Roman", family: "'Times New Roman', serif", bold: "'Times New Roman Bold', serif", italic: "'Times New Roman Italic', serif" },
       { name: "Garamond", family: "Garamond, serif", bold: "Garamond Bold, serif", italic: "Garamond Italic, serif" },
       { name: "Courier", family: "'Courier New', monospace", bold: "'Courier New Bold', monospace" },
@@ -166,4 +167,20 @@ export function getFontFamily(fontName: string, isBold: boolean, isItalic: boole
     }
   }
   return "Arial, sans-serif";
+}
+
+export function hasBoldVariant(fontName: string): boolean {
+  for (const group of FONT_GROUPS) {
+    const font = group.fonts.find(f => f.name === fontName);
+    if (font) return !!font.bold;
+  }
+  return false;
+}
+
+export function hasItalicVariant(fontName: string): boolean {
+  for (const group of FONT_GROUPS) {
+    const font = group.fonts.find(f => f.name === fontName);
+    if (font) return !!font.italic;
+  }
+  return false;
 }

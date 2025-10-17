@@ -3,6 +3,7 @@ import { getPalette } from './global-palettes';
 import { commonToActual } from './font-size-converter';
 import { commonToActualStrokeWidth } from './stroke-width-converter';
 import { commonToActualRadius } from './corner-radius-converter';
+import themesData from '../data/themes.json';
 
 export interface GlobalTheme {
   id: string;
@@ -36,1408 +37,94 @@ export interface GlobalTheme {
   };
 }
 
-const RAW_THEMES: GlobalTheme[] = [
-  {
-    id: 'default',
-    name: 'Default',
-    description: 'Clean and simple',
-    pageSettings: {
-      backgroundColor: '#ffffff',
-      backgroundPattern: {
-        enabled: false,
-        style: 'dots',
-        size: 20,
-        strokeWidth: 1,
-        backgroundColor: '#f0f0f0',
-        backgroundOpacity: 0.3
-      },
-      backgroundImage: {
-        enabled: false,
-        size: 'cover',
-        repeat: false
-      },
-      cornerRadius: 0
-    },
-    elementDefaults: {
-      text: {
-        theme: 'default',
-        stroke: getPalette('neutral-harmony')?.colors.primary || '#16697a',
-        fill: getPalette('neutral-harmony')?.colors.primary || '#16697a',
-        strokeWidth: 1,
-        cornerRadius: 30,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        ruledLines: {
-          enabled: false,
-          inheritTheme: 'notebook',
-          lineWidth: 1,
-          lineColor: '#e0e0e0',
-          lineOpacity: 0.5
-        },
-        font: {
-          fontSize: 16,
-          fontFamily: 'Century Gothic, sans-serif',
-          fontColor: '#16697a',
-          fontOpacity: 1,
-          fontBold: false,
-          fontItalic: false
-        },
-        border: {
-          borderWidth: 0,
-          borderColor: getPalette('neutral-harmony')?.colors.secondary || '#489fb5',
-          borderOpacity: 1,
-          inheritTheme: 'default'
-        },
-        format: {
-          align: 'left',
-          lineHeight: 1.2,
-          paragraphSpacing: 'medium',
-          padding: 8
-        },
-        background: {
-          backgroundColor: getPalette('neutral-harmony')?.colors.background || '#ede7e3',
-          backgroundOpacity: 0.3
-        }
-      },
-      question: {
-        theme: 'default',
-        stroke: getPalette('neutral-harmony')?.colors.primary || '#16697a',
-        fill: getPalette('neutral-harmony')?.colors.primary || '#16697a',
-        strokeWidth: 2,
-        cornerRadius: 0,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        ruledLines: {
-          enabled: false,
-          inheritTheme: 'notebook',
-          lineWidth: 1,
-          lineColor: '#e0e0e0',
-          lineOpacity: 0.5
-        },
-        font: {
-          fontSize: 18,
-          fontFamily: 'Arial, sans-serif',
-          fontColor: '#16697a',
-          fontOpacity: 1,
-          fontBold: false,
-          fontItalic: false
-        },
-        border: {
-          borderWidth: 1,
-          borderColor: getPalette('neutral-harmony')?.colors.secondary || '#489fb5',
-          borderOpacity: 1,
-          inheritTheme: 'default'
-        },
-        format: {
-          align: 'left',
-          lineHeight: 1.3,
-          paragraphSpacing: 'medium',
-          padding: 12
-        },
-        background: {
-          backgroundColor: getPalette('neutral-harmony')?.colors.surface || '#ffa62b',
-          backgroundOpacity: 0.4
-        }
-      },
-      answer: {
-        theme: 'default',
-        stroke: getPalette('neutral-harmony')?.colors.accent || '#82c0cc',
-        fill: getPalette('neutral-harmony')?.colors.accent || '#82c0cc',
-        strokeWidth: 1,
-        cornerRadius: 0,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        ruledLines: {
-          enabled: false,
-          inheritTheme: 'notebook',
-          lineWidth: 1,
-          lineColor: '#e0e0e0',
-          lineOpacity: 0.5
-        },
-        font: {
-          fontSize: 16,
-          fontFamily: 'Arial, sans-serif',
-          fontColor: '#82c0cc',
-          fontOpacity: 1,
-          fontBold: false,
-          fontItalic: false
-        },
-        border: {
-          borderWidth: 1,
-          borderColor: getPalette('neutral-harmony')?.colors.secondary || '#489fb5',
-          borderOpacity: 1,
-          inheritTheme: 'default'
-        },
-        format: {
-          align: 'left',
-          lineHeight: 1.2,
-          paragraphSpacing: 'medium',
-          padding: 10
-        },
-        background: {
-          backgroundColor: getPalette('neutral-harmony')?.colors.background || '#ede7e3',
-          backgroundOpacity: 0.3
-        }
-      },
-      image: {
-        theme: 'default',
-        stroke: getPalette('neutral-harmony')?.colors.primary || '#16697a',
-        strokeWidth: 1,
-        cornerRadius: 0,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        border: {
-          borderWidth: 0,
-          borderColor: 'transparent',
-          borderOpacity: 1
-        },
-        background: {
-          backgroundColor: 'transparent',
-          backgroundOpacity: 1
-        }
-      },
-      shape: {
-        theme: 'default',
-        inheritTheme: 'default',
-        stroke: getPalette('neutral-harmony')?.colors.primary || '#16697a',
-        fill: getPalette('neutral-harmony')?.colors.surface || '#ffa62b',
-        strokeWidth: 2,
-        cornerRadius: 0,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        border: {
-          borderWidth: 0,
-          borderColor: 'transparent',
-          borderOpacity: 1
-        },
-        background: {
-          backgroundColor: 'transparent',
-          backgroundOpacity: 0.6
-        }
-      },
-      brush: {
-        theme: 'default',
-        inheritTheme: 'default',
-        stroke: getPalette('neutral-harmony')?.colors.primary || '#16697a',
-        strokeWidth: 2,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0
-      },
-      line: {
-        theme: 'default',
-        inheritTheme: 'default',
-        stroke: getPalette('neutral-harmony')?.colors.primary || '#16697a',
-        strokeWidth: 2,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0
-      }
-    }
-  },
-  {
-    id: 'sketchy',
-    name: 'Sketchy',
-    description: 'Hand-drawn style with rough edges',
-    pageSettings: {
-      backgroundColor: '#faf9f7',
-      backgroundPattern: {
-        enabled: true,
-        style: 'dots',
-        size: 25,
-        strokeWidth: 1,
-        backgroundColor: '#e8e6e3',
-        backgroundOpacity: 0.4
-      },
-      backgroundImage: {
-        enabled: false,
-        size: 'cover',
-        repeat: false
-      },
-      cornerRadius: 8
-    },
-    elementDefaults: {
-      text: {
-        theme: 'sketchy',
-        stroke: getPalette('warm-earth')?.colors.primary || '#8b4513',
-        fill: getPalette('warm-earth')?.colors.primary || '#8b4513',
-        strokeWidth: 1,
-        cornerRadius: 8,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        ruledLines: {
-          enabled: false,
-          inheritTheme: 'notebook',
-          lineWidth: 1,
-          lineColor: '#d0ccc7',
-          lineOpacity: 0.6
-        },
-        font: {
-          fontSize: 16,
-          fontFamily: 'Comic Sans MS, cursive',
-          fontColor: '#2c3e50',
-          fontOpacity: 1,
-          fontBold: false,
-          fontItalic: false
-        },
-        border: {
-          borderWidth: 0,
-          borderColor: getPalette('warm-earth')?.colors.secondary || '#cd853f',
-          borderOpacity: 1,
-          inheritTheme: 'sketchy'
-        },
-        format: {
-          align: 'left',
-          lineHeight: 1.3,
-          paragraphSpacing: 'medium',
-          padding: 100
-        },
-        background: {
-          backgroundColor: getPalette('warm-earth')?.colors.background || '#f5deb3',
-          backgroundOpacity: 0.3
-        }
-      },
-      question: {
-        theme: 'sketchy',
-        stroke: getPalette('warm-earth')?.colors.primary || '#8b4513',
-        fill: getPalette('warm-earth')?.colors.primary || '#8b4513',
-        strokeWidth: 2,
-        cornerRadius: 8,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        ruledLines: {
-          enabled: false,
-          inheritTheme: 'notebook',
-          lineWidth: 1,
-          lineColor: '#d0ccc7',
-          lineOpacity: 0.6
-        },
-        font: {
-          fontSize: 18,
-          fontFamily: 'Comic Sans MS, cursive',
-          fontColor: '#2c3e50',
-          fontOpacity: 1,
-          fontBold: false,
-          fontItalic: false
-        },
-        border: {
-          borderWidth: 2,
-          borderColor: getPalette('warm-earth')?.colors.secondary || '#cd853f',
-          borderOpacity: 1,
-          inheritTheme: 'sketchy'
-        },
-        format: {
-          align: 'left',
-          lineHeight: 1.4,
-          paragraphSpacing: 'medium',
-          padding: 15
-        },
-        background: {
-          backgroundColor: getPalette('warm-earth')?.colors.surface || '#daa520',
-          backgroundOpacity: 0.4
-        }
-      },
-      answer: {
-        theme: 'sketchy',
-        stroke: getPalette('warm-earth')?.colors.accent || '#d2691e',
-        fill: getPalette('warm-earth')?.colors.accent || '#d2691e',
-        strokeWidth: 1,
-        cornerRadius: 8,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        ruledLines: {
-          enabled: false,
-          inheritTheme: 'notebook',
-          lineWidth: 1,
-          lineColor: '#d0ccc7',
-          lineOpacity: 0.6
-        },
-        font: {
-          fontSize: 16,
-          fontFamily: 'Comic Sans MS, cursive',
-          fontColor: '#d2691e',
-          fontOpacity: 1,
-          fontBold: false,
-          fontItalic: false
-        },
-        border: {
-          borderWidth: 1,
-          borderColor: getPalette('warm-earth')?.colors.secondary || '#cd853f',
-          borderOpacity: 1,
-          inheritTheme: 'sketchy'
-        },
-        format: {
-          align: 'left',
-          lineHeight: 1.3,
-          paragraphSpacing: 'medium',
-          padding: 12
-        },
-        background: {
-          backgroundColor: getPalette('warm-earth')?.colors.background || '#f5deb3',
-          backgroundOpacity: 0.3
-        }
-      },
-      image: {
-        theme: 'sketchy',
-        stroke: getPalette('warm-earth')?.colors.primary || '#8b4513',
-        strokeWidth: 2,
-        cornerRadius: 8,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        border: {
-          borderWidth: 0,
-          borderColor: 'transparent',
-          borderOpacity: 1
-        },
-        background: {
-          backgroundColor: 'transparent',
-          backgroundOpacity: 1
-        }
-      },
-      shape: {
-        theme: 'sketchy',
-        inheritTheme: 'sketchy',
-        stroke: getPalette('warm-earth')?.colors.primary || '#8b4513',
-        fill: getPalette('warm-earth')?.colors.surface || '#daa520',
-        strokeWidth: 3,
-        cornerRadius: 8,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        border: {
-          borderWidth: 0,
-          borderColor: 'transparent',
-          borderOpacity: 1
-        },
-        background: {
-          backgroundColor: 'transparent',
-          backgroundOpacity: 0.6
-        }
-      },
-      brush: {
-        theme: 'sketchy',
-        inheritTheme: 'sketchy',
-        stroke: getPalette('warm-earth')?.colors.primary || '#8b4513',
-        strokeWidth: 3,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0
-      },
-      line: {
-        theme: 'sketchy',
-        inheritTheme: 'sketchy',
-        stroke: getPalette('warm-earth')?.colors.primary || '#8b4513',
-        strokeWidth: 3,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0
-      }
-    }
-  },
-  {
-    id: 'minimal',
-    name: 'Minimal',
-    description: 'Clean lines and subtle colors',
-    pageSettings: {
-      backgroundColor: '#ffffff',
-      backgroundPattern: {
-        enabled: false,
-        style: 'grid',
-        size: 30,
-        strokeWidth: 0.5,
-        backgroundColor: '#f8f9fa',
-        backgroundOpacity: 0.2
-      },
-      backgroundImage: {
-        enabled: false,
-        size: 'cover',
-        repeat: false
-      },
-      cornerRadius: 0
-    },
-    elementDefaults: {
-      text: {
-        theme: 'minimal',
-        stroke: getPalette('monochrome')?.colors.primary || '#495057',
-        fill: getPalette('monochrome')?.colors.primary || '#495057',
-        strokeWidth: 0,
-        cornerRadius: 0,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        ruledLines: {
-          enabled: false,
-          inheritTheme: 'graph',
-          lineWidth: 0.5,
-          lineColor: '#e9ecef',
-          lineOpacity: 0.3
-        },
-        font: {
-          fontSize: 14,
-          fontFamily: 'Helvetica, Arial, sans-serif',
-          fontColor: '#495057',
-          fontOpacity: 1,
-          fontBold: false,
-          fontItalic: false
-        },
-        border: {
-          borderWidth: 0,
-          borderColor: 'transparent',
-          borderOpacity: 1,
-          inheritTheme: 'minimal'
-        },
-        format: {
-          align: 'left',
-          lineHeight: 1.4,
-          paragraphSpacing: 'medium',
-          padding: 6
-        },
-        background: {
-          backgroundColor: 'transparent',
-          backgroundOpacity: 0
-        }
-      },
-      question: {
-        theme: 'minimal',
-        stroke: getPalette('monochrome')?.colors.primary || '#495057',
-        fill: getPalette('monochrome')?.colors.primary || '#495057',
-        strokeWidth: 0,
-        cornerRadius: 0,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        ruledLines: {
-          enabled: false,
-          inheritTheme: 'graph',
-          lineWidth: 0.5,
-          lineColor: '#e9ecef',
-          lineOpacity: 0.3
-        },
-        font: {
-          fontSize: 16,
-          fontFamily: 'Helvetica, Arial, sans-serif',
-          fontColor: '#495057',
-          fontOpacity: 1,
-          fontBold: false,
-          fontItalic: false
-        },
-        border: {
-          borderWidth: 0,
-          borderColor: 'transparent',
-          borderOpacity: 1,
-          inheritTheme: 'minimal'
-        },
-        format: {
-          align: 'left',
-          lineHeight: 1.4,
-          paragraphSpacing: 'medium',
-          padding: 10
-        },
-        background: {
-          backgroundColor: getPalette('monochrome')?.colors.background || '#f8f9fa',
-          backgroundOpacity: 0.5
-        }
-      },
-      answer: {
-        theme: 'minimal',
-        stroke: getPalette('monochrome')?.colors.accent || '#6c757d',
-        fill: getPalette('monochrome')?.colors.accent || '#6c757d',
-        strokeWidth: 0,
-        cornerRadius: 0,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        ruledLines: {
-          enabled: false,
-          inheritTheme: 'graph',
-          lineWidth: 0.5,
-          lineColor: '#e9ecef',
-          lineOpacity: 0.3
-        },
-        font: {
-          fontSize: 14,
-          fontFamily: 'Helvetica, Arial, sans-serif',
-          fontColor: '#6c757d',
-          fontOpacity: 1,
-          fontBold: false,
-          fontItalic: false
-        },
-        border: {
-          borderWidth: 0,
-          borderColor: 'transparent',
-          borderOpacity: 1,
-          inheritTheme: 'minimal'
-        },
-        format: {
-          align: 'left',
-          lineHeight: 1.4,
-          paragraphSpacing: 'medium',
-          padding: 8
-        },
-        background: {
-          backgroundColor: 'transparent',
-          backgroundOpacity: 0
-        }
-      },
-      image: {
-        theme: 'minimal',
-        stroke: 'transparent',
-        strokeWidth: 0,
-        cornerRadius: 0,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        border: {
-          borderWidth: 0,
-          borderColor: 'transparent',
-          borderOpacity: 1
-        },
-        background: {
-          backgroundColor: 'transparent',
-          backgroundOpacity: 1
-        }
-      },
-      shape: {
-        theme: 'minimal',
-        inheritTheme: 'minimal',
-        stroke: getPalette('monochrome')?.colors.primary || '#495057',
-        fill: 'transparent',
-        strokeWidth: 1,
-        cornerRadius: 0,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        border: {
-          borderWidth: 0,
-          borderColor: 'transparent',
-          borderOpacity: 1
-        },
-        background: {
-          backgroundColor: 'transparent',
-          backgroundOpacity: 0
-        }
-      },
-      brush: {
-        theme: 'minimal',
-        inheritTheme: 'minimal',
-        stroke: getPalette('monochrome')?.colors.primary || '#495057',
-        strokeWidth: 1,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0
-      },
-      line: {
-        theme: 'minimal',
-        inheritTheme: 'minimal',
-        stroke: getPalette('monochrome')?.colors.primary || '#495057',
-        strokeWidth: 1,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0
-      }
-    }
-  },
-  {
-    id: 'colorful',
-    name: 'Colorful',
-    description: 'Bright and vibrant colors',
-    pageSettings: {
-      backgroundColor: '#fff8e1',
-      backgroundPattern: {
-        enabled: true,
-        style: 'dots',
-        size: 15,
-        strokeWidth: 1,
-        backgroundColor: '#ffecb3',
-        backgroundOpacity: 0.3
-      },
-      backgroundImage: {
-        enabled: false,
-        size: 'cover',
-        repeat: false
-      },
-      cornerRadius: 12
-    },
-    elementDefaults: {
-      text: {
-        theme: 'colorful',
-        stroke: getPalette('vibrant-rainbow')?.colors.primary || '#e91e63',
-        fill: getPalette('vibrant-rainbow')?.colors.primary || '#e91e63',
-        strokeWidth: 1,
-        cornerRadius: 12,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        ruledLines: {
-          enabled: false,
-          inheritTheme: 'dotted',
-          lineWidth: 1,
-          lineColor: '#ffc107',
-          lineOpacity: 0.4
-        },
-        font: {
-          fontSize: 16,
-          fontFamily: 'Comic Sans MS, cursive',
-          fontColor: '#e91e63',
-          fontOpacity: 1,
-          fontBold: true,
-          fontItalic: false
-        },
-        border: {
-          borderWidth: 2,
-          borderColor: getPalette('vibrant-rainbow')?.colors.secondary || '#ff9800',
-          borderOpacity: 1,
-          inheritTheme: 'colorful'
-        },
-        format: {
-          align: 'left',
-          lineHeight: 1.3,
-          paragraphSpacing: 'medium',
-          padding: 12
-        },
-        background: {
-          backgroundColor: getPalette('vibrant-rainbow')?.colors.background || '#fff3e0',
-          backgroundOpacity: 0.6
-        }
-      },
-      question: {
-        theme: 'colorful',
-        stroke: getPalette('vibrant-rainbow')?.colors.primary || '#e91e63',
-        fill: getPalette('vibrant-rainbow')?.colors.primary || '#e91e63',
-        strokeWidth: 2,
-        cornerRadius: 12,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        ruledLines: {
-          enabled: false,
-          inheritTheme: 'dotted',
-          lineWidth: 1,
-          lineColor: '#ffc107',
-          lineOpacity: 0.4
-        },
-        font: {
-          fontSize: 18,
-          fontFamily: 'Comic Sans MS, cursive',
-          fontColor: '#e91e63',
-          fontOpacity: 1,
-          fontBold: true,
-          fontItalic: false
-        },
-        border: {
-          borderWidth: 3,
-          borderColor: getPalette('vibrant-rainbow')?.colors.secondary || '#ff9800',
-          borderOpacity: 1,
-          inheritTheme: 'colorful'
-        },
-        format: {
-          align: 'left',
-          lineHeight: 1.3,
-          paragraphSpacing: 'medium',
-          padding: 16
-        },
-        background: {
-          backgroundColor: getPalette('vibrant-rainbow')?.colors.surface || '#4caf50',
-          backgroundOpacity: 0.7
-        }
-      },
-      answer: {
-        theme: 'colorful',
-        stroke: getPalette('vibrant-rainbow')?.colors.accent || '#2196f3',
-        fill: getPalette('vibrant-rainbow')?.colors.accent || '#2196f3',
-        strokeWidth: 1,
-        cornerRadius: 12,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        ruledLines: {
-          enabled: false,
-          inheritTheme: 'dotted',
-          lineWidth: 1,
-          lineColor: '#ffc107',
-          lineOpacity: 0.4
-        },
-        font: {
-          fontSize: 16,
-          fontFamily: 'Comic Sans MS, cursive',
-          fontColor: '#2196f3',
-          fontOpacity: 1,
-          fontBold: true,
-          fontItalic: false
-        },
-        border: {
-          borderWidth: 2,
-          borderColor: getPalette('vibrant-rainbow')?.colors.secondary || '#ff9800',
-          borderOpacity: 1,
-          inheritTheme: 'colorful'
-        },
-        format: {
-          align: 'left',
-          lineHeight: 1.3,
-          paragraphSpacing: 'medium',
-          padding: 14
-        },
-        background: {
-          backgroundColor: getPalette('vibrant-rainbow')?.colors.background || '#fff3e0',
-          backgroundOpacity: 0.5
-        }
-      },
-      image: {
-        theme: 'colorful',
-        stroke: getPalette('vibrant-rainbow')?.colors.primary || '#e91e63',
-        strokeWidth: 3,
-        cornerRadius: 12,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        border: {
-          borderWidth: 0,
-          borderColor: 'transparent',
-          borderOpacity: 1
-        },
-        background: {
-          backgroundColor: 'transparent',
-          backgroundOpacity: 1
-        }
-      },
-      shape: {
-        theme: 'colorful',
-        inheritTheme: 'colorful',
-        stroke: getPalette('vibrant-rainbow')?.colors.primary || '#e91e63',
-        fill: getPalette('vibrant-rainbow')?.colors.surface || '#4caf50',
-        strokeWidth: 3,
-        cornerRadius: 12,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        border: {
-          borderWidth: 0,
-          borderColor: 'transparent',
-          borderOpacity: 1
-        },
-        background: {
-          backgroundColor: 'transparent',
-          backgroundOpacity: 0.8
-        }
-      },
-      brush: {
-        theme: 'colorful',
-        inheritTheme: 'colorful',
-        stroke: getPalette('vibrant-rainbow')?.colors.primary || '#e91e63',
-        strokeWidth: 4,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0
-      },
-      line: {
-        theme: 'colorful',
-        inheritTheme: 'colorful',
-        stroke: getPalette('vibrant-rainbow')?.colors.primary || '#e91e63',
-        strokeWidth: 3,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0
-      }
-    }
-  },
-  {
-    id: 'vintage',
-    name: 'Vintage',
-    description: 'Retro style with muted tones',
-    pageSettings: {
-      backgroundColor: '#f7f3e9',
-      backgroundPattern: {
-        enabled: true,
-        style: 'lines',
-        size: 24,
-        strokeWidth: 1,
-        backgroundColor: '#e8dcc6',
-        backgroundOpacity: 0.4
-      },
-      backgroundImage: {
-        enabled: false,
-        size: 'cover',
-        repeat: false
-      },
-      cornerRadius: 4
-    },
-    elementDefaults: {
-      text: {
-        theme: 'vintage',
-        stroke: getPalette('vintage-sepia')?.colors.primary || '#8b7355',
-        fill: getPalette('vintage-sepia')?.colors.primary || '#8b7355',
-        strokeWidth: 1,
-        cornerRadius: 14,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        ruledLines: {
-          enabled: true,
-          inheritTheme: 'notebook',
-          lineWidth: 10,
-          lineColor: '#d4c5a9',
-          lineOpacity: 0.6
-        },
-        font: {
-          fontSize: 15,
-          fontFamily: 'Times New Roman, serif',
-          fontColor: '#5d4e37',
-          fontOpacity: 1,
-          fontBold: false,
-          fontItalic: true
-        },
-        border: {
-          borderWidth: 10,
-          borderColor: getPalette('vintage-sepia')?.colors.secondary || '#a0826d',
-          borderOpacity: 1,
-          inheritTheme: 'vintage'
-        },
-        format: {
-          align: 'left',
-          lineHeight: 1.4,
-          paragraphSpacing: 'medium',
-          padding: 20
-        },
-        background: {
-          backgroundColor: getPalette('vintage-sepia')?.colors.background || '#f5f0e8',
-          backgroundOpacity: 0.4
-        }
-      },
-      question: {
-        theme: 'vintage',
-        stroke: getPalette('vintage-sepia')?.colors.primary || '#8b7355',
-        fill: getPalette('vintage-sepia')?.colors.primary || '#8b7355',
-        strokeWidth: 1,
-        cornerRadius: 14,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        ruledLines: {
-          enabled: true,
-          inheritTheme: 'notebook',
-          lineWidth: 1,
-          lineColor: '#d4c5a9',
-          lineOpacity: 0.6
-        },
-        font: {
-          fontSize: 17,
-          fontFamily: 'Times New Roman, serif',
-          fontColor: '#5d4e37',
-          fontOpacity: 1,
-          fontBold: false,
-          fontItalic: true
-        },
-        border: {
-          borderWidth: 1,
-          borderColor: getPalette('vintage-sepia')?.colors.secondary || '#a0826d',
-          borderOpacity: 1,
-          inheritTheme: 'vintage'
-        },
-        format: {
-          align: 'left',
-          lineHeight: 1.4,
-          paragraphSpacing: 'medium',
-          padding: 14
-        },
-        background: {
-          backgroundColor: getPalette('vintage-sepia')?.colors.surface || '#ddbf94',
-          backgroundOpacity: 0.5
-        }
-      },
-      answer: {
-        theme: 'vintage',
-        stroke: getPalette('vintage-sepia')?.colors.accent || '#b8956a',
-        fill: getPalette('vintage-sepia')?.colors.accent || '#b8956a',
-        strokeWidth: 1,
-        cornerRadius: 14,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        ruledLines: {
-          enabled: true,
-          inheritTheme: 'notebook',
-          lineWidth: 1,
-          lineColor: '#d4c5a9',
-          lineOpacity: 0.6
-        },
-        font: {
-          fontSize: 15,
-          fontFamily: 'Times New Roman, serif',
-          fontColor: '#b8956a',
-          fontOpacity: 1,
-          fontBold: false,
-          fontItalic: true
-        },
-        border: {
-          borderWidth: 1,
-          borderColor: getPalette('vintage-sepia')?.colors.secondary || '#a0826d',
-          borderOpacity: 1,
-          inheritTheme: 'vintage'
-        },
-        format: {
-          align: 'left',
-          lineHeight: 1.4,
-          paragraphSpacing: 'medium',
-          padding: 12
-        },
-        background: {
-          backgroundColor: getPalette('vintage-sepia')?.colors.background || '#f5f0e8',
-          backgroundOpacity: 0.3
-        }
-      },
-      image: {
-        theme: 'vintage',
-        stroke: getPalette('vintage-sepia')?.colors.primary || '#8b7355',
-        strokeWidth: 1,
-        cornerRadius: 4,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        border: {
-          borderWidth: 0,
-          borderColor: 'transparent',
-          borderOpacity: 1
-        },
-        background: {
-          backgroundColor: 'transparent',
-          backgroundOpacity: 1
-        }
-      },
-      shape: {
-        theme: 'vintage',
-        inheritTheme: 'vintage',
-        stroke: getPalette('vintage-sepia')?.colors.primary || '#8b7355',
-        fill: getPalette('vintage-sepia')?.colors.surface || '#ddbf94',
-        strokeWidth: 2,
-        cornerRadius: 4,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        border: {
-          borderWidth: 0,
-          borderColor: 'transparent',
-          borderOpacity: 1
-        },
-        background: {
-          backgroundColor: 'transparent',
-          backgroundOpacity: 0.5
-        }
-      },
-      brush: {
-        theme: 'vintage',
-        inheritTheme: 'vintage',
-        stroke: getPalette('vintage-sepia')?.colors.primary || '#8b7355',
-        strokeWidth: 2,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0
-      },
-      line: {
-        theme: 'vintage',
-        inheritTheme: 'vintage',
-        stroke: getPalette('vintage-sepia')?.colors.primary || '#8b7355',
-        strokeWidth: 2,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0
-      }
-    }
-  },
-  {
-    id: 'dark',
-    name: 'Dark',
-    description: 'Dark theme with light elements',
-    pageSettings: {
-      backgroundColor: '#1a1a1a',
-      backgroundPattern: {
-        enabled: false,
-        style: 'grid',
-        size: 20,
-        strokeWidth: 1,
-        backgroundColor: '#2d2d2d',
-        backgroundOpacity: 0.3
-      },
-      backgroundImage: {
-        enabled: false,
-        size: 'cover',
-        repeat: false
-      },
-      cornerRadius: 0
-    },
-    elementDefaults: {
-      text: {
-        theme: 'dark',
-        stroke: getPalette('dark-neon')?.colors.primary || '#00ff88',
-        fill: getPalette('dark-neon')?.colors.primary || '#00ff88',
-        strokeWidth: 1,
-        cornerRadius: 0,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        ruledLines: {
-          enabled: false,
-          inheritTheme: 'graph',
-          lineWidth: 1,
-          lineColor: '#404040',
-          lineOpacity: 0.4
-        },
-        font: {
-          fontSize: 16,
-          fontFamily: 'Consolas, monospace',
-          fontColor: '#e0e0e0',
-          fontOpacity: 1,
-          fontBold: false,
-          fontItalic: false
-        },
-        border: {
-          borderWidth: 0,
-          borderColor: getPalette('dark-neon')?.colors.secondary || '#0088ff',
-          borderOpacity: 1,
-          inheritTheme: 'dark'
-        },
-        format: {
-          align: 'left',
-          lineHeight: 1.3,
-          paragraphSpacing: 'medium',
-          padding: 10
-        },
-        background: {
-          backgroundColor: getPalette('dark-neon')?.colors.background || '#2a2a2a',
-          backgroundOpacity: 0.4
-        }
-      },
-      question: {
-        theme: 'dark',
-        stroke: getPalette('dark-neon')?.colors.primary || '#00ff88',
-        fill: getPalette('dark-neon')?.colors.primary || '#00ff88',
-        strokeWidth: 1,
-        cornerRadius: 0,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        ruledLines: {
-          enabled: false,
-          inheritTheme: 'graph',
-          lineWidth: 1,
-          lineColor: '#404040',
-          lineOpacity: 0.4
-        },
-        font: {
-          fontSize: 18,
-          fontFamily: 'Audiowide, non-serif',
-          fontColor: '#e0e0e0',
-          fontOpacity: 1,
-          fontBold: false,
-          fontItalic: false
-        },
-        border: {
-          borderWidth: 1,
-          borderColor: getPalette('dark-neon')?.colors.secondary || '#0088ff',
-          borderOpacity: 1,
-          inheritTheme: 'dark'
-        },
-        format: {
-          align: 'left',
-          lineHeight: 1.3,
-          paragraphSpacing: 'medium',
-          padding: 14
-        },
-        background: {
-          backgroundColor: getPalette('dark-neon')?.colors.surface || '#ff0088',
-          backgroundOpacity: 0.3
-        }
-      },
-      answer: {
-        theme: 'dark',
-        stroke: getPalette('dark-neon')?.colors.accent || '#88ff00',
-        fill: getPalette('dark-neon')?.colors.accent || '#88ff00',
-        strokeWidth: 1,
-        cornerRadius: 0,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        ruledLines: {
-          enabled: false,
-          inheritTheme: 'graph',
-          lineWidth: 1,
-          lineColor: '#404040',
-          lineOpacity: 0.4
-        },
-        font: {
-          fontSize: 16,
-          fontFamily: 'Consolas, monospace',
-          fontColor: '#88ff00',
-          fontOpacity: 1,
-          fontBold: false,
-          fontItalic: false
-        },
-        border: {
-          borderWidth: 1,
-          borderColor: getPalette('dark-neon')?.colors.secondary || '#0088ff',
-          borderOpacity: 1,
-          inheritTheme: 'dark'
-        },
-        format: {
-          align: 'left',
-          lineHeight: 1.3,
-          paragraphSpacing: 'medium',
-          padding: 12
-        },
-        background: {
-          backgroundColor: getPalette('dark-neon')?.colors.background || '#2a2a2a',
-          backgroundOpacity: 0.3
-        }
-      },
-      image: {
-        theme: 'dark',
-        stroke: getPalette('dark-neon')?.colors.primary || '#00ff88',
-        strokeWidth: 1,
-        cornerRadius: 0,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        border: {
-          borderWidth: 0,
-          borderColor: 'transparent',
-          borderOpacity: 1
-        },
-        background: {
-          backgroundColor: 'transparent',
-          backgroundOpacity: 1
-        }
-      },
-      shape: {
-        theme: 'dark',
-        inheritTheme: 'dark',
-        stroke: getPalette('dark-neon')?.colors.primary || '#00ff88',
-        fill: getPalette('dark-neon')?.colors.surface || '#ff0088',
-        strokeWidth: 2,
-        cornerRadius: 0,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        border: {
-          borderWidth: 0,
-          borderColor: 'transparent',
-          borderOpacity: 1
-        },
-        background: {
-          backgroundColor: 'transparent',
-          backgroundOpacity: 0.4
-        }
-      },
-      brush: {
-        theme: 'dark',
-        inheritTheme: 'dark',
-        stroke: getPalette('dark-neon')?.colors.primary || '#00ff88',
-        strokeWidth: 2,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0
-      },
-      line: {
-        theme: 'dark',
-        inheritTheme: 'dark',
-        stroke: getPalette('dark-neon')?.colors.primary || '#00ff88',
-        strokeWidth: 2,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0
-      }
-    }
-  },
-  {
-  id: "custom",
-  name: "Custom Theme",
-  description: "Theme created from canvas elements",
-  pageSettings: {
-    backgroundColor: "lines",
-    backgroundPattern: {
-      enabled: true,
-      style: "lines",
-      size: 24,
-      strokeWidth: 1,
-      backgroundColor: "#e8dcc6",
-      backgroundOpacity: 0.4
-    },
-    backgroundImage: {
-      enabled: false,
-      size: "cover",
-      repeat: false
-    },
-    cornerRadius: 0
-  },
-  elementDefaults: {
-    text: {
-      theme: "custom",
-      stroke: "#8b7355",
-      fill: "#8b7355",
-      strokeWidth: 1,
-      cornerRadius: 40,
-      scaleX: 1,
-      scaleY: 1,
-      rotation: 0,
-      font: {
-        fontSize: 15,
-        fontFamily: "Times New Roman, serif",
-        fontColor: "#8b7355",
-        fontOpacity: 1,
-        fontBold: false,
-        fontItalic: false
-      },
-      border: {
-        borderWidth: 10,
-        borderColor: "#a0826d",
-        borderOpacity: 1,
-        inheritTheme: "custom"
-      },
-      format: {
-        align: "left",
-        lineHeight: 1.4,
-        paragraphSpacing: "medium",
-        padding: 20
-      },
-      background: {
-        backgroundColor: "#f5f0e8",
-        backgroundOpacity: 0.4
-      },
-      ruledLines: {
-        enabled: false,
-        inheritTheme: "notebook",
-        lineWidth: 1,
-        lineColor: "#e0e0e0",
-        lineOpacity: 0.5
-      }
-    },
-    question: {
-      theme: "custom",
-      stroke: "#8b7355",
-      fill: "#8b7355",
-      strokeWidth: 1,
-      cornerRadius: 10,
-      scaleX: 1,
-      scaleY: 1,
-      rotation: 0,
-      font: {
-        fontSize: 15,
-        fontFamily: "Times New Roman, serif",
-        fontColor: "#8b7355",
-        fontOpacity: 1,
-        fontBold: false,
-        fontItalic: false
-      },
-      border: {
-        borderWidth: 20,
-        borderColor: "#a0826d",
-        borderOpacity: 1,
-        inheritTheme: "custom"
-      },
-      format: {
-        align: "left",
-        lineHeight: 1.4,
-        paragraphSpacing: "medium",
-        padding: 20
-      },
-      background: {
-        backgroundColor: "#f5f0e8",
-        backgroundOpacity: 0.4
-      },
-      ruledLines: {
-        enabled: false,
-        inheritTheme: "notebook",
-        lineWidth: 1,
-        lineColor: "#e0e0e0",
-        lineOpacity: 0.5
-      }
-    },
-    answer: {
-      theme: "custom",
-      stroke: "#8b7355",
-      fill: "#8b7355",
-      strokeWidth: 1,
-      cornerRadius: 10,
-      scaleX: 1,
-      scaleY: 1,
-      rotation: 0,
-      font: {
-        fontSize: 15,
-        fontFamily: "Times New Roman, serif",
-        fontColor: "#8b7355",
-        fontOpacity: 1,
-        fontBold: false,
-        fontItalic: false
-      },
-      border: {
-        borderWidth: 20,
-        borderColor: "#a0826d",
-        borderOpacity: 1,
-        inheritTheme: "custom"
-      },
-      format: {
-        align: "left",
-        lineHeight: 1.4,
-        paragraphSpacing: "medium",
-        padding: 20
-      },
-      background: {
-        backgroundColor: "#f5f0e8",
-        backgroundOpacity: 0.4
-      },
-      ruledLines: {
-        enabled: false,
-        inheritTheme: "notebook",
-        lineWidth: 1,
-        lineColor: "#e0e0e0",
-        lineOpacity: 0.5
-      }
-    },
-    image: {},
-    shape: {
-      theme: "custom",
-      stroke: "#8b7355",
-      fill: "#ddbf94",
-      strokeWidth: 2,
-      cornerRadius: 10,
-      scaleX: 1,
-      scaleY: 1,
-      rotation: 0,
-      inheritTheme: "custom",
-      border: {
-        borderWidth: 0,
-        borderColor: "transparent",
-        borderOpacity: 1
-      },
-      background: {
-        backgroundColor: "transparent",
-        backgroundOpacity: 0.5
-      }
-    },
-    brush: {
-      theme: "custom",
-      stroke: "#8b7355",
-      strokeWidth: 2,
-      cornerRadius: 10,
-      scaleX: 1,
-      scaleY: 1,
-      rotation: 0,
-      inheritTheme: "custom"
-    },
-    line: {}
-  }
+interface ThemeConfig {
+  name: string;
+  description: string;
+  palette: string;
+  pageSettings: any;
+  elementDefaults: any;
 }
 
-];
-
 const processedThemeCache = new Map<string, GlobalTheme>();
+
+function createTheme(id: string, config: ThemeConfig): GlobalTheme {
+  const palette = getPalette(config.palette);
+  
+  const buildElement = (elementType: string, defaults: any) => {
+    const base = {
+      theme: id,
+      scaleX: 1,
+      scaleY: 1,
+      rotation: 0,
+      ...defaults
+    };
+
+    // Add palette colors
+    if (palette) {
+      base.stroke = base.stroke || palette.colors.primary;
+      base.fill = base.fill || palette.colors.primary;
+      
+      if (base.font) {
+        base.font.fontColor = base.font.fontColor || palette.colors.primary;
+        base.font.fontOpacity = base.font.fontOpacity || 1;
+      }
+      
+      if (base.border) {
+        base.border.borderColor = base.border.borderColor || palette.colors.secondary;
+        base.border.borderTheme = base.border.borderTheme || id;
+      }
+      
+      if (base.background) {
+        base.background.backgroundColor = base.background.backgroundColor || palette.colors.background;
+      }
+      
+      if (base.ruledLines) {
+        base.ruledLines.ruledLinesTheme = base.ruledLines.ruledLinesTheme || 'notebook';
+        base.ruledLines.lineColor = base.ruledLines.lineColor || '#e0e0e0';
+      }
+    }
+
+    // Add inherit theme for shapes and stroke themes
+    if (['shape', 'brush', 'line'].includes(elementType)) {
+      base.inheritTheme = base.strokeTheme || id;
+    }
+    
+    // Handle strokeTheme for borders and ruled lines
+    if (base.border && base.border.strokeTheme) {
+      base.border.borderTheme = base.border.strokeTheme;
+    }
+    
+    if (base.ruledLines && base.ruledLines.strokeTheme) {
+      base.ruledLines.ruledLinesTheme = base.ruledLines.strokeTheme;
+    }
+
+    return base;
+  };
+
+  return {
+    id,
+    name: config.name,
+    description: config.description,
+    pageSettings: {
+      ...config.pageSettings,
+      backgroundImage: {
+        enabled: false,
+        size: 'cover',
+        repeat: false,
+        ...config.pageSettings.backgroundImage
+      }
+    },
+    elementDefaults: {
+      text: buildElement('text', config.elementDefaults.text || {}),
+      question: buildElement('question', config.elementDefaults.question || {}),
+      answer: buildElement('answer', config.elementDefaults.answer || {}),
+      image: buildElement('image', config.elementDefaults.image || {}),
+      shape: buildElement('shape', config.elementDefaults.shape || {}),
+      brush: buildElement('brush', config.elementDefaults.brush || {}),
+      line: buildElement('line', config.elementDefaults.line || {})
+    }
+  };
+}
 
 function processTheme(theme: GlobalTheme): GlobalTheme {
   return {
@@ -1457,30 +144,20 @@ function processTheme(theme: GlobalTheme): GlobalTheme {
           strokeWidth: typeof element.strokeWidth === 'number' 
             ? commonToActualStrokeWidth(element.strokeWidth, theme.id) 
             : element.strokeWidth,
-          // Handle nested font properties
           font: element.font ? {
             ...element.font,
             fontSize: typeof element.font.fontSize === 'number'
               ? commonToActual(element.font.fontSize)
               : element.font.fontSize
           } : undefined,
-          // Handle nested border properties
           border: element.border ? {
             ...element.border,
             borderWidth: typeof element.border.borderWidth === 'number'
-              ? commonToActualStrokeWidth(element.border.borderWidth, theme.id)
+              ? commonToActualStrokeWidth(element.border.borderWidth, element.border.borderTheme || element.border.inheritTheme || theme.id)
               : element.border.borderWidth
           } : undefined,
-          // Keep format and background as-is
           format: element.format,
           background: element.background,
-          // Handle legacy properties for backward compatibility
-          borderWidth: element.border?.borderWidth || (typeof element.borderWidth === 'number'
-            ? commonToActualStrokeWidth(element.borderWidth, theme.id)
-            : element.borderWidth),
-          fontSize: element.font?.fontSize || (typeof element.fontSize === 'number'
-            ? commonToActual(element.fontSize)
-            : element.fontSize),
           cornerRadius: typeof element.cornerRadius === 'number'
             ? commonToActualRadius(element.cornerRadius)
             : element.cornerRadius,
@@ -1499,15 +176,44 @@ export function getGlobalTheme(id: string): GlobalTheme | undefined {
     return processedThemeCache.get(id);
   }
   
-  const rawTheme = RAW_THEMES.find(theme => theme.id === id);
-  if (!rawTheme) return undefined;
+  const themeConfig = (themesData as Record<string, ThemeConfig>)[id];
+  if (!themeConfig) return undefined;
   
+  const rawTheme = createTheme(id, themeConfig);
   const processedTheme = processTheme(rawTheme);
   processedThemeCache.set(id, processedTheme);
   return processedTheme;
 }
 
-export const GLOBAL_THEMES: GlobalTheme[] = RAW_THEMES;
+export const GLOBAL_THEMES: GlobalTheme[] = Object.keys(themesData).map(id => getGlobalTheme(id)!).filter(Boolean);
+
+function getThemeCategory(elementType: string): keyof GlobalTheme['elementDefaults'] {
+  switch (elementType) {
+    case 'question':
+      return 'question';
+    case 'answer':
+      return 'answer';
+    case 'text':
+      return 'text';
+    case 'image':
+    case 'placeholder':
+      return 'image';
+    case 'brush':
+      return 'brush';
+    case 'line':
+      return 'line';
+    case 'rect':
+    case 'circle':
+    case 'heart':
+    case 'star':
+    case 'speech-bubble':
+    case 'dog':
+    case 'cat':
+    case 'smiley':
+    default:
+      return 'shape';
+  }
+}
 
 export function getGlobalThemeDefaults(themeId: string, elementType: string): Partial<CanvasElement> {
   const theme = getGlobalTheme(themeId);
@@ -1537,33 +243,5 @@ export function applyThemeToPage(pageSettings: any, themeId: string): any {
 }
 
 export function getAllGlobalThemes(): GlobalTheme[] {
-  return RAW_THEMES.map(theme => getGlobalTheme(theme.id)!).filter(Boolean);
-}
-
-function getThemeCategory(elementType: string): keyof GlobalTheme['elementDefaults'] {
-  switch (elementType) {
-    case 'text':
-      return 'text';
-    case 'question':
-      return 'question';
-    case 'answer':
-      return 'answer';
-    case 'image':
-    case 'placeholder':
-      return 'image';
-    case 'brush':
-      return 'brush';
-    case 'line':
-      return 'line';
-    case 'rect':
-    case 'circle':
-    case 'heart':
-    case 'star':
-    case 'speech-bubble':
-    case 'dog':
-    case 'cat':
-    case 'smiley':
-    default:
-      return 'shape';
-  }
+  return GLOBAL_THEMES;
 }

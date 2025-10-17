@@ -182,7 +182,21 @@ export default function Textbox(props: CanvasItemProps) {
 
   const [hasOverflow, setHasOverflow] = useState(false);
 
-  const fontSize = element.font?.fontSize || element.fontSize || 16;
+  const fontSize = (() => {
+    let size = element.font?.fontSize || element.fontSize;
+    if (!size) {
+      const currentPage = state.currentBook?.pages[state.activePageIndex];
+      const pageTheme = currentPage?.background?.pageTheme;
+      const bookTheme = state.currentBook?.bookTheme;
+      const elementTheme = element.theme;
+      const activeTheme = pageTheme || bookTheme || elementTheme;
+      if (activeTheme) {
+        const themeDefaults = getGlobalThemeDefaults(activeTheme, element.textType || 'text');
+        size = themeDefaults?.font?.fontSize;
+      }
+    }
+    return size || 16;
+  })();
   
   // Calculate lineHeight based on paragraph spacing and ruled lines
   const getLineHeight = () => {
@@ -208,7 +222,7 @@ export default function Textbox(props: CanvasItemProps) {
   
   // Generate themed ruled lines
   const generateRuledLines = () => {
-    if (!element.ruledLines) return [];
+    if (!element.ruledLines || element.ruledLines?.enabled === false) return [];
     
     const lines = [];
     const padding = element.format?.padding || element.padding || 4;
@@ -760,12 +774,12 @@ export default function Textbox(props: CanvasItemProps) {
   }, [element.width, element.height]);
 
   // Create border element for ThemedShape if borderWidth > 0
-  const borderWidth = element.border?.borderWidth || element.borderWidth || 0;
+  const borderWidth = element.border?.borderWidth ?? element.borderWidth ?? 0;
   const borderColor = element.border?.borderColor || element.borderColor || '#000000';
-  const borderOpacity = element.border?.borderOpacity || element.borderOpacity || 1;
-  const borderTheme = element.border?.inheritTheme || element.theme || 'default';
+  const borderOpacity = element.border?.borderOpacity ?? element.borderOpacity ?? 1;
+  const borderTheme = element.border?.borderTheme || element.border?.inheritTheme || element.theme || 'default';
   
-  const borderElement = borderWidth > 0 ? {
+  const borderElement = (borderWidth > 0 && (element.border?.enabled !== false)) ? {
     ...element,
     id: `${element.id}-border`,
     type: 'rect' as const,
@@ -787,8 +801,8 @@ export default function Textbox(props: CanvasItemProps) {
         <Rect
           width={element.width}
           height={element.height}
-          fill={element.background?.backgroundColor || element.backgroundColor || "transparent"}
-          opacity={element.background?.backgroundOpacity || element.backgroundOpacity || 1}
+          fill={(element.background?.enabled === false) ? "transparent" : (element.background?.backgroundColor || element.backgroundColor || "transparent")}
+          opacity={(element.background?.enabled === false) ? 0 : (element.background?.backgroundOpacity || element.backgroundOpacity || 1)}
           stroke={!borderWidth && (element.textType === 'question' || element.textType === 'answer') ? "transparent" : "transparent"}
           strokeWidth={!borderWidth && (element.textType === 'question' || element.textType === 'answer') ? 1 : 0}
           dash={!borderWidth && (element.textType === 'question' || element.textType === 'answer') ? [5, 5] : []}
@@ -797,7 +811,7 @@ export default function Textbox(props: CanvasItemProps) {
         />
         
         {/* Themed border using ThemedShape component */}
-        {borderElement && (
+        {borderElement && borderWidth > 0 && (element.border?.enabled !== false) && (
           <Group listening={false}>
             <ThemedShape
               element={borderElement}

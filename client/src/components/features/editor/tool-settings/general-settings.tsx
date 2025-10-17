@@ -13,6 +13,7 @@ import { GlobalThemeSelector } from '../global-theme-selector';
 import { getGlobalThemeDefaults, getGlobalTheme } from '../../../../utils/global-themes';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { PaletteSelector } from '../palette-selector';
+import { commonToActual } from '../../../../utils/font-size-converter';
 import { useState } from 'react';
 
 interface GeneralSettingsProps {
@@ -95,14 +96,14 @@ export function GeneralSettings({
               if (theme) {
                 // Apply element defaults to current page only
                 currentPage.elements.forEach(element => {
-                  const themeDefaults = getGlobalThemeDefaults(themeId, element.type);
+                  const themeDefaults = getGlobalThemeDefaults(themeId, element.textType || element.type);
                   // Apply ALL theme defaults, overwriting individual customizations
                   const flattenedDefaults = {
                     ...themeDefaults,
                     // Apply nested font properties
-                    ...(themeDefaults.font && {
+                    ...(themeDefaults.font && themeDefaults.font.fontSize && {
                       font: themeDefaults.font,
-                      fontSize: themeDefaults.font.fontSize,
+                      fontSize: commonToActual(themeDefaults.font.fontSize),
                       fontFamily: themeDefaults.font.fontFamily,
                       fontColor: themeDefaults.font.fontColor,
                       fontOpacity: themeDefaults.font.fontOpacity,
@@ -227,14 +228,14 @@ export function GeneralSettings({
                 state.currentBook.pages.forEach((page, pageIndex) => {
                   // Apply element defaults to ALL elements
                   page.elements.forEach(element => {
-                    const themeDefaults = getGlobalThemeDefaults(themeId, element.type);
+                    const themeDefaults = getGlobalThemeDefaults(themeId, element.textType || element.type);
                     // Apply ALL theme defaults, overwriting individual customizations
                     const flattenedDefaults = {
                       ...themeDefaults,
                       // Apply nested font properties
-                      ...(themeDefaults.font && {
+                      ...(themeDefaults.font && themeDefaults.font.fontSize && {
                         font: themeDefaults.font,
-                        fontSize: themeDefaults.font.fontSize,
+                        fontSize: commonToActual(themeDefaults.font.fontSize),
                         fontFamily: themeDefaults.font.fontFamily,
                         fontColor: themeDefaults.font.fontColor,
                         fontOpacity: themeDefaults.font.fontOpacity,

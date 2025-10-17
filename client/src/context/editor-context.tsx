@@ -218,12 +218,7 @@ function logThemeStructure(book: Book | null) {
   };
   
   console.log('=== THEME STRUCTURE FOR GLOBAL-THEMES.TS ===');
-  
-  // Convert to JavaScript object syntax without quoted property names
-  const jsObjectString = JSON.stringify(themeStructure, null, 2)
-    .replace(/"([^"]+)":/g, '$1:');
-  
-  console.log(jsObjectString);
+  console.log(JSON.stringify(themeStructure, null, 2));
   console.log('=== END THEME STRUCTURE ===');
 }
 
@@ -399,18 +394,9 @@ const MAX_HISTORY_SIZE = 50;
 
 // Function to enforce theme stroke width boundaries
 function enforceThemeBoundaries(updates: Partial<CanvasElement>, oldElement: CanvasElement): Partial<CanvasElement> {
-  const result = { ...updates };
-  
-  // Only enforce boundaries if theme is being changed
-  if (result.theme && oldElement.theme && result.theme !== oldElement.theme && oldElement.strokeWidth !== undefined) {
-    // Convert current strokeWidth to common scale using old theme
-    const commonWidth = actualToCommonStrokeWidth(oldElement.strokeWidth, oldElement.theme);
-    // Convert to new theme's actual value
-    const newActualWidth = commonToActualStrokeWidth(commonWidth, result.theme);
-    result.strokeWidth = newActualWidth;
-  }
-  
-  return result;
+  // No conversion needed - keep common values everywhere
+  // Conversion happens only during rendering in themes.ts
+  return updates;
 }
 
 function saveToHistory(state: EditorState, actionName: string): EditorState {
