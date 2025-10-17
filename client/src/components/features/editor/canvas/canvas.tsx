@@ -149,7 +149,7 @@ const createPatternTile = (pattern: any, color: string, size: number, strokeWidt
 
 
 export default function Canvas() {
-  const { state, dispatch, getAnswerText, getQuestionAssignmentsForUser } = useEditor();
+  const { state, dispatch, getAnswerText, getQuestionAssignmentsForUser, undo, redo } = useEditor();
   const { token, user } = useAuth();
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
@@ -722,7 +722,20 @@ export default function Canvas() {
       setGroupMoveStart(null);
     } else if (isSelecting) {
       const selectedIds = getElementsInSelection();
-      dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: selectedIds });
+      
+      // Add linked question-answer pairs
+      const finalSelectedIds = new Set(selectedIds);
+      selectedIds.forEach(elementId => {
+        const element = currentPage?.elements.find(el => el.id === elementId);
+        if (element?.textType === 'question') {
+          const answerElement = currentPage?.elements.find(el => el.questionElementId === elementId);
+          if (answerElement) finalSelectedIds.add(answerElement.id);
+        } else if (element?.textType === 'answer' && element.questionElementId) {
+          finalSelectedIds.add(element.questionElementId);
+        }
+      });
+      
+      dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: Array.from(finalSelectedIds) });
       setSelectionRect({ x: 0, y: 0, width: 0, height: 0, visible: false });
       setIsSelecting(false);
       setSelectionStart(null);
@@ -864,6 +877,23 @@ export default function Canvas() {
       return;
     }
     
+    // Prevent context menu when only one element of a question-answer pair is selected
+    if (state.selectedElementIds.length === 1 && currentPage) {
+      const selectedElement = currentPage.elements.find(el => el.id === state.selectedElementIds[0]);
+      if (selectedElement && (selectedElement.textType === 'question' || selectedElement.textType === 'answer')) {
+        let linkedElement: CanvasElement | undefined;
+        if (selectedElement.textType === 'question') {
+          linkedElement = currentPage.elements.find(el => el.questionElementId === selectedElement.id);
+        } else if (selectedElement.questionElementId) {
+          linkedElement = currentPage.elements.find(el => el.id === selectedElement.questionElementId);
+        }
+        
+        if (linkedElement) {
+          return; // Don't show context menu for single element of a pair
+        }
+      }
+    }
+    
     const pos = e.target.getStage()?.getPointerPosition();
     if (!pos) return;
     
@@ -879,10 +909,13 @@ export default function Canvas() {
       idMapping.set(elementId, uuidv4());
     });
     
+    const newElementIds: string[] = [];
+    
     state.selectedElementIds.forEach(elementId => {
       const element = currentPage.elements.find(el => el.id === elementId);
       if (element) {
         const newId = idMapping.get(elementId)!;
+        newElementIds.push(newId);
         const duplicatedElement = {
           ...element,
           id: newId,
@@ -900,6 +933,12 @@ export default function Canvas() {
         dispatch({ type: 'ADD_ELEMENT', payload: duplicatedElement });
       }
     });
+    
+    // Select the duplicated elements
+    setTimeout(() => {
+      dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: newElementIds });
+    }, 10);
+    
     setContextMenu({ x: 0, y: 0, visible: false });
   };
 
@@ -991,8 +1030,11 @@ export default function Canvas() {
     const minX = Math.min(...clipboard.map(el => el.x));
     const minY = Math.min(...clipboard.map(el => el.y));
     
+    const newElementIds: string[] = [];
+    
     clipboard.forEach((element) => {
       const newId = idMapping.get(element.id)!;
+      newElementIds.push(newId);
       const pastedElement = {
         ...element,
         id: newId,
@@ -1010,6 +1052,12 @@ export default function Canvas() {
       };
       dispatch({ type: 'ADD_ELEMENT', payload: pastedElement });
     });
+    
+    // Select the pasted elements
+    setTimeout(() => {
+      dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: newElementIds });
+    }, 10);
+    
     setContextMenu({ x: 0, y: 0, visible: false });
   };
 
@@ -1225,8 +1273,6 @@ export default function Canvas() {
       }
     };
     
-
-    
     const handleClickOutside = () => {
       setContextMenu({ x: 0, y: 0, visible: false });
     };
@@ -1238,15 +1284,149 @@ export default function Canvas() {
     updateSize();
     window.addEventListener('resize', updateSize);
     window.addEventListener('click', handleClickOutside);
-
     window.addEventListener('changePage', handlePageChange as EventListener);
+    
     return () => {
       window.removeEventListener('resize', updateSize);
       window.removeEventListener('click', handleClickOutside);
-
       window.removeEventListener('changePage', handlePageChange as EventListener);
     };
   }, []);
+  
+  // Separate useEffect for keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't handle shortcuts when typing in inputs
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      
+      if (e.key === 'Delete' && state.selectedElementIds.length > 0) {
+        e.preventDefault();
+        handleDeleteItems();
+      // Arrow keys are now handled in the repeat handler
+      } else if (e.ctrlKey || e.metaKey) {
+        if (e.key === 'c' && state.selectedElementIds.length > 0) {
+          e.preventDefault();
+          handleCopyItems();
+        } else if (e.key === 'v') {
+          e.preventDefault();
+          if (clipboard.length > 0) {
+            handlePasteItems();
+          } else {
+            // Handle text paste
+            navigator.clipboard.readText().then(text => {
+              if (text.trim()) {
+                const x = (lastMousePos.x - stagePos.x) / zoom;
+                const y = (lastMousePos.y - stagePos.y) / zoom;
+                const newElement = {
+                  id: uuidv4(),
+                  type: 'text' as const,
+                  x,
+                  y,
+                  width: 200,
+                  height: 50,
+                  text,
+                  fontSize: 16,
+                  fontFamily: 'Arial, sans-serif',
+                  fill: '#1f2937',
+                  textType: 'text' as const
+                };
+                dispatch({ type: 'ADD_ELEMENT', payload: newElement });
+              }
+            }).catch(() => {});
+          }
+        } else if (e.key === 'x' && state.selectedElementIds.length > 0) {
+          e.preventDefault();
+          handleCopyItems();
+          handleDeleteItems();
+        } else if (e.key === 'z') {
+          e.preventDefault();
+          undo();
+        } else if (e.key === 'y') {
+          e.preventDefault();
+          redo();
+        } else if (e.key === 's') {
+          e.preventDefault();
+          window.dispatchEvent(new CustomEvent('saveBook'));
+        } else if (e.key === 'w') {
+          e.preventDefault();
+          window.dispatchEvent(new CustomEvent('closeBook'));
+        } else if (e.key === 'p') {
+          e.preventDefault();
+          window.dispatchEvent(new CustomEvent('showPDFExport'));
+        } else if (e.key === 'd' && state.selectedElementIds.length > 0) {
+          e.preventDefault();
+          handleDuplicateItems();
+        }
+      }
+    };
+    
+    let keyRepeatInterval: NodeJS.Timeout | null = null;
+    const pressedKeys = new Set<string>();
+    
+    const handleKeyDownWithRepeat = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      
+      // Handle arrow keys with smooth repeat
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && state.selectedElementIds.length > 0) {
+        e.preventDefault();
+        
+        if (!pressedKeys.has(e.key)) {
+          pressedKeys.add(e.key);
+          
+          const moveElements = () => {
+            const deltaX = pressedKeys.has('ArrowLeft') ? -1 : pressedKeys.has('ArrowRight') ? 1 : 0;
+            const deltaY = pressedKeys.has('ArrowUp') ? -1 : pressedKeys.has('ArrowDown') ? 1 : 0;
+            
+            if (deltaX !== 0 || deltaY !== 0) {
+              state.selectedElementIds.forEach(elementId => {
+                const element = currentPage?.elements.find(el => el.id === elementId);
+                if (element) {
+                  dispatch({
+                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                    payload: {
+                      id: elementId,
+                      updates: { x: element.x + deltaX, y: element.y + deltaY }
+                    }
+                  });
+                }
+              });
+            }
+          };
+          
+          moveElements(); // Initial move
+          keyRepeatInterval = setInterval(moveElements, 16); // ~60fps
+        }
+        return;
+      }
+      
+      // Handle other shortcuts normally
+      handleKeyDown(e);
+    };
+    
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        pressedKeys.delete(e.key);
+        if (pressedKeys.size === 0 && keyRepeatInterval) {
+          clearInterval(keyRepeatInterval);
+          keyRepeatInterval = null;
+        }
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDownWithRepeat);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDownWithRepeat);
+      window.removeEventListener('keyup', handleKeyUp);
+      if (keyRepeatInterval) {
+        clearInterval(keyRepeatInterval);
+      }
+    };
+  }, [state.selectedElementIds, currentPage, clipboard, lastMousePos, stagePos, zoom, undo, redo, handleDeleteItems, handleCopyItems, handlePasteItems]);
   
   useEffect(() => {
     const handleTextEdit = (event: CustomEvent) => {
@@ -1461,7 +1641,26 @@ export default function Canvas() {
                     element={element}
                     isSelected={state.selectedElementIds.includes(element.id)}
                     zoom={zoom}
-                    onSelect={() => {
+                    onSelect={(e) => {
+                    // Handle Ctrl+click for multi-selection
+                    if (e?.evt?.ctrlKey || e?.evt?.metaKey) {
+                      const isSelected = state.selectedElementIds.includes(element.id);
+                      if (isSelected) {
+                        // Remove from selection
+                        dispatch({ 
+                          type: 'SET_SELECTED_ELEMENTS', 
+                          payload: state.selectedElementIds.filter(id => id !== element.id) 
+                        });
+                      } else {
+                        // Add to selection
+                        dispatch({ 
+                          type: 'SET_SELECTED_ELEMENTS', 
+                          payload: [...state.selectedElementIds, element.id] 
+                        });
+                      }
+                      return;
+                    }
+                    
                     if (element.textType === 'question' || element.textType === 'answer') {
                       const currentTime = Date.now();
                       const timeSinceLastClick = currentTime - lastClickTime;

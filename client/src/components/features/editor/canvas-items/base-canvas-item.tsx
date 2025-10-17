@@ -8,7 +8,7 @@ import type { CanvasElement } from '../../../../context/editor-context';
 export interface CanvasItemProps {
   element: CanvasElement;
   isSelected: boolean;
-  onSelect: () => void;
+  onSelect: (e?: Konva.KonvaEventObject<MouseEvent>) => void;
   onDragStart?: () => void;
   onDragEnd?: (e: Konva.KonvaEventObject<DragEvent>) => void;
   isMovingGroup?: boolean;
@@ -92,13 +92,13 @@ export default function BaseCanvasItem({
         // For question-answer pairs, always call onSelect to handle sequential selection
         // For other elements, only call if not already selected
         if (element.textType === 'question' || element.textType === 'answer' || !isSelected) {
-          onSelect();
+          onSelect(e);
         }
       } else if (e.evt.button === 2) {
         e.cancelBubble = true;
         // Right-click: select element if not already selected
         if (!isSelected) {
-          onSelect();
+          onSelect(e);
         }
       }
     }
@@ -110,7 +110,7 @@ export default function BaseCanvasItem({
       // For regular elements, select on mouseDown if not already selected
       // Skip for question-answer pairs as they use onClick for sequential selection
       if (!isSelected && !(element.textType === 'question' || element.textType === 'answer')) {
-        onSelect();
+        onSelect(e);
       }
     }
   };

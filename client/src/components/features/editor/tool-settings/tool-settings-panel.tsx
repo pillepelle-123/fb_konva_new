@@ -50,6 +50,7 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, {}>((props, ref) => {
   const [showColorSelector, setShowColorSelector] = useState<string | null>(null);
   const [showPageTheme, setShowPageTheme] = useState(false);
   const [showBookTheme, setShowBookTheme] = useState(false);
+  const [showFontSelector, setShowFontSelector] = useState(false);
 
   const activeTool = state.activeTool;
 
@@ -249,6 +250,8 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, {}>((props, ref) => {
             selectedQuestionElementId={selectedQuestionElementId}
             setSelectedQuestionElementId={setSelectedQuestionElementId}
             activeLinkedElement={activeLinkedElement}
+            showFontSelector={showFontSelector}
+            setShowFontSelector={setShowFontSelector}
           />
         )}
       </ToolSettingsContainer>

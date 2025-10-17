@@ -24,21 +24,21 @@ export const GLOBAL_THEMES: GlobalTheme[] = [
     elementDefaults: {
       text: {
         theme: 'default', stroke: getPalette('default-palette')?.colors.primary || '#16697a', fill: getPalette('default-palette')?.colors.primary || '#16697a', strokeWidth: 1, // Common scale
-        fontSize: 16, fontFamily: 'Arial, sans-serif', align: 'left',
+        fontSize: 67, fontFamily: 'Arial, sans-serif', align: 'left', // Common size 16
         lineHeight: 1.2, paragraphSpacing: 'medium', roughness: 0,
         borderWidth: 0, borderColor: getPalette('default-palette')?.colors.secondary || '#489fb5', backgroundColor: getPalette('default-palette')?.colors.background || '#ede7e3',
         backgroundOpacity: 0.3, padding: 8, scaleX: 1, scaleY: 1, rotation: 0
       },
       question: {
         theme: 'default', stroke: getPalette('default-palette')?.colors.primary || '#16697a', fill: getPalette('default-palette')?.colors.primary || '#16697a', strokeWidth: 2, // Common scale
-        fontSize: 18, fontFamily: 'Arial, sans-serif', align: 'left',
+        fontSize: 75, fontFamily: 'Arial, sans-serif', align: 'left', // Common size 18
         lineHeight: 1.3, paragraphSpacing: 'medium', roughness: 0,
         borderWidth: 1, borderColor: getPalette('default-palette')?.colors.secondary || '#489fb5', backgroundColor: getPalette('default-palette')?.colors.surface || '#ffa62b',
         backgroundOpacity: 0.4, padding: 12, scaleX: 1, scaleY: 1, rotation: 0
       },
       answer: {
         theme: 'default', stroke: getPalette('default-palette')?.colors.accent || '#82c0cc', fill: getPalette('default-palette')?.colors.accent || '#82c0cc', strokeWidth: 1, // Common scale
-        fontSize: 16, fontFamily: 'Arial, sans-serif', align: 'left',
+        fontSize: 67, fontFamily: 'Arial, sans-serif', align: 'left', // Common size 16
         lineHeight: 1.2, paragraphSpacing: 'medium', roughness: 0,
         borderWidth: 1, borderColor: getPalette('default-palette')?.colors.secondary || '#489fb5', backgroundColor: getPalette('default-palette')?.colors.background || '#ede7e3',
         backgroundOpacity: 0.3, padding: 10, scaleX: 1, scaleY: 1, rotation: 0

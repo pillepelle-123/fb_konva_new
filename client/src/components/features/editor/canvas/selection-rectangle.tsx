@@ -18,7 +18,7 @@ export function SelectionRectangle({ x, y, width, height, visible }: SelectionRe
       width={width}
       height={height}
       // fill="rgba(37, 99, 235, 0.1)"
-      stroke="#72bcf5ff"
+      stroke="#72bcf5"
       strokeWidth={2}
       dash={[6, 6]}
       cornerRadius={8}

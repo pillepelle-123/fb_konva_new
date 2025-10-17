@@ -61,7 +61,7 @@ export const TOOL_DEFAULTS = {
     fill: 'transparent'
   },
   text: {
-    fontSize: 64,
+    fontSize: 58, // Common size 14
     fontFamily: 'Arial, sans-serif',
     fontWeight: 'normal',
     fontStyle: 'normal',
@@ -79,7 +79,7 @@ export const TOOL_DEFAULTS = {
     padding: 4
   },
   question: {
-    fontSize: 64,
+    fontSize: 58, // Common size 14
     fontFamily: 'Arial, sans-serif',
     fontWeight: 'normal',
     fontStyle: 'normal',
@@ -92,7 +92,7 @@ export const TOOL_DEFAULTS = {
     padding: 4
   },
   answer: {
-    fontSize: 64,
+    fontSize: 58, // Common size 14
     fontFamily: 'Arial, sans-serif',
     fontWeight: 'normal',
     fontStyle: 'normal',

@@ -455,8 +455,6 @@ export default function Textbox(props: CanvasItemProps) {
         return;
       }
       
-
-      
       // Open question selection dialog for question elements
       window.dispatchEvent(new CustomEvent('openQuestionModal', {
         detail: { elementId: element.id }
@@ -499,9 +497,218 @@ export default function Textbox(props: CanvasItemProps) {
       }
     }
     
-    window.dispatchEvent(new CustomEvent('editText', {
-      detail: { elementId: element.id }
-    }));
+    // Enable inline editing for text and answer types
+    if (element.textType === 'text' || element.textType === 'answer') {
+      enableInlineEditing();
+    } else {
+      window.dispatchEvent(new CustomEvent('editText', {
+        detail: { elementId: element.id }
+      }));
+    }
+  };
+
+  const enableInlineEditing = () => {
+    if (!textRef.current) return;
+    
+    const textNode = textRef.current;
+    const stage = textNode.getStage();
+    if (!stage) return;
+    
+    // Hide text node
+    textNode.hide();
+    
+    // Create textarea
+    const textarea = document.createElement('textarea');
+    document.body.appendChild(textarea);
+    
+    const transform = textNode.getAbsoluteTransform();
+    const pos = transform.point({ x: element.padding || 4, y: element.padding || 4 });
+    const stageBox = stage.container().getBoundingClientRect();
+    const scale = transform.m[0]; // Get scale from transform matrix
+    
+    const areaPosition = {
+      x: stageBox.left + pos.x,
+      y: stageBox.top + pos.y
+    };
+    
+    textarea.value = element.text || '';
+    textarea.style.position = 'absolute';
+    textarea.style.top = areaPosition.y + 'px';
+    textarea.style.left = areaPosition.x + 'px';
+    textarea.style.width = ((element.width - (element.padding || 4) * 2) * scale) + 'px';
+    textarea.style.height = ((element.height - (element.padding || 4) * 2) * scale) + 'px';
+    textarea.style.fontSize = ((element.fontSize || 16) * scale) + 'px';
+    textarea.style.fontFamily = element.fontFamily || 'Arial, sans-serif';
+    textarea.style.fontWeight = element.fontWeight || 'normal';
+    textarea.style.fontStyle = element.fontStyle || 'normal';
+    textarea.style.color = element.fill || '#1f2937';
+    textarea.style.background = 'transparent';
+    textarea.style.border = 'transparent';
+    textarea.style.outline = 'none';
+    textarea.style.setProperty('--tw-ring-shadow', 'transparent');
+    textarea.style.setProperty('::selection', 'background-color: #72bcf5');
+    textarea.style.setProperty('::-moz-selection', 'background-color: #72bcf5');
+    textarea.style.resize = 'none';
+    textarea.style.lineHeight = getLineHeight().toString();
+    textarea.style.textAlign = element.align || 'left';
+    textarea.style.padding = '0';
+    textarea.style.margin = '0';
+    textarea.style.overflow = 'hidden';
+    textarea.style.whiteSpace = 'pre-wrap';
+    textarea.style.wordWrap = 'break-word';
+    
+    const adjustHeight = () => {
+      textarea.style.height = 'auto';
+      textarea.style.height = textarea.scrollHeight + 'px';
+    };
+    
+    textarea.addEventListener('input', adjustHeight);
+    
+    textarea.focus();
+    textarea.select();
+    
+    // Initial height adjustment
+    setTimeout(adjustHeight, 0);
+    
+    const removeTextarea = () => {
+      document.body.removeChild(textarea);
+      textNode.show();
+      stage.draw();
+    };
+    
+    const setTextareaWidth = () => {
+      const newWidth = ((element.width - (element.padding || 4) * 2) * scale);
+      textarea.style.width = newWidth + 'px';
+    };
+    
+    textarea.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        removeTextarea();
+      }
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        const newText = textarea.value;
+        
+        // Check if user can resize textbox
+        const canResize = user?.role === 'admin' || 
+                         state.currentBook?.role === 'publisher' || 
+                         state.currentBook?.owner_id === user?.id;
+        
+        let updates: any = { text: newText };
+        
+        if (canResize && newText) {
+          // Calculate required height for text
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d')!;
+          context.font = `${element.fontSize || 16}px ${element.fontFamily || 'Arial, sans-serif'}`;
+          
+          const padding = element.padding || 4;
+          const textWidth = element.width - (padding * 2);
+          const lineHeight = (element.fontSize || 16) * getLineHeight();
+          
+          // Split by line breaks first
+          const paragraphs = newText.split('\n');
+          let totalLines = 0;
+          
+          paragraphs.forEach(paragraph => {
+            if (paragraph.trim() === '') {
+              totalLines += 1;
+              return;
+            }
+            
+            const words = paragraph.split(' ');
+            let lines = 1;
+            let currentLineWidth = 0;
+            
+            words.forEach(word => {
+              const wordWidth = context.measureText(word + ' ').width;
+              if (currentLineWidth + wordWidth > textWidth && currentLineWidth > 0) {
+                lines++;
+                currentLineWidth = wordWidth;
+              } else {
+                currentLineWidth += wordWidth;
+              }
+            });
+            
+            totalLines += lines;
+          });
+          
+          const requiredHeight = (totalLines * lineHeight) + (padding * 2) + 10;
+          updates.height = Math.max(element.height, Math.ceil(requiredHeight));
+        }
+        
+        dispatch({
+          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+          payload: {
+            id: element.id,
+            updates
+          }
+        });
+        removeTextarea();
+      }
+    });
+    
+    textarea.addEventListener('blur', () => {
+      const newText = textarea.value;
+      
+      // Check if user can resize textbox
+      const canResize = user?.role === 'admin' || 
+                       state.currentBook?.role === 'publisher' || 
+                       state.currentBook?.owner_id === user?.id;
+      
+      let updates: any = { text: newText };
+      
+      if (canResize && newText) {
+        // Calculate required height for text
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d')!;
+        context.font = `${element.fontSize || 16}px ${element.fontFamily || 'Arial, sans-serif'}`;
+        
+        const padding = element.padding || 4;
+        const textWidth = element.width - (padding * 2);
+        const lineHeight = (element.fontSize || 16) * getLineHeight();
+        
+        // Split by line breaks first
+        const paragraphs = newText.split('\n');
+        let totalLines = 0;
+        
+        paragraphs.forEach(paragraph => {
+          if (paragraph.trim() === '') {
+            totalLines += 1;
+            return;
+          }
+          
+          const words = paragraph.split(' ');
+          let lines = 1;
+          let currentLineWidth = 0;
+          
+          words.forEach(word => {
+            const wordWidth = context.measureText(word + ' ').width;
+            if (currentLineWidth + wordWidth > textWidth && currentLineWidth > 0) {
+              lines++;
+              currentLineWidth = wordWidth;
+            } else {
+              currentLineWidth += wordWidth;
+            }
+          });
+          
+          totalLines += lines;
+        });
+        
+        const requiredHeight = (totalLines * lineHeight) + (padding * 2) + 10;
+        updates.height = Math.max(element.height, Math.ceil(requiredHeight));
+      }
+      
+      dispatch({
+        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+        payload: {
+          id: element.id,
+          updates
+        }
+      });
+      removeTextarea();
+    });
+    
+    setTextareaWidth();
   };
 
 
