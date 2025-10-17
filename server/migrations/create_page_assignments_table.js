@@ -19,7 +19,7 @@ async function createPageAssignmentsTable() {
       );
     `);
     
-    console.log('Page assignments table created successfully');
+    // console.log('Page assignments table created successfully');
   } catch (error) {
     console.error('Error creating page assignments table:', error);
   } finally {

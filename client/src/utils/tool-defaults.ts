@@ -113,8 +113,28 @@ export const TOOL_DEFAULTS = {
 
 export type ToolType = keyof typeof TOOL_DEFAULTS;
 
-export function getToolDefaults(tool: ToolType, globalTheme?: string) {
+export function getToolDefaults(tool: ToolType, pageTheme?: string, bookTheme?: string, existingElement?: any) {
   const baseDefaults = TOOL_DEFAULTS[tool] || {};
-  const themeDefaults = globalTheme ? getGlobalThemeDefaults(globalTheme, tool) : {};
+  // Page theme takes precedence over book theme
+  const activeTheme = pageTheme || bookTheme || 'default';
+  const themeDefaults = getGlobalThemeDefaults(activeTheme, tool);
+  
+  // If we have an existing element, preserve its individual settings
+  if (existingElement) {
+    const result = { ...baseDefaults };
+    
+    // Only apply theme defaults for properties that don't exist in the existing element
+    Object.keys(themeDefaults).forEach(key => {
+      if (existingElement[key] === undefined) {
+        result[key] = themeDefaults[key];
+      } else {
+        result[key] = existingElement[key];
+      }
+    });
+    
+    return result;
+  }
+  
+  // Theme defaults should override base defaults completely
   return { ...baseDefaults, ...themeDefaults };
 }

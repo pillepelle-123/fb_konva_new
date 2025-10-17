@@ -9,13 +9,14 @@ import { Slider } from '../../../ui/primitives/slider';
 import { Separator } from '../../../ui/primitives/separator';
 import { Label } from '../../../ui/primitives/label';
 import { IndentedSection } from '../../../ui/primitives/indented-section';
-import { getThemeDefaults } from '../../../../utils/theme-defaults';
+// import { getThemeDefaults } from '../../../../utils/XX_DELETE_theme-defaults';
 import { useAuth } from '../../../../context/auth-context';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { GeneralSettings } from './general-settings';
 import { commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth } from '../../../../utils/stroke-width-converter';
 import { actualToCommon, commonToActual, COMMON_FONT_SIZE_RANGE } from '../../../../utils/font-size-converter';
-import { getFontFamily } from '../../../../utils/font-families';
+import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE } from '../../../../utils/corner-radius-converter';
+import { getFontFamily, FONT_GROUPS } from '../../../../utils/font-families';
 import { FontSelector } from './font-selector';
 
 const getCurrentFontName = (fontFamily: string) => {
@@ -405,11 +406,11 @@ export function ToolSettingsContent({
       const getColorValue = () => {
         switch (showColorSelector) {
           case 'element-text-color':
-            return element.fill || '#1f2937';
+            return element.font?.fontColor || element.fill || '#1f2937';
           case 'element-text-border':
-            return element.borderColor || '#000000';
+            return element.border?.borderColor || element.borderColor || '#000000';
           case 'element-text-background':
-            return element.backgroundColor !== undefined ? element.backgroundColor : 'transparent';
+            return element.background?.backgroundColor !== undefined ? element.background?.backgroundColor : (element.backgroundColor !== undefined ? element.backgroundColor : 'transparent');
           case 'element-ruled-lines-color':
             return element.ruledLinesColor || '#1f2937';
           default:
@@ -420,11 +421,11 @@ export function ToolSettingsContent({
       const getElementOpacityValue = () => {
         switch (showColorSelector) {
           case 'element-text-color':
-            return element.fillOpacity || 1;
+            return element.font?.fontOpacity || element.fillOpacity || 1;
           case 'element-text-border':
-            return element.borderOpacity || 1;
+            return element.border?.borderOpacity || element.borderOpacity || 1;
           case 'element-text-background':
-            return element.backgroundOpacity || 1;
+            return element.background?.backgroundOpacity || element.backgroundOpacity || 1;
           case 'element-ruled-lines-color':
             return 1;
           default:
@@ -435,12 +436,26 @@ export function ToolSettingsContent({
       const handleElementOpacityChange = (opacity: number) => {
         switch (showColorSelector) {
           case 'element-text-color':
-            updateBothElements('fillOpacity', opacity);
+            if (element.font) {
+              updateBothElements('font', { ...element.font, fontOpacity: opacity });
+            } else {
+              updateBothElements('fillOpacity', opacity);
+            }
             break;
           case 'element-text-border':
+            updateBothElements('border', {
+              borderWidth: element.border?.borderWidth || element.borderWidth || 1,
+              borderColor: element.border?.borderColor || element.borderColor || '#000000',
+              borderOpacity: opacity,
+              inheritTheme: element.border?.inheritTheme || element.theme || 'default'
+            });
             updateBothElements('borderOpacity', opacity);
             break;
           case 'element-text-background':
+            updateBothElements('background', {
+              backgroundColor: element.background?.backgroundColor || element.backgroundColor || 'transparent',
+              backgroundOpacity: opacity
+            });
             updateBothElements('backgroundOpacity', opacity);
             break;
         }
@@ -449,12 +464,26 @@ export function ToolSettingsContent({
       const handleElementColorChange = (color: string) => {
         switch (showColorSelector) {
           case 'element-text-color':
-            updateBothElements('fill', color);
+            if (element.font) {
+              updateBothElements('font', { ...element.font, fontColor: color });
+            } else {
+              updateBothElements('fill', color);
+            }
             break;
           case 'element-text-border':
+            updateBothElements('border', {
+              borderWidth: element.border?.borderWidth || element.borderWidth || 1,
+              borderColor: color,
+              borderOpacity: element.border?.borderOpacity || element.borderOpacity || 1,
+              inheritTheme: element.border?.inheritTheme || element.theme || 'default'
+            });
             updateBothElements('borderColor', color);
             break;
           case 'element-text-background':
+            updateBothElements('background', {
+              backgroundColor: color,
+              backgroundOpacity: element.background?.backgroundOpacity || element.backgroundOpacity || 1
+            });
             updateBothElements('backgroundColor', color);
             break;
           case 'element-ruled-lines-color':
@@ -485,28 +514,42 @@ export function ToolSettingsContent({
         <div>
           <div className="flex gap-2">
             <Button
-              variant={element.fontWeight === 'bold' ? 'default' : 'outline'}
+              variant={(element.font?.fontBold || element.fontWeight === 'bold') ? 'default' : 'outline'}
               size="xs"
               onClick={() => {
-                const newWeight = element.fontWeight === 'bold' ? 'normal' : 'bold';
-                updateBothElements('fontWeight', newWeight);
-                const fontName = getCurrentFontName(element.fontFamily);
-                const newFontFamily = getFontFamily(fontName, newWeight === 'bold', element.fontStyle === 'italic');
-                updateBothElements('fontFamily', newFontFamily);
+                const currentBold = element.font?.fontBold || element.fontWeight === 'bold';
+                const newBold = !currentBold;
+                const currentItalic = element.font?.fontItalic || element.fontStyle === 'italic';
+                const fontName = getCurrentFontName(element.font?.fontFamily || element.fontFamily);
+                const newFontFamily = getFontFamily(fontName, newBold, currentItalic);
+                
+                if (element.font) {
+                  updateBothElements('font', { ...element.font, fontBold: newBold, fontFamily: newFontFamily });
+                } else {
+                  updateBothElements('fontWeight', newBold ? 'bold' : 'normal');
+                  updateBothElements('fontFamily', newFontFamily);
+                }
               }}
               className="px-3"
             >
               <strong>B</strong>
             </Button>
             <Button
-              variant={element.fontStyle === 'italic' ? 'default' : 'outline'}
+              variant={(element.font?.fontItalic || element.fontStyle === 'italic') ? 'default' : 'outline'}
               size="xs"
               onClick={() => {
-                const newStyle = element.fontStyle === 'italic' ? 'normal' : 'italic';
-                updateBothElements('fontStyle', newStyle);
-                const fontName = getCurrentFontName(element.fontFamily);
-                const newFontFamily = getFontFamily(fontName, element.fontWeight === 'bold', newStyle === 'italic');
-                updateBothElements('fontFamily', newFontFamily);
+                const currentItalic = element.font?.fontItalic || element.fontStyle === 'italic';
+                const newItalic = !currentItalic;
+                const currentBold = element.font?.fontBold || element.fontWeight === 'bold';
+                const fontName = getCurrentFontName(element.font?.fontFamily || element.fontFamily);
+                const newFontFamily = getFontFamily(fontName, currentBold, newItalic);
+                
+                if (element.font) {
+                  updateBothElements('font', { ...element.font, fontItalic: newItalic, fontFamily: newFontFamily });
+                } else {
+                  updateBothElements('fontStyle', newItalic ? 'italic' : 'normal');
+                  updateBothElements('fontFamily', newFontFamily);
+                }
               }}
               className="px-3"
             >
@@ -525,8 +568,15 @@ export function ToolSettingsContent({
         </div>
         <Slider
           label="Size"
-          value={actualToCommon(element.fontSize || 58)}
-          onChange={(value) => updateBothElements('fontSize', commonToActual(value))}
+          value={actualToCommon(element.font?.fontSize || element.fontSize || 58)}
+          onChange={(value) => {
+            const newSize = commonToActual(value);
+            if (element.font) {
+              updateBothElements('font', { ...element.font, fontSize: newSize });
+            } else {
+              updateBothElements('fontSize', newSize);
+            }
+          }}
           min={COMMON_FONT_SIZE_RANGE.min}
           max={COMMON_FONT_SIZE_RANGE.max}
           step={1}
@@ -551,33 +601,57 @@ export function ToolSettingsContent({
             <Label variant="xs">Text Align</Label>
             <ButtonGroup className="mt-1 flex flex-row">
               <Button
-                variant={element.align === 'left' ? 'default' : 'outline'}
+                variant={(element.format?.align || element.align) === 'left' ? 'default' : 'outline'}
                 size="xs"
-                onClick={() => updateBothElements('align', 'left')}
+                onClick={() => {
+                  if (element.format) {
+                    updateBothElements('format', { ...element.format, align: 'left' });
+                  } else {
+                    updateBothElements('align', 'left');
+                  }
+                }}
                 className="px-1 h-6 flex-1"
               >
                 <AlignLeft className="h-3 w-3" />
               </Button>
               <Button
-                variant={element.align === 'center' ? 'default' : 'outline'}
+                variant={(element.format?.align || element.align) === 'center' ? 'default' : 'outline'}
                 size="xs"
-                onClick={() => updateBothElements('align', 'center')}
+                onClick={() => {
+                  if (element.format) {
+                    updateBothElements('format', { ...element.format, align: 'center' });
+                  } else {
+                    updateBothElements('align', 'center');
+                  }
+                }}
                 className="px-1 h-6 flex-1"
               >
                 <AlignCenter className="h-3 w-3" />
               </Button>
               <Button
-                variant={element.align === 'right' ? 'default' : 'outline'}
+                variant={(element.format?.align || element.align) === 'right' ? 'default' : 'outline'}
                 size="xs"
-                onClick={() => updateBothElements('align', 'right')}
+                onClick={() => {
+                  if (element.format) {
+                    updateBothElements('format', { ...element.format, align: 'right' });
+                  } else {
+                    updateBothElements('align', 'right');
+                  }
+                }}
                 className="px-1 h-6 flex-1"
               >
                 <AlignRight className="h-3 w-3" />
               </Button>
               <Button
-                variant={element.align === 'justify' ? 'default' : 'outline'}
+                variant={(element.format?.align || element.align) === 'justify' ? 'default' : 'outline'}
                 size="xs"
-                onClick={() => updateBothElements('align', 'justify')}
+                onClick={() => {
+                  if (element.format) {
+                    updateBothElements('format', { ...element.format, align: 'justify' });
+                  } else {
+                    updateBothElements('align', 'justify');
+                  }
+                }}
                 className="px-1 h-6 flex-1"
               >
                 <AlignJustify className="h-3 w-3" />
@@ -589,25 +663,43 @@ export function ToolSettingsContent({
             <Label variant="xs">Paragraph Spacing</Label>
             <ButtonGroup className="mt-1 flex flex-row">
               <Button
-                variant={element.paragraphSpacing === 'small' ? 'default' : 'outline'}
+                variant={(element.format?.paragraphSpacing || element.paragraphSpacing) === 'small' ? 'default' : 'outline'}
                 size="xs"
-                onClick={() => updateBothElements('paragraphSpacing', 'small')}
+                onClick={() => {
+                  if (element.format) {
+                    updateBothElements('format', { ...element.format, paragraphSpacing: 'small' });
+                  } else {
+                    updateBothElements('paragraphSpacing', 'small');
+                  }
+                }}
                 className="px-1 h-6 flex-1"
               >
                 <Rows4 className="h-3 w-3" />
               </Button>
               <Button
-                variant={(element.paragraphSpacing || 'medium') === 'medium' ? 'default' : 'outline'}
+                variant={(element.format?.paragraphSpacing || element.paragraphSpacing || 'medium') === 'medium' ? 'default' : 'outline'}
                 size="xs"
-                onClick={() => updateBothElements('paragraphSpacing', 'medium')}
+                onClick={() => {
+                  if (element.format) {
+                    updateBothElements('format', { ...element.format, paragraphSpacing: 'medium' });
+                  } else {
+                    updateBothElements('paragraphSpacing', 'medium');
+                  }
+                }}
                 className="px-1 h-6 flex-1"
               >
                 <Rows3 className="h-3 w-3" />
               </Button>
               <Button
-                variant={element.paragraphSpacing === 'large' ? 'default' : 'outline'}
+                variant={(element.format?.paragraphSpacing || element.paragraphSpacing) === 'large' ? 'default' : 'outline'}
                 size="xs"
-                onClick={() => updateBothElements('paragraphSpacing', 'large')}
+                onClick={() => {
+                  if (element.format) {
+                    updateBothElements('format', { ...element.format, paragraphSpacing: 'large' });
+                  } else {
+                    updateBothElements('paragraphSpacing', 'large');
+                  }
+                }}
                 className="px-1 h-6 flex-1"
               >
                 <Rows2 className="h-3 w-3" />
@@ -642,8 +734,16 @@ export function ToolSettingsContent({
             <div>
               <Label variant="xs">Ruled Lines Theme</Label>
               <ThemeSelect 
-                value={element.ruledLinesTheme || 'rough'}
-                onChange={(value) => updateBothElements('ruledLinesTheme', value)}
+                value={element.ruledLines?.inheritTheme || element.ruledLinesTheme || 'rough'}
+                onChange={(value) => {
+                  updateBothElements('ruledLines', { 
+                    enabled: element.ruledLines || false,
+                    inheritTheme: value,
+                    lineWidth: element.ruledLinesWidth || 0.8,
+                    lineColor: element.ruledLinesColor || '#1f2937',
+                    lineOpacity: 0.5
+                  });
+                }}
               />
             </div>
             
@@ -667,20 +767,38 @@ export function ToolSettingsContent({
           <Label className="flex items-center gap-1" variant="xs">
             <input
               type="checkbox"
-              checked={(element.borderWidth || 0) > 0}
-              onChange={(e) => updateBothElements('borderWidth', e.target.checked ? 1 : 0)}
+              checked={(element.border?.borderWidth || element.borderWidth || 0) > 0}
+              onChange={(e) => {
+                const newWidth = e.target.checked ? 1 : 0;
+                updateBothElements('border', {
+                  borderWidth: newWidth,
+                  borderColor: element.border?.borderColor || element.borderColor || '#000000',
+                  borderOpacity: element.border?.borderOpacity || element.borderOpacity || 1,
+                  inheritTheme: element.border?.inheritTheme || element.theme || 'default'
+                });
+                updateBothElements('borderWidth', newWidth);
+              }}
               className="rounded w-3 h-3"
             />
             Border
           </Label>
         </div>
         
-        {(element.borderWidth || 0) > 0 && (
+        {(element.border?.borderWidth || element.borderWidth || 0) > 0 && (
           <IndentedSection>
             <Slider
               label="Border Width"
-              value={actualToCommonStrokeWidth(element.borderWidth || 1, element.theme || 'default')}
-              onChange={(value) => updateBothElements('borderWidth', commonToActualStrokeWidth(value, element.theme || 'default'))}
+              value={actualToCommonStrokeWidth(element.border?.borderWidth || element.borderWidth || 1, element.border?.inheritTheme || element.theme || 'default')}
+              onChange={(value) => {
+                const newWidth = commonToActualStrokeWidth(value, element.border?.inheritTheme || element.theme || 'default');
+                updateBothElements('border', {
+                  borderWidth: newWidth,
+                  borderColor: element.border?.borderColor || element.borderColor || '#000000',
+                  borderOpacity: element.border?.borderOpacity || element.borderOpacity || 1,
+                  inheritTheme: element.border?.inheritTheme || element.theme || 'default'
+                });
+                updateBothElements('borderWidth', newWidth);
+              }}
               min={1}
               max={getMaxStrokeWidth()}
             />            
@@ -688,9 +806,14 @@ export function ToolSettingsContent({
             <div>
               <Label variant="xs">Border Theme</Label>
               <ThemeSelect 
-                value={element.theme}
+                value={element.border?.inheritTheme || element.theme || 'default'}
                 onChange={(value) => {
-                  updateBothElements('theme', value);
+                  updateBothElements('border', {
+                    borderWidth: element.border?.borderWidth || element.borderWidth || 1,
+                    borderColor: element.border?.borderColor || element.borderColor || '#000000',
+                    borderOpacity: element.border?.borderOpacity || element.borderOpacity || 1,
+                    inheritTheme: value
+                  });
                   updateBothElements('cornerRadius', 0);
                 }}
               />
@@ -714,11 +837,19 @@ export function ToolSettingsContent({
           <Label className="flex items-center gap-1" variant="xs">
             <input
               type="checkbox"
-              checked={element.backgroundColor !== 'transparent' && element.backgroundColor !== undefined}
+              checked={(element.background?.backgroundColor || element.backgroundColor) !== 'transparent' && (element.background?.backgroundColor || element.backgroundColor) !== undefined}
               onChange={(e) => {
                 if (e.target.checked) {
+                  updateBothElements('background', {
+                    backgroundColor: '#ffffff',
+                    backgroundOpacity: element.background?.backgroundOpacity || element.backgroundOpacity || 1
+                  });
                   updateBothElements('backgroundColor', '#ffffff');
                 } else {
+                  updateBothElements('background', {
+                    backgroundColor: 'transparent',
+                    backgroundOpacity: element.background?.backgroundOpacity || element.backgroundOpacity || 1
+                  });
                   updateBothElements('backgroundColor', 'transparent');
                 }
               }}
@@ -728,7 +859,7 @@ export function ToolSettingsContent({
           </Label>
         </div>
         
-        {element.backgroundColor !== 'transparent' && element.backgroundColor !== undefined && (
+        {(element.background?.backgroundColor || element.backgroundColor) !== 'transparent' && (element.background?.backgroundColor || element.backgroundColor) !== undefined && (
           <IndentedSection>
             <div>
               <Button
@@ -749,17 +880,23 @@ export function ToolSettingsContent({
         {((element.borderWidth || 0) === 0 || (element.theme !== 'candy' && element.theme !== 'zigzag' && element.theme !== 'wobbly')) && (
           <Slider
             label="Corner Radius"
-            value={element.cornerRadius || 0}
-            onChange={(value) => updateBothElements('cornerRadius', value)}
-            min={0}
-            max={300}
+            value={actualToCommonRadius(element.cornerRadius || 0)}
+            onChange={(value) => updateBothElements('cornerRadius', commonToActualRadius(value))}
+            min={COMMON_CORNER_RADIUS_RANGE.min}
+            max={COMMON_CORNER_RADIUS_RANGE.max}
           />
         )}
         
         <Slider
           label="Padding"
-          value={element.padding || 4}
-          onChange={(value) => updateBothElements('padding', value)}
+          value={element.format?.padding || element.padding || 4}
+          onChange={(value) => {
+            if (element.format) {
+              updateBothElements('format', { ...element.format, padding: value });
+            } else {
+              updateBothElements('padding', value);
+            }
+          }}
           min={0}
           max={100}
         />
@@ -801,11 +938,11 @@ export function ToolSettingsContent({
           case 'element-shape-fill':
             return element.fill !== undefined ? element.fill : 'transparent';
           case 'element-text-color':
-            return element.fill || '#1f2937';
+            return element.font?.fontColor || element.fill || '#1f2937';
           case 'element-text-border':
-            return element.borderColor || '#000000';
+            return element.border?.borderColor || element.borderColor || '#000000';
           case 'element-text-background':
-            return element.backgroundColor !== undefined ? element.backgroundColor : 'transparent';
+            return element.background?.backgroundColor !== undefined ? element.background?.backgroundColor : (element.backgroundColor !== undefined ? element.backgroundColor : 'transparent');
           case 'element-ruled-lines-color':
             return element.ruledLinesColor || '#1f2937';
           default:
@@ -821,11 +958,11 @@ export function ToolSettingsContent({
             return element.strokeOpacity || 1;
           case 'element-shape-fill':
           case 'element-text-color':
-            return element.fillOpacity || 1;
+            return element.font?.fontOpacity || element.fillOpacity || 1;
           case 'element-text-border':
-            return element.borderOpacity || 1;
+            return element.border?.borderOpacity || element.borderOpacity || 1;
           case 'element-text-background':
-            return element.backgroundOpacity || 1;
+            return element.background?.backgroundOpacity || element.backgroundOpacity || 1;
           case 'element-ruled-lines-color':
             return 1;
           default:
@@ -841,13 +978,28 @@ export function ToolSettingsContent({
             updateElementSetting('strokeOpacity', opacity);
             break;
           case 'element-shape-fill':
+            updateElementSetting('fillOpacity', opacity);
+            break;
           case 'element-text-color':
+            if (element.font) {
+              updateElementSetting('font', { ...element.font, fontOpacity: opacity });
+            }
             updateElementSetting('fillOpacity', opacity);
             break;
           case 'element-text-border':
+            updateElementSetting('border', {
+              borderWidth: element.border?.borderWidth || element.borderWidth || 1,
+              borderColor: element.border?.borderColor || element.borderColor || '#000000',
+              borderOpacity: opacity,
+              inheritTheme: element.border?.inheritTheme || element.theme || 'default'
+            });
             updateElementSetting('borderOpacity', opacity);
             break;
           case 'element-text-background':
+            updateElementSetting('background', {
+              backgroundColor: element.background?.backgroundColor || element.backgroundColor || 'transparent',
+              backgroundOpacity: opacity
+            });
             updateElementSetting('backgroundOpacity', opacity);
             break;
           case 'element-ruled-lines-color':
@@ -864,16 +1016,29 @@ export function ToolSettingsContent({
             localStorage.setItem(`shape-border-color-${element.id}`, color);
             break;
           case 'element-shape-fill':
-          case 'element-text-color':
             updateElementSetting('fill', color);
-            if (showColorSelector === 'element-shape-fill') {
-              localStorage.setItem(`shape-fill-color-${element.id}`, color);
+            localStorage.setItem(`shape-fill-color-${element.id}`, color);
+            break;
+          case 'element-text-color':
+            if (element.font) {
+              updateElementSetting('font', { ...element.font, fontColor: color });
             }
+            updateElementSetting('fill', color);
             break;
           case 'element-text-border':
+            updateElementSetting('border', {
+              borderWidth: element.border?.borderWidth || element.borderWidth || 1,
+              borderColor: color,
+              borderOpacity: element.border?.borderOpacity || element.borderOpacity || 1,
+              inheritTheme: element.border?.inheritTheme || element.theme || 'default'
+            });
             updateElementSetting('borderColor', color);
             break;
           case 'element-text-background':
+            updateElementSetting('background', {
+              backgroundColor: color,
+              backgroundOpacity: element.background?.backgroundOpacity || element.backgroundOpacity || 1
+            });
             updateElementSetting('backgroundColor', color);
             localStorage.setItem(`text-bg-color-${element.id}`, color);
             break;
@@ -908,8 +1073,9 @@ export function ToolSettingsContent({
             <div>
               <Label variant="xs">Theme</Label>
               <ThemeSelect 
-                value={element.theme}
+                value={element.inheritTheme || element.theme || 'default'}
                 onChange={(value) => {
+                  updateElementSetting('inheritTheme', value);
                   updateElementSetting('theme', value);
                 }}
               />
@@ -986,8 +1152,9 @@ export function ToolSettingsContent({
             <div>
               <Label variant="xs">Theme</Label>
               <ThemeSelect 
-                value={element.theme}
+                value={element.inheritTheme || element.theme || 'default'}
                 onChange={(value) => {
+                  updateElementSetting('inheritTheme', value);
                   updateElementSetting('theme', value);
                 }}
               />
@@ -1032,8 +1199,9 @@ export function ToolSettingsContent({
             <div>
               <Label variant="xs">Theme</Label>
               <ThemeSelect 
-                value={element.theme}
+                value={element.inheritTheme || element.theme || 'default'}
                 onChange={(value) => {
+                  updateElementSetting('inheritTheme', value);
                   updateElementSetting('theme', value);
                 }}
               />
@@ -1184,10 +1352,10 @@ export function ToolSettingsContent({
             {element.type === 'rect' && (element.theme !== 'candy' && element.theme !== 'zigzag' && element.theme !== 'wobbly') && ( 
               <Slider
                 label="Corner Radius"
-                value={element.cornerRadius || 0}
-                onChange={(value) => updateElementSetting('cornerRadius', value)}
-                min={0}
-                max={300}
+                value={actualToCommonRadius(element.cornerRadius || 0)}
+                onChange={(value) => updateElementSetting('cornerRadius', commonToActualRadius(value))}
+                min={COMMON_CORNER_RADIUS_RANGE.min}
+                max={COMMON_CORNER_RADIUS_RANGE.max}
               />
             )}
           </div>
@@ -1199,10 +1367,10 @@ export function ToolSettingsContent({
           <div className="space-y-2">
             <Slider
               label="Corner Radius"
-              value={element.cornerRadius || 0}
-              onChange={(value) => updateElementSetting('cornerRadius', value)}
-              min={0}
-              max={300}
+              value={actualToCommonRadius(element.cornerRadius || 0)}
+              onChange={(value) => updateElementSetting('cornerRadius', commonToActualRadius(value))}
+              min={COMMON_CORNER_RADIUS_RANGE.min}
+              max={COMMON_CORNER_RADIUS_RANGE.max}
             />
             
             <Separator />
@@ -1295,33 +1463,53 @@ export function ToolSettingsContent({
                 <Label variant="xs">Text Align</Label>
                 <ButtonGroup className="mt-1 flex flex-row">
                   <Button
-                    variant={element.align === 'left' ? 'default' : 'outline'}
+                    variant={(element.format?.align || element.align) === 'left' ? 'default' : 'outline'}
                     size="xs"
-                    onClick={() => updateElementSetting('align', 'left')}
+                    onClick={() => {
+                      if (element.format) {
+                        updateElementSetting('format', { ...element.format, align: 'left' });
+                      }
+                      updateElementSetting('align', 'left');
+                    }}
                     className="px-1 h-6 flex-1"
                   >
                     <AlignLeft className="h-3 w-3" />
                   </Button>
                   <Button
-                    variant={element.align === 'center' ? 'default' : 'outline'}
+                    variant={(element.format?.align || element.align) === 'center' ? 'default' : 'outline'}
                     size="xs"
-                    onClick={() => updateElementSetting('align', 'center')}
+                    onClick={() => {
+                      if (element.format) {
+                        updateElementSetting('format', { ...element.format, align: 'center' });
+                      }
+                      updateElementSetting('align', 'center');
+                    }}
                     className="px-1 h-6 flex-1"
                   >
                     <AlignCenter className="h-3 w-3" />
                   </Button>
                   <Button
-                    variant={element.align === 'right' ? 'default' : 'outline'}
+                    variant={(element.format?.align || element.align) === 'right' ? 'default' : 'outline'}
                     size="xs"
-                    onClick={() => updateElementSetting('align', 'right')}
+                    onClick={() => {
+                      if (element.format) {
+                        updateElementSetting('format', { ...element.format, align: 'right' });
+                      }
+                      updateElementSetting('align', 'right');
+                    }}
                     className="px-1 h-6 flex-1"
                   >
                     <AlignRight className="h-3 w-3" />
                   </Button>
                   <Button
-                    variant={element.align === 'justify' ? 'default' : 'outline'}
+                    variant={(element.format?.align || element.align) === 'justify' ? 'default' : 'outline'}
                     size="xs"
-                    onClick={() => updateElementSetting('align', 'justify')}
+                    onClick={() => {
+                      if (element.format) {
+                        updateElementSetting('format', { ...element.format, align: 'justify' });
+                      }
+                      updateElementSetting('align', 'justify');
+                    }}
                     className="px-1 h-6 flex-1"
                   >
                     <AlignJustify className="h-3 w-3" />
@@ -1333,25 +1521,40 @@ export function ToolSettingsContent({
                 <Label variant="xs">Paragraph Spacing</Label>
                 <ButtonGroup className="mt-1 flex flex-row">
                   <Button
-                    variant={element.paragraphSpacing === 'small' ? 'default' : 'outline'}
+                    variant={(element.format?.paragraphSpacing || element.paragraphSpacing) === 'small' ? 'default' : 'outline'}
                     size="xs"
-                    onClick={() => updateElementSetting('paragraphSpacing', 'small')}
+                    onClick={() => {
+                      if (element.format) {
+                        updateElementSetting('format', { ...element.format, paragraphSpacing: 'small' });
+                      }
+                      updateElementSetting('paragraphSpacing', 'small');
+                    }}
                     className="px-1 h-6 flex-1"
                   >
                     <Rows4 className="h-3 w-3" />
                   </Button>
                   <Button
-                    variant={(element.paragraphSpacing || 'medium') === 'medium' ? 'default' : 'outline'}
+                    variant={(element.format?.paragraphSpacing || element.paragraphSpacing || 'medium') === 'medium' ? 'default' : 'outline'}
                     size="xs"
-                    onClick={() => updateElementSetting('paragraphSpacing', 'medium')}
+                    onClick={() => {
+                      if (element.format) {
+                        updateElementSetting('format', { ...element.format, paragraphSpacing: 'medium' });
+                      }
+                      updateElementSetting('paragraphSpacing', 'medium');
+                    }}
                     className="px-1 h-6 flex-1"
                   >
                     <Rows3 className="h-3 w-3" />
                   </Button>
                   <Button
-                    variant={element.paragraphSpacing === 'large' ? 'default' : 'outline'}
+                    variant={(element.format?.paragraphSpacing || element.paragraphSpacing) === 'large' ? 'default' : 'outline'}
                     size="xs"
-                    onClick={() => updateElementSetting('paragraphSpacing', 'large')}
+                    onClick={() => {
+                      if (element.format) {
+                        updateElementSetting('format', { ...element.format, paragraphSpacing: 'large' });
+                      }
+                      updateElementSetting('paragraphSpacing', 'large');
+                    }}
                     className="px-1 h-6 flex-1"
                   >
                     <Rows2 className="h-3 w-3" />
@@ -1387,9 +1590,15 @@ export function ToolSettingsContent({
                 <div>
                   <Label variant="xs">Ruled Lines Theme</Label>
                   <ThemeSelect 
-                    value={element.ruledLinesTheme || 'rough'}
+                    value={element.ruledLines?.inheritTheme || element.ruledLinesTheme || 'rough'}
                     onChange={(value) => {
-                      updateElementSetting('ruledLinesTheme', value);
+                      updateElementSetting('ruledLines', {
+                        enabled: element.ruledLines || false,
+                        inheritTheme: value,
+                        lineWidth: element.ruledLinesWidth || 0.8,
+                        lineColor: element.ruledLinesColor || '#1f2937',
+                        lineOpacity: 0.5
+                      });
                     }}
                   />
                 </div>
@@ -1415,20 +1624,38 @@ export function ToolSettingsContent({
               <Label className="flex items-center gap-1" variant="xs">
                 <input
                   type="checkbox"
-                  checked={(element.borderWidth || 0) > 0}
-                  onChange={(e) => updateElementSetting('borderWidth', e.target.checked ? 1 : 0)}
+                  checked={(element.border?.borderWidth || element.borderWidth || 0) > 0}
+                  onChange={(e) => {
+                    const newWidth = e.target.checked ? 1 : 0;
+                    updateElementSetting('border', {
+                      borderWidth: newWidth,
+                      borderColor: element.border?.borderColor || element.borderColor || '#000000',
+                      borderOpacity: element.border?.borderOpacity || element.borderOpacity || 1,
+                      inheritTheme: element.border?.inheritTheme || element.theme || 'default'
+                    });
+                    updateElementSetting('borderWidth', newWidth);
+                  }}
                   className="rounded w-3 h-3"
                 />
                 Border
               </Label>
             </div>
             
-            {(element.borderWidth || 0) > 0 && (
+            {(element.border?.borderWidth || element.borderWidth || 0) > 0 && (
               <IndentedSection>
                 <Slider
                   label="Border Width"
-                  value={actualToCommonStrokeWidth(element.borderWidth || 1, element.theme || 'default')}
-                  onChange={(value) => updateElementSetting('borderWidth', commonToActualStrokeWidth(value, element.theme || 'default'))}
+                  value={actualToCommonStrokeWidth(element.border?.borderWidth || element.borderWidth || 1, element.border?.inheritTheme || element.theme || 'default')}
+                  onChange={(value) => {
+                    const actualWidth = commonToActualStrokeWidth(value, element.border?.inheritTheme || element.theme || 'default');
+                    updateElementSetting('border', {
+                      borderWidth: actualWidth,
+                      borderColor: element.border?.borderColor || element.borderColor || '#000000',
+                      borderOpacity: element.border?.borderOpacity || element.borderOpacity || 1,
+                      inheritTheme: element.border?.inheritTheme || element.theme || 'default'
+                    });
+                    updateElementSetting('borderWidth', actualWidth);
+                  }}
                   min={1}
                   max={getMaxStrokeWidth()}
                 />            
@@ -1437,9 +1664,14 @@ export function ToolSettingsContent({
                 <div>
                   <Label variant="xs">Border Theme</Label>
                   <ThemeSelect 
-                    value={element.theme}
+                    value={element.border?.inheritTheme || element.theme || 'default'}
                     onChange={(value) => {
-                      updateElementSetting('theme', value);
+                      updateElementSetting('border', {
+                        borderWidth: element.border?.borderWidth || element.borderWidth || 1,
+                        borderColor: element.border?.borderColor || element.borderColor || '#000000',
+                        borderOpacity: element.border?.borderOpacity || element.borderOpacity || 1,
+                        inheritTheme: value
+                      });
                       updateElementSetting('cornerRadius', 0);
                     }}
                   />
@@ -1464,13 +1696,21 @@ export function ToolSettingsContent({
               <Label className="flex items-center gap-1" variant="xs">
                 <input
                   type="checkbox"
-                  checked={element.backgroundColor !== 'transparent' && element.backgroundColor !== undefined}
+                  checked={(element.background?.backgroundColor || element.backgroundColor) !== 'transparent' && (element.background?.backgroundColor || element.backgroundColor) !== undefined}
                   onChange={(e) => {
                     if (e.target.checked) {
                       const lastBgColor = localStorage.getItem(`text-bg-color-${element.id}`) || '#ffffff';
+                      updateElementSetting('background', {
+                        backgroundColor: lastBgColor,
+                        backgroundOpacity: element.background?.backgroundOpacity || element.backgroundOpacity || 1
+                      });
                       updateElementSetting('backgroundColor', lastBgColor);
                     } else {
-                      localStorage.setItem(`text-bg-color-${element.id}`, element.backgroundColor || '#ffffff');
+                      localStorage.setItem(`text-bg-color-${element.id}`, element.background?.backgroundColor || element.backgroundColor || '#ffffff');
+                      updateElementSetting('background', {
+                        backgroundColor: 'transparent',
+                        backgroundOpacity: element.background?.backgroundOpacity || element.backgroundOpacity || 1
+                      });
                       updateElementSetting('backgroundColor', 'transparent');
                     }
                   }}
@@ -1480,7 +1720,7 @@ export function ToolSettingsContent({
               </Label>
             </div>
             
-            {element.backgroundColor !== 'transparent' && element.backgroundColor !== undefined && (
+            {(element.background?.backgroundColor || element.backgroundColor) !== 'transparent' && (element.background?.backgroundColor || element.backgroundColor) !== undefined && (
               <IndentedSection>
                 <div>
                   <Button
@@ -1502,17 +1742,22 @@ export function ToolSettingsContent({
             {(element.textType === 'text' || element.textType === 'question' || element.textType === 'answer') && ((element.borderWidth || 0) === 0 || (element.theme !== 'candy' && element.theme !== 'zigzag' && element.theme !== 'wobbly')) && (
               <Slider
                 label="Corner Radius"
-                value={element.cornerRadius || 0}
-                onChange={(value) => updateElementSetting('cornerRadius', value)}
-                min={0}
-                max={300}
+                value={actualToCommonRadius(element.cornerRadius || 0)}
+                onChange={(value) => updateElementSetting('cornerRadius', commonToActualRadius(value))}
+                min={COMMON_CORNER_RADIUS_RANGE.min}
+                max={COMMON_CORNER_RADIUS_RANGE.max}
               />
             )}
             
             <Slider
               label="Padding"
-              value={element.padding || 4}
-              onChange={(value) => updateElementSetting('padding', value)}
+              value={element.format?.padding || element.padding || 4}
+              onChange={(value) => {
+                if (element.format) {
+                  updateElementSetting('format', { ...element.format, padding: value });
+                }
+                updateElementSetting('padding', value);
+              }}
               min={0}
               max={100}
             />

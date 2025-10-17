@@ -9,17 +9,17 @@ async function runMigration() {
   });
 
   try {
-    console.log('Connecting to database...');
+    // console.log('Connecting to database...');
     
     const migrationSQL = fs.readFileSync(
       path.join(__dirname, 'migrate_messenger.sql'), 
       'utf8'
     );
 
-    console.log('Running migration...');
+    // console.log('Running migration...');
     await pool.query(migrationSQL);
     
-    console.log('Migration completed successfully!');
+    // console.log('Migration completed successfully!');
   } catch (error) {
     console.error('Migration failed:', error.message);
   } finally {

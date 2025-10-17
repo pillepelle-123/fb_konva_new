@@ -193,7 +193,7 @@ export default function Canvas() {
   // Prevent authors from opening question dialog
   useEffect(() => {
     if (showQuestionDialog && user?.role === 'author') {
-      console.log('Canvas: Author detected, closing question dialog');
+      // console.log('Canvas: Author detected, closing question dialog');
       setShowQuestionDialog(false);
       setSelectedQuestionElementId(null);
     }
@@ -562,7 +562,10 @@ export default function Canvas() {
       setPanStart({ x: 0, y: 0 });
     } else if (isDrawing && state.activeTool === 'brush' && currentPath.length > 2) {
       const smoothedPath = smoothPath(currentPath);
-      const brushDefaults = getToolDefaults('brush');
+      const currentPage = state.currentBook?.pages[state.activePageIndex];
+      const pageTheme = currentPage?.background?.pageTheme;
+      const bookTheme = state.currentBook?.bookTheme;
+      const brushDefaults = getToolDefaults('brush', pageTheme, bookTheme);
       // Points are already relative to Group position
       const adjustedPoints = smoothedPath;
       const newElement: CanvasElement = {
@@ -585,7 +588,10 @@ export default function Canvas() {
       const height = previewLine.y2 - previewLine.y1;
       
       if (Math.abs(width) > 5 || Math.abs(height) > 5) {
-        const lineDefaults = getToolDefaults('line');
+        const currentPage = state.currentBook?.pages[state.activePageIndex];
+        const pageTheme = currentPage?.background?.pageTheme;
+        const bookTheme = state.currentBook?.bookTheme;
+        const lineDefaults = getToolDefaults('line', pageTheme, bookTheme);
         const newElement: CanvasElement = {
           id: uuidv4(),
           type: 'line',
@@ -606,7 +612,10 @@ export default function Canvas() {
       setPreviewLine(null);
     } else if (isDrawingShape && shapeStart && previewShape) {
       if (previewShape.width > 5 || previewShape.height > 5) {
-        const shapeDefaults = getToolDefaults(previewShape.type as any);
+        const currentPage = state.currentBook?.pages[state.activePageIndex];
+        const pageTheme = currentPage?.background?.pageTheme;
+        const bookTheme = state.currentBook?.bookTheme;
+        const shapeDefaults = getToolDefaults(previewShape.type as any, pageTheme, bookTheme);
         const newElement: CanvasElement = {
           id: uuidv4(),
           type: previewShape.type as any,
@@ -632,7 +641,10 @@ export default function Canvas() {
         let newElement: CanvasElement;
         
         if (previewTextbox.type === 'text') {
-          const textDefaults = getToolDefaults('text');
+          const currentPage = state.currentBook?.pages[state.activePageIndex];
+          const pageTheme = currentPage?.background?.pageTheme;
+          const bookTheme = state.currentBook?.bookTheme;
+          const textDefaults = getToolDefaults('text', pageTheme, bookTheme);
           newElement = {
             id: uuidv4(),
             type: 'text',
@@ -650,8 +662,11 @@ export default function Canvas() {
             cornerRadius: textDefaults.cornerRadius
           };
         } else if (previewTextbox.type === 'question') {
-          const questionDefaults = getToolDefaults('question');
-          const answerDefaults = getToolDefaults('answer');
+          const currentPage = state.currentBook?.pages[state.activePageIndex];
+          const pageTheme = currentPage?.background?.pageTheme;
+          const bookTheme = state.currentBook?.bookTheme;
+          const questionDefaults = getToolDefaults('question', pageTheme, bookTheme);
+          const answerDefaults = getToolDefaults('answer', pageTheme, bookTheme);
           const questionHeight = Math.max(40, previewTextbox.height * 0.3);
           const answerHeight = previewTextbox.height - questionHeight - 10;
           
@@ -693,7 +708,10 @@ export default function Canvas() {
           // Add question element first
           dispatch({ type: 'ADD_ELEMENT', payload: questionElement });
         } else {
-          const answerDefaults = getToolDefaults('answer');
+          const currentPage = state.currentBook?.pages[state.activePageIndex];
+          const pageTheme = currentPage?.background?.pageTheme;
+          const bookTheme = state.currentBook?.bookTheme;
+          const answerDefaults = getToolDefaults('answer', pageTheme, bookTheme);
           newElement = {
             id: uuidv4(),
             type: 'text',
@@ -1446,14 +1464,14 @@ export default function Canvas() {
     
     const handleOpenQuestionModal = (event: CustomEvent) => {
       // Prevent authors from opening question manager - comprehensive check
-      console.log('Canvas handleOpenQuestionModal - User:', user, 'Role:', user?.role);
+      // console.log('Canvas handleOpenQuestionModal - User:', user, 'Role:', user?.role);
       if (!user || user.role === 'author') {
-        console.log('Canvas: Blocking question manager - user:', user, 'role:', user?.role);
+        // console.log('Canvas: Blocking question manager - user:', user, 'role:', user?.role);
         return;
       }
       const element = currentPage?.elements.find(el => el.id === event.detail.elementId);
       if (element && element.textType === 'question') {
-        console.log('Canvas: Opening question dialog for element:', element.id);
+        // console.log('Canvas: Opening question dialog for element:', element.id);
         setSelectedQuestionElementId(element.id);
         setShowQuestionDialog(true);
       }

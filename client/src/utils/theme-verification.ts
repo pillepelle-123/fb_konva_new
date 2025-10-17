@@ -56,7 +56,7 @@ export function verifyThemes(): boolean {
     }
   }
   
-  console.log('All themes verified successfully');
+  // console.log('All themes verified successfully');
   return true;
 }
 

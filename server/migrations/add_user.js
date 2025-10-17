@@ -16,7 +16,7 @@ async function addUser() {
       ['Anni', 'anni@anni.de', hashedPassword, 'admin']
     );
     
-    console.log('Successfully created user: Anni (anni@anni.de) with admin role');
+    // console.log('Successfully created user: Anni (anni@anni.de) with admin role');
     process.exit(0);
   } catch (error) {
     console.error('Error creating user:', error);

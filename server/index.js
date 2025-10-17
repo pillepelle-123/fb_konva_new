@@ -30,7 +30,7 @@ pool.connect((err, client, release) => {
   if (err) {
     console.error('Error connecting to database:', err.stack);
   } else {
-    console.log('Connected to PostgreSQL database');
+    // console.log('Connected to PostgreSQL database');
     release();
   }
 });
@@ -72,7 +72,7 @@ io.use((socket, next) => {
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
-  console.log(`User ${socket.userId} connected`);
+  // console.log(`User ${socket.userId} connected`);
   
   // Join user to their own room for notifications
   socket.join(`user_${socket.userId}`);
@@ -96,7 +96,7 @@ io.on('connection', (socket) => {
   });
   
   socket.on('disconnect', () => {
-    console.log(`User ${socket.userId} disconnected`);
+    // console.log(`User ${socket.userId} disconnected`);
   });
 });
 
@@ -112,5 +112,5 @@ app.get('/api/health', (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  // console.log(`Server running on port ${PORT}`);
 });

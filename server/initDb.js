@@ -12,9 +12,9 @@ async function initializeDatabase() {
     const sql = fs.readFileSync(sqlFile, 'utf8');
     
     await pool.query(sql);
-    console.log('Database initialized successfully');
+    // console.log('Database initialized successfully');
   } catch (error) {
-    console.log('Database initialization failed');
+    // console.log('Database initialization failed');
   } finally {
     await pool.end();
   }

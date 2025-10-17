@@ -6,7 +6,7 @@ async function runMigration() {
   });
 
   try {
-    console.log('Starting migration: fix page_assignments to use proper page_id foreign key...');
+    // console.log('Starting migration: fix page_assignments to use proper page_id foreign key...');
     
     // Check if migration already completed
     const checkColumn = await pool.query(`
@@ -26,7 +26,7 @@ async function runMigration() {
     `);
     
     if (checkColumn.rows.length > 0 && checkConstraint.rows.length > 0) {
-      console.log('Migration already completed.');
+      // console.log('Migration already completed.');
       return;
     }
     
@@ -62,7 +62,7 @@ async function runMigration() {
     await pool.query('CREATE INDEX idx_page_assignments_user_id ON page_assignments(user_id)');
     
     await pool.query('COMMIT');
-    console.log('Migration completed successfully: page_assignments now uses proper page_id foreign key');
+    // console.log('Migration completed successfully: page_assignments now uses proper page_id foreign key');
   } catch (error) {
     await pool.query('ROLLBACK');
     console.error('Migration failed:', error);

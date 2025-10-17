@@ -178,13 +178,17 @@ router.get('/:id', authenticateToken, async (req, res) => {
       pageSize: book.page_size,
       orientation: book.orientation,
       owner_id: book.owner_id,
+      bookTheme: book.book_theme,
       pages: pages.rows.map(page => {
         const pageData = page.elements || {};
         return {
           id: page.id,
           pageNumber: page.page_number,
           elements: pageData.elements || [],
-          background: pageData.background
+          background: {
+            ...pageData.background,
+            pageTheme: page.page_theme
+          }
         };
       })
     });
@@ -233,8 +237,8 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
           
           // Update page data (elements and background)
           await pool.query(
-            'UPDATE public.pages SET elements = $1 WHERE id = $2',
-            [JSON.stringify(page), pageId]
+            'UPDATE public.pages SET elements = $1, page_theme = $2 WHERE id = $3',
+            [JSON.stringify(page), page.background?.pageTheme, pageId]
           );
 
           // Remove existing question associations for this page
@@ -301,8 +305,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
     if (pageSize && orientation && pages) {
       // Update book metadata
       await pool.query(
-        'UPDATE public.books SET name = $1, page_size = $2, orientation = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4',
-        [name, pageSize, orientation, bookId]
+        'UPDATE public.books SET name = $1, page_size = $2, orientation = $3, book_theme = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5',
+        [name, pageSize, orientation, req.body.bookTheme || 'default', bookId]
       );
 
       // Delete existing pages and their question associations
@@ -311,8 +315,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
       // Insert updated pages and handle question associations
       for (const page of pages) {
         const pageResult = await pool.query(
-          'INSERT INTO public.pages (book_id, page_number, elements) VALUES ($1, $2, $3) RETURNING id',
-          [bookId, page.pageNumber, JSON.stringify(page)]
+          'INSERT INTO public.pages (book_id, page_number, elements, page_theme) VALUES ($1, $2, $3, $4) RETURNING id',
+          [bookId, page.pageNumber, JSON.stringify(page), page.background?.pageTheme]
         );
         const pageId = pageResult.rows[0].id;
 
@@ -339,20 +343,20 @@ router.put('/:id', authenticateToken, async (req, res) => {
 // Create new book
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { name, pageSize, orientation } = req.body;
+    const { name, pageSize, orientation, bookTheme } = req.body;
     const userId = req.user.id;
 
     const result = await pool.query(
-      'INSERT INTO public.books (name, owner_id, page_size, orientation) VALUES ($1, $2, $3, $4) RETURNING *',
-      [name, userId, pageSize, orientation]
+      'INSERT INTO public.books (name, owner_id, page_size, orientation, book_theme) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [name, userId, pageSize, orientation, bookTheme || 'default']
     );
 
     const bookId = result.rows[0].id;
 
     // Create initial page
     await pool.query(
-      'INSERT INTO public.pages (book_id, page_number, elements) VALUES ($1, $2, $3)',
-      [bookId, 1, JSON.stringify([])]
+      'INSERT INTO public.pages (book_id, page_number, elements, page_theme) VALUES ($1, $2, $3, $4)',
+      [bookId, 1, JSON.stringify([]), null]
     );
 
     // Add owner as publisher collaborator

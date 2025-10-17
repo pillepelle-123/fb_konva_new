@@ -49,7 +49,7 @@ export default function PagePreview({ bookId, pageId, pageNumber, assignedUser, 
         const book = await response.json();
         const page = book.pages.find((p: any) => p.id === pageId);
         
-        console.log('Page elements:', page?.elements);
+        // console.log('Page elements:', page?.elements);
         
         if (page?.elements && page.elements.length > 0) {
           // Create container div

@@ -68,7 +68,7 @@ export function PaletteSelector({ onBack, title, isBookLevel = false }: PaletteS
           <ChevronLeft className="h-4 w-4 mr-1" />
           Back
         </Button>
-        <Label variant="sm" className="font-medium">{title} - Palette</Label>
+        {/* <Label variant="sm" className="font-medium">{title} - Palette</Label> */}
       </div>
 
       {/* Category Tabs */}

@@ -4,6 +4,228 @@ import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from './auth-context';
 import { getToolDefaults } from '../utils/tool-defaults';
 import { apiService } from '../services/api';
+import { actualToCommon } from '../utils/font-size-converter';
+import { actualToCommonStrokeWidth, commonToActualStrokeWidth, THEME_STROKE_RANGES } from '../utils/stroke-width-converter';
+import { actualToCommonRadius } from '../utils/corner-radius-converter';
+
+// Function to extract theme structure from current book state
+function logThemeStructure(book: Book | null) {
+  if (!book) return;
+  
+  const currentPage = book.pages[0]; // Use first page as reference
+  if (!currentPage) return;
+  
+  // Extract page settings
+  const pageSettings = {
+    backgroundColor: currentPage.background?.value || '#ffffff',
+    backgroundPattern: currentPage.background?.type === 'pattern' ? {
+      enabled: true,
+      style: currentPage.background.value as 'dots' | 'grid' | 'lines' | 'crosses',
+      size: currentPage.background.patternSize || 20,
+      strokeWidth: 1,
+      backgroundColor: currentPage.background.patternBackgroundColor || '#f0f0f0',
+      backgroundOpacity: currentPage.background.patternBackgroundOpacity || 0.3
+    } : {
+      enabled: false,
+      style: 'dots' as const,
+      size: 20,
+      strokeWidth: 1,
+      backgroundColor: '#f0f0f0',
+      backgroundOpacity: 0.3
+    },
+    backgroundImage: currentPage.background?.type === 'image' ? {
+      enabled: true,
+      size: currentPage.background.imageSize || 'cover' as const,
+      repeat: currentPage.background.imageRepeat || false
+    } : {
+      enabled: false,
+      size: 'cover' as const,
+      repeat: false
+    },
+    cornerRadius: 0
+  };
+  
+  // Extract element defaults from canvas elements
+  const elementDefaults = {
+    text: {},
+    question: {},
+    answer: {},
+    image: {},
+    shape: {},
+    brush: {},
+    line: {}
+  };
+  
+  // Process all elements from all pages to find examples of each type
+  book.pages.forEach(page => {
+    page.elements.forEach(element => {
+      const elementType = element.textType || element.type;
+      let category: keyof typeof elementDefaults;
+      
+      switch (elementType) {
+        case 'text':
+          category = 'text';
+          break;
+        case 'question':
+          category = 'question';
+          break;
+        case 'answer':
+          category = 'answer';
+          break;
+        case 'image':
+        case 'placeholder':
+          category = 'image';
+          break;
+        case 'brush':
+          category = 'brush';
+          break;
+        case 'line':
+          category = 'line';
+          break;
+        default:
+          category = 'shape';
+          break;
+      }
+      
+      // Extract relevant properties for theme
+      const themeElement: any = {
+        theme: element.theme || 'custom',
+        stroke: element.stroke,
+        fill: element.fill,
+        strokeWidth: element.strokeWidth ? actualToCommonStrokeWidth(element.strokeWidth, element.theme || 'custom') : undefined,
+        cornerRadius: element.cornerRadius ? actualToCommonRadius(element.cornerRadius) : 0,
+        scaleX: element.scaleX || 1,
+        scaleY: element.scaleY || 1,
+        rotation: element.rotation || 0
+      };
+      
+      // Add text-specific properties
+      if (category === 'text' || category === 'question' || category === 'answer') {
+        const convertedFontSize = element.fontSize ? actualToCommon(element.fontSize) : 16;
+        console.log(`Converting fontSize: ${element.fontSize} → ${convertedFontSize}`);
+        
+        themeElement.font = {
+          fontSize: convertedFontSize,
+          fontFamily: element.fontFamily || 'Arial, sans-serif',
+          fontColor: element.stroke || '#000000',
+          fontOpacity: 1,
+          fontBold: false,
+          fontItalic: false
+        };
+        themeElement.border = {
+          borderWidth: element.borderWidth ? actualToCommonStrokeWidth(element.borderWidth, element.theme || 'custom') : 0,
+          borderColor: element.borderColor || 'transparent',
+          borderOpacity: 1,
+          inheritTheme: 'custom'
+        };
+        themeElement.format = {
+          align: element.align || 'left',
+          lineHeight: element.lineHeight || 1.2,
+          paragraphSpacing: element.paragraphSpacing || 'medium',
+          padding: element.padding || 8
+        };
+        themeElement.background = {
+          backgroundColor: element.backgroundColor || 'transparent',
+          backgroundOpacity: element.backgroundOpacity || 0
+        };
+        themeElement.ruledLines = {
+          enabled: false,
+          inheritTheme: 'notebook',
+          lineWidth: 1,
+          lineColor: '#e0e0e0',
+          lineOpacity: 0.5
+        };
+      }
+      
+      // Add image-specific properties
+      if (category === 'image') {
+        themeElement.border = {
+          borderWidth: element.borderWidth ? actualToCommonStrokeWidth(element.borderWidth, element.theme || 'custom') : 0,
+          borderColor: element.borderColor || 'transparent',
+          borderOpacity: 1
+        };
+        themeElement.background = {
+          backgroundColor: element.backgroundColor || 'transparent',
+          backgroundOpacity: element.backgroundOpacity || 1
+        };
+      }
+      
+      // Add shape-specific properties
+      if (category === 'shape') {
+        themeElement.inheritTheme = 'custom';
+        themeElement.border = {
+          borderWidth: 0,
+          borderColor: 'transparent',
+          borderOpacity: 1
+        };
+        themeElement.background = {
+          backgroundColor: 'transparent',
+          backgroundOpacity: element.backgroundOpacity || 0.6
+        };
+      }
+      
+      // Add brush/line-specific properties
+      if (category === 'brush' || category === 'line') {
+        themeElement.inheritTheme = 'custom';
+      }
+      
+      // Only update if we don't have this element type yet or if this element has more properties
+      if (!elementDefaults[category] || Object.keys(themeElement).length > Object.keys(elementDefaults[category]).length) {
+        elementDefaults[category] = themeElement;
+      }
+    });
+  });
+  
+  // Create the complete theme structure and convert values to common scale
+  const convertedElementDefaults = {};
+  Object.entries(elementDefaults).forEach(([key, element]: [string, any]) => {
+    if (!element || Object.keys(element).length === 0) {
+      convertedElementDefaults[key] = {};
+      return;
+    }
+    
+    const converted = { ...element };
+    
+    // Convert strokeWidth
+    if (converted.strokeWidth) {
+      converted.strokeWidth = actualToCommonStrokeWidth(converted.strokeWidth, converted.theme || 'custom');
+    }
+    
+    // Convert cornerRadius
+    // if (converted.cornerRadius) {
+    //   converted.cornerRadius = actualToCommonRadius(converted.cornerRadius);
+    // }
+    
+    // Convert font fontSize
+    if (converted.font?.fontSize) {
+      converted.font.fontSize = actualToCommon(converted.font.fontSize);
+    }
+    
+    // Convert border borderWidth
+    if (converted.border?.borderWidth) {
+      converted.border.borderWidth = actualToCommonStrokeWidth(converted.border.borderWidth, converted.theme || 'custom');
+    }
+    
+    convertedElementDefaults[key] = converted;
+  });
+  
+  const themeStructure = {
+    id: 'custom',
+    name: 'Custom Theme',
+    description: 'Theme created from canvas elements',
+    pageSettings,
+    elementDefaults: convertedElementDefaults
+  };
+  
+  console.log('=== THEME STRUCTURE FOR GLOBAL-THEMES.TS ===');
+  
+  // Convert to JavaScript object syntax without quoted property names
+  const jsObjectString = JSON.stringify(themeStructure, null, 2)
+    .replace(/"([^"]+)":/g, '$1:');
+  
+  console.log(jsObjectString);
+  console.log('=== END THEME STRUCTURE ===');
+}
 
 export interface CanvasElement {
   id: string;
@@ -50,7 +272,7 @@ export interface PageBackground {
   patternForegroundColor?: string; // pattern drawing color
   patternBackgroundColor?: string; // pattern background color
   patternBackgroundOpacity?: number;
-  globalTheme?: string; // global theme ID for this page
+  pageTheme?: string; // page-specific theme ID
   ruledLines?: {
     enabled: boolean;
     theme: 'notebook' | 'college' | 'graph' | 'dotted';
@@ -73,6 +295,7 @@ export interface Book {
   pageSize: string;
   orientation: string;
   pages: Page[];
+  bookTheme?: string; // book-level theme ID
 }
 
 export interface HistoryState {
@@ -80,6 +303,7 @@ export interface HistoryState {
   activePageIndex: number;
   selectedElementIds: string[];
   toolSettings: Record<string, Record<string, any>>;
+  editorSettings: Record<string, Record<string, any>>;
 }
 
 export interface EditorState {
@@ -96,6 +320,7 @@ export interface EditorState {
   toolbarVisible: boolean;
   hasUnsavedChanges: boolean;
   toolSettings: Record<string, Record<string, any>>;
+  editorSettings: Record<string, Record<string, any>>;
   tempQuestions: { [key: number]: string }; // questionId -> text
   tempAnswers: { [key: number]: string }; // questionId -> text
   newQuestions: { elementId: string; text: string }[]; // new questions not yet saved
@@ -114,6 +339,7 @@ type EditorAction =
   | { type: 'ADD_ELEMENT'; payload: CanvasElement }
   | { type: 'UPDATE_ELEMENT'; payload: { id: string; updates: Partial<CanvasElement> } }
   | { type: 'UPDATE_ELEMENT_PRESERVE_SELECTION'; payload: { id: string; updates: Partial<CanvasElement> } }
+  | { type: 'UPDATE_ELEMENT_ALL_PAGES'; payload: { id: string; updates: Partial<CanvasElement> } }
   | { type: 'DELETE_ELEMENT'; payload: string }
   | { type: 'MOVE_ELEMENT_TO_FRONT'; payload: string }
   | { type: 'MOVE_ELEMENT_TO_BACK'; payload: string }
@@ -126,6 +352,7 @@ type EditorAction =
   | { type: 'TOGGLE_TOOLBAR' }
   | { type: 'MARK_SAVED' }
   | { type: 'UPDATE_TOOL_SETTINGS'; payload: { tool: string; settings: Record<string, any> } }
+  | { type: 'SET_EDITOR_SETTINGS'; payload: Record<string, Record<string, any>> }
   | { type: 'UPDATE_TEMP_QUESTION'; payload: { questionId: number; text: string } }
   | { type: 'UPDATE_TEMP_ANSWER'; payload: { questionId: number; text: string } }
   | { type: 'ADD_NEW_QUESTION'; payload: { elementId: string; text: string } }
@@ -140,6 +367,9 @@ type EditorAction =
   | { type: 'SET_PAGE_ASSIGNMENTS'; payload: Record<number, any> }
   | { type: 'SET_BOOK_FRIENDS'; payload: any[] }
   | { type: 'UPDATE_PAGE_BACKGROUND'; payload: { pageIndex: number; background: PageBackground } }
+  | { type: 'SET_BOOK_THEME'; payload: string }
+  | { type: 'SET_PAGE_THEME'; payload: { pageIndex: number; themeId: string } }
+  | { type: 'APPLY_THEME_TO_ELEMENTS'; payload: { pageIndex: number; themeId: string; elementType?: string } }
   | { type: 'REORDER_PAGES'; payload: { fromIndex: number; toIndex: number } };
 
 const initialState: EditorState = {
@@ -156,6 +386,7 @@ const initialState: EditorState = {
   toolbarVisible: true,
   hasUnsavedChanges: false,
   toolSettings: {},
+  editorSettings: {},
   tempQuestions: {},
   tempAnswers: {},
   newQuestions: [],
@@ -166,6 +397,22 @@ const initialState: EditorState = {
 
 const MAX_HISTORY_SIZE = 50;
 
+// Function to enforce theme stroke width boundaries
+function enforceThemeBoundaries(updates: Partial<CanvasElement>, oldElement: CanvasElement): Partial<CanvasElement> {
+  const result = { ...updates };
+  
+  // Only enforce boundaries if theme is being changed
+  if (result.theme && oldElement.theme && result.theme !== oldElement.theme && oldElement.strokeWidth !== undefined) {
+    // Convert current strokeWidth to common scale using old theme
+    const commonWidth = actualToCommonStrokeWidth(oldElement.strokeWidth, oldElement.theme);
+    // Convert to new theme's actual value
+    const newActualWidth = commonToActualStrokeWidth(commonWidth, result.theme);
+    result.strokeWidth = newActualWidth;
+  }
+  
+  return result;
+}
+
 function saveToHistory(state: EditorState, actionName: string): EditorState {
   if (!state.currentBook) return state;
   
@@ -173,7 +420,8 @@ function saveToHistory(state: EditorState, actionName: string): EditorState {
     currentBook: JSON.parse(JSON.stringify(state.currentBook)),
     activePageIndex: state.activePageIndex,
     selectedElementIds: [...state.selectedElementIds],
-    toolSettings: JSON.parse(JSON.stringify(state.toolSettings))
+    toolSettings: JSON.parse(JSON.stringify(state.toolSettings)),
+    editorSettings: JSON.parse(JSON.stringify(state.editorSettings))
   };
   
   const newHistory = state.history.slice(0, state.historyIndex + 1);
@@ -245,8 +493,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       // Apply tool defaults to the new element
       const toolType = action.payload.textType || action.payload.type;
       const currentPage = savedState.currentBook!.pages[savedState.activePageIndex];
-      const globalTheme = currentPage?.background?.globalTheme;
-      const defaults = getToolDefaults(toolType as any, globalTheme);
+      const pageTheme = currentPage?.background?.pageTheme;
+      const bookTheme = savedState.currentBook!.bookTheme;
+      const defaults = getToolDefaults(toolType as any, pageTheme, bookTheme);
       const elementWithDefaults = { ...defaults, ...action.payload };
       
       const newBook = {
@@ -276,7 +525,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const page = updatedBook.pages[state.activePageIndex];
       const elementIndex = page.elements.findIndex(el => el.id === action.payload.id);
       if (elementIndex !== -1) {
-        page.elements[elementIndex] = { ...page.elements[elementIndex], ...action.payload.updates };
+        const oldElement = page.elements[elementIndex];
+        const enforcedUpdates = enforceThemeBoundaries(action.payload.updates, oldElement);
+        page.elements[elementIndex] = { ...oldElement, ...enforcedUpdates };
       }
       const updatedState = { ...state, currentBook: updatedBook, hasUnsavedChanges: true };
       
@@ -290,9 +541,24 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const pagePreserve = updatedBookPreserve.pages[state.activePageIndex];
       const elementIndexPreserve = pagePreserve.elements.findIndex(el => el.id === action.payload.id);
       if (elementIndexPreserve !== -1) {
-        pagePreserve.elements[elementIndexPreserve] = { ...pagePreserve.elements[elementIndexPreserve], ...action.payload.updates };
+        const oldElementPreserve = pagePreserve.elements[elementIndexPreserve];
+        const enforcedUpdatesPreserve = enforceThemeBoundaries(action.payload.updates, oldElementPreserve);
+        pagePreserve.elements[elementIndexPreserve] = { ...oldElementPreserve, ...enforcedUpdatesPreserve };
       }
       return { ...state, currentBook: updatedBookPreserve, hasUnsavedChanges: true };
+    
+    case 'UPDATE_ELEMENT_ALL_PAGES':
+      if (!state.currentBook) return state;
+      const updatedBookAllPages = { ...state.currentBook };
+      updatedBookAllPages.pages.forEach(page => {
+        const elementIndex = page.elements.findIndex(el => el.id === action.payload.id);
+        if (elementIndex !== -1) {
+          const oldElementAllPages = page.elements[elementIndex];
+          const enforcedUpdatesAllPages = enforceThemeBoundaries(action.payload.updates, oldElementAllPages);
+          page.elements[elementIndex] = { ...oldElementAllPages, ...enforcedUpdatesAllPages };
+        }
+      });
+      return { ...state, currentBook: updatedBookAllPages, hasUnsavedChanges: true };
     
     case 'DELETE_ELEMENT':
       if (!state.currentBook) return state;
@@ -417,6 +683,12 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         }
       };
     
+    case 'SET_EDITOR_SETTINGS':
+      return {
+        ...state,
+        editorSettings: action.payload
+      };
+    
     case 'UPDATE_TEMP_QUESTION':
       return {
         ...state,
@@ -474,6 +746,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           activePageIndex: prevState.activePageIndex,
           selectedElementIds: prevState.selectedElementIds,
           toolSettings: prevState.toolSettings,
+          editorSettings: prevState.editorSettings,
           historyIndex: state.historyIndex - 1,
           hasUnsavedChanges: true
         };
@@ -489,6 +762,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           activePageIndex: nextState.activePageIndex,
           selectedElementIds: nextState.selectedElementIds,
           toolSettings: nextState.toolSettings,
+          editorSettings: nextState.editorSettings,
           historyIndex: state.historyIndex + 1,
           hasUnsavedChanges: true
         };
@@ -504,6 +778,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           activePageIndex: targetState.activePageIndex,
           selectedElementIds: targetState.selectedElementIds,
           toolSettings: targetState.toolSettings,
+          editorSettings: targetState.editorSettings,
           historyIndex: action.payload,
           hasUnsavedChanges: true
         };
@@ -537,6 +812,54 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         targetPage.background = action.payload.background;
       }
       return { ...savedBgState, currentBook: updatedBookBg, hasUnsavedChanges: true };
+    
+    case 'SET_BOOK_THEME':
+      if (!state.currentBook) return state;
+      const savedBookThemeState = saveToHistory(state, 'Set Book Theme');
+      return {
+        ...savedBookThemeState,
+        currentBook: {
+          ...savedBookThemeState.currentBook!,
+          bookTheme: action.payload
+        },
+        hasUnsavedChanges: true
+      };
+    
+    case 'SET_PAGE_THEME':
+      if (!state.currentBook) return state;
+      const savedPageThemeState = saveToHistory(state, 'Set Page Theme');
+      const updatedBookPageTheme = { ...savedPageThemeState.currentBook! };
+      const targetPageTheme = updatedBookPageTheme.pages[action.payload.pageIndex];
+      if (targetPageTheme) {
+        if (!targetPageTheme.background) {
+          targetPageTheme.background = { type: 'color', value: '#ffffff', opacity: 1 };
+        }
+        targetPageTheme.background.pageTheme = action.payload.themeId;
+      }
+      return { ...savedPageThemeState, currentBook: updatedBookPageTheme, hasUnsavedChanges: true };
+    
+    case 'APPLY_THEME_TO_ELEMENTS':
+      if (!state.currentBook) return state;
+      const savedApplyThemeState = saveToHistory(state, 'Apply Theme to Elements');
+      const updatedBookApplyTheme = { ...savedApplyThemeState.currentBook! };
+      const targetPageApplyTheme = updatedBookApplyTheme.pages[action.payload.pageIndex];
+      
+      if (targetPageApplyTheme) {
+        targetPageApplyTheme.elements = targetPageApplyTheme.elements.map(element => {
+          // Only apply theme to specified element type or all if not specified
+          if (action.payload.elementType && element.type !== action.payload.elementType && element.textType !== action.payload.elementType) {
+            return element;
+          }
+          
+          const toolType = element.textType || element.type;
+          const themeDefaults = getToolDefaults(toolType as any, action.payload.themeId, undefined, element);
+          
+          // Merge theme defaults while preserving individual settings
+          return { ...element, ...themeDefaults };
+        });
+      }
+      
+      return { ...savedApplyThemeState, currentBook: updatedBookApplyTheme, hasUnsavedChanges: true };
     
     case 'UPDATE_BOOK_NAME':
       if (!state.currentBook) return state;
@@ -720,6 +1043,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         
         if (!response.ok) throw new Error('Failed to save book');
       } else {
+        // Themes are now saved to database, no localStorage needed
+        
         const response = await fetch(`${apiUrl}/books/${state.currentBook.id}`, {
           method: 'PUT',
           headers: {
@@ -802,6 +1127,9 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       
 
       
+      // Log theme structure for copying to global-themes.ts
+      logThemeStructure(state.currentBook);
+      
       // Clear temporary data after successful save
       dispatch({ type: 'CLEAR_TEMP_DATA' });
       dispatch({ type: 'MARK_SAVED' });
@@ -822,6 +1150,34 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       answers.forEach(a => {
         dispatch({ type: 'UPDATE_TEMP_ANSWER', payload: { questionId: a.question_id, text: a.answer_text } });
       });
+      
+      // Load editor settings
+      const token = localStorage.getItem('token');
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      try {
+        const settingsResponse = await fetch(`${apiUrl}/editor-settings/${bookId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (settingsResponse.ok) {
+          const editorSettings = await settingsResponse.json();
+          // Store editor settings in state
+          dispatch({ type: 'SET_EDITOR_SETTINGS', payload: editorSettings });
+          // Apply editor settings to tool settings for backward compatibility
+          if (editorSettings.favoriteColors?.strokeColors) {
+            dispatch({ 
+              type: 'UPDATE_TOOL_SETTINGS', 
+              payload: { 
+                tool: 'favoriteColors', 
+                settings: { strokeColors: editorSettings.favoriteColors.strokeColors } 
+              } 
+            });
+          }
+        }
+      } catch (settingsError) {
+        console.warn('Failed to load editor settings:', settingsError);
+      }
+      
+      // Themes are now loaded from database, no localStorage needed
       
       dispatch({ type: 'SET_BOOK', payload: book });
       

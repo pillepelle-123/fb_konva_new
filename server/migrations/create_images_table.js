@@ -22,7 +22,7 @@ async function createImagesTable() {
       );
     `);
     
-    console.log('Images table created successfully');
+    // console.log('Images table created successfully');
     process.exit(0);
   } catch (error) {
     console.error('Error creating images table:', error);

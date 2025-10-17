@@ -59,7 +59,7 @@ export function PagesSubmenu({ pages, activePageIndex, onClose, onPageSelect, on
         <div className="flex items-center gap-2">
           {pages.map((page, index) => (
             <div
-              key={index}
+              key={page.id}
               draggable
               onDragStart={(e) => handleDragStart(e, index)}
               onDragOver={handleDragOver}

@@ -69,7 +69,7 @@ export default function FriendsList() {
               setPendingAssignments(assignedUserIds);
             }
           } catch (error) {
-            console.log('No existing assignments found');
+            // console.log('No existing assignments found');
           }
         }
         

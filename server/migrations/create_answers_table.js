@@ -44,7 +44,7 @@ async function createAnswersTable() {
           EXECUTE FUNCTION public.update_answers_updated_at();
     `);
 
-    console.log('Answers table created successfully');
+    // console.log('Answers table created successfully');
     process.exit(0);
   } catch (error) {
     console.error('Error creating answers table:', error);

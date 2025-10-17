@@ -35,7 +35,7 @@ export default function QuestionsManagerContent({
   onClose,
   showAsContent = false
 }: QuestionsManagerContentProps) {
-  console.log('QuestionsManagerContent rendered with mode:', mode);
+  // console.log('QuestionsManagerContent rendered with mode:', mode);
   const { user } = useAuth();
   const { state, isQuestionAvailableForUser } = useEditor();
   

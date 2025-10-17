@@ -9,6 +9,7 @@ import BaseCanvasItem from './base-canvas-item';
 import type { CanvasItemProps } from './base-canvas-item';
 import ThemedShape from './themed-shape';
 import { getThemeRenderer } from '../../../../utils/themes';
+import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 
 
 // Rich text formatting function for Quill HTML output
@@ -181,11 +182,11 @@ export default function Textbox(props: CanvasItemProps) {
 
   const [hasOverflow, setHasOverflow] = useState(false);
 
-  const fontSize = element.fontSize || 16;
+  const fontSize = element.font?.fontSize || element.fontSize || 16;
   
   // Calculate lineHeight based on paragraph spacing and ruled lines
   const getLineHeight = () => {
-    const spacing = element.paragraphSpacing || 'medium';
+    const spacing = element.format?.paragraphSpacing || element.paragraphSpacing || 'medium';
     
     if (element.ruledLines || (element.text && element.text.includes('data-ruled="true"'))) {
       const ruledSpacingMap = {
@@ -202,7 +203,7 @@ export default function Textbox(props: CanvasItemProps) {
       large: 1.5
     };
     
-    return element.lineHeight || spacingMap[spacing as keyof typeof spacingMap];
+    return element.format?.lineHeight || element.lineHeight || spacingMap[spacing as keyof typeof spacingMap];
   };
   
   // Generate themed ruled lines
@@ -210,9 +211,26 @@ export default function Textbox(props: CanvasItemProps) {
     if (!element.ruledLines) return [];
     
     const lines = [];
-    const padding = element.padding || 4;
+    const padding = element.format?.padding || element.padding || 4;
     const lineSpacing = fontSize * getLineHeight(); // Use same spacing as text
-    const theme = element.ruledLinesTheme || 'rough';
+    // Priority: individual setting > theme defaults > fallback
+    let theme = 'rough'; // fallback
+    
+    // Check if element has individual setting
+    if (element.ruledLines?.inheritTheme || element.ruledLinesTheme) {
+      theme = element.ruledLines?.inheritTheme || element.ruledLinesTheme;
+    } else {
+      // Use theme defaults if no individual setting
+      const currentPage = state.currentBook?.pages[state.activePageIndex];
+      const pageTheme = currentPage?.background?.pageTheme;
+      const bookTheme = state.currentBook?.bookTheme;
+      const activeTheme = pageTheme || bookTheme;
+      
+      if (activeTheme) {
+        const themeDefaults = getGlobalThemeDefaults(activeTheme, 'text');
+        theme = themeDefaults?.ruledLines?.inheritTheme || theme;
+      }
+    }
     const ruledLineColor = element.ruledLinesColor || '#1f2937';
     const ruledLineWidth = element.ruledLinesWidth || 0.8;
     
@@ -324,8 +342,8 @@ export default function Textbox(props: CanvasItemProps) {
   };
   
   const lineHeight = getLineHeight();
-  const align = element.align || 'left';
-  const fontFamily = element.fontFamily || 'Arial, sans-serif';
+  const align = element.format?.align || element.align || 'left';
+  const fontFamily = element.font?.fontFamily || element.fontFamily || 'Arial, sans-serif';
   
   const getPlaceholderText = () => {
     if (element.textType === 'question') return 'Double-click to pose a question...';
@@ -535,13 +553,13 @@ export default function Textbox(props: CanvasItemProps) {
     textarea.style.position = 'absolute';
     textarea.style.top = areaPosition.y + 'px';
     textarea.style.left = areaPosition.x + 'px';
-    textarea.style.width = ((element.width - (element.padding || 4) * 2) * scale) + 'px';
-    textarea.style.height = ((element.height - (element.padding || 4) * 2) * scale) + 'px';
-    textarea.style.fontSize = ((element.fontSize || 16) * scale) + 'px';
-    textarea.style.fontFamily = element.fontFamily || 'Arial, sans-serif';
-    textarea.style.fontWeight = element.fontWeight || 'normal';
-    textarea.style.fontStyle = element.fontStyle || 'normal';
-    textarea.style.color = element.fill || '#1f2937';
+    textarea.style.width = ((element.width - (element.format?.padding || element.padding || 4) * 2) * scale) + 'px';
+    textarea.style.height = ((element.height - (element.format?.padding || element.padding || 4) * 2) * scale) + 'px';
+    textarea.style.fontSize = ((element.font?.fontSize || element.fontSize || 16) * scale) + 'px';
+    textarea.style.fontFamily = element.font?.fontFamily || element.fontFamily || 'Arial, sans-serif';
+    textarea.style.fontWeight = element.font?.fontBold || element.fontWeight === 'bold' ? 'bold' : 'normal';
+    textarea.style.fontStyle = element.font?.fontItalic || element.fontStyle === 'italic' ? 'italic' : 'normal';
+    textarea.style.color = element.font?.fontColor || element.fill || '#1f2937';
     textarea.style.background = 'transparent';
     textarea.style.border = 'transparent';
     textarea.style.outline = 'none';
@@ -550,7 +568,7 @@ export default function Textbox(props: CanvasItemProps) {
     textarea.style.setProperty('::-moz-selection', 'background-color: #72bcf5');
     textarea.style.resize = 'none';
     textarea.style.lineHeight = getLineHeight().toString();
-    textarea.style.textAlign = element.align || 'left';
+    textarea.style.textAlign = element.format?.align || element.align || 'left';
     textarea.style.padding = '0';
     textarea.style.margin = '0';
     textarea.style.overflow = 'hidden';
@@ -577,7 +595,7 @@ export default function Textbox(props: CanvasItemProps) {
     };
     
     const setTextareaWidth = () => {
-      const newWidth = ((element.width - (element.padding || 4) * 2) * scale);
+      const newWidth = ((element.width - (element.format?.padding || element.padding || 4) * 2) * scale);
       textarea.style.width = newWidth + 'px';
     };
     
@@ -599,11 +617,11 @@ export default function Textbox(props: CanvasItemProps) {
           // Calculate required height for text
           const canvas = document.createElement('canvas');
           const context = canvas.getContext('2d')!;
-          context.font = `${element.fontSize || 16}px ${element.fontFamily || 'Arial, sans-serif'}`;
+          context.font = `${element.font?.fontSize || element.fontSize || 16}px ${element.font?.fontFamily || element.fontFamily || 'Arial, sans-serif'}`;
           
-          const padding = element.padding || 4;
+          const padding = element.format?.padding || element.padding || 4;
           const textWidth = element.width - (padding * 2);
-          const lineHeight = (element.fontSize || 16) * getLineHeight();
+          const lineHeight = (element.font?.fontSize || element.fontSize || 16) * getLineHeight();
           
           // Split by line breaks first
           const paragraphs = newText.split('\n');
@@ -661,11 +679,11 @@ export default function Textbox(props: CanvasItemProps) {
         // Calculate required height for text
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d')!;
-        context.font = `${element.fontSize || 16}px ${element.fontFamily || 'Arial, sans-serif'}`;
+        context.font = `${element.font?.fontSize || element.fontSize || 16}px ${element.font?.fontFamily || element.fontFamily || 'Arial, sans-serif'}`;
         
-        const padding = element.padding || 4;
+        const padding = element.format?.padding || element.padding || 4;
         const textWidth = element.width - (padding * 2);
-        const lineHeight = (element.fontSize || 16) * getLineHeight();
+        const lineHeight = (element.font?.fontSize || element.fontSize || 16) * getLineHeight();
         
         // Split by line breaks first
         const paragraphs = newText.split('\n');
@@ -742,17 +760,24 @@ export default function Textbox(props: CanvasItemProps) {
   }, [element.width, element.height]);
 
   // Create border element for ThemedShape if borderWidth > 0
-  const borderElement = element.borderWidth && element.borderWidth > 0 ? {
+  const borderWidth = element.border?.borderWidth || element.borderWidth || 0;
+  const borderColor = element.border?.borderColor || element.borderColor || '#000000';
+  const borderOpacity = element.border?.borderOpacity || element.borderOpacity || 1;
+  const borderTheme = element.border?.inheritTheme || element.theme || 'default';
+  
+  const borderElement = borderWidth > 0 ? {
     ...element,
     id: `${element.id}-border`,
     type: 'rect' as const,
     x: 0,
     y: 0,
-    stroke: element.borderColor || '#000000',
-    strokeWidth: element.borderWidth,
-    strokeOpacity: element.borderOpacity || 1,
+    stroke: borderColor,
+    strokeWidth: borderWidth,
+    strokeOpacity: borderOpacity,
     fill: 'transparent',
-    roughness: element.theme === 'rough' ? 3 : element.roughness
+    theme: borderTheme,
+    inheritTheme: borderTheme,
+    roughness: borderTheme === 'rough' ? 3 : element.roughness
   } : null;
 
   return (
@@ -762,11 +787,11 @@ export default function Textbox(props: CanvasItemProps) {
         <Rect
           width={element.width}
           height={element.height}
-          fill={element.backgroundColor || "transparent"}
-          opacity={element.backgroundOpacity || 1}
-          stroke={!element.borderWidth && (element.textType === 'question' || element.textType === 'answer') ? "transparent" : "transparent"}
-          strokeWidth={!element.borderWidth && (element.textType === 'question' || element.textType === 'answer') ? 1 : 0}
-          dash={!element.borderWidth && (element.textType === 'question' || element.textType === 'answer') ? [5, 5] : []}
+          fill={element.background?.backgroundColor || element.backgroundColor || "transparent"}
+          opacity={element.background?.backgroundOpacity || element.backgroundOpacity || 1}
+          stroke={!borderWidth && (element.textType === 'question' || element.textType === 'answer') ? "transparent" : "transparent"}
+          strokeWidth={!borderWidth && (element.textType === 'question' || element.textType === 'answer') ? 1 : 0}
+          dash={!borderWidth && (element.textType === 'question' || element.textType === 'answer') ? [5, 5] : []}
           cornerRadius={element.cornerRadius || 0}
           listening={false}
         />
@@ -790,7 +815,7 @@ export default function Textbox(props: CanvasItemProps) {
         
         {/* Text content */}
         {(() => {
-          const padding = element.padding || 4;
+          const padding = element.format?.padding || element.padding || 4;
           const textWidth = element.width - (padding * 2);
           const textHeight = element.height - (padding * 2);
           
@@ -805,8 +830,8 @@ export default function Textbox(props: CanvasItemProps) {
                   fontSize={textPart.fontSize}
                   fontFamily={textPart.fontFamily}
                   fontStyle={textPart.fontStyle}
-                  fill={textPart.fill || element.fill || '#1f2937'}
-                  opacity={element.fillOpacity || 1}
+                  fill={textPart.fill || element.font?.fontColor || element.fill || '#1f2937'}
+                  opacity={element.font?.fontOpacity || element.fillOpacity || 1}
                   textDecoration={textPart.textDecoration}
                   listening={false}
                 />
@@ -822,9 +847,9 @@ export default function Textbox(props: CanvasItemProps) {
               text={displayText}
               fontSize={fontSize}
               fontFamily={fontFamily}
-              fontStyle={`${element.fontWeight === 'bold' ? 'bold' : ''} ${element.fontStyle === 'italic' ? 'italic' : ''}`.trim() || 'normal'}
-              fill={element.fill || (element.text ? '#1f2937' : '#9ca3af')}
-              opacity={(element.formattedText || element.text) ? (element.fillOpacity || 1) : 0.6}
+              fontStyle={`${(element.font?.fontBold || element.fontWeight === 'bold') ? 'bold' : ''} ${(element.font?.fontItalic || element.fontStyle === 'italic') ? 'italic' : ''}`.trim() || 'normal'}
+              fill={element.font?.fontColor || element.fill || (element.text ? '#1f2937' : '#9ca3af')}
+              opacity={(element.formattedText || element.text) ? (element.font?.fontOpacity || element.fillOpacity || 1) : 0.6}
               align={align}
               verticalAlign="top"
               wrap="word"

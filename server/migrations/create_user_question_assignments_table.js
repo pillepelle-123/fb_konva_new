@@ -22,7 +22,7 @@ async function createUserQuestionAssignmentsTable() {
       );
     `);
     
-    console.log('User question assignments table created successfully');
+    // console.log('User question assignments table created successfully');
   } catch (error) {
     console.error('Error creating user question assignments table:', error);
   } finally {

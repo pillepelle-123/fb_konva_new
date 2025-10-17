@@ -17,7 +17,7 @@ async function createFriendshipsTable() {
       );
     `);
     
-    console.log('Friendships table created successfully');
+    // console.log('Friendships table created successfully');
   } catch (error) {
     console.error('Error creating friendships table:', error);
   } finally {

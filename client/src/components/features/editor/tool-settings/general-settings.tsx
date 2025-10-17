@@ -83,19 +83,64 @@ export function GeneralSettings({
         </div>
         
         <GlobalThemeSelector
-          currentTheme={state.currentBook?.pages[state.activePageIndex]?.background?.globalTheme}
+          currentTheme={state.currentBook?.pages[state.activePageIndex]?.background?.pageTheme || state.currentBook?.bookTheme || 'default'}
           onThemeSelect={(themeId) => {
+            // Set page theme
+            dispatch({ type: 'SET_PAGE_THEME', payload: { pageIndex: state.activePageIndex, themeId } });
+            
             const currentPage = state.currentBook?.pages[state.activePageIndex];
             if (currentPage) {
               // Get the theme settings
               const theme = getGlobalTheme(themeId);
               if (theme) {
-                // Apply element defaults
+                // Apply element defaults to current page only
                 currentPage.elements.forEach(element => {
                   const themeDefaults = getGlobalThemeDefaults(themeId, element.type);
+                  // Apply ALL theme defaults, overwriting individual customizations
+                  const flattenedDefaults = {
+                    ...themeDefaults,
+                    // Apply nested font properties
+                    ...(themeDefaults.font && {
+                      font: themeDefaults.font,
+                      fontSize: themeDefaults.font.fontSize,
+                      fontFamily: themeDefaults.font.fontFamily,
+                      fontColor: themeDefaults.font.fontColor,
+                      fontOpacity: themeDefaults.font.fontOpacity,
+                      fontWeight: themeDefaults.font.fontBold ? 'bold' : 'normal',
+                      fontStyle: themeDefaults.font.fontItalic ? 'italic' : 'normal'
+                    }),
+                    // Apply nested border properties
+                    ...(themeDefaults.border && {
+                      border: themeDefaults.border,
+                      borderWidth: themeDefaults.border.borderWidth,
+                      borderColor: themeDefaults.border.borderColor,
+                      borderOpacity: themeDefaults.border.borderOpacity
+                    }),
+                    // Apply nested format properties
+                    ...(themeDefaults.format && {
+                      format: themeDefaults.format,
+                      align: themeDefaults.format.align,
+                      lineHeight: themeDefaults.format.lineHeight,
+                      paragraphSpacing: themeDefaults.format.paragraphSpacing,
+                      padding: themeDefaults.format.padding
+                    }),
+                    // Apply nested background properties
+                    ...(themeDefaults.background && {
+                      background: themeDefaults.background,
+                      backgroundColor: themeDefaults.background.backgroundColor,
+                      backgroundOpacity: themeDefaults.background.backgroundOpacity
+                    }),
+                    // Apply nested ruledLines properties
+                    ...(themeDefaults.ruledLines && {
+                      ruledLines: themeDefaults.ruledLines,
+                      ruledLinesTheme: themeDefaults.ruledLines.inheritTheme,
+                      ruledLinesWidth: themeDefaults.ruledLines.lineWidth,
+                      ruledLinesColor: themeDefaults.ruledLines.lineColor
+                    })
+                  };
                   dispatch({
                     type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                    payload: { id: element.id, updates: themeDefaults }
+                    payload: { id: element.id, updates: flattenedDefaults }
                   });
                 });
                 
@@ -104,7 +149,7 @@ export function GeneralSettings({
                   type: theme.pageSettings.backgroundPattern?.enabled ? 'pattern' : 'color',
                   value: theme.pageSettings.backgroundPattern?.enabled ? theme.pageSettings.backgroundPattern.style : theme.pageSettings.backgroundColor,
                   opacity: 1,
-                  globalTheme: themeId,
+                  pageTheme: themeId,
                   ruledLines: theme.ruledLines,
                   ...(theme.pageSettings.backgroundPattern?.enabled && {
                     patternSize: theme.pageSettings.backgroundPattern.size,
@@ -169,28 +214,74 @@ export function GeneralSettings({
         </div>
         
         <GlobalThemeSelector
-          currentTheme={undefined}
+          currentTheme={state.currentBook?.bookTheme || 'default'}
           onThemeSelect={(themeId) => {
+            // Set book theme
+            dispatch({ type: 'SET_BOOK_THEME', payload: themeId });
+            
             if (state.currentBook) {
               // Get the theme settings
               const theme = getGlobalTheme(themeId);
               if (theme) {
+                // Book theme overrides ALL page themes - apply to ALL pages
                 state.currentBook.pages.forEach((page, pageIndex) => {
-                  // Apply element defaults
+                  // Apply element defaults to ALL elements
                   page.elements.forEach(element => {
                     const themeDefaults = getGlobalThemeDefaults(themeId, element.type);
+                    // Apply ALL theme defaults, overwriting individual customizations
+                    const flattenedDefaults = {
+                      ...themeDefaults,
+                      // Apply nested font properties
+                      ...(themeDefaults.font && {
+                        font: themeDefaults.font,
+                        fontSize: themeDefaults.font.fontSize,
+                        fontFamily: themeDefaults.font.fontFamily,
+                        fontColor: themeDefaults.font.fontColor,
+                        fontOpacity: themeDefaults.font.fontOpacity,
+                        fontWeight: themeDefaults.font.fontBold ? 'bold' : 'normal',
+                        fontStyle: themeDefaults.font.fontItalic ? 'italic' : 'normal'
+                      }),
+                      // Apply nested border properties
+                      ...(themeDefaults.border && {
+                        border: themeDefaults.border,
+                        borderWidth: themeDefaults.border.borderWidth,
+                        borderColor: themeDefaults.border.borderColor,
+                        borderOpacity: themeDefaults.border.borderOpacity
+                      }),
+                      // Apply nested format properties
+                      ...(themeDefaults.format && {
+                        format: themeDefaults.format,
+                        align: themeDefaults.format.align,
+                        lineHeight: themeDefaults.format.lineHeight,
+                        paragraphSpacing: themeDefaults.format.paragraphSpacing,
+                        padding: themeDefaults.format.padding
+                      }),
+                      // Apply nested background properties
+                      ...(themeDefaults.background && {
+                        background: themeDefaults.background,
+                        backgroundColor: themeDefaults.background.backgroundColor,
+                        backgroundOpacity: themeDefaults.background.backgroundOpacity
+                      }),
+                      // Apply nested ruledLines properties
+                      ...(themeDefaults.ruledLines && {
+                        ruledLines: themeDefaults.ruledLines,
+                        ruledLinesTheme: themeDefaults.ruledLines.inheritTheme,
+                        ruledLinesWidth: themeDefaults.ruledLines.lineWidth,
+                        ruledLinesColor: themeDefaults.ruledLines.lineColor
+                      })
+                    };
                     dispatch({
-                      type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                      payload: { id: element.id, updates: themeDefaults }
+                      type: 'UPDATE_ELEMENT_ALL_PAGES',
+                      payload: { id: element.id, updates: flattenedDefaults }
                     });
                   });
                   
-                  // Apply page background settings
+                  // Apply page background settings to ALL pages (overriding page themes)
                   const newBackground = {
                     type: theme.pageSettings.backgroundPattern?.enabled ? 'pattern' : 'color',
                     value: theme.pageSettings.backgroundPattern?.enabled ? theme.pageSettings.backgroundPattern.style : theme.pageSettings.backgroundColor,
                     opacity: 1,
-                    globalTheme: themeId,
+                    pageTheme: undefined, // Clear page theme override
                     ruledLines: theme.ruledLines,
                     ...(theme.pageSettings.backgroundPattern?.enabled && {
                       patternSize: theme.pageSettings.backgroundPattern.size,

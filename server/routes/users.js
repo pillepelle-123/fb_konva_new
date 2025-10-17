@@ -99,7 +99,7 @@ router.get('/:userId/shared-books', authenticateToken, async (req, res) => {
     const { userId } = req.params;
     const currentUserId = req.user.id;
 
-        console.log('Fetching shared books for users:', currentUserId, userId);
+        // console.log('Fetching shared books for users:', currentUserId, userId);
 
     
     const result = await pool.query(`

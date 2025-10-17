@@ -93,10 +93,10 @@ export default function ProfilePicture({ name, size = 'md', className = '', user
 
       if (response.ok) {
         const data = await response.json();
-        console.log('Profile picture response:', data);
+        // console.log('Profile picture response:', data);
         const baseUrl = apiUrl.replace('/api', '');
         const newUrl = `${baseUrl}${data.profilePicture192}?t=${Date.now()}`;
-        console.log('Setting profile image URL to:', newUrl);
+        // console.log('Setting profile image URL to:', newUrl);
         setProfileImageUrl(newUrl);
         
         // Notify other components that profile picture was updated

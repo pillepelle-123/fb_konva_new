@@ -66,11 +66,11 @@ router.get('/conflicts/:bookId/:userId/:pageNumber', authenticateToken, async (r
 router.post('/', authenticateToken, async (req, res) => {
   try {
     const { bookId, userId, questionId, pageNumber } = req.body;
-    console.log('POST /user-question-assignments:', { bookId, userId, questionId, pageNumber });
+    // console.log('POST /user-question-assignments:', { bookId, userId, questionId, pageNumber });
     
     // Check current database
     const dbCheck = await pool.query('SELECT current_database(), current_schema()');
-    console.log('Current database and schema:', dbCheck.rows[0]);
+    // console.log('Current database and schema:', dbCheck.rows[0]);
     
     await pool.query(
       'INSERT INTO public.user_question_assignments (book_id, user_id, question_id, page_number) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING',

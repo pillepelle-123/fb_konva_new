@@ -16,13 +16,13 @@ export default function SettingsPage() {
   const handleProfileUpdate = (e: React.FormEvent) => {
     e.preventDefault();
     // TODO: Implement profile update
-    console.log('Profile update:', { name, email });
+    // console.log('Profile update:', { name, email });
   };
 
   const handlePasswordChange = (e: React.FormEvent) => {
     e.preventDefault();
     // TODO: Implement password change
-    console.log('Password change');
+    // console.log('Password change');
   };
 
   return (

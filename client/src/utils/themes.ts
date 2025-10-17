@@ -281,6 +281,20 @@ const candyTheme: ThemeRenderer = {
         
         pathString += `M ${x - circleRadius} ${y} A ${circleRadius} ${circleRadius} 0 1 0 ${x + circleRadius} ${y} A ${circleRadius} ${circleRadius} 0 1 0 ${x - circleRadius} ${y} `;
       }
+    } else if (element.type === 'brush' && element.points) {
+      for (let i = 0; i < element.points.length; i += 2) {
+        const x = element.points[i];
+        const y = element.points[i + 1];
+        
+        const random = () => {
+          const x = Math.sin(seed + i) * 10000;
+          return x - Math.floor(x);
+        };
+        const sizeVariation = hasRandomness ? 1 + (random() - 0.5) * getVariationAmount() : 1;
+        const radius = (baseCircleSize * sizeVariation) / 2;
+        
+        pathString += `M ${x - radius} ${y} A ${radius} ${radius} 0 1 0 ${x + radius} ${y} A ${radius} ${radius} 0 1 0 ${x - radius} ${y} `;
+      }
     }
     
     return pathString;

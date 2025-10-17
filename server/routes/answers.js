@@ -26,7 +26,7 @@ router.post('/', authenticateToken, async (req, res) => {
     // Strip HTML tags from answer text
     const cleanAnswerText = answerText.replace(/<[^>]*>/g, '').trim();
 
-    console.log('Saving answer:', { userId, questionId, cleanAnswerText });
+    // console.log('Saving answer:', { userId, questionId, cleanAnswerText });
 
     if (!questionId || cleanAnswerText === undefined || cleanAnswerText === null) {
       return res.status(400).json({ error: 'Missing questionId or answerText' });
@@ -98,7 +98,7 @@ router.get('/book/:bookId', authenticateToken, async (req, res) => {
     const { bookId } = req.params;
     const userId = req.user.id;
 
-    console.log('Fetching answers for book:', bookId, 'user:', userId);
+    // console.log('Fetching answers for book:', bookId, 'user:', userId);
 
     // Check if user has access to this book
     const bookAccess = await pool.query(
@@ -118,7 +118,7 @@ router.get('/book/:bookId', authenticateToken, async (req, res) => {
       [bookId]
     );
 
-    console.log('Found questions:', questions.rows.length);
+    // console.log('Found questions:', questions.rows.length);
 
     if (questions.rows.length === 0) {
       return res.json([]);
@@ -132,7 +132,7 @@ router.get('/book/:bookId', authenticateToken, async (req, res) => {
       [userId, questionIds]
     );
 
-    console.log('Found answers:', answers.rows.length);
+    // console.log('Found answers:', answers.rows.length);
     res.json(answers.rows);
   } catch (error) {
     console.error('Answers fetch error:', error);

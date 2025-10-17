@@ -26,10 +26,10 @@ async function createDummyUsers() {
         [name, email, hashedPassword]
       );
       
-      console.log(`Created user: ${name} (${email})`);
+      // console.log(`Created user: ${name} (${email})`);
     }
     
-    console.log('Successfully created 20 dummy users with password "djembe32"');
+    // console.log('Successfully created 20 dummy users with password "djembe32"');
     process.exit(0);
   } catch (error) {
     console.error('Error creating dummy users:', error);
