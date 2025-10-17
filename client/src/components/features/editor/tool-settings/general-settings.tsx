@@ -10,7 +10,7 @@ import { Slider } from '../../../ui/primitives/slider';
 import { Separator } from '../../../ui/primitives/separator';
 import { Label } from '../../../ui/primitives/label';
 import { GlobalThemeSelector } from '../global-theme-selector';
-import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
+import { getGlobalThemeDefaults, getGlobalTheme } from '../../../../utils/global-themes';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { PaletteSelector } from '../palette-selector';
 import { useState } from 'react';
@@ -87,23 +87,42 @@ export function GeneralSettings({
           onThemeSelect={(themeId) => {
             const currentPage = state.currentBook?.pages[state.activePageIndex];
             if (currentPage) {
-              currentPage.elements.forEach(element => {
-                const themeDefaults = getGlobalThemeDefaults(themeId, element.type);
-                dispatch({
-                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                  payload: { id: element.id, updates: themeDefaults }
+              // Get the theme settings
+              const theme = getGlobalTheme(themeId);
+              if (theme) {
+                // Apply element defaults
+                currentPage.elements.forEach(element => {
+                  const themeDefaults = getGlobalThemeDefaults(themeId, element.type);
+                  dispatch({
+                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                    payload: { id: element.id, updates: themeDefaults }
+                  });
                 });
-              });
-              dispatch({
-                type: 'UPDATE_PAGE_BACKGROUND',
-                payload: { 
-                  pageIndex: state.activePageIndex, 
-                  background: { 
-                    ...currentPage.background, 
-                    globalTheme: themeId 
-                  } 
-                }
-              });
+                
+                // Apply page background settings
+                const newBackground = {
+                  type: theme.pageSettings.backgroundPattern?.enabled ? 'pattern' : 'color',
+                  value: theme.pageSettings.backgroundPattern?.enabled ? theme.pageSettings.backgroundPattern.style : theme.pageSettings.backgroundColor,
+                  opacity: 1,
+                  globalTheme: themeId,
+                  ruledLines: theme.ruledLines,
+                  ...(theme.pageSettings.backgroundPattern?.enabled && {
+                    patternSize: theme.pageSettings.backgroundPattern.size,
+                    patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
+                    patternForegroundColor: theme.pageSettings.backgroundColor,
+                    patternBackgroundColor: theme.pageSettings.backgroundPattern.backgroundColor,
+                    patternBackgroundOpacity: theme.pageSettings.backgroundPattern.backgroundOpacity
+                  })
+                };
+                
+                dispatch({
+                  type: 'UPDATE_PAGE_BACKGROUND',
+                  payload: { 
+                    pageIndex: state.activePageIndex, 
+                    background: newBackground
+                  }
+                });
+              }
             }
           }}
           onBack={() => {}}
@@ -153,25 +172,44 @@ export function GeneralSettings({
           currentTheme={undefined}
           onThemeSelect={(themeId) => {
             if (state.currentBook) {
-              state.currentBook.pages.forEach((page, pageIndex) => {
-                page.elements.forEach(element => {
-                  const themeDefaults = getGlobalThemeDefaults(themeId, element.type);
+              // Get the theme settings
+              const theme = getGlobalTheme(themeId);
+              if (theme) {
+                state.currentBook.pages.forEach((page, pageIndex) => {
+                  // Apply element defaults
+                  page.elements.forEach(element => {
+                    const themeDefaults = getGlobalThemeDefaults(themeId, element.type);
+                    dispatch({
+                      type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                      payload: { id: element.id, updates: themeDefaults }
+                    });
+                  });
+                  
+                  // Apply page background settings
+                  const newBackground = {
+                    type: theme.pageSettings.backgroundPattern?.enabled ? 'pattern' : 'color',
+                    value: theme.pageSettings.backgroundPattern?.enabled ? theme.pageSettings.backgroundPattern.style : theme.pageSettings.backgroundColor,
+                    opacity: 1,
+                    globalTheme: themeId,
+                    ruledLines: theme.ruledLines,
+                    ...(theme.pageSettings.backgroundPattern?.enabled && {
+                      patternSize: theme.pageSettings.backgroundPattern.size,
+                      patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
+                      patternForegroundColor: theme.pageSettings.backgroundColor,
+                      patternBackgroundColor: theme.pageSettings.backgroundPattern.backgroundColor,
+                      patternBackgroundOpacity: theme.pageSettings.backgroundPattern.backgroundOpacity
+                    })
+                  };
+                  
                   dispatch({
-                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                    payload: { id: element.id, updates: themeDefaults }
+                    type: 'UPDATE_PAGE_BACKGROUND',
+                    payload: { 
+                      pageIndex, 
+                      background: newBackground
+                    }
                   });
                 });
-                dispatch({
-                  type: 'UPDATE_PAGE_BACKGROUND',
-                  payload: { 
-                    pageIndex, 
-                    background: { 
-                      ...page.background, 
-                      globalTheme: themeId 
-                    } 
-                  }
-                });
-              });
+              }
             }
           }}
           onBack={() => {}}
@@ -323,7 +361,7 @@ export function GeneralSettings({
             value={background.patternSize || 1}
             onChange={(value) => updateBackground({ patternSize: value })}
             min={1}
-            max={10}
+            max={12}
             unit=""
           />
           
@@ -332,8 +370,8 @@ export function GeneralSettings({
             value={background.patternStrokeWidth || 1}
             onChange={(value) => updateBackground({ patternStrokeWidth: value })}
             min={1}
-            max={10}
-            step={1}
+            max={300}
+            step={3}
           />
           
           <div>

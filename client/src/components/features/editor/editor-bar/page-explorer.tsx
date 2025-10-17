@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import { Button } from '../../../ui/primitives/button';
 import { Tooltip } from '../../../ui/composites/tooltip';
 import PagePreview from '../../books/page-preview';
@@ -87,13 +87,22 @@ export function PagesSubmenu({ pages, activePageIndex, onClose, onPageSelect, on
       </div>
       </Tooltip>
       <div className='items-end h-full'>
-        <Button
+        {/* <Button
           variant="outline"
           size="md"
           onClick={onClose}
           className="h-8 w-8 p-0"
         >
           <X className="h-4 w-4" />
+        </Button> */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onClose}
+          className="px-2 h-8"
+        >
+          <ChevronLeft className="h-4 w-4 mr-1" />
+          Back
         </Button>
       </div>
     </div>

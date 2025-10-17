@@ -18,6 +18,7 @@ export const GLOBAL_PALETTES: ColorPalette[] = [
   { id: 'powder-blue', name: 'Powder Blue', colors: { primary: '#B0E0E6', secondary: '#E0F6FF', accent: '#87CEEB', background: '#F0F8FF', surface: '#E6F3FF' }, category: 'Light' },
   { id: 'mint-fresh', name: 'Mint Fresh', colors: { primary: '#98FB98', secondary: '#F0FFF0', accent: '#00FF7F', background: '#F5FFFA', surface: '#E0FFE0' }, category: 'Light' },
   { id: 'blush-pink', name: 'Blush Pink', colors: { primary: '#FFB6C1', secondary: '#FFF0F5', accent: '#FF69B4', background: '#FDF2F8', surface: '#FCE7F3' }, category: 'Light' },
+  { id: 'neutral-harmony', name: 'Neutral Harmony', colors: { primary: '#81b29a', secondary: '#3d405b', accent: '#e07a5f', background: '#f4f1de', surface: '#f2cc8f' }, category: 'Light' },
 
   // Dark Palettes
   { id: 'midnight-blue', name: 'Midnight Blue', colors: { primary: '#191970', secondary: '#000080', accent: '#4169E1', background: '#0F0F23', surface: '#1E1E3F' }, category: 'Dark' },

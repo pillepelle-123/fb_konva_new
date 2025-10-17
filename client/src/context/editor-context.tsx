@@ -49,7 +49,15 @@ export interface PageBackground {
   patternSize?: number; // 1-10 scale for pattern size
   patternForegroundColor?: string; // pattern drawing color
   patternBackgroundColor?: string; // pattern background color
+  patternBackgroundOpacity?: number;
   globalTheme?: string; // global theme ID for this page
+  ruledLines?: {
+    enabled: boolean;
+    theme: 'notebook' | 'college' | 'graph' | 'dotted';
+    lineWidth: number;
+    lineColor: string;
+    lineOpacity: number;
+  };
 }
 
 export interface Page {

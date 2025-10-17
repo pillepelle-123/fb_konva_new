@@ -101,5 +101,7 @@ function EditorContent() {
 }
 
 export default function Editor() {
-  return <EditorContent />;
+  return (
+    <EditorContent />
+  );
 }

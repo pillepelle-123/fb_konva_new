@@ -13,7 +13,7 @@ interface GlobalThemeSelectorProps {
 export function GlobalThemeSelector({ currentTheme, onThemeSelect, onBack, title }: GlobalThemeSelectorProps) {
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 mb-2">
+      {/* <div className="flex items-center gap-2 mb-2">
         <Button
           variant="ghost"
           size="sm"
@@ -23,7 +23,7 @@ export function GlobalThemeSelector({ currentTheme, onThemeSelect, onBack, title
           <ChevronLeft className="h-4 w-4 mr-1" />
           Back
         </Button>
-      </div>
+      </div> */}
       
       <div className="space-y-2">
         {GLOBAL_THEMES.map((theme) => (
@@ -36,7 +36,7 @@ export function GlobalThemeSelector({ currentTheme, onThemeSelect, onBack, title
           >
             <div>
               <div className="font-medium">{theme.name}</div>
-              <div className="text-xs text-muted-foreground">{theme.description}</div>
+              <div className="text-xs">{theme.description}</div>
             </div>
           </Button>
         ))}

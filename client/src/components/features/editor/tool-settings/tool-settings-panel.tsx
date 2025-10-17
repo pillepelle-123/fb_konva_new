@@ -426,7 +426,23 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, {}>((props, ref) => {
           token={token || ''}
           mode="select"
           onImageSelect={(imageId: number, imageUrl: string) => {
-            // This functionality is now handled in ToolSettingsContent
+            const currentPage = state.currentBook?.pages[state.activePageIndex];
+            const background = currentPage?.background || { type: 'color', value: '#ffffff', opacity: 1 };
+            const newBackground = { ...background, type: 'image' as const, value: imageUrl, imageSize: 'cover' as const };
+            dispatch({
+              type: 'UPDATE_PAGE_BACKGROUND',
+              payload: { pageIndex: state.activePageIndex, background: newBackground }
+            });
+            setShowBackgroundImageModal(false);
+          }}
+          onImageUpload={(imageUrl: string) => {
+            const currentPage = state.currentBook?.pages[state.activePageIndex];
+            const background = currentPage?.background || { type: 'color', value: '#ffffff', opacity: 1 };
+            const newBackground = { ...background, type: 'image' as const, value: imageUrl, imageSize: 'cover' as const };
+            dispatch({
+              type: 'UPDATE_PAGE_BACKGROUND',
+              payload: { pageIndex: state.activePageIndex, background: newBackground }
+            });
             setShowBackgroundImageModal(false);
           }}
           onClose={() => setShowBackgroundImageModal(false)}

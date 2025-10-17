@@ -1,10 +1,42 @@
 import type { CanvasElement } from '../context/editor-context';
 import { getPalette } from './global-palettes';
+import { commonToActual } from './font-size-converter';
+import { commonToActualStrokeWidth } from './stroke-width-converter';
 
 export interface GlobalTheme {
   id: string;
   name: string;
   description: string;
+  pageSettings: {
+    backgroundColor: string;
+    backgroundPattern?: {
+      enabled: boolean;
+      style: 'dots' | 'grid' | 'lines' | 'crosses';
+      size: number;
+      strokeWidth: number;
+      backgroundColor: string;
+      backgroundOpacity: number;
+    };
+    backgroundImage?: {
+      enabled: boolean;
+      size: 'cover' | 'contain' | 'stretch';
+      repeat?: boolean;
+    };
+    cornerRadius: number;
+  };
+  ruledLines: {
+    enabled: boolean;
+    theme: 'notebook' | 'college' | 'graph' | 'dotted';
+    lineWidth: number;
+    lineColor: string;
+    lineOpacity: number;
+  };
+  fontSettings: {
+    color: string;
+    colorOpacity: number;
+    bold: boolean;
+    italic: boolean;
+  };
   elementDefaults: {
     text: Partial<CanvasElement>;
     question: Partial<CanvasElement>;
@@ -16,468 +48,892 @@ export interface GlobalTheme {
   };
 }
 
-export const GLOBAL_THEMES: GlobalTheme[] = [
+const RAW_THEMES: GlobalTheme[] = [
   {
     id: 'default',
     name: 'Default',
     description: 'Clean and simple',
+    pageSettings: {
+      backgroundColor: '#ffffff',
+      backgroundPattern: {
+        enabled: false,
+        style: 'dots',
+        size: 20,
+        strokeWidth: 1,
+        backgroundColor: '#f0f0f0',
+        backgroundOpacity: 0.3
+      },
+      backgroundImage: {
+        enabled: false,
+        size: 'cover',
+        repeat: false
+      },
+      cornerRadius: 0
+    },
+    ruledLines: {
+      enabled: false,
+      theme: 'notebook',
+      lineWidth: 1,
+      lineColor: '#e0e0e0',
+      lineOpacity: 0.5
+    },
+    fontSettings: {
+      color: '#16697a',
+      colorOpacity: 1,
+      bold: false,
+      italic: false
+    },
     elementDefaults: {
       text: {
-        theme: 'default', stroke: getPalette('default-palette')?.colors.primary || '#16697a', fill: getPalette('default-palette')?.colors.primary || '#16697a', strokeWidth: 1, // Common scale
-        fontSize: 67, fontFamily: 'Arial, sans-serif', align: 'left', // Common size 16
-        lineHeight: 1.2, paragraphSpacing: 'medium', roughness: 0,
-        borderWidth: 0, borderColor: getPalette('default-palette')?.colors.secondary || '#489fb5', backgroundColor: getPalette('default-palette')?.colors.background || '#ede7e3',
-        backgroundOpacity: 0.3, padding: 8, scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'default',
+        stroke: getPalette('neutral-harmony')?.colors.primary || '#16697a',
+        fill: getPalette('neutral-harmony')?.colors.primary || '#16697a',
+        strokeWidth: 1,
+        fontSize: 16,
+        fontFamily: 'Century Gothic, sans-serif',
+        align: 'left',
+        lineHeight: 1.2,
+        paragraphSpacing: 'medium',
+        roughness: 0,
+        borderWidth: 0,
+        borderColor: getPalette('neutral-harmony')?.colors.secondary || '#489fb5',
+        backgroundColor: getPalette('neutral-harmony')?.colors.background || '#ede7e3',
+        backgroundOpacity: 0.3,
+        padding: 8,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       question: {
-        theme: 'default', stroke: getPalette('default-palette')?.colors.primary || '#16697a', fill: getPalette('default-palette')?.colors.primary || '#16697a', strokeWidth: 2, // Common scale
-        fontSize: 75, fontFamily: 'Arial, sans-serif', align: 'left', // Common size 18
-        lineHeight: 1.3, paragraphSpacing: 'medium', roughness: 0,
-        borderWidth: 1, borderColor: getPalette('default-palette')?.colors.secondary || '#489fb5', backgroundColor: getPalette('default-palette')?.colors.surface || '#ffa62b',
-        backgroundOpacity: 0.4, padding: 12, scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'default',
+        stroke: getPalette('neutral-harmony')?.colors.primary || '#16697a',
+        fill: getPalette('neutral-harmony')?.colors.primary || '#16697a',
+        strokeWidth: 2,
+        fontSize: 18,
+        fontFamily: 'Arial, sans-serif',
+        align: 'left',
+        lineHeight: 1.3,
+        paragraphSpacing: 'medium',
+        roughness: 0,
+        borderWidth: 1,
+        borderColor: getPalette('neutral-harmony')?.colors.secondary || '#489fb5',
+        backgroundColor: getPalette('neutral-harmony')?.colors.surface || '#ffa62b',
+        backgroundOpacity: 0.4,
+        padding: 12,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       answer: {
-        theme: 'default', stroke: getPalette('default-palette')?.colors.accent || '#82c0cc', fill: getPalette('default-palette')?.colors.accent || '#82c0cc', strokeWidth: 1, // Common scale
-        fontSize: 67, fontFamily: 'Arial, sans-serif', align: 'left', // Common size 16
-        lineHeight: 1.2, paragraphSpacing: 'medium', roughness: 0,
-        borderWidth: 1, borderColor: getPalette('default-palette')?.colors.secondary || '#489fb5', backgroundColor: getPalette('default-palette')?.colors.background || '#ede7e3',
-        backgroundOpacity: 0.3, padding: 10, scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'default',
+        stroke: getPalette('neutral-harmony')?.colors.accent || '#82c0cc',
+        fill: getPalette('neutral-harmony')?.colors.accent || '#82c0cc',
+        strokeWidth: 1,
+        fontSize: 16,
+        fontFamily: 'Arial, sans-serif',
+        align: 'left',
+        lineHeight: 1.2,
+        paragraphSpacing: 'medium',
+        roughness: 0,
+        borderWidth: 1,
+        borderColor: getPalette('neutral-harmony')?.colors.secondary || '#489fb5',
+        backgroundColor: getPalette('neutral-harmony')?.colors.background || '#ede7e3',
+        backgroundOpacity: 0.3,
+        padding: 10,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       image: {
-        theme: 'default', stroke: getPalette('default-palette')?.colors.primary || '#16697a', strokeWidth: 1, roughness: 0,
-        borderWidth: 0, borderColor: 'transparent', backgroundColor: 'transparent',
-        backgroundOpacity: 1, scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'default',
+        stroke: getPalette('neutral-harmony')?.colors.primary || '#16697a',
+        strokeWidth: 1,
+        roughness: 0,
+        borderWidth: 0,
+        borderColor: 'transparent',
+        backgroundColor: 'transparent',
+        backgroundOpacity: 1,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       shape: {
-        theme: 'default', stroke: getPalette('default-palette')?.colors.primary || '#16697a', fill: getPalette('default-palette')?.colors.surface || '#ffa62b', strokeWidth: 2,
-        roughness: 0, borderWidth: 0, borderColor: 'transparent',
-        backgroundColor: 'transparent', backgroundOpacity: 0.6, scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'default',
+        stroke: getPalette('neutral-harmony')?.colors.primary || '#16697a',
+        fill: getPalette('neutral-harmony')?.colors.surface || '#ffa62b',
+        strokeWidth: 2,
+        roughness: 0,
+        borderWidth: 0,
+        borderColor: 'transparent',
+        backgroundColor: 'transparent',
+        backgroundOpacity: 0.6,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       brush: {
-        theme: 'default', stroke: getPalette('default-palette')?.colors.primary || '#16697a', strokeWidth: 2, roughness: 0,
-        scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'default',
+        stroke: getPalette('neutral-harmony')?.colors.primary || '#16697a',
+        strokeWidth: 2,
+        roughness: 0,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       line: {
-        theme: 'default', stroke: getPalette('default-palette')?.colors.primary || '#16697a', strokeWidth: 2, roughness: 0,
-        scaleX: 1, scaleY: 1, rotation: 0
-      }
-    }
-  },
-  {
-    id: 'rough',
-    name: 'Rough',
-    description: 'Hand-drawn sketchy style',
-    elementDefaults: {
-      text: {
-        theme: 'rough', stroke: getPalette('rough-palette')?.colors.background || '#003554', fill: getPalette('rough-palette')?.colors.background || '#003554', strokeWidth: 2,
-        fontSize: 16, fontFamily: 'Arial, sans-serif', align: 'left',
-        lineHeight: 1.2, paragraphSpacing: 'medium', roughness: 1.5,
-        borderWidth: 0, borderColor: getPalette('rough-palette')?.colors.surface || '#051923', backgroundColor: 'transparent',
-        backgroundOpacity: 1, padding: 8, scaleX: 1, scaleY: 1, rotation: 0
-      },
-      question: {
-        theme: 'rough', stroke: getPalette('rough-palette')?.colors.background || '#003554', fill: getPalette('rough-palette')?.colors.background || '#003554', strokeWidth: 3,
-        fontSize: 18, fontFamily: 'Arial, sans-serif', align: 'left',
-        lineHeight: 1.3, paragraphSpacing: 'medium', roughness: 1.5,
-        borderWidth: 2, borderColor: getPalette('rough-palette')?.colors.surface || '#051923', backgroundColor: 'transparent',
-        backgroundOpacity: 1, padding: 12, scaleX: 1, scaleY: 1, rotation: 0
-      },
-      answer: {
-        theme: 'rough', stroke: getPalette('rough-palette')?.colors.background || '#003554', fill: getPalette('rough-palette')?.colors.background || '#003554', strokeWidth: 2,
-        fontSize: 16, fontFamily: 'Arial, sans-serif', align: 'left',
-        lineHeight: 1.2, paragraphSpacing: 'medium', roughness: 1.5,
-        borderWidth: 1, borderColor: getPalette('rough-palette')?.colors.surface || '#051923', backgroundColor: 'transparent',
-        backgroundOpacity: 1, padding: 10, scaleX: 1, scaleY: 1, rotation: 0
-      },
-      image: {
-        theme: 'rough', stroke: getPalette('rough-palette')?.colors.surface || '#051923', strokeWidth: 2, roughness: 1.5,
-        borderWidth: 0, borderColor: 'transparent', backgroundColor: 'transparent',
-        backgroundOpacity: 1, scaleX: 1, scaleY: 1, rotation: 0
-      },
-      shape: {
-        theme: 'rough', stroke: getPalette('rough-palette')?.colors.surface || '#051923', fill: 'transparent', strokeWidth: 2,
-        roughness: 1.5, borderWidth: 0, borderColor: 'transparent',
-        backgroundColor: 'transparent', backgroundOpacity: 1, scaleX: 1, scaleY: 1, rotation: 0
-      },
-      brush: {
-        theme: 'rough', stroke: getPalette('rough-palette')?.colors.surface || '#051923', strokeWidth: 3, roughness: 1.5,
-        scaleX: 1, scaleY: 1, rotation: 0
-      },
-      line: {
-        theme: 'rough', stroke: getPalette('rough-palette')?.colors.surface || '#051923', strokeWidth: 2, roughness: 1.5,
-        scaleX: 1, scaleY: 1, rotation: 0
-      }
-    }
-  },  
-  {
-    id: 'glow',
-    name: 'Glow',
-    description: 'Soft glowing effects',
-    elementDefaults: {
-      text: {
-        theme: 'glow', stroke: '#c5ca30', fill: '#3b82f6', strokeWidth: 2,
-        fontSize: 18, fontFamily: 'Arial, sans-serif', align: 'center',
-        lineHeight: 1.3, paragraphSpacing: 'medium', roughness: 0.5,
-        borderWidth: 2, borderColor: '#93c5fd', backgroundColor: '#eff6ff',
-        backgroundOpacity: 0.8, padding: 12, scaleX: 1, scaleY: 1, rotation: 0
-      },
-      question: {
-        theme: 'glow', stroke: '#dc2626', fill: '#dc2626', strokeWidth: 3,
-        fontSize: 20, fontFamily: 'Arial, sans-serif', align: 'center',
-        lineHeight: 1.4, paragraphSpacing: 'medium', roughness: 0.5,
-        borderWidth: 3, borderColor: '#f87171', backgroundColor: '#fef2f2',
-        backgroundOpacity: 0.9, padding: 16, scaleX: 1, scaleY: 1, rotation: 0
-      },
-      answer: {
-        theme: 'glow', stroke: '#059669', fill: '#059669', strokeWidth: 2,
-        fontSize: 17, fontFamily: 'Arial, sans-serif', align: 'center',
-        lineHeight: 1.3, paragraphSpacing: 'medium', roughness: 0.5,
-        borderWidth: 2, borderColor: '#34d399', backgroundColor: '#ecfdf5',
-        backgroundOpacity: 0.8, padding: 14, scaleX: 1, scaleY: 1, rotation: 0
-      },
-      image: {
-        theme: 'glow', stroke: '#3b82f6', strokeWidth: 2, roughness: 0.5,
-        borderWidth: 2, borderColor: '#93c5fd', backgroundColor: '#eff6ff',
-        backgroundOpacity: 0.8, scaleX: 1, scaleY: 1, rotation: 0
-      },
-      shape: {
-        theme: 'glow', stroke: '#c5ca30', fill: '#dbeafe', strokeWidth: 3,
-        roughness: 0.5, borderWidth: 2, borderColor: '#93c5fd',
-        backgroundColor: '#eff6ff', backgroundOpacity: 0.8, scaleX: 1, scaleY: 1, rotation: 0
-      },
-      brush: {
-        theme: 'glow', stroke: '#c5ca30', strokeWidth: 4, roughness: 0.5,
-        scaleX: 1, scaleY: 1, rotation: 0
-      },
-      line: {
-        theme: 'glow', stroke: '#c5ca30', strokeWidth: 3, roughness: 0.5,
-        scaleX: 1, scaleY: 1, rotation: 0
-      }
-    }
-  },
-  {
-    id: 'candy',
-    name: 'Candy',
-    description: 'Colorful dotted style',
-    elementDefaults: {
-      text: {
-        theme: 'candy', stroke: '#ec4899', fill: '#ec4899', strokeWidth: 3,
-        fontSize: 20, fontFamily: 'Comic Sans MS, cursive', align: 'center',
-        lineHeight: 1.4, paragraphSpacing: 'large', roughness: 2,
-        borderWidth: 3, borderColor: '#f9a8d4', backgroundColor: '#fdf2f8',
-        backgroundOpacity: 0.9, padding: 16, scaleX: 1, scaleY: 1, rotation: 0
-      },
-      question: {
-        theme: 'candy', stroke: '#dc2626', fill: '#dc2626', strokeWidth: 4,
-        fontSize: 22, fontFamily: 'Comic Sans MS, cursive', align: 'center',
-        lineHeight: 1.5, paragraphSpacing: 'large', roughness: 2,
-        borderWidth: 4, borderColor: '#f87171', backgroundColor: '#fef2f2',
-        backgroundOpacity: 0.95, padding: 20, scaleX: 1, scaleY: 1, rotation: 0
-      },
-      answer: {
-        theme: 'candy', stroke: '#059669', fill: '#059669', strokeWidth: 3,
-        fontSize: 18, fontFamily: 'Comic Sans MS, cursive', align: 'center',
-        lineHeight: 1.4, paragraphSpacing: 'large', roughness: 2,
-        borderWidth: 3, borderColor: '#34d399', backgroundColor: '#ecfdf5',
-        backgroundOpacity: 0.9, padding: 16, scaleX: 1, scaleY: 1, rotation: 0
-      },
-      image: {
-        theme: 'candy', stroke: '#ec4899', strokeWidth: 3, roughness: 2,
-        borderWidth: 3, borderColor: '#f9a8d4', backgroundColor: '#fdf2f8',
-        backgroundOpacity: 0.9, scaleX: 1, scaleY: 1, rotation: 0
-      },
-      shape: {
-        theme: 'candy', stroke: '#ec4899', fill: '#fce7f3', strokeWidth: 4,
-        roughness: 2, borderWidth: 3, borderColor: '#f9a8d4',
-        backgroundColor: '#fdf2f8', backgroundOpacity: 0.9, scaleX: 1, scaleY: 1, rotation: 0
-      },
-      brush: {
-        theme: 'candy', stroke: '#ec4899', strokeWidth: 5, roughness: 2,
-        scaleX: 1, scaleY: 1, rotation: 0
-      },
-      line: {
-        theme: 'candy', stroke: '#ec4899', strokeWidth: 4, roughness: 2,
-        scaleX: 1, scaleY: 1, rotation: 0
-      }
-    }
-  },
-  {
-    id: 'zigzag',
-    name: 'Zigzag',
-    description: 'Jagged zigzag lines',
-    elementDefaults: {
-      text: {
-        theme: 'zigzag', stroke: '#dc2626', fill: '#dc2626', strokeWidth: 2,
-        fontSize: 18, fontFamily: 'Impact, sans-serif', align: 'left',
-        lineHeight: 1.1, paragraphSpacing: 'small', roughness: 3,
-        borderWidth: 4, borderColor: '#f87171', backgroundColor: '#fef2f2',
-        backgroundOpacity: 0.7, padding: 10, scaleX: 1, scaleY: 1, rotation: 0
-      },
-      question: {
-        theme: 'zigzag', stroke: '#b91c1c', fill: '#b91c1c', strokeWidth: 3,
-        fontSize: 20, fontFamily: 'Impact, sans-serif', align: 'left',
-        lineHeight: 1.1, paragraphSpacing: 'small', roughness: 3,
-        borderWidth: 5, borderColor: '#dc2626', backgroundColor: '#fee2e2',
-        backgroundOpacity: 0.8, padding: 12, scaleX: 1, scaleY: 1, rotation: 0
-      },
-      answer: {
-        theme: 'zigzag', stroke: '#166534', fill: '#166534', strokeWidth: 2,
-        fontSize: 16, fontFamily: 'Impact, sans-serif', align: 'left',
-        lineHeight: 1.1, paragraphSpacing: 'small', roughness: 3,
-        borderWidth: 3, borderColor: '#22c55e', backgroundColor: '#f0fdf4',
-        backgroundOpacity: 0.7, padding: 8, scaleX: 1, scaleY: 1, rotation: 0
-      },
-      image: {
-        theme: 'zigzag', stroke: '#dc2626', strokeWidth: 2, roughness: 3,
-        borderWidth: 4, borderColor: '#f87171', backgroundColor: '#fef2f2',
-        backgroundOpacity: 0.7, scaleX: 1, scaleY: 1, rotation: 0
-      },
-      shape: {
-        theme: 'zigzag', stroke: '#dc2626', fill: '#fee2e2', strokeWidth: 3,
-        roughness: 3, borderWidth: 4, borderColor: '#f87171',
-        backgroundColor: '#fef2f2', backgroundOpacity: 0.7, scaleX: 1, scaleY: 1, rotation: 0
-      },
-      brush: {
-        theme: 'zigzag', stroke: '#dc2626', strokeWidth: 6, roughness: 3,
-        scaleX: 1, scaleY: 1, rotation: 0
-      },
-      line: {
-        theme: 'zigzag', stroke: '#dc2626', strokeWidth: 4, roughness: 3,
-        scaleX: 1, scaleY: 1, rotation: 0
-      }
-    }
-  },
-  {
-    id: 'wobbly',
-    name: 'Wobbly',
-    description: 'Wavy hand-drawn lines',
-    elementDefaults: {
-      text: {
-        theme: 'wobbly', stroke: '#059669', fill: '#059669', strokeWidth: 3,
-        fontSize: 17, fontFamily: 'Trebuchet MS, sans-serif', align: 'left',
-        lineHeight: 1.3, paragraphSpacing: 'medium', roughness: 2.5,
-        borderWidth: 5, borderColor: '#34d399', backgroundColor: '#ecfdf5',
-        backgroundOpacity: 0.8, padding: 14, scaleX: 1, scaleY: 1, rotation: 0
-      },
-      question: {
-        theme: 'wobbly', stroke: '#dc2626', fill: '#dc2626', strokeWidth: 4,
-        fontSize: 19, fontFamily: 'Trebuchet MS, sans-serif', align: 'left',
-        lineHeight: 1.4, paragraphSpacing: 'medium', roughness: 2.5,
-        borderWidth: 6, borderColor: '#f87171', backgroundColor: '#fef2f2',
-        backgroundOpacity: 0.9, padding: 16, scaleX: 1, scaleY: 1, rotation: 0
-      },
-      answer: {
-        theme: 'wobbly', stroke: '#047857', fill: '#047857', strokeWidth: 3,
-        fontSize: 16, fontFamily: 'Trebuchet MS, sans-serif', align: 'left',
-        lineHeight: 1.3, paragraphSpacing: 'medium', roughness: 2.5,
-        borderWidth: 4, borderColor: '#10b981', backgroundColor: '#d1fae5',
-        backgroundOpacity: 0.8, padding: 12, scaleX: 1, scaleY: 1, rotation: 0
-      },
-      image: {
-        theme: 'wobbly', stroke: '#059669', strokeWidth: 5, roughness: 2.5,
-        borderWidth: 5, borderColor: '#34d399', backgroundColor: '#ecfdf5',
-        backgroundOpacity: 0.8, scaleX: 1, scaleY: 1, rotation: 0
-      },
-      shape: {
-        theme: 'wobbly', stroke: '#059669', fill: '#d1fae5', strokeWidth: 6,
-        roughness: 2.5, borderWidth: 5, borderColor: '#34d399',
-        backgroundColor: '#ecfdf5', backgroundOpacity: 0.8, scaleX: 1, scaleY: 1, rotation: 0
-      },
-      brush: {
-        theme: 'wobbly', stroke: '#059669', strokeWidth: 8, roughness: 2.5,
-        scaleX: 1, scaleY: 1, rotation: 0
-      },
-      line: {
-        theme: 'wobbly', stroke: '#059669', strokeWidth: 4, roughness: 2.5,
-        scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'default',
+        stroke: getPalette('neutral-harmony')?.colors.primary || '#16697a',
+        strokeWidth: 2,
+        roughness: 0,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       }
     }
   },
   {
     id: 'sketchy',
     name: 'Sketchy',
-    description: 'High roughness hand-drawn style',
+    description: 'Hand-drawn style with rough edges',
+    pageSettings: {
+      backgroundColor: '#faf9f7',
+      backgroundPattern: {
+        enabled: true,
+        style: 'dots',
+        size: 25,
+        strokeWidth: 1,
+        backgroundColor: '#e8e6e3',
+        backgroundOpacity: 0.4
+      },
+      backgroundImage: {
+        enabled: false,
+        size: 'cover',
+        repeat: false
+      },
+      cornerRadius: 8
+    },
+    ruledLines: {
+      enabled: false,
+      theme: 'notebook',
+      lineWidth: 1,
+      lineColor: '#d0ccc7',
+      lineOpacity: 0.6
+    },
+    fontSettings: {
+      color: '#2c3e50',
+      colorOpacity: 1,
+      bold: false,
+      italic: false
+    },
     elementDefaults: {
       text: {
-        theme: 'rough', stroke: '#4a5568', fill: '#4a5568', strokeWidth: 2,
-        fontSize: 15, fontFamily: 'Courier New, monospace', align: 'left',
-        lineHeight: 1.2, paragraphSpacing: 'small', roughness: 3.5,
-        borderWidth: 1, borderColor: '#718096', backgroundColor: '#f7fafc',
-        backgroundOpacity: 0.6, padding: 6, scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'sketchy',
+        stroke: getPalette('warm-earth')?.colors.primary || '#8b4513',
+        fill: getPalette('warm-earth')?.colors.primary || '#8b4513',
+        strokeWidth: 1,
+        fontSize: 16,
+        fontFamily: 'Comic Sans MS, cursive',
+        align: 'left',
+        lineHeight: 1.3,
+        paragraphSpacing: 'medium',
+        roughness: 1.5,
+        borderWidth: 0,
+        borderColor: getPalette('warm-earth')?.colors.secondary || '#cd853f',
+        backgroundColor: getPalette('warm-earth')?.colors.background || '#f5deb3',
+        backgroundOpacity: 0.3,
+        padding: 10,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       question: {
-        theme: 'rough', stroke: '#dc2626', fill: '#dc2626', strokeWidth: 3,
-        fontSize: 17, fontFamily: 'Courier New, monospace', align: 'left',
-        lineHeight: 1.3, paragraphSpacing: 'small', roughness: 3.5,
-        borderWidth: 2, borderColor: '#f87171', backgroundColor: '#fef2f2',
-        backgroundOpacity: 0.7, padding: 8, scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'sketchy',
+        stroke: getPalette('warm-earth')?.colors.primary || '#8b4513',
+        fill: getPalette('warm-earth')?.colors.primary || '#8b4513',
+        strokeWidth: 2,
+        fontSize: 18,
+        fontFamily: 'Comic Sans MS, cursive',
+        align: 'left',
+        lineHeight: 1.4,
+        paragraphSpacing: 'medium',
+        roughness: 1.5,
+        borderWidth: 2,
+        borderColor: getPalette('warm-earth')?.colors.secondary || '#cd853f',
+        backgroundColor: getPalette('warm-earth')?.colors.surface || '#daa520',
+        backgroundOpacity: 0.4,
+        padding: 15,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       answer: {
-        theme: 'rough', stroke: '#059669', fill: '#059669', strokeWidth: 2,
-        fontSize: 14, fontFamily: 'Courier New, monospace', align: 'left',
-        lineHeight: 1.2, paragraphSpacing: 'small', roughness: 3.5,
-        borderWidth: 1, borderColor: '#34d399', backgroundColor: '#ecfdf5',
-        backgroundOpacity: 0.6, padding: 6, scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'sketchy',
+        stroke: getPalette('warm-earth')?.colors.accent || '#d2691e',
+        fill: getPalette('warm-earth')?.colors.accent || '#d2691e',
+        strokeWidth: 1,
+        fontSize: 16,
+        fontFamily: 'Comic Sans MS, cursive',
+        align: 'left',
+        lineHeight: 1.3,
+        paragraphSpacing: 'medium',
+        roughness: 1.5,
+        borderWidth: 1,
+        borderColor: getPalette('warm-earth')?.colors.secondary || '#cd853f',
+        backgroundColor: getPalette('warm-earth')?.colors.background || '#f5deb3',
+        backgroundOpacity: 0.3,
+        padding: 12,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       image: {
-        theme: 'rough', stroke: '#4a5568', strokeWidth: 2, roughness: 3.5,
-        borderWidth: 1, borderColor: '#718096', backgroundColor: '#f7fafc',
-        backgroundOpacity: 0.6, scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'sketchy',
+        stroke: getPalette('warm-earth')?.colors.primary || '#8b4513',
+        strokeWidth: 2,
+        roughness: 1.5,
+        borderWidth: 0,
+        borderColor: 'transparent',
+        backgroundColor: 'transparent',
+        backgroundOpacity: 1,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       shape: {
-        theme: 'rough', stroke: '#4a5568', fill: '#edf2f7', strokeWidth: 3,
-        roughness: 3.5, borderWidth: 1, borderColor: '#718096',
-        backgroundColor: '#f7fafc', backgroundOpacity: 0.6, scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'sketchy',
+        stroke: getPalette('warm-earth')?.colors.primary || '#8b4513',
+        fill: getPalette('warm-earth')?.colors.surface || '#daa520',
+        strokeWidth: 3,
+        roughness: 1.5,
+        borderWidth: 0,
+        borderColor: 'transparent',
+        backgroundColor: 'transparent',
+        backgroundOpacity: 0.6,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       brush: {
-        theme: 'rough', stroke: '#4a5568', strokeWidth: 4, roughness: 3.5,
-        scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'sketchy',
+        stroke: getPalette('warm-earth')?.colors.primary || '#8b4513',
+        strokeWidth: 3,
+        roughness: 1.5,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       line: {
-        theme: 'rough', stroke: '#4a5568', strokeWidth: 3, roughness: 3.5,
-        scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'sketchy',
+        stroke: getPalette('warm-earth')?.colors.primary || '#8b4513',
+        strokeWidth: 3,
+        roughness: 1.5,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       }
     }
   },
   {
-    id: 'professional',
-    name: 'Professional',
-    description: 'Clean corporate styling',
+    id: 'minimal',
+    name: 'Minimal',
+    description: 'Clean lines and subtle colors',
+    pageSettings: {
+      backgroundColor: '#ffffff',
+      backgroundPattern: {
+        enabled: false,
+        style: 'grid',
+        size: 30,
+        strokeWidth: 0.5,
+        backgroundColor: '#f8f9fa',
+        backgroundOpacity: 0.2
+      },
+      backgroundImage: {
+        enabled: false,
+        size: 'cover',
+        repeat: false
+      },
+      cornerRadius: 0
+    },
+    ruledLines: {
+      enabled: false,
+      theme: 'graph',
+      lineWidth: 0.5,
+      lineColor: '#e9ecef',
+      lineOpacity: 0.3
+    },
+    fontSettings: {
+      color: '#495057',
+      colorOpacity: 1,
+      bold: false,
+      italic: false
+    },
     elementDefaults: {
       text: {
-        theme: 'default', stroke: '#1a202c', fill: '#1a202c', strokeWidth: 1,
-        fontSize: 14, fontFamily: 'Helvetica, Arial, sans-serif', align: 'left',
-        lineHeight: 1.4, paragraphSpacing: 'medium', roughness: 0,
-        borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#ffffff',
-        backgroundOpacity: 1, padding: 12, scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'minimal',
+        stroke: getPalette('monochrome')?.colors.primary || '#495057',
+        fill: getPalette('monochrome')?.colors.primary || '#495057',
+        strokeWidth: 0,
+        fontSize: 14,
+        fontFamily: 'Helvetica, Arial, sans-serif',
+        align: 'left',
+        lineHeight: 1.4,
+        paragraphSpacing: 'medium',
+        roughness: 0,
+        borderWidth: 0,
+        borderColor: 'transparent',
+        backgroundColor: 'transparent',
+        backgroundOpacity: 0,
+        padding: 6,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       question: {
-        theme: 'default', stroke: '#dc2626', fill: '#dc2626', strokeWidth: 2,
-        fontSize: 16, fontFamily: 'Helvetica, Arial, sans-serif', align: 'left',
-        lineHeight: 1.5, paragraphSpacing: 'medium', roughness: 0,
-        borderWidth: 2, borderColor: '#f87171', backgroundColor: '#fef2f2',
-        backgroundOpacity: 1, padding: 16, scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'minimal',
+        stroke: getPalette('monochrome')?.colors.primary || '#495057',
+        fill: getPalette('monochrome')?.colors.primary || '#495057',
+        strokeWidth: 0,
+        fontSize: 16,
+        fontFamily: 'Helvetica, Arial, sans-serif',
+        align: 'left',
+        lineHeight: 1.4,
+        paragraphSpacing: 'medium',
+        roughness: 0,
+        borderWidth: 0,
+        borderColor: 'transparent',
+        backgroundColor: getPalette('monochrome')?.colors.background || '#f8f9fa',
+        backgroundOpacity: 0.5,
+        padding: 10,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       answer: {
-        theme: 'default', stroke: '#059669', fill: '#059669', strokeWidth: 1,
-        fontSize: 14, fontFamily: 'Helvetica, Arial, sans-serif', align: 'left',
-        lineHeight: 1.4, paragraphSpacing: 'medium', roughness: 0,
-        borderWidth: 1, borderColor: '#34d399', backgroundColor: '#ecfdf5',
-        backgroundOpacity: 1, padding: 12, scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'minimal',
+        stroke: getPalette('monochrome')?.colors.accent || '#6c757d',
+        fill: getPalette('monochrome')?.colors.accent || '#6c757d',
+        strokeWidth: 0,
+        fontSize: 14,
+        fontFamily: 'Helvetica, Arial, sans-serif',
+        align: 'left',
+        lineHeight: 1.4,
+        paragraphSpacing: 'medium',
+        roughness: 0,
+        borderWidth: 0,
+        borderColor: 'transparent',
+        backgroundColor: 'transparent',
+        backgroundOpacity: 0,
+        padding: 8,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       image: {
-        theme: 'default', stroke: '#2d3748', strokeWidth: 1, roughness: 0,
-        borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#ffffff',
-        backgroundOpacity: 1, scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'minimal',
+        stroke: 'transparent',
+        strokeWidth: 0,
+        roughness: 0,
+        borderWidth: 0,
+        borderColor: 'transparent',
+        backgroundColor: 'transparent',
+        backgroundOpacity: 1,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       shape: {
-        theme: 'default', stroke: '#2d3748', fill: '#f8fafc', strokeWidth: 1,
-        roughness: 0, borderWidth: 1, borderColor: '#e2e8f0',
-        backgroundColor: '#ffffff', backgroundOpacity: 1, scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'minimal',
+        stroke: getPalette('monochrome')?.colors.primary || '#495057',
+        fill: 'transparent',
+        strokeWidth: 1,
+        roughness: 0,
+        borderWidth: 0,
+        borderColor: 'transparent',
+        backgroundColor: 'transparent',
+        backgroundOpacity: 0,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       brush: {
-        theme: 'default', stroke: '#2d3748', strokeWidth: 2, roughness: 0,
-        scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'minimal',
+        stroke: getPalette('monochrome')?.colors.primary || '#495057',
+        strokeWidth: 1,
+        roughness: 0,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       line: {
-        theme: 'default', stroke: '#2d3748', strokeWidth: 1, roughness: 0,
-        scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'minimal',
+        stroke: getPalette('monochrome')?.colors.primary || '#495057',
+        strokeWidth: 1,
+        roughness: 0,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       }
     }
   },
   {
-    id: 'playful',
-    name: 'Playful',
-    description: 'Bright colors and fun styling',
+    id: 'colorful',
+    name: 'Colorful',
+    description: 'Bright and vibrant colors',
+    pageSettings: {
+      backgroundColor: '#fff8e1',
+      backgroundPattern: {
+        enabled: true,
+        style: 'dots',
+        size: 15,
+        strokeWidth: 1,
+        backgroundColor: '#ffecb3',
+        backgroundOpacity: 0.3
+      },
+      backgroundImage: {
+        enabled: false,
+        size: 'cover',
+        repeat: false
+      },
+      cornerRadius: 12
+    },
+    ruledLines: {
+      enabled: false,
+      theme: 'dotted',
+      lineWidth: 1,
+      lineColor: '#ffc107',
+      lineOpacity: 0.4
+    },
+    fontSettings: {
+      color: '#e91e63',
+      colorOpacity: 1,
+      bold: true,
+      italic: false
+    },
     elementDefaults: {
       text: {
-        theme: 'glow', stroke: '#f56565', fill: '#f56565', strokeWidth: 2,
-        fontSize: 19, fontFamily: 'Verdana, sans-serif', align: 'center',
-        lineHeight: 1.5, paragraphSpacing: 'large', roughness: 1,
-        borderWidth: 3, borderColor: '#feb2b2', backgroundColor: '#fed7d7',
-        backgroundOpacity: 0.9, padding: 15, scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'colorful',
+        stroke: getPalette('vibrant-rainbow')?.colors.primary || '#e91e63',
+        fill: getPalette('vibrant-rainbow')?.colors.primary || '#e91e63',
+        strokeWidth: 1,
+        fontSize: 16,
+        fontFamily: 'Comic Sans MS, cursive',
+        align: 'left',
+        lineHeight: 1.3,
+        paragraphSpacing: 'medium',
+        roughness: 0.5,
+        borderWidth: 2,
+        borderColor: getPalette('vibrant-rainbow')?.colors.secondary || '#ff9800',
+        backgroundColor: getPalette('vibrant-rainbow')?.colors.background || '#fff3e0',
+        backgroundOpacity: 0.6,
+        padding: 12,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       question: {
-        theme: 'glow', stroke: '#dc2626', fill: '#dc2626', strokeWidth: 3,
-        fontSize: 21, fontFamily: 'Verdana, sans-serif', align: 'center',
-        lineHeight: 1.6, paragraphSpacing: 'large', roughness: 1,
-        borderWidth: 4, borderColor: '#f87171', backgroundColor: '#fef2f2',
-        backgroundOpacity: 0.95, padding: 18, scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'colorful',
+        stroke: getPalette('vibrant-rainbow')?.colors.primary || '#e91e63',
+        fill: getPalette('vibrant-rainbow')?.colors.primary || '#e91e63',
+        strokeWidth: 2,
+        fontSize: 18,
+        fontFamily: 'Comic Sans MS, cursive',
+        align: 'left',
+        lineHeight: 1.3,
+        paragraphSpacing: 'medium',
+        roughness: 0.5,
+        borderWidth: 3,
+        borderColor: getPalette('vibrant-rainbow')?.colors.secondary || '#ff9800',
+        backgroundColor: getPalette('vibrant-rainbow')?.colors.surface || '#4caf50',
+        backgroundOpacity: 0.7,
+        padding: 16,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       answer: {
-        theme: 'glow', stroke: '#059669', fill: '#059669', strokeWidth: 2,
-        fontSize: 17, fontFamily: 'Verdana, sans-serif', align: 'center',
-        lineHeight: 1.5, paragraphSpacing: 'large', roughness: 1,
-        borderWidth: 3, borderColor: '#34d399', backgroundColor: '#ecfdf5',
-        backgroundOpacity: 0.9, padding: 15, scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'colorful',
+        stroke: getPalette('vibrant-rainbow')?.colors.accent || '#2196f3',
+        fill: getPalette('vibrant-rainbow')?.colors.accent || '#2196f3',
+        strokeWidth: 1,
+        fontSize: 16,
+        fontFamily: 'Comic Sans MS, cursive',
+        align: 'left',
+        lineHeight: 1.3,
+        paragraphSpacing: 'medium',
+        roughness: 0.5,
+        borderWidth: 2,
+        borderColor: getPalette('vibrant-rainbow')?.colors.secondary || '#ff9800',
+        backgroundColor: getPalette('vibrant-rainbow')?.colors.background || '#fff3e0',
+        backgroundOpacity: 0.5,
+        padding: 14,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       image: {
-        theme: 'glow', stroke: '#ed8936', strokeWidth: 2, roughness: 1,
-        borderWidth: 3, borderColor: '#fbd38d', backgroundColor: '#fef5e7',
-        backgroundOpacity: 0.9, scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'colorful',
+        stroke: getPalette('vibrant-rainbow')?.colors.primary || '#e91e63',
+        strokeWidth: 3,
+        roughness: 0.5,
+        borderWidth: 0,
+        borderColor: 'transparent',
+        backgroundColor: 'transparent',
+        backgroundOpacity: 1,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       shape: {
-        theme: 'glow', stroke: '#ed8936', fill: '#feebc8', strokeWidth: 3,
-        roughness: 1, borderWidth: 3, borderColor: '#fbd38d',
-        backgroundColor: '#fef5e7', backgroundOpacity: 0.9, scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'colorful',
+        stroke: getPalette('vibrant-rainbow')?.colors.primary || '#e91e63',
+        fill: getPalette('vibrant-rainbow')?.colors.surface || '#4caf50',
+        strokeWidth: 3,
+        roughness: 0.5,
+        borderWidth: 0,
+        borderColor: 'transparent',
+        backgroundColor: 'transparent',
+        backgroundOpacity: 0.8,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       brush: {
-        theme: 'glow', stroke: '#f56565', strokeWidth: 4, roughness: 1,
-        scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'colorful',
+        stroke: getPalette('vibrant-rainbow')?.colors.primary || '#e91e63',
+        strokeWidth: 4,
+        roughness: 0.5,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       line: {
-        theme: 'glow', stroke: '#ed8936', strokeWidth: 3, roughness: 1,
-        scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'colorful',
+        stroke: getPalette('vibrant-rainbow')?.colors.primary || '#e91e63',
+        strokeWidth: 3,
+        roughness: 0.5,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       }
     }
   },
   {
     id: 'vintage',
     name: 'Vintage',
-    description: 'Sepia tones and classic styling',
+    description: 'Retro style with muted tones',
+    pageSettings: {
+      backgroundColor: '#f7f3e9',
+      backgroundPattern: {
+        enabled: true,
+        style: 'lines',
+        size: 24,
+        strokeWidth: 1,
+        backgroundColor: '#e8dcc6',
+        backgroundOpacity: 0.4
+      },
+      backgroundImage: {
+        enabled: false,
+        size: 'cover',
+        repeat: false
+      },
+      cornerRadius: 4
+    },
+    ruledLines: {
+      enabled: true,
+      theme: 'notebook',
+      lineWidth: 1,
+      lineColor: '#d4c5a9',
+      lineOpacity: 0.6
+    },
+    fontSettings: {
+      color: '#5d4e37',
+      colorOpacity: 1,
+      bold: false,
+      italic: true
+    },
     elementDefaults: {
       text: {
-        theme: 'rough', stroke: '#744210', fill: '#744210', strokeWidth: 2,
-        fontSize: 16, fontFamily: 'Georgia, Times, serif', align: 'left',
-        lineHeight: 1.3, paragraphSpacing: 'medium', roughness: 1.8,
-        borderWidth: 2, borderColor: '#d69e2e', backgroundColor: '#fef3c7',
-        backgroundOpacity: 0.8, padding: 10, scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'vintage',
+        stroke: getPalette('vintage-sepia')?.colors.primary || '#8b7355',
+        fill: getPalette('vintage-sepia')?.colors.primary || '#8b7355',
+        strokeWidth: 1,
+        fontSize: 15,
+        fontFamily: 'Times New Roman, serif',
+        align: 'left',
+        lineHeight: 1.4,
+        paragraphSpacing: 'medium',
+        roughness: 0.3,
+        borderWidth: 0,
+        borderColor: getPalette('vintage-sepia')?.colors.secondary || '#a0826d',
+        backgroundColor: getPalette('vintage-sepia')?.colors.background || '#f5f0e8',
+        backgroundOpacity: 0.4,
+        padding: 10,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       question: {
-        theme: 'rough', stroke: '#92400e', fill: '#92400e', strokeWidth: 3,
-        fontSize: 18, fontFamily: 'Georgia, Times, serif', align: 'left',
-        lineHeight: 1.4, paragraphSpacing: 'medium', roughness: 1.8,
-        borderWidth: 3, borderColor: '#d97706', backgroundColor: '#fef3c7',
-        backgroundOpacity: 0.9, padding: 14, scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'vintage',
+        stroke: getPalette('vintage-sepia')?.colors.primary || '#8b7355',
+        fill: getPalette('vintage-sepia')?.colors.primary || '#8b7355',
+        strokeWidth: 1,
+        fontSize: 17,
+        fontFamily: 'Times New Roman, serif',
+        align: 'left',
+        lineHeight: 1.4,
+        paragraphSpacing: 'medium',
+        roughness: 0.3,
+        borderWidth: 1,
+        borderColor: getPalette('vintage-sepia')?.colors.secondary || '#a0826d',
+        backgroundColor: getPalette('vintage-sepia')?.colors.surface || '#ddbf94',
+        backgroundOpacity: 0.5,
+        padding: 14,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       answer: {
-        theme: 'rough', stroke: '#65a30d', fill: '#65a30d', strokeWidth: 2,
-        fontSize: 15, fontFamily: 'Georgia, Times, serif', align: 'left',
-        lineHeight: 1.3, paragraphSpacing: 'medium', roughness: 1.8,
-        borderWidth: 2, borderColor: '#84cc16', backgroundColor: '#f7fee7',
-        backgroundOpacity: 0.8, padding: 10, scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'vintage',
+        stroke: getPalette('vintage-sepia')?.colors.accent || '#b8956a',
+        fill: getPalette('vintage-sepia')?.colors.accent || '#b8956a',
+        strokeWidth: 1,
+        fontSize: 15,
+        fontFamily: 'Times New Roman, serif',
+        align: 'left',
+        lineHeight: 1.4,
+        paragraphSpacing: 'medium',
+        roughness: 0.3,
+        borderWidth: 1,
+        borderColor: getPalette('vintage-sepia')?.colors.secondary || '#a0826d',
+        backgroundColor: getPalette('vintage-sepia')?.colors.background || '#f5f0e8',
+        backgroundOpacity: 0.3,
+        padding: 12,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       image: {
-        theme: 'rough', stroke: '#92400e', strokeWidth: 2, roughness: 1.8,
-        borderWidth: 2, borderColor: '#d69e2e', backgroundColor: '#fef3c7',
-        backgroundOpacity: 0.8, scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'vintage',
+        stroke: getPalette('vintage-sepia')?.colors.primary || '#8b7355',
+        strokeWidth: 1,
+        roughness: 0.3,
+        borderWidth: 0,
+        borderColor: 'transparent',
+        backgroundColor: 'transparent',
+        backgroundOpacity: 1,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       shape: {
-        theme: 'rough', stroke: '#92400e', fill: '#fef3c7', strokeWidth: 2,
-        roughness: 1.8, borderWidth: 2, borderColor: '#d69e2e',
-        backgroundColor: '#fffbeb', backgroundOpacity: 0.8, scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'vintage',
+        stroke: getPalette('vintage-sepia')?.colors.primary || '#8b7355',
+        fill: getPalette('vintage-sepia')?.colors.surface || '#ddbf94',
+        strokeWidth: 2,
+        roughness: 0.3,
+        borderWidth: 0,
+        borderColor: 'transparent',
+        backgroundColor: 'transparent',
+        backgroundOpacity: 0.5,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       brush: {
-        theme: 'rough', stroke: '#744210', strokeWidth: 3, roughness: 1.8,
-        scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'vintage',
+        stroke: getPalette('vintage-sepia')?.colors.primary || '#8b7355',
+        strokeWidth: 2,
+        roughness: 0.3,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       },
       line: {
-        theme: 'rough', stroke: '#92400e', strokeWidth: 2, roughness: 1.8,
-        scaleX: 1, scaleY: 1, rotation: 0
+        theme: 'vintage',
+        stroke: getPalette('vintage-sepia')?.colors.primary || '#8b7355',
+        strokeWidth: 2,
+        roughness: 0.3,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
+      }
+    }
+  },
+  {
+    id: 'dark',
+    name: 'Dark',
+    description: 'Dark theme with light elements',
+    pageSettings: {
+      backgroundColor: '#1a1a1a',
+      backgroundPattern: {
+        enabled: false,
+        style: 'grid',
+        size: 20,
+        strokeWidth: 1,
+        backgroundColor: '#2d2d2d',
+        backgroundOpacity: 0.3
+      },
+      backgroundImage: {
+        enabled: false,
+        size: 'cover',
+        repeat: false
+      },
+      cornerRadius: 0
+    },
+    ruledLines: {
+      enabled: false,
+      theme: 'graph',
+      lineWidth: 1,
+      lineColor: '#404040',
+      lineOpacity: 0.4
+    },
+    fontSettings: {
+      color: '#e0e0e0',
+      colorOpacity: 1,
+      bold: false,
+      italic: false
+    },
+    elementDefaults: {
+      text: {
+        theme: 'dark',
+        stroke: getPalette('dark-neon')?.colors.primary || '#00ff88',
+        fill: getPalette('dark-neon')?.colors.primary || '#00ff88',
+        strokeWidth: 1,
+        fontSize: 16,
+        fontFamily: 'Consolas, monospace',
+        align: 'left',
+        lineHeight: 1.3,
+        paragraphSpacing: 'medium',
+        roughness: 0,
+        borderWidth: 0,
+        borderColor: getPalette('dark-neon')?.colors.secondary || '#0088ff',
+        backgroundColor: getPalette('dark-neon')?.colors.background || '#2a2a2a',
+        backgroundOpacity: 0.4,
+        padding: 10,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
+      },
+      question: {
+        theme: 'dark',
+        stroke: getPalette('dark-neon')?.colors.primary || '#00ff88',
+        fill: getPalette('dark-neon')?.colors.primary || '#00ff88',
+        strokeWidth: 1,
+        fontSize: 18,
+        fontFamily: 'Consolas, monospace',
+        align: 'left',
+        lineHeight: 1.3,
+        paragraphSpacing: 'medium',
+        roughness: 0,
+        borderWidth: 1,
+        borderColor: getPalette('dark-neon')?.colors.secondary || '#0088ff',
+        backgroundColor: getPalette('dark-neon')?.colors.surface || '#ff0088',
+        backgroundOpacity: 0.3,
+        padding: 14,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
+      },
+      answer: {
+        theme: 'dark',
+        stroke: getPalette('dark-neon')?.colors.accent || '#88ff00',
+        fill: getPalette('dark-neon')?.colors.accent || '#88ff00',
+        strokeWidth: 1,
+        fontSize: 16,
+        fontFamily: 'Consolas, monospace',
+        align: 'left',
+        lineHeight: 1.3,
+        paragraphSpacing: 'medium',
+        roughness: 0,
+        borderWidth: 1,
+        borderColor: getPalette('dark-neon')?.colors.secondary || '#0088ff',
+        backgroundColor: getPalette('dark-neon')?.colors.background || '#2a2a2a',
+        backgroundOpacity: 0.3,
+        padding: 12,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
+      },
+      image: {
+        theme: 'dark',
+        stroke: getPalette('dark-neon')?.colors.primary || '#00ff88',
+        strokeWidth: 1,
+        roughness: 0,
+        borderWidth: 0,
+        borderColor: 'transparent',
+        backgroundColor: 'transparent',
+        backgroundOpacity: 1,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
+      },
+      shape: {
+        theme: 'dark',
+        stroke: getPalette('dark-neon')?.colors.primary || '#00ff88',
+        fill: getPalette('dark-neon')?.colors.surface || '#ff0088',
+        strokeWidth: 2,
+        roughness: 0,
+        borderWidth: 0,
+        borderColor: 'transparent',
+        backgroundColor: 'transparent',
+        backgroundOpacity: 0.4,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
+      },
+      brush: {
+        theme: 'dark',
+        stroke: getPalette('dark-neon')?.colors.primary || '#00ff88',
+        strokeWidth: 2,
+        roughness: 0,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
+      },
+      line: {
+        theme: 'dark',
+        stroke: getPalette('dark-neon')?.colors.primary || '#00ff88',
+        strokeWidth: 2,
+        roughness: 0,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
       }
     }
   }
 ];
+
+export const GLOBAL_THEMES: GlobalTheme[] = RAW_THEMES.map(theme => ({
+  ...theme,
+  pageSettings: {
+    ...theme.pageSettings,
+    backgroundPattern: theme.pageSettings.backgroundPattern ? {
+      ...theme.pageSettings.backgroundPattern,
+      strokeWidth: commonToActualStrokeWidth(theme.pageSettings.backgroundPattern.strokeWidth, theme.id)
+    } : undefined
+  },
+  ruledLines: {
+    ...theme.ruledLines,
+    lineWidth: commonToActualStrokeWidth(theme.ruledLines.lineWidth, theme.id)
+  },
+  elementDefaults: Object.fromEntries(
+    Object.entries(theme.elementDefaults).map(([key, element]) => [
+      key,
+      {
+        ...element,
+        strokeWidth: typeof element.strokeWidth === 'number' 
+          ? commonToActualStrokeWidth(element.strokeWidth, theme.id) 
+          : element.strokeWidth,
+        borderWidth: typeof element.borderWidth === 'number'
+          ? commonToActualStrokeWidth(element.borderWidth, theme.id)
+          : element.borderWidth,
+        fontSize: typeof element.fontSize === 'number'
+          ? commonToActual(element.fontSize)
+          : element.fontSize
+      }
+    ])
+  ) as GlobalTheme['elementDefaults']
+}));
 
 export function getGlobalTheme(id: string): GlobalTheme | undefined {
   return GLOBAL_THEMES.find(theme => theme.id === id);
@@ -487,7 +943,6 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string): Pa
   const theme = getGlobalTheme(themeId);
   if (!theme) return {};
   
-  // Map element types to theme categories
   const category = getThemeCategory(elementType);
   return theme.elementDefaults[category] || {};
 }
