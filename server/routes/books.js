@@ -288,31 +288,43 @@ router.put('/:id', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    // Update book metadata
-    await pool.query(
-      'UPDATE public.books SET name = $1, page_size = $2, orientation = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4',
-      [name, pageSize, orientation, bookId]
-    );
-
-    // Delete existing pages and their question associations
-    await pool.query('DELETE FROM public.pages WHERE book_id = $1', [bookId]);
-
-    // Insert updated pages and handle question associations
-    for (const page of pages) {
-      const pageResult = await pool.query(
-        'INSERT INTO public.pages (book_id, page_number, elements) VALUES ($1, $2, $3) RETURNING id',
-        [bookId, page.pageNumber, JSON.stringify(page)]
+    // If only name is provided (book rename), just update the name
+    if (name && !pageSize && !orientation && !pages) {
+      await pool.query(
+        'UPDATE public.books SET name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+        [name, bookId]
       );
-      const pageId = pageResult.rows[0].id;
+      return res.json({ success: true });
+    }
 
-      // Find question elements and create question_pages associations
-      const elements = page.elements || [];
-      for (const element of elements) {
-        if (element.textType === 'question' && element.questionId) {
-          await pool.query(
-            'INSERT INTO public.question_pages (question_id, page_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-            [element.questionId, pageId]
-          );
+    // Full book update with pages
+    if (pageSize && orientation && pages) {
+      // Update book metadata
+      await pool.query(
+        'UPDATE public.books SET name = $1, page_size = $2, orientation = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4',
+        [name, pageSize, orientation, bookId]
+      );
+
+      // Delete existing pages and their question associations
+      await pool.query('DELETE FROM public.pages WHERE book_id = $1', [bookId]);
+
+      // Insert updated pages and handle question associations
+      for (const page of pages) {
+        const pageResult = await pool.query(
+          'INSERT INTO public.pages (book_id, page_number, elements) VALUES ($1, $2, $3) RETURNING id',
+          [bookId, page.pageNumber, JSON.stringify(page)]
+        );
+        const pageId = pageResult.rows[0].id;
+
+        // Find question elements and create question_pages associations
+        const elements = page.elements || [];
+        for (const element of elements) {
+          if (element.textType === 'question' && element.questionId) {
+            await pool.query(
+              'INSERT INTO public.question_pages (question_id, page_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+              [element.questionId, pageId]
+            );
+          }
         }
       }
     }

@@ -5,7 +5,7 @@ import { Button } from '../../ui/primitives/button';
 import { Card, CardContent } from '../../ui/composites/card';
 import { Badge } from '../../ui/composites/badge';
 import { Tooltip } from '../../ui/composites/tooltip';
-import { Users, Edit, FileText, Image, CircleHelp, RotateCcw, Trash2, Archive, Contact } from 'lucide-react';
+import { Users, Edit, FileText, Image, CircleHelp, RotateCcw, Trash2, Archive, Contact, Pen } from 'lucide-react';
 import PageUserIcon from '../../ui/icons/page-user-icon';
 import BookRoleBadge from './book-role-badge';
 
@@ -32,7 +32,17 @@ interface BookCardProps {
   hideActions?: boolean;
 }
 
-function BookCardPreview({ book, isArchived }: { book: Book; isArchived?: boolean }) {
+interface BookCardPreviewProps {
+  book: Book;
+  isArchived?: boolean;
+  isEditing: boolean;
+  editName: string;
+  setEditName: (name: string) => void;
+  handleRename: () => void;
+  setIsEditing: (editing: boolean) => void;
+}
+
+function BookCardPreview({ book, isArchived, isEditing, editName, setEditName, handleRename, setIsEditing }: BookCardPreviewProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const { token } = useAuth();
 
@@ -75,9 +85,35 @@ function BookCardPreview({ book, isArchived }: { book: Book; isArchived?: boolea
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
       <div className="absolute bottom-0 left-0 right-0 p-4">
-        <h3 className="text-white font-semibold text-lg line-clamp-2 mb-1">
-          {book.name}
-        </h3>
+        <div className="flex items-center gap-2">
+          {isEditing ? (
+            <input
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              onBlur={handleRename}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleRename();
+                if (e.key === 'Escape') { setEditName(book.name); setIsEditing(false); }
+              }}
+              className="text-white font-semibold text-lg bg-transparent border-0  outline-none flex-1 focus:ring-0"
+              autoFocus
+            />
+          ) : (
+            <h3 className="text-white font-semibold text-lg line-clamp-2 mb-1 flex-1">
+              {book.name}
+            </h3>
+          )}
+          {!isArchived && (
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => { setEditName(book.name); setIsEditing(true); }}
+              className="text-white hover:bg-white/20 p-1 h-6 w-6"
+            >
+              <Pen className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -85,10 +121,43 @@ function BookCardPreview({ book, isArchived }: { book: Book; isArchived?: boolea
 
 export default function BookCard({ book, isArchived = false, onRestore, onDelete, onArchive, onPageUserManager, hideActions = false }: BookCardProps) {
   const navigate = useNavigate();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(book.name);
+  const { token } = useAuth();
+
+  const handleRename = async () => {
+    if (editName.trim() && editName !== book.name) {
+      try {
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+        const response = await fetch(`${apiUrl}/books/${book.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ name: editName.trim() })
+        });
+        if (response.ok) {
+          book.name = editName.trim();
+        }
+      } catch (error) {
+        console.error('Error renaming book:', error);
+      }
+    }
+    setIsEditing(false);
+  };
 
   return (
     <Card className="group border shadow-sm hover:shadow-md transition-all duration-200 hover:border-primary/20 overflow-hidden">
-      <BookCardPreview book={book} isArchived={isArchived} />
+      <BookCardPreview 
+        book={book} 
+        isArchived={isArchived} 
+        isEditing={isEditing}
+        editName={editName}
+        setEditName={setEditName}
+        handleRename={handleRename}
+        setIsEditing={setIsEditing}
+      />
       <CardContent className="p-4 space-y-3">
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <div className="flex items-center space-x-2">

@@ -122,7 +122,7 @@ type EditorAction =
   | { type: 'UPDATE_TEMP_ANSWER'; payload: { questionId: number; text: string } }
   | { type: 'ADD_NEW_QUESTION'; payload: { elementId: string; text: string } }
   | { type: 'UPDATE_NEW_QUESTION'; payload: { elementId: string; text: string } }
-
+  | { type: 'UPDATE_BOOK_NAME'; payload: string }
   | { type: 'CLEAR_TEMP_DATA' }
   | { type: 'UNDO' }
   | { type: 'REDO' }
@@ -529,6 +529,17 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         targetPage.background = action.payload.background;
       }
       return { ...savedBgState, currentBook: updatedBookBg, hasUnsavedChanges: true };
+    
+    case 'UPDATE_BOOK_NAME':
+      if (!state.currentBook) return state;
+      return {
+        ...state,
+        currentBook: {
+          ...state.currentBook,
+          name: action.payload
+        },
+        hasUnsavedChanges: true
+      };
     
     case 'REORDER_PAGES':
       if (!state.currentBook || state.userRole === 'author') return state;
