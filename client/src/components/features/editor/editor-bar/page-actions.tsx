@@ -1,6 +1,7 @@
 import { Button } from '../../../ui/primitives/button';
 import { Plus, Copy, Trash2, Users } from 'lucide-react';
 import { Tooltip } from '../../../ui/composites/tooltip';
+import { useAuth } from '../../../../context/auth-context';
 
 interface PageActionsProps {
   onAddPage: () => void;
@@ -9,7 +10,6 @@ interface PageActionsProps {
   onAssignFriends?: () => void;
   canDelete: boolean;
   showAssignFriends?: boolean;
-  userRole?: 'author' | 'publisher' | null;
 }
 
 export function PageActions({
@@ -18,10 +18,10 @@ export function PageActions({
   onDeletePage,
   onAssignFriends,
   canDelete,
-  showAssignFriends = false,
-  userRole
+  showAssignFriends = false
 }: PageActionsProps) {
-  const isAuthor = userRole === 'author';
+  const { user } = useAuth();
+  const isAuthor = user?.role === 'author';
   return (
     <div className="flex items-center gap-1 md:gap-2">
       <Tooltip content="Add new page" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">

@@ -149,7 +149,7 @@ const createPatternTile = (pattern: any, color: string, size: number, strokeWidt
 
 
 export default function Canvas() {
-  const { state, dispatch, getAnswerText, getQuestionAssignmentsForUser, undo, redo } = useEditor();
+  const { state, dispatch, getAnswerText, getQuestionAssignmentsForUser, undo, redo, canAccessEditor, canEditCanvas } = useEditor();
   const { token, user } = useAuth();
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
@@ -276,6 +276,17 @@ export default function Canvas() {
   }, [state.selectedElementIds.length]);
 
   const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    // Block all interactions for no_access level
+    if (!canAccessEditor()) return;
+    
+    // For answer_only level, only allow double-click on answer textboxes
+    if (state.editorInteractionLevel === 'answer_only') {
+      return; // All mouse down events blocked except double-click on answer textboxes
+    }
+    
+    // Block canvas editing for non-full-edit levels
+    if (!canEditCanvas()) return;
+    
     const currentTime = Date.now();
     const isDoubleClick = currentTime - lastClickTime < 300;
     setLastClickTime(currentTime);
@@ -334,7 +345,7 @@ export default function Canvas() {
           setPreviewShape({ x, y, width: 0, height: 0, type: state.activeTool });
         }
       }
-    } else if (state.activeTool === 'text' || state.activeTool === 'question' || state.activeTool === 'answer') {
+    } else if (state.activeTool === 'text' || state.activeTool === 'question' || state.activeTool === 'answer' || state.activeTool === 'qna') {
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
         const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
@@ -707,6 +718,26 @@ export default function Canvas() {
           
           // Add question element first
           dispatch({ type: 'ADD_ELEMENT', payload: questionElement });
+        } else if (previewTextbox.type === 'qna') {
+          const currentPage = state.currentBook?.pages[state.activePageIndex];
+          const pageTheme = currentPage?.background?.pageTheme;
+          const bookTheme = state.currentBook?.bookTheme;
+          const textDefaults = getToolDefaults('text', pageTheme, bookTheme);
+          newElement = {
+            id: uuidv4(),
+            type: 'text',
+            x: previewTextbox.x,
+            y: previewTextbox.y,
+            width: previewTextbox.width,
+            height: previewTextbox.height,
+            text: '',
+            fontSize: textDefaults.fontSize,
+            align: textDefaults.align,
+            fontFamily: textDefaults.fontFamily,
+            textType: 'qna',
+            paragraphSpacing: textDefaults.paragraphSpacing,
+            cornerRadius: textDefaults.cornerRadius
+          };
         } else {
           const currentPage = state.currentBook?.pages[state.activePageIndex];
           const pageTheme = currentPage?.background?.pageTheme;
@@ -888,6 +919,9 @@ export default function Canvas() {
 
   const handleContextMenu = (e: Konva.KonvaEventObject<PointerEvent>) => {
     e.evt.preventDefault();
+    
+    // Block context menu for restricted users
+    if (!canEditCanvas()) return;
     
     // Don't show context menu if we just finished panning
     if (hasPanned) {
@@ -1319,6 +1353,11 @@ export default function Canvas() {
         return;
       }
       
+      // Block shortcuts for restricted users
+      if (!canAccessEditor() || (state.editorInteractionLevel === 'answer_only' && !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key))) {
+        return;
+      }
+      
       if (e.key === 'Delete' && state.selectedElementIds.length > 0) {
         e.preventDefault();
         handleDeleteItems();
@@ -1463,15 +1502,12 @@ export default function Canvas() {
     };
     
     const handleOpenQuestionModal = (event: CustomEvent) => {
-      // Prevent authors from opening question manager - comprehensive check
-      // console.log('Canvas handleOpenQuestionModal - User:', user, 'Role:', user?.role);
+      // Prevent authors from opening question manager
       if (!user || user.role === 'author') {
-        // console.log('Canvas: Blocking question manager - user:', user, 'role:', user?.role);
         return;
       }
       const element = currentPage?.elements.find(el => el.id === event.detail.elementId);
-      if (element && element.textType === 'question') {
-        // console.log('Canvas: Opening question dialog for element:', element.id);
+      if (element && (element.textType === 'question' || element.textType === 'qna')) {
         setSelectedQuestionElementId(element.id);
         setShowQuestionDialog(true);
       }
@@ -2057,44 +2093,52 @@ export default function Canvas() {
               token={token}
               onQuestionSelect={(questionId, questionText) => {
                 if (selectedQuestionElementId) {
-                  const updates = questionId === 0 
-                    ? { text: '', fill: '#9ca3af', questionId: undefined }
-                    : { text: questionText, fill: '#1f2937', questionId: questionId };
-                  dispatch({
-                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                    payload: {
-                      id: selectedQuestionElementId,
-                      updates
-                    }
-                  });
+                  const element = currentPage?.elements.find(el => el.id === selectedQuestionElementId);
                   
-
-                  
-                  const currentPage = state.currentBook?.pages[state.activePageIndex];
-                  if (currentPage) {
-                    const answerElement = currentPage.elements.find(el => 
-                      el.textType === 'answer' && el.questionElementId === selectedQuestionElementId
-                    );
-                    if (answerElement) {
-                      if (questionId === 0) {
-                        // If resetting question, clear answer text
-                        dispatch({
-                          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                          payload: {
-                            id: answerElement.id,
-                            updates: { text: '', formattedText: '' }
-                          }
-                        });
-                      } else {
-                        // Load existing answer for the new question
-                        const answerText = getAnswerText(questionId);
-                        dispatch({
-                          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                          payload: {
-                            id: answerElement.id,
-                            updates: { text: answerText || '', formattedText: answerText || '' }
-                          }
-                        });
+                  if (element?.textType === 'qna') {
+                    // For QnA elements, insert question text into the active textarea
+                    window.dispatchEvent(new CustomEvent('insertQuestionIntoQnA', {
+                      detail: { questionId, questionText }
+                    }));
+                  } else {
+                    // For regular question elements
+                    const updates = questionId === 0 
+                      ? { text: '', fill: '#9ca3af', questionId: undefined }
+                      : { text: questionText, fill: '#1f2937', questionId: questionId };
+                    dispatch({
+                      type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                      payload: {
+                        id: selectedQuestionElementId,
+                        updates
+                      }
+                    });
+                    
+                    const currentPage = state.currentBook?.pages[state.activePageIndex];
+                    if (currentPage) {
+                      const answerElement = currentPage.elements.find(el => 
+                        el.textType === 'answer' && el.questionElementId === selectedQuestionElementId
+                      );
+                      if (answerElement) {
+                        if (questionId === 0) {
+                          // If resetting question, clear answer text
+                          dispatch({
+                            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                            payload: {
+                              id: answerElement.id,
+                              updates: { text: '', formattedText: '' }
+                            }
+                          });
+                        } else {
+                          // Load existing answer for the new question
+                          const answerText = getAnswerText(questionId);
+                          dispatch({
+                            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                            payload: {
+                              id: answerElement.id,
+                              updates: { text: answerText || '', formattedText: answerText || '' }
+                            }
+                          });
+                        }
                       }
                     }
                   }

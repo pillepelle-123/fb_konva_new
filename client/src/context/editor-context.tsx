@@ -234,7 +234,7 @@ export interface CanvasElement {
   lineHeight?: number;
   align?: 'left' | 'center' | 'right';
   fontFamily?: string;
-  textType?: 'question' | 'answer' | 'text';
+  textType?: 'question' | 'answer' | 'text' | 'qna';
   questionId?: number;
   answerId?: number;
   questionElementId?: string;
@@ -300,11 +300,13 @@ export interface HistoryState {
 export interface EditorState {
   currentBook: Book | null;
   activePageIndex: number;
-  activeTool: 'select' | 'text' | 'question' | 'answer' | 'image' | 'line' | 'circle' | 'rect' | 'brush' | 'pan' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley';
+  activeTool: 'select' | 'text' | 'question' | 'answer' | 'qna' | 'image' | 'line' | 'circle' | 'rect' | 'brush' | 'pan' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley';
   selectedElementIds: string[];
   user?: { id: number; role: string } | null;
   userRole?: 'author' | 'publisher' | null;
   assignedPages: number[];
+  pageAccessLevel?: 'form_only' | 'own_page' | 'all_pages';
+  editorInteractionLevel?: 'no_access' | 'answer_only' | 'full_edit' | 'full_edit_with_settings';
   pageAssignments: Record<number, any>; // pageNumber -> user
   bookFriends?: any[];
   editorBarVisible: boolean;
@@ -327,6 +329,7 @@ type EditorAction =
   | { type: 'SET_SELECTED_ELEMENTS'; payload: string[] }
   | { type: 'SET_USER'; payload: { id: number; role: string } | null }
   | { type: 'SET_USER_ROLE'; payload: { role: 'author' | 'publisher' | null; assignedPages: number[] } }
+  | { type: 'SET_USER_PERMISSIONS'; payload: { pageAccessLevel: 'form_only' | 'own_page' | 'all_pages'; editorInteractionLevel: 'no_access' | 'answer_only' | 'full_edit' | 'full_edit_with_settings' } }
   | { type: 'ADD_ELEMENT'; payload: CanvasElement }
   | { type: 'UPDATE_ELEMENT'; payload: { id: string; updates: Partial<CanvasElement> } }
   | { type: 'UPDATE_ELEMENT_PRESERVE_SELECTION'; payload: { id: string; updates: Partial<CanvasElement> } }
@@ -465,6 +468,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         roleState.activeTool = 'pan';
       }
       return roleState;
+    
+    case 'SET_USER_PERMISSIONS':
+      return { ...state, pageAccessLevel: action.payload.pageAccessLevel, editorInteractionLevel: action.payload.editorInteractionLevel };
     
     case 'ADD_ELEMENT':
       if (!state.currentBook || !state.currentBook.pages[state.activePageIndex]) return state;
@@ -986,6 +992,9 @@ const EditorContext = createContext<{
   getQuestionAssignmentsForUser: (userId: number) => Set<number>;
   isQuestionAvailableForUser: (questionId: number, userId: number) => boolean;
   checkUserQuestionConflicts: (userId: number, pageNumber: number) => { questionId: number; questionText: string; pageNumber: number }[];
+  canAccessEditor: () => boolean;
+  canEditCanvas: () => boolean;
+  canEditSettings: () => boolean;
 } | undefined>(undefined);
 
 export const useEditor = () => {
@@ -1037,7 +1046,11 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       const token = localStorage.getItem('token');
       
       // For authors, only save assigned pages
-      if (state.userRole === 'author' && state.assignedPages.length > 0) {
+      if (user?.role === 'author' && state.assignedPages.length > 0) {
+        const assignedPages = state.currentBook.pages.filter((_, index) => 
+          state.assignedPages.includes(index + 1)
+        );
+        
         const response = await fetch(`${apiUrl}/books/${state.currentBook.id}/author-save`, {
           method: 'PUT',
           headers: {
@@ -1045,13 +1058,19 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
             'Authorization': `Bearer ${token}`
           },
           body: JSON.stringify({
-            pages: state.currentBook.pages.filter((_, index) => 
-              state.assignedPages.includes(index + 1)
-            )
+            pages: assignedPages.map(page => ({
+              ...page,
+              elements: page.elements // Only save elements for assigned pages
+            }))
           })
         });
         
         if (!response.ok) throw new Error('Failed to save book');
+        
+        // Skip other save operations for authors
+        dispatch({ type: 'CLEAR_TEMP_DATA' });
+        dispatch({ type: 'MARK_SAVED' });
+        return;
       } else {
         // Themes are now saved to database, no localStorage needed
         
@@ -1067,8 +1086,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         if (!response.ok) throw new Error('Failed to save book');
       }
       
-      // Save page assignments if any exist
-      if (Object.keys(state.pageAssignments).length > 0) {
+      // Save page assignments if any exist (publishers only)
+      if (user?.role !== 'author' && Object.keys(state.pageAssignments).length > 0) {
         const assignments = Object.entries(state.pageAssignments).map(([pageNumber, user]) => ({
           pageNumber: parseInt(pageNumber),
           userId: user?.id || null
@@ -1084,55 +1103,25 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         });
       }
       
-      // Save book friends if any exist
-      if (state.bookFriends && state.bookFriends.length > 0) {
-        // Get current book friends from database
-        const currentFriendsResponse = await fetch(`${apiUrl}/books/${state.currentBook.id}/friends`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+      // Save book friends and permissions (publishers only)
+      if (user?.role !== 'author' && state.bookFriends && state.bookFriends.length > 0) {
+        // Save book friends permissions in bulk
+        const friendsWithPermissions = state.bookFriends.map(friend => ({
+          user_id: friend.id,
+          role: friend.role,
+          book_role: friend.book_role || 'author',
+          page_access_level: friend.pageAccessLevel || 'own_page',
+          editor_interaction_level: friend.editorInteractionLevel || 'full_edit'
+        }));
         
-        if (currentFriendsResponse.ok) {
-          const currentFriends = await currentFriendsResponse.json();
-          const currentFriendIds = new Set(currentFriends.map(f => f.id));
-          const newFriendIds = new Set(state.bookFriends.map(f => f.id));
-          
-          // Add new friends
-          for (const friend of state.bookFriends) {
-            if (!currentFriendIds.has(friend.id)) {
-              await fetch(`${apiUrl}/books/${state.currentBook.id}/friends`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ friendId: friend.id, role: friend.role })
-              });
-            } else {
-              // Update role if changed
-              const currentFriend = currentFriends.find(f => f.id === friend.id);
-              if (currentFriend && currentFriend.role !== friend.role) {
-                await fetch(`${apiUrl}/books/${state.currentBook.id}/friends/${friend.id}/role`, {
-                  method: 'PUT',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                  },
-                  body: JSON.stringify({ role: friend.role })
-                });
-              }
-            }
-          }
-          
-          // Remove friends that are no longer in the list
-          for (const currentFriend of currentFriends) {
-            if (!newFriendIds.has(currentFriend.id)) {
-              await fetch(`${apiUrl}/books/${state.currentBook.id}/friends/${currentFriend.id}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
-              });
-            }
-          }
-        }
+        await fetch(`${apiUrl}/books/${state.currentBook.id}/friends/bulk-update`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ friends: friendsWithPermissions })
+        });
       }
       
 
@@ -1193,6 +1182,25 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       
       if (userRole) {
         dispatch({ type: 'SET_USER_ROLE', payload: { role: userRole.role, assignedPages: userRole.assignedPages || [] } });
+        
+        // Set default permissions based on user role
+        if (userRole.role === 'publisher') {
+          dispatch({ type: 'SET_USER_PERMISSIONS', payload: { 
+            pageAccessLevel: 'all_pages', 
+            editorInteractionLevel: 'full_edit_with_settings' 
+          } });
+        } else if (userRole.role === 'author') {
+          dispatch({ type: 'SET_USER_PERMISSIONS', payload: { 
+            pageAccessLevel: 'own_page', 
+            editorInteractionLevel: 'full_edit' 
+          } });
+        }
+      } else {
+        // Default permissions for book owner (no specific role returned)
+        dispatch({ type: 'SET_USER_PERMISSIONS', payload: { 
+          pageAccessLevel: 'all_pages', 
+          editorInteractionLevel: 'full_edit_with_settings' 
+        } });
       }
       
       // Load page assignments - use pageNumber as key for consistency
@@ -1364,6 +1372,18 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [state.currentBook]);
 
+  const canAccessEditor = () => {
+    return state.editorInteractionLevel !== 'no_access';
+  };
+  
+  const canEditCanvas = () => {
+    return state.editorInteractionLevel === 'full_edit' || state.editorInteractionLevel === 'full_edit_with_settings';
+  };
+  
+  const canEditSettings = () => {
+    return state.editorInteractionLevel === 'full_edit_with_settings';
+  };
+
   return (
     <EditorContext.Provider value={{ 
       state, 
@@ -1382,7 +1402,10 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       refreshPageAssignments,
       getQuestionAssignmentsForUser,
       isQuestionAvailableForUser,
-      checkUserQuestionConflicts
+      checkUserQuestionConflicts,
+      canAccessEditor,
+      canEditCanvas,
+      canEditSettings
     }}>
       {children}
     </EditorContext.Provider>

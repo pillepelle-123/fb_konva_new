@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent } from '../../ui/overlays/dialog';
 import QuestionsManagerContent from '../questions/questions-manager-content';
+import EnhancedQuillEditor from './enhanced-quill-editor';
 import { useAuth } from '../../../context/auth-context';
 import { useEditor } from '../../../context/editor-context';
 import type { CanvasElement } from '../../../context/editor-context';
@@ -33,6 +34,8 @@ export default function TextEditorModal({ element, onSave, onClose, onSelectQues
   const modalRef = useRef<HTMLDivElement | null>(null);
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
   const questionDialogTrigger = useRef<(() => void) | null>(null);
+  
+  // QnA elements now use Konva's native editing, no special modal needed
   
   useEffect(() => {
     // Prevent multiple modals globally

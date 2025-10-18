@@ -38,7 +38,7 @@ function getConsistentColor(name: string): string {
 }
 
 const sizeMap = {
-  sm: { class: 'w-8 h-8', pixels: 32 },
+  sm: { class: 'w-10 h-10', pixels: 32 },
   md: { class: 'w-24 h-24', pixels: 96 },
   lg: { class: 'w-48 h-48', pixels: 192 },
 };

@@ -1,4 +1,5 @@
 import { useEditor } from '../../../../context/editor-context';
+import { useAuth } from '../../../../context/auth-context';
 import { Button } from '../../../ui/primitives/button';
 import { ChevronLeft, Settings, Palette, Image, PaintBucket } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '../../../ui/composites/tabs';
@@ -43,7 +44,7 @@ export function GeneralSettings({
   setShowBookTheme,
   setShowBackgroundImageModal
 }: GeneralSettingsProps) {
-  const { state, dispatch } = useEditor();
+  const { state, dispatch, canEditSettings } = useEditor();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
   const [showPagePalette, setShowPagePalette] = useState(false);
   const [showBookPalette, setShowBookPalette] = useState(false);
@@ -540,6 +541,9 @@ export function GeneralSettings({
     return renderBookThemeSettings();
   }
 
+  const { user } = useAuth();
+  const isAuthor = user?.role === 'author';
+
   return (
     <div className="space-y-3">
       <div>
@@ -547,8 +551,9 @@ export function GeneralSettings({
         <Button
           variant="ghost_hover"
           size="sm"
-          onClick={() => setShowBookTheme(true)}
-          className="w-full justify-start"
+          onClick={() => !isAuthor && setShowBookTheme(true)}
+          className={`w-full justify-start ${isAuthor ? 'opacity-50 cursor-not-allowed' : ''}`}
+          disabled={isAuthor}
         >
           <Palette className="h-4 w-4 mr-2" />
           Book Theme
@@ -563,8 +568,9 @@ export function GeneralSettings({
           <Button
             variant="ghost_hover"
             size="sm"
-            onClick={() => setShowBackgroundSettings(true)}
-            className="w-full justify-start"
+            onClick={() => canEditSettings() && setShowBackgroundSettings(true)}
+            className={`w-full justify-start ${!canEditSettings() ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={!canEditSettings()}
           >
             <PaintBucket className="h-4 w-4 mr-2" />
             Background
@@ -572,8 +578,9 @@ export function GeneralSettings({
           <Button
             variant="ghost_hover"
             size="sm"
-            onClick={() => setShowPageTheme(true)}
-            className="w-full justify-start"
+            onClick={() => canEditSettings() && setShowPageTheme(true)}
+            className={`w-full justify-start ${!canEditSettings() ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={!canEditSettings()}
           >
             <Palette className="h-4 w-4 mr-2" />
             Page Theme

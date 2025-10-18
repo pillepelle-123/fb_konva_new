@@ -20,7 +20,8 @@ import {
   MessageSquare,
   Dog,
   Cat,
-  Smile
+  Smile,
+  MessagesSquare
 } from 'lucide-react';
 
 export default function Toolbar() {
@@ -53,6 +54,7 @@ export default function Toolbar() {
         { id: 'text', label: 'Text', icon: MessageCircleMore },
         { id: 'question', label: 'Question', icon: MessageCircleQuestion },
         { id: 'answer', label: 'Answer', icon: MessageCircleHeart },
+        { id: 'qna', label: 'Q&A', icon: MessagesSquare },
       ]
     },
     {

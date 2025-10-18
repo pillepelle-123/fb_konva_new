@@ -449,7 +449,7 @@ router.post('/:id/collaborators', authenticateToken, async (req, res) => {
 router.post('/:id/friends', authenticateToken, async (req, res) => {
   try {
     const bookId = req.params.id;
-    const { friendId, userId: targetUserId, role = 'author' } = req.body;
+    const { friendId, userId: targetUserId, role = 'author', book_role, page_access_level, editor_interaction_level } = req.body;
     const userId = req.user.id;
     const userToAdd = friendId || targetUserId;
 
@@ -474,10 +474,10 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Not friends with this user' });
     }
 
-    // Add friend to book
+    // Add friend to book with permissions
     await pool.query(
-      'INSERT INTO public.book_friends (book_id, user_id, book_role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-      [bookId, userToAdd, role]
+      'INSERT INTO public.book_friends (book_id, user_id, book_role, page_access_level, editor_interaction_level) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING',
+      [bookId, userToAdd, book_role || role, page_access_level || 'own_page', editor_interaction_level || 'full_edit']
     );
 
     res.json({ success: true });
@@ -668,7 +668,7 @@ router.get('/:id/friends', authenticateToken, async (req, res) => {
     }
 
     const friends = await pool.query(`
-      SELECT u.id, u.name, u.email, bf.book_role as role
+      SELECT u.id, u.name, u.email, bf.book_role as role, bf.book_role, bf.page_access_level as pageAccessLevel, bf.editor_interaction_level as editorInteractionLevel
       FROM public.book_friends bf
       JOIN public.users u ON bf.user_id = u.id
       WHERE bf.book_id = $1 AND bf.user_id != $2
@@ -687,7 +687,7 @@ router.put('/:id/friends/:friendId/role', authenticateToken, async (req, res) =>
   try {
     const bookId = req.params.id;
     const friendId = req.params.friendId;
-    const { role } = req.body;
+    const { role, book_role, page_access_level, editor_interaction_level } = req.body;
     const userId = req.user.id;
 
     // Check if user is owner or publisher
@@ -702,13 +702,46 @@ router.put('/:id/friends/:friendId/role', authenticateToken, async (req, res) =>
     }
 
     await pool.query(
-      'UPDATE public.book_friends SET book_role = $1 WHERE book_id = $2 AND user_id = $3',
-      [role, bookId, friendId]
+      'UPDATE public.book_friends SET book_role = $1, page_access_level = $2, editor_interaction_level = $3 WHERE book_id = $4 AND user_id = $5',
+      [book_role || role, page_access_level, editor_interaction_level, bookId, friendId]
     );
 
     res.json({ success: true });
   } catch (error) {
     console.error('Role update error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Bulk update book friends permissions
+router.put('/:id/friends/bulk-update', authenticateToken, async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const { friends } = req.body;
+    const userId = req.user.id;
+
+    // Check if user is owner or publisher
+    const bookAccess = await pool.query(`
+      SELECT b.*, bf.book_role as user_book_role FROM public.books b
+      LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
+      WHERE b.id = $1 AND (b.owner_id = $2 OR bf.book_role = 'publisher')
+    `, [bookId, userId]);
+
+    if (bookAccess.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Update each friend's permissions
+    for (const friend of friends) {
+      await pool.query(
+        'UPDATE public.book_friends SET book_role = $1, page_access_level = $2, editor_interaction_level = $3 WHERE book_id = $4 AND user_id = $5',
+        [friend.book_role, friend.page_access_level, friend.editor_interaction_level, bookId, friend.user_id]
+      );
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Bulk permissions update error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

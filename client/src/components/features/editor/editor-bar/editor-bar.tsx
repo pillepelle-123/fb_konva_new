@@ -146,104 +146,65 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
             bookId={state.currentBook.id}
           />
         ) : (
-        <Accordion type="single" collapsible defaultValue="controls">
-          <AccordionItem value="controls">
-            <AccordionTrigger className="flex items-center space-x-2 py-2">
-              <Tooltip content="Show controls for book and pages" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
-                <LayoutGrid className="h-6 w-6" />
-              </Tooltip>
-              {/* <span>Controls</span> */}
-            </AccordionTrigger>
-            <AccordionContent className="overflow-x-auto scrollbar-hide">
-              <div className="flex items-center gap-2 md:gap-4 w-full">
-                {/* Page Controls */}
-                <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
-                  <PageNavigation
-                    currentPage={currentPage}
-                    totalPages={pages.length}
-                    onPrevPage={handlePrevPage}
-                    onNextPage={handleNextPage}
-                    onGoToPage={handleGoToPage}
-                    canGoPrev={state.activePageIndex > 0}
-                    canGoNext={state.activePageIndex < pages.length - 1}
-                    onOpenPagesSubmenu={() => setShowPagesSubmenu(true)}
-                  />
+          <div className="flex items-center justify-between w-full px-4 py-1 gap-4">
+            {/* Left Section - Page Controls */}
+            <div className="flex items-center gap-3">
+              <PageNavigation
+                currentPage={currentPage}
+                totalPages={pages.length}
+                onPrevPage={handlePrevPage}
+                onNextPage={handleNextPage}
+                onGoToPage={handleGoToPage}
+                canGoPrev={state.activePageIndex > 0}
+                canGoNext={state.activePageIndex < pages.length - 1}
+                onOpenPagesSubmenu={() => setShowPagesSubmenu(true)}
+              />
+              
+              <PageActions
+                onAddPage={handleAddPage}
+                onDuplicatePage={handleDuplicatePage}
+                onDeletePage={handleDeletePage}
+                canDelete={pages.length > 1}
+                showAssignFriends={false}
+              />
+            </div>
 
-                  <div className="hidden md:block h-6 w-px bg-border" />
+            {/* Center Section - Book Title */}
+            <div className="flex items-center gap-2 flex-1 justify-center">
+              <BookTitle title={state.currentBook.name} />
+            </div>
 
-                  <PageActions
-                    onAddPage={handleAddPage}
-                    onDuplicatePage={handleDuplicatePage}
-                    onDeletePage={handleDeletePage}
-                    canDelete={pages.length > 1}
-                    showAssignFriends={false}
-                    userRole={state.userRole}
-                  />
-                  
-                  <div className="hidden md:block h-6 w-px bg-border" />
-                  
-                  <PageAssignmentButton currentPage={currentPage} bookId={state.currentBook.id} onOpenDialog={() => setShowPageAssignment(true)} />
-                </div>
-
-                {/* Book Info and Actions */}
-                <div className="flex items-center gap-4 md:gap-8 flex-shrink-0 ml-auto">
-                  <div className="flex items-center gap-2">
-                    <BookTitle title={state.currentBook.name} />
-                    <Book className="h-4 w-4 text-ref-icon" />
-                  </div>
-
-                  <UndoRedoControls />
-                  
-                  <BookActions
-                    onSave={handleSave}
-                    onExport={() => setShowPDFModal(true)}
-                    onClose={handleClose}
-                    isSaving={isSaving}
-                  />
-                </div>
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-          
-          <div className="w-px bg-gray-200 mx-1 self-stretch" />
-          
-          <AccordionItem value="settings">
-            <AccordionTrigger className="flex items-center space-x-2 py-2">
-              <Tooltip content="Show settings" side="bottom_editor_bar">
-                <Settings className="h-6 w-6" />
-              </Tooltip>
-              {/* <span>Settings</span> */}
-            </AccordionTrigger>
-            <AccordionContent className="overflow-x-auto scrollbar-hide">
-              <div className="flex items-center justify-center py-2">
+            {/* Right Section - User Assignment & Settings */}
+            <div className="flex items-center gap-3">
+              <PageAssignmentButton 
+                currentPage={currentPage} 
+                bookId={state.currentBook.id} 
+                onOpenDialog={() => setShowPageAssignment(true)} 
+              />
+              
+              <Tooltip content="Settings" side="bottom_editor_bar">
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  className="flex items-center gap-2"
-                  onClick={() => toolSettingsPanelRef.current?.openBookTheme()}
+                  onClick={() => {
+                    dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+                    dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [] });
+                  }}
                 >
-                  <Palette className="h-4 w-4" />
-                  <span>Book Theme</span>
+                  <Settings className="h-5 w-5" />
                 </Button>
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-          
-          <div className="w-px bg-gray-200 mx-1 self-stretch" />
-          
-          <div className="flex items-center py-2 ">
-            <Tooltip content="Close editor and return to books" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleClose}
-                className="h-8 w-8 p-0 md:h-9 md:w-9"
-              >
-                <X className="h-6 w-6" />
-              </Button>
-            </Tooltip>
+              </Tooltip>
+              
+              <UndoRedoControls />
+              
+              <BookActions
+                onSave={handleSave}
+                onExport={() => setShowPDFModal(true)}
+                onClose={handleClose}
+                isSaving={isSaving}
+              />
+            </div>
           </div>
-        </Accordion>
         )}
       </EditorBarContainer>
       
@@ -296,7 +257,14 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
 
 function PageAssignmentButton({ currentPage, bookId, onOpenDialog }: { currentPage: number; bookId: number; onOpenDialog: () => void }) {
   const { state } = useEditor();
+  const { user } = useAuth();
   const assignedUser = state.pageAssignments[currentPage];
+  const isAuthor = user?.role === 'author';
+  
+  const handleClick = () => {
+    if (isAuthor) return; // Block dialog opening for authors
+    onOpenDialog();
+  };
   
   // Force re-render when assignments change
   const assignmentKey = `${currentPage}-${assignedUser?.id || 'none'}`;
@@ -307,8 +275,8 @@ function PageAssignmentButton({ currentPage, bookId, onOpenDialog }: { currentPa
         <Button
           variant="ghost"
           size="md"
-          onClick={onOpenDialog}
-          className="h-full w-full p-0 pt-1.5 rounded-full"
+          onClick={handleClick}
+          className={`h-full w-full p-0 pt-1.5 rounded-full ${isAuthor ? 'cursor-not-allowed opacity-50' : ''}`}
           key={assignmentKey}
         >
           <ProfilePicture name={assignedUser.name} size="sm" userId={assignedUser.id} variant='withColoredBorder' className='h-full w-full' />
@@ -322,8 +290,8 @@ function PageAssignmentButton({ currentPage, bookId, onOpenDialog }: { currentPa
       <Button
         variant="ghost"
         size="sm"
-        onClick={onOpenDialog}
-        className="h-8 w-8 p-0"
+        onClick={handleClick}
+        className={`h-8 w-8 p-0 ${isAuthor ? 'cursor-not-allowed opacity-50' : ''}`}
       >
         <CircleUser className="h-5 w-5" />
       </Button>

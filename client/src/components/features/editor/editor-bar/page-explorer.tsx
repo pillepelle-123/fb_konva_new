@@ -4,6 +4,7 @@ import { Button } from '../../../ui/primitives/button';
 import { Tooltip } from '../../../ui/composites/tooltip';
 import PagePreview from '../../books/page-preview';
 import { useEditor } from '../../../../context/editor-context';
+import { useAuth } from '../../../../context/auth-context';
 
 export function PagesSubmenu({ pages, activePageIndex, onClose, onPageSelect, onReorderPages, bookId }: {
   pages: any[];
@@ -14,9 +15,15 @@ export function PagesSubmenu({ pages, activePageIndex, onClose, onPageSelect, on
   bookId: number;
 }) {
   const { state } = useEditor();
+  const { user } = useAuth();
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const isAuthor = user?.role === 'author';
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
+    if (isAuthor) {
+      e.preventDefault();
+      return;
+    }
     setDraggedIndex(index);
     e.dataTransfer.effectAllowed = 'move';
   };
@@ -28,26 +35,27 @@ export function PagesSubmenu({ pages, activePageIndex, onClose, onPageSelect, on
 
   const handleDrop = (e: React.DragEvent, dropIndex: number) => {
     e.preventDefault();
-    if (draggedIndex !== null && draggedIndex !== dropIndex) {
-      onReorderPages(draggedIndex, dropIndex);
-      
-      // Update active page to follow the moved page
-      let newActiveIndex = activePageIndex;
-      if (activePageIndex === draggedIndex) {
-        // User was on the dragged page, follow it to new position
-        newActiveIndex = dropIndex;
-      } else if (activePageIndex > draggedIndex && activePageIndex <= dropIndex) {
-        // Active page shifts left
-        newActiveIndex = activePageIndex - 1;
-      } else if (activePageIndex < draggedIndex && activePageIndex >= dropIndex) {
-        // Active page shifts right
-        newActiveIndex = activePageIndex + 1;
-      }
-      
-      if (newActiveIndex !== activePageIndex) {
-        onPageSelect(newActiveIndex + 1);
-      }
+    if (isAuthor || draggedIndex === null || draggedIndex === dropIndex) return;
+    
+    onReorderPages(draggedIndex, dropIndex);
+    
+    // Update active page to follow the moved page
+    let newActiveIndex = activePageIndex;
+    if (activePageIndex === draggedIndex) {
+      // User was on the dragged page, follow it to new position
+      newActiveIndex = dropIndex;
+    } else if (activePageIndex > draggedIndex && activePageIndex <= dropIndex) {
+      // Active page shifts left
+      newActiveIndex = activePageIndex - 1;
+    } else if (activePageIndex < draggedIndex && activePageIndex >= dropIndex) {
+      // Active page shifts right
+      newActiveIndex = activePageIndex + 1;
     }
+    
+    if (newActiveIndex !== activePageIndex) {
+      onPageSelect(newActiveIndex + 1);
+    }
+    
     setDraggedIndex(null);
   };
 
@@ -60,7 +68,7 @@ export function PagesSubmenu({ pages, activePageIndex, onClose, onPageSelect, on
           {pages.map((page, index) => (
             <div
               key={page.id}
-              draggable
+              draggable={!isAuthor}
               onDragStart={(e) => handleDragStart(e, index)}
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, index)}
@@ -71,6 +79,7 @@ export function PagesSubmenu({ pages, activePageIndex, onClose, onPageSelect, on
                   : ''
                 }
                 ${draggedIndex === index ? 'opacity-50' : ''}
+                ${isAuthor ? 'cursor-default' : ''}
               `}
               onClick={() => onPageSelect(index + 1)}
             >

@@ -10,7 +10,7 @@ import { Toast } from '../../components/ui/overlays/toast';
 
 function EditorContent() {
   const { bookId } = useParams<{ bookId: string }>();
-  const { state, dispatch, loadBook, undo, redo, saveBook } = useEditor();
+  const { state, dispatch, loadBook, undo, redo, saveBook, canAccessEditor, canEditCanvas } = useEditor();
   const toolSettingsPanelRef = useRef<ToolSettingsPanelRef>(null);
   const [showSaveToast, setShowSaveToast] = useState(false);
 
@@ -57,6 +57,17 @@ function EditorContent() {
       </div>
     );
   }
+  
+  // Block editor access for no_access level
+  if (!canAccessEditor()) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center text-muted-foreground">
+          <p>You don't have permission to access the editor.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col">
@@ -70,11 +81,11 @@ function EditorContent() {
       />
         <div className="h-full flex flex-col bg-background">
           <div className="flex-1 flex min-h-0">
-            <Toolbar />
+            {canEditCanvas() && <Toolbar />}
             <div className="flex-1 overflow-hidden bg-muted">
               <Canvas />
             </div>
-            <ToolSettingsPanel ref={toolSettingsPanelRef} />
+            {canEditCanvas() && <ToolSettingsPanel ref={toolSettingsPanelRef} />}
           </div>
           
           {/* Status bar */}

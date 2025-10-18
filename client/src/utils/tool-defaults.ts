@@ -108,6 +108,24 @@ export const TOOL_DEFAULTS = {
     borderColor: '#000000',
     backgroundColor: 'transparent',
     padding: 4
+  },
+  qna: {
+    fontSize: 58, // Common size 14
+    fontFamily: 'Arial, sans-serif',
+    fontWeight: 'normal',
+    fontStyle: 'normal',
+    fill: '#1f2937',
+    align: 'left',
+    paragraphSpacing: 'medium',
+    ruledLines: false,
+    ruledLinesTheme: 'rough',
+    ruledLinesColor: '#1f2937',
+    ruledLinesWidth: 1, // Common scale value
+    cornerRadius: 0,
+    borderWidth: 0, // Common scale value
+    borderColor: '#000000',
+    backgroundColor: 'transparent',
+    padding: 4
   }
 } as const;
 

@@ -12,7 +12,7 @@ export function BookTitle({ title }: BookTitleProps) {
   const { state, dispatch } = useEditor();
   const { token } = useAuth();
 
-  const handleRename = async () => {
+  const handleSave = async () => {
     if (editName.trim() && editName !== title && state.currentBook) {
       try {
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -34,18 +34,23 @@ export function BookTitle({ title }: BookTitleProps) {
     setIsEditing(false);
   };
 
+  const handleCancel = () => {
+    setEditName(title);
+    setIsEditing(false);
+  };
+
   return (
     <div className="text-center md:text-right">
       {isEditing ? (
         <input
           value={editName}
           onChange={(e) => setEditName(e.target.value)}
-          onBlur={handleRename}
+          onBlur={handleCancel}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') handleRename();
-            if (e.key === 'Escape') { setEditName(title); setIsEditing(false); }
+            if (e.key === 'Enter') handleSave();
+            if (e.key === 'Escape') handleCancel();
           }}
-          className="text-sm md:text-lg font-semibold text-foreground bg-transparent border-b border-border outline-none text-center md:text-right"
+          className="text-sm md:text-lg font-semibold text-foreground bg-transparent border-b border-border outline-none text-center md:text-center"
           autoFocus
         />
       ) : (

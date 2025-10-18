@@ -101,7 +101,7 @@ export function ToolSettingsHeader({
               return `Element Settings (${state.selectedElementIds.length})`;
             } else {
               if (activeTool === 'select') {
-                let settingsName = 'General Settings';
+                let settingsName = 'Settings';
                 let IconComponent = Settings;
                 if (showColorSelector) {
                   settingsName = getColorSelectorTitle(showColorSelector);

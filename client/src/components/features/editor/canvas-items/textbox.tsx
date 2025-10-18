@@ -374,6 +374,7 @@ export default function Textbox(props: CanvasItemProps) {
   
   const getPlaceholderText = () => {
     if (element.textType === 'question') return 'Double-click to pose a question...';
+    if (element.textType === 'qna') return 'Double-click to add questions & answers...';
     if (element.textType === 'answer') {
       // Check if linked question has a questionId set
       if (element.questionElementId) {
@@ -494,6 +495,11 @@ export default function Textbox(props: CanvasItemProps) {
   const handleDoubleClick = () => {
     if (state.activeTool !== 'select') return;
     
+    // For answer_only users, only allow double-click on answer textboxes
+    if (state.editorInteractionLevel === 'answer_only' && element.textType !== 'answer') {
+      return;
+    }
+    
     if (element.textType === 'question') {
       // Prevent authors from opening question manager
       if (state.userRole === 'author') {
@@ -542,6 +548,11 @@ export default function Textbox(props: CanvasItemProps) {
       }
     }
     
+    if (element.textType === 'qna') {
+      enableQnaEditing();
+      return;
+    }
+    
     // Enable inline editing for text and answer types
     if (element.textType === 'text' || element.textType === 'answer') {
       enableInlineEditing();
@@ -550,6 +561,152 @@ export default function Textbox(props: CanvasItemProps) {
         detail: { elementId: element.id }
       }));
     }
+  };
+
+  const enableQnaEditing = () => {
+    if (!textRef.current) return;
+    
+    const textNode = textRef.current;
+    const stage = textNode.getStage();
+    if (!stage) return;
+    
+    textNode.hide();
+    
+    const textarea = document.createElement('textarea');
+    const popover = document.createElement('div');
+    const addQuestionBtn = document.createElement('button');
+    
+    document.body.appendChild(textarea);
+    document.body.appendChild(popover);
+    
+    const transform = textNode.getAbsoluteTransform();
+    const pos = transform.point({ x: element.padding || 4, y: element.padding || 4 });
+    const stageBox = stage.container().getBoundingClientRect();
+    const scale = transform.m[0];
+    
+    const areaPosition = {
+      x: stageBox.left + pos.x,
+      y: stageBox.top + pos.y
+    };
+    
+    textarea.value = element.text || '';
+    textarea.style.position = 'absolute';
+    textarea.style.top = areaPosition.y + 'px';
+    textarea.style.left = areaPosition.x + 'px';
+    textarea.style.width = ((element.width - (element.padding || 4) * 2) * scale) + 'px';
+    textarea.style.height = ((element.height - (element.padding || 4) * 2) * scale) + 'px';
+    textarea.style.fontSize = ((fontSize) * scale) + 'px';
+    textarea.style.fontFamily = fontFamily;
+    textarea.style.color = element.font?.fontColor || element.fill || '#1f2937';
+    textarea.style.background = 'transparent';
+    textarea.style.border = '1px solid #ccc';
+    textarea.style.outline = 'none';
+    textarea.style.resize = 'none';
+    textarea.style.lineHeight = lineHeight.toString();
+    textarea.style.padding = '4px';
+    textarea.style.borderRadius = '4px';
+    textarea.placeholder = 'Type questions and answers here...';
+    
+    let showQuestionDialog = false;
+    
+    addQuestionBtn.textContent = 'Add Question';
+    addQuestionBtn.style.cssText = 'padding:6px 12px;background:#0ea5e9;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px;pointer-events:auto';
+    addQuestionBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      showQuestionDialog = true;
+      window.dispatchEvent(new CustomEvent('openQuestionModal', {
+        detail: { elementId: element.id }
+      }));
+    });
+    
+    popover.appendChild(addQuestionBtn);
+    popover.style.cssText = `position:absolute;top:${areaPosition.y - 40}px;left:${areaPosition.x}px;background:white;border:1px solid #ccc;border-radius:4px;padding:4px;box-shadow:0 2px 8px rgba(0,0,0,0.1);z-index:10000;pointer-events:auto`;
+    
+    textarea.focus();
+    textarea.select();
+    
+    let removeElements = () => {
+      document.body.removeChild(textarea);
+      document.body.removeChild(popover);
+      textNode.show();
+      stage.draw();
+    };
+    
+    const originalKeydownHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        removeElements();
+      }
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        dispatch({
+          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+          payload: {
+            id: element.id,
+            updates: { text: textarea.value }
+          }
+        });
+        removeElements();
+      }
+    };
+    
+    textarea.addEventListener('keydown', originalKeydownHandler);
+    
+    textarea.addEventListener('blur', (e) => {
+      setTimeout(() => {
+        if (!showQuestionDialog && !popover.contains(document.activeElement)) {
+          dispatch({
+            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+            payload: {
+              id: element.id,
+              updates: { text: textarea.value }
+            }
+          });
+          removeElements();
+        }
+      }, 100);
+    });
+    
+    // Listen for question insertion
+    const handleInsertQuestion = (event: CustomEvent) => {
+      const { questionId, questionText } = event.detail;
+      const cursorPos = textarea.selectionStart;
+      const textBefore = textarea.value.substring(0, cursorPos);
+      const textAfter = textarea.value.substring(textarea.selectionEnd);
+      textarea.value = textBefore + `\n\n[QUESTION: ${questionText}]\n[ANSWER:]\n` + textAfter;
+      textarea.focus();
+      const newCursorPos = cursorPos + questionText.length + 21; // Position after [ANSWER:]
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
+    };
+    
+    // Prevent editing of question text in brackets
+    textarea.addEventListener('keydown', (e) => {
+      const cursorPos = textarea.selectionStart;
+      const text = textarea.value;
+      
+      // Find if cursor is within a [QUESTION: ...] block
+      const beforeCursor = text.substring(0, cursorPos);
+      const afterCursor = text.substring(cursorPos);
+      
+      const lastQuestionStart = beforeCursor.lastIndexOf('[QUESTION:');
+      const lastQuestionEnd = beforeCursor.lastIndexOf(']');
+      const nextQuestionEnd = afterCursor.indexOf(']');
+      
+      // If cursor is inside a question block, prevent editing
+      if (lastQuestionStart !== -1 && (lastQuestionEnd < lastQuestionStart || nextQuestionEnd !== -1)) {
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'ArrowUp' && e.key !== 'ArrowDown' && e.key !== 'Tab' && !e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+        }
+      }
+    });
+    
+    window.addEventListener('insertQuestionIntoQnA', handleInsertQuestion as EventListener);
+    
+    // Cleanup function for event listener
+    const originalRemoveElements = removeElements;
+    removeElements = () => {
+      window.removeEventListener('insertQuestionIntoQnA', handleInsertQuestion as EventListener);
+      originalRemoveElements();
+    };
   };
 
   const enableInlineEditing = () => {
@@ -882,7 +1039,7 @@ export default function Textbox(props: CanvasItemProps) {
               wrap="word"
               lineHeight={lineHeight}
               listening={false}
-              name={(element.formattedText || element.text) ? '' : 'no-print'}
+              name={(element.formattedText || element.text || element.textType === 'qna') ? '' : 'no-print'}
             />
           );
         })()}
