@@ -483,7 +483,7 @@ export function ToolSettingsContent({
           case 'element-text-background':
             return element.background?.backgroundOpacity || element.backgroundOpacity || 1;
           case 'element-ruled-lines-color':
-            return 1;
+            return element.ruledLines?.lineOpacity || element.ruledLinesOpacity || 0.5;
           default:
             return 1;
         }
@@ -512,6 +512,14 @@ export function ToolSettingsContent({
               backgroundOpacity: opacity
             });
             updateBothElements('backgroundOpacity', opacity);
+            break;
+          case 'element-ruled-lines-color':
+            updateBothElements('ruledLines', {
+              ...element.ruledLines,
+              lineColor: element.ruledLines?.lineColor || element.ruledLinesColor || '#1f2937',
+              lineOpacity: opacity
+            });
+            updateBothElements('ruledLinesOpacity', opacity);
             break;
         }
       };
@@ -542,6 +550,11 @@ export function ToolSettingsContent({
             updateBothElements('backgroundColor', color);
             break;
           case 'element-ruled-lines-color':
+            updateBothElements('ruledLines', {
+              ...element.ruledLines,
+              lineColor: color,
+              lineOpacity: element.ruledLines?.lineOpacity || element.ruledLinesOpacity || 0.5
+            });
             updateBothElements('ruledLinesColor', color);
             break;
         }
@@ -806,15 +819,16 @@ export function ToolSettingsContent({
             <div>
               <Label variant="xs">Ruled Lines Theme</Label>
               <ThemeSelect 
-                value={element.ruledLines?.inheritTheme || element.ruledLinesTheme || 'rough'}
+                value={element.ruledLines?.ruledLinesTheme || element.ruledLines?.inheritTheme || element.ruledLinesTheme || 'rough'}
                 onChange={(value) => {
                   updateBothElements('ruledLines', { 
                     enabled: element.ruledLines?.enabled !== undefined ? element.ruledLines.enabled : (element.ruledLines || false),
-                    inheritTheme: value,
+                    ruledLinesTheme: value,
                     lineWidth: element.ruledLinesWidth || 0.8,
-                    lineColor: element.ruledLinesColor || '#1f2937',
-                    lineOpacity: 0.5
+                    lineColor: element.ruledLines?.lineColor || element.ruledLinesColor || '#1f2937',
+                    lineOpacity: element.ruledLines?.lineOpacity || element.ruledLinesOpacity || 0.5
                   });
+                  updateBothElements('ruledLinesTheme', value);
                 }}
               />
             </div>
@@ -978,9 +992,13 @@ export function ToolSettingsContent({
   const renderElementSettings = (element: any) => {
     const updateElementSetting = (key: string, value: any) => {
       dispatch({ type: 'SAVE_TO_HISTORY', payload: `Update ${element.type} ${key}` });
+      const updates = { [key]: value };
+      
+
+      
       dispatch({
         type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-        payload: { id: element.id, updates: { [key]: value } }
+        payload: { id: element.id, updates }
       });
     };
 
@@ -1042,7 +1060,7 @@ export function ToolSettingsContent({
           case 'element-text-background':
             return element.background?.backgroundOpacity || element.backgroundOpacity || 1;
           case 'element-ruled-lines-color':
-            return 1;
+            return element.ruledLines?.lineOpacity || element.ruledLinesOpacity || 0.5;
           default:
             return 1;
         }
@@ -1083,6 +1101,12 @@ export function ToolSettingsContent({
             updateElementSetting('backgroundOpacity', opacity);
             break;
           case 'element-ruled-lines-color':
+            updateElementSetting('ruledLines', {
+              ...element.ruledLines,
+              lineColor: element.ruledLines?.lineColor || element.ruledLinesColor || '#1f2937',
+              lineOpacity: opacity
+            });
+            updateElementSetting('ruledLinesOpacity', opacity);
             break;
         }
       };
@@ -1123,6 +1147,11 @@ export function ToolSettingsContent({
             localStorage.setItem(`text-bg-color-${element.id}`, color);
             break;
           case 'element-ruled-lines-color':
+            updateElementSetting('ruledLines', {
+              ...element.ruledLines,
+              lineColor: color,
+              lineOpacity: element.ruledLines?.lineOpacity || element.ruledLinesOpacity || 0.5
+            });
             updateElementSetting('ruledLinesColor', color);
             break;
           default:
@@ -1155,8 +1184,8 @@ export function ToolSettingsContent({
               <ThemeSelect 
                 value={element.inheritTheme || element.theme || 'default'}
                 onChange={(value) => {
-                  updateElementSetting('inheritTheme', value);
                   updateElementSetting('theme', value);
+                  updateElementSetting('inheritTheme', value);
                 }}
               />
             </div>
@@ -1234,8 +1263,8 @@ export function ToolSettingsContent({
               <ThemeSelect 
                 value={element.inheritTheme || element.theme || 'default'}
                 onChange={(value) => {
-                  updateElementSetting('inheritTheme', value);
                   updateElementSetting('theme', value);
+                  updateElementSetting('inheritTheme', value);
                 }}
               />
             </div>
@@ -1301,19 +1330,19 @@ export function ToolSettingsContent({
               <Label className="flex items-center gap-1" variant="xs">
                 <input
                   type="checkbox"
-                  checked={(element.strokeWidth || 0) > 0}
+                  checked={element.borderEnabled !== undefined ? element.borderEnabled : (element.strokeWidth || 0) > 0}
                   onChange={(e) => {
+                    updateElementSetting('borderEnabled', e.target.checked);
                     if (e.target.checked) {
-                      const lastStrokeWidth = localStorage.getItem(`shape-border-width-${element.id}`) || '2';
-                      const lastStrokeColor = localStorage.getItem(`shape-border-color-${element.id}`) || '#1f2937';
-                      updateElementSetting('strokeWidth', Math.max(1, parseInt(lastStrokeWidth)));
-                      updateElementSetting('stroke', lastStrokeColor);
+                      const lastBorderWidth = localStorage.getItem(`shape-border-width-${element.id}`) || '2';
+                      const lastBorderColor = localStorage.getItem(`shape-border-color-${element.id}`) || '#1f2937';
+                      updateElementSetting('strokeWidth', Math.max(1, parseInt(lastBorderWidth)));
+                      updateElementSetting('stroke', lastBorderColor);
                     } else {
                       if ((element.strokeWidth || 0) > 0) {
                         localStorage.setItem(`shape-border-width-${element.id}`, String(element.strokeWidth));
                       }
                       localStorage.setItem(`shape-border-color-${element.id}`, element.stroke || '#1f2937');
-                      updateElementSetting('theme', 'default');
                       updateElementSetting('strokeWidth', 0);
                     }
                   }}
@@ -1323,19 +1352,30 @@ export function ToolSettingsContent({
               </Label>
             </div>
             
-            {(element.strokeWidth || 0) > 0 && (
+            {(element.borderEnabled !== undefined ? element.borderEnabled : (element.strokeWidth || 0) > 0) && (
               <IndentedSection>
                 <Slider
                   label="Border Width"
-                  value={actualToCommonStrokeWidth(element.strokeWidth || 0, element.theme || 'default')}
+                  value={actualToCommonStrokeWidth(element.strokeWidth || 0, element.inheritTheme || element.theme || 'default')}
                   onChange={(value) => {
-                    const actualWidth = commonToActualStrokeWidth(value, element.theme || 'default');
+                    const actualWidth = commonToActualStrokeWidth(value, element.inheritTheme || element.theme || 'default');
                     updateElementSetting('strokeWidth', actualWidth);
                     localStorage.setItem(`shape-border-width-${element.id}`, String(actualWidth));
                   }}
                   min={1}
                   max={getMaxStrokeWidth()}
                 />
+                
+                <div>
+                  <Label variant="xs">Theme</Label>
+                  <ThemeSelect 
+                    value={element.inheritTheme || element.theme || 'default'}
+                    onChange={(value) => {
+                      updateElementSetting('theme', value);
+                      updateElementSetting('inheritTheme', value);
+                    }}
+                  />
+                </div>
                 
                 <div>
                   <Button
@@ -1355,8 +1395,9 @@ export function ToolSettingsContent({
               <Label className="flex items-center gap-1" variant="xs">
                 <input
                   type="checkbox"
-                  checked={element.fill !== 'transparent' && element.fill !== undefined}
+                  checked={element.backgroundEnabled !== undefined ? element.backgroundEnabled : (element.fill !== 'transparent' && element.fill !== undefined)}
                   onChange={(e) => {
+                    updateElementSetting('backgroundEnabled', e.target.checked);
                     if (e.target.checked) {
                       const lastFillColor = localStorage.getItem(`shape-fill-color-${element.id}`) || '#ffffff';
                       updateElementSetting('fill', lastFillColor);
@@ -1371,7 +1412,7 @@ export function ToolSettingsContent({
               </Label>
             </div>
             
-            {element.fill !== 'transparent' && element.fill !== undefined && (
+            {(element.backgroundEnabled !== undefined ? element.backgroundEnabled : (element.fill !== 'transparent' && element.fill !== undefined)) && (
               <IndentedSection>
                 <div>
                   <Button
@@ -1389,8 +1430,8 @@ export function ToolSettingsContent({
             
             <Slider
               label="Opacity"
-              value={Math.round((element.strokeOpacity || 1) * 100)}
-              onChange={(value) => updateElementSetting('strokeOpacity', value / 100)}
+              value={Math.round((element.opacity || element.strokeOpacity || 1) * 100)}
+              onChange={(value) => updateElementSetting('opacity', value / 100)}
               min={0}
               max={100}
               step={5}

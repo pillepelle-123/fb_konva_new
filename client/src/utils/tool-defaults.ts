@@ -119,20 +119,27 @@ export function getToolDefaults(tool: ToolType, pageTheme?: string, bookTheme?: 
   const activeTheme = pageTheme || bookTheme || 'default';
   const themeDefaults = getGlobalThemeDefaults(activeTheme, tool);
   
-  // If we have an existing element, preserve its individual settings
+  // If we have an existing element, apply theme defaults but preserve essential properties
   if (existingElement) {
-    const result = { ...baseDefaults };
+    const preservedProperties = {
+      id: existingElement.id,
+      type: existingElement.type,
+      x: existingElement.x,
+      y: existingElement.y,
+      width: existingElement.width,
+      height: existingElement.height,
+      text: existingElement.text,
+      formattedText: existingElement.formattedText,
+      textType: existingElement.textType,
+      questionId: existingElement.questionId,
+      answerId: existingElement.answerId,
+      questionElementId: existingElement.questionElementId,
+      src: existingElement.src,
+      points: existingElement.points
+    };
     
-    // Only apply theme defaults for properties that don't exist in the existing element
-    Object.keys(themeDefaults).forEach(key => {
-      if (existingElement[key] === undefined) {
-        result[key] = themeDefaults[key];
-      } else {
-        result[key] = existingElement[key];
-      }
-    });
-    
-    return result;
+    // Apply theme defaults and then preserve essential properties
+    return { ...baseDefaults, ...themeDefaults, ...preservedProperties };
   }
   
   // Theme defaults should override base defaults completely

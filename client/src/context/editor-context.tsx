@@ -838,10 +838,27 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           }
           
           const toolType = element.textType || element.type;
-          const themeDefaults = getToolDefaults(toolType as any, action.payload.themeId, undefined, element);
+          const themeDefaults = getToolDefaults(toolType as any, action.payload.themeId, undefined);
           
-          // Merge theme defaults while preserving individual settings
-          return { ...element, ...themeDefaults };
+          // Apply theme defaults while preserving essential properties
+          return {
+            ...themeDefaults,
+            theme: action.payload.themeId,
+            id: element.id,
+            type: element.type,
+            x: element.x,
+            y: element.y,
+            width: element.width,
+            height: element.height,
+            text: element.text,
+            formattedText: element.formattedText,
+            textType: element.textType,
+            questionId: element.questionId,
+            answerId: element.answerId,
+            questionElementId: element.questionElementId,
+            src: element.src,
+            points: element.points
+          };
         });
       }
       

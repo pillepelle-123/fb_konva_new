@@ -89,61 +89,14 @@ export function GeneralSettings({
             // Set page theme
             dispatch({ type: 'SET_PAGE_THEME', payload: { pageIndex: state.activePageIndex, themeId } });
             
-            const currentPage = state.currentBook?.pages[state.activePageIndex];
-            if (currentPage) {
-              // Get the theme settings
-              const theme = getGlobalTheme(themeId);
-              if (theme) {
-                // Apply element defaults to current page only
-                currentPage.elements.forEach(element => {
-                  const themeDefaults = getGlobalThemeDefaults(themeId, element.textType || element.type);
-                  // Apply ALL theme defaults, overwriting individual customizations
-                  const flattenedDefaults = {
-                    ...themeDefaults,
-                    // Apply nested font properties
-                    ...(themeDefaults.font && themeDefaults.font.fontSize && {
-                      font: themeDefaults.font,
-                      fontSize: commonToActual(themeDefaults.font.fontSize),
-                      fontFamily: themeDefaults.font.fontFamily,
-                      fontColor: themeDefaults.font.fontColor,
-                      fontOpacity: themeDefaults.font.fontOpacity,
-                      fontWeight: themeDefaults.font.fontBold ? 'bold' : 'normal',
-                      fontStyle: themeDefaults.font.fontItalic ? 'italic' : 'normal'
-                    }),
-                    // Apply nested border properties
-                    ...(themeDefaults.border && {
-                      border: themeDefaults.border,
-                      borderWidth: themeDefaults.border.borderWidth,
-                      borderColor: themeDefaults.border.borderColor,
-                      borderOpacity: themeDefaults.border.borderOpacity
-                    }),
-                    // Apply nested format properties
-                    ...(themeDefaults.format && {
-                      format: themeDefaults.format,
-                      align: themeDefaults.format.align,
-                      lineHeight: themeDefaults.format.lineHeight,
-                      paragraphSpacing: themeDefaults.format.paragraphSpacing,
-                      padding: themeDefaults.format.padding
-                    }),
-                    // Apply nested background properties
-                    ...(themeDefaults.background && {
-                      background: themeDefaults.background,
-                      backgroundColor: themeDefaults.background.backgroundColor,
-                      backgroundOpacity: themeDefaults.background.backgroundOpacity
-                    }),
-                    // Apply nested ruledLines properties
-                    ...(themeDefaults.ruledLines && {
-                      ruledLines: themeDefaults.ruledLines,
-                      ruledLinesTheme: themeDefaults.ruledLines.inheritTheme,
-                      ruledLinesWidth: themeDefaults.ruledLines.lineWidth,
-                      ruledLinesColor: themeDefaults.ruledLines.lineColor
-                    })
-                  };
-                  dispatch({
-                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                    payload: { id: element.id, updates: flattenedDefaults }
-                  });
-                });
+            // Apply theme to all elements on current page
+            dispatch({
+              type: 'APPLY_THEME_TO_ELEMENTS',
+              payload: { pageIndex: state.activePageIndex, themeId }
+            });
+            
+            const theme = getGlobalTheme(themeId);
+            if (theme) {
                 
                 // Apply page background settings
                 const newBackground = {
@@ -170,7 +123,7 @@ export function GeneralSettings({
                 });
               }
             }
-          }}
+          }
           onBack={() => {}}
         />
         
@@ -221,61 +174,18 @@ export function GeneralSettings({
             dispatch({ type: 'SET_BOOK_THEME', payload: themeId });
             
             if (state.currentBook) {
-              // Get the theme settings
+              // Apply theme to all elements on all pages
+              state.currentBook.pages.forEach((_, pageIndex) => {
+                dispatch({
+                  type: 'APPLY_THEME_TO_ELEMENTS',
+                  payload: { pageIndex, themeId }
+                });
+              });
+              
               const theme = getGlobalTheme(themeId);
               if (theme) {
-                // Book theme overrides ALL page themes - apply to ALL pages
-                state.currentBook.pages.forEach((page, pageIndex) => {
-                  // Apply element defaults to ALL elements
-                  page.elements.forEach(element => {
-                    const themeDefaults = getGlobalThemeDefaults(themeId, element.textType || element.type);
-                    // Apply ALL theme defaults, overwriting individual customizations
-                    const flattenedDefaults = {
-                      ...themeDefaults,
-                      // Apply nested font properties
-                      ...(themeDefaults.font && themeDefaults.font.fontSize && {
-                        font: themeDefaults.font,
-                        fontSize: commonToActual(themeDefaults.font.fontSize),
-                        fontFamily: themeDefaults.font.fontFamily,
-                        fontColor: themeDefaults.font.fontColor,
-                        fontOpacity: themeDefaults.font.fontOpacity,
-                        fontWeight: themeDefaults.font.fontBold ? 'bold' : 'normal',
-                        fontStyle: themeDefaults.font.fontItalic ? 'italic' : 'normal'
-                      }),
-                      // Apply nested border properties
-                      ...(themeDefaults.border && {
-                        border: themeDefaults.border,
-                        borderWidth: themeDefaults.border.borderWidth,
-                        borderColor: themeDefaults.border.borderColor,
-                        borderOpacity: themeDefaults.border.borderOpacity
-                      }),
-                      // Apply nested format properties
-                      ...(themeDefaults.format && {
-                        format: themeDefaults.format,
-                        align: themeDefaults.format.align,
-                        lineHeight: themeDefaults.format.lineHeight,
-                        paragraphSpacing: themeDefaults.format.paragraphSpacing,
-                        padding: themeDefaults.format.padding
-                      }),
-                      // Apply nested background properties
-                      ...(themeDefaults.background && {
-                        background: themeDefaults.background,
-                        backgroundColor: themeDefaults.background.backgroundColor,
-                        backgroundOpacity: themeDefaults.background.backgroundOpacity
-                      }),
-                      // Apply nested ruledLines properties
-                      ...(themeDefaults.ruledLines && {
-                        ruledLines: themeDefaults.ruledLines,
-                        ruledLinesTheme: themeDefaults.ruledLines.inheritTheme,
-                        ruledLinesWidth: themeDefaults.ruledLines.lineWidth,
-                        ruledLinesColor: themeDefaults.ruledLines.lineColor
-                      })
-                    };
-                    dispatch({
-                      type: 'UPDATE_ELEMENT_ALL_PAGES',
-                      payload: { id: element.id, updates: flattenedDefaults }
-                    });
-                  });
+                // Apply page background settings to ALL pages
+                state.currentBook.pages.forEach((_, pageIndex) => {
                   
                   // Apply page background settings to ALL pages (overriding page themes)
                   const newBackground = {

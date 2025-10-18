@@ -59,6 +59,44 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
       ...defaults
     };
 
+    // Map nested font properties to flat canvas element properties
+    if (base.font) {
+      if (base.font.fontColor) base.stroke = base.font.fontColor;
+      if (base.font.fontSize) base.fontSize = base.font.fontSize;
+      if (base.font.fontFamily) base.fontFamily = base.font.fontFamily;
+      if (base.font.fontBold !== undefined) base.fontWeight = base.font.fontBold ? 'bold' : 'normal';
+      if (base.font.fontItalic !== undefined) base.fontStyle = base.font.fontItalic ? 'italic' : 'normal';
+      if (base.font.fontOpacity !== undefined) base.strokeOpacity = base.font.fontOpacity;
+    }
+
+    // Map nested border properties to flat canvas element properties
+    if (base.border) {
+      if (base.border.borderWidth !== undefined) base.borderWidth = base.border.borderWidth;
+      if (base.border.borderColor) base.borderColor = base.border.borderColor;
+      if (base.border.borderOpacity !== undefined) base.borderOpacity = base.border.borderOpacity;
+    }
+
+    // Map nested background properties to flat canvas element properties
+    if (base.background) {
+      if (base.background.backgroundColor) base.backgroundColor = base.background.backgroundColor;
+      if (base.background.backgroundOpacity !== undefined) base.backgroundOpacity = base.background.backgroundOpacity;
+    }
+
+    // Map nested format properties to flat canvas element properties
+    if (base.format) {
+      if (base.format.textAlign) base.align = base.format.textAlign;
+      if (base.format.paragraphSpacing) base.paragraphSpacing = base.format.paragraphSpacing;
+      if (base.format.padding !== undefined) base.padding = base.format.padding;
+    }
+
+    // Map nested ruledLines properties to flat canvas element properties
+    if (base.ruledLines) {
+      if (base.ruledLines.lineWidth !== undefined) base.ruledLinesWidth = base.ruledLines.lineWidth;
+      if (base.ruledLines.lineColor) base.ruledLinesColor = base.ruledLines.lineColor;
+      if (base.ruledLines.lineOpacity !== undefined) base.ruledLinesOpacity = base.ruledLines.lineOpacity;
+      if (base.ruledLines.ruledLinesTheme) base.ruledLinesTheme = base.ruledLines.ruledLinesTheme;
+    }
+
     // Add palette colors
     if (palette) {
       base.stroke = base.stroke || palette.colors.primary;
@@ -84,18 +122,21 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
       }
     }
 
-    // Add inherit theme for shapes and stroke themes
+    // Add inherit theme for shapes and stroke themes - preserve existing inheritTheme
     if (['shape', 'brush', 'line'].includes(elementType)) {
-      base.inheritTheme = base.strokeTheme || id;
+      // Don't override if inheritTheme is already set in the theme definition
+      if (!base.inheritTheme) {
+        base.inheritTheme = id;
+      }
     }
     
-    // Handle strokeTheme for borders and ruled lines
-    if (base.border && base.border.strokeTheme) {
-      base.border.borderTheme = base.border.strokeTheme;
+    // Handle theme inheritance for borders and ruled lines
+    if (base.border) {
+      base.border.borderTheme = base.border.borderTheme || id;
     }
     
-    if (base.ruledLines && base.ruledLines.strokeTheme) {
-      base.ruledLines.ruledLinesTheme = base.ruledLines.strokeTheme;
+    if (base.ruledLines) {
+      base.ruledLines.ruledLinesTheme = base.ruledLines.ruledLinesTheme || id;
     }
 
     return base;

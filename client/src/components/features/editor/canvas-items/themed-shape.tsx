@@ -6,7 +6,7 @@ import { getThemeRenderer } from '../../../../utils/themes';
 export default function ThemedShape(props: CanvasItemProps) {
   const { element, isDragging, zoom = 1 } = props;
 
-  const theme = element.theme || 'rough';
+  const theme = element.inheritTheme || element.theme || 'rough';
   const renderer = getThemeRenderer(theme);
 
   // Calculate hit area for brush strokes

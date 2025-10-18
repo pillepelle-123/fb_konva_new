@@ -231,8 +231,8 @@ export default function Textbox(props: CanvasItemProps) {
     let theme = 'rough'; // fallback
     
     // Check if element has individual setting
-    if (element.ruledLines?.inheritTheme || element.ruledLinesTheme) {
-      theme = element.ruledLines?.inheritTheme || element.ruledLinesTheme;
+    if (element.ruledLines?.ruledLinesTheme || element.ruledLines?.inheritTheme || element.ruledLinesTheme) {
+      theme = element.ruledLines?.ruledLinesTheme || element.ruledLines?.inheritTheme || element.ruledLinesTheme;
     } else {
       // Use theme defaults if no individual setting
       const currentPage = state.currentBook?.pages[state.activePageIndex];
@@ -241,12 +241,13 @@ export default function Textbox(props: CanvasItemProps) {
       const activeTheme = pageTheme || bookTheme;
       
       if (activeTheme) {
-        const themeDefaults = getGlobalThemeDefaults(activeTheme, 'text');
-        theme = themeDefaults?.ruledLines?.inheritTheme || theme;
+        const themeDefaults = getGlobalThemeDefaults(activeTheme, element.textType || 'text');
+        theme = themeDefaults?.ruledLines?.ruledLinesTheme || themeDefaults?.ruledLines?.inheritTheme || theme;
       }
     }
-    const ruledLineColor = element.ruledLinesColor || '#1f2937';
+    const ruledLineColor = element.ruledLines?.lineColor || element.ruledLinesColor || '#1f2937';
     const ruledLineWidth = element.ruledLinesWidth || 0.8;
+    const ruledLineOpacity = element.ruledLines?.lineOpacity || element.ruledLinesOpacity || 0.5;
     
     // Generate lines from top to bottom of textbox (positioned as underlines)
     for (let y = padding + lineSpacing * 0.8; y < element.height - padding; y += lineSpacing) {
@@ -278,6 +279,7 @@ export default function Textbox(props: CanvasItemProps) {
                 data={combinedPath.trim()}
                 stroke={ruledLineColor}
                 strokeWidth={ruledLineWidth}
+                opacity={ruledLineOpacity}
                 listening={false}
               />
             );
@@ -289,6 +291,7 @@ export default function Textbox(props: CanvasItemProps) {
               data={`M ${padding} ${y} L ${element.width - padding} ${y}`}
               stroke={ruledLineColor}
               strokeWidth={ruledLineWidth}
+              opacity={ruledLineOpacity}
               listening={false}
             />
           );
@@ -302,6 +305,7 @@ export default function Textbox(props: CanvasItemProps) {
               data={`M ${padding} ${y} L ${element.width - padding} ${y}`}
               stroke={ruledLineColor}
               strokeWidth={ruledLineWidth}
+              opacity={ruledLineOpacity}
               lineCap="round"
               listening={false}
             />
@@ -333,6 +337,7 @@ export default function Textbox(props: CanvasItemProps) {
                   {...strokeProps}
                   stroke={ruledLineColor}
                   strokeWidth={ruledLineWidth}
+                  opacity={ruledLineOpacity}
                   listening={false}
                 />
               );
@@ -344,6 +349,7 @@ export default function Textbox(props: CanvasItemProps) {
                 data={`M ${padding} ${y} L ${element.width - padding} ${y}`}
                 stroke={ruledLineColor}
                 strokeWidth={ruledLineWidth}
+                opacity={ruledLineOpacity}
                 listening={false}
               />
             );
