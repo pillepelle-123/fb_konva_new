@@ -17,32 +17,23 @@ function logThemeStructure(book: Book | null) {
   
   // Extract page settings
   const pageSettings = {
-    backgroundColor: currentPage.background?.value || '#ffffff',
+    backgroundColor: currentPage.background?.type === 'color' ? currentPage.background.value : 'green',
+    backgroundOpacity: currentPage.background?.opacity || 1,
     backgroundPattern: currentPage.background?.type === 'pattern' ? {
       enabled: true,
-      style: currentPage.background.value as 'dots' | 'grid' | 'lines' | 'crosses',
+      style: currentPage.background.value as 'dots' | 'grid' | 'lines' | 'cross',
       size: currentPage.background.patternSize || 20,
-      strokeWidth: 1,
-      backgroundColor: currentPage.background.patternBackgroundColor || '#f0f0f0',
-      backgroundOpacity: currentPage.background.patternBackgroundOpacity || 0.3
+      strokeWidth: 12,
+      patternBackgroundColor: currentPage.background.patternBackgroundColor || '#f0f0f0',
+      patternBackgroundOpacity: currentPage.background.patternBackgroundOpacity || 0.3
     } : {
       enabled: false,
       style: 'dots' as const,
       size: 20,
       strokeWidth: 1,
-      backgroundColor: '#f0f0f0',
-      backgroundOpacity: 0.3
-    },
-    backgroundImage: currentPage.background?.type === 'image' ? {
-      enabled: true,
-      size: currentPage.background.imageSize || 'cover' as const,
-      repeat: currentPage.background.imageRepeat || false
-    } : {
-      enabled: false,
-      size: 'cover' as const,
-      repeat: false
-    },
-    cornerRadius: 0
+      patternBackgroundColor: '#f0f0f0',
+      patternBackgroundOpacity: 0.3
+    }
   };
   
   // Extract element defaults from canvas elements
@@ -50,7 +41,6 @@ function logThemeStructure(book: Book | null) {
     text: {},
     question: {},
     answer: {},
-    image: {},
     shape: {},
     brush: {},
     line: {}
@@ -74,7 +64,8 @@ function logThemeStructure(book: Book | null) {
           break;
         case 'image':
         case 'placeholder':
-          category = 'image';
+          // Skip image elements - not included in themes.json
+          return;
           break;
         case 'brush':
           category = 'brush';
@@ -88,85 +79,93 @@ function logThemeStructure(book: Book | null) {
       }
       
       // Extract relevant properties for theme
-      const themeElement: any = {
-        theme: element.theme || 'custom',
-        stroke: element.stroke,
-        fill: element.fill,
-        strokeWidth: element.strokeWidth ? actualToCommonStrokeWidth(element.strokeWidth, element.theme || 'custom') : undefined,
-        cornerRadius: element.cornerRadius ? actualToCommonRadius(element.cornerRadius) : 0,
-        scaleX: element.scaleX || 1,
-        scaleY: element.scaleY || 1,
-        rotation: element.rotation || 0
-      };
+      const themeElement: any = {};
       
       // Add text-specific properties
       if (category === 'text' || category === 'question' || category === 'answer') {
-        const convertedFontSize = element.fontSize ? actualToCommon(element.fontSize) : 16;
-        console.log(`Converting fontSize: ${element.fontSize} → ${convertedFontSize}`);
+        themeElement.cornerRadius = element.cornerRadius ? actualToCommonRadius(element.cornerRadius) : 0;
         
-        themeElement.font = {
-          fontSize: convertedFontSize,
-          fontFamily: element.fontFamily || 'Arial, sans-serif',
-          fontColor: element.stroke || '#000000',
-          fontOpacity: 1,
-          fontBold: false,
-          fontItalic: false
-        };
-        themeElement.border = {
-          borderWidth: element.borderWidth ? actualToCommonStrokeWidth(element.borderWidth, element.theme || 'custom') : 0,
-          borderColor: element.borderColor || 'transparent',
-          borderOpacity: 1,
-          inheritTheme: 'custom'
-        };
-        themeElement.format = {
-          align: element.align || 'left',
-          lineHeight: element.lineHeight || 1.2,
-          paragraphSpacing: element.paragraphSpacing || 'medium',
-          padding: element.padding || 8
-        };
-        themeElement.background = {
-          backgroundColor: element.backgroundColor || 'transparent',
-          backgroundOpacity: element.backgroundOpacity || 0
-        };
-        themeElement.ruledLines = {
-          enabled: false,
-          inheritTheme: 'notebook',
-          lineWidth: 1,
-          lineColor: '#e0e0e0',
-          lineOpacity: 0.5
-        };
+        // Use actual element font size, converted to common scale
+        let actualFontSize = element.font?.fontSize || element.fontSize;
+        let commonFontSize = actualFontSize ? Math.round(actualFontSize * 12 / 50) : undefined;
+        
+        if (commonFontSize) {
+          themeElement.font = {
+            fontSize: commonFontSize,
+            fontFamily: element.font?.fontFamily || element.fontFamily,
+            fontColor: element.font?.fontColor || element.fill,
+            fontOpacity: element.font?.fontOpacity || element.fillOpacity,
+            fontBold: element.font?.fontBold || (element.fontWeight === 'bold'),
+            fontItalic: element.font?.fontItalic || (element.fontStyle === 'italic')
+          };
+        }
+        
+        const borderWidth = element.border?.borderWidth || element.borderWidth;
+        if (borderWidth) {
+          themeElement.border = {
+            enabled: element.border?.enabled !== false && borderWidth > 0,
+            borderWidth: actualToCommonStrokeWidth(borderWidth, element.border?.borderTheme || element.theme || 'default'),
+            borderColor: element.border?.borderColor || element.borderColor,
+            borderOpacity: element.border?.borderOpacity || element.borderOpacity,
+            borderTheme: element.border?.borderTheme || element.border?.inheritTheme || element.theme
+          };
+        }
+        
+        const textAlign = element.format?.align || element.align;
+        const paragraphSpacing = element.format?.paragraphSpacing || element.paragraphSpacing;
+        const padding = element.format?.padding || element.padding;
+        if (textAlign || paragraphSpacing || padding) {
+          themeElement.format = {
+            textAlign: textAlign,
+            paragraphSpacing: paragraphSpacing,
+            padding: padding
+          };
+        }
+        
+        const backgroundColor = element.background?.backgroundColor || element.backgroundColor;
+        const backgroundOpacity = element.background?.backgroundOpacity || element.backgroundOpacity;
+        if (backgroundColor && backgroundColor !== 'transparent') {
+          themeElement.background = {
+            enabled: element.background?.enabled !== false,
+            backgroundColor: backgroundColor,
+            backgroundOpacity: backgroundOpacity
+          };
+        }
+        
+        const ruledLinesEnabled = element.ruledLines?.enabled;
+        const ruledLinesWidth = element.ruledLinesWidth;
+        const ruledLinesColor = element.ruledLines?.lineColor || element.ruledLinesColor;
+        if (ruledLinesEnabled || ruledLinesWidth || ruledLinesColor) {
+          themeElement.ruledLines = {
+            enabled: ruledLinesEnabled,
+            lineWidth: ruledLinesWidth,
+            lineColor: ruledLinesColor,
+            lineOpacity: element.ruledLines?.lineOpacity || element.ruledLinesOpacity,
+            ruledLinesTheme: element.ruledLines?.ruledLinesTheme || element.ruledLines?.inheritTheme || element.ruledLinesTheme
+          };
+        }
       }
       
-      // Add image-specific properties
-      if (category === 'image') {
-        themeElement.border = {
-          borderWidth: element.borderWidth ? actualToCommonStrokeWidth(element.borderWidth, element.theme || 'custom') : 0,
-          borderColor: element.borderColor || 'transparent',
-          borderOpacity: 1
-        };
-        themeElement.background = {
-          backgroundColor: element.backgroundColor || 'transparent',
-          backgroundOpacity: element.backgroundOpacity || 1
-        };
-      }
+
       
       // Add shape-specific properties
       if (category === 'shape') {
-        themeElement.inheritTheme = 'custom';
-        themeElement.border = {
-          borderWidth: 0,
-          borderColor: 'transparent',
-          borderOpacity: 1
-        };
-        themeElement.background = {
-          backgroundColor: 'transparent',
-          backgroundOpacity: element.backgroundOpacity || 0.6
-        };
+        if (element.cornerRadius) themeElement.cornerRadius = actualToCommonRadius(element.cornerRadius);
+        if (element.strokeWidth) themeElement.strokeWidth = actualToCommonStrokeWidth(element.strokeWidth, element.theme || 'default');
+        if (element.stroke) themeElement.stroke = element.stroke;
+        if (element.fill) themeElement.fill = element.fill;
+        if (element.opacity) themeElement.opacity = element.opacity;
+        if (element.inheritTheme || element.theme) themeElement.inheritTheme = element.inheritTheme || element.theme;
+        if (element.borderEnabled !== undefined) themeElement.borderEnabled = element.borderEnabled;
+        if (element.backgroundEnabled !== undefined) themeElement.backgroundEnabled = element.backgroundEnabled;
       }
       
       // Add brush/line-specific properties
       if (category === 'brush' || category === 'line') {
-        themeElement.inheritTheme = 'custom';
+        if (element.strokeWidth) themeElement.strokeWidth = actualToCommonStrokeWidth(element.strokeWidth, element.theme || 'default');
+        if (element.stroke) themeElement.stroke = element.stroke;
+        if (element.strokeOpacity) themeElement.strokeOpacity = element.strokeOpacity;
+        if (element.inheritTheme || element.theme) themeElement.inheritTheme = element.inheritTheme || element.theme;
       }
       
       // Only update if we don't have this element type yet or if this element has more properties
@@ -196,10 +195,7 @@ function logThemeStructure(book: Book | null) {
     //   converted.cornerRadius = actualToCommonRadius(converted.cornerRadius);
     // }
     
-    // Convert font fontSize
-    if (converted.font?.fontSize) {
-      converted.font.fontSize = actualToCommon(converted.font.fontSize);
-    }
+    // Font fontSize is already in common scale, no conversion needed
     
     // Convert border borderWidth
     if (converted.border?.borderWidth) {
@@ -210,9 +206,9 @@ function logThemeStructure(book: Book | null) {
   });
   
   const themeStructure = {
-    id: 'custom',
     name: 'Custom Theme',
     description: 'Theme created from canvas elements',
+    palette: 'custom-palette',
     pageSettings,
     elementDefaults: convertedElementDefaults
   };
@@ -523,14 +519,25 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'UPDATE_ELEMENT_PRESERVE_SELECTION':
       if (!state.currentBook) return state;
-      const updatedBookPreserve = { ...state.currentBook };
-      const pagePreserve = updatedBookPreserve.pages[state.activePageIndex];
-      const elementIndexPreserve = pagePreserve.elements.findIndex(el => el.id === action.payload.id);
-      if (elementIndexPreserve !== -1) {
-        const oldElementPreserve = pagePreserve.elements[elementIndexPreserve];
-        const enforcedUpdatesPreserve = enforceThemeBoundaries(action.payload.updates, oldElementPreserve);
-        pagePreserve.elements[elementIndexPreserve] = { ...oldElementPreserve, ...enforcedUpdatesPreserve };
-      }
+      const updatedBookPreserve = {
+        ...state.currentBook,
+        pages: state.currentBook.pages.map((page, index) => {
+          if (index === state.activePageIndex) {
+            const elementIndex = page.elements.findIndex(el => el.id === action.payload.id);
+            if (elementIndex !== -1) {
+              const oldElement = page.elements[elementIndex];
+              const enforcedUpdates = enforceThemeBoundaries(action.payload.updates, oldElement);
+              return {
+                ...page,
+                elements: page.elements.map((el, elIndex) => 
+                  elIndex === elementIndex ? { ...oldElement, ...enforcedUpdates } : el
+                )
+              };
+            }
+          }
+          return page;
+        })
+      };
       return { ...state, currentBook: updatedBookPreserve, hasUnsavedChanges: true };
     
     case 'UPDATE_ELEMENT_ALL_PAGES':

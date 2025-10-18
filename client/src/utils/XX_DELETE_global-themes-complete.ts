@@ -14,8 +14,8 @@ export interface GlobalTheme {
       style: 'dots' | 'grid' | 'lines' | 'crosses';
       size: number;
       strokeWidth: number;
-      backgroundColor: string;
-      backgroundOpacity: number;
+      patternBackgroundColor: string;
+      patternBackgroundOpacity: number;
     };
     backgroundImage?: {
       enabled: boolean;
@@ -47,8 +47,8 @@ const RAW_THEMES: GlobalTheme[] = [
         style: 'dots',
         size: 20,
         strokeWidth: 1,
-        backgroundColor: '#f0f0f0',
-        backgroundOpacity: 0.3
+        patternBackgroundColor: '#f0f0f0',
+        patternBackgroundOpacity: 0.3
       },
       backgroundImage: {
         enabled: false,

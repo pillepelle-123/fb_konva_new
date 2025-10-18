@@ -36,3 +36,14 @@ export function actualToCommonStrokeWidth(actualWidth: number, theme: string): n
 export function getMaxCommonWidth(): number {
   return 100;
 }
+
+// Convert themes.json stroke width (common scale) to actual theme stroke width
+// This ensures themes.json values are treated as common scale values
+export function themeJsonToActualStrokeWidth(themeJsonWidth: number, theme: string): number {
+  return commonToActualStrokeWidth(themeJsonWidth, theme);
+}
+
+// Convert actual theme stroke width back to themes.json format (common scale)
+export function actualToThemeJsonStrokeWidth(actualWidth: number, theme: string): number {
+  return actualToCommonStrokeWidth(actualWidth, theme);
+}

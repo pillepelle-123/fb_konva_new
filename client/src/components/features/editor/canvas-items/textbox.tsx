@@ -184,6 +184,13 @@ export default function Textbox(props: CanvasItemProps) {
 
   const fontSize = (() => {
     let size = element.font?.fontSize || element.fontSize;
+    // console.log('Textbox fontSize - ACTUAL VALUE USED FOR RENDERING:', {
+    //   elementId: element.id,
+    //   actualFontSizeUsed: size || 16,
+    //   commonScaleEquivalent: Math.round((size || 16) * 12 / 50),
+    //   elementFontNew: element.font?.fontSize,
+    //   elementFontOld: element.fontSize
+    // });
     if (!size) {
       const currentPage = state.currentBook?.pages[state.activePageIndex];
       const pageTheme = currentPage?.background?.pageTheme;

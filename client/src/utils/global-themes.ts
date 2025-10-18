@@ -1,7 +1,7 @@
 import type { CanvasElement } from '../context/editor-context';
 import { getPalette } from './global-palettes';
 import { commonToActual } from './font-size-converter';
-import { commonToActualStrokeWidth } from './stroke-width-converter';
+import { commonToActualStrokeWidth, themeJsonToActualStrokeWidth } from './stroke-width-converter';
 import { commonToActualRadius } from './corner-radius-converter';
 import themesData from '../data/themes.json';
 
@@ -11,13 +11,14 @@ export interface GlobalTheme {
   description: string;
   pageSettings: {
     backgroundColor: string;
+    backgroundOpacity: number;
     backgroundPattern?: {
       enabled: boolean;
       style: 'dots' | 'grid' | 'lines' | 'crosses';
       size: number;
       strokeWidth: number;
-      backgroundColor: string;
-      backgroundOpacity: number;
+      patternBackgroundColor: string;
+      patternBackgroundOpacity: number;
     };
     backgroundImage?: {
       enabled: boolean;
@@ -33,7 +34,6 @@ export interface GlobalTheme {
     image: Partial<CanvasElement>;
     shape: Partial<CanvasElement>;
     brush: Partial<CanvasElement>;
-    line: Partial<CanvasElement>;
   };
 }
 
@@ -161,8 +161,7 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
       answer: buildElement('answer', config.elementDefaults.answer || {}),
       image: buildElement('image', config.elementDefaults.image || {}),
       shape: buildElement('shape', config.elementDefaults.shape || {}),
-      brush: buildElement('brush', config.elementDefaults.brush || {}),
-      line: buildElement('line', config.elementDefaults.line || {})
+      brush: buildElement('brush', config.elementDefaults.brush || {})
     }
   };
 }
@@ -174,7 +173,7 @@ function processTheme(theme: GlobalTheme): GlobalTheme {
       ...theme.pageSettings,
       backgroundPattern: theme.pageSettings.backgroundPattern ? {
         ...theme.pageSettings.backgroundPattern,
-        strokeWidth: commonToActualStrokeWidth(theme.pageSettings.backgroundPattern.strokeWidth, theme.id)
+        strokeWidth: themeJsonToActualStrokeWidth(theme.pageSettings.backgroundPattern.strokeWidth, theme.id)
       } : undefined
     },
     elementDefaults: Object.fromEntries(
@@ -183,7 +182,7 @@ function processTheme(theme: GlobalTheme): GlobalTheme {
         {
           ...element,
           strokeWidth: typeof element.strokeWidth === 'number' 
-            ? commonToActualStrokeWidth(element.strokeWidth, theme.id) 
+            ? themeJsonToActualStrokeWidth(element.strokeWidth, element.inheritTheme || theme.id) 
             : element.strokeWidth,
           font: element.font ? {
             ...element.font,
@@ -194,7 +193,7 @@ function processTheme(theme: GlobalTheme): GlobalTheme {
           border: element.border ? {
             ...element.border,
             borderWidth: typeof element.border.borderWidth === 'number'
-              ? commonToActualStrokeWidth(element.border.borderWidth, element.border.borderTheme || element.border.inheritTheme || theme.id)
+              ? themeJsonToActualStrokeWidth(element.border.borderWidth, element.border.borderTheme || element.border.inheritTheme || theme.id)
               : element.border.borderWidth
           } : undefined,
           format: element.format,
@@ -204,7 +203,7 @@ function processTheme(theme: GlobalTheme): GlobalTheme {
             : element.cornerRadius,
           ruledLines: element.ruledLines ? {
             ...element.ruledLines,
-            lineWidth: commonToActualStrokeWidth(element.ruledLines.lineWidth, theme.id)
+            lineWidth: themeJsonToActualStrokeWidth(element.ruledLines.lineWidth, element.ruledLines.ruledLinesTheme || theme.id)
           } : undefined
         }
       ])
@@ -242,7 +241,6 @@ function getThemeCategory(elementType: string): keyof GlobalTheme['elementDefaul
     case 'brush':
       return 'brush';
     case 'line':
-      return 'line';
     case 'rect':
     case 'circle':
     case 'heart':
@@ -285,4 +283,21 @@ export function applyThemeToPage(pageSettings: any, themeId: string): any {
 
 export function getAllGlobalThemes(): GlobalTheme[] {
   return GLOBAL_THEMES;
+}
+
+export function logThemeStructure(themeData: any): void {
+  // Ensure backgroundOpacity is included in pageSettings
+  const processedData = {
+    ...themeData,
+    pageSettings: {
+      ...themeData.pageSettings,
+      backgroundOpacity: themeData.pageSettings?.backgroundOpacity || 1
+    }
+  };
+  
+  const jsonString = JSON.stringify(processedData, null, 2);
+  const lines = jsonString.split('\n');
+  const indentedLines = lines.map(line => '  ' + line);
+  const output = '"custom": \n' + indentedLines.join('\n');
+  console.log(output);
 }

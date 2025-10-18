@@ -14,8 +14,8 @@ export interface GlobalTheme {
       style: 'dots' | 'grid' | 'lines' | 'crosses';
       size: number;
       strokeWidth: number;
-      backgroundColor: string;
-      backgroundOpacity: number;
+      patternBackgroundColor: string;
+      patternBackgroundOpacity: number;
     };
     backgroundImage?: {
       enabled: boolean;
@@ -47,8 +47,8 @@ const RAW_THEMES: GlobalTheme[] = [
         style: 'dots',
         size: 20,
         strokeWidth: 1,
-        backgroundColor: '#f0f0f0',
-        backgroundOpacity: 0.3
+        patternBackgroundColor: '#f0f0f0',
+        patternBackgroundOpacity: 0.3
       },
       backgroundImage: {
         enabled: false,
@@ -244,8 +244,8 @@ const RAW_THEMES: GlobalTheme[] = [
         style: 'dots',
         size: 25,
         strokeWidth: 1,
-        backgroundColor: '#e8e6e3',
-        backgroundOpacity: 0.4
+        patternBackgroundColor: '#e8e6e3',
+        patternBackgroundOpacity: 0.4
       },
       backgroundImage: {
         enabled: false,
@@ -441,8 +441,8 @@ const RAW_THEMES: GlobalTheme[] = [
         style: 'grid',
         size: 30,
         strokeWidth: 0.5,
-        backgroundColor: '#f8f9fa',
-        backgroundOpacity: 0.2
+        patternBackgroundColor: '#f8f9fa',
+        patternBackgroundOpacity: 0.2
       },
       backgroundImage: {
         enabled: false,
@@ -616,8 +616,8 @@ const RAW_THEMES: GlobalTheme[] = [
         style: 'dots',
         size: 15,
         strokeWidth: 1,
-        backgroundColor: '#ffecb3',
-        backgroundOpacity: 0.3
+        patternBackgroundColor: '#ffecb3',
+        patternBackgroundOpacity: 0.3
       },
       backgroundImage: {
         enabled: false,
@@ -783,8 +783,8 @@ const RAW_THEMES: GlobalTheme[] = [
         style: 'lines',
         size: 24,
         strokeWidth: 1,
-        backgroundColor: '#e8dcc6',
-        backgroundOpacity: 0.4
+        patternBackgroundColor: '#e8dcc6',
+        patternBackgroundOpacity: 0.4
       },
       backgroundImage: {
         enabled: false,
@@ -950,8 +950,8 @@ const RAW_THEMES: GlobalTheme[] = [
         style: 'grid',
         size: 20,
         strokeWidth: 1,
-        backgroundColor: '#2d2d2d',
-        backgroundOpacity: 0.3
+        patternBackgroundColor: '#2d2d2d',
+        patternBackgroundOpacity: 0.3
       },
       backgroundImage: {
         enabled: false,

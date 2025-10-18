@@ -658,9 +658,8 @@ export function ToolSettingsContent({
             const newSize = commonToActual(value);
             if (element.font) {
               updateBothElements('font', { ...element.font, fontSize: newSize });
-            } else {
-              updateBothElements('fontSize', newSize);
             }
+            updateBothElements('fontSize', newSize);
           }}
           min={COMMON_FONT_SIZE_RANGE.min}
           max={COMMON_FONT_SIZE_RANGE.max}
@@ -993,9 +992,7 @@ export function ToolSettingsContent({
     const updateElementSetting = (key: string, value: any) => {
       dispatch({ type: 'SAVE_TO_HISTORY', payload: `Update ${element.type} ${key}` });
       const updates = { [key]: value };
-      
 
-      
       dispatch({
         type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
         payload: { id: element.id, updates }
@@ -1194,8 +1191,8 @@ export function ToolSettingsContent({
 
             <Slider
               label="Brush Size"
-              value={actualToCommonStrokeWidth(element.strokeWidth || 3, element.theme || 'default')}
-              onChange={(value) => updateElementSetting('strokeWidth', commonToActualStrokeWidth(value, element.theme || 'default'))}
+              value={actualToCommonStrokeWidth(element.strokeWidth || 3, element.inheritTheme || element.theme || 'default')}
+              onChange={(value) => updateElementSetting('strokeWidth', commonToActualStrokeWidth(value, element.inheritTheme || element.theme || 'default'))}
               min={1}
               max={getMaxStrokeWidth()}
             />
@@ -1273,8 +1270,8 @@ export function ToolSettingsContent({
 
             <Slider
               label="Stroke Width"
-              value={actualToCommonStrokeWidth(element.strokeWidth || 2, element.theme || 'default')}
-              onChange={(value) => updateElementSetting('strokeWidth', commonToActualStrokeWidth(value, element.theme || 'default'))}
+              value={actualToCommonStrokeWidth(element.strokeWidth || 2, element.inheritTheme || element.theme || 'default')}
+              onChange={(value) => updateElementSetting('strokeWidth', commonToActualStrokeWidth(value, element.inheritTheme || element.theme || 'default'))}
               min={1}
               max={getMaxStrokeWidth()}
             />
@@ -1592,9 +1589,8 @@ export function ToolSettingsContent({
                 const newSize = commonToActual(value);
                 if (element.font) {
                   updateElementSetting('font', { ...element.font, fontSize: newSize });
-                } else {
-                  updateElementSetting('fontSize', newSize);
                 }
+                updateElementSetting('fontSize', newSize);
               }}
               min={COMMON_FONT_SIZE_RANGE.min}
               max={COMMON_FONT_SIZE_RANGE.max}

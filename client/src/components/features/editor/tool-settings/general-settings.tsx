@@ -102,15 +102,15 @@ export function GeneralSettings({
                 const newBackground = {
                   type: theme.pageSettings.backgroundPattern?.enabled ? 'pattern' : 'color',
                   value: theme.pageSettings.backgroundPattern?.enabled ? theme.pageSettings.backgroundPattern.style : theme.pageSettings.backgroundColor,
-                  opacity: 1,
+                  opacity: theme.pageSettings.backgroundOpacity || 1,
                   pageTheme: themeId,
                   ruledLines: theme.ruledLines,
                   ...(theme.pageSettings.backgroundPattern?.enabled && {
                     patternSize: theme.pageSettings.backgroundPattern.size,
                     patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
                     patternForegroundColor: theme.pageSettings.backgroundColor,
-                    patternBackgroundColor: theme.pageSettings.backgroundPattern.backgroundColor,
-                    patternBackgroundOpacity: theme.pageSettings.backgroundPattern.backgroundOpacity
+                    patternBackgroundColor: theme.pageSettings.backgroundPattern.patternBackgroundColor,
+                    patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity
                   })
                 };
                 
@@ -191,15 +191,15 @@ export function GeneralSettings({
                   const newBackground = {
                     type: theme.pageSettings.backgroundPattern?.enabled ? 'pattern' : 'color',
                     value: theme.pageSettings.backgroundPattern?.enabled ? theme.pageSettings.backgroundPattern.style : theme.pageSettings.backgroundColor,
-                    opacity: 1,
+                    opacity: theme.pageSettings.backgroundOpacity || 1,
                     pageTheme: undefined, // Clear page theme override
                     ruledLines: theme.ruledLines,
                     ...(theme.pageSettings.backgroundPattern?.enabled && {
                       patternSize: theme.pageSettings.backgroundPattern.size,
                       patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
                       patternForegroundColor: theme.pageSettings.backgroundColor,
-                      patternBackgroundColor: theme.pageSettings.backgroundPattern.backgroundColor,
-                      patternBackgroundOpacity: theme.pageSettings.backgroundPattern.backgroundOpacity
+                      patternBackgroundColor: theme.pageSettings.backgroundPattern.patternBackgroundColor,
+                      patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity
                     })
                   };
                   
