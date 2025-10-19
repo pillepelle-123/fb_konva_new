@@ -6,7 +6,7 @@ import { ToolSettingsHeader } from './tool-settings-header';
 import { ToolSettingsContent } from './tool-settings-content';
 import { Dialog, DialogContent } from '../../../ui/overlays/dialog';
 import { Modal } from '../../../ui/overlays/modal';
-import QuestionsManagerContent from '../../questions/questions-manager-content';
+import QuestionsManagerDialog from '../questions-manager-dialog';
 import ImagesContent from '../../images/images-content';
 import { MousePointer, Hand, MessageCircleMore, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile } from 'lucide-react';
 
@@ -168,7 +168,7 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, {}>((props, ref) => {
     <>
       <ToolSettingsContainer 
         isExpanded={!isCollapsed} 
-        isVisible={true}
+        isVisible={state.settingsPanelVisible}
       >
 
         {/* Header with Collapse Button */}
@@ -259,7 +259,7 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, {}>((props, ref) => {
       {showQuestionDialog && state.currentBook && token && (
         <Dialog open={showQuestionDialog} onOpenChange={setShowQuestionDialog}>
           <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden">
-            <QuestionsManagerContent
+            <QuestionsManagerDialog
               bookId={state.currentBook.id}
               bookName={state.currentBook.name}
               mode="select"

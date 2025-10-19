@@ -5,6 +5,9 @@ import { Button } from '../../ui/primitives/button';
 import { Input } from '../../ui/primitives/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../ui/overlays/dialog';
 
+// Store for temporary books
+const tempBooks = new Map();
+
 interface CreateBookDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -28,7 +31,7 @@ export default function CreateBookDialog({ open, onOpenChange, onSuccess }: Crea
 }
 
 function AddBookForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
-  const { token } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [pageSize, setPageSize] = useState('A4');
@@ -36,26 +39,36 @@ function AddBookForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-      const response = await fetch(`${apiUrl}/books`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ name, pageSize, orientation })
-      });
-      if (response.ok) {
-        const newBook = await response.json();
-        onSuccess();
-        onClose();
-        navigate(`/editor/${newBook.id}`);
-      }
-    } catch (error) {
-      console.error('Error creating book:', error);
-    }
+    
+    // Create temporary book ID
+    const tempId = `temp_${Date.now()}`;
+    
+    // Create book in temporary storage
+    const newBook = {
+      id: tempId,
+      name,
+      pageSize,
+      orientation,
+      owner_id: user?.id,
+      pages: [{
+        id: Date.now(),
+        pageNumber: 1,
+        elements: [],
+        database_id: undefined
+      }],
+      isTemporary: true
+    };
+    
+    // Store temporarily
+    tempBooks.set(tempId, newBook);
+    
+    onSuccess();
+    onClose();
+    navigate(`/editor/${tempId}`);
   };
+
+  // Export tempBooks for use in editor
+  (window as any).tempBooks = tempBooks;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">

@@ -130,8 +130,10 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
       <FloatingActionButtons
         editorBarVisible={state.editorBarVisible}
         toolbarVisible={state.toolbarVisible}
+        settingsPanelVisible={state.settingsPanelVisible}
         onToggleEditorBar={() => dispatch({ type: 'TOGGLE_EDITOR_BAR' })}
         onToggleToolbar={() => dispatch({ type: 'TOGGLE_TOOLBAR' })}
+        onToggleSettingsPanel={() => dispatch({ type: 'TOGGLE_SETTINGS_PANEL' })}
       />
 
       {/* Editor Bar */}
@@ -203,6 +205,17 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
                 onClose={handleClose}
                 isSaving={isSaving}
               />
+              
+              <Tooltip content="Close Editor" side="bottom_editor_bar">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate('/books')}
+                  className="h-8 w-8 p-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </Tooltip>
             </div>
           </div>
         )}

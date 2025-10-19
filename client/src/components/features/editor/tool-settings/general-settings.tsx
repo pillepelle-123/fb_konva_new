@@ -542,7 +542,15 @@ export function GeneralSettings({
   }
 
   const { user } = useAuth();
-  const isAuthor = user?.role === 'author';
+  
+  // Check if user can access any settings at all
+  const canAccessAnySettings = state.editorInteractionLevel === 'full_edit_with_settings';
+  
+  // Check if user can access book-related settings (only publishers and book owners)
+  const canAccessBookSettings = state.userRole === 'publisher' || (user && state.currentBook && user.id === state.currentBook.owner_id);
+  
+  // Check if user can access page-related settings
+  const canAccessPageSettings = canAccessAnySettings;
 
   return (
     <div className="space-y-3">
@@ -551,9 +559,9 @@ export function GeneralSettings({
         <Button
           variant="ghost_hover"
           size="sm"
-          onClick={() => !isAuthor && setShowBookTheme(true)}
-          className={`w-full justify-start ${isAuthor ? 'opacity-50 cursor-not-allowed' : ''}`}
-          disabled={isAuthor}
+          onClick={() => canAccessAnySettings && canAccessBookSettings && setShowBookTheme(true)}
+          className={`w-full justify-start ${!canAccessAnySettings || !canAccessBookSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
+          disabled={!canAccessAnySettings || !canAccessBookSettings}
         >
           <Palette className="h-4 w-4 mr-2" />
           Book Theme
@@ -568,9 +576,9 @@ export function GeneralSettings({
           <Button
             variant="ghost_hover"
             size="sm"
-            onClick={() => canEditSettings() && setShowBackgroundSettings(true)}
-            className={`w-full justify-start ${!canEditSettings() ? 'opacity-50 cursor-not-allowed' : ''}`}
-            disabled={!canEditSettings()}
+            onClick={() => canAccessPageSettings && setShowBackgroundSettings(true)}
+            className={`w-full justify-start ${!canAccessPageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={!canAccessPageSettings}
           >
             <PaintBucket className="h-4 w-4 mr-2" />
             Background
@@ -578,9 +586,9 @@ export function GeneralSettings({
           <Button
             variant="ghost_hover"
             size="sm"
-            onClick={() => canEditSettings() && setShowPageTheme(true)}
-            className={`w-full justify-start ${!canEditSettings() ? 'opacity-50 cursor-not-allowed' : ''}`}
-            disabled={!canEditSettings()}
+            onClick={() => canAccessPageSettings && setShowPageTheme(true)}
+            className={`w-full justify-start ${!canAccessPageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={!canAccessPageSettings}
           >
             <Palette className="h-4 w-4 mr-2" />
             Page Theme

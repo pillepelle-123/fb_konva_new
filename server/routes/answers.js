@@ -46,9 +46,9 @@ router.post('/', authenticateToken, async (req, res) => {
         [cleanAnswerText, userId, questionId]
       );
     } else {
-      // Create new answer
+      // Create new answer with UUID
       result = await pool.query(
-        'INSERT INTO public.answers (user_id, question_id, answer_text) VALUES ($1, $2, $3) RETURNING *',
+        'INSERT INTO public.answers (id, user_id, question_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3) RETURNING *',
         [userId, questionId, cleanAnswerText]
       );
     }
@@ -128,7 +128,7 @@ router.get('/book/:bookId', authenticateToken, async (req, res) => {
 
     // Get answers for these questions by this user
     const answers = await pool.query(
-      'SELECT * FROM public.answers WHERE user_id = $1 AND question_id = ANY($2::int[])',
+      'SELECT * FROM public.answers WHERE user_id = $1 AND question_id = ANY($2::uuid[])',
       [userId, questionIds]
     );
 

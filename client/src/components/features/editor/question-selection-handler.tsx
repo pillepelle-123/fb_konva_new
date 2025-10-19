@@ -12,7 +12,7 @@ export default function QuestionSelectionHandler() {
       const currentPageNumber = state.activePageIndex + 1;
       const assignedUser = state.pageAssignments[currentPageNumber];
       
-      if (assignedUser && questionId > 0) {
+      if (assignedUser && questionId) {
         // Check if question is available for this user
         if (!isQuestionAvailableForUser(questionId, assignedUser.id)) {
           // Show alert and prevent assignment
@@ -29,6 +29,11 @@ export default function QuestionSelectionHandler() {
         }
       }
       
+      // Store question text in temp storage for new questions
+      if (questionId && questionText) {
+        dispatch({ type: 'UPDATE_TEMP_QUESTION', payload: { questionId, text: questionText } });
+      }
+      
       // Proceed with question assignment
       dispatch({
         type: 'UPDATE_ELEMENT',
@@ -37,8 +42,6 @@ export default function QuestionSelectionHandler() {
           updates: { questionId: questionId, text: questionText }
         }
       });
-      
-      dispatch({ type: 'UPDATE_USER_QUESTION_ASSIGNMENTS' });
     };
 
     window.addEventListener('questionSelected', handleQuestionSelect as EventListener);

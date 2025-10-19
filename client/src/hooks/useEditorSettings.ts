@@ -11,7 +11,7 @@ interface FavoriteColors {
   strokeColors?: string[];
 }
 
-export function useEditorSettings(bookId: number | undefined) {
+export function useEditorSettings(bookId: number | string | undefined) {
   const { token } = useAuth();
   const [settings, setSettings] = useState<EditorSettings>({});
   const [loading, setLoading] = useState(false);
@@ -19,6 +19,12 @@ export function useEditorSettings(bookId: number | undefined) {
   // Load settings
   useEffect(() => {
     if (!bookId || !token) return;
+    
+    // Skip loading for temporary books
+    if (typeof bookId === 'string' && bookId.startsWith('temp_')) {
+      setSettings({});
+      return;
+    }
 
     const loadSettings = async () => {
       setLoading(true);
@@ -49,6 +55,24 @@ export function useEditorSettings(bookId: number | undefined) {
   // Save setting
   const saveSetting = async (settingType: string, settingKey: string, settingValue: any) => {
     if (!bookId || !token) return;
+    
+    // Skip saving for temporary books
+    if (typeof bookId === 'string' && bookId.startsWith('temp_')) {
+      // Update local state only for temporary books
+      setSettings(prev => {
+        if (settingType === 'favoriteColors') {
+          return {
+            ...prev,
+            favoriteColors: {
+              ...prev.favoriteColors,
+              [settingKey]: settingValue
+            }
+          };
+        }
+        return prev;
+      });
+      return;
+    }
 
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -92,6 +116,23 @@ export function useEditorSettings(bookId: number | undefined) {
   // Delete setting
   const deleteSetting = async (settingType: string, settingKey: string) => {
     if (!bookId || !token) return;
+    
+    // Skip deleting for temporary books
+    if (typeof bookId === 'string' && bookId.startsWith('temp_')) {
+      // Update local state only for temporary books
+      setSettings(prev => {
+        const newSettings = { ...prev };
+        if (settingType === 'favoriteColors' && newSettings.favoriteColors) {
+          const favoriteColors = { ...newSettings.favoriteColors };
+          if (settingKey === 'strokeColors') {
+            delete favoriteColors.strokeColors;
+          }
+          newSettings.favoriteColors = favoriteColors;
+        }
+        return newSettings;
+      });
+      return;
+    }
 
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';

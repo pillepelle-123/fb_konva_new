@@ -1,11 +1,13 @@
 import { Button } from '../../ui/primitives/button';
-import { PanelTop, Wrench } from 'lucide-react';
+import { PanelTop, PanelLeft, PanelRight } from 'lucide-react';
 
 interface FloatingActionButtonsProps {
   editorBarVisible: boolean;
   toolbarVisible: boolean;
+  settingsPanelVisible: boolean;
   onToggleEditorBar: () => void;
   onToggleToolbar: () => void;
+  onToggleSettingsPanel: () => void;
 }
 
 /* Button only in Mobile Mode to open toolbar and editor-bar */
@@ -13,26 +15,37 @@ interface FloatingActionButtonsProps {
 export function FloatingActionButtons({
   editorBarVisible,
   toolbarVisible,
+  settingsPanelVisible,
   onToggleEditorBar,
-  onToggleToolbar
+  onToggleToolbar,
+  onToggleSettingsPanel
 }: FloatingActionButtonsProps) {
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col md:hidden">
+    <div className="fixed bottom-4 right-4 z-50 flex flex-row md:hidden">
+      <Button
+        onClick={onToggleToolbar}
+        className="h-12 w-12 rounded-l-full rounded-r-none shadow-lg border-r-0"
+        size="icon"
+        variant={toolbarVisible ? "default" : "outline"}
+      >
+        <PanelLeft className="h-5 w-5" />
+      </Button>
       <Button
         onClick={onToggleEditorBar}
-        className="h-12 w-12 rounded-t-full rounded-b-none shadow-lg border-b-0"
+        className="h-12 w-12  rounded-none shadow-lg border-r-0"
         size="icon"
         variant={editorBarVisible ? "default" : "outline"}
       >
         <PanelTop className="h-5 w-5" />
       </Button>
+
       <Button
-        onClick={onToggleToolbar}
-        className="h-12 w-12 rounded-b-full rounded-t-none shadow-lg"
+        onClick={onToggleSettingsPanel}
+        className="h-12 w-12 rounded-r-full rounded-l-none shadow-lg"
         size="icon"
-        variant={toolbarVisible ? "default" : "outline"}
+        variant={settingsPanelVisible ? "default" : "outline"}
       >
-        <Wrench className="h-5 w-5" />
+        <PanelRight className="h-5 w-5" />
       </Button>
     </div>
   );

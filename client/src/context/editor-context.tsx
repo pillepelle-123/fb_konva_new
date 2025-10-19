@@ -213,9 +213,10 @@ function logThemeStructure(book: Book | null) {
     elementDefaults: convertedElementDefaults
   };
   
-  console.log('=== THEME STRUCTURE FOR GLOBAL-THEMES.TS ===');
-  console.log(JSON.stringify(themeStructure, null, 2));
-  console.log('=== END THEME STRUCTURE ===');
+  // console.log('=== THEME STRUCTURE FOR GLOBAL-THEMES.TS ===');
+  // console.log('temp. disabled in editor-context.tsx line 217')
+  // // console.log(JSON.stringify(themeStructure, null, 2));
+  // console.log('=== END THEME STRUCTURE ===');
 }
 
 export interface CanvasElement {
@@ -235,7 +236,7 @@ export interface CanvasElement {
   align?: 'left' | 'center' | 'right';
   fontFamily?: string;
   textType?: 'question' | 'answer' | 'text' | 'qna';
-  questionId?: number;
+  questionId?: string; // UUID
   answerId?: number;
   questionElementId?: string;
   src?: string;
@@ -278,15 +279,18 @@ export interface Page {
   pageNumber: number;
   elements: CanvasElement[];
   background?: PageBackground;
+  database_id?: number; // Database pages.id
 }
 
 export interface Book {
-  id: number;
+  id: number | string;
   name: string;
   pageSize: string;
   orientation: string;
   pages: Page[];
   bookTheme?: string; // book-level theme ID
+  owner_id?: number; // book owner ID
+  isTemporary?: boolean; // temporary book flag
 }
 
 export interface HistoryState {
@@ -311,12 +315,12 @@ export interface EditorState {
   bookFriends?: any[];
   editorBarVisible: boolean;
   toolbarVisible: boolean;
+  settingsPanelVisible: boolean;
   hasUnsavedChanges: boolean;
   toolSettings: Record<string, Record<string, any>>;
   editorSettings: Record<string, Record<string, any>>;
-  tempQuestions: { [key: number]: string }; // questionId -> text
-  tempAnswers: { [key: number]: string }; // questionId -> text
-  newQuestions: { elementId: string; text: string }[]; // new questions not yet saved
+  tempQuestions: { [key: string]: string }; // questionId (UUID) -> text
+  tempAnswers: { [key: string]: string }; // questionId (UUID) -> text
   history: HistoryState[];
   historyIndex: number;
   historyActions: string[];
@@ -344,13 +348,12 @@ type EditorAction =
   | { type: 'DUPLICATE_PAGE'; payload: number }
   | { type: 'TOGGLE_EDITOR_BAR' }
   | { type: 'TOGGLE_TOOLBAR' }
+  | { type: 'TOGGLE_SETTINGS_PANEL' }
   | { type: 'MARK_SAVED' }
   | { type: 'UPDATE_TOOL_SETTINGS'; payload: { tool: string; settings: Record<string, any> } }
   | { type: 'SET_EDITOR_SETTINGS'; payload: Record<string, Record<string, any>> }
-  | { type: 'UPDATE_TEMP_QUESTION'; payload: { questionId: number; text: string } }
-  | { type: 'UPDATE_TEMP_ANSWER'; payload: { questionId: number; text: string } }
-  | { type: 'ADD_NEW_QUESTION'; payload: { elementId: string; text: string } }
-  | { type: 'UPDATE_NEW_QUESTION'; payload: { elementId: string; text: string } }
+  | { type: 'UPDATE_TEMP_QUESTION'; payload: { questionId: string; text: string } }
+  | { type: 'UPDATE_TEMP_ANSWER'; payload: { questionId: string; text: string } }
   | { type: 'UPDATE_BOOK_NAME'; payload: string }
   | { type: 'CLEAR_TEMP_DATA' }
   | { type: 'UNDO' }
@@ -378,12 +381,12 @@ const initialState: EditorState = {
   bookFriends: undefined,
   editorBarVisible: true,
   toolbarVisible: true,
+  settingsPanelVisible: true,
   hasUnsavedChanges: false,
   toolSettings: {},
   editorSettings: {},
   tempQuestions: {},
   tempAnswers: {},
-  newQuestions: [],
   history: [],
   historyIndex: -1,
   historyActions: [],
@@ -484,7 +487,12 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const pageTheme = currentPage?.background?.pageTheme;
       const bookTheme = savedState.currentBook!.bookTheme;
       const defaults = getToolDefaults(toolType as any, pageTheme, bookTheme);
-      const elementWithDefaults = { ...defaults, ...action.payload };
+      let elementWithDefaults = { ...defaults, ...action.payload };
+      
+      // Assign UUID to question elements
+      if (elementWithDefaults.textType === 'question' && !elementWithDefaults.questionId) {
+        elementWithDefaults.questionId = uuidv4();
+      }
       
       const newBook = {
         ...savedState.currentBook!,
@@ -591,7 +599,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const newPage: Page = {
         id: Date.now(),
         pageNumber: newPageNumber,
-        elements: []
+        elements: [],
+        database_id: undefined // New page, no database ID yet
       };
       return {
         ...savedAddPageState,
@@ -625,7 +634,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const duplicatedPage: Page = {
         id: Date.now(),
         pageNumber: action.payload + 2,
-        elements: pageToDuplicate.elements.map(el => ({ ...el, id: uuidv4() }))
+        elements: pageToDuplicate.elements.map(el => ({ ...el, id: uuidv4() })),
+        background: pageToDuplicate.background,
+        database_id: undefined // Duplicated page, no database ID yet
       };
       const pagesWithDuplicate = [
         ...savedDuplicateState.currentBook!.pages.slice(0, action.payload + 1),
@@ -665,6 +676,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'TOGGLE_TOOLBAR':
       return { ...state, toolbarVisible: !state.toolbarVisible };
+    
+    case 'TOGGLE_SETTINGS_PANEL':
+      return { ...state, settingsPanelVisible: !state.settingsPanelVisible };
     
     case 'MARK_SAVED':
       return { ...state, hasUnsavedChanges: false };
@@ -708,32 +722,13 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         hasUnsavedChanges: true
       };
     
-    case 'ADD_NEW_QUESTION':
-      return {
-        ...state,
-        newQuestions: [...state.newQuestions, action.payload],
-        hasUnsavedChanges: true
-      };
-    
-    case 'UPDATE_NEW_QUESTION':
-      return {
-        ...state,
-        newQuestions: state.newQuestions.map(q => 
-          q.elementId === action.payload.elementId 
-            ? { ...q, text: action.payload.text }
-            : q
-        ),
-        hasUnsavedChanges: true
-      };
-    
 
     
     case 'CLEAR_TEMP_DATA':
       return {
         ...state,
         tempQuestions: {},
-        tempAnswers: {},
-        newQuestions: []
+        tempAnswers: {}
       };
     
     case 'UNDO':
@@ -979,19 +974,18 @@ const EditorContext = createContext<{
   dispatch: React.Dispatch<EditorAction>;
   saveBook: () => Promise<void>;
   loadBook: (bookId: number) => Promise<void>;
-  getQuestionText: (questionId: number) => string;
-  getAnswerText: (questionId: number) => string;
-  updateTempQuestion: (questionId: number, text: string) => void;
-  updateTempAnswer: (questionId: number, text: string) => void;
-  addNewQuestion: (elementId: string, text: string) => void;
+  getQuestionText: (questionId: string) => string;
+  getAnswerText: (questionId: string) => string;
+  updateTempQuestion: (questionId: string, text: string) => void;
+  updateTempAnswer: (questionId: string, text: string) => void;
   undo: () => void;
   redo: () => void;
   goToHistoryStep: (step: number) => void;
   getHistoryActions: () => string[];
   refreshPageAssignments: () => Promise<void>;
-  getQuestionAssignmentsForUser: (userId: number) => Set<number>;
-  isQuestionAvailableForUser: (questionId: number, userId: number) => boolean;
-  checkUserQuestionConflicts: (userId: number, pageNumber: number) => { questionId: number; questionText: string; pageNumber: number }[];
+  getQuestionAssignmentsForUser: (userId: number) => Set<string>;
+  isQuestionAvailableForUser: (questionId: string, userId: number) => boolean;
+  checkUserQuestionConflicts: (userId: number, pageNumber: number) => { questionId: string; questionText: string; pageNumber: number }[];
   canAccessEditor: () => boolean;
   canEditCanvas: () => boolean;
   canEditSettings: () => boolean;
@@ -1019,31 +1013,69 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     if (!state.currentBook) return;
     
     try {
+
+      
+      // Save questions and answers to database
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const token = localStorage.getItem('token');
+      
+      // Save questions first
+      for (const [questionId, questionText] of Object.entries(state.tempQuestions)) {
+        if (questionText && questionText.trim()) {
+          try {
+            const response = await fetch(`${apiUrl}/questions`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                id: questionId,
+                bookId: state.currentBook.id,
+                questionText: questionText
+              })
+            });
+            
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error('Question save failed:', response.status, errorText);
+            }
+          } catch (error) {
+            console.error('Failed to save question', questionId, ':', error);
+          }
+        }
+      }
+      
+      // Save answers
+      for (const [questionId, answerText] of Object.entries(state.tempAnswers)) {
+        if (answerText && answerText.trim()) {
+          try {
+            await fetch(`${apiUrl}/answers`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                questionId: questionId,
+                answerText: answerText
+              })
+            });
+          } catch (error) {
+            console.error('Failed to save answer for question', questionId, ':', error);
+          }
+        }
+      }
+
+      
       await apiService.saveBook(
         state.currentBook,
         state.tempQuestions,
         state.tempAnswers,
-        state.newQuestions,
+        [],
         state.pageAssignments,
         state.bookFriends || []
       );
-      
-      // Update elements with new question IDs
-      for (const newQuestion of state.newQuestions) {
-        const savedQuestion = await apiService.createQuestion(state.currentBook.id, newQuestion.text);
-        dispatch({ 
-          type: 'UPDATE_ELEMENT', 
-          payload: { 
-            id: newQuestion.elementId, 
-            updates: { questionId: savedQuestion.id } 
-          } 
-        });
-      }
-      
-      let bookToSave = state.currentBook;
-      
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const token = localStorage.getItem('token');
       
       // For authors, only save assigned pages
       if (user?.role === 'author' && state.assignedPages.length > 0) {
@@ -1080,7 +1112,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify(bookToSave)
+          body: JSON.stringify(state.currentBook)
         });
         
         if (!response.ok) throw new Error('Failed to save book');
@@ -1088,12 +1120,16 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       
       // Save page assignments if any exist (publishers only)
       if (user?.role !== 'author' && Object.keys(state.pageAssignments).length > 0) {
-        const assignments = Object.entries(state.pageAssignments).map(([pageNumber, user]) => ({
-          pageNumber: parseInt(pageNumber),
-          userId: user?.id || null
-        }));
+        const assignments = Object.entries(state.pageAssignments)
+          .filter(([_, assignedUser]) => assignedUser !== null)
+          .map(([pageNumber, assignedUser]) => ({
+            pageNumber: parseInt(pageNumber),
+            userId: assignedUser?.id || null
+          }));
         
-        await fetch(`${apiUrl}/page-assignments/book/${state.currentBook.id}`, {
+
+        
+        const assignmentResponse = await fetch(`${apiUrl}/page-assignments/book/${state.currentBook.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -1101,11 +1137,41 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
           },
           body: JSON.stringify({ assignments })
         });
+        
+        if (!assignmentResponse.ok) {
+          throw new Error('Failed to save page assignments');
+        }
       }
       
       // Save book friends and permissions (publishers only)
+      
       if (user?.role !== 'author' && state.bookFriends && state.bookFriends.length > 0) {
-        // Save book friends permissions in bulk
+        // First, add any new friends to the book
+        for (const friend of state.bookFriends) {
+          try {
+            const addResponse = await fetch(`${apiUrl}/books/${state.currentBook.id}/friends`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                friendId: friend.id,
+                book_role: friend.book_role || 'author',
+                page_access_level: friend.pageAccessLevel || 'own_page',
+                editor_interaction_level: friend.editorInteractionLevel || 'full_edit'
+              })
+            });
+            
+            if (!addResponse.ok && addResponse.status !== 409) { // 409 = already exists
+              throw new Error(`Failed to add friend ${friend.id}`);
+            }
+          } catch (error) {
+            // Ignore errors for existing friends
+          }
+        }
+        
+        // Then update permissions for all friends
         const friendsWithPermissions = state.bookFriends.map(friend => ({
           user_id: friend.id,
           role: friend.role,
@@ -1114,7 +1180,9 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
           editor_interaction_level: friend.editorInteractionLevel || 'full_edit'
         }));
         
-        await fetch(`${apiUrl}/books/${state.currentBook.id}/friends/bulk-update`, {
+
+        
+        const response = await fetch(`${apiUrl}/books/${state.currentBook.id}/friends/bulk-update`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -1122,6 +1190,10 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
           },
           body: JSON.stringify({ friends: friendsWithPermissions })
         });
+        
+        if (!response.ok) {
+          throw new Error('Failed to save book friends permissions');
+        }
       }
       
 
@@ -1143,16 +1215,17 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       
       // Store questions and answers in temp storage
       questions.forEach(q => {
-        dispatch({ type: 'UPDATE_TEMP_QUESTION', payload: { questionId: q.id, text: q.question_text } });
+        dispatch({ type: 'UPDATE_TEMP_QUESTION', payload: { questionId: q.id.toString(), text: q.question_text } });
       });
       
       answers.forEach(a => {
-        dispatch({ type: 'UPDATE_TEMP_ANSWER', payload: { questionId: a.question_id, text: a.answer_text } });
+        dispatch({ type: 'UPDATE_TEMP_ANSWER', payload: { questionId: a.question_id.toString(), text: a.answer_text } });
       });
       
-      // Load editor settings
+      // Load editor settings and book friends
       const token = localStorage.getItem('token');
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      
       try {
         const settingsResponse = await fetch(`${apiUrl}/editor-settings/${bookId}`, {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -1176,9 +1249,30 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         console.warn('Failed to load editor settings:', settingsError);
       }
       
-      // Themes are now loaded from database, no localStorage needed
+      // Load book friends
+      try {
+        const friendsResponse = await fetch(`${apiUrl}/books/${bookId}/friends`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (friendsResponse.ok) {
+          const bookFriends = await friendsResponse.json();
+
+          dispatch({ type: 'SET_BOOK_FRIENDS', payload: bookFriends });
+        }
+      } catch (friendsError) {
+        console.warn('Failed to load book friends:', friendsError);
+      }
       
-      dispatch({ type: 'SET_BOOK', payload: book });
+      // Map database IDs to pages
+      const bookWithDatabaseIds = {
+        ...book,
+        pages: book.pages.map(page => ({
+          ...page,
+          database_id: page.id // Store original database ID
+        }))
+      };
+      
+      dispatch({ type: 'SET_BOOK', payload: bookWithDatabaseIds });
       
       if (userRole) {
         dispatch({ type: 'SET_USER_ROLE', payload: { role: userRole.role, assignedPages: userRole.assignedPages || [] } });
@@ -1221,7 +1315,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [dispatch]);
 
-  const getQuestionText = (questionId: number): string => {
+  const getQuestionText = (questionId: string): string => {
     // Check temporary storage first, then fallback to canvas elements
     if (state.tempQuestions[questionId]) {
       return state.tempQuestions[questionId];
@@ -1239,7 +1333,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     return '';
   };
   
-  const getAnswerText = (questionId: number): string => {
+  const getAnswerText = (questionId: string): string => {
     // Check temporary storage first, then fallback to canvas elements
     if (state.tempAnswers[questionId]) {
       return state.tempAnswers[questionId];
@@ -1260,16 +1354,12 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     return '';
   };
   
-  const updateTempQuestion = (questionId: number, text: string) => {
+  const updateTempQuestion = (questionId: string, text: string) => {
     dispatch({ type: 'UPDATE_TEMP_QUESTION', payload: { questionId, text } });
   };
   
-  const updateTempAnswer = (questionId: number, text: string) => {
+  const updateTempAnswer = (questionId: string, text: string) => {
     dispatch({ type: 'UPDATE_TEMP_ANSWER', payload: { questionId, text } });
-  };
-  
-  const addNewQuestion = (elementId: string, text: string) => {
-    dispatch({ type: 'ADD_NEW_QUESTION', payload: { elementId, text } });
   };
   
   const undo = () => {
@@ -1288,7 +1378,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     return state.historyActions;
   };
   
-  const getQuestionAssignmentsForUser = (userId: number): Set<number> => {
+  const getQuestionAssignmentsForUser = (userId: number): Set<string> => {
     if (!state.currentBook) return new Set();
     
     // Get all pages assigned to this user
@@ -1297,7 +1387,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       .map(([pageNum, _]) => parseInt(pageNum));
     
     // Get all questions on those pages
-    const assignedQuestions = new Set<number>();
+    const assignedQuestions = new Set<string>();
     state.currentBook.pages.forEach(page => {
       if (userPages.includes(page.pageNumber)) {
         page.elements.forEach(element => {
@@ -1311,10 +1401,10 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     return assignedQuestions;
   };
   
-  const checkUserQuestionConflicts = (userId: number, pageNumber: number): { questionId: number; questionText: string; pageNumber: number }[] => {
+  const checkUserQuestionConflicts = (userId: number, pageNumber: number): { questionId: string; questionText: string; pageNumber: number }[] => {
     if (!state.currentBook) return [];
     
-    const conflicts: { questionId: number; questionText: string; pageNumber: number }[] = [];
+    const conflicts: { questionId: string; questionText: string; pageNumber: number }[] = [];
     
     // Get questions on the target page
     const targetPage = state.currentBook.pages.find(p => p.pageNumber === pageNumber);
@@ -1346,7 +1436,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     return conflicts;
   };
   
-  const isQuestionAvailableForUser = (questionId: number, userId: number): boolean => {
+  const isQuestionAvailableForUser = (questionId: string, userId: number): boolean => {
     const userQuestions = getQuestionAssignmentsForUser(userId);
     return !userQuestions.has(questionId);
   };
@@ -1393,8 +1483,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       getQuestionText, 
       getAnswerText, 
       updateTempQuestion, 
-      updateTempAnswer, 
-      addNewQuestion,
+      updateTempAnswer,
       undo,
       redo,
       goToHistoryStep,

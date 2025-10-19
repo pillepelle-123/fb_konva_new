@@ -15,7 +15,7 @@ import ContextMenu from '../../../ui/overlays/context-menu';
 import { Modal } from '../../../ui/overlays/modal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../ui/overlays/dialog';
 import ImagesContent from '../../images/images-content';
-import QuestionsManagerContent from '../../questions/questions-manager-content';
+import QuestionsManagerDialog from '../questions-manager-dialog';
 import TextEditorModal from '../text-editor-modal';
 import { getToolDefaults } from '../../../../utils/tool-defaults';
 import { Alert, AlertDescription } from '../../../ui/composites/alert';
@@ -2086,7 +2086,7 @@ export default function Canvas() {
             <DialogHeader>
               <DialogTitle>Select Question</DialogTitle>
             </DialogHeader>
-            <QuestionsManagerContent
+            <QuestionsManagerDialog
               bookId={state.currentBook.id}
               bookName={state.currentBook.name}
               mode="select"

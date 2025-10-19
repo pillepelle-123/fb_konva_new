@@ -5,7 +5,9 @@ import EditorBar from '../../components/features/editor/editor-bar';
 import Toolbar from '../../components/features/editor/toolbar';
 import Canvas from '../../components/features/editor/canvas';
 import ToolSettingsPanel, { type ToolSettingsPanelRef } from '../../components/features/editor/tool-settings/tool-settings-panel';
+import { StatusBar } from '../../components/features/editor/status-bar';
 import { Toast } from '../../components/ui/overlays/toast';
+import QuestionSelectionHandler from '../../components/features/editor/question-selection-handler';
 
 
 function EditorContent() {
@@ -15,15 +17,61 @@ function EditorContent() {
   const [showSaveToast, setShowSaveToast] = useState(false);
 
   useEffect(() => {
-    if (bookId && !isNaN(Number(bookId))) {
-      loadBook(Number(bookId)).catch(() => {
-        // Fallback to sample book if load fails
-        const sampleBook = createSampleBook(Number(bookId));
-        dispatch({ type: 'SET_BOOK', payload: sampleBook });
-      });
-    } else {
-      const sampleBook = createSampleBook();
-      dispatch({ type: 'SET_BOOK', payload: sampleBook });
+    if (bookId) {
+      // Check if it's a temporary book ID
+      if (bookId.startsWith('temp_') || bookId === 'new') {
+        // Get temporary book data from window.tempBooks
+        const tempBooks = (window as any).tempBooks;
+        const tempBook = tempBooks?.get(bookId);
+        
+        // Create a new book in database immediately
+        const createNewBook = async () => {
+          try {
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+            const token = localStorage.getItem('token');
+            
+            const response = await fetch(`${apiUrl}/books`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                name: tempBook?.name || 'New Book',
+                pageSize: tempBook?.pageSize || 'A4',
+                orientation: tempBook?.orientation || 'portrait',
+                bookTheme: 'default'
+              })
+            });
+            
+            if (response.ok) {
+              const newBook = await response.json();
+              // Clean up temporary book
+              if (tempBooks) {
+                tempBooks.delete(bookId);
+              }
+              // Load the newly created book
+              loadBook(newBook.id);
+              // Update URL to use real ID
+              window.history.replaceState(null, '', `/editor/${newBook.id}`);
+            } else {
+              console.error('Failed to create book');
+            }
+          } catch (error) {
+            console.error('Failed to create book:', error);
+          }
+        };
+        
+        createNewBook();
+        return;
+      }
+      
+      // Try to load existing book from database
+      if (!isNaN(Number(bookId))) {
+        loadBook(Number(bookId)).catch((error) => {
+          console.error('Failed to load book:', error);
+        });
+      }
     }
   }, [bookId, loadBook, dispatch]);
 
@@ -71,6 +119,7 @@ function EditorContent() {
 
   return (
     <div className="h-full flex flex-col">
+      <QuestionSelectionHandler />
       <EditorBar toolSettingsPanelRef={toolSettingsPanelRef} />
       
       <div className="flex-1 min-h-0">
@@ -88,22 +137,7 @@ function EditorContent() {
             {canEditCanvas() && <ToolSettingsPanel ref={toolSettingsPanelRef} />}
           </div>
           
-          {/* Status bar */}
-          <div className="px-6 py-2 bg-card border-t border-border text-sm text-muted-foreground flex justify-between items-center shrink-0 gap-4">
-            <span className="font-medium">Tool: <span className="text-foreground">{state.activeTool}</span></span>
-            <span className="font-medium">
-              Book ID: <span className="text-foreground">{state.currentBook.id}</span> | 
-              Page ID: <span className="text-foreground">{state.currentBook.pages[state.activePageIndex]?.id}</span> | 
-              Page Number: <span className="text-foreground">{state.activePageIndex + 1}</span>
-              {state.pageAssignments[state.activePageIndex + 1] && (
-                <> | User: <span className="text-foreground">{state.pageAssignments[state.activePageIndex + 1].id}</span></>
-              )}
-            </span>
-            <span className="font-medium">
-              Selected: <span className="text-foreground">{state.selectedElementIds.length}</span> element{state.selectedElementIds.length !== 1 ? 's' : ''}
-            </span>
-
-          </div>
+          <StatusBar />
         </div>
       </div>
       

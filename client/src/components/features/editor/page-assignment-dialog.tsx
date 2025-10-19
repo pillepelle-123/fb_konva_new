@@ -126,18 +126,39 @@ export default function PageAssignmentDialog({ open, onOpenChange, currentPage, 
   };
   
   const handleSave = () => {
-    // Save page assignment
-    const updatedAssignments = { ...state.pageAssignments };
-    updatedAssignments[currentPage] = pendingAssignment;
-    dispatch({ type: 'SET_PAGE_ASSIGNMENTS', payload: updatedAssignments });
+    // Save page assignment only if there's a pending change
+    if (pendingAssignment !== null) {
+      const updatedAssignments = { ...state.pageAssignments };
+      updatedAssignments[currentPage] = pendingAssignment;
+      dispatch({ type: 'SET_PAGE_ASSIGNMENTS', payload: updatedAssignments });
+    }
     
-    // Save book permissions
-    const updatedFriends = bookFriends.map(friend => ({
-      ...friend,
-      ...pendingPermissions[friend.id]
-    }));
-    setBookFriends(updatedFriends);
-    dispatch({ type: 'SET_BOOK_FRIENDS', payload: updatedFriends });
+    // Update book friends with all local changes and pending permissions
+    const currentBookFriends = state.bookFriends || [];
+    
+    // Merge local bookFriends with current state, applying pending permissions
+    const allFriends = new Map();
+    
+    // Add existing friends from state
+    currentBookFriends.forEach(friend => {
+      allFriends.set(friend.id, friend);
+    });
+    
+    // Add/update with local bookFriends (includes newly added users)
+    bookFriends.forEach(friend => {
+      const existing = allFriends.get(friend.id);
+      allFriends.set(friend.id, {
+        ...existing,
+        ...friend,
+        // Apply pending permissions if any
+        book_role: pendingPermissions[friend.id]?.book_role || friend.book_role || existing?.book_role || 'author',
+        pageAccessLevel: pendingPermissions[friend.id]?.pageAccessLevel || friend.pageAccessLevel || existing?.pageAccessLevel || 'own_page',
+        editorInteractionLevel: pendingPermissions[friend.id]?.editorInteractionLevel || friend.editorInteractionLevel || existing?.editorInteractionLevel || 'full_edit'
+      });
+    });
+    
+    const updatedBookFriends = Array.from(allFriends.values());
+    dispatch({ type: 'SET_BOOK_FRIENDS', payload: updatedBookFriends });
     
     // Clear pending states
     setPendingAssignment(null);
@@ -214,15 +235,7 @@ export default function PageAssignmentDialog({ open, onOpenChange, currentPage, 
       return;
     }
     
-    // Add user to book friends if not already there
-    const currentBookFriends = state.bookFriends || [];
-    const isAlreadyFriend = currentBookFriends.some(friend => friend.id === user.id);
-    
-    if (!isAlreadyFriend) {
-      const updatedBookFriends = [...currentBookFriends, { ...user, role: 'author' }];
-      dispatch({ type: 'SET_BOOK_FRIENDS', payload: updatedBookFriends });
-    }
-    
+    // Only set pending assignment - don't update global state yet
     setPendingAssignment(user);
   };
 
@@ -233,13 +246,19 @@ export default function PageAssignmentDialog({ open, onOpenChange, currentPage, 
   const handleAddFriend = async (friend: User) => {
     setLoading(true);
     try {
-      // Add to book friends in state
-      const updatedBookFriends = [...bookFriends, { ...friend, role: 'author' }];
+      // Add to local book friends with default permissions
+      const newFriend = {
+        ...friend,
+        role: 'author',
+        book_role: 'author' as const,
+        pageAccessLevel: 'own_page' as const,
+        editorInteractionLevel: 'full_edit' as const
+      };
+      const updatedBookFriends = [...bookFriends, newFriend];
       setBookFriends(updatedBookFriends);
-      dispatch({ type: 'SET_BOOK_FRIENDS', payload: updatedBookFriends });
 
-      // Assign to current page
-      handleAssignUser({ ...friend, role: 'author' });
+      // Assign to current page (pending)
+      setPendingAssignment({ ...friend, role: 'author' });
       setShowAddUser(false);
     } catch (error) {
       console.error('Error adding friend:', error);

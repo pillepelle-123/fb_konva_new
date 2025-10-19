@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent } from '../../ui/overlays/dialog';
-import QuestionsManagerContent from '../questions/questions-manager-content';
+import QuestionsManagerDialog from './questions-manager-dialog';
 import { useAuth } from '../../../context/auth-context';
 import { useEditor } from '../../../context/editor-context';
 import type { CanvasElement } from '../../../context/editor-context';
@@ -267,7 +267,7 @@ export default function EnhancedQuillEditor({ element, onSave, onClose, bookId, 
       {showQuestionDialog && bookId && bookName && token && (
         <Dialog open={showQuestionDialog} onOpenChange={setShowQuestionDialog}>
           <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden z-[10001]">
-            <QuestionsManagerContent
+            <QuestionsManagerDialog
               bookId={bookId}
               bookName={bookName}
               onQuestionSelect={handleQuestionSelect}

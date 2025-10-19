@@ -32,21 +32,21 @@ router.get('/:bookId', authenticateToken, async (req, res) => {
   }
 });
 
-// Create new question
+// Create new question with UUID
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { text, book_id } = req.body;
+    const { id, bookId, questionText } = req.body;
     const userId = req.user.id;
     
     // Check if user owns the book
-    const book = await pool.query('SELECT owner_id FROM public.books WHERE id = $1', [book_id]);
+    const book = await pool.query('SELECT owner_id FROM public.books WHERE id = $1', [bookId]);
     if (book.rows.length === 0 || book.rows[0].owner_id !== userId) {
       return res.status(403).json({ error: 'Not authorized' });
     }
     
     const result = await pool.query(
-      'INSERT INTO public.questions (question_text, book_id, created_by, created_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP) RETURNING *',
-      [text, book_id, userId]
+      'INSERT INTO public.questions (id, question_text, book_id, created_by, created_at) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP) ON CONFLICT (id) DO UPDATE SET question_text = $2, updated_at = CURRENT_TIMESTAMP RETURNING *',
+      [id, questionText, bookId, userId]
     );
     
     res.json(result.rows[0]);

@@ -23,7 +23,7 @@ class ApiService {
   }
 
   async saveBook(bookData: any, tempQuestions: Record<number, string>, tempAnswers: Record<number, string>, newQuestions: any[], pageAssignments: any, bookFriends: any[]) {
-    // Save new questions
+    // Save new questions (only if any remain to be processed)
     for (const newQuestion of newQuestions) {
       const response = await fetch(`${this.baseUrl}/books/${bookData.id}/questions`, {
         method: 'POST',
@@ -36,40 +36,52 @@ class ApiService {
       }
     }
 
-    // Save updated questions
+    // Save updated questions (only positive IDs - negative IDs are new questions)
     await Promise.all(
-      Object.entries(tempQuestions).map(([questionId, text]) =>
-        fetch(`${this.baseUrl}/questions/${questionId}`, {
-          method: 'PUT',
-          headers: this.getHeaders(),
-          body: JSON.stringify({ questionText: text })
-        })
-      )
-    );
-
-    // Save/delete answers
-    await Promise.all(
-      Object.entries(tempAnswers).map(([questionId, text]) => {
-        if (text.trim() === '') {
-          return fetch(`${this.baseUrl}/answers/question/${questionId}`, {
-            method: 'DELETE',
-            headers: this.getHeaders()
-          }).catch(() => {}); // Ignore errors
-        } else {
-          return fetch(`${this.baseUrl}/answers`, {
-            method: 'POST',
+      Object.entries(tempQuestions)
+        .filter(([questionId]) => parseInt(questionId) > 0)
+        .map(([questionId, text]) =>
+          fetch(`${this.baseUrl}/questions/${questionId}`, {
+            method: 'PUT',
             headers: this.getHeaders(),
-            body: JSON.stringify({ questionId: parseInt(questionId), answerText: text })
-          });
-        }
-      })
+            body: JSON.stringify({ questionText: text })
+          })
+        )
     );
 
-    // Save book
+    // Save/delete answers (only positive IDs - negative IDs are new questions)
+    await Promise.all(
+      Object.entries(tempAnswers)
+        .filter(([questionId]) => parseInt(questionId) > 0)
+        .map(([questionId, text]) => {
+          if (text.trim() === '') {
+            return fetch(`${this.baseUrl}/answers/question/${questionId}`, {
+              method: 'DELETE',
+              headers: this.getHeaders()
+            }).catch(() => {}); // Ignore errors
+          } else {
+            return fetch(`${this.baseUrl}/answers`, {
+              method: 'POST',
+              headers: this.getHeaders(),
+              body: JSON.stringify({ questionId: parseInt(questionId), answerText: text })
+            });
+          }
+        })
+    );
+
+    // Save book with UPSERT logic for pages
+    const bookToSave = {
+      ...bookData,
+      pages: bookData.pages.map(page => ({
+        ...page,
+        id: page.database_id || undefined // Use database_id if exists, undefined for new pages
+      }))
+    };
+    
     await fetch(`${this.baseUrl}/books/${bookData.id}`, {
       method: 'PUT',
       headers: this.getHeaders(),
-      body: JSON.stringify(bookData)
+      body: JSON.stringify(bookToSave)
     });
   }
 

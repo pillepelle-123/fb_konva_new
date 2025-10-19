@@ -772,8 +772,18 @@ export default function Textbox(props: CanvasItemProps) {
     // Initial height adjustment
     setTimeout(adjustHeight, 0);
     
+    let isRemoved = false;
     const removeTextarea = () => {
-      document.body.removeChild(textarea);
+      if (!isRemoved) {
+        try {
+          if (document.body.contains(textarea)) {
+            document.body.removeChild(textarea);
+          }
+        } catch (e) {
+          // Textarea already removed
+        }
+        isRemoved = true;
+      }
       textNode.show();
       stage.draw();
     };
@@ -789,6 +799,23 @@ export default function Textbox(props: CanvasItemProps) {
       }
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
         const newText = textarea.value;
+        
+        // For answer textboxes, update temp answer state
+        if (element.textType === 'answer' && element.questionElementId) {
+          const currentPage = state.currentBook?.pages[state.activePageIndex];
+          if (currentPage) {
+            const questionElement = currentPage.elements.find(el => el.id === element.questionElementId);
+            if (questionElement?.questionId) {
+              dispatch({
+                type: 'UPDATE_TEMP_ANSWER',
+                payload: {
+                  questionId: questionElement.questionId,
+                  text: newText
+                }
+              });
+            }
+          }
+        }
         
         // Check if user can resize textbox
         const canResize = user?.role === 'admin' || 
@@ -851,6 +878,23 @@ export default function Textbox(props: CanvasItemProps) {
     
     textarea.addEventListener('blur', () => {
       const newText = textarea.value;
+      
+      // For answer textboxes, update temp answer state
+      if (element.textType === 'answer' && element.questionElementId) {
+        const currentPage = state.currentBook?.pages[state.activePageIndex];
+        if (currentPage) {
+          const questionElement = currentPage.elements.find(el => el.id === element.questionElementId);
+          if (questionElement?.questionId) {
+            dispatch({
+              type: 'UPDATE_TEMP_ANSWER',
+              payload: {
+                questionId: questionElement.questionId,
+                text: newText
+              }
+            });
+          }
+        }
+      }
       
       // Check if user can resize textbox
       const canResize = user?.role === 'admin' || 

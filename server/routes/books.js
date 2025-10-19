@@ -247,10 +247,10 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
             [pageId]
           );
 
-          // Add new question associations
+          // Add new question associations (only positive IDs - negative IDs are temporary)
           const elements = page.elements || [];
           for (const element of elements) {
-            if (element.textType === 'question' && element.questionId) {
+            if (element.textType === 'question' && element.questionId && element.questionId > 0) {
               await pool.query(
                 'INSERT INTO public.question_pages (question_id, page_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
                 [element.questionId, pageId]
@@ -309,27 +309,52 @@ router.put('/:id', authenticateToken, async (req, res) => {
         [name, pageSize, orientation, req.body.bookTheme || 'default', bookId]
       );
 
-      // Delete existing pages and their question associations
-      await pool.query('DELETE FROM public.pages WHERE book_id = $1', [bookId]);
-
-      // Insert updated pages and handle question associations
+      // UPSERT pages: update existing, insert new
       for (const page of pages) {
-        const pageResult = await pool.query(
-          'INSERT INTO public.pages (book_id, page_number, elements, page_theme) VALUES ($1, $2, $3, $4) RETURNING id',
-          [bookId, page.pageNumber, JSON.stringify(page), page.background?.pageTheme]
-        );
-        const pageId = pageResult.rows[0].id;
+        let pageId;
+        
+        if (page.id) {
+          // Update existing page
+          await pool.query(
+            'UPDATE public.pages SET page_number = $1, elements = $2, page_theme = $3 WHERE id = $4 AND book_id = $5',
+            [page.pageNumber, JSON.stringify(page), page.background?.pageTheme, page.id, bookId]
+          );
+          pageId = page.id;
+        } else {
+          // Insert new page
+          const pageResult = await pool.query(
+            'INSERT INTO public.pages (book_id, page_number, elements, page_theme) VALUES ($1, $2, $3, $4) RETURNING id',
+            [bookId, page.pageNumber, JSON.stringify(page), page.background?.pageTheme]
+          );
+          pageId = pageResult.rows[0].id;
+        }
 
-        // Find question elements and create question_pages associations
+        // Remove existing question associations for this page
+        await pool.query(
+          'DELETE FROM public.question_pages WHERE page_id = $1',
+          [pageId]
+        );
+
+        // Add new question associations (only positive IDs - negative IDs are temporary)
         const elements = page.elements || [];
         for (const element of elements) {
-          if (element.textType === 'question' && element.questionId) {
+          if (element.textType === 'question' && element.questionId && element.questionId > 0) {
             await pool.query(
               'INSERT INTO public.question_pages (question_id, page_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
               [element.questionId, pageId]
             );
           }
         }
+      }
+      
+      // Delete pages that are no longer in the pages array
+      const existingPageIds = pages.filter(p => p.id).map(p => p.id);
+      if (existingPageIds.length > 0) {
+        const placeholders = existingPageIds.map((_, i) => `$${i + 2}`).join(',');
+        await pool.query(
+          `DELETE FROM public.pages WHERE book_id = $1 AND id NOT IN (${placeholders})`,
+          [bookId, ...existingPageIds]
+        );
       }
     }
 
@@ -359,12 +384,13 @@ router.post('/', authenticateToken, async (req, res) => {
       [bookId, 1, JSON.stringify([]), null]
     );
 
-    // Add owner as publisher collaborator
+    // Add owner as owner collaborator with full permissions
     await pool.query(
-      'INSERT INTO public.book_friends (book_id, user_id, book_role) VALUES ($1, $2, $3)',
-      [bookId, userId, 'publisher']
+      'INSERT INTO public.book_friends (book_id, user_id, book_role, page_access_level, editor_interaction_level) VALUES ($1, $2, $3, $4, $5)',
+      [bookId, userId, 'owner', 'all_pages', 'full_edit_with_settings']
     );
 
+    console.log(`Created book ${bookId} and added owner ${userId} to book_friends`);
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Book creation error:', error);
@@ -421,6 +447,8 @@ router.post('/:id/collaborators', authenticateToken, async (req, res) => {
     const { email } = req.body;
     const userId = req.user.id;
 
+    console.log('Adding collaborator by email:', { bookId, email });
+
     // Check if user is owner
     const book = await pool.query('SELECT * FROM public.books WHERE id = $1 AND owner_id = $2', [bookId, userId]);
     if (book.rows.length === 0) {
@@ -428,19 +456,44 @@ router.post('/:id/collaborators', authenticateToken, async (req, res) => {
     }
 
     // Find user by email
-    const user = await pool.query('SELECT id FROM public.users WHERE email = $1', [email]);
+    const user = await pool.query('SELECT id, name FROM public.users WHERE email = $1', [email]);
     if (user.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Add collaborator
-    await pool.query(
-      'INSERT INTO public.book_friends (book_id, user_id, book_role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-      [bookId, user.rows[0].id, 'author']
+    const collaboratorId = user.rows[0].id;
+    const collaboratorName = user.rows[0].name;
+
+    // Check if user is already a collaborator
+    const existingCollaborator = await pool.query(
+      'SELECT * FROM public.book_friends WHERE book_id = $1 AND user_id = $2',
+      [bookId, collaboratorId]
     );
 
-    res.json({ success: true });
+    if (existingCollaborator.rows.length > 0) {
+      return res.status(409).json({ error: 'User is already a collaborator on this book' });
+    }
+
+    // Add friendship if it doesn't exist
+    await pool.query(
+      'INSERT INTO public.friendships (user_id, friend_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [userId, collaboratorId]
+    );
+    await pool.query(
+      'INSERT INTO public.friendships (user_id, friend_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [collaboratorId, userId]
+    );
+
+    // Add collaborator with default permissions
+    const result = await pool.query(
+      'INSERT INTO public.book_friends (book_id, user_id, book_role, page_access_level, editor_interaction_level) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [bookId, collaboratorId, 'author', 'own_page', 'full_edit']
+    );
+
+    console.log('Collaborator added successfully:', { collaboratorName, result: result.rows[0] });
+    res.json({ success: true, collaborator: result.rows[0] });
   } catch (error) {
+    console.error('Add collaborator error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -453,6 +506,8 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     const userToAdd = friendId || targetUserId;
 
+    console.log('Adding friend to book:', { bookId, userToAdd, role: book_role || role, page_access_level, editor_interaction_level });
+
     // Check if user has access to manage this book
     const bookAccess = await pool.query(`
       SELECT b.*, bf.book_role as user_book_role FROM public.books b
@@ -464,23 +519,43 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    // Verify the friend relationship exists
+    // Verify the friend relationship exists or create it if it doesn't
     const friendship = await pool.query(
       'SELECT * FROM public.friendships WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)',
       [userId, userToAdd]
     );
 
     if (friendship.rows.length === 0) {
-      return res.status(403).json({ error: 'Not friends with this user' });
+      // Auto-create friendship when adding to book
+      await pool.query(
+        'INSERT INTO public.friendships (user_id, friend_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [userId, userToAdd]
+      );
+      await pool.query(
+        'INSERT INTO public.friendships (user_id, friend_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [userToAdd, userId]
+      );
+      console.log(`Auto-created friendship between ${userId} and ${userToAdd}`);
+    }
+
+    // Check if user is already in book_friends
+    const existingFriend = await pool.query(
+      'SELECT * FROM public.book_friends WHERE book_id = $1 AND user_id = $2',
+      [bookId, userToAdd]
+    );
+
+    if (existingFriend.rows.length > 0) {
+      return res.status(409).json({ error: 'User is already a collaborator on this book' });
     }
 
     // Add friend to book with permissions
-    await pool.query(
-      'INSERT INTO public.book_friends (book_id, user_id, book_role, page_access_level, editor_interaction_level) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING',
+    const result = await pool.query(
+      'INSERT INTO public.book_friends (book_id, user_id, book_role, page_access_level, editor_interaction_level) VALUES ($1, $2, $3, $4, $5) RETURNING *',
       [bookId, userToAdd, book_role || role, page_access_level || 'own_page', editor_interaction_level || 'full_edit']
     );
 
-    res.json({ success: true });
+    console.log('Friend added successfully:', result.rows[0]);
+    res.json({ success: true, friend: result.rows[0] });
   } catch (error) {
     console.error('Add friend to book error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -668,14 +743,21 @@ router.get('/:id/friends', authenticateToken, async (req, res) => {
     }
 
     const friends = await pool.query(`
-      SELECT u.id, u.name, u.email, bf.book_role as role, bf.book_role, bf.page_access_level as pageAccessLevel, bf.editor_interaction_level as editorInteractionLevel
+      SELECT u.id, u.name, u.email, bf.book_role as role, bf.book_role, bf.page_access_level, bf.editor_interaction_level
       FROM public.book_friends bf
       JOIN public.users u ON bf.user_id = u.id
       WHERE bf.book_id = $1 AND bf.user_id != $2
       ORDER BY u.name ASC
     `, [bookId, userId]);
+    
+    const friendsWithCorrectFields = friends.rows.map(friend => ({
+      ...friend,
+      pageAccessLevel: friend.page_access_level,
+      editorInteractionLevel: friend.editor_interaction_level
+    }));
 
-    res.json(friends.rows);
+    // console.log(`Found ${friendsWithCorrectFields.length} friends for book ${bookId}:`, friendsWithCorrectFields);
+    res.json(friendsWithCorrectFields);
   } catch (error) {
     console.error('Friends fetch error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -720,6 +802,8 @@ router.put('/:id/friends/bulk-update', authenticateToken, async (req, res) => {
     const { friends } = req.body;
     const userId = req.user.id;
 
+    console.log('Bulk updating book friends:', { bookId, friendsCount: friends.length, friends });
+
     // Check if user is owner or publisher
     const bookAccess = await pool.query(`
       SELECT b.*, bf.book_role as user_book_role FROM public.books b
@@ -733,10 +817,12 @@ router.put('/:id/friends/bulk-update', authenticateToken, async (req, res) => {
 
     // Update each friend's permissions
     for (const friend of friends) {
-      await pool.query(
-        'UPDATE public.book_friends SET book_role = $1, page_access_level = $2, editor_interaction_level = $3 WHERE book_id = $4 AND user_id = $5',
+      console.log('Updating friend:', friend);
+      const result = await pool.query(
+        'UPDATE public.book_friends SET book_role = $1, page_access_level = $2, editor_interaction_level = $3 WHERE book_id = $4 AND user_id = $5 RETURNING *',
         [friend.book_role, friend.page_access_level, friend.editor_interaction_level, bookId, friend.user_id]
       );
+      console.log('Update result:', result.rows[0]);
     }
 
     res.json({ success: true });

@@ -18,6 +18,18 @@ export default function BookAccessGuard({ children }: BookAccessGuardProps) {
         return;
       }
 
+      // Handle temporary books - always allow access for creator
+      if (bookId.startsWith('temp_')) {
+        const tempBooks = (window as any).tempBooks;
+        const tempBook = tempBooks?.get(bookId);
+        if (tempBook && tempBook.owner_id === user.id) {
+          setHasAccess(true);
+          return;
+        }
+        setHasAccess(false);
+        return;
+      }
+
       try {
         const token = localStorage.getItem('token');
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
