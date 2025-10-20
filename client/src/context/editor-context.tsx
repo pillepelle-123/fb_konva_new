@@ -1012,6 +1012,14 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
   const saveBook = async () => {
     if (!state.currentBook) return;
     
+    // Prevent concurrent saves
+    if (saveBook.isRunning) {
+      console.log('Save already in progress, skipping duplicate call');
+      return;
+    }
+    
+    saveBook.isRunning = true;
+    
     try {
 
       
@@ -1206,6 +1214,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       dispatch({ type: 'MARK_SAVED' });
     } catch (error) {
       throw error;
+    } finally {
+      saveBook.isRunning = false;
     }
   };
 

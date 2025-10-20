@@ -235,10 +235,18 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
         if (pageResult.rows.length > 0) {
           const pageId = pageResult.rows[0].id;
           
-          // Update page data (elements and background)
+          // Update page data with complete structure
+          const completePageData = {
+            id: pageId,
+            elements: page.elements || [],
+            background: page.background || { pageTheme: null },
+            pageNumber: page.pageNumber,
+            database_id: pageId
+          };
+          
           await pool.query(
             'UPDATE public.pages SET elements = $1, page_theme = $2 WHERE id = $3',
-            [JSON.stringify(page), page.background?.pageTheme, pageId]
+            [JSON.stringify(completePageData), page.background?.pageTheme, pageId]
           );
 
           // Remove existing question associations for this page
@@ -274,12 +282,25 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
   }
 });
 
+// Track ongoing save operations to prevent duplicates
+const ongoingSaves = new Set();
+
 // Update book and pages
 router.put('/:id', authenticateToken, async (req, res) => {
   try {
     const bookId = req.params.id;
     const userId = req.user.id;
     const { name, pageSize, orientation, pages } = req.body;
+    
+    // Prevent duplicate save operations
+    const saveKey = `${userId}-${bookId}`;
+    if (ongoingSaves.has(saveKey)) {
+      console.log(`Duplicate save request detected for user ${userId}, book ${bookId} - ignoring`);
+      return res.status(409).json({ error: 'Save already in progress' });
+    }
+    
+    ongoingSaves.add(saveKey);
+    console.log(`Starting save operation for user ${userId}, book ${bookId}`);
 
     // Check if user has access to this book
     const bookAccess = await pool.query(`
@@ -310,24 +331,106 @@ router.put('/:id', authenticateToken, async (req, res) => {
       );
 
       // UPSERT pages: update existing, insert new
+      console.log(`Processing ${pages.length} pages for book ${bookId}`);
+      const processedPageIds = new Set(); // Track processed pages to avoid duplicates
+      const processedPageNumbers = new Set(); // Track processed page numbers to avoid duplicates
+      const allPageIds = []; // Track all page IDs (existing + new)
+      
       for (const page of pages) {
+        console.log(`Processing page: ID=${page.id}, pageNumber=${page.pageNumber}`);
         let pageId;
         
-        if (page.id) {
-          // Update existing page
+        // Skip if we've already processed this page (efficiency fix)
+        if (page.id && processedPageIds.has(page.id)) {
+          continue;
+        }
+        
+        // Skip if we've already processed this page number (prevents unique constraint violation)
+        if (processedPageNumbers.has(page.pageNumber)) {
+          continue;
+        }
+        
+        processedPageNumbers.add(page.pageNumber);
+        
+        if (page.id && typeof page.id === 'number' && Number.isInteger(page.id) && page.id > 0 && page.id < 2147483647) {
+          // Update existing page - store complete page structure
+          const completePageData = {
+            id: page.id,
+            elements: page.elements || [],
+            background: page.background || { pageTheme: null },
+            pageNumber: page.pageNumber,
+            database_id: page.id
+          };
+          
           await pool.query(
             'UPDATE public.pages SET page_number = $1, elements = $2, page_theme = $3 WHERE id = $4 AND book_id = $5',
-            [page.pageNumber, JSON.stringify(page), page.background?.pageTheme, page.id, bookId]
+            [page.pageNumber, JSON.stringify(completePageData), page.background?.pageTheme, page.id, bookId]
           );
           pageId = page.id;
+          processedPageIds.add(page.id);
         } else {
-          // Insert new page
-          const pageResult = await pool.query(
-            'INSERT INTO public.pages (book_id, page_number, elements, page_theme) VALUES ($1, $2, $3, $4) RETURNING id',
-            [bookId, page.pageNumber, JSON.stringify(page), page.background?.pageTheme]
-          );
-          pageId = pageResult.rows[0].id;
+          // Insert new page (UUID/timestamp IDs are treated as new pages)
+          console.log(`Inserting new page with temp ID ${page.id} for book ${bookId}`);
+          try {
+            // Create complete page structure for new pages
+            const completePageData = {
+              elements: page.elements || [],
+              background: page.background || { pageTheme: null },
+              pageNumber: page.pageNumber
+            };
+            
+            const pageResult = await pool.query(
+              'INSERT INTO public.pages (book_id, page_number, elements, page_theme) VALUES ($1, $2, $3, $4) RETURNING id',
+              [bookId, page.pageNumber, JSON.stringify(completePageData), page.background?.pageTheme]
+            );
+            pageId = pageResult.rows[0].id;
+            
+            // Update the inserted page with complete structure including database_id
+            completePageData.id = pageId;
+            completePageData.database_id = pageId;
+            
+            await pool.query(
+              'UPDATE public.pages SET elements = $1 WHERE id = $2',
+              [JSON.stringify(completePageData), pageId]
+            );
+            
+            console.log(`New page inserted with database ID ${pageId}`);
+          } catch (insertError) {
+            if (insertError.code === '23505') { // Unique constraint violation
+              // Find existing page with this page number and use its ID
+              const existingPage = await pool.query(
+                'SELECT id FROM public.pages WHERE book_id = $1 AND page_number = $2',
+                [bookId, page.pageNumber]
+              );
+              if (existingPage.rows.length > 0) {
+                pageId = existingPage.rows[0].id;
+                
+                // Update existing page with complete structure
+                const completePageData = {
+                  id: pageId,
+                  elements: page.elements || [],
+                  background: page.background || { pageTheme: null },
+                  pageNumber: page.pageNumber,
+                  database_id: pageId
+                };
+                
+                await pool.query(
+                  'UPDATE public.pages SET elements = $1, page_theme = $2 WHERE id = $3',
+                  [JSON.stringify(completePageData), page.background?.pageTheme, pageId]
+                );
+                
+                console.log(`Using existing page ID ${pageId} for page number ${page.pageNumber}`);
+              } else {
+                throw insertError; // Re-throw if we can't find the existing page
+              }
+            } else {
+              throw insertError; // Re-throw other errors
+            }
+          }
+          if (page.id) processedPageIds.add(page.id); // Track temp ID to avoid duplicates
         }
+        
+        if (pageId) allPageIds.push(pageId); // Track all page IDs (only if pageId is valid)
 
         // Remove existing question associations for this page
         await pool.query(
@@ -348,12 +451,12 @@ router.put('/:id', authenticateToken, async (req, res) => {
       }
       
       // Delete pages that are no longer in the pages array
-      const existingPageIds = pages.filter(p => p.id).map(p => p.id);
-      if (existingPageIds.length > 0) {
-        const placeholders = existingPageIds.map((_, i) => `$${i + 2}`).join(',');
+      if (allPageIds.length > 0) {
+        const placeholders = allPageIds.map((_, i) => `$${i + 2}`).join(',');
+        console.log(`Preserving all pages: ${allPageIds.join(', ')}`);
         await pool.query(
           `DELETE FROM public.pages WHERE book_id = $1 AND id NOT IN (${placeholders})`,
-          [bookId, ...existingPageIds]
+          [bookId, ...allPageIds]
         );
       }
     }
@@ -362,6 +465,11 @@ router.put('/:id', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Book update error:', error);
     res.status(500).json({ error: 'Server error' });
+  } finally {
+    // Always remove the save key when done
+    const saveKey = `${req.user.id}-${req.params.id}`;
+    ongoingSaves.delete(saveKey);
+    console.log(`Completed save operation for user ${req.user.id}, book ${req.params.id}`);
   }
 });
 
@@ -545,7 +653,13 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
     );
 
     if (existingFriend.rows.length > 0) {
-      return res.status(409).json({ error: 'User is already a collaborator on this book' });
+      // Update existing friend's permissions instead of returning error
+      const result = await pool.query(
+        'UPDATE public.book_friends SET book_role = $1, page_access_level = $2, editor_interaction_level = $3 WHERE book_id = $4 AND user_id = $5 RETURNING *',
+        [book_role || role, page_access_level || 'own_page', editor_interaction_level || 'full_edit', bookId, userToAdd]
+      );
+      console.log('Friend permissions updated:', result.rows[0]);
+      return res.json({ success: true, friend: result.rows[0] });
     }
 
     // Add friend to book with permissions
