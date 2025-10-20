@@ -1,6 +1,6 @@
 import { Button } from '../../../ui/primitives/button';
 import { Tooltip } from '../../../ui/composites/tooltip';
-import { type Icon } from 'lucide-react';
+import { Triangle, TriangleRight, type Icon } from 'lucide-react';
 
 interface ToolButtonProps {
   id: string;
@@ -10,7 +10,8 @@ interface ToolButtonProps {
   isExpanded: boolean;
   userRole?: 'author' | 'publisher' | null;
   isOnAssignedPage?: boolean;
-  onClick: () => void;
+  hasPopover?: boolean;
+  onClick: (e?: React.MouseEvent) => void;
 }
 
 const getToolInstruction = (toolId: string): { title: string; description: string } => {
@@ -29,7 +30,7 @@ const getToolInstruction = (toolId: string): { title: string; description: strin
   return instructions[toolId] || { title: `${toolId} Tool`, description: `Use ${toolId} tool` };
 };
 
-export function ToolButton({ id, label, icon: Icon, isActive, isExpanded, userRole, isOnAssignedPage, onClick }: ToolButtonProps) {
+export function ToolButton({ id, label, icon: Icon, isActive, isExpanded, userRole, isOnAssignedPage, hasPopover, onClick }: ToolButtonProps) {
   const instruction = getToolInstruction(id);
   const isAuthor = userRole === 'author';
   const isDisabled = (isAuthor && id !== 'pan' && !isOnAssignedPage) || (isAuthor && id === 'question');
@@ -37,16 +38,19 @@ export function ToolButton({ id, label, icon: Icon, isActive, isExpanded, userRo
 
   
   return (
-    <Tooltip title={instruction.title} description={instruction.description} side="right">
       <Button
         variant={isActive ? "default" : "ghost_hover"}
         size="sm"
-        onClick={isDisabled ? undefined : onClick}
+        onClick={isDisabled ? undefined : (e) => onClick(e)}
         disabled={isDisabled}
-        className={`w-full justify-center p-2 ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+        className={`w-full justify-center p-2 relative ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
         <Icon className="h-5 w-5" />
+        {hasPopover && (
+          // <div className="absolute bottom-0 right-0 w-0 h-0 border-l-[4px] border-l-transparent border-b-[4px] border-b-foreground border-r-[4px] border-r-transparent rotate-100" />
+          <TriangleRight className='absolute bottom-0 right-0 w-2 h-3 stroke-foreground fill-foreground'/>
+          // <Triangle className='absolute bottom-0 right-0 w-2 h-2 stroke-foreground fill-foreground rotate-[2.342rad]' />
+        )}
       </Button>
-    </Tooltip>
   );
 }

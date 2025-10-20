@@ -32,12 +32,13 @@ export function ToolbarHeader({ isExpanded, onToggle, activeTool, toolGroups, hi
 
   return (
     // <CardHeader className="p-1 pr-1 border-b">
-      <div className="flex items-center justify-center border-b border-gray-200 h-8">
+      <div className="flex items-center justify-end border-b border-gray-200 h-8">
         {isExpanded && activeToolData && (
-          <Button variant="secondary" size="xxs" className=" pointer-events-none flex-1 mr-2">
-            <activeToolData.icon className="h-4 w-4 mr-2" />
-            {activeToolData.label}
-          </Button>
+          // <Button variant="secondary" size="xxs" className=" pointer-events-none flex-1 mr-2">
+          //   <activeToolData.icon className="h-4 w-4 mr-2" />
+          //   {/* <span className='text-xs'>{activeToolData.label}</span> */}
+          // </Button>
+          <span></span>
         )}
         {!hideToggle && <ToolbarToggle isExpanded={isExpanded} onToggle={onToggle} />}
       </div>

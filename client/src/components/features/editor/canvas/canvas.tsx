@@ -588,6 +588,7 @@ export default function Canvas() {
         height: 0,
         points: adjustedPoints,
         stroke: brushDefaults.stroke,
+        fill: 'transparent',
         roughness: 1,
         strokeWidth: brushDefaults.strokeWidth,
         theme: brushDefaults.theme

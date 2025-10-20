@@ -282,18 +282,48 @@ const candyTheme: ThemeRenderer = {
         pathString += `M ${x - circleRadius} ${y} A ${circleRadius} ${circleRadius} 0 1 0 ${x + circleRadius} ${y} A ${circleRadius} ${circleRadius} 0 1 0 ${x - circleRadius} ${y} `;
       }
     } else if (element.type === 'brush' && element.points) {
-      for (let i = 0; i < element.points.length; i += 2) {
-        const x = element.points[i];
-        const y = element.points[i + 1];
+      // Distribute circles evenly along the path based on distance
+      const points = element.points;
+      if (points.length >= 4) {
+        const circles = [];
+        let totalDistance = 0;
         
-        const random = () => {
-          const x = Math.sin(seed + i) * 10000;
-          return x - Math.floor(x);
-        };
-        const sizeVariation = hasRandomness ? 1 + (random() - 0.5) * getVariationAmount() : 1;
-        const radius = (baseCircleSize * sizeVariation) / 2;
+        // Calculate total path length
+        for (let i = 2; i < points.length; i += 2) {
+          const dx = points[i] - points[i - 2];
+          const dy = points[i + 1] - points[i - 1];
+          totalDistance += Math.sqrt(dx * dx + dy * dy);
+        }
         
-        pathString += `M ${x - radius} ${y} A ${radius} ${radius} 0 1 0 ${x + radius} ${y} A ${radius} ${radius} 0 1 0 ${x - radius} ${y} `;
+        const targetSpacing = spacing;
+        const numCircles = Math.max(1, Math.floor(totalDistance / targetSpacing));
+        
+        let currentDistance = 0;
+        let circleIndex = 0;
+        
+        for (let i = 2; i < points.length && circleIndex < numCircles; i += 2) {
+          const dx = points[i] - points[i - 2];
+          const dy = points[i + 1] - points[i - 1];
+          const segmentLength = Math.sqrt(dx * dx + dy * dy);
+          
+          while (circleIndex * targetSpacing <= currentDistance + segmentLength && circleIndex < numCircles) {
+            const t = (circleIndex * targetSpacing - currentDistance) / segmentLength;
+            const x = points[i - 2] + dx * t;
+            const y = points[i - 1] + dy * t;
+            
+            const random = () => {
+              const x = Math.sin(seed + circleIndex) * 10000;
+              return x - Math.floor(x);
+            };
+            const sizeVariation = hasRandomness ? 1 + (random() - 0.5) * getVariationAmount() : 1;
+            const radius = (baseCircleSize * sizeVariation) / 2;
+            
+            pathString += `M ${x - radius} ${y} A ${radius} ${radius} 0 1 0 ${x + radius} ${y} A ${radius} ${radius} 0 1 0 ${x - radius} ${y} `;
+            circleIndex++;
+          }
+          
+          currentDistance += segmentLength;
+        }
       }
     }
     
@@ -301,6 +331,13 @@ const candyTheme: ThemeRenderer = {
   },
   
   getStrokeProps: (element: CanvasElement, zoom = 1) => {
+    if (element.type === 'brush') {
+      return {
+        stroke: 'transparent',
+        strokeWidth: 0,
+        fill: element.stroke || '#1f2937'
+      };
+    }
     return {
       stroke: 'transparent',
       strokeWidth: 0,

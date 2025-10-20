@@ -9,7 +9,7 @@ interface ToolbarContainerProps {
 export function ToolbarContainer({ isExpanded, isVisible, children }: ToolbarContainerProps) {
   return (
     <Card className={`h-full rounded-none border-t-0 border-b-0 shadow-lg transition-all duration-200 flex flex-col overflow-visible ${
-      isExpanded ? 'w-40' : 'w-16 p-0'
+      isExpanded ? 'w-24' : 'w-14 p-0'
     } ${!isVisible ? 'hidden md:block' : ''}`}>
       {children}
     </Card>
