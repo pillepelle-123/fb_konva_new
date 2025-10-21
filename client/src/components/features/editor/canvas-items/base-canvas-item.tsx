@@ -21,6 +21,8 @@ interface BaseCanvasItemProps extends CanvasItemProps {
   children: ReactNode;
   hitArea?: { x: number; y: number; width: number; height: number };
   onDoubleClick?: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 }
 
 export default function BaseCanvasItem({ 
@@ -33,7 +35,9 @@ export default function BaseCanvasItem({
   isWithinSelection,
   children,
   hitArea,
-  onDoubleClick
+  onDoubleClick,
+  onMouseEnter,
+  onMouseLeave
 }: BaseCanvasItemProps) {
   const { state, dispatch } = useEditor();
   const groupRef = useRef<Konva.Group>(null);
@@ -137,7 +141,7 @@ export default function BaseCanvasItem({
       scaleX={(element.textType === 'question' || element.textType === 'answer') ? 1 : (element.scaleX || 1)}
       scaleY={(element.textType === 'question' || element.textType === 'answer') ? 1 : (element.scaleY || 1)}
       rotation={element.rotation || 0}
-      draggable={state.activeTool === 'select' && !isMovingGroup}
+      draggable={state.activeTool === 'select' && !isMovingGroup && state.editorInteractionLevel !== 'answer_only'}
       onMouseDown={handleMouseDown}
       onClick={handleClick}
       onTap={(e) => {
@@ -158,6 +162,7 @@ export default function BaseCanvasItem({
       }}
       onMouseEnter={state.activeTool === 'select' ? () => {
         setIsHovered(true);
+        onMouseEnter?.();
         // Trigger hover on partner element for question-answer pairs
         if (element.textType === 'question' || element.textType === 'answer') {
           window.dispatchEvent(new CustomEvent('hoverPartner', { detail: { elementId: element.id, hover: true } }));
@@ -165,6 +170,7 @@ export default function BaseCanvasItem({
       } : undefined}
       onMouseLeave={state.activeTool === 'select' ? () => {
         setIsHovered(false);
+        onMouseLeave?.();
         // Remove hover from partner element for question-answer pairs
         if (element.textType === 'question' || element.textType === 'answer') {
           window.dispatchEvent(new CustomEvent('hoverPartner', { detail: { elementId: element.id, hover: false } }));

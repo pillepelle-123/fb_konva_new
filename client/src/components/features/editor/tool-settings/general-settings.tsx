@@ -547,9 +547,9 @@ export function GeneralSettings({
   const canAccessAnySettings = state.editorInteractionLevel === 'full_edit_with_settings';
   
   // Check if user can access book-related settings (only publishers and book owners)
-  const canAccessBookSettings = state.userRole === 'publisher' || (user && state.currentBook && user.id === state.currentBook.owner_id);
+  const canAccessBookSettings = (state.userRole === 'publisher' || (user && state.currentBook && user.id === state.currentBook.owner_id)) && canAccessAnySettings;
   
-  // Check if user can access page-related settings
+  // Check if user can access page-related settings (Background and Page Theme for full_edit_with_settings)
   const canAccessPageSettings = canAccessAnySettings;
 
   return (

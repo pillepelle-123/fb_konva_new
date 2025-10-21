@@ -237,7 +237,7 @@ export interface CanvasElement {
   fontFamily?: string;
   textType?: 'question' | 'answer' | 'text' | 'qna';
   questionId?: string; // UUID
-  answerId?: number;
+  answerId?: string; // UUID
   questionElementId?: string;
   src?: string;
   points?: number[];
@@ -320,7 +320,7 @@ export interface EditorState {
   toolSettings: Record<string, Record<string, any>>;
   editorSettings: Record<string, Record<string, any>>;
   tempQuestions: { [key: string]: string }; // questionId (UUID) -> text
-  tempAnswers: { [key: string]: string }; // questionId (UUID) -> text
+  tempAnswers: { [key: string]: { [userId: number]: { text: string; answerId: string } } }; // questionId (UUID) -> { userId -> { text, answerId } }
   history: HistoryState[];
   historyIndex: number;
   historyActions: string[];
@@ -353,7 +353,7 @@ type EditorAction =
   | { type: 'UPDATE_TOOL_SETTINGS'; payload: { tool: string; settings: Record<string, any> } }
   | { type: 'SET_EDITOR_SETTINGS'; payload: Record<string, Record<string, any>> }
   | { type: 'UPDATE_TEMP_QUESTION'; payload: { questionId: string; text: string } }
-  | { type: 'UPDATE_TEMP_ANSWER'; payload: { questionId: string; text: string } }
+  | { type: 'UPDATE_TEMP_ANSWER'; payload: { questionId: string; text: string; userId?: number; answerId?: string } }
   | { type: 'UPDATE_BOOK_NAME'; payload: string }
   | { type: 'CLEAR_TEMP_DATA' }
   | { type: 'UNDO' }
@@ -477,6 +477,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'ADD_ELEMENT':
       if (!state.currentBook || !state.currentBook.pages[state.activePageIndex]) return state;
+      // Block for answer_only users
+      if (state.editorInteractionLevel === 'answer_only') return state;
       // Check if author is assigned to current page
       if (state.userRole === 'author' && !state.assignedPages.includes(state.activePageIndex + 1)) return state;
       const savedState = saveToHistory(state, `Add ${action.payload.type}`);
@@ -515,6 +517,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'UPDATE_ELEMENT':
       if (!state.currentBook) return state;
+      // Block for answer_only users
+      if (state.editorInteractionLevel === 'answer_only') return state;
       // Check if author is assigned to current page
       if (state.userRole === 'author' && !state.assignedPages.includes(state.activePageIndex + 1)) return state;
       const updatedBook = { ...state.currentBook };
@@ -569,6 +573,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'DELETE_ELEMENT':
       if (!state.currentBook) return state;
+      // Block for answer_only users
+      if (state.editorInteractionLevel === 'answer_only') return state;
       // Check if author is assigned to current page
       if (state.userRole === 'author' && !state.assignedPages.includes(state.activePageIndex + 1)) return state;
       const savedDeleteState = saveToHistory(state, 'Delete Element');
@@ -713,11 +719,17 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       };
     
     case 'UPDATE_TEMP_ANSWER':
+      const userId = action.payload.userId || state.user?.id;
+      if (!userId) return state;
+      const answerId = action.payload.answerId || uuidv4();
       return {
         ...state,
         tempAnswers: {
           ...state.tempAnswers,
-          [action.payload.questionId]: action.payload.text
+          [action.payload.questionId]: {
+            ...state.tempAnswers[action.payload.questionId],
+            [userId]: { text: action.payload.text, answerId }
+          }
         },
         hasUnsavedChanges: true
       };
@@ -975,9 +987,9 @@ const EditorContext = createContext<{
   saveBook: () => Promise<void>;
   loadBook: (bookId: number) => Promise<void>;
   getQuestionText: (questionId: string) => string;
-  getAnswerText: (questionId: string) => string;
+  getAnswerText: (questionId: string, userId?: number) => string;
   updateTempQuestion: (questionId: string, text: string) => void;
-  updateTempAnswer: (questionId: string, text: string) => void;
+  updateTempAnswer: (questionId: string, text: string, userId?: number) => void;
   undo: () => void;
   redo: () => void;
   goToHistoryStep: (step: number) => void;
@@ -1027,66 +1039,81 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const token = localStorage.getItem('token');
       
-      // Save questions first
-      for (const [questionId, questionText] of Object.entries(state.tempQuestions)) {
-        if (questionText && questionText.trim()) {
-          try {
-            const response = await fetch(`${apiUrl}/questions`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-              },
-              body: JSON.stringify({
-                id: questionId,
-                bookId: state.currentBook.id,
-                questionText: questionText
-              })
-            });
-            
-            if (!response.ok) {
-              const errorText = await response.text();
-              console.error('Question save failed:', response.status, errorText);
+      // Save questions first (skip for authors)
+      if (user?.role !== 'author' && state.userRole !== 'author') {
+        for (const [questionId, questionText] of Object.entries(state.tempQuestions)) {
+          if (questionText && questionText.trim()) {
+            try {
+              const response = await fetch(`${apiUrl}/questions`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                  id: questionId,
+                  bookId: state.currentBook.id,
+                  questionText: questionText
+                })
+              });
+              
+              if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Question save failed:', response.status, errorText);
+              }
+            } catch (error) {
+              console.error('Failed to save question', questionId, ':', error);
             }
-          } catch (error) {
-            console.error('Failed to save question', questionId, ':', error);
           }
         }
       }
       
       // Save answers
-      for (const [questionId, answerText] of Object.entries(state.tempAnswers)) {
-        if (answerText && answerText.trim()) {
-          try {
-            await fetch(`${apiUrl}/answers`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-              },
-              body: JSON.stringify({
-                questionId: questionId,
-                answerText: answerText
-              })
-            });
-          } catch (error) {
-            console.error('Failed to save answer for question', questionId, ':', error);
+      for (const [questionId, userAnswers] of Object.entries(state.tempAnswers)) {
+        for (const [userId, answerData] of Object.entries(userAnswers)) {
+          if (answerData.text && answerData.text.trim()) {
+            try {
+              const response = await fetch(`${apiUrl}/answers`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                  id: answerData.answerId,
+                  questionId: questionId,
+                  answerText: answerData.text,
+                  userId: parseInt(userId)
+                })
+              });
+              
+              if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Answer save failed:', response.status, errorText);
+              }
+            } catch (error) {
+              console.error('Failed to save answer for question', questionId, 'user', userId, ':', error);
+            }
           }
         }
       }
 
       
-      await apiService.saveBook(
-        state.currentBook,
-        state.tempQuestions,
-        state.tempAnswers,
-        [],
-        state.pageAssignments,
-        state.bookFriends || []
-      );
+      // Skip apiService.saveBook for authors since they use author-save endpoint
+      // Also skip for publishers since we handle everything manually above
+      // if (user?.role !== 'author') {
+      //   await apiService.saveBook(
+      //     state.currentBook,
+      //     state.tempQuestions,
+      //     state.tempAnswers,
+      //     [],
+      //     state.pageAssignments,
+      //     state.bookFriends || []
+      //   );
+      // }
       
-      // For authors, only save assigned pages
-      if (user?.role === 'author' && state.assignedPages.length > 0) {
+      // For authors, only save assigned pages and answers
+      if ((user?.role === 'author' || state.userRole === 'author') && state.assignedPages.length > 0) {
         const assignedPages = state.currentBook.pages.filter((_, index) => 
           state.assignedPages.includes(index + 1)
         );
@@ -1100,20 +1127,17 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
           body: JSON.stringify({
             pages: assignedPages.map(page => ({
               ...page,
-              elements: page.elements // Only save elements for assigned pages
+              elements: page.elements
             }))
           })
         });
         
         if (!response.ok) throw new Error('Failed to save book');
         
-        // Skip other save operations for authors
-        dispatch({ type: 'CLEAR_TEMP_DATA' });
         dispatch({ type: 'MARK_SAVED' });
         return;
       } else {
-        // Themes are now saved to database, no localStorage needed
-        
+        // For publishers/owners - save full book
         const response = await fetch(`${apiUrl}/books/${state.currentBook.id}`, {
           method: 'PUT',
           headers: {
@@ -1127,7 +1151,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       }
       
       // Save page assignments if any exist (publishers only)
-      if (user?.role !== 'author' && Object.keys(state.pageAssignments).length > 0) {
+      if (user?.role !== 'author' && state.userRole !== 'author' && Object.keys(state.pageAssignments).length > 0) {
         const assignments = Object.entries(state.pageAssignments)
           .filter(([_, assignedUser]) => assignedUser !== null)
           .map(([pageNumber, assignedUser]) => ({
@@ -1153,7 +1177,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       
       // Save book friends and permissions (publishers only)
       
-      if (user?.role !== 'author' && state.bookFriends && state.bookFriends.length > 0) {
+      if (user?.role !== 'author' && state.userRole !== 'author' && state.bookFriends && state.bookFriends.length > 0) {
         // First, add any new friends to the book
         for (const friend of state.bookFriends) {
           try {
@@ -1209,8 +1233,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       // Log theme structure for copying to global-themes.ts
       logThemeStructure(state.currentBook);
       
-      // Clear temporary data after successful save
-      dispatch({ type: 'CLEAR_TEMP_DATA' });
+      // Don't clear temp data after save - keep it for display
       dispatch({ type: 'MARK_SAVED' });
     } catch (error) {
       throw error;
@@ -1229,7 +1252,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       });
       
       answers.forEach(a => {
-        dispatch({ type: 'UPDATE_TEMP_ANSWER', payload: { questionId: a.question_id.toString(), text: a.answer_text } });
+        dispatch({ type: 'UPDATE_TEMP_ANSWER', payload: { questionId: a.question_id.toString(), text: a.answer_text, userId: a.user_id, answerId: a.id } });
       });
       
       // Load editor settings and book friends
@@ -1287,18 +1310,11 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       if (userRole) {
         dispatch({ type: 'SET_USER_ROLE', payload: { role: userRole.role, assignedPages: userRole.assignedPages || [] } });
         
-        // Set default permissions based on user role
-        if (userRole.role === 'publisher') {
-          dispatch({ type: 'SET_USER_PERMISSIONS', payload: { 
-            pageAccessLevel: 'all_pages', 
-            editorInteractionLevel: 'full_edit_with_settings' 
-          } });
-        } else if (userRole.role === 'author') {
-          dispatch({ type: 'SET_USER_PERMISSIONS', payload: { 
-            pageAccessLevel: 'own_page', 
-            editorInteractionLevel: 'full_edit' 
-          } });
-        }
+        // Use permissions from database
+        dispatch({ type: 'SET_USER_PERMISSIONS', payload: { 
+          pageAccessLevel: userRole.page_access_level || 'all_pages', 
+          editorInteractionLevel: userRole.editor_interaction_level || 'full_edit_with_settings' 
+        } });
       } else {
         // Default permissions for book owner (no specific role returned)
         dispatch({ type: 'SET_USER_PERMISSIONS', payload: { 
@@ -1343,22 +1359,12 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     return '';
   };
   
-  const getAnswerText = (questionId: string): string => {
-    // Check temporary storage first, then fallback to canvas elements
-    if (state.tempAnswers[questionId]) {
-      return state.tempAnswers[questionId];
-    }
+  const getAnswerText = (questionId: string, userId?: number): string => {
+    if (!userId) return '';
     
-    // Find answer text from canvas elements
-    for (const page of state.currentBook?.pages || []) {
-      for (const element of page.elements) {
-        if (element.textType === 'answer' && element.questionElementId) {
-          const questionElement = page.elements.find(el => el.id === element.questionElementId);
-          if (questionElement?.questionId === questionId) {
-            return element.text || '';
-          }
-        }
-      }
+    // Check temporary storage first
+    if (state.tempAnswers[questionId]?.[userId]) {
+      return state.tempAnswers[questionId][userId].text;
     }
     
     return '';
@@ -1368,8 +1374,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     dispatch({ type: 'UPDATE_TEMP_QUESTION', payload: { questionId, text } });
   };
   
-  const updateTempAnswer = (questionId: string, text: string) => {
-    dispatch({ type: 'UPDATE_TEMP_ANSWER', payload: { questionId, text } });
+  const updateTempAnswer = (questionId: string, text: string, userId?: number) => {
+    dispatch({ type: 'UPDATE_TEMP_ANSWER', payload: { questionId, text, userId } });
   };
   
   const undo = () => {

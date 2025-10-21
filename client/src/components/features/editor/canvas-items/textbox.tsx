@@ -2,6 +2,7 @@ import { useRef, useState, useEffect } from 'react';
 import { Text, Rect, Path, Group } from 'react-konva';
 import Konva from 'konva';
 import rough from 'roughjs';
+import { v4 as uuidv4 } from 'uuid';
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import type { CanvasElement } from '../../../../context/editor-context';
@@ -181,6 +182,15 @@ export default function Textbox(props: CanvasItemProps) {
   const textRef = useRef<Konva.Text>(null);
 
   const [hasOverflow, setHasOverflow] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  
+  // Check if user is on assigned page and this is an answer textbox
+  const isOnAssignedPage = state.pageAssignments[state.activePageIndex + 1]?.id === user?.id;
+  const shouldHighlightAnswer = isOnAssignedPage && element.textType === 'answer';
+  const shouldHighlightQuestion = isOnAssignedPage && element.textType === 'question';
+  const shouldShowFlashyHover = shouldHighlightAnswer || shouldHighlightQuestion;
+  
+
 
   const fontSize = (() => {
     let size = element.font?.fontSize || element.fontSize;
@@ -407,18 +417,14 @@ export default function Textbox(props: CanvasItemProps) {
       if (currentPage) {
         const questionElement = currentPage.elements.find(el => el.id === element.questionElementId);
         if (questionElement?.questionId) {
-          const tempText = getAnswerText(questionElement.questionId);
-          if (tempText) {
-            textToUse = tempText;
-            // Auto-update element text if saved answer exists but element text is empty
-            if (!element.text && !element.formattedText) {
-              dispatch({
-                type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                payload: {
-                  id: element.id,
-                  updates: { text: tempText }
-                }
-              });
+          // Get the assigned user for this page
+          const assignedUser = state.pageAssignments[state.activePageIndex + 1];
+          const userIdToShow = assignedUser?.id;
+          
+          if (userIdToShow) {
+            const tempText = getAnswerText(questionElement.questionId, userIdToShow);
+            if (tempText) {
+              textToUse = tempText;
             }
           }
         }
@@ -514,6 +520,13 @@ export default function Textbox(props: CanvasItemProps) {
     }
     
     if (element.textType === 'answer') {
+      // Check if current user is assigned to this page
+      const assignedUser = state.pageAssignments[state.activePageIndex + 1];
+      if (assignedUser && assignedUser.id !== user?.id) {
+        // Not assigned to this page, prevent editing
+        return;
+      }
+      
       // Check if linked question element has a questionId set
       if (element.questionElementId) {
         const currentPage = state.currentBook?.pages[state.activePageIndex];
@@ -759,6 +772,21 @@ export default function Textbox(props: CanvasItemProps) {
     textarea.style.whiteSpace = 'pre-wrap';
     textarea.style.wordWrap = 'break-word';
     
+    // For answer textboxes, use the current answer from tempAnswers
+    if (element.textType === 'answer' && element.questionElementId) {
+      const currentPage = state.currentBook?.pages[state.activePageIndex];
+      if (currentPage) {
+        const questionElement = currentPage.elements.find(el => el.id === element.questionElementId);
+        if (questionElement?.questionId) {
+          // Use assigned user's answer or current user's answer
+          const assignedUser = state.pageAssignments[state.activePageIndex + 1];
+          const userIdToEdit = assignedUser?.id || user?.id;
+          const currentAnswer = getAnswerText(questionElement.questionId, userIdToEdit);
+          textarea.value = currentAnswer || '';
+        }
+      }
+    }
+    
     const adjustHeight = () => {
       textarea.style.height = 'auto';
       textarea.style.height = textarea.scrollHeight + 'px';
@@ -800,19 +828,38 @@ export default function Textbox(props: CanvasItemProps) {
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
         const newText = textarea.value;
         
-        // For answer textboxes, update temp answer state
+        // For answer textboxes, update temp answer state using element's answerId
         if (element.textType === 'answer' && element.questionElementId) {
           const currentPage = state.currentBook?.pages[state.activePageIndex];
           if (currentPage) {
             const questionElement = currentPage.elements.find(el => el.id === element.questionElementId);
-            if (questionElement?.questionId) {
+            if (questionElement?.questionId && user?.id) {
+              // Use element's answerId or create new one if missing
+              const answerId = element.answerId || uuidv4();
+              
               dispatch({
                 type: 'UPDATE_TEMP_ANSWER',
                 payload: {
                   questionId: questionElement.questionId,
-                  text: newText
+                  text: newText,
+                  userId: user.id,
+                  answerId
                 }
               });
+              
+              // Update element with answerId if it was missing
+              if (!element.answerId) {
+                dispatch({
+                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                  payload: {
+                    id: element.id,
+                    updates: { answerId }
+                  }
+                });
+              }
+              
+              // Trigger answer saved event
+              window.dispatchEvent(new CustomEvent('answerSaved'));
             }
           }
         }
@@ -822,7 +869,10 @@ export default function Textbox(props: CanvasItemProps) {
                          state.currentBook?.role === 'publisher' || 
                          state.currentBook?.owner_id === user?.id;
         
-        let updates: any = { text: newText };
+        let updates: any = {};
+        
+        // Update element text for all textboxes
+        updates.text = newText;
         
         if (canResize && newText) {
           // Calculate required height for text
@@ -879,19 +929,38 @@ export default function Textbox(props: CanvasItemProps) {
     textarea.addEventListener('blur', () => {
       const newText = textarea.value;
       
-      // For answer textboxes, update temp answer state
+      // For answer textboxes, update temp answer state using element's answerId
       if (element.textType === 'answer' && element.questionElementId) {
         const currentPage = state.currentBook?.pages[state.activePageIndex];
         if (currentPage) {
           const questionElement = currentPage.elements.find(el => el.id === element.questionElementId);
-          if (questionElement?.questionId) {
+          if (questionElement?.questionId && user?.id) {
+            // Use element's answerId or create new one if missing
+            const answerId = element.answerId || uuidv4();
+            
             dispatch({
               type: 'UPDATE_TEMP_ANSWER',
               payload: {
                 questionId: questionElement.questionId,
-                text: newText
+                text: newText,
+                userId: user.id,
+                answerId
               }
             });
+            
+            // Update element with answerId if it was missing
+            if (!element.answerId) {
+              dispatch({
+                type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                payload: {
+                  id: element.id,
+                  updates: { answerId }
+                }
+              });
+            }
+            
+            // Trigger answer saved event
+            window.dispatchEvent(new CustomEvent('answerSaved'));
           }
         }
       }
@@ -901,7 +970,10 @@ export default function Textbox(props: CanvasItemProps) {
                        state.currentBook?.role === 'publisher' || 
                        state.currentBook?.owner_id === user?.id;
       
-      let updates: any = { text: newText };
+      let updates: any = {};
+      
+      // Update element text for all textboxes
+      updates.text = newText;
       
       if (canResize && newText) {
         // Calculate required height for text
@@ -1009,7 +1081,12 @@ export default function Textbox(props: CanvasItemProps) {
   } : null;
 
   return (
-    <BaseCanvasItem {...props} onDoubleClick={handleDoubleClick}>
+    <BaseCanvasItem 
+      {...props} 
+      onDoubleClick={handleDoubleClick}
+      onMouseEnter={() => shouldShowFlashyHover && setIsHovered(true)}
+      onMouseLeave={() => shouldShowFlashyHover && setIsHovered(false)}
+    >
       <Group>
         {/* Background rectangle - render before border for Candy theme */}
         <Rect
@@ -1017,11 +1094,11 @@ export default function Textbox(props: CanvasItemProps) {
           height={element.height}
           fill={(element.background?.enabled === false) ? "transparent" : (element.background?.backgroundColor || element.backgroundColor || "transparent")}
           opacity={(element.background?.enabled === false) ? 0 : (element.background?.backgroundOpacity || element.backgroundOpacity || 1)}
-          stroke={!borderWidth && (element.textType === 'question' || element.textType === 'answer') ? "transparent" : "transparent"}
-          strokeWidth={!borderWidth && (element.textType === 'question' || element.textType === 'answer') ? 1 : 0}
-          dash={!borderWidth && (element.textType === 'question' || element.textType === 'answer') ? [5, 5] : []}
+          stroke={shouldShowFlashyHover && isHovered ? "hsl(45, 92%, 42%)" : ((element.textType === 'question' || element.textType === 'answer') ? "#9ca3af" : "transparent")}
+          strokeWidth={shouldShowFlashyHover && isHovered ? 4 : ((element.textType === 'question' || element.textType === 'answer') ? 1 : 0)}
+          dash={shouldShowFlashyHover && isHovered ? [] : ((element.textType === 'question' || element.textType === 'answer') ? [5, 5] : [])}
           cornerRadius={element.cornerRadius || 0}
-          listening={false}
+          listening={true}
         />
         
         {/* Themed border using ThemedShape component */}
@@ -1087,6 +1164,20 @@ export default function Textbox(props: CanvasItemProps) {
             />
           );
         })()}
+        
+        {/* Flashy hover border - renders on top */}
+        {shouldShowFlashyHover && isHovered && (
+          <Rect
+          position={{ x: -10, y: -10 }}
+            width={element.width + 20}
+            height={element.height + 20}
+            fill="transparent"
+            stroke="hsl(45, 92%, 42%)"
+            strokeWidth={30}
+            // cornerRadius={element.cornerRadius || 0}
+            listening={false}
+          />
+        )}
         
         {/* Overflow indicator */}
         {hasOverflow && (

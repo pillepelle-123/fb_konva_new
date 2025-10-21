@@ -107,11 +107,12 @@ function EditorContent() {
   }
   
   // Block editor access for no_access level
-  if (!canAccessEditor()) {
+  if (state.editorInteractionLevel === 'no_access') {
+    window.location.href = `/books/${bookId}/answers`;
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center text-muted-foreground">
-          <p>You don't have permission to access the editor.</p>
+          <p>Redirecting to answer form...</p>
         </div>
       </div>
     );

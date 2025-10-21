@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Navigate } from 'react-router-dom';
+import { useParams, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
 
 interface BookAccessGuardProps {
@@ -9,7 +9,9 @@ interface BookAccessGuardProps {
 export default function BookAccessGuard({ children }: BookAccessGuardProps) {
   const { bookId } = useParams<{ bookId: string }>();
   const { user } = useAuth();
+  const location = useLocation();
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+  const [editorInteractionLevel, setEditorInteractionLevel] = useState<string | null>(null);
 
   useEffect(() => {
     const checkAccess = async () => {
@@ -37,7 +39,13 @@ export default function BookAccessGuard({ children }: BookAccessGuardProps) {
           headers: { Authorization: `Bearer ${token}` }
         });
 
-        setHasAccess(response.ok);
+        if (response.ok) {
+          const data = await response.json();
+          setEditorInteractionLevel(data.editor_interaction_level);
+          setHasAccess(true);
+        } else {
+          setHasAccess(false);
+        }
       } catch {
         setHasAccess(false);
       }
@@ -56,6 +64,11 @@ export default function BookAccessGuard({ children }: BookAccessGuardProps) {
 
   if (!hasAccess) {
     return <Navigate to="/404" replace />;
+  }
+
+  // Redirect no_access users to answer form when trying to access editor
+  if (editorInteractionLevel === 'no_access' && location.pathname.includes('/editor/')) {
+    return <Navigate to={`/books/${bookId}/answers`} replace />;
   }
 
   return <>{children}</>;

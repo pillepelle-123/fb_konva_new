@@ -33,6 +33,8 @@ export default function Toolbar() {
     ? state.assignedPages.includes(state.activePageIndex + 1)
     : true;
   
+
+  
   // Force collapsed state for authors on non-assigned pages
   useEffect(() => {
     if (state.userRole === 'author' && !isOnAssignedPage) {

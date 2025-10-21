@@ -164,6 +164,11 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, {}>((props, ref) => {
 
 
 
+  // Hide tool settings panel completely for answer_only users
+  if (state.editorInteractionLevel === 'answer_only') {
+    return null;
+  }
+
   return (
     <>
       <ToolSettingsContainer 

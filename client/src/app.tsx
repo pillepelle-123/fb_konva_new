@@ -11,6 +11,7 @@ import Register from './pages/auth/register'
 import Dashboard from './pages/dashboard/index'
 import BooksList from './pages/books/index'
 import BookArchive from './pages/books/archive'
+import AnswerForm from './pages/books/answer_form'
 import ImagesList from './pages/images/index'
 import QuestionsList from './pages/questions/index'
 import BookFriendsList from './pages/books/friends'
@@ -72,6 +73,7 @@ function AppContent() {
           <Route path="/profile/:userId" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/my-profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+          <Route path="/books/:bookId/answers" element={<ProtectedRoute><BookAccessGuard><AnswerForm /></BookAccessGuard></ProtectedRoute>} />
           <Route path="/editor/:bookId" element={<ProtectedRoute><BookAccessGuard><EditorWithBar /></BookAccessGuard></ProtectedRoute>} />
           <Route path="/404" element={<NotFound />} />
           <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminPanel /></ProtectedRoute>} />

@@ -279,9 +279,17 @@ export default function Canvas() {
     // Block all interactions for no_access level
     if (!canAccessEditor()) return;
     
-    // For answer_only level, only allow double-click on answer textboxes
+    // For answer_only level, only allow panning
     if (state.editorInteractionLevel === 'answer_only') {
-      return; // All mouse down events blocked except double-click on answer textboxes
+      if (e.evt.button === 2 || state.activeTool === 'pan') {
+        setIsPanning(true);
+        setHasPanned(false);
+        const pos = e.target.getStage()?.getPointerPosition();
+        if (pos) {
+          setPanStart({ x: pos.x - stagePos.x, y: pos.y - stagePos.y });
+        }
+      }
+      return;
     }
     
     // Block canvas editing for non-full-edit levels
@@ -430,6 +438,27 @@ export default function Canvas() {
     if (pos) {
       setLastMousePos({ x: pos.x, y: pos.y });
     }
+    
+    // Block all mouse move interactions for no_access users
+    if (state.editorInteractionLevel === 'no_access') {
+      return;
+    }
+    
+    // For answer_only users, only allow panning
+    if (state.editorInteractionLevel === 'answer_only') {
+      if (isPanning) {
+        const pos = e.target.getStage()?.getPointerPosition();
+        if (pos) {
+          setHasPanned(true);
+          setStagePos({
+            x: pos.x - panStart.x,
+            y: pos.y - panStart.y
+          });
+        }
+      }
+      return;
+    }
+    
     if (isPanning) {
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
@@ -568,6 +597,24 @@ export default function Canvas() {
 
   /* Brush */
   const handleMouseUp = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    // Block all mouse up interactions for no_access users except panning
+    if (state.editorInteractionLevel === 'no_access') {
+      if (isPanning) {
+        setIsPanning(false);
+        setPanStart({ x: 0, y: 0 });
+      }
+      return;
+    }
+    
+    // For answer_only users, only allow panning
+    if (state.editorInteractionLevel === 'answer_only') {
+      if (isPanning) {
+        setIsPanning(false);
+        setPanStart({ x: 0, y: 0 });
+      }
+      return;
+    }
+    
     if (isPanning) {
       setIsPanning(false);
       setPanStart({ x: 0, y: 0 });
@@ -699,6 +746,9 @@ export default function Canvas() {
             cornerRadius: questionDefaults.cornerRadius
           };
           
+          // Generate UUID for answer immediately
+          const answerUUID = uuidv4();
+          
           // Create answer textbox (editable)
           newElement = {
             id: uuidv4(),
@@ -713,6 +763,7 @@ export default function Canvas() {
             fontFamily: answerDefaults.fontFamily,
             textType: 'answer',
             questionElementId: questionElement.id,
+            answerId: answerUUID,
             paragraphSpacing: answerDefaults.paragraphSpacing,
             cornerRadius: answerDefaults.cornerRadius
           };
@@ -744,6 +795,10 @@ export default function Canvas() {
           const pageTheme = currentPage?.background?.pageTheme;
           const bookTheme = state.currentBook?.bookTheme;
           const answerDefaults = getToolDefaults('answer', pageTheme, bookTheme);
+          
+          // Generate UUID for answer immediately
+          const answerUUID = uuidv4();
+          
           newElement = {
             id: uuidv4(),
             type: 'text',
@@ -756,6 +811,7 @@ export default function Canvas() {
             align: answerDefaults.align,
             fontFamily: answerDefaults.fontFamily,
             textType: 'answer',
+            answerId: answerUUID,
             paragraphSpacing: answerDefaults.paragraphSpacing,
             cornerRadius: answerDefaults.cornerRadius
           };
@@ -922,7 +978,7 @@ export default function Canvas() {
     e.evt.preventDefault();
     
     // Block context menu for restricted users
-    if (!canEditCanvas()) return;
+    if (!canEditCanvas() || state.editorInteractionLevel === 'answer_only') return;
     
     // Don't show context menu if we just finished panning
     if (hasPanned) {
@@ -1355,7 +1411,12 @@ export default function Canvas() {
       }
       
       // Block shortcuts for restricted users
-      if (!canAccessEditor() || (state.editorInteractionLevel === 'answer_only' && !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key))) {
+      if (!canAccessEditor()) {
+        return;
+      }
+      
+      // For answer_only users, block all shortcuts except arrow keys for navigation
+      if (state.editorInteractionLevel === 'answer_only' && !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         return;
       }
       
@@ -1520,16 +1581,7 @@ export default function Canvas() {
       callback(questionElement);
     };
     
-    const handleUpdateAnswerId = (event: CustomEvent) => {
-      const { elementId, answerId } = event.detail;
-      dispatch({
-        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-        payload: {
-          id: elementId,
-          updates: { answerId }
-        }
-      });
-    };
+
     
     const handleShowAlert = (event: CustomEvent) => {
       const { message, x, y, width, height } = event.detail;
@@ -1549,13 +1601,13 @@ export default function Canvas() {
     window.addEventListener('editText', handleTextEdit as EventListener);
     window.addEventListener('openQuestionModal', handleOpenQuestionModal as EventListener);
     window.addEventListener('findQuestionElement', handleFindQuestionElement as EventListener);
-    window.addEventListener('updateAnswerId', handleUpdateAnswerId as EventListener);
+
     window.addEventListener('showAlert', handleShowAlert as EventListener);
     return () => {
       window.removeEventListener('editText', handleTextEdit as EventListener);
       window.removeEventListener('openQuestionModal', handleOpenQuestionModal as EventListener);
       window.removeEventListener('findQuestionElement', handleFindQuestionElement as EventListener);
-      window.removeEventListener('updateAnswerId', handleUpdateAnswerId as EventListener);
+
       window.removeEventListener('showAlert', handleShowAlert as EventListener);
       if (editingTimeoutRef.current) {
         clearTimeout(editingTimeoutRef.current);
@@ -1697,6 +1749,23 @@ export default function Canvas() {
                     isSelected={state.selectedElementIds.includes(element.id)}
                     zoom={zoom}
                     onSelect={(e) => {
+                    // Block all selection for answer_only users except double-click on answer textboxes
+                    if (state.editorInteractionLevel === 'answer_only') {
+                      // Only allow double-click on answer textboxes
+                      if (element.textType === 'answer' && e?.evt?.detail === 2) {
+                        // Allow double-click to edit answer
+                        window.dispatchEvent(new CustomEvent('editText', {
+                          detail: { elementId: element.id }
+                        }));
+                      }
+                      return;
+                    }
+                    
+                    // Block all selection for no_access users
+                    if (state.editorInteractionLevel === 'no_access') {
+                      return;
+                    }
+                    
                     // Handle Ctrl+click for multi-selection
                     if (e?.evt?.ctrlKey || e?.evt?.metaKey) {
                       const isSelected = state.selectedElementIds.includes(element.id);
@@ -1799,7 +1868,13 @@ export default function Canvas() {
                   }}
                   isMovingGroup={isMovingGroup}
 
-                  onDragStart={() => {
+                  onDragStart={(e) => {
+                    // Block dragging for answer_only and no_access users
+                    if (state.editorInteractionLevel === 'answer_only' || state.editorInteractionLevel === 'no_access') {
+                      e.target.stopDrag();
+                      return;
+                    }
+                    
                     dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Move Element' });
                     
                     // For question-answer pairs, check if elements are already selected

@@ -20,37 +20,57 @@ pool.on('connect', (client) => {
 // Create or update answer
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { questionId, answerText } = req.body;
-    const userId = req.user.id;
+    const { id, questionId, answerText, userId: requestUserId } = req.body;
+    const userId = requestUserId || req.user.id;
 
     // Strip HTML tags from answer text
     const cleanAnswerText = answerText.replace(/<[^>]*>/g, '').trim();
-
-    // console.log('Saving answer:', { userId, questionId, cleanAnswerText });
 
     if (!questionId || cleanAnswerText === undefined || cleanAnswerText === null) {
       return res.status(400).json({ error: 'Missing questionId or answerText' });
     }
 
-    // Check if answer already exists for this user and question
-    const existingAnswer = await pool.query(
-      'SELECT id FROM public.answers WHERE user_id = $1 AND question_id = $2',
-      [userId, questionId]
-    );
-
     let result;
-    if (existingAnswer.rows.length > 0) {
-      // Update existing answer
-      result = await pool.query(
-        'UPDATE public.answers SET answer_text = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2 AND question_id = $3 RETURNING *',
-        [cleanAnswerText, userId, questionId]
+    if (id) {
+      // Use provided UUID - check if answer already exists
+      const existingAnswer = await pool.query(
+        'SELECT id FROM public.answers WHERE id = $1',
+        [id]
       );
+
+      if (existingAnswer.rows.length > 0) {
+        // Update existing answer
+        result = await pool.query(
+          'UPDATE public.answers SET answer_text = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+          [cleanAnswerText, id]
+        );
+      } else {
+        // Create new answer with provided UUID
+        result = await pool.query(
+          'INSERT INTO public.answers (id, user_id, question_id, answer_text) VALUES ($1, $2, $3, $4) RETURNING *',
+          [id, userId, questionId, cleanAnswerText]
+        );
+      }
     } else {
-      // Create new answer with UUID
-      result = await pool.query(
-        'INSERT INTO public.answers (id, user_id, question_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3) RETURNING *',
-        [userId, questionId, cleanAnswerText]
+      // Fallback: Check if answer already exists for this user and question
+      const existingAnswer = await pool.query(
+        'SELECT id FROM public.answers WHERE user_id = $1 AND question_id = $2',
+        [userId, questionId]
       );
+
+      if (existingAnswer.rows.length > 0) {
+        // Update existing answer
+        result = await pool.query(
+          'UPDATE public.answers SET answer_text = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2 AND question_id = $3 RETURNING *',
+          [cleanAnswerText, userId, questionId]
+        );
+      } else {
+        // Create new answer with generated UUID
+        result = await pool.query(
+          'INSERT INTO public.answers (id, user_id, question_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3) RETURNING *',
+          [userId, questionId, cleanAnswerText]
+        );
+      }
     }
 
     res.json(result.rows[0]);

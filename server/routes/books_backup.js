@@ -295,12 +295,10 @@ router.put('/:id', authenticateToken, async (req, res) => {
     // Prevent duplicate save operations
     const saveKey = `${userId}-${bookId}`;
     if (ongoingSaves.has(saveKey)) {
-      console.log(`Duplicate save request detected for user ${userId}, book ${bookId} - ignoring`);
       return res.status(409).json({ error: 'Save already in progress' });
     }
     
     ongoingSaves.add(saveKey);
-    console.log(`Starting save operation for user ${userId}, book ${bookId}`);
 
     // Check if user has access to this book
     const bookAccess = await pool.query(`
@@ -331,13 +329,11 @@ router.put('/:id', authenticateToken, async (req, res) => {
       );
 
       // UPSERT pages: update existing, insert new
-      console.log(`Processing ${pages.length} pages for book ${bookId}`);
       const processedPageIds = new Set(); // Track processed pages to avoid duplicates
       const processedPageNumbers = new Set(); // Track processed page numbers to avoid duplicates
       const allPageIds = []; // Track all page IDs (existing + new)
       
       for (const page of pages) {
-        console.log(`Processing page: ID=${page.id}, pageNumber=${page.pageNumber}`);
         let pageId;
         
         // Skip if we've already processed this page (efficiency fix)
@@ -370,7 +366,6 @@ router.put('/:id', authenticateToken, async (req, res) => {
           processedPageIds.add(page.id);
         } else {
           // Insert new page (UUID/timestamp IDs are treated as new pages)
-          console.log(`Inserting new page with temp ID ${page.id} for book ${bookId}`);
           try {
             // Create complete page structure for new pages
             const completePageData = {
@@ -394,7 +389,6 @@ router.put('/:id', authenticateToken, async (req, res) => {
               [JSON.stringify(completePageData), pageId]
             );
             
-            console.log(`New page inserted with database ID ${pageId}`);
           } catch (insertError) {
             if (insertError.code === '23505') { // Unique constraint violation
               // Find existing page with this page number and use its ID
@@ -419,7 +413,6 @@ router.put('/:id', authenticateToken, async (req, res) => {
                   [JSON.stringify(completePageData), page.background?.pageTheme, pageId]
                 );
                 
-                console.log(`Using existing page ID ${pageId} for page number ${page.pageNumber}`);
               } else {
                 throw insertError; // Re-throw if we can't find the existing page
               }
@@ -453,7 +446,6 @@ router.put('/:id', authenticateToken, async (req, res) => {
       // Delete pages that are no longer in the pages array
       if (allPageIds.length > 0) {
         const placeholders = allPageIds.map((_, i) => `$${i + 2}`).join(',');
-        console.log(`Preserving all pages: ${allPageIds.join(', ')}`);
         await pool.query(
           `DELETE FROM public.pages WHERE book_id = $1 AND id NOT IN (${placeholders})`,
           [bookId, ...allPageIds]
@@ -469,7 +461,6 @@ router.put('/:id', authenticateToken, async (req, res) => {
     // Always remove the save key when done
     const saveKey = `${req.user.id}-${req.params.id}`;
     ongoingSaves.delete(saveKey);
-    console.log(`Completed save operation for user ${req.user.id}, book ${req.params.id}`);
   }
 });
 
@@ -498,7 +489,6 @@ router.post('/', authenticateToken, async (req, res) => {
       [bookId, userId, 'owner', 'all_pages', 'full_edit_with_settings']
     );
 
-    console.log(`Created book ${bookId} and added owner ${userId} to book_friends`);
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Book creation error:', error);
@@ -555,7 +545,6 @@ router.post('/:id/collaborators', authenticateToken, async (req, res) => {
     const { email } = req.body;
     const userId = req.user.id;
 
-    console.log('Adding collaborator by email:', { bookId, email });
 
     // Check if user is owner
     const book = await pool.query('SELECT * FROM public.books WHERE id = $1 AND owner_id = $2', [bookId, userId]);
@@ -598,7 +587,6 @@ router.post('/:id/collaborators', authenticateToken, async (req, res) => {
       [bookId, collaboratorId, 'author', 'own_page', 'full_edit']
     );
 
-    console.log('Collaborator added successfully:', { collaboratorName, result: result.rows[0] });
     res.json({ success: true, collaborator: result.rows[0] });
   } catch (error) {
     console.error('Add collaborator error:', error);
@@ -613,8 +601,6 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
     const { friendId, userId: targetUserId, role = 'author', book_role, page_access_level, editor_interaction_level } = req.body;
     const userId = req.user.id;
     const userToAdd = friendId || targetUserId;
-
-    console.log('Adding friend to book:', { bookId, userToAdd, role: book_role || role, page_access_level, editor_interaction_level });
 
     // Check if user has access to manage this book
     const bookAccess = await pool.query(`
@@ -643,7 +629,6 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
         'INSERT INTO public.friendships (user_id, friend_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
         [userToAdd, userId]
       );
-      console.log(`Auto-created friendship between ${userId} and ${userToAdd}`);
     }
 
     // Check if user is already in book_friends
@@ -658,7 +643,6 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
         'UPDATE public.book_friends SET book_role = $1, page_access_level = $2, editor_interaction_level = $3 WHERE book_id = $4 AND user_id = $5 RETURNING *',
         [book_role || role, page_access_level || 'own_page', editor_interaction_level || 'full_edit', bookId, userToAdd]
       );
-      console.log('Friend permissions updated:', result.rows[0]);
       return res.json({ success: true, friend: result.rows[0] });
     }
 
@@ -668,7 +652,6 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
       [bookId, userToAdd, book_role || role, page_access_level || 'own_page', editor_interaction_level || 'full_edit']
     );
 
-    console.log('Friend added successfully:', result.rows[0]);
     res.json({ success: true, friend: result.rows[0] });
   } catch (error) {
     console.error('Add friend to book error:', error);
@@ -880,7 +863,6 @@ router.get('/:id/friends', authenticateToken, async (req, res) => {
       editorInteractionLevel: friend.editor_interaction_level
     }));
 
-    // console.log(`Found ${friendsWithCorrectFields.length} friends for book ${bookId}:`, friendsWithCorrectFields);
     res.json(friendsWithCorrectFields);
   } catch (error) {
     console.error('Friends fetch error:', error);
@@ -926,8 +908,6 @@ router.put('/:id/friends/bulk-update', authenticateToken, async (req, res) => {
     const { friends } = req.body;
     const userId = req.user.id;
 
-    console.log('Bulk updating book friends:', { bookId, friendsCount: friends.length, friends });
-
     // Check if user is owner or publisher
     const bookAccess = await pool.query(`
       SELECT b.*, bf.book_role as user_book_role FROM public.books b
@@ -941,12 +921,10 @@ router.put('/:id/friends/bulk-update', authenticateToken, async (req, res) => {
 
     // Update each friend's permissions
     for (const friend of friends) {
-      console.log('Updating friend:', friend);
       const result = await pool.query(
         'UPDATE public.book_friends SET book_role = $1, page_access_level = $2, editor_interaction_level = $3 WHERE book_id = $4 AND user_id = $5 RETURNING *',
         [friend.book_role, friend.page_access_level, friend.editor_interaction_level, bookId, friend.user_id]
       );
-      console.log('Update result:', result.rows[0]);
     }
 
     res.json({ success: true });
@@ -1036,3 +1014,70 @@ router.put('/:id/page-order', authenticateToken, async (req, res) => {
 });
 
 module.exports = router;
+// Sync answers from database to canvas elements
+router.post('/:id/sync-answers', authenticateToken, async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const userId = req.user.id;
+
+    // Check if user has access to this book
+    const bookAccess = await pool.query(`
+      SELECT b.* FROM public.books b
+      LEFT JOIN public.book_friends bf ON b.id = bf.book_id
+      WHERE b.id = $1 AND (b.owner_id = $2 OR bf.user_id = $2)
+    `, [bookId, userId]);
+
+    if (bookAccess.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Get all answers for this user and book
+    const answers = await pool.query(`
+      SELECT a.*, q.id as question_id FROM public.answers a
+      JOIN public.questions q ON a.question_id = q.id
+      WHERE q.book_id = $1 AND a.user_id = $2
+    `, [bookId, userId]);
+
+    // Get all pages for this book
+    const pages = await pool.query(
+      'SELECT * FROM public.pages WHERE book_id = $1 ORDER BY page_number ASC',
+      [bookId]
+    );
+
+    // Update canvas elements with answer text
+    for (const page of pages.rows) {
+      const pageData = page.elements || {};
+      const elements = pageData.elements || [];
+      let updated = false;
+
+      for (const element of elements) {
+        if (element.textType === 'answer' && element.answerId) {
+          // Find the answer for this element
+          const answer = answers.rows.find(a => a.id === element.answerId);
+          if (answer) {
+            // Find the answer for this question
+            const answer = answers.rows.find(a => a.question_id === questionElement.questionId);
+
+              element.text = answer.answer_text;
+              element.formattedText = answer.answer_text;
+              updated = true;
+            }
+          }
+        }
+      }
+
+      // Update page if any elements were modified
+      if (updated) {
+        await pool.query(
+          'UPDATE public.pages SET elements = $1 WHERE id = $2',
+          [JSON.stringify(pageData), page.id]
+        );
+      }
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Sync answers error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});

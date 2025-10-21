@@ -6,6 +6,7 @@ import { Button } from '../../../ui/primitives/button';
 import { ShortcutsDialog } from './shortcuts-dialog';
 import { Separator } from '../../../ui/primitives/separator';
 import { Tooltip } from '../../../ui/composites/tooltip';
+import { useEditor } from '../../../../context/editor-context';
 
 interface ToolbarContentProps {
   activeTool: string;
@@ -16,6 +17,7 @@ interface ToolbarContentProps {
 }
 
 export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarContentProps>(function ToolbarContent({ activeTool, isExpanded, userRole, isOnAssignedPage, onToolSelect }, ref) {
+  const { state } = useEditor();
   const [showShortcuts, setShowShortcuts] = useState(false);
 
   useImperativeHandle(ref, () => ({
@@ -25,6 +27,38 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
   // Hide content for authors on non-assigned pages
   if (userRole === 'author' && !isOnAssignedPage) {
     return null;
+  }
+
+  // For answer_only users, only show Select and Pan tools
+  if (state.editorInteractionLevel === 'answer_only') {
+    return (
+      <>
+        <div className={`p-2 overflow-y-auto scrollbar-hide flex-1 min-h-0 relative`}>
+          <div className="space-y-1">
+            <ToolButton
+              id="select"
+              label="Select"
+              icon={MousePointer}
+              isActive={activeTool === 'select'}
+              isExpanded={false}
+              userRole={userRole}
+              isOnAssignedPage={isOnAssignedPage}
+              onClick={() => onToolSelect('select')}
+            />
+            <ToolButton
+              id="pan"
+              label="Pan"
+              icon={Hand}
+              isActive={activeTool === 'pan'}
+              isExpanded={false}
+              userRole={userRole}
+              isOnAssignedPage={isOnAssignedPage}
+              onClick={() => onToolSelect('pan')}
+            />
+          </div>
+        </div>
+      </>
+    );
   }
 
   return (

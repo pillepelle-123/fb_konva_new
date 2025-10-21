@@ -1,6 +1,7 @@
 import { Button } from '../../../ui/primitives/button';
 import { Tooltip } from '../../../ui/composites/tooltip';
 import { Triangle, TriangleRight, type Icon } from 'lucide-react';
+import { useEditor } from '../../../../context/editor-context';
 
 interface ToolButtonProps {
   id: string;
@@ -31,11 +32,14 @@ const getToolInstruction = (toolId: string): { title: string; description: strin
 };
 
 export function ToolButton({ id, label, icon: Icon, isActive, isExpanded, userRole, isOnAssignedPage, hasPopover, onClick }: ToolButtonProps) {
+  const { state } = useEditor();
   const instruction = getToolInstruction(id);
   const isAuthor = userRole === 'author';
-  const isDisabled = (isAuthor && id !== 'pan' && !isOnAssignedPage) || (isAuthor && id === 'question');
   
-
+  // Block tools for answer_only users (except select and pan)
+  const isAnswerOnlyRestricted = state.editorInteractionLevel === 'answer_only' && !['select', 'pan'].includes(id);
+  
+  const isDisabled = (isAuthor && id !== 'pan' && !isOnAssignedPage) || (isAuthor && id === 'question') || isAnswerOnlyRestricted;
   
   return (
       <Button
@@ -47,9 +51,7 @@ export function ToolButton({ id, label, icon: Icon, isActive, isExpanded, userRo
       >
         <Icon className="h-5 w-5" />
         {hasPopover && (
-          // <div className="absolute bottom-0 right-0 w-0 h-0 border-l-[4px] border-l-transparent border-b-[4px] border-b-foreground border-r-[4px] border-r-transparent rotate-100" />
           <TriangleRight className='absolute bottom-0 right-0 w-2 h-3 stroke-foreground fill-foreground'/>
-          // <Triangle className='absolute bottom-0 right-0 w-2 h-2 stroke-foreground fill-foreground rotate-[2.342rad]' />
         )}
       </Button>
   );
