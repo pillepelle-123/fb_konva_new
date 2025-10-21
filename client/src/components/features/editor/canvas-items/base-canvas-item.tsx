@@ -20,7 +20,7 @@ export interface CanvasItemProps {
 interface BaseCanvasItemProps extends CanvasItemProps {
   children: ReactNode;
   hitArea?: { x: number; y: number; width: number; height: number };
-  onDoubleClick?: () => void;
+  onDoubleClick?: (e?: any) => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
 }
@@ -45,14 +45,14 @@ export default function BaseCanvasItem({
   const [partnerHovered, setPartnerHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
-  // Prevent scaling for question-answer pairs
+  // Prevent scaling for question-answer pairs and qna_textbox
   useEffect(() => {
-    if (groupRef.current && (element.textType === 'question' || element.textType === 'answer')) {
+    if (groupRef.current && (element.textType === 'question' || element.textType === 'answer' || element.type === 'qna_textbox')) {
       // Always ensure scale is 1 for question/answer elements
       groupRef.current.scaleX(1);
       groupRef.current.scaleY(1);
     }
-  }, [element.textType, element.width, element.height, element.scaleX, element.scaleY]);
+  }, [element.textType, element.type, element.width, element.height, element.scaleX, element.scaleY]);
 
   useEffect(() => {
     const handlePartnerHover = (event: CustomEvent) => {
@@ -82,16 +82,6 @@ export default function BaseCanvasItem({
   const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (state.activeTool === 'select') {
       if (e.evt.button === 0) {
-        // Check for double-click
-        const currentTime = Date.now();
-        const timeDiff = currentTime - lastClickTime;
-        if (timeDiff < 500 && timeDiff > 50 && onDoubleClick) {
-          e.cancelBubble = true;
-          onDoubleClick();
-          return;
-        }
-        setLastClickTime(currentTime);
-        
         e.cancelBubble = true;
         // For question-answer pairs, always call onSelect to handle sequential selection
         // For other elements, only call if not already selected
@@ -105,6 +95,13 @@ export default function BaseCanvasItem({
           onSelect(e);
         }
       }
+    }
+  };
+
+  const handleDoubleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (state.activeTool === 'select' && onDoubleClick) {
+      e.cancelBubble = true;
+      onDoubleClick(e);
     }
   };
 
@@ -138,12 +135,13 @@ export default function BaseCanvasItem({
       id={element.id}
       x={element.x}
       y={element.y}
-      scaleX={(element.textType === 'question' || element.textType === 'answer') ? 1 : (element.scaleX || 1)}
-      scaleY={(element.textType === 'question' || element.textType === 'answer') ? 1 : (element.scaleY || 1)}
+      scaleX={(element.textType === 'question' || element.textType === 'answer' || element.type === 'qna_textbox') ? 1 : (element.scaleX || 1)}
+      scaleY={(element.textType === 'question' || element.textType === 'answer' || element.type === 'qna_textbox') ? 1 : (element.scaleY || 1)}
       rotation={element.rotation || 0}
       draggable={state.activeTool === 'select' && !isMovingGroup && state.editorInteractionLevel !== 'answer_only'}
       onMouseDown={handleMouseDown}
       onClick={handleClick}
+      onDblClick={handleDoubleClick}
       onTap={(e) => {
         e.cancelBubble = true;
         // For question-answer pairs, always call onSelect for sequential selection

@@ -1,10 +1,10 @@
 import { useEditor } from '../../../../context/editor-context';
 import { Button } from '../../../ui/primitives/button';
-import { ChevronRight, ChevronLeft, MousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, Settings, PaintBucket, Palette, MessageCircleQuestionMark } from 'lucide-react';
+import { ChevronRight, ChevronLeft, SquareMousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, Settings, PaintBucket, Palette, MessageCircleQuestionMark } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '../../../ui/composites/tabs';
 
 const TOOL_ICONS = {
-  select: MousePointer,
+  select: SquareMousePointer,
   pan: Hand,
   text: MessageCircle,
   question: MessageCircleQuestion,

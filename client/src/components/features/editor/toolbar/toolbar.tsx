@@ -5,7 +5,7 @@ import { ToolbarHeader } from './toolbar-header';
 import { ToolbarContent } from './toolbar-content';
 import { TooltipProvider } from '../../../ui/composites/tooltip';
 import { 
-  MousePointer, 
+  SquareMousePointer, 
   Hand, 
   MessageCircle, 
   MessageCircleQuestion, 
@@ -46,7 +46,7 @@ export default function Toolbar() {
     {
       name: 'Selection',
       tools: [
-        { id: 'select', label: 'Select', icon: MousePointer },
+        { id: 'select', label: 'Select', icon: SquareMousePointer },
         { id: 'pan', label: 'Pan', icon: Hand },
       ]
     },

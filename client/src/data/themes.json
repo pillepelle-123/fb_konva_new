@@ -19,7 +19,7 @@
       "text": {
         "cornerRadius": 30,
         "font": {
-          "fontSize": 16,
+          "fontSize": 12,
           "fontFamily": "Century Gothic, sans-serif",
           "fontBold": false,
           "fontItalic": false,
@@ -54,7 +54,7 @@
       "question": {
         "cornerRadius": 30,
         "font": {
-          "fontSize": 18,
+          "fontSize": 12,
           "fontFamily": "Century Gothic, sans-serif",
           "fontBold": false,
           "fontItalic": false,
@@ -89,7 +89,7 @@
       "answer": {
         "cornerRadius": 30,
         "font": {
-          "fontSize": 16,
+          "fontSize": 12,
           "fontFamily": "Century Gothic, sans-serif",
           "fontBold": false,
           "fontItalic": false,

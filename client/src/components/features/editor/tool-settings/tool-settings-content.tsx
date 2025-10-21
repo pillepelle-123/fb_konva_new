@@ -1,6 +1,7 @@
 import { useEditor } from '../../../../context/editor-context';
 import { Button } from '../../../ui/primitives/button';
-import { MousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, AlignLeft, AlignCenter, AlignRight, AlignJustify, Rows4, Rows3, Rows2, Palette, Type } from 'lucide-react';
+import { SquareMousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, AlignLeft, AlignCenter, AlignRight, AlignJustify, Rows4, Rows3, Rows2, Palette, Type, ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from 'lucide-react';
+import { QuestionPositionTop, QuestionPositionBottom, QuestionPositionLeft, QuestionPositionRight } from '../../../ui/icons/question-position-icons';
 import { ButtonGroup } from '../../../ui/composites/button-group';
 import type { PageBackground } from '../../../../context/editor-context';
 import { ThemeSelect } from '../../../../utils/theme-options';
@@ -79,7 +80,7 @@ const isFontItalic = (element: any, state: any) => {
 };
 
 const TOOL_ICONS = {
-  select: MousePointer,
+  select: SquareMousePointer,
   pan: Hand,
   text: MessageCircle,
   question: MessageCircleQuestion,
@@ -431,6 +432,49 @@ export function ToolSettingsContent({
       dispatch({
         type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
         payload: { id: answerElement.id, updates: { [key]: value } }
+      });
+    };
+
+    const repositionQuestionAnswer = (question: any, answer: any, position: 'top' | 'bottom' | 'left' | 'right') => {
+      const gap = 10; // Gap between question and answer
+      
+      let questionUpdates: any = {};
+      let answerUpdates: any = {};
+      
+      switch (position) {
+        case 'top':
+          // Question above answer
+          questionUpdates = {
+            x: answer.x,
+            y: answer.y - question.height - gap
+          };
+          break;
+        case 'bottom':
+          // Question below answer
+          questionUpdates = {
+            x: answer.x,
+            y: answer.y + answer.height + gap
+          };
+          break;
+        case 'left':
+          // Question to the left of answer
+          questionUpdates = {
+            x: answer.x - question.width - gap,
+            y: answer.y
+          };
+          break;
+        case 'right':
+          // Question to the right of answer
+          questionUpdates = {
+            x: answer.x + answer.width + gap,
+            y: answer.y
+          };
+          break;
+      }
+      
+      dispatch({
+        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+        payload: { id: question.id, updates: questionUpdates }
       });
     };
 
@@ -961,6 +1005,56 @@ export function ToolSettingsContent({
         
         <Separator />
         
+        <div>
+          <Label variant="xs">Question Position</Label>
+          <ButtonGroup className="mt-1">
+            <Button
+              variant={(questionElement.questionPosition || 'top') === 'top' ? 'default' : 'outline'}
+              size="xs"
+              onClick={() => {
+                updateBothElements('questionPosition', 'top');
+                repositionQuestionAnswer(questionElement, answerElement, 'top');
+              }}
+              className="w-8 h-8 p-0"
+            >
+              <QuestionPositionTop className="w-4 h-4" />
+            </Button>
+            <Button
+              variant={(questionElement.questionPosition || 'top') === 'left' ? 'default' : 'outline'}
+              size="xs"
+              onClick={() => {
+                updateBothElements('questionPosition', 'left');
+                repositionQuestionAnswer(questionElement, answerElement, 'left');
+              }}
+              className="w-8 h-8 p-0"
+            >
+              <QuestionPositionLeft className="w-4 h-4" />
+            </Button>
+            <Button
+              variant={(questionElement.questionPosition || 'top') === 'right' ? 'default' : 'outline'}
+              size="xs"
+              onClick={() => {
+                updateBothElements('questionPosition', 'right');
+                repositionQuestionAnswer(questionElement, answerElement, 'right');
+              }}
+              className="w-8 h-8 p-0"
+            >
+              <QuestionPositionRight className="w-4 h-4" />
+            </Button>
+            <Button
+              variant={(questionElement.questionPosition || 'top') === 'bottom' ? 'default' : 'outline'}
+              size="xs"
+              onClick={() => {
+                updateBothElements('questionPosition', 'bottom');
+                repositionQuestionAnswer(questionElement, answerElement, 'bottom');
+              }}
+              className="w-8 h-8 p-0"
+            >
+              <QuestionPositionBottom className="w-4 h-4" />
+            </Button>
+          </ButtonGroup>
+        </div>
+        
         {((element.borderWidth || 0) === 0 || (element.theme !== 'candy' && element.theme !== 'zigzag' && element.theme !== 'wobbly')) && (
           <Slider
             label="Corner Radius"
@@ -1363,7 +1457,7 @@ export function ToolSettingsContent({
                   max={getMaxStrokeWidth()}
                 />
                 
-                <div>
+                {/* <div>
                   <Label variant="xs">Theme</Label>
                   <ThemeSelect 
                     value={element.inheritTheme || element.theme || 'default'}
@@ -1372,7 +1466,7 @@ export function ToolSettingsContent({
                       updateElementSetting('inheritTheme', value);
                     }}
                   />
-                </div>
+                </div> */}
                 
                 <div>
                   <Button
@@ -1518,6 +1612,7 @@ export function ToolSettingsContent({
           </div>
         );
 
+      case 'qna_textbox':
       case 'text':
         return (
           <div className="space-y-2">

@@ -385,6 +385,7 @@ export default function Textbox(props: CanvasItemProps) {
   const getPlaceholderText = () => {
     if (element.textType === 'question') return 'Double-click to pose a question...';
     if (element.textType === 'qna') return 'Double-click to add questions & answers...';
+    if (element.type === 'qna_textbox') return 'Double-click to add question and answer...';
     if (element.textType === 'answer') {
       // Check if answer has questionId or linked question has questionId
       let questionId = element.questionId;
@@ -517,7 +518,7 @@ export default function Textbox(props: CanvasItemProps) {
     }
   }, [element.textType]);
 
-  const handleDoubleClick = () => {
+  const handleDoubleClick = (e?: any) => {
     if (state.activeTool !== 'select') return;
     
     // For answer_only users, only allow double-click on answer textboxes
@@ -525,7 +526,40 @@ export default function Textbox(props: CanvasItemProps) {
       return;
     }
     
+    // Handle qna_textbox with area detection
+    if (element.type === 'qna_textbox') {
+      const questionHeight = Math.max(40, element.height * 0.3);
+      
+      // Get click position relative to element
+      let relativeY = 0;
+      if (e?.target) {
+        const stage = e.target.getStage();
+        if (stage) {
+          const pointerPos = stage.getPointerPosition();
+          if (pointerPos) {
+            // Account for zoom and stage position
+            const stageTransform = stage.getAbsoluteTransform();
+            const localPos = stageTransform.copy().invert().point(pointerPos);
+            relativeY = localPos.y - element.y;
+          }
+        }
+      }
+      
+      if (relativeY < questionHeight) {
+        // Clicked on question area
+        if (state.userRole === 'author') return;
+        window.dispatchEvent(new CustomEvent('openQuestionModal', {
+          detail: { elementId: element.id }
+        }));
+      } else {
+        // Clicked on answer area
+        enableInlineEditing();
+      }
+      return;
+    }
+    
     if (element.textType === 'question') {
+      console.log('Textbox: Opening question modal for question element');
       // Prevent authors from opening question manager
       if (state.userRole === 'author') {
         return;
@@ -537,6 +571,8 @@ export default function Textbox(props: CanvasItemProps) {
       }));
       return;
     }
+    
+    console.log('Textbox: Element details', { textType: element.textType, type: element.type, id: element.id });
     
     if (element.textType === 'answer') {
       // Check if current user is assigned to this page
@@ -767,7 +803,7 @@ export default function Textbox(props: CanvasItemProps) {
     textarea.style.fontFamily = element.font?.fontFamily || element.fontFamily || 'Arial, sans-serif';
     textarea.style.fontWeight = element.font?.fontBold || element.fontWeight === 'bold' ? 'bold' : 'normal';
     textarea.style.fontStyle = element.font?.fontItalic || element.fontStyle === 'italic' ? 'italic' : 'normal';
-    textarea.style.color = element.font?.fontColor || element.fill || '#1f2937';
+    textarea.style.color = element.font?.fontColor || element.fill || '#000000';
     textarea.style.background = 'transparent';
     textarea.style.border = 'transparent';
     textarea.style.outline = 'none';
@@ -783,8 +819,8 @@ export default function Textbox(props: CanvasItemProps) {
     textarea.style.whiteSpace = 'pre-wrap';
     textarea.style.wordWrap = 'break-word';
     
-    // For answer textboxes, use the current answer from tempAnswers
-    if (element.textType === 'answer') {
+    // For answer textboxes and qna_textbox, use the current answer from tempAnswers
+    if (element.textType === 'answer' || element.type === 'qna_textbox') {
       let questionId = element.questionId;
       
       if (!questionId && element.questionElementId) {
@@ -845,8 +881,8 @@ export default function Textbox(props: CanvasItemProps) {
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
         const newText = textarea.value;
         
-        // For answer textboxes, update temp answer state using element's answerId
-        if (element.textType === 'answer') {
+        // For answer textboxes and qna_textbox, update temp answer state using element's answerId
+        if (element.textType === 'answer' || element.type === 'qna_textbox') {
           let questionId = element.questionId;
           
           if (!questionId && element.questionElementId) {
@@ -952,8 +988,8 @@ export default function Textbox(props: CanvasItemProps) {
     textarea.addEventListener('blur', () => {
       const newText = textarea.value;
       
-      // For answer textboxes, update temp answer state using element's answerId
-      if (element.textType === 'answer') {
+      // For answer textboxes and qna_textbox, update temp answer state using element's answerId
+      if (element.textType === 'answer' || element.type === 'qna_textbox') {
         let questionId = element.questionId;
         
         if (!questionId && element.questionElementId) {
@@ -1152,6 +1188,64 @@ export default function Textbox(props: CanvasItemProps) {
           const padding = element.format?.padding || element.padding || 4;
           const textWidth = element.width - (padding * 2);
           const textHeight = element.height - (padding * 2);
+          
+          // Special rendering for qna_textbox
+          if (element.type === 'qna_textbox') {
+            const questionHeight = Math.max(40, element.height * 0.3);
+            const answerHeight = element.height - questionHeight - 10;
+            
+            const questionText = element.questionId ? getQuestionText(element.questionId) : 'Double-click to select question...';
+            const answerText = element.questionId ? getAnswerText(element.questionId, user?.id) : 'Select a question first...';
+            
+            return (
+              <>
+                {/* Question area */}
+                <Text
+                  x={padding}
+                  y={padding}
+                  width={textWidth}
+                  height={questionHeight - padding}
+                  text={questionText}
+                  fontSize={(element.font?.fontSize || fontSize) * 0.9}
+                  fontFamily={element.font?.fontFamily || fontFamily}
+                  fontStyle={`${(element.font?.fontBold) ? 'bold' : ''} ${(element.font?.fontItalic) ? 'italic' : ''}`.trim() || 'normal'}
+                  fill={element.questionId ? (element.font?.fontColor || '#1f2937') : '#9ca3af'}
+                  opacity={(element.font?.fontOpacity || 1) * 0.8}
+                  align={element.format?.align || align}
+                  verticalAlign="top"
+                  wrap="word"
+                  lineHeight={lineHeight}
+                  listening={false}
+                />
+                {/* Separator line */}
+                <Path
+                  data={`M ${padding} ${questionHeight} L ${element.width - padding} ${questionHeight}`}
+                  stroke={element.border?.borderColor || "#e5e7eb"}
+                  strokeWidth={1}
+                  listening={false}
+                />
+                {/* Answer area */}
+                <Text
+                  ref={textRef}
+                  x={padding}
+                  y={padding + questionHeight + 5}
+                  width={textWidth}
+                  height={answerHeight - padding}
+                  text={answerText || 'Double-click to answer...'}
+                  fontSize={element.font?.fontSize || fontSize}
+                  fontFamily={element.font?.fontFamily || fontFamily}
+                  fontStyle={`${(element.font?.fontBold) ? 'bold' : ''} ${(element.font?.fontItalic) ? 'italic' : ''}`.trim() || 'normal'}
+                  fill={answerText ? (element.font?.fontColor || '#1f2937') : '#9ca3af'}
+                  opacity={answerText ? (element.font?.fontOpacity || 1) : 0.6}
+                  align={element.format?.align || align}
+                  verticalAlign="top"
+                  wrap="word"
+                  lineHeight={lineHeight}
+                  listening={false}
+                />
+              </>
+            );
+          }
           
           return (element.formattedText || element.text) && ((element.formattedText || element.text).includes('<') && ((element.formattedText || element.text).includes('<strong>') || (element.formattedText || element.text).includes('<em>') || (element.formattedText || element.text).includes('<u>') || (element.formattedText || element.text).includes('color:') || (element.formattedText || element.text).includes('font-family:') || (element.formattedText || element.text).includes('ql-font-') || (element.formattedText || element.text).includes('data-ruled=') || (element.formattedText || element.text).includes('<h'))) ? (
             <>

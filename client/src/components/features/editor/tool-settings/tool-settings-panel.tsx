@@ -8,11 +8,11 @@ import { Dialog, DialogContent } from '../../../ui/overlays/dialog';
 import { Modal } from '../../../ui/overlays/modal';
 import QuestionsManagerDialog from '../questions-manager-dialog';
 import ImagesContent from '../../images/images-content';
-import { MousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile } from 'lucide-react';
+import { SquareMousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile } from 'lucide-react';
 
 
 const TOOL_ICONS = {
-  select: MousePointer,
+  select: SquareMousePointer,
   pan: Hand,
   text: MessageCircle,
   question: MessageCircleQuestion,

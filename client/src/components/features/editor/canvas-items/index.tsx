@@ -19,7 +19,7 @@ export default function CanvasItemComponent(props: CanvasItemComponentProps) {
     return <ThemedShape {...props} />;
   }
 
-  if (element.type === 'text') {
+  if (element.type === 'text' || element.type === 'qna_textbox') {
     return <Textbox {...props} />;
   }
 

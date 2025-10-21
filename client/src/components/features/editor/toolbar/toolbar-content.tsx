@@ -1,6 +1,6 @@
 import { ToolButton } from './tool-button';
 import { ToolPopover } from './tool-popover';
-import { type Icon, Info, MousePointer, Hand, Brush, Pipette, Square, Sticker, MessageCircle, MessageCircleQuestionMark, Search } from 'lucide-react';
+import { type Icon, Info, Hand, Brush, Pipette, Square, Sticker, MessageCircle, MessageCircleQuestionMark, Search, SquareMousePointer } from 'lucide-react';
 import { useState, forwardRef, useImperativeHandle } from 'react';
 import { Button } from '../../../ui/primitives/button';
 import { ShortcutsDialog } from './shortcuts-dialog';
@@ -39,7 +39,7 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
             <ToolButton
               id="select"
               label="Select"
-              icon={MousePointer}
+              icon={SquareMousePointer}
               isActive={activeTool === 'select'}
               isExpanded={false}
               userRole={userRole}
@@ -80,7 +80,7 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
           <ToolButton
             id="select"
             label="Select"
-            icon={MousePointer}
+            icon={SquareMousePointer}
             isActive={activeTool === 'select'}
             isExpanded={false}
             userRole={userRole}
@@ -183,7 +183,7 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
 
         {/* <Separator className="mb-2" /> */}
 
-        {/* Row 5: Zoom */}
+        {/* Row 5: Zoom + Q&A Textbox */}
         <div className={`${isExpanded ? 'grid grid-cols-2 gap-1' : 'space-y-1'} mb-2`}>
           <ToolButton
             id="zoom"
@@ -194,6 +194,16 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
             userRole={userRole}
             isOnAssignedPage={isOnAssignedPage}
             onClick={() => onToolSelect('zoom')}
+          />
+          <ToolButton
+            id="qna_textbox"
+            label="Q&A Textbox"
+            icon={MessageCircle}
+            isActive={activeTool === 'qna_textbox'}
+            isExpanded={false}
+            userRole={userRole}
+            isOnAssignedPage={isOnAssignedPage}
+            onClick={() => onToolSelect('qna_textbox')}
           />
         </div>
         
