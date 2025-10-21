@@ -166,7 +166,7 @@ router.put('/book/:bookId', authenticateToken, async (req, res) => {
       WHERE page_id IN (SELECT id FROM public.pages WHERE book_id = $1)
     `, [bookId]);
     
-    // Insert new assignments
+    // Insert new assignments and create answer placeholders
     for (const assignment of assignments) {
       if (assignment.userId) {
         // Get page_id from page_number and book_id
@@ -176,10 +176,38 @@ router.put('/book/:bookId', authenticateToken, async (req, res) => {
         );
         
         if (pageResult.rows.length > 0) {
+          const pageId = pageResult.rows[0].id;
+          
           await pool.query(`
             INSERT INTO public.page_assignments (page_id, user_id, assigned_by)
             VALUES ($1, $2, $3)
-          `, [pageResult.rows[0].id, assignment.userId, req.user.id]);
+          `, [pageId, assignment.userId, req.user.id]);
+          
+          // Create answer placeholders for questions on this page
+          const pageData = await pool.query(
+            'SELECT elements FROM public.pages WHERE id = $1',
+            [pageId]
+          );
+          
+          if (pageData.rows.length > 0) {
+            const elements = pageData.rows[0].elements?.elements || [];
+            const questionElements = elements.filter(el => el.textType === 'question' && el.questionId);
+            
+            for (const questionElement of questionElements) {
+              const existingAnswer = await pool.query(
+                'SELECT id FROM public.answers WHERE question_id = $1 AND user_id = $2',
+                [questionElement.questionId, assignment.userId]
+              );
+              
+              if (existingAnswer.rows.length === 0) {
+                await pool.query(
+                  'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3)',
+                  [questionElement.questionId, assignment.userId, '']
+                );
+                console.log(`Created answer placeholder for page assignment: question ${questionElement.questionId}, user ${assignment.userId}`);
+              }
+            }
+          }
         }
       }
     }

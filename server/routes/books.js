@@ -602,11 +602,22 @@ router.put('/:id', authenticateToken, async (req, res) => {
           [pageId]
         );
 
-        // Get assigned user for this page first
-        const pageAssignment = await pool.query(
-          'SELECT user_id FROM public.page_assignments WHERE page_id = $1',
-          [pageId]
-        );
+        // Get assigned user for this page (check React state first, then database)
+        let pageAssignment = { rows: [] };
+        
+        // Check if there's a page assignment in the request data
+        const pageAssignmentFromState = req.body.pageAssignments && req.body.pageAssignments[page.pageNumber];
+        if (pageAssignmentFromState) {
+          pageAssignment = { rows: [{ user_id: pageAssignmentFromState.userId }] };
+          console.log(`Using page assignment from state: user ${pageAssignmentFromState.userId}`);
+        } else {
+          // Fallback to database
+          pageAssignment = await pool.query(
+            'SELECT user_id FROM public.page_assignments WHERE page_id = $1',
+            [pageId]
+          );
+          console.log(`Using page assignment from database:`, pageAssignment.rows);
+        }
         
         // Add new question associations and create answer placeholders
         const elements = page.elements || [];
@@ -672,6 +683,27 @@ router.put('/:id', authenticateToken, async (req, res) => {
           }
         }
         
+        // Create answer placeholders for all questions on assigned pages
+        if (pageAssignment.rows.length > 0) {
+          const assignedUserId = pageAssignment.rows[0].user_id;
+          const questionElements = elements.filter(el => el.textType === 'question' && el.questionId);
+          
+          for (const questionElement of questionElements) {
+            const existingAnswer = await pool.query(
+              'SELECT id FROM public.answers WHERE question_id = $1 AND user_id = $2',
+              [questionElement.questionId, assignedUserId]
+            );
+            
+            if (existingAnswer.rows.length === 0) {
+              await pool.query(
+                'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3)',
+                [questionElement.questionId, assignedUserId, '']
+              );
+              console.log(`Created answer placeholder for question ${questionElement.questionId}, user ${assignedUserId}`);
+            }
+          }
+        }
+        
         // Update page elements if answer IDs were added
         if (elementsUpdated) {
           const updatedPageData = {
@@ -697,6 +729,42 @@ router.put('/:id', authenticateToken, async (req, res) => {
           `DELETE FROM public.pages WHERE book_id = $1 AND id NOT IN (${placeholders})`,
           [bookId, ...allPageIds]
         );
+      }
+      
+      // After all pages are processed, create answer placeholders for newly assigned users
+      if (req.body.pageAssignments) {
+        for (const [pageNumber, assignment] of Object.entries(req.body.pageAssignments)) {
+          const pageResult = await pool.query(
+            'SELECT id FROM public.pages WHERE book_id = $1 AND page_number = $2',
+            [bookId, parseInt(pageNumber)]
+          );
+          
+          if (pageResult.rows.length > 0) {
+            const pageId = pageResult.rows[0].id;
+            const assignedUserId = assignment.userId;
+            
+            // Get all questions on this page
+            const pageData = pages.find(p => p.pageNumber === parseInt(pageNumber));
+            if (pageData && pageData.elements) {
+              const questionElements = pageData.elements.filter(el => el.textType === 'question' && el.questionId);
+              
+              for (const questionElement of questionElements) {
+                const existingAnswer = await pool.query(
+                  'SELECT id FROM public.answers WHERE question_id = $1 AND user_id = $2',
+                  [questionElement.questionId, assignedUserId]
+                );
+                
+                if (existingAnswer.rows.length === 0) {
+                  await pool.query(
+                    'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3)',
+                    [questionElement.questionId, assignedUserId, '']
+                  );
+                  console.log(`Created answer placeholder for reassigned page: question ${questionElement.questionId}, user ${assignedUserId}`);
+                }
+              }
+            }
+          }
+        }
       }
     }
 
