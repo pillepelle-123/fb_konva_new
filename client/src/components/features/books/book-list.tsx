@@ -31,7 +31,7 @@ export default function BooksList({ books, itemsPerPage = 10 }: BooksListProps) 
           <CardHeader className="flex-1 pb-4">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
-                <CardTitle className="text-lg font-semibold line-clamp-2">
+                <CardTitle className="text-lg line-clamp-2">
                   {book.name}
                 </CardTitle>
                 <CardDescription className="flex items-center space-x-2 text-sm">

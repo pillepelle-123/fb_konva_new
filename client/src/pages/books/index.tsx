@@ -115,10 +115,10 @@ export default function BooksList() {
         <div className="container mx-auto px-4 py-8">
           <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-start gap-4">
           <div className="space-y-1">
             <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center space-x-2">
-              <Book className="h-6 w-6" />
+              <Book/>
               <span>My Books</span>
             </h1>
             <p className="text-muted-foreground">

@@ -87,14 +87,14 @@ function Home({ serverMessage }: { serverMessage: string }) {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-2xl mx-auto text-center space-y-6">
-        <h1 className="text-4xl font-bold tracking-tight text-foreground">
+        <h1 className="text-4xl tracking-tight text-foreground">
           Welcome to freundebuch.io
         </h1>
         <p className="text-xl text-muted-foreground">
           Create and collaborate on beautiful books and documents
         </p>
         <div className="bg-card border rounded-lg p-6 shadow-sm">
-          <h2 className="text-lg font-semibold mb-2">Server Status</h2>
+          <h2 className="mb-2">Server Status</h2>
           <p className="text-muted-foreground">{serverMessage || 'Connecting to server...'}</p>
           <p className="mt-4 text-sm text-muted-foreground">
             Please login or register to continue.
@@ -121,7 +121,7 @@ function AdminPanel() {
           Admin Panel
         </h1>
         <div className="bg-card border rounded-lg p-6 shadow-sm">
-          <h2 className="text-lg font-semibold mb-2">Admin Features</h2>
+          <h2 className="mb-2">Admin Features</h2>
           <p className="text-muted-foreground">
             Manage books, questions, and invite authors.
           </p>

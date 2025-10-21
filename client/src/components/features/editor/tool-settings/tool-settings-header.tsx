@@ -1,12 +1,12 @@
 import { useEditor } from '../../../../context/editor-context';
 import { Button } from '../../../ui/primitives/button';
-import { ChevronRight, ChevronLeft, MousePointer, Hand, MessageCircleMore, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, Settings, PaintBucket, Palette, MessageCircleQuestionMark } from 'lucide-react';
+import { ChevronRight, ChevronLeft, MousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, Settings, PaintBucket, Palette, MessageCircleQuestionMark } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '../../../ui/composites/tabs';
 
 const TOOL_ICONS = {
   select: MousePointer,
   pan: Hand,
-  text: MessageCircleMore,
+  text: MessageCircle,
   question: MessageCircleQuestion,
   answer: MessageCircleHeart,
   image: Image,
@@ -53,7 +53,7 @@ export function ToolSettingsHeader({
   return (
     <div className="flex items-center justify-between px-2 border-b pb-0">
       {!isCollapsed && (
-        <div className="font-semibold text-sm flex items-center gap-2 flex-1">
+        <div className="text-sm flex items-center gap-2 flex-1">
           {(() => {
             // Check for linked question-answer pair
             if (state.selectedElementIds.length === 2 && state.currentBook) {

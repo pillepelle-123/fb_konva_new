@@ -50,12 +50,12 @@ export function BookTitle({ title }: BookTitleProps) {
             if (e.key === 'Enter') handleSave();
             if (e.key === 'Escape') handleCancel();
           }}
-          className="text-sm md:text-lg font-semibold text-foreground bg-transparent border-b border-border outline-none text-center md:text-center"
+          className="text-sm md:text-lg text-foreground bg-transparent outline-none text-center md:text-center"
           autoFocus
         />
       ) : (
         <h1 
-          className="text-sm md:text-lg font-semibold text-foreground whitespace-nowrap cursor-pointer hover:text-primary"
+          className="text-sm md:text-lg text-foreground whitespace-nowrap cursor-pointer hover:text-primary"
           onClick={() => { setEditName(title); setIsEditing(true); }}
         >
           {title}

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Button } from '../ui/primitives/button';
-import { MessageSquare, IdCard, Settings, LogOut } from 'lucide-react';
+import { MessageSquare, IdCard, Settings, UserStar, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/auth-context';
 import { useEffect, useRef } from 'react';
 
@@ -9,7 +9,7 @@ interface NavigationSubMenuProps {
 }
 
 export default function NavigationSubMenu({ onClose }: NavigationSubMenuProps) {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -55,6 +55,18 @@ export default function NavigationSubMenu({ onClose }: NavigationSubMenuProps) {
           <span>Settings</span>
         </Button>
       </Link>
+      {user?.role === 'admin' && (
+        <Link to="/admin" onClick={onClose}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start space-x-2 py-6 rounded-none text-foreground hover:bg-muted"
+          >
+            <UserStar className="h-5 w-5" />
+            <span>Admin</span>
+          </Button>
+        </Link>
+      )}
       <Button
         variant="ghost"
         size="sm"

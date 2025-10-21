@@ -8,13 +8,13 @@ import { Dialog, DialogContent } from '../../../ui/overlays/dialog';
 import { Modal } from '../../../ui/overlays/modal';
 import QuestionsManagerDialog from '../questions-manager-dialog';
 import ImagesContent from '../../images/images-content';
-import { MousePointer, Hand, MessageCircleMore, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile } from 'lucide-react';
+import { MousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile } from 'lucide-react';
 
 
 const TOOL_ICONS = {
   select: MousePointer,
   pan: Hand,
-  text: MessageCircleMore,
+  text: MessageCircle,
   question: MessageCircleQuestion,
   answer: MessageCircleHeart,
   image: Image,
@@ -165,6 +165,7 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, {}>((props, ref) => {
 
 
   // Hide tool settings panel completely for answer_only users
+  // console.log('Tool settings panel - editorInteractionLevel:', state.editorInteractionLevel);
   if (state.editorInteractionLevel === 'answer_only') {
     return null;
   }

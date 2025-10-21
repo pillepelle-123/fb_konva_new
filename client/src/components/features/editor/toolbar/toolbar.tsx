@@ -7,7 +7,7 @@ import { TooltipProvider } from '../../../ui/composites/tooltip';
 import { 
   MousePointer, 
   Hand, 
-  MessageCircleMore, 
+  MessageCircle, 
   MessageCircleQuestion, 
   MessageCircleHeart, 
   Image, 
@@ -53,7 +53,7 @@ export default function Toolbar() {
     {
       name: 'Text',
       tools: [
-        { id: 'text', label: 'Text', icon: MessageCircleMore },
+        { id: 'text', label: 'Text', icon: MessageCircle },
         { id: 'question', label: 'Question', icon: MessageCircleQuestion },
         { id: 'answer', label: 'Answer', icon: MessageCircleHeart },
         { id: 'qna', label: 'Q&A', icon: MessagesSquare },

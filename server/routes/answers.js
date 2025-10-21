@@ -47,7 +47,7 @@ router.post('/', authenticateToken, async (req, res) => {
       } else {
         // Create new answer with provided UUID
         result = await pool.query(
-          'INSERT INTO public.answers (id, user_id, question_id, answer_text) VALUES ($1, $2, $3, $4) RETURNING *',
+          'INSERT INTO public.answers (id, user_id, question_id, answer_text) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id, question_id) DO UPDATE SET answer_text = EXCLUDED.answer_text RETURNING *',
           [id, userId, questionId, cleanAnswerText]
         );
       }
@@ -67,7 +67,7 @@ router.post('/', authenticateToken, async (req, res) => {
       } else {
         // Create new answer with generated UUID
         result = await pool.query(
-          'INSERT INTO public.answers (id, user_id, question_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3) RETURNING *',
+          'INSERT INTO public.answers (id, user_id, question_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3) ON CONFLICT (user_id, question_id) DO UPDATE SET answer_text = EXCLUDED.answer_text RETURNING *',
           [userId, questionId, cleanAnswerText]
         );
       }

@@ -245,19 +245,71 @@ export default function ImagesContent({
   return (
     <>
       {showAsContent && (
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center space-x-2">
-              <Image className="h-6 w-6" />
-              <span>My Images</span>
-            </h1>
-            {onClose && (
-              <Button variant="outline" onClick={onClose}>
-                Back
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="space-y-1">
+              <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center space-x-2">
+                <Image/>
+                <span>My Images</span>
+              </h1>
+              <p className="text-muted-foreground">Manage your uploaded images</p>
+            </div>
+            <div className="flex gap-2">
+              {onClose && (
+                <Button variant="outline" onClick={onClose}>
+                  Back
+                </Button>
+              )}
+              {multiSelectMode ? (
+                <ButtonGroup>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setMultiSelectMode(false);
+                      deselectAllImages();
+                    }}
+                  >
+                    <SquareX className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={selectAllImages}
+                    disabled={selectedImages.size === images.length}
+                  >
+                    <CopyCheck className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={deselectAllImages}
+                    disabled={selectedImages.size === 0}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => setShowDeleteConfirm(Array.from(selectedImages))}
+                    disabled={selectedImages.size === 0}
+                    className="space-x-2"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    <span> ({selectedImages.size})</span>
+                  </Button>
+                </ButtonGroup>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={() => setMultiSelectMode(true)}
+                >
+                  <SquareCheckBig className="h-4 w-4" />
+                </Button>
+              )}
+
+              <Button variant="default" onClick={() => fileInputRef.current?.click()} className="space-x-2">
+                <Plus className="h-4 w-4" />
+                <span>Add Images</span>
               </Button>
-            )}
+            </div>
           </div>
-          <p className="text-muted-foreground">Manage your uploaded images</p>
         </div>
       )}
 
@@ -268,60 +320,9 @@ export default function ImagesContent({
             {uploadError}
           </Alert>
         )}
-        
-        <div className="flex gap-2">
-          {multiSelectMode ? (
-            <ButtonGroup>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setMultiSelectMode(false);
-                  deselectAllImages();
-                }}
-              >
-                <SquareX className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                onClick={selectAllImages}
-                disabled={selectedImages.size === images.length}
-              >
-                <CopyCheck className="h-4 w-4" />
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={deselectAllImages}
-                disabled={selectedImages.size === 0}
-              >
-                <Copy className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={() => setShowDeleteConfirm(Array.from(selectedImages))}
-                disabled={selectedImages.size === 0}
-                className="space-x-2"
-              >
-                <Trash2 className="h-3 w-3" />
-                <span> ({selectedImages.size})</span>
-              </Button>
-            </ButtonGroup>
-          ) : (
-            <Button
-              variant="outline"
-              onClick={() => setMultiSelectMode(true)}
-            >
-              <SquareCheckBig className="h-4 w-4" />
-            </Button>
-          )}
-
-          <Button variant="default" onClick={() => fileInputRef.current?.click()} className="space-x-2">
-            <Plus className="h-4 w-4" />
-            <span>Add Images</span>
-          </Button>
-        </div>
 
         <div
-          className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+          className={`border-2 border-dashed rounded-lg p-8 mt-6 text-center transition-colors ${
             isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
           } ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
           onDrop={handleDrop}

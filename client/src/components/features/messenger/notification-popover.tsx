@@ -84,7 +84,7 @@ export default function NotificationPopover({ onUpdate, onClose }: NotificationP
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold">Notifications</h3>
+        <h3>Notifications</h3>
         <Link 
           to="/messenger" 
           className="text-sm text-primary hover:underline"

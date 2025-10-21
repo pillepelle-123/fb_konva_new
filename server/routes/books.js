@@ -171,6 +171,76 @@ router.get('/:id', authenticateToken, async (req, res) => {
       'SELECT * FROM public.pages WHERE book_id = $1 ORDER BY page_number ASC',
       [bookId]
     );
+    
+    // Get all answers for this book to populate canvas elements
+    const allAnswers = await pool.query(`
+      SELECT a.* FROM public.answers a
+      JOIN public.questions q ON a.question_id = q.id
+      WHERE q.book_id = $1
+    `, [bookId]);
+    
+    // Get user-specific answers for the current user
+    const userAnswers = await pool.query(`
+      SELECT a.* FROM public.answers a
+      JOIN public.questions q ON a.question_id = q.id
+      WHERE q.book_id = $1 AND a.user_id = $2
+    `, [bookId, userId]);
+
+    // Get questions and answers for this book
+    const questions = await pool.query(
+      'SELECT * FROM public.questions WHERE book_id = $1',
+      [bookId]
+    );
+
+    const answers = await pool.query(`
+      SELECT a.* FROM public.answers a
+      JOIN public.questions q ON a.question_id = q.id
+      WHERE q.book_id = $1 AND a.user_id = $2
+    `, [bookId, userId]);
+
+    // Get page assignments for this book
+    const pageAssignments = await pool.query(`
+      SELECT pa.page_id, pa.user_id, p.page_number, u.name, u.email, u.role
+      FROM public.page_assignments pa
+      JOIN public.pages p ON pa.page_id = p.id
+      JOIN public.users u ON pa.user_id = u.id
+      WHERE p.book_id = $1
+    `, [bookId]);
+
+    // Get user role and permissions for this book
+    let userRole = null;
+    if (book.owner_id === userId) {
+      userRole = {
+        role: 'publisher',
+        assignedPages: [],
+        page_access_level: 'all_pages',
+        editor_interaction_level: 'full_edit_with_settings'
+      };
+    } else {
+      const collaborator = await pool.query(
+        'SELECT book_role, page_access_level, editor_interaction_level FROM public.book_friends WHERE book_id = $1 AND user_id = $2',
+        [bookId, userId]
+      );
+      
+      if (collaborator.rows.length > 0) {
+        let assignedPages = [];
+        if (collaborator.rows[0].book_role === 'author') {
+          const assignments = await pool.query(`
+            SELECT p.page_number FROM public.page_assignments pa
+            JOIN public.pages p ON pa.page_id = p.id
+            WHERE p.book_id = $1 AND pa.user_id = $2
+          `, [bookId, userId]);
+          assignedPages = assignments.rows.map(row => row.page_number);
+        }
+        
+        userRole = {
+          role: collaborator.rows[0].book_role,
+          assignedPages,
+          page_access_level: collaborator.rows[0].page_access_level,
+          editor_interaction_level: collaborator.rows[0].editor_interaction_level
+        };
+      }
+    }
 
     res.json({
       id: book.id,
@@ -179,12 +249,57 @@ router.get('/:id', authenticateToken, async (req, res) => {
       orientation: book.orientation,
       owner_id: book.owner_id,
       bookTheme: book.book_theme,
+      questions: questions.rows,
+      answers: answers.rows,
+      pageAssignments: pageAssignments.rows,
+      userRole: userRole,
       pages: pages.rows.map(page => {
         const pageData = page.elements || {};
+        const elements = pageData.elements || [];
+        console.log(`Page ${page.id} has ${elements.length} elements`);
+        
+        // Update answer elements with actual answer text from assigned users
+        const updatedElements = elements.map(element => {
+          console.log(`Element type: ${element.textType}, questionId: ${element.questionId}`);
+          if (element.textType === 'answer') {
+            // Find the user assigned to this page
+            const pageAssignment = pageAssignments.rows.find(pa => pa.page_id === page.id);
+            console.log(`Page ${page.id}: assignment found:`, pageAssignment);
+            if (pageAssignment) {
+              // If answer element has no questionId, find question on same page
+              let questionId = element.questionId;
+              if (!questionId) {
+                const questionElement = elements.find(el => el.textType === 'question' && el.questionId);
+                if (questionElement) {
+                  questionId = questionElement.questionId;
+                  console.log(`Found question ${questionId} for answer element`);
+                }
+              }
+              
+              if (questionId) {
+                // Find the answer from the assigned user
+                const assignedUserAnswer = allAnswers.rows.find(a => 
+                  a.question_id === questionId && a.user_id === pageAssignment.user_id
+                );
+                console.log(`Answer found for question ${questionId}:`, assignedUserAnswer);
+                if (assignedUserAnswer) {
+                  return {
+                    ...element,
+                    questionId: questionId,
+                    text: assignedUserAnswer.answer_text || '',
+                    answerId: assignedUserAnswer.id
+                  };
+                }
+              }
+            }
+          }
+          return element;
+        });
+        
         return {
           id: page.id,
           pageNumber: page.page_number,
-          elements: pageData.elements || [],
+          elements: updatedElements,
           background: {
             ...pageData.background,
             pageTheme: page.page_theme
@@ -255,8 +370,16 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
             [pageId]
           );
 
-          // Add new question associations (only positive IDs - negative IDs are temporary)
+          // Get assigned user for this page first
+          const pageAssignment = await pool.query(
+            'SELECT user_id FROM public.page_assignments WHERE page_id = $1',
+            [pageId]
+          );
+          
+          // Add new question associations and create answer placeholders
           const elements = page.elements || [];
+          let elementsUpdated = false;
+          
           for (const element of elements) {
             if (element.textType === 'question' && element.questionId && element.questionId > 0) {
               await pool.query(
@@ -264,6 +387,47 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
                 [element.questionId, pageId]
               );
             }
+            
+            // Create answer placeholders for answer elements
+            if (element.textType === 'answer' && element.questionId && element.questionId > 0 && pageAssignment.rows.length > 0) {
+              const assignedUserId = pageAssignment.rows[0].user_id;
+              
+              // Check if answer already exists
+              const existingAnswer = await pool.query(
+                'SELECT id FROM public.answers WHERE question_id = $1 AND user_id = $2',
+                [element.questionId, assignedUserId]
+              );
+              
+              if (existingAnswer.rows.length === 0) {
+                // Create new answer placeholder
+                const newAnswer = await pool.query(
+                  'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3) RETURNING id',
+                  [element.questionId, assignedUserId, '']
+                );
+                
+                element.answerId = newAnswer.rows[0].id;
+                elementsUpdated = true;
+              } else {
+                element.answerId = existingAnswer.rows[0].id;
+                elementsUpdated = true;
+              }
+            }
+          }
+          
+          // Update page elements if answer IDs were added
+          if (elementsUpdated) {
+            const updatedPageData = {
+              id: pageId,
+              elements: elements,
+              background: page.background || { pageTheme: null },
+              pageNumber: page.pageNumber,
+              database_id: pageId
+            };
+            
+            await pool.query(
+              'UPDATE public.pages SET elements = $1 WHERE id = $2',
+              [JSON.stringify(updatedPageData), pageId]
+            );
           }
         }
       }
@@ -295,12 +459,12 @@ router.put('/:id', authenticateToken, async (req, res) => {
     // Prevent duplicate save operations
     const saveKey = `${userId}-${bookId}`;
     if (ongoingSaves.has(saveKey)) {
-      console.log(`Duplicate save request detected for user ${userId}, book ${bookId} - ignoring`);
+      // console.log(`Duplicate save request detected for user ${userId}, book ${bookId} - ignoring`);
       return res.status(409).json({ error: 'Save already in progress' });
     }
     
     ongoingSaves.add(saveKey);
-    console.log(`Starting save operation for user ${userId}, book ${bookId}`);
+    // console.log(`Starting save operation for user ${userId}, book ${bookId}`);
 
     // Check if user has access to this book
     const bookAccess = await pool.query(`
@@ -331,13 +495,13 @@ router.put('/:id', authenticateToken, async (req, res) => {
       );
 
       // UPSERT pages: update existing, insert new
-      console.log(`Processing ${pages.length} pages for book ${bookId}`);
+      // console.log(`Processing ${pages.length} pages for book ${bookId}`);
       const processedPageIds = new Set(); // Track processed pages to avoid duplicates
       const processedPageNumbers = new Set(); // Track processed page numbers to avoid duplicates
       const allPageIds = []; // Track all page IDs (existing + new)
       
       for (const page of pages) {
-        console.log(`Processing page: ID=${page.id}, pageNumber=${page.pageNumber}`);
+        // console.log(`Processing page: ID=${page.id}, pageNumber=${page.pageNumber}`);
         let pageId;
         
         // Skip if we've already processed this page (efficiency fix)
@@ -370,7 +534,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
           processedPageIds.add(page.id);
         } else {
           // Insert new page (UUID/timestamp IDs are treated as new pages)
-          console.log(`Inserting new page with temp ID ${page.id} for book ${bookId}`);
+          // console.log(`Inserting new page with temp ID ${page.id} for book ${bookId}`);
           try {
             // Create complete page structure for new pages
             const completePageData = {
@@ -394,7 +558,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
               [JSON.stringify(completePageData), pageId]
             );
             
-            console.log(`New page inserted with database ID ${pageId}`);
+            // console.log(`New page inserted with database ID ${pageId}`);
           } catch (insertError) {
             if (insertError.code === '23505') { // Unique constraint violation
               // Find existing page with this page number and use its ID
@@ -419,7 +583,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
                   [JSON.stringify(completePageData), page.background?.pageTheme, pageId]
                 );
                 
-                console.log(`Using existing page ID ${pageId} for page number ${page.pageNumber}`);
+                // console.log(`Using existing page ID ${pageId} for page number ${page.pageNumber}`);
               } else {
                 throw insertError; // Re-throw if we can't find the existing page
               }
@@ -438,22 +602,97 @@ router.put('/:id', authenticateToken, async (req, res) => {
           [pageId]
         );
 
-        // Add new question associations (only positive IDs - negative IDs are temporary)
+        // Get assigned user for this page first
+        const pageAssignment = await pool.query(
+          'SELECT user_id FROM public.page_assignments WHERE page_id = $1',
+          [pageId]
+        );
+        
+        // Add new question associations and create answer placeholders
         const elements = page.elements || [];
+        let elementsUpdated = false;
+        
+        console.log(`Processing ${elements.length} elements for page ${pageId}`);
+        
         for (const element of elements) {
-          if (element.textType === 'question' && element.questionId && element.questionId > 0) {
+          console.log(`Element: type=${element.textType}, questionId=${element.questionId}`);
+          
+          if (element.textType === 'question' && element.questionId) {
             await pool.query(
               'INSERT INTO public.question_pages (question_id, page_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
               [element.questionId, pageId]
             );
+            
+            // Create answer placeholder for question (assigned user needs to answer)
+            if (pageAssignment.rows.length > 0) {
+              const assignedUserId = pageAssignment.rows[0].user_id;
+              console.log(`Creating answer placeholder for question ${element.questionId}, user ${assignedUserId}`);
+              
+              const existingAnswer = await pool.query(
+                'SELECT id FROM public.answers WHERE question_id = $1 AND user_id = $2',
+                [element.questionId, assignedUserId]
+              );
+              
+              if (existingAnswer.rows.length === 0) {
+                await pool.query(
+                  'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3) ON CONFLICT (user_id, question_id) DO NOTHING',
+                  [element.questionId, assignedUserId, '']
+                );
+                console.log(`Created answer placeholder for question ${element.questionId}`);
+              } else {
+                console.log(`Answer already exists for question ${element.questionId}`);
+              }
+            }
           }
+          
+          // Create answer placeholders for answer elements
+          if (element.textType === 'answer' && element.questionId && pageAssignment.rows.length > 0) {
+            console.log(`Processing answer element with questionId: ${element.questionId}`);
+            const assignedUserId = pageAssignment.rows[0].user_id;
+            
+            const existingAnswer = await pool.query(
+              'SELECT id FROM public.answers WHERE question_id = $1 AND user_id = $2',
+              [element.questionId, assignedUserId]
+            );
+            
+            if (existingAnswer.rows.length === 0) {
+              const newAnswer = await pool.query(
+                'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3) ON CONFLICT (user_id, question_id) DO UPDATE SET answer_text = EXCLUDED.answer_text RETURNING id',
+                [element.questionId, assignedUserId, '']
+              );
+              
+              element.answerId = newAnswer.rows[0].id;
+              elementsUpdated = true;
+              console.log(`Created answer with ID: ${newAnswer.rows[0].id}`);
+            } else {
+              element.answerId = existingAnswer.rows[0].id;
+              elementsUpdated = true;
+              console.log(`Using existing answer ID: ${existingAnswer.rows[0].id}`);
+            }
+          }
+        }
+        
+        // Update page elements if answer IDs were added
+        if (elementsUpdated) {
+          const updatedPageData = {
+            id: pageId,
+            elements: elements,
+            background: page.background || { pageTheme: null },
+            pageNumber: page.pageNumber,
+            database_id: pageId
+          };
+          
+          await pool.query(
+            'UPDATE public.pages SET elements = $1 WHERE id = $2',
+            [JSON.stringify(updatedPageData), pageId]
+          );
         }
       }
       
       // Delete pages that are no longer in the pages array
       if (allPageIds.length > 0) {
         const placeholders = allPageIds.map((_, i) => `$${i + 2}`).join(',');
-        console.log(`Preserving all pages: ${allPageIds.join(', ')}`);
+        // console.log(`Preserving all pages: ${allPageIds.join(', ')}`);
         await pool.query(
           `DELETE FROM public.pages WHERE book_id = $1 AND id NOT IN (${placeholders})`,
           [bookId, ...allPageIds]
@@ -469,7 +708,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
     // Always remove the save key when done
     const saveKey = `${req.user.id}-${req.params.id}`;
     ongoingSaves.delete(saveKey);
-    console.log(`Completed save operation for user ${req.user.id}, book ${req.params.id}`);
+    // console.log(`Completed save operation for user ${req.user.id}, book ${req.params.id}`);
   }
 });
 
@@ -498,7 +737,7 @@ router.post('/', authenticateToken, async (req, res) => {
       [bookId, userId, 'owner', 'all_pages', 'full_edit_with_settings']
     );
 
-    console.log(`Created book ${bookId} and added owner ${userId} to book_friends`);
+    // console.log(`Created book ${bookId} and added owner ${userId} to book_friends`);
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Book creation error:', error);
@@ -555,7 +794,7 @@ router.post('/:id/collaborators', authenticateToken, async (req, res) => {
     const { email } = req.body;
     const userId = req.user.id;
 
-    console.log('Adding collaborator by email:', { bookId, email });
+    // console.log('Adding collaborator by email:', { bookId, email });
 
     // Check if user is owner
     const book = await pool.query('SELECT * FROM public.books WHERE id = $1 AND owner_id = $2', [bookId, userId]);
@@ -598,7 +837,7 @@ router.post('/:id/collaborators', authenticateToken, async (req, res) => {
       [bookId, collaboratorId, 'author', 'own_page', 'full_edit']
     );
 
-    console.log('Collaborator added successfully:', { collaboratorName, result: result.rows[0] });
+    // console.log('Collaborator added successfully:', { collaboratorName, result: result.rows[0] });
     res.json({ success: true, collaborator: result.rows[0] });
   } catch (error) {
     console.error('Add collaborator error:', error);
@@ -614,7 +853,7 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     const userToAdd = friendId || targetUserId;
 
-    console.log('Adding friend to book:', { bookId, userToAdd, role: book_role || role, page_access_level, editor_interaction_level });
+    // console.log('Adding friend to book:', { bookId, userToAdd, role: book_role || role, page_access_level, editor_interaction_level });
 
     // Check if user has access to manage this book
     const bookAccess = await pool.query(`
@@ -643,7 +882,7 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
         'INSERT INTO public.friendships (user_id, friend_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
         [userToAdd, userId]
       );
-      console.log(`Auto-created friendship between ${userId} and ${userToAdd}`);
+      // console.log(`Auto-created friendship between ${userId} and ${userToAdd}`);
     }
 
     // Check if user is already in book_friends
@@ -658,7 +897,7 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
         'UPDATE public.book_friends SET book_role = $1, page_access_level = $2, editor_interaction_level = $3 WHERE book_id = $4 AND user_id = $5 RETURNING *',
         [book_role || role, page_access_level || 'own_page', editor_interaction_level || 'full_edit', bookId, userToAdd]
       );
-      console.log('Friend permissions updated:', result.rows[0]);
+      // console.log('Friend permissions updated:', result.rows[0]);
       return res.json({ success: true, friend: result.rows[0] });
     }
 
@@ -668,7 +907,7 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
       [bookId, userToAdd, book_role || role, page_access_level || 'own_page', editor_interaction_level || 'full_edit']
     );
 
-    console.log('Friend added successfully:', result.rows[0]);
+    // console.log('Friend added successfully:', result.rows[0]);
     res.json({ success: true, friend: result.rows[0] });
   } catch (error) {
     console.error('Add friend to book error:', error);
@@ -926,7 +1165,7 @@ router.put('/:id/friends/bulk-update', authenticateToken, async (req, res) => {
     const { friends } = req.body;
     const userId = req.user.id;
 
-    console.log('Bulk updating book friends:', { bookId, friendsCount: friends.length, friends });
+    // console.log('Bulk updating book friends:', { bookId, friendsCount: friends.length, friends });
 
     // Check if user is owner or publisher
     const bookAccess = await pool.query(`
@@ -941,12 +1180,12 @@ router.put('/:id/friends/bulk-update', authenticateToken, async (req, res) => {
 
     // Update each friend's permissions
     for (const friend of friends) {
-      console.log('Updating friend:', friend);
+      // console.log('Updating friend:', friend);
       const result = await pool.query(
         'UPDATE public.book_friends SET book_role = $1, page_access_level = $2, editor_interaction_level = $3 WHERE book_id = $4 AND user_id = $5 RETURNING *',
         [friend.book_role, friend.page_access_level, friend.editor_interaction_level, bookId, friend.user_id]
       );
-      console.log('Update result:', result.rows[0]);
+      // console.log('Update result:', result.rows[0]);
     }
 
     res.json({ success: true });

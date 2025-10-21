@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../ui/primitives/button';
-import { Book, BookOpen, Home, Archive, LogOut, User, Menu, Image, IdCard, Settings, ChevronDown, Bell, MessageSquare, Users } from 'lucide-react';
+import { Book, BookOpen, Home, Archive, LogOut, User, Menu, Image, IdCard, Settings, ChevronDown, Bell, MessageSquare, Users, LayoutDashboard } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import ProfilePicture from '../features/users/profile-picture';
 import { Popover, PopoverTrigger, PopoverContent } from '../ui/overlays/popover';
@@ -135,10 +135,10 @@ export default function Navigation() {
         <div className="flex h-16 items-center">
           {/* Logo */}
           <Link to={user ? '/dashboard' : '/'} className="flex items-center space-x-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-background">
               <BookOpen className="h-5 w-5 text-primary" />
             </div>
-            <span className="text-xl font-semibold text-white">freundebuch.io</span>
+            <span className="text-xl text-primary-foreground">freundebuch.io</span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -155,7 +155,7 @@ export default function Navigation() {
                       : 'text-white hover:bg-white/10 hover:text-white'
                   }`}
                 >
-                  <Home className="h-4 w-4" />
+                  <LayoutDashboard className="h-5 w-5" />
                   <span>Dashboard</span>
                 </Button>
                 
@@ -326,7 +326,7 @@ export default function Navigation() {
                         : 'text-white hover:bg-white/10 hover:text-white'
                     }`}
                   >
-                    <Home className="h-4 w-4" />
+                    <LayoutDashboard className="h-4 w-4" />
                     <span>Dashboard</span>
                   </Button>
                 </Link>

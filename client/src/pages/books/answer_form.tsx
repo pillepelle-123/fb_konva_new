@@ -7,13 +7,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/co
 import { Toast } from '../../components/ui/overlays/toast';
 
 interface Question {
-  id: number;
+  id: string; // UUID
   text: string;
 }
 
 interface Answer {
-  questionId: number;
+  questionId: string; // UUID
   text: string;
+  answerId?: string; // UUID
 }
 
 export default function AnswerForm() {
@@ -31,17 +32,7 @@ export default function AnswerForm() {
 
     const fetchQuestionsAndAnswers = async () => {
       try {
-        // Fetch book questions
-        const questionsResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/books/${bookId}/questions`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        
-        if (questionsResponse.ok) {
-          const questionsData = await questionsResponse.json();
-          setQuestions(questionsData.map(q => ({ id: q.id, text: q.question_text })) || []);
-        }
-        
-        // Fetch book name
+        // Fetch book data
         const bookResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/books/${bookId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -49,16 +40,24 @@ export default function AnswerForm() {
         if (bookResponse.ok) {
           const bookData = await bookResponse.json();
           setBookTitle(bookData.name || 'Book');
-        }
-
-        // Fetch existing answers
-        const answersResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/answers/book/${bookId}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        
-        if (answersResponse.ok) {
-          const answersData = await answersResponse.json();
-          setAnswers(answersData.map(a => ({ questionId: a.question_id, text: a.answer_text })) || []);
+          
+          // Extract questions
+          const questionsData = bookData.questions || [];
+          setQuestions(questionsData.map(q => ({ id: q.id, text: q.question_text })));
+          
+          // Fetch answers assigned to current user
+          const answersResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/answers/book/${bookId}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          
+          if (answersResponse.ok) {
+            const answersData = await answersResponse.json();
+            setAnswers(answersData.map(a => ({ 
+              questionId: a.question_id, 
+              text: a.answer_text || '',
+              answerId: a.id
+            })));
+          }
         }
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -70,7 +69,7 @@ export default function AnswerForm() {
     fetchQuestionsAndAnswers();
   }, [token, bookId]);
 
-  const handleAnswerChange = (questionId: number, text: string) => {
+  const handleAnswerChange = (questionId: string, text: string) => {
     setAnswers(prev => {
       const existing = prev.find(a => a.questionId === questionId);
       if (existing) {
@@ -86,28 +85,24 @@ export default function AnswerForm() {
     
     setSaving(true);
     try {
-      // Save answers to database
+      // Save answers to database (including empty ones to maintain placeholders)
       for (const answer of answers) {
-        if (answer.text.trim()) {
-          await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/answers`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`
-            },
-            body: JSON.stringify({ questionId: answer.questionId, answerText: answer.text })
-          });
-        }
+        await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/answers`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ 
+            id: answer.answerId,
+            questionId: answer.questionId, 
+            answerText: answer.text || '',
+            userId: user?.id
+          })
+        });
       }
       
-      // Update book JSON to sync canvas elements
-      await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/books/${bookId}/sync-answers`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        }
-      });
+
       
       setShowToast(true);
     } catch (error) {

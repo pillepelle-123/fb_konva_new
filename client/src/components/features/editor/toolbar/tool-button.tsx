@@ -36,8 +36,8 @@ export function ToolButton({ id, label, icon: Icon, isActive, isExpanded, userRo
   const instruction = getToolInstruction(id);
   const isAuthor = userRole === 'author';
   
-  // Block tools for answer_only users (except select and pan)
-  const isAnswerOnlyRestricted = state.editorInteractionLevel === 'answer_only' && !['select', 'pan'].includes(id);
+  // Block tools for answer_only users (except select, pan, and zoom)
+  const isAnswerOnlyRestricted = state.editorInteractionLevel === 'answer_only' && !['select', 'pan', 'zoom'].includes(id);
   
   const isDisabled = (isAuthor && id !== 'pan' && !isOnAssignedPage) || (isAuthor && id === 'question') || isAnswerOnlyRestricted;
   

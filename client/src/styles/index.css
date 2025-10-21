@@ -153,3 +153,46 @@ html, body {
 * {
   transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
+
+/* Global Lucide icon stroke-width for small icons */
+svg.lucide {
+  stroke-width: 1.5 !important;
+}
+
+/* Override for CircleUser icon */
+svg.lucide-circle-user {
+  stroke-width: 1 !important;
+}
+
+/* Override for larger icons */
+/* .h-6 svg.lucide,
+.w-6 svg.lucide,
+.h-7 svg.lucide,
+.w-7 svg.lucide,
+.h-8 svg.lucide,
+.w-8 svg.lucide {
+  stroke-width: 4 !important;
+} */
+
+body {
+
+}
+
+h1, h2, h3, h4 {
+  /* color: red !important; */
+  font-weight: 400 !important;
+}
+
+h1 {
+  /* color: red !important; */
+  font-size: 1.875rem;
+}
+
+h1 svg {
+  width: 1.8rem !important;
+  height: 1.8rem !important;
+}
+
+h2 {
+  font-size: 1.4rem;
+}

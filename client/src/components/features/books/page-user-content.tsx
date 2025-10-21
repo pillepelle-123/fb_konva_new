@@ -289,7 +289,7 @@ export default function PagesContent({ bookId, bookFriends: propBookFriends, onS
       {/* Header Actions */}
       <div className="flex justify-between items-center">
         <div>
-          <h3 className="text-lg font-semibold">Page Assignments</h3>
+          <h3 className="text-lg">Page Assignments</h3>
           <p className="text-sm text-muted-foreground">Manage page assignments and order</p>
         </div>
         <div className="flex gap-2">

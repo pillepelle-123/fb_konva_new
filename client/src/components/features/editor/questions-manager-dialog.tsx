@@ -433,7 +433,7 @@ export default function QuestionsManagerDialog({
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-2">Delete Question</h3>
+            <h3 className="text-lg mb-2">Delete Question</h3>
             <p className="text-gray-600 mb-4">
               Are you sure you want to delete this question? This action cannot be undone.
             </p>

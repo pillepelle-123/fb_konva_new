@@ -386,18 +386,21 @@ export default function Textbox(props: CanvasItemProps) {
     if (element.textType === 'question') return 'Double-click to pose a question...';
     if (element.textType === 'qna') return 'Double-click to add questions & answers...';
     if (element.textType === 'answer') {
-      // Check if linked question has a questionId set
-      if (element.questionElementId) {
+      // Check if answer has questionId or linked question has questionId
+      let questionId = element.questionId;
+      
+      if (!questionId && element.questionElementId) {
         const currentPage = state.currentBook?.pages[state.activePageIndex];
         if (currentPage) {
           const questionElement = currentPage.elements.find(el => el.id === element.questionElementId);
-          if (!questionElement?.questionId) {
-            return 'Set a question first...';
-          }
+          questionId = questionElement?.questionId;
         }
-      } else {
+      }
+      
+      if (!questionId) {
         return 'Set a question first...';
       }
+      
       return 'Double-click to answer...';
     }
     return 'Double-click to add text...';
@@ -407,31 +410,47 @@ export default function Textbox(props: CanvasItemProps) {
   const getDisplayText = () => {
     let textToUse = element.formattedText || element.text;
     
-    // Check for temporary question/answer text first
+    // For question elements, get text from loaded questions data
     if (element.textType === 'question' && element.questionId) {
-      const tempText = getQuestionText(element.questionId);
-      if (tempText) textToUse = tempText;
-    } else if (element.textType === 'answer' && element.questionElementId) {
-      // Find the linked question element to get questionId
-      const currentPage = state.currentBook?.pages[state.activePageIndex];
-      if (currentPage) {
-        const questionElement = currentPage.elements.find(el => el.id === element.questionElementId);
-        if (questionElement?.questionId) {
-          // Get the assigned user for this page
-          const assignedUser = state.pageAssignments[state.activePageIndex + 1];
-          const userIdToShow = assignedUser?.id;
-          
-          if (userIdToShow) {
-            const tempText = getAnswerText(questionElement.questionId, userIdToShow);
-            if (tempText) {
-              textToUse = tempText;
-            }
+      const questionText = getQuestionText(element.questionId);
+      if (questionText) {
+        textToUse = questionText;
+      }
+    } 
+    // For answer elements, get text from loaded answers data
+    else if (element.textType === 'answer') {
+      // Use direct questionId from answer element or find via linked question element
+      let questionId = element.questionId;
+      
+      if (!questionId && element.questionElementId) {
+        // Find the linked question element to get questionId
+        const currentPage = state.currentBook?.pages[state.activePageIndex];
+        if (currentPage) {
+          const questionElement = currentPage.elements.find(el => el.id === element.questionElementId);
+          questionId = questionElement?.questionId;
+        }
+      }
+      
+      if (questionId) {
+        // Get the assigned user for this page or current user
+        const assignedUser = state.pageAssignments[state.activePageIndex + 1];
+        const userIdToShow = assignedUser?.id || user?.id;
+        
+        if (userIdToShow) {
+          const answerText = getAnswerText(questionId, userIdToShow);
+          if (answerText) {
+            textToUse = answerText;
           }
         }
       }
     }
     
     if (!textToUse) return getPlaceholderText();
+    
+    // Handle line breaks from database (\n characters)
+    if (textToUse.includes('\n')) {
+      return textToUse;
+    }
     
     // Check if text contains HTML tags
     if (textToUse.includes('<') && textToUse.includes('>')) {
@@ -527,27 +546,19 @@ export default function Textbox(props: CanvasItemProps) {
         return;
       }
       
-      // Check if linked question element has a questionId set
-      if (element.questionElementId) {
+      // Check if answer has questionId or linked question element has questionId
+      let questionId = element.questionId;
+      
+      if (!questionId && element.questionElementId) {
         const currentPage = state.currentBook?.pages[state.activePageIndex];
         if (currentPage) {
           const questionElement = currentPage.elements.find(el => el.id === element.questionElementId);
-          if (!questionElement?.questionId) {
-            // No question is set yet, show alert and prevent editing
-            window.dispatchEvent(new CustomEvent('showAlert', {
-              detail: { 
-                message: 'A question has to be set first.',
-                x: element.x,
-                y: element.y,
-                width: element.width,
-                height: element.height
-              }
-            }));
-            return;
-          }
+          questionId = questionElement?.questionId;
         }
-      } else {
-        // No linked question element, show alert and prevent editing
+      }
+      
+      if (!questionId) {
+        // No question is set yet, show alert and prevent editing
         window.dispatchEvent(new CustomEvent('showAlert', {
           detail: { 
             message: 'A question has to be set first.',
@@ -773,17 +784,23 @@ export default function Textbox(props: CanvasItemProps) {
     textarea.style.wordWrap = 'break-word';
     
     // For answer textboxes, use the current answer from tempAnswers
-    if (element.textType === 'answer' && element.questionElementId) {
-      const currentPage = state.currentBook?.pages[state.activePageIndex];
-      if (currentPage) {
-        const questionElement = currentPage.elements.find(el => el.id === element.questionElementId);
-        if (questionElement?.questionId) {
-          // Use assigned user's answer or current user's answer
-          const assignedUser = state.pageAssignments[state.activePageIndex + 1];
-          const userIdToEdit = assignedUser?.id || user?.id;
-          const currentAnswer = getAnswerText(questionElement.questionId, userIdToEdit);
-          textarea.value = currentAnswer || '';
+    if (element.textType === 'answer') {
+      let questionId = element.questionId;
+      
+      if (!questionId && element.questionElementId) {
+        const currentPage = state.currentBook?.pages[state.activePageIndex];
+        if (currentPage) {
+          const questionElement = currentPage.elements.find(el => el.id === element.questionElementId);
+          questionId = questionElement?.questionId;
         }
+      }
+      
+      if (questionId) {
+        // Use assigned user's answer or current user's answer
+        const assignedUser = state.pageAssignments[state.activePageIndex + 1];
+        const userIdToEdit = assignedUser?.id || user?.id;
+        const currentAnswer = getAnswerText(questionId, userIdToEdit);
+        textarea.value = currentAnswer || '';
       }
     }
     
@@ -829,38 +846,44 @@ export default function Textbox(props: CanvasItemProps) {
         const newText = textarea.value;
         
         // For answer textboxes, update temp answer state using element's answerId
-        if (element.textType === 'answer' && element.questionElementId) {
-          const currentPage = state.currentBook?.pages[state.activePageIndex];
-          if (currentPage) {
-            const questionElement = currentPage.elements.find(el => el.id === element.questionElementId);
-            if (questionElement?.questionId && user?.id) {
-              // Use element's answerId or create new one if missing
-              const answerId = element.answerId || uuidv4();
-              
+        if (element.textType === 'answer') {
+          let questionId = element.questionId;
+          
+          if (!questionId && element.questionElementId) {
+            const currentPage = state.currentBook?.pages[state.activePageIndex];
+            if (currentPage) {
+              const questionElement = currentPage.elements.find(el => el.id === element.questionElementId);
+              questionId = questionElement?.questionId;
+            }
+          }
+          
+          if (questionId && user?.id) {
+            // Use element's answerId or create new one if missing
+            const answerId = element.answerId || uuidv4();
+            
+            dispatch({
+              type: 'UPDATE_TEMP_ANSWER',
+              payload: {
+                questionId: questionId,
+                text: newText,
+                userId: user.id,
+                answerId
+              }
+            });
+            
+            // Update element with answerId if it was missing
+            if (!element.answerId) {
               dispatch({
-                type: 'UPDATE_TEMP_ANSWER',
+                type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
                 payload: {
-                  questionId: questionElement.questionId,
-                  text: newText,
-                  userId: user.id,
-                  answerId
+                  id: element.id,
+                  updates: { answerId }
                 }
               });
-              
-              // Update element with answerId if it was missing
-              if (!element.answerId) {
-                dispatch({
-                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                  payload: {
-                    id: element.id,
-                    updates: { answerId }
-                  }
-                });
-              }
-              
-              // Trigger answer saved event
-              window.dispatchEvent(new CustomEvent('answerSaved'));
             }
+            
+            // Trigger answer saved event
+            window.dispatchEvent(new CustomEvent('answerSaved'));
           }
         }
         
@@ -930,38 +953,44 @@ export default function Textbox(props: CanvasItemProps) {
       const newText = textarea.value;
       
       // For answer textboxes, update temp answer state using element's answerId
-      if (element.textType === 'answer' && element.questionElementId) {
-        const currentPage = state.currentBook?.pages[state.activePageIndex];
-        if (currentPage) {
-          const questionElement = currentPage.elements.find(el => el.id === element.questionElementId);
-          if (questionElement?.questionId && user?.id) {
-            // Use element's answerId or create new one if missing
-            const answerId = element.answerId || uuidv4();
-            
+      if (element.textType === 'answer') {
+        let questionId = element.questionId;
+        
+        if (!questionId && element.questionElementId) {
+          const currentPage = state.currentBook?.pages[state.activePageIndex];
+          if (currentPage) {
+            const questionElement = currentPage.elements.find(el => el.id === element.questionElementId);
+            questionId = questionElement?.questionId;
+          }
+        }
+        
+        if (questionId && user?.id) {
+          // Use element's answerId or create new one if missing
+          const answerId = element.answerId || uuidv4();
+          
+          dispatch({
+            type: 'UPDATE_TEMP_ANSWER',
+            payload: {
+              questionId: questionId,
+              text: newText,
+              userId: user.id,
+              answerId
+            }
+          });
+          
+          // Update element with answerId if it was missing
+          if (!element.answerId) {
             dispatch({
-              type: 'UPDATE_TEMP_ANSWER',
+              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
               payload: {
-                questionId: questionElement.questionId,
-                text: newText,
-                userId: user.id,
-                answerId
+                id: element.id,
+                updates: { answerId }
               }
             });
-            
-            // Update element with answerId if it was missing
-            if (!element.answerId) {
-              dispatch({
-                type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                payload: {
-                  id: element.id,
-                  updates: { answerId }
-                }
-              });
-            }
-            
-            // Trigger answer saved event
-            window.dispatchEvent(new CustomEvent('answerSaved'));
           }
+          
+          // Trigger answer saved event
+          window.dispatchEvent(new CustomEvent('answerSaved'));
         }
       }
       

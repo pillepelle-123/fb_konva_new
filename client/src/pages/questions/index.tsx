@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { MessageCircleQuestion, Plus, Edit, Trash2, Save, X, Users, ArrowLeft, Eye, FileText, AlertCircle } from 'lucide-react';
 
 interface Question {
-  id: number;
+  id: string; // UUID
   question_text: string;
   created_at: string;
   updated_at: string | null;
@@ -17,7 +17,7 @@ interface Question {
 }
 
 interface QuestionStats {
-  question_id: number;
+  question_id: string; // UUID
   question_text: string;
   question_created_at: string;
   answer_count: number;
@@ -25,9 +25,9 @@ interface QuestionStats {
 }
 
 interface Answer {
-  id: number;
+  id: string; // UUID
   user_id: number;
-  question_id: number;
+  question_id: string; // UUID
   answer_text: string;
   created_at: string;
   updated_at: string;
@@ -44,13 +44,13 @@ export default function QuestionsList() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [questionStats, setQuestionStats] = useState<QuestionStats[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [newQuestion, setNewQuestion] = useState('');
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
-  const [selectedQuestion, setSelectedQuestion] = useState<number | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [selectedQuestion, setSelectedQuestion] = useState<string | null>(null);
   const [questionAnswers, setQuestionAnswers] = useState<Answer[]>([]);
-  const [editingAnswerId, setEditingAnswerId] = useState<number | null>(null);
+  const [editingAnswerId, setEditingAnswerId] = useState<string | null>(null);
   const [editAnswerText, setEditAnswerText] = useState('');
   const [newAnswerText, setNewAnswerText] = useState('');
   const [showAddAnswer, setShowAddAnswer] = useState(false);
@@ -99,7 +99,7 @@ export default function QuestionsList() {
   const fetchQuestions = async () => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/books/${bookId}/questions-with-pages`, {
+      const response = await fetch(`${apiUrl}/questions/book/${bookId}/with-pages`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.ok) {
@@ -149,7 +149,7 @@ export default function QuestionsList() {
     }
   };
 
-  const fetchQuestionAnswers = async (questionId: number) => {
+  const fetchQuestionAnswers = async (questionId: string) => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const response = await fetch(`${apiUrl}/answers/question/${questionId}`, {
@@ -170,13 +170,16 @@ export default function QuestionsList() {
 
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/books/${bookId}/questions`, {
+      const response = await fetch(`${apiUrl}/questions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ questionText: newQuestion })
+        body: JSON.stringify({ 
+          bookId: bookId,
+          questionText: newQuestion 
+        })
       });
       if (response.ok) {
         setNewQuestion('');
@@ -188,7 +191,7 @@ export default function QuestionsList() {
     }
   };
 
-  const handleEditQuestion = async (questionId: number) => {
+  const handleEditQuestion = async (questionId: string) => {
     if (!editText.trim()) return;
 
     try {
@@ -231,7 +234,7 @@ export default function QuestionsList() {
     setShowDeleteConfirm(null);
   };
 
-  const handleEditAnswer = async (answerId: number) => {
+  const handleEditAnswer = async (answerId: string) => {
     if (!editAnswerText.trim()) return;
 
     try {
@@ -270,7 +273,8 @@ export default function QuestionsList() {
         },
         body: JSON.stringify({ 
           questionId: selectedQuestion, 
-          answerText: newAnswerText 
+          answerText: newAnswerText,
+          userId: user?.id
         })
       });
       if (response.ok) {
@@ -285,18 +289,18 @@ export default function QuestionsList() {
     }
   };
 
-  const handleViewAnswers = (questionId: number) => {
+  const handleViewAnswers = (questionId: string) => {
     setSelectedQuestion(questionId);
     setShowAddAnswer(false);
     setNewAnswerText('');
     fetchQuestionAnswers(questionId);
   };
 
-  const hasUserAnswered = (questionId: number) => {
+  const hasUserAnswered = (questionId: string) => {
     return questionAnswers.some(answer => answer.user_email === user?.email && answer.question_id === questionId);
   };
 
-  const getUserAnswer = (questionId: number) => {
+  const getUserAnswer = (questionId: string) => {
     return userAnswers.find(answer => answer.question_id === questionId);
   };
 

@@ -22,7 +22,7 @@ export function Modal({ isOpen, onClose, title, children, actions, closeOnBackdr
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex flex-col space-y-1.5 text-center sm:text-left">
-          <h2 className="text-lg font-semibold leading-none tracking-tight">
+          <h2 className="leading-none tracking-tight">
             {title}
           </h2>
         </div>

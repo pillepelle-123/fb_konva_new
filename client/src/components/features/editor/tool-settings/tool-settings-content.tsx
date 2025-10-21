@@ -1,6 +1,6 @@
 import { useEditor } from '../../../../context/editor-context';
 import { Button } from '../../../ui/primitives/button';
-import { MousePointer, Hand, MessageCircleMore, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, AlignLeft, AlignCenter, AlignRight, AlignJustify, Rows4, Rows3, Rows2, Palette, Type } from 'lucide-react';
+import { MousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, AlignLeft, AlignCenter, AlignRight, AlignJustify, Rows4, Rows3, Rows2, Palette, Type } from 'lucide-react';
 import { ButtonGroup } from '../../../ui/composites/button-group';
 import type { PageBackground } from '../../../../context/editor-context';
 import { ThemeSelect } from '../../../../utils/theme-options';
@@ -81,7 +81,7 @@ const isFontItalic = (element: any, state: any) => {
 const TOOL_ICONS = {
   select: MousePointer,
   pan: Hand,
-  text: MessageCircleMore,
+  text: MessageCircle,
   question: MessageCircleQuestion,
   answer: MessageCircleHeart,
   image: Image,

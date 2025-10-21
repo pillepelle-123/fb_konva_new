@@ -95,11 +95,11 @@ function BookCardPreview({ book, isArchived, isEditing, editName, setEditName, h
                 if (e.key === 'Enter') handleRename();
                 if (e.key === 'Escape') { setEditName(book.name); setIsEditing(false); }
               }}
-              className="text-white font-semibold text-lg bg-transparent border-0  outline-none flex-1 focus:ring-0"
+              className="text-primary-foreground text-lg bg-transparent border-0  outline-none flex-1 focus:ring-0"
               autoFocus
             />
           ) : (
-            <h3 className="text-white font-semibold text-lg line-clamp-2 mb-1 ">
+            <h3 className="text-primary-foreground text-lg line-clamp-2 mb-1 ">
               {book.name}
             </h3>
           )}

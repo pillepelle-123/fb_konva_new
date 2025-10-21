@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/composites/card';
-import { BookOpen, Users, FileText, Plus, ArrowRight, Calendar, MessageSquare, HelpCircle, TrendingUp, Activity, Mail, Star, BookPlus, CircleQuestionMark, Home } from 'lucide-react';
+import { BookOpen, Users, FileText, Plus, ArrowRight, Calendar, MessageSquare, HelpCircle, TrendingUp, Activity, Mail, Star, BookPlus, CircleQuestionMark, Home, LayoutDashboard } from 'lucide-react';
 import FloatingActionButton from '../../components/ui/composites/floating-action-button';
 import { ChartContainer } from '../../components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
@@ -182,7 +182,7 @@ export default function Dashboard() {
         {/* Header */}
         <div className="space-y-2">
             <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center space-x-2">
-              <Home className="h-6 w-6" />
+              <LayoutDashboard/>
               <span>Welcome back, {user?.name}!</span>
             </h1>
           <p className="text-muted-foreground">

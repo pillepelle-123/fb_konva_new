@@ -102,7 +102,7 @@ export default function ProfileDialog({ userId, open, onOpenChange }: ProfileDia
               <ProfilePicture name={user.name} size="lg" userId={user.id} />
               <div className="flex-1 space-y-4">
                 <div>
-                  <h2 className="text-2xl font-bold">{user.name}</h2>
+                  <h2 className="font-bold">{user.name}</h2>
                   <p className="text-muted-foreground">{user.email}</p>
                   <p className="text-sm text-muted-foreground capitalize">
                     {/* {user.role} •  */}
@@ -134,7 +134,7 @@ export default function ProfileDialog({ userId, open, onOpenChange }: ProfileDia
 
             {sharedBooks.length > 0 && !isOwnProfile && (
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold">
+                <h3 className="text-lg">
                   Books shared with {user.name}
                 </h3>
                 <BooksList books={sharedBooks} />

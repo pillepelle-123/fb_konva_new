@@ -57,7 +57,10 @@ function CanvasPageContainer({ children, assignedUser }: { children: React.React
   const borderStyle = assignedUser ? {
     borderTop: `5px solid #${getConsistentColor(assignedUser.name)}`,
     borderBottom: `5px solid #${getConsistentColor(assignedUser.name)}`
-  } : {};
+  } : {
+    borderTop: `5px solid hsl(var(--muted))`,
+    borderBottom: `5px solid hsl(var(--muted))`    
+  };
   
   return (
     <div style={{

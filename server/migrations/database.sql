@@ -91,6 +91,11 @@ CREATE TABLE IF NOT EXISTS answers (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Create Constraint
+ALTER TABLE public.answers 
+ADD CONSTRAINT unique_user_question 
+UNIQUE (user_id, question_id);
+
 -- Create index for faster lookups
 CREATE INDEX IF NOT EXISTS idx_answers_question_id ON answers(question_id);
 CREATE INDEX IF NOT EXISTS idx_answers_user_id ON answers(user_id);

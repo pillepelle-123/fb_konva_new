@@ -1,6 +1,6 @@
 import { ToolButton } from './tool-button';
 import { ToolPopover } from './tool-popover';
-import { type Icon, Info, MousePointer, Hand, Brush, Pipette, Square, Sticker, Type, HelpCircle, Search } from 'lucide-react';
+import { type Icon, Info, MousePointer, Hand, Brush, Pipette, Square, Sticker, MessageCircle, MessageCircleQuestionMark, Search } from 'lucide-react';
 import { useState, forwardRef, useImperativeHandle } from 'react';
 import { Button } from '../../../ui/primitives/button';
 import { ShortcutsDialog } from './shortcuts-dialog';
@@ -29,7 +29,8 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
     return null;
   }
 
-  // For answer_only users, only show Select and Pan tools
+  // For answer_only users, only show Select, Pan, and Zoom tools
+  // console.log('Toolbar content - editorInteractionLevel:', state.editorInteractionLevel);
   if (state.editorInteractionLevel === 'answer_only') {
     return (
       <>
@@ -54,6 +55,16 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
               userRole={userRole}
               isOnAssignedPage={isOnAssignedPage}
               onClick={() => onToolSelect('pan')}
+            />
+            <ToolButton
+              id="zoom"
+              label="Zoom"
+              icon={Search}
+              isActive={activeTool === 'zoom'}
+              isExpanded={false}
+              userRole={userRole}
+              isOnAssignedPage={isOnAssignedPage}
+              onClick={() => onToolSelect('zoom')}
             />
           </div>
         </div>
@@ -151,7 +162,7 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
           <ToolButton
             id="text"
             label="Text"
-            icon={Type}
+            icon={MessageCircle}
             isActive={activeTool === 'text'}
             isExpanded={false}
             userRole={userRole}
@@ -161,7 +172,7 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
           <ToolButton
             id="question"
             label="Question"
-            icon={HelpCircle}
+            icon={MessageCircleQuestionMark}
             isActive={activeTool === 'question'}
             isExpanded={false}
             userRole={userRole}

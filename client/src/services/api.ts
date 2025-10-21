@@ -11,64 +11,31 @@ class ApiService {
 
   // Book operations
   async loadBook(bookId: number) {
-    const [book, questions, answers, userRole, pageAssignments] = await Promise.all([
-      fetch(`${this.baseUrl}/books/${bookId}`, { headers: this.getHeaders() }).then(r => r.json()),
-      fetch(`${this.baseUrl}/books/${bookId}/questions`, { headers: this.getHeaders() }).then(r => r.ok ? r.json() : []),
-      fetch(`${this.baseUrl}/answers/book/${bookId}`, { headers: this.getHeaders() }).then(r => r.ok ? r.json() : []),
-      fetch(`${this.baseUrl}/books/${bookId}/user-role`, { headers: this.getHeaders() }).then(r => r.ok ? r.json() : null),
-      fetch(`${this.baseUrl}/page-assignments/book/${bookId}`, { headers: this.getHeaders() }).then(r => r.ok ? r.json() : [])
-    ]);
+    // Use the single endpoint that returns everything
+    const response = await fetch(`${this.baseUrl}/books/${bookId}`, { headers: this.getHeaders() });
+    const data = await response.json();
+    
+    // Extract data from the response
+    const book = {
+      id: data.id,
+      name: data.name,
+      pageSize: data.pageSize,
+      orientation: data.orientation,
+      pages: data.pages,
+      bookTheme: data.bookTheme,
+      owner_id: data.owner_id,
+      isTemporary: data.isTemporary
+    };
+    
+    const questions = data.questions || [];
+    const answers = data.answers || [];
+    const userRole = data.userRole;
+    const pageAssignments = data.pageAssignments || [];
     
     return { book, questions, answers, userRole, pageAssignments };
   }
 
-  async saveBook(bookData: any, tempQuestions: Record<number, string>, tempAnswers: Record<number, string>, newQuestions: any[], pageAssignments: any, bookFriends: any[]) {
-    // Save new questions (only if any remain to be processed)
-    for (const newQuestion of newQuestions) {
-      const response = await fetch(`${this.baseUrl}/books/${bookData.id}/questions`, {
-        method: 'POST',
-        headers: this.getHeaders(),
-        body: JSON.stringify({ questionText: newQuestion.text })
-      });
-      if (response.ok) {
-        const savedQuestion = await response.json();
-        return { questionId: savedQuestion.id, elementId: newQuestion.elementId };
-      }
-    }
-
-    // Save updated questions (only positive IDs - negative IDs are new questions)
-    await Promise.all(
-      Object.entries(tempQuestions)
-        .filter(([questionId]) => parseInt(questionId) > 0)
-        .map(([questionId, text]) =>
-          fetch(`${this.baseUrl}/questions/${questionId}`, {
-            method: 'PUT',
-            headers: this.getHeaders(),
-            body: JSON.stringify({ questionText: text })
-          })
-        )
-    );
-
-    // Save/delete answers (only positive IDs - negative IDs are new questions)
-    await Promise.all(
-      Object.entries(tempAnswers)
-        .filter(([questionId]) => parseInt(questionId) > 0)
-        .map(([questionId, text]) => {
-          if (text.trim() === '') {
-            return fetch(`${this.baseUrl}/answers/question/${questionId}`, {
-              method: 'DELETE',
-              headers: this.getHeaders()
-            }).catch(() => {}); // Ignore errors
-          } else {
-            return fetch(`${this.baseUrl}/answers`, {
-              method: 'POST',
-              headers: this.getHeaders(),
-              body: JSON.stringify({ questionId: parseInt(questionId), answerText: text })
-            });
-          }
-        })
-    );
-
+  async saveBook(bookData: any, tempQuestions: Record<string, string>, tempAnswers: Record<string, Record<number, { text: string; answerId: string }>>, newQuestions: any[], pageAssignments: any, bookFriends: any[]) {
     // Save book with UPSERT logic for pages
     const bookToSave = {
       ...bookData,
@@ -91,16 +58,20 @@ class ApiService {
     return response.ok ? response.json() : [];
   }
 
-  async createQuestion(bookId: number, questionText: string) {
-    const response = await fetch(`${this.baseUrl}/books/${bookId}/questions`, {
+  async createQuestion(bookId: number, questionText: string, questionId?: string) {
+    const response = await fetch(`${this.baseUrl}/questions`, {
       method: 'POST',
       headers: this.getHeaders(),
-      body: JSON.stringify({ questionText })
+      body: JSON.stringify({ 
+        id: questionId,
+        bookId, 
+        questionText 
+      })
     });
     return response.json();
   }
 
-  async updateQuestion(questionId: number, questionText: string) {
+  async updateQuestion(questionId: string, questionText: string) {
     const response = await fetch(`${this.baseUrl}/questions/${questionId}`, {
       method: 'PUT',
       headers: this.getHeaders(),
@@ -109,7 +80,7 @@ class ApiService {
     return response.json();
   }
 
-  async deleteQuestion(questionId: number) {
+  async deleteQuestion(questionId: string) {
     await fetch(`${this.baseUrl}/questions/${questionId}`, {
       method: 'DELETE',
       headers: this.getHeaders()
@@ -122,18 +93,23 @@ class ApiService {
     return response.ok ? response.json() : [];
   }
 
-  async saveAnswer(questionId: number, answerText: string) {
+  async saveAnswer(questionId: string, answerText: string, userId: number, answerId?: string) {
     const response = await fetch(`${this.baseUrl}/answers`, {
       method: 'POST',
       headers: this.getHeaders(),
-      body: JSON.stringify({ questionId, answerText })
+      body: JSON.stringify({ 
+        id: answerId,
+        questionId, 
+        answerText, 
+        userId 
+      })
     });
     return response.json();
   }
 
-  async deleteAnswer(questionId: number) {
+  async deleteAnswer(answerId: string) {
     try {
-      const response = await fetch(`${this.baseUrl}/answers/question/${questionId}`, {
+      const response = await fetch(`${this.baseUrl}/answers/${answerId}`, {
         method: 'DELETE',
         headers: this.getHeaders()
       });

@@ -236,9 +236,9 @@ export interface CanvasElement {
   align?: 'left' | 'center' | 'right';
   fontFamily?: string;
   textType?: 'question' | 'answer' | 'text' | 'qna';
-  questionId?: string; // UUID
-  answerId?: string; // UUID
-  questionElementId?: string;
+  questionId?: string; // UUID - for both question and answer elements
+  answerId?: string; // UUID - for answer elements
+  questionElementId?: string; // Legacy - for linking answer to question element
   src?: string;
   points?: number[];
   roughness?: number;
@@ -304,7 +304,7 @@ export interface HistoryState {
 export interface EditorState {
   currentBook: Book | null;
   activePageIndex: number;
-  activeTool: 'select' | 'text' | 'question' | 'answer' | 'qna' | 'image' | 'line' | 'circle' | 'rect' | 'brush' | 'pan' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley';
+  activeTool: 'select' | 'text' | 'question' | 'answer' | 'qna' | 'image' | 'line' | 'circle' | 'rect' | 'brush' | 'pan' | 'zoom' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley';
   selectedElementIds: string[];
   user?: { id: number; role: string } | null;
   userRole?: 'author' | 'publisher' | null;
@@ -517,8 +517,11 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'UPDATE_ELEMENT':
       if (!state.currentBook) return state;
-      // Block for answer_only users
-      if (state.editorInteractionLevel === 'answer_only') return state;
+      // Block for answer_only users (except for answer elements)
+      if (state.editorInteractionLevel === 'answer_only') {
+        const element = state.currentBook.pages[state.activePageIndex]?.elements.find(el => el.id === action.payload.id);
+        if (!element || element.textType !== 'answer') return state;
+      }
       // Check if author is assigned to current page
       if (state.userRole === 'author' && !state.assignedPages.includes(state.activePageIndex + 1)) return state;
       const updatedBook = { ...state.currentBook };
@@ -928,6 +931,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'MOVE_ELEMENT_TO_FRONT':
       if (!state.currentBook) return state;
+      // Block for answer_only users
+      if (state.editorInteractionLevel === 'answer_only') return state;
       const savedFrontState = saveToHistory(state, 'Move to Front');
       const bookFront = { ...savedFrontState.currentBook! };
       const pageFront = bookFront.pages[savedFrontState.activePageIndex];
@@ -940,6 +945,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'MOVE_ELEMENT_TO_BACK':
       if (!state.currentBook) return state;
+      // Block for answer_only users
+      if (state.editorInteractionLevel === 'answer_only') return state;
       const savedBackState = saveToHistory(state, 'Move to Back');
       const bookBack = { ...savedBackState.currentBook! };
       const pageBack = bookBack.pages[savedBackState.activePageIndex];
@@ -952,6 +959,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'MOVE_ELEMENT_UP':
       if (!state.currentBook) return state;
+      // Block for answer_only users
+      if (state.editorInteractionLevel === 'answer_only') return state;
       const savedUpState = saveToHistory(state, 'Move Up');
       const bookUp = { ...savedUpState.currentBook! };
       const pageUp = bookUp.pages[savedUpState.activePageIndex];
@@ -965,6 +974,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'MOVE_ELEMENT_DOWN':
       if (!state.currentBook) return state;
+      // Block for answer_only users
+      if (state.editorInteractionLevel === 'answer_only') return state;
       const savedDownState = saveToHistory(state, 'Move Down');
       const bookDown = { ...savedDownState.currentBook! };
       const pageDown = bookDown.pages[savedDownState.activePageIndex];
@@ -1039,8 +1050,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const token = localStorage.getItem('token');
       
-      // Save questions first (skip for authors)
-      if (user?.role !== 'author' && state.userRole !== 'author') {
+      // Save questions first (skip for authors and answer_only users)
+      if (user?.role !== 'author' && state.userRole !== 'author' && state.editorInteractionLevel !== 'answer_only') {
         for (const [questionId, questionText] of Object.entries(state.tempQuestions)) {
           if (questionText && questionText.trim()) {
             try {
@@ -1099,18 +1110,11 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       }
 
       
-      // Skip apiService.saveBook for authors since they use author-save endpoint
-      // Also skip for publishers since we handle everything manually above
-      // if (user?.role !== 'author') {
-      //   await apiService.saveBook(
-      //     state.currentBook,
-      //     state.tempQuestions,
-      //     state.tempAnswers,
-      //     [],
-      //     state.pageAssignments,
-      //     state.bookFriends || []
-      //   );
-      // }
+      // For answer_only users, only save answers - no book/page updates
+      if (state.editorInteractionLevel === 'answer_only') {
+        dispatch({ type: 'MARK_SAVED' });
+        return;
+      }
       
       // For authors, only save assigned pages and answers
       if ((user?.role === 'author' || state.userRole === 'author') && state.assignedPages.length > 0) {
@@ -1246,13 +1250,13 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     try {
       const { book, questions, answers, userRole, pageAssignments } = await apiService.loadBook(bookId);
       
-      // Store questions and answers in temp storage
+      // Store questions and answers in temp storage using UUID keys
       questions.forEach(q => {
-        dispatch({ type: 'UPDATE_TEMP_QUESTION', payload: { questionId: q.id.toString(), text: q.question_text } });
+        dispatch({ type: 'UPDATE_TEMP_QUESTION', payload: { questionId: q.id, text: q.question_text } });
       });
       
       answers.forEach(a => {
-        dispatch({ type: 'UPDATE_TEMP_ANSWER', payload: { questionId: a.question_id.toString(), text: a.answer_text, userId: a.user_id, answerId: a.id } });
+        dispatch({ type: 'UPDATE_TEMP_ANSWER', payload: { questionId: a.question_id, text: a.answer_text, userId: a.user_id, answerId: a.id } });
       });
       
       // Load editor settings and book friends
@@ -1311,6 +1315,10 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         dispatch({ type: 'SET_USER_ROLE', payload: { role: userRole.role, assignedPages: userRole.assignedPages || [] } });
         
         // Use permissions from database
+        // console.log('', {
+        //   pageAccessLevel: userRole.page_access_level || 'all_pages',
+        //   editorInteractionLevel: userRole.editor_interaction_level || 'full_edit_with_settings'
+        // });
         dispatch({ type: 'SET_USER_PERMISSIONS', payload: { 
           pageAccessLevel: userRole.page_access_level || 'all_pages', 
           editorInteractionLevel: userRole.editor_interaction_level || 'full_edit_with_settings' 

@@ -150,7 +150,7 @@ export default function Profile() {
       {/* Shared Books */}
       {hasSharedBooks && (
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold">
+          <h2>
             {isOwnProfile ? 'Your Books' : `Books shared with ${user.name}`}
           </h2>
           <BooksGrid books={sharedBooks} hideActions={true} />

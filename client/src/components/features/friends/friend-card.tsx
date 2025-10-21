@@ -40,7 +40,7 @@ export default function FriendsCard({
             <ProfilePicture name={friend.name} size="md" userId={friend.id} />
           </Link>
           <div className="flex-1 space-y-1">
-            <CardTitle className="text-lg font-semibold line-clamp-1">
+            <CardTitle className="text-lg line-clamp-1">
               {friend.name}
             </CardTitle>
             <CardDescription className="text-sm">

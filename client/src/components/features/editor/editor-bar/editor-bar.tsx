@@ -148,7 +148,7 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
             bookId={state.currentBook.id}
           />
         ) : (
-          <div className="flex items-center justify-between w-full px-4 py-1 gap-4">
+          <div className="flex items-center justify-between w-full h-12 px-4 py-1 gap-4">
             {/* Left Section - Page Controls */}
             <div className="flex items-center gap-3">
               <PageNavigation
@@ -292,7 +292,7 @@ function PageAssignmentButton({ currentPage, bookId, onOpenDialog }: { currentPa
           className={`h-full w-full p-0 pt-1.5 rounded-full ${isAuthor ? 'cursor-not-allowed opacity-50' : ''}`}
           key={assignmentKey}
         >
-          <ProfilePicture name={assignedUser.name} size="sm" userId={assignedUser.id} variant='withColoredBorder' className='h-full w-full' />
+          <ProfilePicture name={assignedUser.name} size="sm" userId={assignedUser.id} variant='withColoredBorder' className='h-full w-full hover:ring hover:ring-highlight hover:ring-offset-1' />
         </Button>
       </Tooltip>
     );
@@ -304,9 +304,9 @@ function PageAssignmentButton({ currentPage, bookId, onOpenDialog }: { currentPa
         variant="ghost"
         size="sm"
         onClick={handleClick}
-        className={`h-8 w-8 p-0 ${isAuthor ? 'cursor-not-allowed opacity-50' : ''}`}
+          className={`h-full w-full p-0 pt-1.5 rounded-full ${isAuthor ? 'cursor-not-allowed opacity-50' : ''}`}
       >
-        <CircleUser className="h-5 w-5" />
+        <CircleUser className="rounded-full h-10 w-10 stroke-highlight hover:bg-highlight hover:stroke-background transition-all duration-300 ease-in-out" />
       </Button>
     </Tooltip>
   );
