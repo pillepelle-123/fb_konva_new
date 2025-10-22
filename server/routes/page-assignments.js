@@ -194,17 +194,27 @@ router.put('/book/:bookId', authenticateToken, async (req, res) => {
             const questionElements = elements.filter(el => el.textType === 'question' && el.questionId);
             
             for (const questionElement of questionElements) {
-              const existingAnswer = await pool.query(
-                'SELECT id FROM public.answers WHERE question_id = $1 AND user_id = $2',
-                [questionElement.questionId, assignment.userId]
+              // Check if question exists before creating answer
+              const questionExists = await pool.query(
+                'SELECT id FROM public.questions WHERE id = $1',
+                [questionElement.questionId]
               );
               
-              if (existingAnswer.rows.length === 0) {
-                await pool.query(
-                  'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3)',
-                  [questionElement.questionId, assignment.userId, '']
+              if (questionExists.rows.length > 0) {
+                const existingAnswer = await pool.query(
+                  'SELECT id FROM public.answers WHERE question_id = $1 AND user_id = $2',
+                  [questionElement.questionId, assignment.userId]
                 );
-                console.log(`Created answer placeholder for page assignment: question ${questionElement.questionId}, user ${assignment.userId}`);
+                
+                if (existingAnswer.rows.length === 0) {
+                  await pool.query(
+                    'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3)',
+                    [questionElement.questionId, assignment.userId, '']
+                  );
+                  console.log(`Created answer placeholder for page assignment: question ${questionElement.questionId}, user ${assignment.userId}`);
+                }
+              } else {
+                console.log(`Skipping answer creation for non-existent question: ${questionElement.questionId}`);
               }
             }
           }

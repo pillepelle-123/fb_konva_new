@@ -85,6 +85,7 @@ const TOOL_ICONS = {
   text: MessageCircle,
   question: MessageCircleQuestion,
   answer: MessageCircleHeart,
+  qna_textbox: MessageSquare,
   image: Image,
   line: Minus,
   circle: Circle,
@@ -386,6 +387,7 @@ export function ToolSettingsContent({
       );
       
       if (selectedElement) {
+        console.log('Selected element type:', selectedElement.type, 'textType:', selectedElement.textType);
         return renderElementSettings(selectedElement);
       }
     }
@@ -573,9 +575,8 @@ export function ToolSettingsContent({
           case 'element-text-color':
             if (element.font) {
               updateBothElements('font', { ...element.font, fontColor: color });
-            } else {
-              updateBothElements('fill', color);
             }
+            updateBothElements('fill', color);
             break;
           case 'element-text-border':
             updateBothElements('border', {
@@ -962,6 +963,18 @@ export function ToolSettingsContent({
                 Border Color
               </Button>
             </div>
+            
+            <Slider
+              label="Corner Radius"
+              value={actualToCommonRadius(element.cornerRadius || 0)}
+              onChange={(value) => {
+                const newRadius = commonToActualRadius(value);
+                updateBothElements('cornerRadius', newRadius);
+              }}
+              min={COMMON_CORNER_RADIUS_RANGE.min}
+              max={COMMON_CORNER_RADIUS_RANGE.max}
+              step={1}
+            />
           </IndentedSection>
         )}
         
@@ -1093,7 +1106,7 @@ export function ToolSettingsContent({
       });
     };
 
-    if (showFontSelector && element.type === 'text') {
+    if (showFontSelector && (element.type === 'text' || element.type === 'qna_textbox')) {
       return (
         <FontSelector
           currentFont={element.font?.fontFamily || element.fontFamily || ''}
@@ -1103,9 +1116,8 @@ export function ToolSettingsContent({
             const fontFamily = getFontFamily(fontName, false, false);
             if (element.font) {
               updateElementSetting('font', { ...element.font, fontFamily });
-            } else {
-              updateElementSetting('fontFamily', fontFamily);
             }
+            updateElementSetting('fontFamily', fontFamily);
           }}
           onBack={() => setShowFontSelector(false)}
           element={element}
@@ -1629,7 +1641,13 @@ export function ToolSettingsContent({
                     const currentItalic = isFontItalic(element, state);
                     const fontName = getCurrentFontName(element, state);
                     const newFontFamily = getFontFamily(fontName, newBold, currentItalic);
-                    updateElementSetting('fontFamily', newFontFamily);
+                    
+                    if (element.font) {
+                      updateElementSetting('font', { ...element.font, fontBold: newBold, fontFamily: newFontFamily });
+                    } else {
+                      updateElementSetting('fontWeight', newBold ? 'bold' : 'normal');
+                      updateElementSetting('fontFamily', newFontFamily);
+                    }
                   }}
                   className="px-3"
                 >
@@ -1645,7 +1663,13 @@ export function ToolSettingsContent({
                     const currentBold = isFontBold(element, state);
                     const fontName = getCurrentFontName(element, state);
                     const newFontFamily = getFontFamily(fontName, currentBold, newItalic);
-                    updateElementSetting('fontFamily', newFontFamily);
+                    
+                    if (element.font) {
+                      updateElementSetting('font', { ...element.font, fontItalic: newItalic, fontFamily: newFontFamily });
+                    } else {
+                      updateElementSetting('fontStyle', newItalic ? 'italic' : 'normal');
+                      updateElementSetting('fontFamily', newFontFamily);
+                    }
                   }}
                   className="px-3"
                 >
@@ -1984,7 +2008,7 @@ export function ToolSettingsContent({
             <Separator />
 
             
-            {(element.textType === 'text' || element.textType === 'question' || element.textType === 'answer') && ((element.borderWidth || 0) === 0 || (element.theme !== 'candy' && element.theme !== 'zigzag' && element.theme !== 'wobbly')) && (
+            {(element.textType === 'text' || element.textType === 'question' || element.textType === 'answer' || element.type === 'qna_textbox') && ((element.borderWidth || 0) === 0 || (element.theme !== 'candy' && element.theme !== 'zigzag' && element.theme !== 'wobbly')) && (
               <Slider
                 label="Corner Radius"
                 value={actualToCommonRadius(element.cornerRadius || 0)}

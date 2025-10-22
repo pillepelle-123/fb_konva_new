@@ -243,7 +243,8 @@ export default function Textbox(props: CanvasItemProps) {
     
     const lines = [];
     const padding = element.format?.padding || element.padding || 4;
-    const lineSpacing = fontSize * getLineHeight(); // Use same spacing as text
+    // For qna_textbox, use the same lineHeight as text rendering for alignment
+    const lineSpacing = element.type === 'qna_textbox' ? fontSize * lineHeight : fontSize * getLineHeight();
     // Priority: individual setting > theme defaults > fallback
     let theme = 'rough'; // fallback
     
@@ -267,33 +268,118 @@ export default function Textbox(props: CanvasItemProps) {
     const ruledLineOpacity = element.ruledLines?.lineOpacity || element.ruledLinesOpacity || 0.5;
     
     // Generate lines from top to bottom of textbox (positioned as underlines)
-    for (let y = padding + lineSpacing * 0.8; y < element.height - padding; y += lineSpacing) {
-      if (theme === 'rough') {
-        // Use rough.js for rough theme
-        const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        const rc = rough.svg(svg);
+    if (element.type === 'qna_textbox') {
+      // Generate lines for both question and answer areas
+      const questionHeight = getQuestionHeight();
+      const questionFontSize = fontSize * 0.9; // Match the question text font size
+      const questionLineSpacing = questionFontSize * lineHeight;
+      const answerLineSpacing = fontSize * lineHeight;
+      
+      // Question area lines
+      for (let y = padding + questionLineSpacing * 0.85; y < questionHeight; y += questionLineSpacing) {
+        lines.push(...generateLineElement(y, theme, padding, ruledLineColor, ruledLineWidth, ruledLineOpacity));
+      }
+      
+      // Answer area lines
+      for (let y = questionHeight + 5 + answerLineSpacing * 0.8; y < element.height - padding; y += answerLineSpacing) {
+        lines.push(...generateLineElement(y, theme, padding, ruledLineColor, ruledLineWidth, ruledLineOpacity));
+      }
+    } else {
+      // Regular textbox lines
+      for (let y = padding + lineSpacing * 0.8; y < element.height - padding; y += lineSpacing) {
+        lines.push(...generateLineElement(y, theme, padding, ruledLineColor, ruledLineWidth, ruledLineOpacity));
+      }
+    }
+    
+    return lines;
+  };
+  
+  const generateLineElement = (y: number, theme: string, padding: number, ruledLineColor: string, ruledLineWidth: number, ruledLineOpacity: number) => {
+    const lineElements = [];
+    if (theme === 'rough') {
+      // Use rough.js for rough theme
+      const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      const rc = rough.svg(svg);
+      
+      try {
+        const roughLine = rc.line(padding, y, element.width - padding, y, {
+          roughness: 2,
+          strokeWidth: ruledLineWidth,
+          stroke: ruledLineColor,
+          seed: seed + y
+        });
+        
+        const paths = roughLine.querySelectorAll('path');
+        let combinedPath = '';
+        paths.forEach(path => {
+          const d = path.getAttribute('d');
+          if (d) combinedPath += d + ' ';
+        });
+        
+        if (combinedPath) {
+          lineElements.push(
+            <Path
+              key={y}
+              data={combinedPath.trim()}
+              stroke={ruledLineColor}
+              strokeWidth={ruledLineWidth}
+              opacity={ruledLineOpacity}
+              listening={false}
+            />
+          );
+        }
+      } catch (error) {
+        lineElements.push(
+          <Path
+            key={y}
+            data={`M ${padding} ${y} L ${element.width - padding} ${y}`}
+            stroke={ruledLineColor}
+            strokeWidth={ruledLineWidth}
+            opacity={ruledLineOpacity}
+            listening={false}
+          />
+        );
+      }
+    } else {
+      if (theme === 'candy') {
+        // Use actual width for candy theme ruled lines
+        lineElements.push(
+          <Path
+            key={y}
+            data={`M ${padding} ${y} L ${element.width - padding} ${y}`}
+            stroke={ruledLineColor}
+            strokeWidth={ruledLineWidth}
+            opacity={ruledLineOpacity}
+            lineCap="round"
+            listening={false}
+          />
+        );
+      } else {
+        // Use theme renderer for other themes
+        const lineElement = {
+          id: `${element.id}-line-${y}`,
+          type: 'line' as const,
+          width: element.width - (padding * 2),
+          height: 0,
+          stroke: ruledLineColor,
+          strokeWidth: ruledLineWidth,
+          theme: theme
+        };
         
         try {
-          const roughLine = rc.line(padding, y, element.width - padding, y, {
-            roughness: 2,
-            strokeWidth: ruledLineWidth,
-            stroke: ruledLineColor,
-            seed: seed + y
-          });
+          const renderer = getThemeRenderer(theme);
+          const pathData = renderer.generatePath(lineElement, 1);
+          const strokeProps = renderer.getStrokeProps(lineElement, 1);
           
-          const paths = roughLine.querySelectorAll('path');
-          let combinedPath = '';
-          paths.forEach(path => {
-            const d = path.getAttribute('d');
-            if (d) combinedPath += d + ' ';
-          });
-          
-          if (combinedPath) {
-            lines.push(
+          if (pathData) {
+            lineElements.push(
               <Path
                 key={y}
-                data={combinedPath.trim()}
+                x={padding}
+                y={y}
+                data={pathData}
+                {...strokeProps}
                 stroke={ruledLineColor}
                 strokeWidth={ruledLineWidth}
                 opacity={ruledLineOpacity}
@@ -302,7 +388,7 @@ export default function Textbox(props: CanvasItemProps) {
             );
           }
         } catch (error) {
-          lines.push(
+          lineElements.push(
             <Path
               key={y}
               data={`M ${padding} ${y} L ${element.width - padding} ${y}`}
@@ -312,70 +398,49 @@ export default function Textbox(props: CanvasItemProps) {
               listening={false}
             />
           );
-        }
-      } else {
-        if (theme === 'candy') {
-          // Use actual width for candy theme ruled lines
-          lines.push(
-            <Path
-              key={y}
-              data={`M ${padding} ${y} L ${element.width - padding} ${y}`}
-              stroke={ruledLineColor}
-              strokeWidth={ruledLineWidth}
-              opacity={ruledLineOpacity}
-              lineCap="round"
-              listening={false}
-            />
-          );
-        } else {
-          // Use theme renderer for other themes
-          const lineElement = {
-            id: `${element.id}-line-${y}`,
-            type: 'line' as const,
-            width: element.width - (padding * 2),
-            height: 0,
-            stroke: ruledLineColor,
-            strokeWidth: ruledLineWidth,
-            theme: theme
-          };
-          
-          try {
-            const renderer = getThemeRenderer(theme);
-            const pathData = renderer.generatePath(lineElement, 1);
-            const strokeProps = renderer.getStrokeProps(lineElement, 1);
-            
-            if (pathData) {
-              lines.push(
-                <Path
-                  key={y}
-                  x={padding}
-                  y={y}
-                  data={pathData}
-                  {...strokeProps}
-                  stroke={ruledLineColor}
-                  strokeWidth={ruledLineWidth}
-                  opacity={ruledLineOpacity}
-                  listening={false}
-                />
-              );
-            }
-          } catch (error) {
-            lines.push(
-              <Path
-                key={y}
-                data={`M ${padding} ${y} L ${element.width - padding} ${y}`}
-                stroke={ruledLineColor}
-                strokeWidth={ruledLineWidth}
-                opacity={ruledLineOpacity}
-                listening={false}
-              />
-            );
-          }
         }
       }
     }
     
-    return lines;
+    return lineElements;
+  };
+  
+  // Calculate required height for question text in qna_textbox
+  const getQuestionHeight = () => {
+    if (element.type !== 'qna_textbox' || !element.questionId) {
+      return Math.max(40, element.height * 0.3);
+    }
+    
+    const questionText = getQuestionText(element.questionId);
+    if (!questionText) {
+      return Math.max(40, element.height * 0.3);
+    }
+    
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d')!;
+    const questionFontSize = (element.font?.fontSize || fontSize) * 0.9;
+    context.font = `${questionFontSize}px ${element.font?.fontFamily || fontFamily}`;
+    
+    const padding = element.format?.padding || element.padding || 4;
+    const textWidth = element.width - (padding * 2);
+    const questionLineHeight = questionFontSize * lineHeight;
+    
+    // Calculate lines needed for question text
+    const words = questionText.split(' ');
+    let lines = 1;
+    let currentLineWidth = 0;
+    
+    words.forEach(word => {
+      const wordWidth = context.measureText(word + ' ').width;
+      if (currentLineWidth + wordWidth > textWidth && currentLineWidth > 0) {
+        lines++;
+        currentLineWidth = wordWidth;
+      } else {
+        currentLineWidth += wordWidth;
+      }
+    });
+    
+    return Math.max(40, (lines * questionLineHeight) + (padding * 2));
   };
   
   const lineHeight = getLineHeight();
@@ -528,7 +593,7 @@ export default function Textbox(props: CanvasItemProps) {
     
     // Handle qna_textbox with area detection
     if (element.type === 'qna_textbox') {
-      const questionHeight = Math.max(40, element.height * 0.3);
+      const questionHeight = getQuestionHeight();
       
       // Get click position relative to element
       let relativeY = 0;
@@ -1237,7 +1302,7 @@ export default function Textbox(props: CanvasItemProps) {
           
           // Special rendering for qna_textbox
           if (element.type === 'qna_textbox') {
-            const questionHeight = Math.max(40, element.height * 0.3);
+            const questionHeight = getQuestionHeight();
             const answerHeight = element.height - questionHeight - 10;
             
             const questionText = element.questionId ? getQuestionText(element.questionId) : 'Double-click to select question...';
@@ -1250,39 +1315,41 @@ export default function Textbox(props: CanvasItemProps) {
                   x={padding}
                   y={padding}
                   width={textWidth}
-                  height={questionHeight - padding}
+                  height={questionHeight}
                   text={questionText}
                   fontSize={(element.font?.fontSize || fontSize) * 0.9}
-                  fontFamily={element.font?.fontFamily || fontFamily}
-                  fontStyle={`${(element.font?.fontBold) ? 'bold' : ''} ${(element.font?.fontItalic) ? 'italic' : ''}`.trim() || 'normal'}
-                  fill={element.questionId ? (element.font?.fontColor || '#1f2937') : '#9ca3af'}
-                  opacity={(element.font?.fontOpacity || 1) * 0.8}
+                  fontFamily={element.font?.fontFamily || element.fontFamily || fontFamily}
+                  fontStyle={`${(element.font?.fontBold || element.fontWeight === 'bold') ? 'bold' : ''} ${(element.font?.fontItalic || element.fontStyle === 'italic') ? 'italic' : ''}`.trim() || 'normal'}
+                  fill={element.questionId ? (element.font?.fontColor || element.fill || '#1f2937') : '#9ca3af'}
+                  opacity={(element.font?.fontOpacity || element.fillOpacity || 1) * 0.8}
                   align={element.format?.align || align}
                   verticalAlign="top"
                   wrap="word"
                   lineHeight={lineHeight}
                   listening={false}
                 />
-                {/* Separator line */}
-                <Path
-                  data={`M ${padding} ${questionHeight} L ${element.width - padding} ${questionHeight}`}
-                  stroke={element.border?.borderColor || "#e5e7eb"}
-                  strokeWidth={1}
-                  listening={false}
-                />
+                {/* Separator line - only show if border is enabled */}
+                {/* {(element.border?.enabled !== false && borderWidth > 0) && (
+                  <Path
+                    data={`M ${padding} ${questionHeight} L ${element.width - padding} ${questionHeight}`}
+                    stroke={borderColor}
+                    strokeWidth={1}
+                    listening={false}
+                  />
+                )} */}
                 {/* Answer area */}
                 <Text
                   ref={textRef}
                   x={padding}
-                  y={padding + questionHeight + 5}
+                  y={questionHeight + 5}
                   width={textWidth}
-                  height={answerHeight - padding}
+                  height={answerHeight}
                   text={answerText || 'Double-click to answer...'}
                   fontSize={element.font?.fontSize || fontSize}
-                  fontFamily={element.font?.fontFamily || fontFamily}
-                  fontStyle={`${(element.font?.fontBold) ? 'bold' : ''} ${(element.font?.fontItalic) ? 'italic' : ''}`.trim() || 'normal'}
-                  fill={answerText ? (element.font?.fontColor || '#1f2937') : '#9ca3af'}
-                  opacity={answerText ? (element.font?.fontOpacity || 1) : 0.6}
+                  fontFamily={element.font?.fontFamily || element.fontFamily || fontFamily}
+                  fontStyle={`${(element.font?.fontBold || element.fontWeight === 'bold') ? 'bold' : ''} ${(element.font?.fontItalic || element.fontStyle === 'italic') ? 'italic' : ''}`.trim() || 'normal'}
+                  fill={answerText ? (element.font?.fontColor || element.fill || '#1f2937') : '#9ca3af'}
+                  opacity={answerText ? (element.font?.fontOpacity || element.fillOpacity || 1) : 0.6}
                   align={element.format?.align || align}
                   verticalAlign="top"
                   wrap="word"

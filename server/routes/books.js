@@ -426,6 +426,8 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
                   element.answerId = existingAnswer.rows[0].id;
                   elementsUpdated = true;
                 }
+              } else {
+                console.log(`Skipping answer creation for non-existent question: ${element.questionId}`);
               }
             }
           }
@@ -684,6 +686,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
                 } else {
                 //console.log(`Answer already exists for question ${element.questionId}`);
                 }
+              } else {
+                console.log(`Skipping answer creation for non-existent question: ${element.questionId}`);
               }
             }
           }
@@ -719,6 +723,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
                 elementsUpdated = true;
               //console.log(`Using existing answer ID: ${existingAnswer.rows[0].id}`);
               }
+            } else {
+              console.log(`Skipping answer element for non-existent question: ${element.questionId}`);
             }
           }
         }
@@ -748,6 +754,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
                 );
               //console.log(`Created answer placeholder for question ${questionElement.questionId}, user ${assignedUserId}`);
               }
+            } else {
+              console.log(`Skipping answer placeholder for non-existent question: ${questionElement.questionId}`);
             }
           }
         }
@@ -816,6 +824,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
                     );
                   //console.log(`Created answer placeholder for reassigned page: question ${questionElement.questionId}, user ${assignedUserId}`);
                   }
+                } else {
+                  console.log(`Skipping answer placeholder for non-existent question in reassignment: ${questionElement.questionId}`);
                 }
               }
             }

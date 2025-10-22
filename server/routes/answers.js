@@ -30,6 +30,16 @@ router.post('/', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Missing questionId or answerText' });
     }
 
+    // Validate that the question exists
+    const questionExists = await pool.query(
+      'SELECT id FROM public.questions WHERE id = $1',
+      [questionId]
+    );
+    
+    if (questionExists.rows.length === 0) {
+      return res.status(400).json({ error: 'Question does not exist' });
+    }
+
     let result;
     if (id) {
       // Use provided UUID - check if answer already exists
