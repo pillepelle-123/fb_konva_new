@@ -244,7 +244,7 @@ export default function Textbox(props: CanvasItemProps) {
     const lines = [];
     const padding = element.format?.padding || element.padding || 4;
     // For qna_textbox, use the same lineHeight as text rendering for alignment
-    const lineSpacing = element.type === 'qna_textbox' ? fontSize * lineHeight : fontSize * getLineHeight();
+    const lineSpacing = (element.type === 'qna_textbox' || element.textType === 'qna') ? fontSize * lineHeight : fontSize * getLineHeight();
     // Priority: individual setting > theme defaults > fallback
     let theme = 'rough'; // fallback
     
@@ -268,7 +268,7 @@ export default function Textbox(props: CanvasItemProps) {
     const ruledLineOpacity = element.ruledLines?.lineOpacity || element.ruledLinesOpacity || 0.5;
     
     // Generate lines from top to bottom of textbox (positioned as underlines)
-    if (element.type === 'qna_textbox') {
+    if (element.type === 'qna_textbox' || element.textType === 'qna') {
       // Generate lines for both question and answer areas
       const questionHeight = getQuestionHeight();
       const questionFontSize = fontSize * 0.9; // Match the question text font size
@@ -407,7 +407,7 @@ export default function Textbox(props: CanvasItemProps) {
   
   // Calculate required height for question text in qna_textbox
   const getQuestionHeight = () => {
-    if (element.type !== 'qna_textbox' || !element.questionId) {
+    if ((element.type !== 'qna_textbox' && element.textType !== 'qna') || !element.questionId) {
       return Math.max(40, element.height * 0.3);
     }
     
@@ -450,7 +450,7 @@ export default function Textbox(props: CanvasItemProps) {
   const getPlaceholderText = () => {
     if (element.textType === 'question') return 'Double-click to pose a question...';
     if (element.textType === 'qna') return 'Double-click to add questions & answers...';
-    if (element.type === 'qna_textbox') return 'Double-click to add question and answer...';
+    if (element.type === 'qna_textbox' || element.textType === 'qna') return 'Double-click to add question and answer...';
     if (element.textType === 'answer') {
       // Check if answer has questionId or linked question has questionId
       let questionId = element.questionId;
@@ -592,7 +592,7 @@ export default function Textbox(props: CanvasItemProps) {
     }
     
     // Handle qna_textbox with area detection
-    if (element.type === 'qna_textbox') {
+    if (element.type === 'qna_textbox' || element.textType === 'qna') {
       const questionHeight = getQuestionHeight();
       
       // Get click position relative to element
@@ -702,7 +702,47 @@ export default function Textbox(props: CanvasItemProps) {
     }
     
     if (element.textType === 'qna') {
-      enableQnaEditing();
+      const questionHeight = getQuestionHeight();
+      
+      // Get click position relative to element
+      let relativeY = 0;
+      if (e?.target) {
+        const stage = e.target.getStage();
+        if (stage) {
+          const pointerPos = stage.getPointerPosition();
+          if (pointerPos) {
+            // Account for zoom and stage position
+            const stageTransform = stage.getAbsoluteTransform();
+            const localPos = stageTransform.copy().invert().point(pointerPos);
+            relativeY = localPos.y - element.y;
+          }
+        }
+      }
+      
+      if (relativeY < questionHeight) {
+        // Clicked on question area
+        if (state.userRole === 'author') return;
+        window.dispatchEvent(new CustomEvent('openQuestionModal', {
+          detail: { elementId: element.id }
+        }));
+      } else {
+        // Clicked on answer area - check if anyone is assigned to this page
+        const assignedUser = state.pageAssignments[state.activePageIndex + 1];
+        if (!assignedUser) {
+          // No one assigned to this page, prevent editing
+          window.dispatchEvent(new CustomEvent('showAlert', {
+            detail: { 
+              message: 'Only the person assigned to this page can answer questions on it.',
+              x: element.x,
+              y: element.y,
+              width: element.width,
+              height: element.height
+            }
+          }));
+          return;
+        }
+        enableInlineEditing();
+      }
       return;
     }
     
@@ -866,7 +906,7 @@ export default function Textbox(props: CanvasItemProps) {
     if (!textRef.current) return;
     
     // Check if anyone is assigned to this page for answer elements
-    if (element.textType === 'answer' || element.type === 'qna_textbox') {
+    if (element.textType === 'answer' || element.type === 'qna_textbox' || element.textType === 'qna') {
       const assignedUser = state.pageAssignments[state.activePageIndex + 1];
       if (!assignedUser) {
         // No one assigned to this page, prevent editing
@@ -931,7 +971,7 @@ export default function Textbox(props: CanvasItemProps) {
     textarea.style.wordWrap = 'break-word';
     
     // For answer textboxes and qna_textbox, use the current answer from tempAnswers
-    if (element.textType === 'answer' || element.type === 'qna_textbox') {
+    if (element.textType === 'answer' || element.type === 'qna_textbox' || element.textType === 'qna') {
       let questionId = element.questionId;
       
       if (!questionId && element.questionElementId) {
@@ -993,7 +1033,7 @@ export default function Textbox(props: CanvasItemProps) {
         const newText = textarea.value;
         
         // For answer textboxes and qna_textbox, update temp answer state using element's answerId
-        if (element.textType === 'answer' || element.type === 'qna_textbox') {
+        if (element.textType === 'answer' || element.type === 'qna_textbox' || element.textType === 'qna') {
           let questionId = element.questionId;
           
           if (!questionId && element.questionElementId) {
@@ -1100,7 +1140,7 @@ export default function Textbox(props: CanvasItemProps) {
       const newText = textarea.value;
       
       // For answer textboxes and qna_textbox, update temp answer state using element's answerId
-      if (element.textType === 'answer' || element.type === 'qna_textbox') {
+      if (element.textType === 'answer' || element.type === 'qna_textbox' || element.textType === 'qna') {
         let questionId = element.questionId;
         
         if (!questionId && element.questionElementId) {
@@ -1300,8 +1340,8 @@ export default function Textbox(props: CanvasItemProps) {
           const textWidth = element.width - (padding * 2);
           const textHeight = element.height - (padding * 2);
           
-          // Special rendering for qna_textbox
-          if (element.type === 'qna_textbox') {
+          // Special rendering for qna textbox
+          if (element.textType === 'qna' || element.type === 'qna_textbox') {
             const questionHeight = getQuestionHeight();
             const answerHeight = element.height - questionHeight - 10;
             

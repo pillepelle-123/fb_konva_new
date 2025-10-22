@@ -387,7 +387,7 @@ export function ToolSettingsContent({
       );
       
       if (selectedElement) {
-        console.log('Selected element type:', selectedElement.type, 'textType:', selectedElement.textType);
+        // console.log('Selected element type:', selectedElement.type, 'textType:', selectedElement.textType);
         return renderElementSettings(selectedElement);
       }
     }

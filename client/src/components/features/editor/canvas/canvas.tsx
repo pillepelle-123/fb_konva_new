@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../ui/ov
 import ImagesContent from '../../images/images-content';
 import QuestionsManagerDialog from '../questions-manager-dialog';
 import TextEditorModal from '../text-editor-modal';
-import { getToolDefaults } from '../../../../utils/tool-defaults';
+import { getToolDefaults, TOOL_DEFAULTS } from '../../../../utils/tool-defaults';
 import { Alert, AlertDescription } from '../../../ui/composites/alert';
 import { snapPosition, type SnapGuideline } from '../../../../utils/snapping';
 
@@ -803,10 +803,11 @@ export default function Canvas() {
           const currentPage = state.currentBook?.pages[state.activePageIndex];
           const pageTheme = currentPage?.background?.pageTheme;
           const bookTheme = state.currentBook?.bookTheme;
-          const textDefaults = getToolDefaults('text', pageTheme, bookTheme);
+          const textDefaults = getToolDefaults('qna', pageTheme, bookTheme);
           newElement = {
             id: uuidv4(),
-            type: 'qna_textbox',
+            type: 'text',
+            textType: 'qna',
             x: previewTextbox.x,
             y: previewTextbox.y,
             width: previewTextbox.width,
@@ -1592,6 +1593,33 @@ export default function Canvas() {
       }, 50);
     };
     
+    const handleQuestionSelected = (event: CustomEvent) => {
+      const { questionId, questionText } = event.detail;
+      
+      // Find the qna textbox that was selected
+      const selectedElements = state.selectedElementIds;
+      if (selectedElements.length === 1) {
+        const elementId = selectedElements[0];
+        const element = currentPage?.elements.find(el => el.id === elementId);
+        
+        if (element && element.textType === 'qna') {
+          // const toolSettings = state.toolSettings?.qna || {};
+          const fillColor = element.fill ||  TOOL_DEFAULTS.qna.fill;
+          
+          dispatch({
+            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+            payload: {
+              id: elementId,
+              updates: { 
+                questionId: questionId || undefined,
+                fill: fillColor
+              }
+            }
+          });
+        }
+      }
+    };
+    
     const handleOpenQuestionModal = (event: CustomEvent) => {
       // Prevent authors from opening question manager
       if (!user || user.role === 'author') {
@@ -1630,13 +1658,13 @@ export default function Canvas() {
     window.addEventListener('editText', handleTextEdit as EventListener);
     window.addEventListener('openQuestionModal', handleOpenQuestionModal as EventListener);
     window.addEventListener('findQuestionElement', handleFindQuestionElement as EventListener);
-
+    window.addEventListener('questionSelected', handleQuestionSelected as EventListener);
     window.addEventListener('showAlert', handleShowAlert as EventListener);
     return () => {
       window.removeEventListener('editText', handleTextEdit as EventListener);
       window.removeEventListener('openQuestionModal', handleOpenQuestionModal as EventListener);
       window.removeEventListener('findQuestionElement', handleFindQuestionElement as EventListener);
-
+      window.removeEventListener('questionSelected', handleQuestionSelected as EventListener);
       window.removeEventListener('showAlert', handleShowAlert as EventListener);
       if (editingTimeoutRef.current) {
         clearTimeout(editingTimeoutRef.current);
