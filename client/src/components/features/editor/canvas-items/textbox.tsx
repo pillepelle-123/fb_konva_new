@@ -552,7 +552,21 @@ export default function Textbox(props: CanvasItemProps) {
           detail: { elementId: element.id }
         }));
       } else {
-        // Clicked on answer area
+        // Clicked on answer area - check if anyone is assigned to this page
+        const assignedUser = state.pageAssignments[state.activePageIndex + 1];
+        if (!assignedUser) {
+          // No one assigned to this page, prevent editing
+          window.dispatchEvent(new CustomEvent('showAlert', {
+            detail: { 
+              message: 'Only the person assigned to this page can answer questions on it.',
+              x: element.x,
+              y: element.y,
+              width: element.width,
+              height: element.height
+            }
+          }));
+          return;
+        }
         enableInlineEditing();
       }
       return;
@@ -572,12 +586,26 @@ export default function Textbox(props: CanvasItemProps) {
       return;
     }
     
-    console.log('Textbox: Element details', { textType: element.textType, type: element.type, id: element.id });
+    // console.log('Textbox: Element details', { textType: element.textType, type: element.type, id: element.id });
     
     if (element.textType === 'answer') {
-      // Check if current user is assigned to this page
+      // Check if anyone is assigned to this page
       const assignedUser = state.pageAssignments[state.activePageIndex + 1];
-      if (assignedUser && assignedUser.id !== user?.id) {
+      if (!assignedUser) {
+        // No one assigned to this page, prevent editing
+        window.dispatchEvent(new CustomEvent('showAlert', {
+          detail: { 
+            message: 'Only the person assigned to this page can answer questions on it.',
+            x: element.x,
+            y: element.y,
+            width: element.width,
+            height: element.height
+          }
+        }));
+        return;
+      }
+      
+      if (assignedUser.id !== user?.id) {
         // Not assigned to this page, prevent editing
         return;
       }
@@ -771,6 +799,24 @@ export default function Textbox(props: CanvasItemProps) {
 
   const enableInlineEditing = () => {
     if (!textRef.current) return;
+    
+    // Check if anyone is assigned to this page for answer elements
+    if (element.textType === 'answer' || element.type === 'qna_textbox') {
+      const assignedUser = state.pageAssignments[state.activePageIndex + 1];
+      if (!assignedUser) {
+        // No one assigned to this page, prevent editing
+        window.dispatchEvent(new CustomEvent('showAlert', {
+          detail: { 
+            message: 'Only the person assigned to this page can answer questions on it.',
+            x: element.x,
+            y: element.y,
+            width: element.width,
+            height: element.height
+          }
+        }));
+        return;
+      }
+    }
     
     const textNode = textRef.current;
     const stage = textNode.getStage();

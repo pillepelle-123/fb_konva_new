@@ -1,6 +1,6 @@
 import { ToolButton } from './tool-button';
 import { ToolPopover } from './tool-popover';
-import { type Icon, Info, Hand, Brush, Pipette, Square, Sticker, MessageCircle, MessageCircleQuestionMark, Search, SquareMousePointer } from 'lucide-react';
+import { type Icon, Info, Hand, Brush, Pipette, Square, Sticker, MessageCircle, MessageCircleQuestionMark, Search, SquareMousePointer, Magnet } from 'lucide-react';
 import { useState, forwardRef, useImperativeHandle } from 'react';
 import { Button } from '../../../ui/primitives/button';
 import { ShortcutsDialog } from './shortcuts-dialog';
@@ -17,7 +17,7 @@ interface ToolbarContentProps {
 }
 
 export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarContentProps>(function ToolbarContent({ activeTool, isExpanded, userRole, isOnAssignedPage, onToolSelect }, ref) {
-  const { state } = useEditor();
+  const { state, dispatch } = useEditor();
   const [showShortcuts, setShowShortcuts] = useState(false);
 
   useImperativeHandle(ref, () => ({
@@ -208,6 +208,19 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
         </div>
         
         <Separator/>
+        <Tooltip content='Magnetic snapping of elements' side='right'>
+          <Button
+            variant={state.magneticSnapping ? "default" : "ghost"}
+            size="xs"
+            onClick={() => dispatch({ type: 'TOGGLE_MAGNETIC_SNAPPING' })}
+            className="w-full flex flex-col items-center gap-1 h-auto py-2"
+          >
+            <Magnet className="h-4 w-4" />
+            {isExpanded && (
+              <span className="text-xs">Snap</span>
+            )}
+          </Button>
+        </Tooltip>
         <Tooltip content='Show Keyboard Shortcuts' side='right'>
           <Button
             variant="ghost"

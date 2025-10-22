@@ -11,6 +11,7 @@ import { CanvasTransformer } from './canvas-transformer';
 import { SelectionRectangle } from './selection-rectangle';
 import { PreviewLine, PreviewShape, PreviewTextbox, PreviewBrush } from './preview-elements';
 import { CanvasContainer } from './canvas-container';
+import { SnapGuidelines } from './snap-guidelines';
 import ContextMenu from '../../../ui/overlays/context-menu';
 import { Modal } from '../../../ui/overlays/modal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../ui/overlays/dialog';
@@ -19,6 +20,7 @@ import QuestionsManagerDialog from '../questions-manager-dialog';
 import TextEditorModal from '../text-editor-modal';
 import { getToolDefaults } from '../../../../utils/tool-defaults';
 import { Alert, AlertDescription } from '../../../ui/composites/alert';
+import { snapPosition, type SnapGuideline } from '../../../../utils/snapping';
 
 import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
 import type { PageBackground } from '../../../../context/editor-context';
@@ -208,6 +210,10 @@ export default function Canvas() {
   const [lastMousePos, setLastMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [alertPosition, setAlertPosition] = useState<{ x: number; y: number } | null>(null);
+  const [snapGuidelines, setSnapGuidelines] = useState<SnapGuideline[]>([]);
+  
+  // Snapping functionality
+  const GUIDELINE_OFFSET = 15; // Increased for better snapping detection
 
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const pageSize = state.currentBook?.pageSize || 'A4';
@@ -1668,6 +1674,25 @@ export default function Canvas() {
   
   const pageScale = pageDisplayWidth / canvasWidth;
 
+  const handleSnapPosition = (node: Konva.Node, x: number, y: number, enableGridSnap: boolean = false) => {
+    const result = snapPosition(
+      node,
+      x,
+      y,
+      enableGridSnap,
+      state.magneticSnapping,
+      currentPage!,
+      canvasWidth,
+      canvasHeight,
+      pageOffsetX,
+      pageOffsetY,
+      stageRef
+    );
+    
+    setSnapGuidelines(result.guidelines);
+    return { x: result.x, y: result.y };
+  };
+
   // Auto-fit function to show entire CanvasPageEditArea
   const fitToView = useCallback(() => {
     if (!containerRef.current) return;
@@ -1939,7 +1964,20 @@ export default function Canvas() {
                     }
                     setIsDragging(true);
                   }}
+                  onDragMove={(e) => {
+                    const currentX = e.target.x();
+                    const currentY = e.target.y();
+                    const snapped = handleSnapPosition(e.target, currentX, currentY, true); // Enable grid snapping
+                    
+                    if (snapped.x !== currentX || snapped.y !== currentY) {
+                      e.target.x(snapped.x);
+                      e.target.y(snapped.y);
+                    }
+                  }}
                   onDragEnd={(e) => {
+                    // Clear guidelines when drag ends
+                    setSnapGuidelines([]);
+                    
                     // Update position of linked element only if both elements are selected
                     if (element.textType === 'question' || element.textType === 'answer') {
                       let linkedElement: CanvasElement | undefined;
@@ -2017,6 +2055,9 @@ export default function Canvas() {
               visible={selectionRect.visible}
             />
             
+            {/* Snap guidelines */}
+            <SnapGuidelines guidelines={snapGuidelines} />
+            
             {/* Transformer for selected elements */}
             <CanvasTransformer
               key={state.selectedElementIds.length === 1 ? `${state.selectedElementIds[0]}-${currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.width}-${currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.height}` : 'multi'}
@@ -2025,7 +2066,24 @@ export default function Canvas() {
               onDragStart={() => {
                 dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Move Elements' });
               }}
+              onDragMove={(e) => {
+                const nodes = transformerRef.current?.nodes() || [];
+                if (nodes.length === 1) {
+                  const node = nodes[0];
+                  const currentX = node.x();
+                  const currentY = node.y();
+                  const snapped = handleSnapPosition(node, currentX, currentY, true); // Enable grid snapping
+                  
+                  if (snapped.x !== currentX || snapped.y !== currentY) {
+                    node.x(snapped.x);
+                    node.y(snapped.y);
+                  }
+                }
+              }}
               onDragEnd={(e) => {
+                // Clear guidelines when drag ends
+                setSnapGuidelines([]);
+                
                 // Update positions after drag
                 const nodes = transformerRef.current?.nodes() || [];
                 nodes.forEach(node => {
@@ -2056,13 +2114,13 @@ export default function Canvas() {
                   if (element) {
                     const updates: any = {};
                     
-                    // For text and image elements, convert scale to width/height changes
-                    if (element.type === 'text' || element.type === 'image') {
+                    // For text, qna_textbox and image elements, convert scale to width/height changes
+                    if (element.type === 'text' || element.type === 'qna_textbox' || element.type === 'image') {
                       const scaleX = node.scaleX();
                       const scaleY = node.scaleY();
                       
-                      updates.width = Math.max(element.type === 'text' ? 50 : 20, (element.width || 150) * scaleX);
-                      updates.height = Math.max(element.type === 'text' ? 20 : 20, (element.height || 50) * scaleY);
+                      updates.width = Math.max(element.type === 'text' || element.type === 'qna_textbox' ? 50 : 20, (element.width || 150) * scaleX);
+                      updates.height = Math.max(element.type === 'text' || element.type === 'qna_textbox' ? 20 : 20, (element.height || 50) * scaleY);
                       updates.x = node.x();
                       updates.y = node.y();
                       updates.rotation = node.rotation();
@@ -2276,3 +2334,4 @@ export { CanvasStage } from './canvas-stage';
 export { CanvasTransformer } from './canvas-transformer';
 export { SelectionRectangle } from './selection-rectangle';
 export { PreviewLine, PreviewShape, PreviewTextbox, PreviewBrush } from './preview-elements';
+export { SnapGuidelines } from './snap-guidelines';

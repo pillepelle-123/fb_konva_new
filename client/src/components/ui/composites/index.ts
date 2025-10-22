@@ -1,6 +1,6 @@
-export { default as Accordion } from './accordion';
-export { default as AccordionHorizontal } from './accordion-horizontal';
-export { default as AccordionVertical } from './accordion-vertical';
+export { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from './accordion';
+export { Accordion as AccordionHorizontal, AccordionItem as AccordionHorizontalItem, AccordionTrigger as AccordionHorizontalTrigger, AccordionContent as AccordionHorizontalContent } from './accordion-horizontal';
+export { Accordion as AccordionVertical, AccordionItem as AccordionVerticalItem, AccordionTrigger as AccordionVerticalTrigger, AccordionContent as AccordionVerticalContent } from './accordion-vertical';
 export { Avatar, AvatarFallback, AvatarImage } from './avatar';
 export { Badge } from './badge';
 export { ButtonGroup } from './button-group';

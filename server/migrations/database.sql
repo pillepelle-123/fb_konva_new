@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 -- Users Table
 CREATE TABLE users (
   id SERIAL PRIMARY KEY,
@@ -43,53 +45,71 @@ CREATE TABLE book_friends (
 );
 
 -- Questions Table
+
 CREATE TABLE questions (
-  id SERIAL PRIMARY KEY,
-  book_id INTEGER REFERENCES books(id) ON DELETE CASCADE,
-  question_text TEXT NOT NULL,
-  created_by INTEGER REFERENCES users(id) ON DELETE CASCADE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    book_id INTEGER REFERENCES books(id) ON DELETE CASCADE,
+    question_text TEXT NOT NULL,
+    created_by INTEGER REFERENCES users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- ####### ALT mit Serial statt UUID #########
+-- CREATE TABLE questions (
+--   id SERIAL PRIMARY KEY,
+--   book_id INTEGER REFERENCES books(id) ON DELETE CASCADE,
+--   question_text TEXT NOT NULL,
+--   created_by INTEGER REFERENCES users(id) ON DELETE CASCADE,
+--   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+--   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+-- );
+
+CREATE INDEX IF NOT EXISTS idx_questions_book_id ON questions(book_id);
 
 -- Question Pages Junction Table
-CREATE TABLE question_pages (
-  id SERIAL PRIMARY KEY,
-  question_id INTEGER REFERENCES questions(id) ON DELETE CASCADE,
-  page_id INTEGER REFERENCES pages(id) ON DELETE CASCADE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(question_id, page_id)
+
+
+CREATE TABLE IF NOT EXISTS question_pages (
+    id SERIAL PRIMARY KEY,
+    question_id UUID REFERENCES questions(id) ON DELETE CASCADE,
+    page_id INTEGER REFERENCES pages(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(question_id, page_id)
 );
 
--- ###############################
+CREATE INDEX IF NOT EXISTS idx_question_pages_question_id ON question_pages(question_id);
+CREATE INDEX IF NOT EXISTS idx_question_pages_page_id ON question_pages(page_id);
 
--- Answers Table
--- CREATE TABLE answers (
+-- ####### ALT mit Referenzierung auf Serial statt UUID (questions) #########
+-- CREATE TABLE question_pages (
 --   id SERIAL PRIMARY KEY,
 --   question_id INTEGER REFERENCES questions(id) ON DELETE CASCADE,
 --   page_id INTEGER REFERENCES pages(id) ON DELETE CASCADE,
---   answered_by INTEGER REFERENCES users(id) ON DELETE CASCADE,
---   answer_text TEXT,
 --   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
---   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
---   UNIQUE(question_id, page_id, answered_by)
+--   UNIQUE(question_id, page_id)
 -- );
 
--- Create index for better performance
--- CREATE INDEX idx_answers_question_id ON answers(question_id);
--- CREATE INDEX idx_answers_page_id ON answers(page_id);
--- CREATE INDEX idx_answers_answered_by ON answers(answered_by);
-
--- ### NEW ANSWERS TABLE DEFINITION FROM answers_table.sql ###
+-- Answers Table
 
 CREATE TABLE IF NOT EXISTS answers (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    question_id INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    question_id UUID REFERENCES questions(id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     answer_text TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- ####### ALT mit Serial statt UUID #########
+-- CREATE TABLE IF NOT EXISTS answers (
+--     id SERIAL PRIMARY KEY,
+--     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+--     question_id INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+--     answer_text TEXT NOT NULL,
+--     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-- );
 
 -- Create Constraint
 ALTER TABLE public.answers 
@@ -99,6 +119,7 @@ UNIQUE (user_id, question_id);
 -- Create index for faster lookups
 CREATE INDEX IF NOT EXISTS idx_answers_question_id ON answers(question_id);
 CREATE INDEX IF NOT EXISTS idx_answers_user_id ON answers(user_id);
+
 
 -- Create trigger to automatically update updated_at
 CREATE OR REPLACE FUNCTION update_answers_updated_at()

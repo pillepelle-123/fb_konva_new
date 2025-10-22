@@ -3,14 +3,20 @@ import { Transformer } from 'react-konva';
 import Konva from 'konva';
 
 interface CanvasTransformerProps {
+  onDragStart?: (e: Konva.KonvaEventObject<DragEvent>) => void;
+  onDragMove?: (e: Konva.KonvaEventObject<DragEvent>) => void;
   onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
+  onTransformStart?: (e: Konva.KonvaEventObject<Event>) => void;
   onTransformEnd: (e: Konva.KonvaEventObject<Event>) => void;
   keepRatio?: boolean;
   enabledAnchors?: string[];
 }
 
 const CanvasTransformer = forwardRef<Konva.Transformer, CanvasTransformerProps>(({
+  onDragStart,
+  onDragMove,
   onDragEnd,
+  onTransformStart,
   onTransformEnd,
   keepRatio = false,
   enabledAnchors
@@ -26,7 +32,10 @@ const CanvasTransformer = forwardRef<Konva.Transformer, CanvasTransformerProps>(
         }
         return newBox;
       }}
+      onDragStart={onDragStart}
+      onDragMove={onDragMove}
       onDragEnd={onDragEnd}
+      onTransformStart={onTransformStart}
       onTransformEnd={onTransformEnd}
     />
   );

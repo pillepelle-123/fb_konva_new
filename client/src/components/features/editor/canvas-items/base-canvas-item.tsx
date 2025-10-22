@@ -45,9 +45,9 @@ export default function BaseCanvasItem({
   const [partnerHovered, setPartnerHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
-  // Prevent scaling for question-answer pairs and qna_textbox
+  // Prevent scaling for question-answer pairs but allow qna_textbox to be resized
   useEffect(() => {
-    if (groupRef.current && (element.textType === 'question' || element.textType === 'answer' || element.type === 'qna_textbox')) {
+    if (groupRef.current && (element.textType === 'question' || element.textType === 'answer')) {
       // Always ensure scale is 1 for question/answer elements
       groupRef.current.scaleX(1);
       groupRef.current.scaleY(1);
@@ -135,8 +135,8 @@ export default function BaseCanvasItem({
       id={element.id}
       x={element.x}
       y={element.y}
-      scaleX={(element.textType === 'question' || element.textType === 'answer' || element.type === 'qna_textbox') ? 1 : (element.scaleX || 1)}
-      scaleY={(element.textType === 'question' || element.textType === 'answer' || element.type === 'qna_textbox') ? 1 : (element.scaleY || 1)}
+      scaleX={(element.textType === 'question' || element.textType === 'answer') ? 1 : (element.scaleX || 1)}
+      scaleY={(element.textType === 'question' || element.textType === 'answer') ? 1 : (element.scaleY || 1)}
       rotation={element.rotation || 0}
       draggable={state.activeTool === 'select' && !isMovingGroup && state.editorInteractionLevel !== 'answer_only'}
       onMouseDown={handleMouseDown}

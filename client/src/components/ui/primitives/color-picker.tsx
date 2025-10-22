@@ -82,7 +82,7 @@ export function ColorPicker({
               onChange={(color) => {
                 onChange(color.hex);
               }}
-              presetColors={favoriteColors}
+              // presetColors={favoriteColors}
               disableAlpha={true}
             />
             <div className="p-2 border-t">

@@ -1,6 +1,14 @@
 export { Button } from './button';
+export { Checkbox } from './checkbox';
+export { ColorPicker } from './color-picker';
+export { IndentedSection } from './indented-section';
 export { Input } from './input';
-export { SelectInput } from './select-input';
+export { Label } from './label';
 export { NumberInput } from './number-input';
 export { RadioGroup } from './radio-group';
-export { ColorPicker } from './color-picker';
+export { SelectInput } from './select-input';
+export { Separator } from './separator';
+export { Slider } from './slider';
+export { Switch } from './switch';
+export { Textarea } from './textarea';
+export { Toggle } from './toggle';

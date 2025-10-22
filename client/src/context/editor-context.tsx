@@ -324,6 +324,7 @@ export interface EditorState {
   history: HistoryState[];
   historyIndex: number;
   historyActions: string[];
+  magneticSnapping: boolean;
 }
 
 type EditorAction =
@@ -367,7 +368,8 @@ type EditorAction =
   | { type: 'SET_BOOK_THEME'; payload: string }
   | { type: 'SET_PAGE_THEME'; payload: { pageIndex: number; themeId: string } }
   | { type: 'APPLY_THEME_TO_ELEMENTS'; payload: { pageIndex: number; themeId: string; elementType?: string } }
-  | { type: 'REORDER_PAGES'; payload: { fromIndex: number; toIndex: number } };
+  | { type: 'REORDER_PAGES'; payload: { fromIndex: number; toIndex: number } }
+  | { type: 'TOGGLE_MAGNETIC_SNAPPING' };
 
 const initialState: EditorState = {
   currentBook: null,
@@ -390,6 +392,7 @@ const initialState: EditorState = {
   history: [],
   historyIndex: -1,
   historyActions: [],
+  magneticSnapping: true,
 };
 
 const MAX_HISTORY_SIZE = 50;
@@ -986,6 +989,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         pageDown.elements[elementIndexDown - 1] = element;
       }
       return { ...savedDownState, currentBook: bookDown, hasUnsavedChanges: true };
+    
+    case 'TOGGLE_MAGNETIC_SNAPPING':
+      return { ...state, magneticSnapping: !state.magneticSnapping };
     
     default:
       return state;

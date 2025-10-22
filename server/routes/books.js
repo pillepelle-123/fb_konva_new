@@ -256,15 +256,15 @@ router.get('/:id', authenticateToken, async (req, res) => {
       pages: pages.rows.map(page => {
         const pageData = page.elements || {};
         const elements = pageData.elements || [];
-        console.log(`Page ${page.id} has ${elements.length} elements`);
+      //console.log(`Page ${page.id} has ${elements.length} elements`);
         
         // Update answer elements with actual answer text from assigned users
         const updatedElements = elements.map(element => {
-          console.log(`Element type: ${element.textType}, questionId: ${element.questionId}`);
+        //console.log(`Element type: ${element.textType}, questionId: ${element.questionId}`);
           if (element.textType === 'answer') {
             // Find the user assigned to this page
             const pageAssignment = pageAssignments.rows.find(pa => pa.page_id === page.id);
-            console.log(`Page ${page.id}: assignment found:`, pageAssignment);
+          //console.log(`Page ${page.id}: assignment found:`, pageAssignment);
             if (pageAssignment) {
               // If answer element has no questionId, find question on same page
               let questionId = element.questionId;
@@ -272,7 +272,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
                 const questionElement = elements.find(el => el.textType === 'question' && el.questionId);
                 if (questionElement) {
                   questionId = questionElement.questionId;
-                  console.log(`Found question ${questionId} for answer element`);
+                  // console.log(`Found question ${questionId} for answer element`);
                 }
               }
               
@@ -281,7 +281,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
                 const assignedUserAnswer = allAnswers.rows.find(a => 
                   a.question_id === questionId && a.user_id === pageAssignment.user_id
                 );
-                console.log(`Answer found for question ${questionId}:`, assignedUserAnswer);
+              //console.log(`Answer found for question ${questionId}:`, assignedUserAnswer);
                 if (assignedUserAnswer) {
                   return {
                     ...element,
@@ -382,34 +382,50 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
           
           for (const element of elements) {
             if (element.textType === 'question' && element.questionId && element.questionId > 0) {
-              await pool.query(
-                'INSERT INTO public.question_pages (question_id, page_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-                [element.questionId, pageId]
+              // Check if question exists before creating association
+              const questionExists = await pool.query(
+                'SELECT id FROM public.questions WHERE id = $1',
+                [element.questionId]
               );
+              
+              if (questionExists.rows.length > 0) {
+                await pool.query(
+                  'INSERT INTO public.question_pages (question_id, page_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+                  [element.questionId, pageId]
+                );
+              }
             }
             
             // Create answer placeholders for answer elements
             if (element.textType === 'answer' && element.questionId && element.questionId > 0 && pageAssignment.rows.length > 0) {
               const assignedUserId = pageAssignment.rows[0].user_id;
               
-              // Check if answer already exists
-              const existingAnswer = await pool.query(
-                'SELECT id FROM public.answers WHERE question_id = $1 AND user_id = $2',
-                [element.questionId, assignedUserId]
+              // Check if question exists before creating answer
+              const questionExists = await pool.query(
+                'SELECT id FROM public.questions WHERE id = $1',
+                [element.questionId]
               );
               
-              if (existingAnswer.rows.length === 0) {
-                // Create new answer placeholder
-                const newAnswer = await pool.query(
-                  'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3) RETURNING id',
-                  [element.questionId, assignedUserId, '']
+              if (questionExists.rows.length > 0) {
+                // Check if answer already exists
+                const existingAnswer = await pool.query(
+                  'SELECT id FROM public.answers WHERE question_id = $1 AND user_id = $2',
+                  [element.questionId, assignedUserId]
                 );
                 
-                element.answerId = newAnswer.rows[0].id;
-                elementsUpdated = true;
-              } else {
-                element.answerId = existingAnswer.rows[0].id;
-                elementsUpdated = true;
+                if (existingAnswer.rows.length === 0) {
+                  // Create new answer placeholder
+                  const newAnswer = await pool.query(
+                    'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3) RETURNING id',
+                    [element.questionId, assignedUserId, '']
+                  );
+                  
+                  element.answerId = newAnswer.rows[0].id;
+                  elementsUpdated = true;
+                } else {
+                  element.answerId = existingAnswer.rows[0].id;
+                  elementsUpdated = true;
+                }
               }
             }
           }
@@ -609,76 +625,100 @@ router.put('/:id', authenticateToken, async (req, res) => {
         const pageAssignmentFromState = req.body.pageAssignments && req.body.pageAssignments[page.pageNumber];
         if (pageAssignmentFromState) {
           pageAssignment = { rows: [{ user_id: pageAssignmentFromState.userId }] };
-          console.log(`Using page assignment from state: user ${pageAssignmentFromState.userId}`);
+        //console.log(`Using page assignment from state: user ${pageAssignmentFromState.userId}`);
         } else {
           // Fallback to database
           pageAssignment = await pool.query(
             'SELECT user_id FROM public.page_assignments WHERE page_id = $1',
             [pageId]
           );
-          console.log(`Using page assignment from database:`, pageAssignment.rows);
+        //console.log(`Using page assignment from database:`, pageAssignment.rows);
         }
         
         // Add new question associations and create answer placeholders
         const elements = page.elements || [];
         let elementsUpdated = false;
         
-        console.log(`Processing ${elements.length} elements for page ${pageId}`);
+      //console.log(`Processing ${elements.length} elements for page ${pageId}`);
         
         for (const element of elements) {
-          console.log(`Element: type=${element.textType}, questionId=${element.questionId}`);
+        //console.log(`Element: type=${element.textType}, questionId=${element.questionId}`);
           
           if (element.textType === 'question' && element.questionId) {
-            await pool.query(
-              'INSERT INTO public.question_pages (question_id, page_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-              [element.questionId, pageId]
+            // Check if question exists before creating association
+            const questionExists = await pool.query(
+              'SELECT id FROM public.questions WHERE id = $1',
+              [element.questionId]
             );
+            
+            if (questionExists.rows.length > 0) {
+              await pool.query(
+                'INSERT INTO public.question_pages (question_id, page_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+                [element.questionId, pageId]
+              );
+            }
             
             // Create answer placeholder for question (assigned user needs to answer)
             if (pageAssignment.rows.length > 0) {
               const assignedUserId = pageAssignment.rows[0].user_id;
-              console.log(`Creating answer placeholder for question ${element.questionId}, user ${assignedUserId}`);
+            //console.log(`Creating answer placeholder for question ${element.questionId}, user ${assignedUserId}`);
               
-              const existingAnswer = await pool.query(
-                'SELECT id FROM public.answers WHERE question_id = $1 AND user_id = $2',
-                [element.questionId, assignedUserId]
+              // Check if question exists before creating answer
+              const questionExists = await pool.query(
+                'SELECT id FROM public.questions WHERE id = $1',
+                [element.questionId]
               );
               
-              if (existingAnswer.rows.length === 0) {
-                await pool.query(
-                  'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3) ON CONFLICT (user_id, question_id) DO NOTHING',
-                  [element.questionId, assignedUserId, '']
+              if (questionExists.rows.length > 0) {
+                const existingAnswer = await pool.query(
+                  'SELECT id FROM public.answers WHERE question_id = $1 AND user_id = $2',
+                  [element.questionId, assignedUserId]
                 );
-                console.log(`Created answer placeholder for question ${element.questionId}`);
-              } else {
-                console.log(`Answer already exists for question ${element.questionId}`);
+                
+                if (existingAnswer.rows.length === 0) {
+                  await pool.query(
+                    'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3) ON CONFLICT (user_id, question_id) DO NOTHING',
+                    [element.questionId, assignedUserId, '']
+                  );
+                //console.log(`Created answer placeholder for question ${element.questionId}`);
+                } else {
+                //console.log(`Answer already exists for question ${element.questionId}`);
+                }
               }
             }
           }
           
           // Create answer placeholders for answer elements
           if (element.textType === 'answer' && element.questionId && pageAssignment.rows.length > 0) {
-            console.log(`Processing answer element with questionId: ${element.questionId}`);
+          //console.log(`Processing answer element with questionId: ${element.questionId}`);
             const assignedUserId = pageAssignment.rows[0].user_id;
             
-            const existingAnswer = await pool.query(
-              'SELECT id FROM public.answers WHERE question_id = $1 AND user_id = $2',
-              [element.questionId, assignedUserId]
+            // Check if question exists before creating answer
+            const questionExists = await pool.query(
+              'SELECT id FROM public.questions WHERE id = $1',
+              [element.questionId]
             );
             
-            if (existingAnswer.rows.length === 0) {
-              const newAnswer = await pool.query(
-                'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3) ON CONFLICT (user_id, question_id) DO UPDATE SET answer_text = EXCLUDED.answer_text RETURNING id',
-                [element.questionId, assignedUserId, '']
+            if (questionExists.rows.length > 0) {
+              const existingAnswer = await pool.query(
+                'SELECT id FROM public.answers WHERE question_id = $1 AND user_id = $2',
+                [element.questionId, assignedUserId]
               );
               
-              element.answerId = newAnswer.rows[0].id;
-              elementsUpdated = true;
-              console.log(`Created answer with ID: ${newAnswer.rows[0].id}`);
-            } else {
-              element.answerId = existingAnswer.rows[0].id;
-              elementsUpdated = true;
-              console.log(`Using existing answer ID: ${existingAnswer.rows[0].id}`);
+              if (existingAnswer.rows.length === 0) {
+                const newAnswer = await pool.query(
+                  'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3) ON CONFLICT (user_id, question_id) DO UPDATE SET answer_text = EXCLUDED.answer_text RETURNING id',
+                  [element.questionId, assignedUserId, '']
+                );
+                
+                element.answerId = newAnswer.rows[0].id;
+                elementsUpdated = true;
+              //console.log(`Created answer with ID: ${newAnswer.rows[0].id}`);
+              } else {
+                element.answerId = existingAnswer.rows[0].id;
+                elementsUpdated = true;
+              //console.log(`Using existing answer ID: ${existingAnswer.rows[0].id}`);
+              }
             }
           }
         }
@@ -689,17 +729,25 @@ router.put('/:id', authenticateToken, async (req, res) => {
           const questionElements = elements.filter(el => el.textType === 'question' && el.questionId);
           
           for (const questionElement of questionElements) {
-            const existingAnswer = await pool.query(
-              'SELECT id FROM public.answers WHERE question_id = $1 AND user_id = $2',
-              [questionElement.questionId, assignedUserId]
+            // Check if question exists before creating answer
+            const questionExists = await pool.query(
+              'SELECT id FROM public.questions WHERE id = $1',
+              [questionElement.questionId]
             );
             
-            if (existingAnswer.rows.length === 0) {
-              await pool.query(
-                'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3)',
-                [questionElement.questionId, assignedUserId, '']
+            if (questionExists.rows.length > 0) {
+              const existingAnswer = await pool.query(
+                'SELECT id FROM public.answers WHERE question_id = $1 AND user_id = $2',
+                [questionElement.questionId, assignedUserId]
               );
-              console.log(`Created answer placeholder for question ${questionElement.questionId}, user ${assignedUserId}`);
+              
+              if (existingAnswer.rows.length === 0) {
+                await pool.query(
+                  'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3)',
+                  [questionElement.questionId, assignedUserId, '']
+                );
+              //console.log(`Created answer placeholder for question ${questionElement.questionId}, user ${assignedUserId}`);
+              }
             }
           }
         }
@@ -749,17 +797,25 @@ router.put('/:id', authenticateToken, async (req, res) => {
               const questionElements = pageData.elements.filter(el => el.textType === 'question' && el.questionId);
               
               for (const questionElement of questionElements) {
-                const existingAnswer = await pool.query(
-                  'SELECT id FROM public.answers WHERE question_id = $1 AND user_id = $2',
-                  [questionElement.questionId, assignedUserId]
+                // Check if question exists before creating answer
+                const questionExists = await pool.query(
+                  'SELECT id FROM public.questions WHERE id = $1',
+                  [questionElement.questionId]
                 );
                 
-                if (existingAnswer.rows.length === 0) {
-                  await pool.query(
-                    'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3)',
-                    [questionElement.questionId, assignedUserId, '']
+                if (questionExists.rows.length > 0) {
+                  const existingAnswer = await pool.query(
+                    'SELECT id FROM public.answers WHERE question_id = $1 AND user_id = $2',
+                    [questionElement.questionId, assignedUserId]
                   );
-                  console.log(`Created answer placeholder for reassigned page: question ${questionElement.questionId}, user ${assignedUserId}`);
+                  
+                  if (existingAnswer.rows.length === 0) {
+                    await pool.query(
+                      'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3)',
+                      [questionElement.questionId, assignedUserId, '']
+                    );
+                  //console.log(`Created answer placeholder for reassigned page: question ${questionElement.questionId}, user ${assignedUserId}`);
+                  }
                 }
               }
             }

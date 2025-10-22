@@ -49,8 +49,9 @@ export default function PageAssignmentDialog({ open, onOpenChange, currentPage, 
   const [activeTab, setActiveTab] = useState('assignments');
   const [pendingPermissions, setPendingPermissions] = useState<Record<number, { pageAccessLevel: string; editorInteractionLevel: string; book_role: string }>>({});
   const [pendingAssignment, setPendingAssignment] = useState<User | null>(null);
+  const [hasRemovedAssignment, setHasRemovedAssignment] = useState(false);
 
-  const assignedUser = pendingAssignment !== null ? pendingAssignment : state.pageAssignments[currentPage];
+  const assignedUser = hasRemovedAssignment ? null : (pendingAssignment !== null ? pendingAssignment : state.pageAssignments[currentPage]);
   
   const handlePermissionChange = (userId: number, field: 'pageAccessLevel' | 'editorInteractionLevel' | 'book_role', value: string) => {
     setPendingPermissions(prev => ({
@@ -126,10 +127,14 @@ export default function PageAssignmentDialog({ open, onOpenChange, currentPage, 
   };
   
   const handleSave = () => {
-    // Save page assignment only if there's a pending change
-    if (pendingAssignment !== null) {
+    // Save page assignment changes
+    if (pendingAssignment !== null || hasRemovedAssignment) {
       const updatedAssignments = { ...state.pageAssignments };
-      updatedAssignments[currentPage] = pendingAssignment;
+      if (hasRemovedAssignment) {
+        delete updatedAssignments[currentPage];
+      } else {
+        updatedAssignments[currentPage] = pendingAssignment;
+      }
       dispatch({ type: 'SET_PAGE_ASSIGNMENTS', payload: updatedAssignments });
     }
     
@@ -162,12 +167,14 @@ export default function PageAssignmentDialog({ open, onOpenChange, currentPage, 
     
     // Clear pending states
     setPendingAssignment(null);
+    setHasRemovedAssignment(false);
     setPendingPermissions({});
     onOpenChange(false);
   };
   
   const handleCancel = () => {
     setPendingAssignment(null);
+    setHasRemovedAssignment(false);
     setPendingPermissions({});
     onOpenChange(false);
   };
@@ -237,10 +244,12 @@ export default function PageAssignmentDialog({ open, onOpenChange, currentPage, 
     
     // Only set pending assignment - don't update global state yet
     setPendingAssignment(user);
+    setHasRemovedAssignment(false);
   };
 
   const handleRemoveAssignment = () => {
     setPendingAssignment(null);
+    setHasRemovedAssignment(true);
   };
 
   const handleAddFriend = async (friend: User) => {
