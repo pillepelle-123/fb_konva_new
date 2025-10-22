@@ -720,7 +720,7 @@ export default function Canvas() {
             y: previewTextbox.y,
             width: previewTextbox.width,
             height: previewTextbox.height,
-            fill: textDefaults.fill,
+            fontColor: textDefaults.fontColor,
             text: '',
             fontSize: textDefaults.fontSize,
             align: textDefaults.align,
@@ -751,7 +751,7 @@ export default function Canvas() {
             align: questionDefaults.align,
             fontFamily: questionDefaults.fontFamily,
             textType: 'question',
-            fill: '#9ca3af',
+            fontColor: '#9ca3af',
             cornerRadius: questionDefaults.cornerRadius
           };
           
@@ -1064,7 +1064,7 @@ export default function Canvas() {
           text: (element.textType === 'question' || element.textType === 'answer') ? '' : element.text,
           formattedText: (element.textType === 'question' || element.textType === 'answer') ? '' : element.formattedText,
           // Clear question styling for duplicated questions
-          fill: element.textType === 'question' ? '#9ca3af' : element.fill,
+          fontColor: element.textType === 'question' ? '#9ca3af' : (element.fontColor || element.fill),
           questionId: element.textType === 'question' ? undefined : element.questionId,
           // Update questionElementId reference for answer elements
           questionElementId: element.questionElementId ? idMapping.get(element.questionElementId) : element.questionElementId
@@ -1184,7 +1184,7 @@ export default function Canvas() {
         text: (element.textType === 'question' || element.textType === 'answer') ? '' : element.text,
         formattedText: (element.textType === 'question' || element.textType === 'answer') ? '' : element.formattedText,
         // Clear question styling for pasted questions
-        fill: element.textType === 'question' ? '#9ca3af' : element.fill,
+        fontColor: element.textType === 'question' ? '#9ca3af' : (element.fontColor || element.fill),
         questionId: element.textType === 'question' ? undefined : element.questionId,
         // Update questionElementId reference for answer elements
         questionElementId: element.questionElementId ? idMapping.get(element.questionElementId) : element.questionElementId
@@ -1478,7 +1478,7 @@ export default function Canvas() {
                   text,
                   fontSize: 16,
                   fontFamily: 'Arial, sans-serif',
-                  fill: '#1f2937',
+                  fontColor: '#1f2937',
                   textType: 'text' as const
                 };
                 dispatch({ type: 'ADD_ELEMENT', payload: newElement });
@@ -1603,8 +1603,8 @@ export default function Canvas() {
         const element = currentPage?.elements.find(el => el.id === elementId);
         
         if (element && element.textType === 'qna') {
-          // const toolSettings = state.toolSettings?.qna || {};
-          const fillColor = element.fill ||  TOOL_DEFAULTS.qna.fill;
+
+          const fontColor = element.fontColor || element.fill || TOOL_DEFAULTS.qna.fontColor;
           
           dispatch({
             type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
@@ -1612,7 +1612,7 @@ export default function Canvas() {
               id: elementId,
               updates: { 
                 questionId: questionId || undefined,
-                fill: fillColor
+                fontColor: fontColor
               }
             }
           });
@@ -2288,8 +2288,8 @@ export default function Canvas() {
                   } else {
                     // For regular question elements
                     const updates = questionId === 0 
-                      ? { text: '', fill: '#9ca3af', questionId: undefined }
-                      : { text: questionText, fill: '#1f2937', questionId: questionId };
+                      ? { text: '', fontColor: '#9ca3af', questionId: undefined }
+                      : { text: questionText, fontColor: '#1f2937', questionId: questionId };
                     dispatch({
                       type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
                       payload: {

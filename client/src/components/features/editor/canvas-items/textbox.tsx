@@ -265,7 +265,7 @@ export default function Textbox(props: CanvasItemProps) {
     }
     const ruledLineColor = element.ruledLines?.lineColor || element.ruledLinesColor || '#1f2937';
     const ruledLineWidth = element.ruledLinesWidth || 0.8;
-    const ruledLineOpacity = element.ruledLines?.lineOpacity || element.ruledLinesOpacity || 0.5;
+    const ruledLineOpacity = element.ruledLines?.lineOpacity || element.ruledLinesOpacity || 0.7;
     
     // Generate lines from top to bottom of textbox (positioned as underlines)
     if (element.type === 'qna_textbox' || element.textType === 'qna') {
@@ -593,6 +593,15 @@ export default function Textbox(props: CanvasItemProps) {
     
     // Handle qna_textbox with area detection
     if (element.type === 'qna_textbox' || element.textType === 'qna') {
+      // If no question is selected, open question manager for any click
+      if (!element.questionId) {
+        if (state.userRole === 'author') return;
+        window.dispatchEvent(new CustomEvent('openQuestionModal', {
+          detail: { elementId: element.id }
+        }));
+        return;
+      }
+      
       const questionHeight = getQuestionHeight();
       
       // Get click position relative to element
@@ -954,7 +963,7 @@ export default function Textbox(props: CanvasItemProps) {
     textarea.style.fontFamily = element.font?.fontFamily || element.fontFamily || 'Arial, sans-serif';
     textarea.style.fontWeight = element.font?.fontBold || element.fontWeight === 'bold' ? 'bold' : 'normal';
     textarea.style.fontStyle = element.font?.fontItalic || element.fontStyle === 'italic' ? 'italic' : 'normal';
-    textarea.style.color = element.font?.fontColor || element.fill || '#000000';
+    textarea.style.color = element.font?.fontColor || element.fontColor || element.fill || '#000000';
     textarea.style.background = 'transparent';
     textarea.style.border = 'transparent';
     textarea.style.outline = 'none';
@@ -1360,7 +1369,7 @@ export default function Textbox(props: CanvasItemProps) {
                   fontSize={(element.font?.fontSize || fontSize) * 0.9}
                   fontFamily={element.font?.fontFamily || element.fontFamily || fontFamily}
                   fontStyle={`${(element.font?.fontBold || element.fontWeight === 'bold') ? 'bold' : ''} ${(element.font?.fontItalic || element.fontStyle === 'italic') ? 'italic' : ''}`.trim() || 'normal'}
-                  fill={element.questionId ? (element.font?.fontColor || element.fill || '#1f2937') : '#9ca3af'}
+                  fill={element.questionId ? (element.font?.fontColor || element.fontColor || element.fill || '#1f2937') : '#9ca3af'}
                   opacity={(element.font?.fontOpacity || element.fillOpacity || 1) * 0.8}
                   align={element.format?.align || align}
                   verticalAlign="top"
@@ -1388,7 +1397,7 @@ export default function Textbox(props: CanvasItemProps) {
                   fontSize={element.font?.fontSize || fontSize}
                   fontFamily={element.font?.fontFamily || element.fontFamily || fontFamily}
                   fontStyle={`${(element.font?.fontBold || element.fontWeight === 'bold') ? 'bold' : ''} ${(element.font?.fontItalic || element.fontStyle === 'italic') ? 'italic' : ''}`.trim() || 'normal'}
-                  fill={answerText ? (element.font?.fontColor || element.fill || '#1f2937') : '#9ca3af'}
+                  fill={answerText ? (element.font?.fontColor || element.fontColor || element.fill || '#1f2937') : '#9ca3af'}
                   opacity={answerText ? (element.font?.fontOpacity || element.fillOpacity || 1) : 0.6}
                   align={element.format?.align || align}
                   verticalAlign="top"
@@ -1411,7 +1420,7 @@ export default function Textbox(props: CanvasItemProps) {
                   fontSize={textPart.fontSize}
                   fontFamily={textPart.fontFamily}
                   fontStyle={textPart.fontStyle}
-                  fill={textPart.fill || element.font?.fontColor || element.fill || '#1f2937'}
+                  fill={textPart.fill || element.font?.fontColor || element.fontColor || element.fill || '#1f2937'}
                   opacity={element.font?.fontOpacity || element.fillOpacity || 1}
                   textDecoration={textPart.textDecoration}
                   listening={false}
@@ -1429,7 +1438,7 @@ export default function Textbox(props: CanvasItemProps) {
               fontSize={fontSize}
               fontFamily={fontFamily}
               fontStyle={`${(element.font?.fontBold || element.fontWeight === 'bold') ? 'bold' : ''} ${(element.font?.fontItalic || element.fontStyle === 'italic') ? 'italic' : ''}`.trim() || 'normal'}
-              fill={element.font?.fontColor || element.fill || (element.text ? '#1f2937' : '#9ca3af')}
+              fill={element.font?.fontColor || element.fontColor || element.fill || (element.text ? '#1f2937' : '#9ca3af')}
               opacity={(element.formattedText || element.text) ? (element.font?.fontOpacity || element.fillOpacity || 1) : 0.6}
               align={align}
               verticalAlign="top"

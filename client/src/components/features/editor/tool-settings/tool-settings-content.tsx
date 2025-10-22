@@ -180,7 +180,7 @@ export function ToolSettingsContent({
         case 'shape-fill':
           return settings.fill || 'transparent';
         case 'text-color':
-          return settings.fill || '#1f2937';
+          return settings.fontColor || settings.fill || '#1f2937';
         case 'text-border':
           return settings.borderColor || '#000000';
         case 'text-background':
@@ -284,8 +284,10 @@ export function ToolSettingsContent({
           updateToolSetting('stroke', color);
           break;
         case 'shape-fill':
-        case 'text-color':
           updateToolSetting('fill', color);
+          break;
+        case 'text-color':
+          updateToolSetting('fontColor', color);
           break;
         case 'text-border':
           updateToolSetting('borderColor', color);
@@ -508,7 +510,7 @@ export function ToolSettingsContent({
       const getColorValue = () => {
         switch (showColorSelector) {
           case 'element-text-color':
-            return element.font?.fontColor || element.fill || '#1f2937';
+            return element.font?.fontColor || element.fontColor || element.fill || '#1f2937';
           case 'element-text-border':
             return element.border?.borderColor || element.borderColor || '#000000';
           case 'element-text-background':
@@ -523,13 +525,13 @@ export function ToolSettingsContent({
       const getElementOpacityValue = () => {
         switch (showColorSelector) {
           case 'element-text-color':
-            return element.font?.fontOpacity || element.fillOpacity || 1;
+            return element.font?.fontOpacity || element.fontColorOpacity || element.fillOpacity || 1;
           case 'element-text-border':
             return element.border?.borderOpacity || element.borderOpacity || 1;
           case 'element-text-background':
             return element.background?.backgroundOpacity || element.backgroundOpacity || 1;
           case 'element-ruled-lines-color':
-            return element.ruledLines?.lineOpacity || element.ruledLinesOpacity || 0.5;
+            return element.ruledLines?.lineOpacity || element.ruledLinesOpacity || 0.7;
           default:
             return 1;
         }
@@ -541,7 +543,7 @@ export function ToolSettingsContent({
             if (element.font) {
               updateBothElements('font', { ...element.font, fontOpacity: opacity });
             }
-            updateBothElements('fillOpacity', opacity);
+            updateBothElements('fontColorOpacity', opacity);
             break;
           case 'element-text-border':
             updateBothElements('border', {
@@ -576,7 +578,7 @@ export function ToolSettingsContent({
             if (element.font) {
               updateBothElements('font', { ...element.font, fontColor: color });
             }
-            updateBothElements('fill', color);
+            updateBothElements('fontColor', color);
             break;
           case 'element-text-border':
             updateBothElements('border', {
@@ -598,7 +600,7 @@ export function ToolSettingsContent({
             updateBothElements('ruledLines', {
               ...element.ruledLines,
               lineColor: color,
-              lineOpacity: element.ruledLines?.lineOpacity || element.ruledLinesOpacity || 0.5
+              lineOpacity: element.ruledLines?.lineOpacity || element.ruledLinesOpacity || 0.7
             });
             updateBothElements('ruledLinesColor', color);
             break;
@@ -870,7 +872,7 @@ export function ToolSettingsContent({
                     ruledLinesTheme: value,
                     lineWidth: element.ruledLinesWidth || 0.8,
                     lineColor: element.ruledLines?.lineColor || element.ruledLinesColor || '#1f2937',
-                    lineOpacity: element.ruledLines?.lineOpacity || element.ruledLinesOpacity || 0.5
+                    lineOpacity: element.ruledLines?.lineOpacity || element.ruledLinesOpacity || 0.7
                   });
                   updateBothElements('ruledLinesTheme', value);
                 }}
@@ -1163,7 +1165,7 @@ export function ToolSettingsContent({
           case 'element-text-background':
             return element.background?.backgroundOpacity || element.backgroundOpacity || 1;
           case 'element-ruled-lines-color':
-            return element.ruledLines?.lineOpacity || element.ruledLinesOpacity || 0.5;
+            return element.ruledLines?.lineOpacity || element.ruledLinesOpacity || 0.7;
           default:
             return 1;
         }
@@ -1253,7 +1255,7 @@ export function ToolSettingsContent({
             updateElementSetting('ruledLines', {
               ...element.ruledLines,
               lineColor: color,
-              lineOpacity: element.ruledLines?.lineOpacity || element.ruledLinesOpacity || 0.5
+              lineOpacity: element.ruledLines?.lineOpacity || element.ruledLinesOpacity || 0.7
             });
             updateElementSetting('ruledLinesColor', color);
             break;

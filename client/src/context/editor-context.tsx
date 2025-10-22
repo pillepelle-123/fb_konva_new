@@ -93,7 +93,7 @@ function logThemeStructure(book: Book | null) {
           themeElement.font = {
             fontSize: commonFontSize,
             fontFamily: element.font?.fontFamily || element.fontFamily,
-            fontColor: element.font?.fontColor || element.fill,
+            fontColor: element.font?.fontColor || element.fontColor || element.fill,
             fontOpacity: element.font?.fontOpacity || element.fillOpacity,
             fontBold: element.font?.fontBold || (element.fontWeight === 'bold'),
             fontItalic: element.font?.fontItalic || (element.fontStyle === 'italic')
@@ -226,7 +226,6 @@ export interface CanvasElement {
   y: number;
   width: number;
   height: number;
-  fill?: string;
   stroke?: string;
   text?: string;
   formattedText?: string;
@@ -235,6 +234,8 @@ export interface CanvasElement {
   lineHeight?: number;
   align?: 'left' | 'center' | 'right';
   fontFamily?: string;
+  fontStyle?: 'normal' | 'italic';
+  fontColor?: string;
   textType?: 'question' | 'answer' | 'text' | 'qna';
   questionId?: string; // UUID - for both question and answer elements
   answerId?: string; // UUID - for answer elements
@@ -252,6 +253,8 @@ export interface CanvasElement {
   backgroundOpacity?: number;
   padding?: number;
   theme?: 'rough' | 'default' | 'chalk' | 'watercolor' | 'crayon' | 'candy' | 'zigzag' | 'multi-strokes';
+  // Backward compatibility
+  fill?: string; // @deprecated - use fontColor instead
 }
 
 export interface PageBackground {
