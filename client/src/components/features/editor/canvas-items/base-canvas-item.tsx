@@ -45,7 +45,7 @@ export default function BaseCanvasItem({
   const [partnerHovered, setPartnerHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
-  // Prevent scaling for question-answer pairs but allow qna_textbox to be resized
+  // Prevent scaling for question-answer pairs but allow qna textboxes to be resized
   useEffect(() => {
     if (groupRef.current && (element.textType === 'question' || element.textType === 'answer')) {
       // Always ensure scale is 1 for question/answer elements

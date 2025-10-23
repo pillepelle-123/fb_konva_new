@@ -18,17 +18,42 @@ pool.on('connect', (client) => {
   client.query(`SET search_path TO ${schema}`);
 });
 
-// Check if user already has this question assigned
+// Check if user already has this question assigned on any page
 router.get('/check/:bookId/:userId/:questionId', authenticateToken, async (req, res) => {
   try {
     const { bookId, userId, questionId } = req.params;
     
-    const result = await pool.query(
-      'SELECT id FROM user_question_assignments WHERE book_id = $1 AND user_id = $2 AND question_id = $3',
-      [bookId, userId, questionId]
+    // Check if question exists on any page assigned to this user
+    const bookResult = await pool.query('SELECT pages FROM books WHERE id = $1', [bookId]);
+    if (bookResult.rows.length === 0) {
+      return res.json(false);
+    }
+    
+    const pages = bookResult.rows[0].pages;
+    
+    // Get page assignments for this user
+    const assignmentResult = await pool.query(
+      'SELECT page_number FROM page_assignments WHERE book_id = $1 AND user_id = $2',
+      [bookId, userId]
     );
     
-    res.json(result.rows.length > 0);
+    const userPages = assignmentResult.rows.map(row => row.page_number);
+    
+    // Check if question exists on any of the user's assigned pages
+    let hasQuestion = false;
+    for (const page of pages) {
+      if (userPages.includes(page.pageNumber)) {
+        const questionExists = page.elements.some(el => 
+          (el.textType === 'question' || el.textType === 'qna') && el.questionId === questionId
+        );
+        if (questionExists) {
+          hasQuestion = true;
+          break;
+        }
+      }
+    }
+    
+    res.json(hasQuestion);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -62,20 +87,13 @@ router.get('/conflicts/:bookId/:userId/:pageNumber', authenticateToken, async (r
   }
 });
 
-// Track new question assignment
+// Track new question assignment (deprecated - questions are now tracked via book pages)
 router.post('/', authenticateToken, async (req, res) => {
   try {
     const { bookId, userId, questionId, pageNumber } = req.body;
-    // console.log('POST /user-question-assignments:', { bookId, userId, questionId, pageNumber });
     
-    // Check current database
-    const dbCheck = await pool.query('SELECT current_database(), current_schema()');
-    // console.log('Current database and schema:', dbCheck.rows[0]);
-    
-    await pool.query(
-      'INSERT INTO public.user_question_assignments (book_id, user_id, question_id, page_number) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING',
-      [bookId, userId, questionId, pageNumber]
-    );
+    // This endpoint is kept for backward compatibility but no longer used
+    // Questions are now tracked directly in the book pages JSON
     
     res.json({ success: true });
   } catch (error) {

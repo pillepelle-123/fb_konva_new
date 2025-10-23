@@ -34,7 +34,7 @@ export default function QuestionsManagerDialog({
   onClose
 }: QuestionsManagerDialogProps) {
   const { user } = useAuth();
-  const { state, isQuestionAvailableForUser } = useEditor();
+  const { state, isQuestionAvailableForUser, validateQuestionSelection } = useEditor();
   
   const [userRole, setUserRole] = useState<string | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -198,19 +198,37 @@ export default function QuestionsManagerDialog({
   };
 
   const isQuestionAvailable = (questionId: string): boolean => {
-    if (!state.currentBook || !state.user) return false;
+    if (!state.currentBook) return false;
     
     const currentPageNumber = state.activePageIndex + 1;
     const assignedUser = state.pageAssignments[currentPageNumber];
     
-    if (assignedUser) {
-      return isQuestionAvailableForUser(questionId, assignedUser.id);
+    // For pages with no assignment, only check if question already exists on current page
+    if (!assignedUser) {
+      const currentPage = state.currentBook.pages.find(p => p.pageNumber === currentPageNumber);
+      if (currentPage) {
+        return !currentPage.elements.some(el => 
+          (el.textType === 'question' || el.textType === 'qna') && el.questionId === questionId
+        );
+      }
+      return true;
     }
     
-    if (state.user) {
-      return isQuestionAvailableForUser(questionId, state.user.id);
-    }
+    // For pages with assignment, check across all user's pages
+    const userPages = Object.entries(state.pageAssignments)
+      .filter(([_, user]) => user?.id === assignedUser.id)
+      .map(([pageNum, _]) => parseInt(pageNum));
     
+    for (const page of state.currentBook.pages) {
+      if (userPages.includes(page.pageNumber)) {
+        const hasQuestion = page.elements.some(el => 
+          (el.textType === 'question' || el.textType === 'qna') && el.questionId === questionId
+        );
+        if (hasQuestion) {
+          return false;
+        }
+      }
+    }
     return true;
   };
   
@@ -218,8 +236,11 @@ export default function QuestionsManagerDialog({
     const currentPageNumber = state.activePageIndex + 1;
     const assignedUser = state.pageAssignments[currentPageNumber];
     
-    if (assignedUser && !isQuestionAvailableForUser(questionId, assignedUser.id)) {
-      return `Already assigned to ${assignedUser.name}`;
+    if (!isQuestionAvailable(questionId)) {
+      if (!assignedUser) {
+        return 'Already on this page';
+      }
+      return `Already used by ${assignedUser.name}`;
     }
     return null;
   };
@@ -229,7 +250,7 @@ export default function QuestionsManagerDialog({
     
     const currentPage = state.currentBook.pages[state.activePageIndex];
     return currentPage?.elements.some(el => 
-      el.textType === 'question' && el.questionId && el.text && el.text.trim() !== ''
+      (el.textType === 'question' || el.textType === 'qna') && el.questionId
     ) || false;
   };
 
@@ -362,6 +383,16 @@ export default function QuestionsManagerDialog({
                                 
                                 if (!isAvailable) return;
                                 
+                                // Validate question selection
+                                const currentPageNumber = state.activePageIndex + 1;
+                                const validation = validateQuestionSelection(question.id, currentPageNumber);
+                                
+                                if (!validation.valid) {
+                                  // Show validation error
+                                  alert(validation.reason || 'This question cannot be selected.');
+                                  return;
+                                }
+                                
                                 window.dispatchEvent(new CustomEvent('questionSelected', {
                                   detail: { 
                                     elementId: 'current',
@@ -462,6 +493,10 @@ export default function QuestionsManagerDialog({
               Cancel
             </Button>
             <Button onClick={() => {
+              // Trigger question reset with clearAnswer flag
+              window.dispatchEvent(new CustomEvent('resetQuestion', {
+                detail: { clearAnswer: true }
+              }));
               onQuestionSelect?.('', '');
               setShowResetConfirm(false);
             }}>

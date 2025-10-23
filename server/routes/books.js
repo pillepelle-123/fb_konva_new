@@ -186,17 +186,11 @@ router.get('/:id', authenticateToken, async (req, res) => {
       WHERE q.book_id = $1 AND a.user_id = $2
     `, [bookId, userId]);
 
-    // Get questions and answers for this book
+    // Get questions for this book
     const questions = await pool.query(
       'SELECT * FROM public.questions WHERE book_id = $1',
       [bookId]
     );
-
-    const answers = await pool.query(`
-      SELECT a.* FROM public.answers a
-      JOIN public.questions q ON a.question_id = q.id
-      WHERE q.book_id = $1 AND a.user_id = $2
-    `, [bookId, userId]);
 
     // Get page assignments for this book
     const pageAssignments = await pool.query(`
@@ -250,7 +244,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
       owner_id: book.owner_id,
       bookTheme: book.book_theme,
       questions: questions.rows,
-      answers: answers.rows,
+      answers: allAnswers.rows,
       pageAssignments: pageAssignments.rows,
       userRole: userRole,
       pages: pages.rows.map(page => {

@@ -1,0 +1,22 @@
+import type { CanvasElement } from '../context/editor-context';
+
+export function getTextAlign(element: CanvasElement): string {
+  return element.format?.align || element.align || 'left';
+}
+
+export function getParagraphSpacing(element: CanvasElement): string {
+  return element.format?.paragraphSpacing || element.paragraphSpacing || 'medium';
+}
+
+export function getPadding(element: CanvasElement): number {
+  return element.format?.padding || element.padding || 4;
+}
+
+export function getFormatConfig(element: CanvasElement) {
+  return {
+    align: getTextAlign(element),
+    paragraphSpacing: getParagraphSpacing(element),
+    padding: getPadding(element),
+    lineHeight: element.format?.lineHeight || element.lineHeight
+  };
+}

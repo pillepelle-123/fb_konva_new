@@ -196,14 +196,14 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
             onClick={() => onToolSelect('zoom')}
           />
           <ToolButton
-            id="qna_textbox"
+            id="qna"
             label="Q&A Textbox"
             icon={MessageCircle}
-            isActive={activeTool === 'qna_textbox'}
+            isActive={activeTool === 'qna'}
             isExpanded={false}
             userRole={userRole}
             isOnAssignedPage={isOnAssignedPage}
-            onClick={() => onToolSelect('qna_textbox')}
+            onClick={() => onToolSelect('qna')}
           />
         </div>
         

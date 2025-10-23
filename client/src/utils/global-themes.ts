@@ -3,6 +3,8 @@ import { getPalette } from './global-palettes';
 import { commonToActual } from './font-size-converter';
 import { commonToActualStrokeWidth, themeJsonToActualStrokeWidth } from './stroke-width-converter';
 import { commonToActualRadius } from './corner-radius-converter';
+import { getRuledLinesOpacity } from './ruled-lines-utils';
+import { getBorderTheme } from './theme-utils';
 import themesData from '../data/themes.json';
 
 export interface GlobalTheme {
@@ -193,7 +195,7 @@ function processTheme(theme: GlobalTheme): GlobalTheme {
           border: element.border ? {
             ...element.border,
             borderWidth: typeof element.border.borderWidth === 'number'
-              ? themeJsonToActualStrokeWidth(element.border.borderWidth, element.border.borderTheme || element.border.inheritTheme || theme.id)
+              ? themeJsonToActualStrokeWidth(element.border.borderWidth, getBorderTheme(element) || theme.id)
               : element.border.borderWidth
           } : undefined,
           format: element.format,

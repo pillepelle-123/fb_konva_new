@@ -234,9 +234,9 @@ export default function PageAssignmentDialog({ open, onOpenChange, currentPage, 
     const conflicts = checkUserQuestionConflicts(user.id, currentPage);
     
     if (conflicts.length > 0) {
-      const conflictMessage = `User ${user.name} is already assigned to the following questions on other pages:\n\n` +
-        conflicts.map(c => `• Question "${c.questionText}" on page ${c.pageNumber}`).join('\n') +
-        '\n\nAssigning this user to this page would violate the "one question per user" rule.';
+      const conflictMessage = `${user.name} already has the following questions on other pages:\n\n` +
+        conflicts.map(c => `• "${c.questionText}" on page ${c.pageNumber}`).join('\n') +
+        '\n\nThis page assignment cannot be made because a question can be assigned to each user only once.';
       
       setConflictAlert({ show: true, message: conflictMessage });
       return;
@@ -451,13 +451,24 @@ export default function PageAssignmentDialog({ open, onOpenChange, currentPage, 
         </div>
       </DialogContent>
       
-      <AlertDialog
-        open={conflictAlert.show}
-        onOpenChange={(open) => setConflictAlert({ show: open, message: '' })}
-        title="Question Assignment Conflict"
-        message={conflictAlert.message}
-        onClose={() => setConflictAlert({ show: false, message: '' })}
-      />
+      {conflictAlert.show && (
+        <Dialog open={conflictAlert.show} onOpenChange={(open) => setConflictAlert({ show: open, message: '' })}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Question Assignment Conflict</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm whitespace-pre-line">{conflictAlert.message}</p>
+              <Button 
+                onClick={() => setConflictAlert({ show: false, message: '' })}
+                className="w-full"
+              >
+                OK
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </Dialog>
   );
 }

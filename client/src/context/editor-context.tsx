@@ -7,6 +7,8 @@ import { apiService } from '../services/api';
 import { actualToCommon } from '../utils/font-size-converter';
 import { actualToCommonStrokeWidth, commonToActualStrokeWidth, THEME_STROKE_RANGES } from '../utils/stroke-width-converter';
 import { actualToCommonRadius } from '../utils/corner-radius-converter';
+import { getRuledLinesOpacity } from '../utils/ruled-lines-utils';
+import { getBorderTheme } from '../utils/theme-utils';
 
 // Function to extract theme structure from current book state
 function logThemeStructure(book: Book | null) {
@@ -107,7 +109,7 @@ function logThemeStructure(book: Book | null) {
             borderWidth: actualToCommonStrokeWidth(borderWidth, element.border?.borderTheme || element.theme || 'default'),
             borderColor: element.border?.borderColor || element.borderColor,
             borderOpacity: element.border?.borderOpacity || element.borderOpacity,
-            borderTheme: element.border?.borderTheme || element.border?.inheritTheme || element.theme
+            borderTheme: getBorderTheme(element)
           };
         }
         
@@ -140,7 +142,7 @@ function logThemeStructure(book: Book | null) {
             enabled: ruledLinesEnabled,
             lineWidth: ruledLinesWidth,
             lineColor: ruledLinesColor,
-            lineOpacity: element.ruledLines?.lineOpacity || element.ruledLinesOpacity,
+            lineOpacity: getRuledLinesOpacity(element),
             ruledLinesTheme: element.ruledLines?.ruledLinesTheme || element.ruledLines?.inheritTheme || element.ruledLinesTheme
           };
         }
@@ -221,7 +223,7 @@ function logThemeStructure(book: Book | null) {
 
 export interface CanvasElement {
   id: string;
-  type: 'text' | 'image' | 'placeholder' | 'line' | 'circle' | 'rect' | 'brush' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley' | 'qna_textbox';
+  type: 'text' | 'image' | 'placeholder' | 'line' | 'circle' | 'rect' | 'brush' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley';
   x: number;
   y: number;
   width: number;
@@ -307,7 +309,7 @@ export interface HistoryState {
 export interface EditorState {
   currentBook: Book | null;
   activePageIndex: number;
-  activeTool: 'select' | 'text' | 'question' | 'answer' | 'qna' | 'qna_textbox' | 'image' | 'line' | 'circle' | 'rect' | 'brush' | 'pan' | 'zoom' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley';
+  activeTool: 'select' | 'text' | 'question' | 'answer' | 'qna' | 'image' | 'line' | 'circle' | 'rect' | 'brush' | 'pan' | 'zoom' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley';
   selectedElementIds: string[];
   user?: { id: number; role: string } | null;
   userRole?: 'author' | 'publisher' | null;
@@ -1018,6 +1020,7 @@ const EditorContext = createContext<{
   getQuestionAssignmentsForUser: (userId: number) => Set<string>;
   isQuestionAvailableForUser: (questionId: string, userId: number) => boolean;
   checkUserQuestionConflicts: (userId: number, pageNumber: number) => { questionId: string; questionText: string; pageNumber: number }[];
+  validateQuestionSelection: (questionId: string, currentPageNumber: number) => { valid: boolean; reason?: string };
   canAccessEditor: () => boolean;
   canEditCanvas: () => boolean;
   canEditSettings: () => boolean;
@@ -1424,7 +1427,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     state.currentBook.pages.forEach(page => {
       if (userPages.includes(page.pageNumber)) {
         page.elements.forEach(element => {
-          if (element.textType === 'question' && element.questionId) {
+          if ((element.textType === 'question' || element.textType === 'qna') && element.questionId) {
             assignedQuestions.add(element.questionId);
           }
         });
@@ -1443,35 +1446,56 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     const targetPage = state.currentBook.pages.find(p => p.pageNumber === pageNumber);
     if (!targetPage) return [];
     
+    // Get all questions on the target page
+    const targetQuestions = new Set<string>();
     targetPage.elements.forEach(element => {
-      if (element.textType === 'question' && element.questionId) {
-        // Check if this question is already assigned to the user on another page
-        for (const page of state.currentBook!.pages) {
-          if (page.pageNumber !== pageNumber) {
-            const assignedUser = state.pageAssignments[page.pageNumber];
-            if (assignedUser && assignedUser.id === userId) {
-              const hasQuestion = page.elements.some(el => 
-                el.textType === 'question' && el.questionId === element.questionId
-              );
-              if (hasQuestion) {
-                conflicts.push({
-                  questionId: element.questionId,
-                  questionText: getQuestionText(element.questionId) || 'Unknown question',
-                  pageNumber: page.pageNumber
-                });
-              }
-            }
-          }
-        }
+      if ((element.textType === 'question' || element.textType === 'qna') && element.questionId) {
+        targetQuestions.add(element.questionId);
       }
     });
+    
+    // Check if any of these questions already exist on pages assigned to this user
+    for (const page of state.currentBook.pages) {
+      if (page.pageNumber !== pageNumber) {
+        const assignedUser = state.pageAssignments[page.pageNumber];
+        if (assignedUser && assignedUser.id === userId) {
+          page.elements.forEach(element => {
+            if ((element.textType === 'question' || element.textType === 'qna') && element.questionId && targetQuestions.has(element.questionId)) {
+              conflicts.push({
+                questionId: element.questionId,
+                questionText: getQuestionText(element.questionId) || 'Unknown question',
+                pageNumber: page.pageNumber
+              });
+            }
+          });
+        }
+      }
+    }
     
     return conflicts;
   };
   
   const isQuestionAvailableForUser = (questionId: string, userId: number): boolean => {
-    const userQuestions = getQuestionAssignmentsForUser(userId);
-    return !userQuestions.has(questionId);
+    if (!state.currentBook) return false;
+    
+    // Get all pages assigned to this user
+    const userPages = Object.entries(state.pageAssignments)
+      .filter(([_, user]) => user?.id === userId)
+      .map(([pageNum, _]) => parseInt(pageNum));
+    
+    // Check if question exists on any of these pages
+    for (const page of state.currentBook.pages) {
+      if (userPages.includes(page.pageNumber)) {
+        const hasQuestion = page.elements.some(el => 
+          (el.textType === 'question' || el.textType === 'qna') && el.questionId === questionId
+        );
+        if (hasQuestion) {
+          return false; // Question already exists on a page assigned to this user
+        }
+      }
+    }
+    
+    return true;
   };
   
   const refreshPageAssignments = useCallback(async () => {
@@ -1506,6 +1530,37 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
   const canEditSettings = () => {
     return state.editorInteractionLevel === 'full_edit_with_settings';
   };
+  
+  const validateQuestionSelection = (questionId: string, currentPageNumber: number): { valid: boolean; reason?: string } => {
+    if (!state.currentBook) return { valid: false, reason: 'No book loaded' };
+    
+    const assignedUser = state.pageAssignments[currentPageNumber];
+    const currentPage = state.currentBook.pages.find(p => p.pageNumber === currentPageNumber);
+    
+    if (!assignedUser) {
+      // No user assigned, only check if question already exists on current page
+      if (currentPage) {
+        const hasQuestion = currentPage.elements.some(el => 
+          (el.textType === 'question' || el.textType === 'qna') && el.questionId === questionId
+        );
+        if (hasQuestion) {
+          return { valid: false, reason: 'This question already exists on this page.' };
+        }
+      }
+      return { valid: true };
+    }
+    
+    // Check if this question is already used by this user on another page
+    const isAvailable = isQuestionAvailableForUser(questionId, assignedUser.id);
+    if (!isAvailable) {
+      return { 
+        valid: false, 
+        reason: `This question is already assigned to ${assignedUser.name} on another page.` 
+      };
+    }
+    
+    return { valid: true };
+  };
 
   return (
     <EditorContext.Provider value={{ 
@@ -1525,6 +1580,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       getQuestionAssignmentsForUser,
       isQuestionAvailableForUser,
       checkUserQuestionConflicts,
+      validateQuestionSelection,
       canAccessEditor,
       canEditCanvas,
       canEditSettings

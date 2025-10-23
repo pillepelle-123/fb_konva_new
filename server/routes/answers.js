@@ -128,12 +128,10 @@ router.get('/book/:bookId', authenticateToken, async (req, res) => {
     const { bookId } = req.params;
     const userId = req.user.id;
 
-    // console.log('Fetching answers for book:', bookId, 'user:', userId);
-
-    // Check if user has access to this book
+    // Check if user has access to this book and get their role
     const bookAccess = await pool.query(
-      `SELECT b.* FROM public.books b
-       LEFT JOIN public.book_friends bf ON b.id = bf.book_id
+      `SELECT b.*, bf.book_role FROM public.books b
+       LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
        WHERE b.id = $1 AND (b.owner_id = $2 OR bf.user_id = $2)`,
       [bookId, userId]
     );
@@ -142,13 +140,14 @@ router.get('/book/:bookId', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
+    const isOwner = bookAccess.rows[0].owner_id === userId;
+    const userRole = isOwner ? 'owner' : bookAccess.rows[0].book_role;
+
     // Get all questions for this book first
     const questions = await pool.query(
       'SELECT id FROM public.questions WHERE book_id = $1',
       [bookId]
     );
-
-    // console.log('Found questions:', questions.rows.length);
 
     if (questions.rows.length === 0) {
       return res.json([]);
@@ -156,13 +155,21 @@ router.get('/book/:bookId', authenticateToken, async (req, res) => {
 
     const questionIds = questions.rows.map(q => q.id);
 
-    // Get answers for these questions by this user
-    const answers = await pool.query(
-      'SELECT * FROM public.answers WHERE user_id = $1 AND question_id = ANY($2::uuid[])',
-      [userId, questionIds]
-    );
+    let answers;
+    if (userRole === 'author') {
+      // For authors, return only their own answers
+      answers = await pool.query(
+        'SELECT * FROM public.answers WHERE user_id = $1 AND question_id = ANY($2::uuid[])',
+        [userId, questionIds]
+      );
+    } else {
+      // For owners and publishers, return all answers for all users
+      answers = await pool.query(
+        'SELECT * FROM public.answers WHERE question_id = ANY($1::uuid[])',
+        [questionIds]
+      );
+    }
 
-    // console.log('Found answers:', answers.rows.length);
     res.json(answers.rows);
   } catch (error) {
     console.error('Answers fetch error:', error);

@@ -17,16 +17,22 @@ import { GeneralSettings } from './general-settings';
 import { commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth } from '../../../../utils/stroke-width-converter';
 import { actualToCommon, commonToActual, COMMON_FONT_SIZE_RANGE } from '../../../../utils/font-size-converter';
 import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE } from '../../../../utils/corner-radius-converter';
-import { getFontFamily, FONT_GROUPS, hasBoldVariant, hasItalicVariant } from '../../../../utils/font-families';
+import { getFontFamily as getFontFamilyByName, FONT_GROUPS, hasBoldVariant, hasItalicVariant } from '../../../../utils/font-families';
 import { FontSelector } from './font-selector';
 import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
+import { getRuledLinesOpacity } from '../../../../utils/ruled-lines-utils';
+import { getBorderWidth, getBorderColor, getBorderOpacity, getBorderTheme } from '../../../../utils/border-utils';
+import { getFontSize, getFontColor, getFontFamily, getFontWeight, getFontStyle } from '../../../../utils/font-utils';
+import { getBackgroundColor, getBackgroundOpacity, getBackgroundEnabled } from '../../../../utils/background-utils';
+import { getTextAlign, getParagraphSpacing, getPadding, getFormatConfig } from '../../../../utils/format-utils';
+import { getElementTheme, getRuledLinesTheme } from '../../../../utils/theme-utils';
 
 const getEffectiveFontFamily = (element: any, state: any) => {
   // First check element's explicit font
-  let fontFamily = element.font?.fontFamily || element.fontFamily;
+  let fontFamily = getFontFamily(element);
   
   // If no explicit font, get from theme defaults (page theme, book theme, or element theme)
-  if (!fontFamily) {
+  if (fontFamily === 'Arial, sans-serif') {
     const currentPage = state.currentBook?.pages[state.activePageIndex];
     const pageTheme = currentPage?.background?.pageTheme;
     const bookTheme = state.currentBook?.bookTheme;
@@ -39,7 +45,7 @@ const getEffectiveFontFamily = (element: any, state: any) => {
     }
   }
   
-  return fontFamily || 'Arial, sans-serif';
+  return fontFamily;
 };
 
 const getCurrentFontName = (element: any, state: any) => {
@@ -85,7 +91,7 @@ const TOOL_ICONS = {
   text: MessageCircle,
   question: MessageCircleQuestion,
   answer: MessageCircleHeart,
-  qna_textbox: MessageSquare,
+  qna: MessageSquare,
   image: Image,
   line: Minus,
   circle: Circle,
@@ -488,11 +494,11 @@ export function ToolSettingsContent({
     if (showFontSelector) {
       return (
         <FontSelector
-          currentFont={element.font?.fontFamily || element.fontFamily || ''}
+          currentFont={getFontFamily(element)}
           isBold={element.font?.fontBold || element.fontWeight === 'bold'}
           isItalic={element.font?.fontItalic || element.fontStyle === 'italic'}
           onFontSelect={(fontName) => {
-            const fontFamily = getFontFamily(fontName, false, false);
+            const fontFamily = getFontFamilyByName(fontName, false, false);
             if (element.font) {
               updateBothElements('font', { ...element.font, fontFamily });
             } else {
@@ -510,11 +516,11 @@ export function ToolSettingsContent({
       const getColorValue = () => {
         switch (showColorSelector) {
           case 'element-text-color':
-            return element.font?.fontColor || element.fontColor || element.fill || '#1f2937';
+            return getFontColor(element);
           case 'element-text-border':
-            return element.border?.borderColor || element.borderColor || '#000000';
+            return getBorderColor(element);
           case 'element-text-background':
-            return element.background?.backgroundColor !== undefined ? element.background?.backgroundColor : (element.backgroundColor !== undefined ? element.backgroundColor : 'transparent');
+            return getBackgroundColor(element);
           case 'element-ruled-lines-color':
             return element.ruledLinesColor || '#1f2937';
           default:
@@ -525,13 +531,13 @@ export function ToolSettingsContent({
       const getElementOpacityValue = () => {
         switch (showColorSelector) {
           case 'element-text-color':
-            return element.font?.fontOpacity || element.fontColorOpacity || element.fillOpacity || 1;
+            return element.font?.fontOpacity ?? element.fontColorOpacity ?? element.fillOpacity ?? 1;
           case 'element-text-border':
-            return element.border?.borderOpacity || element.borderOpacity || 1;
+            return getBorderOpacity(element);
           case 'element-text-background':
-            return element.background?.backgroundOpacity || element.backgroundOpacity || 1;
+            return getBackgroundOpacity(element);
           case 'element-ruled-lines-color':
-            return element.ruledLines?.lineOpacity || element.ruledLinesOpacity || 0.7;
+            return getRuledLinesOpacity(element);
           default:
             return 1;
         }
@@ -547,16 +553,16 @@ export function ToolSettingsContent({
             break;
           case 'element-text-border':
             updateBothElements('border', {
-              borderWidth: element.border?.borderWidth || element.borderWidth || 1,
-              borderColor: element.border?.borderColor || element.borderColor || '#000000',
+              borderWidth: getBorderWidth(element),
+              borderColor: getBorderColor(element),
               borderOpacity: opacity,
-              inheritTheme: element.border?.inheritTheme || element.theme || 'default'
+              borderTheme: getBorderTheme(element)
             });
             updateBothElements('borderOpacity', opacity);
             break;
           case 'element-text-background':
             updateBothElements('background', {
-              backgroundColor: element.background?.backgroundColor || element.backgroundColor || 'transparent',
+              backgroundColor: getBackgroundColor(element),
               backgroundOpacity: opacity
             });
             updateBothElements('backgroundOpacity', opacity);
@@ -582,17 +588,17 @@ export function ToolSettingsContent({
             break;
           case 'element-text-border':
             updateBothElements('border', {
-              borderWidth: element.border?.borderWidth || element.borderWidth || 1,
+              borderWidth: getBorderWidth(element),
               borderColor: color,
-              borderOpacity: element.border?.borderOpacity || element.borderOpacity || 1,
-              inheritTheme: element.border?.inheritTheme || element.theme || 'default'
+              borderOpacity: getBorderOpacity(element),
+              borderTheme: getBorderTheme(element)
             });
             updateBothElements('borderColor', color);
             break;
           case 'element-text-background':
             updateBothElements('background', {
               backgroundColor: color,
-              backgroundOpacity: element.background?.backgroundOpacity || element.backgroundOpacity || 1
+              backgroundOpacity: getBackgroundOpacity(element)
             });
             updateBothElements('backgroundColor', color);
             break;
@@ -600,7 +606,7 @@ export function ToolSettingsContent({
             updateBothElements('ruledLines', {
               ...element.ruledLines,
               lineColor: color,
-              lineOpacity: element.ruledLines?.lineOpacity || element.ruledLinesOpacity || 0.7
+              lineOpacity: getRuledLinesOpacity(element)
             });
             updateBothElements('ruledLinesColor', color);
             break;
@@ -637,7 +643,7 @@ export function ToolSettingsContent({
                 const newBold = !currentBold;
                 const currentItalic = isFontItalic(element, state);
                 const fontName = getCurrentFontName(element, state);
-                const newFontFamily = getFontFamily(fontName, newBold, currentItalic);
+                const newFontFamily = getFontFamilyByName(fontName, newBold, currentItalic);
                 
                 if (element.font) {
                   updateBothElements('font', { ...element.font, fontBold: newBold, fontFamily: newFontFamily });
@@ -659,7 +665,7 @@ export function ToolSettingsContent({
                 const newItalic = !currentItalic;
                 const currentBold = isFontBold(element, state);
                 const fontName = getCurrentFontName(element, state);
-                const newFontFamily = getFontFamily(fontName, currentBold, newItalic);
+                const newFontFamily = getFontFamilyByName(fontName, currentBold, newItalic);
                 
                 if (element.font) {
                   updateBothElements('font', { ...element.font, fontItalic: newItalic, fontFamily: newFontFamily });
@@ -687,8 +693,8 @@ export function ToolSettingsContent({
         <Slider
           label="Size"
           value={actualToCommon((() => {
-            let fontSize = element.font?.fontSize || element.fontSize;
-            if (!fontSize) {
+            let fontSize = getFontSize(element);
+            if (fontSize === 16) {
               const currentPage = state.currentBook?.pages[state.activePageIndex];
               const pageTheme = currentPage?.background?.pageTheme;
               const bookTheme = state.currentBook?.bookTheme;
@@ -696,10 +702,10 @@ export function ToolSettingsContent({
               const activeTheme = pageTheme || bookTheme || elementTheme;
               if (activeTheme) {
                 const themeDefaults = getGlobalThemeDefaults(activeTheme, element.textType || 'text');
-                fontSize = themeDefaults?.font?.fontSize;
+                fontSize = themeDefaults?.font?.fontSize || 16;
               }
             }
-            return fontSize || 16;
+            return fontSize;
           })())}
           onChange={(value) => {
             const newSize = commonToActual(value);
@@ -732,7 +738,7 @@ export function ToolSettingsContent({
             <Label variant="xs">Text Align</Label>
             <ButtonGroup className="mt-1 flex flex-row">
               <Button
-                variant={(element.format?.align || element.align) === 'left' ? 'default' : 'outline'}
+                variant={getTextAlign(element) === 'left' ? 'default' : 'outline'}
                 size="xs"
                 onClick={() => {
                   if (element.format) {
@@ -746,7 +752,7 @@ export function ToolSettingsContent({
                 <AlignLeft className="h-3 w-3" />
               </Button>
               <Button
-                variant={(element.format?.align || element.align) === 'center' ? 'default' : 'outline'}
+                variant={getTextAlign(element) === 'center' ? 'default' : 'outline'}
                 size="xs"
                 onClick={() => {
                   if (element.format) {
@@ -760,7 +766,7 @@ export function ToolSettingsContent({
                 <AlignCenter className="h-3 w-3" />
               </Button>
               <Button
-                variant={(element.format?.align || element.align) === 'right' ? 'default' : 'outline'}
+                variant={getTextAlign(element) === 'right' ? 'default' : 'outline'}
                 size="xs"
                 onClick={() => {
                   if (element.format) {
@@ -774,7 +780,7 @@ export function ToolSettingsContent({
                 <AlignRight className="h-3 w-3" />
               </Button>
               <Button
-                variant={(element.format?.align || element.align) === 'justify' ? 'default' : 'outline'}
+                variant={getTextAlign(element) === 'justify' ? 'default' : 'outline'}
                 size="xs"
                 onClick={() => {
                   if (element.format) {
@@ -794,7 +800,7 @@ export function ToolSettingsContent({
             <Label variant="xs">Paragraph Spacing</Label>
             <ButtonGroup className="mt-1 flex flex-row">
               <Button
-                variant={(element.format?.paragraphSpacing || element.paragraphSpacing) === 'small' ? 'default' : 'outline'}
+                variant={getParagraphSpacing(element) === 'small' ? 'default' : 'outline'}
                 size="xs"
                 onClick={() => {
                   if (element.format) {
@@ -808,7 +814,7 @@ export function ToolSettingsContent({
                 <Rows4 className="h-3 w-3" />
               </Button>
               <Button
-                variant={(element.format?.paragraphSpacing || element.paragraphSpacing || 'medium') === 'medium' ? 'default' : 'outline'}
+                variant={getParagraphSpacing(element) === 'medium' ? 'default' : 'outline'}
                 size="xs"
                 onClick={() => {
                   if (element.format) {
@@ -822,7 +828,7 @@ export function ToolSettingsContent({
                 <Rows3 className="h-3 w-3" />
               </Button>
               <Button
-                variant={(element.format?.paragraphSpacing || element.paragraphSpacing) === 'large' ? 'default' : 'outline'}
+                variant={getParagraphSpacing(element) === 'large' ? 'default' : 'outline'}
                 size="xs"
                 onClick={() => {
                   if (element.format) {
@@ -865,14 +871,14 @@ export function ToolSettingsContent({
             <div>
               <Label variant="xs">Ruled Lines Theme</Label>
               <ThemeSelect 
-                value={element.ruledLines?.ruledLinesTheme || element.ruledLines?.inheritTheme || element.ruledLinesTheme || 'rough'}
+                value={getRuledLinesTheme(element)}
                 onChange={(value) => {
                   updateBothElements('ruledLines', { 
                     enabled: element.ruledLines?.enabled !== undefined ? element.ruledLines.enabled : (element.ruledLines || false),
                     ruledLinesTheme: value,
                     lineWidth: element.ruledLinesWidth || 0.8,
                     lineColor: element.ruledLines?.lineColor || element.ruledLinesColor || '#1f2937',
-                    lineOpacity: element.ruledLines?.lineOpacity || element.ruledLinesOpacity || 0.7
+                    lineOpacity: getRuledLinesOpacity(element)
                   });
                   updateBothElements('ruledLinesTheme', value);
                 }}
@@ -899,17 +905,17 @@ export function ToolSettingsContent({
           <Label className="flex items-center gap-1" variant="xs">
             <input
               type="checkbox"
-              checked={element.border?.enabled !== undefined ? element.border.enabled : (element.border?.borderWidth || element.borderWidth || 0) > 0}
+              checked={element.border?.enabled !== undefined ? element.border.enabled : getBorderWidth(element) > 0}
               onChange={(e) => {
-                const storedWidth = element.border?.originalBorderWidth ?? element.originalBorderWidth ?? element.border?.borderWidth ?? element.borderWidth ?? 1;
+                const storedWidth = element.border?.originalBorderWidth ?? element.originalBorderWidth ?? getBorderWidth(element);
                 const newWidth = e.target.checked ? storedWidth : 0;
                 updateBothElements('border', {
                   enabled: e.target.checked,
                   borderWidth: newWidth,
                   originalBorderWidth: storedWidth,
-                  borderColor: element.border?.borderColor || element.borderColor || '#000000',
-                  borderOpacity: element.border?.borderOpacity || element.borderOpacity || 1,
-                  borderTheme: element.border?.borderTheme || element.border?.inheritTheme || element.theme || 'default'
+                  borderColor: getBorderColor(element),
+                  borderOpacity: getBorderOpacity(element),
+                  borderTheme: getBorderTheme(element)
                 });
               }}
               className="rounded w-3 h-3"
@@ -918,19 +924,19 @@ export function ToolSettingsContent({
           </Label>
         </div>
         
-        {(element.border?.enabled !== undefined ? element.border.enabled : (element.border?.borderWidth || element.borderWidth || 0) > 0) && (
+        {(element.border?.enabled !== undefined ? element.border.enabled : getBorderWidth(element) > 0) && (
           <IndentedSection>
             <Slider
               label="Border Width"
-              value={actualToCommonStrokeWidth(element.border?.borderWidth ?? element.borderWidth ?? 1, element.border?.borderTheme || element.border?.inheritTheme || element.theme || 'default')}
+              value={actualToCommonStrokeWidth(getBorderWidth(element), getBorderTheme(element))}
               onChange={(value) => {
-                const newWidth = commonToActualStrokeWidth(value, element.border?.borderTheme || element.border?.inheritTheme || element.theme || 'default');
+                const newWidth = commonToActualStrokeWidth(value, getBorderTheme(element));
                 updateBothElements('border', {
                   enabled: element.border?.enabled !== undefined ? element.border.enabled : true,
                   borderWidth: newWidth,
-                  borderColor: element.border?.borderColor || element.borderColor || '#000000',
-                  borderOpacity: element.border?.borderOpacity ?? element.borderOpacity ?? 1,
-                  borderTheme: element.border?.borderTheme || element.border?.inheritTheme || element.theme || 'default'
+                  borderColor: getBorderColor(element),
+                  borderOpacity: getBorderOpacity(element),
+                  borderTheme: getBorderTheme(element)
                 });
               }}
               min={1}
@@ -940,13 +946,13 @@ export function ToolSettingsContent({
             <div>
               <Label variant="xs">Border Theme</Label>
               <ThemeSelect 
-                value={element.border?.borderTheme || element.border?.inheritTheme || element.theme || 'default'}
+                value={getBorderTheme(element)}
                 onChange={(value) => {
                   updateBothElements('border', {
                     enabled: element.border?.enabled !== undefined ? element.border.enabled : true,
-                    borderWidth: element.border?.borderWidth ?? element.borderWidth ?? 1,
-                    borderColor: element.border?.borderColor || element.borderColor || '#000000',
-                    borderOpacity: element.border?.borderOpacity ?? element.borderOpacity ?? 1,
+                    borderWidth: getBorderWidth(element),
+                    borderColor: getBorderColor(element),
+                    borderOpacity: getBorderOpacity(element),
                     borderTheme: value
                   });
                   updateBothElements('cornerRadius', 0);
@@ -984,10 +990,10 @@ export function ToolSettingsContent({
           <Label className="flex items-center gap-1" variant="xs">
             <input
               type="checkbox"
-              checked={element.background?.enabled !== undefined ? element.background.enabled : ((element.background?.backgroundColor || element.backgroundColor) !== 'transparent' && (element.background?.backgroundColor || element.backgroundColor) !== undefined)}
+              checked={getBackgroundEnabled(element)}
               onChange={(e) => {
-                const storedColor = element.background?.originalBackgroundColor ?? element.originalBackgroundColor ?? element.background?.backgroundColor ?? element.backgroundColor ?? '#ffffff';
-                const storedOpacity = element.background?.originalBackgroundOpacity ?? element.originalBackgroundOpacity ?? element.background?.backgroundOpacity ?? element.backgroundOpacity ?? 1;
+                const storedColor = element.background?.originalBackgroundColor ?? element.originalBackgroundColor ?? (getBackgroundColor(element) !== 'transparent' ? getBackgroundColor(element) : '#ffffff');
+                const storedOpacity = element.background?.originalBackgroundOpacity ?? element.originalBackgroundOpacity ?? getBackgroundOpacity(element);
                 updateBothElements('background', {
                   enabled: e.target.checked,
                   backgroundColor: e.target.checked ? storedColor : 'transparent',
@@ -1002,7 +1008,7 @@ export function ToolSettingsContent({
           </Label>
         </div>
         
-        {(element.background?.enabled !== undefined ? element.background.enabled : ((element.background?.backgroundColor || element.backgroundColor) !== 'transparent' && (element.background?.backgroundColor || element.backgroundColor) !== undefined)) && (
+        {getBackgroundEnabled(element) && (
           <IndentedSection>
             <div>
               <Button
@@ -1082,7 +1088,7 @@ export function ToolSettingsContent({
         
         <Slider
           label="Padding"
-          value={element.format?.padding || element.padding || 4}
+          value={getPadding(element)}
           onChange={(value) => {
             if (element.format) {
               updateBothElements('format', { ...element.format, padding: value });
@@ -1108,14 +1114,14 @@ export function ToolSettingsContent({
       });
     };
 
-    if (showFontSelector && (element.type === 'text' || element.type === 'qna_textbox')) {
+    if (showFontSelector && element.type === 'text') {
       return (
         <FontSelector
-          currentFont={element.font?.fontFamily || element.fontFamily || ''}
+          currentFont={getFontFamily(element)}
           isBold={element.font?.fontBold || element.fontWeight === 'bold'}
           isItalic={element.font?.fontItalic || element.fontStyle === 'italic'}
           onFontSelect={(fontName) => {
-            const fontFamily = getFontFamily(fontName, false, false);
+            const fontFamily = getFontFamilyByName(fontName, false, false);
             if (element.font) {
               updateElementSetting('font', { ...element.font, fontFamily });
             }
@@ -1138,11 +1144,11 @@ export function ToolSettingsContent({
           case 'element-shape-fill':
             return element.fill !== undefined ? element.fill : 'transparent';
           case 'element-text-color':
-            return element.font?.fontColor || element.fill || '#1f2937';
+            return getFontColor(element);
           case 'element-text-border':
-            return element.border?.borderColor || element.borderColor || '#000000';
+            return getBorderColor(element);
           case 'element-text-background':
-            return element.background?.backgroundColor !== undefined ? element.background?.backgroundColor : (element.backgroundColor !== undefined ? element.backgroundColor : 'transparent');
+            return getBackgroundColor(element);
           case 'element-ruled-lines-color':
             return element.ruledLinesColor || '#1f2937';
           default:
@@ -1161,11 +1167,11 @@ export function ToolSettingsContent({
           case 'element-text-color':
             return element.font?.fontOpacity || element.fillOpacity || 1;
           case 'element-text-border':
-            return element.border?.borderOpacity || element.borderOpacity || 1;
+            return getBorderOpacity(element);
           case 'element-text-background':
-            return element.background?.backgroundOpacity || element.backgroundOpacity || 1;
+            return getBackgroundOpacity(element);
           case 'element-ruled-lines-color':
-            return element.ruledLines?.lineOpacity || element.ruledLinesOpacity || 0.7;
+            return getRuledLinesOpacity(element);
           default:
             return 1;
         }
@@ -1191,16 +1197,16 @@ export function ToolSettingsContent({
             break;
           case 'element-text-border':
             updateElementSetting('border', {
-              borderWidth: element.border?.borderWidth || element.borderWidth || 1,
-              borderColor: element.border?.borderColor || element.borderColor || '#000000',
+              borderWidth: getBorderWidth(element),
+              borderColor: getBorderColor(element),
               borderOpacity: opacity,
-              inheritTheme: element.border?.inheritTheme || element.theme || 'default'
+              borderTheme: getBorderTheme(element)
             });
             updateElementSetting('borderOpacity', opacity);
             break;
           case 'element-text-background':
             updateElementSetting('background', {
-              backgroundColor: element.background?.backgroundColor || element.backgroundColor || 'transparent',
+              backgroundColor: getBackgroundColor(element),
               backgroundOpacity: opacity
             });
             updateElementSetting('backgroundOpacity', opacity);
@@ -1232,21 +1238,22 @@ export function ToolSettingsContent({
             if (element.font) {
               updateElementSetting('font', { ...element.font, fontColor: color });
             }
+            updateElementSetting('fontColor', color);
             updateElementSetting('fill', color);
             break;
           case 'element-text-border':
             updateElementSetting('border', {
-              borderWidth: element.border?.borderWidth || element.borderWidth || 1,
+              borderWidth: getBorderWidth(element),
               borderColor: color,
-              borderOpacity: element.border?.borderOpacity || element.borderOpacity || 1,
-              inheritTheme: element.border?.inheritTheme || element.theme || 'default'
+              borderOpacity: getBorderOpacity(element),
+              borderTheme: getBorderTheme(element)
             });
             updateElementSetting('borderColor', color);
             break;
           case 'element-text-background':
             updateElementSetting('background', {
               backgroundColor: color,
-              backgroundOpacity: element.background?.backgroundOpacity || element.backgroundOpacity || 1
+              backgroundOpacity: getBackgroundOpacity(element)
             });
             updateElementSetting('backgroundColor', color);
             localStorage.setItem(`text-bg-color-${element.id}`, color);
@@ -1255,7 +1262,7 @@ export function ToolSettingsContent({
             updateElementSetting('ruledLines', {
               ...element.ruledLines,
               lineColor: color,
-              lineOpacity: element.ruledLines?.lineOpacity || element.ruledLinesOpacity || 0.7
+              lineOpacity: getRuledLinesOpacity(element)
             });
             updateElementSetting('ruledLinesColor', color);
             break;
@@ -1287,7 +1294,7 @@ export function ToolSettingsContent({
             <div>
               <Label variant="xs">Theme</Label>
               <ThemeSelect 
-                value={element.inheritTheme || element.theme || 'default'}
+                value={getElementTheme(element)}
                 onChange={(value) => {
                   updateElementSetting('theme', value);
                   updateElementSetting('inheritTheme', value);
@@ -1299,8 +1306,8 @@ export function ToolSettingsContent({
 
             <Slider
               label="Brush Size"
-              value={actualToCommonStrokeWidth(element.strokeWidth || 3, element.inheritTheme || element.theme || 'default')}
-              onChange={(value) => updateElementSetting('strokeWidth', commonToActualStrokeWidth(value, element.inheritTheme || element.theme || 'default'))}
+              value={actualToCommonStrokeWidth(element.strokeWidth || 3, getElementTheme(element))}
+              onChange={(value) => updateElementSetting('strokeWidth', commonToActualStrokeWidth(value, getElementTheme(element)))}
               min={1}
               max={getMaxStrokeWidth()}
             />
@@ -1366,7 +1373,7 @@ export function ToolSettingsContent({
             <div>
               <Label variant="xs">Theme</Label>
               <ThemeSelect 
-                value={element.inheritTheme || element.theme || 'default'}
+                value={getElementTheme(element)}
                 onChange={(value) => {
                   updateElementSetting('theme', value);
                   updateElementSetting('inheritTheme', value);
@@ -1378,8 +1385,8 @@ export function ToolSettingsContent({
 
             <Slider
               label="Stroke Width"
-              value={actualToCommonStrokeWidth(element.strokeWidth || 2, element.inheritTheme || element.theme || 'default')}
-              onChange={(value) => updateElementSetting('strokeWidth', commonToActualStrokeWidth(value, element.inheritTheme || element.theme || 'default'))}
+              value={actualToCommonStrokeWidth(element.strokeWidth || 2, getElementTheme(element))}
+              onChange={(value) => updateElementSetting('strokeWidth', commonToActualStrokeWidth(value, getElementTheme(element)))}
               min={1}
               max={getMaxStrokeWidth()}
             />
@@ -1413,7 +1420,7 @@ export function ToolSettingsContent({
             <div>
               <Label variant="xs">Theme</Label>
               <ThemeSelect 
-                value={element.inheritTheme || element.theme || 'default'}
+                value={getElementTheme(element)}
                 onChange={(value) => {
                   updateElementSetting('inheritTheme', value);
                   updateElementSetting('theme', value);
@@ -1461,9 +1468,9 @@ export function ToolSettingsContent({
               <IndentedSection>
                 <Slider
                   label="Border Width"
-                  value={actualToCommonStrokeWidth(element.strokeWidth || 0, element.inheritTheme || element.theme || 'default')}
+                  value={actualToCommonStrokeWidth(element.strokeWidth || 0, getElementTheme(element))}
                   onChange={(value) => {
-                    const actualWidth = commonToActualStrokeWidth(value, element.inheritTheme || element.theme || 'default');
+                    const actualWidth = commonToActualStrokeWidth(value, getElementTheme(element));
                     updateElementSetting('strokeWidth', actualWidth);
                     localStorage.setItem(`shape-border-width-${element.id}`, String(actualWidth));
                   }}
@@ -1626,7 +1633,6 @@ export function ToolSettingsContent({
           </div>
         );
 
-      case 'qna_textbox':
       case 'text':
         return (
           <div className="space-y-2">
@@ -1642,7 +1648,7 @@ export function ToolSettingsContent({
                     const newBold = !currentBold;
                     const currentItalic = isFontItalic(element, state);
                     const fontName = getCurrentFontName(element, state);
-                    const newFontFamily = getFontFamily(fontName, newBold, currentItalic);
+                    const newFontFamily = getFontFamilyByName(fontName, newBold, currentItalic);
                     
                     if (element.font) {
                       updateElementSetting('font', { ...element.font, fontBold: newBold, fontFamily: newFontFamily });
@@ -1664,7 +1670,7 @@ export function ToolSettingsContent({
                     const newItalic = !currentItalic;
                     const currentBold = isFontBold(element, state);
                     const fontName = getCurrentFontName(element, state);
-                    const newFontFamily = getFontFamily(fontName, currentBold, newItalic);
+                    const newFontFamily = getFontFamilyByName(fontName, currentBold, newItalic);
                     
                     if (element.font) {
                       updateElementSetting('font', { ...element.font, fontItalic: newItalic, fontFamily: newFontFamily });
@@ -1692,8 +1698,8 @@ export function ToolSettingsContent({
             <Slider
               label="Size"
               value={actualToCommon((() => {
-                let fontSize = element.font?.fontSize || element.fontSize;
-                if (!fontSize) {
+                let fontSize = getFontSize(element);
+                if (fontSize === 16) {
                   const currentPage = state.currentBook?.pages[state.activePageIndex];
                   const pageTheme = currentPage?.background?.pageTheme;
                   const bookTheme = state.currentBook?.bookTheme;
@@ -1701,10 +1707,10 @@ export function ToolSettingsContent({
                   const activeTheme = pageTheme || bookTheme || elementTheme;
                   if (activeTheme) {
                     const themeDefaults = getGlobalThemeDefaults(activeTheme, element.textType || 'text');
-                    fontSize = themeDefaults?.font?.fontSize;
+                    fontSize = themeDefaults?.font?.fontSize || 16;
                   }
                 }
-                return fontSize || 16;
+                return fontSize;
               })())}
               onChange={(value) => {
                 const newSize = commonToActual(value);
@@ -1737,7 +1743,7 @@ export function ToolSettingsContent({
                 <Label variant="xs">Text Align</Label>
                 <ButtonGroup className="mt-1 flex flex-row">
                   <Button
-                    variant={(element.format?.align || element.align) === 'left' ? 'default' : 'outline'}
+                    variant={getTextAlign(element) === 'left' ? 'default' : 'outline'}
                     size="xs"
                     onClick={() => {
                       if (element.format) {
@@ -1750,7 +1756,7 @@ export function ToolSettingsContent({
                     <AlignLeft className="h-3 w-3" />
                   </Button>
                   <Button
-                    variant={(element.format?.align || element.align) === 'center' ? 'default' : 'outline'}
+                    variant={getTextAlign(element) === 'center' ? 'default' : 'outline'}
                     size="xs"
                     onClick={() => {
                       if (element.format) {
@@ -1763,7 +1769,7 @@ export function ToolSettingsContent({
                     <AlignCenter className="h-3 w-3" />
                   </Button>
                   <Button
-                    variant={(element.format?.align || element.align) === 'right' ? 'default' : 'outline'}
+                    variant={getTextAlign(element) === 'right' ? 'default' : 'outline'}
                     size="xs"
                     onClick={() => {
                       if (element.format) {
@@ -1776,7 +1782,7 @@ export function ToolSettingsContent({
                     <AlignRight className="h-3 w-3" />
                   </Button>
                   <Button
-                    variant={(element.format?.align || element.align) === 'justify' ? 'default' : 'outline'}
+                    variant={getTextAlign(element) === 'justify' ? 'default' : 'outline'}
                     size="xs"
                     onClick={() => {
                       if (element.format) {
@@ -1795,7 +1801,7 @@ export function ToolSettingsContent({
                 <Label variant="xs">Paragraph Spacing</Label>
                 <ButtonGroup className="mt-1 flex flex-row">
                   <Button
-                    variant={(element.format?.paragraphSpacing || element.paragraphSpacing) === 'small' ? 'default' : 'outline'}
+                    variant={getParagraphSpacing(element) === 'small' ? 'default' : 'outline'}
                     size="xs"
                     onClick={() => {
                       if (element.format) {
@@ -1808,7 +1814,7 @@ export function ToolSettingsContent({
                     <Rows4 className="h-3 w-3" />
                   </Button>
                   <Button
-                    variant={(element.format?.paragraphSpacing || element.paragraphSpacing || 'medium') === 'medium' ? 'default' : 'outline'}
+                    variant={getParagraphSpacing(element) === 'medium' ? 'default' : 'outline'}
                     size="xs"
                     onClick={() => {
                       if (element.format) {
@@ -1821,7 +1827,7 @@ export function ToolSettingsContent({
                     <Rows3 className="h-3 w-3" />
                   </Button>
                   <Button
-                    variant={(element.format?.paragraphSpacing || element.paragraphSpacing) === 'large' ? 'default' : 'outline'}
+                    variant={getParagraphSpacing(element) === 'large' ? 'default' : 'outline'}
                     size="xs"
                     onClick={() => {
                       if (element.format) {
@@ -1864,7 +1870,7 @@ export function ToolSettingsContent({
                 <div>
                   <Label variant="xs">Ruled Lines Theme</Label>
                   <ThemeSelect 
-                    value={element.ruledLines?.inheritTheme || element.ruledLinesTheme || 'rough'}
+                    value={getRuledLinesTheme(element)}
                     onChange={(value) => {
                       updateElementSetting('ruledLines', {
                         enabled: element.ruledLines?.enabled !== undefined ? element.ruledLines.enabled : (element.ruledLines || false),
@@ -1898,17 +1904,17 @@ export function ToolSettingsContent({
               <Label className="flex items-center gap-1" variant="xs">
                 <input
                   type="checkbox"
-                  checked={element.border?.enabled !== undefined ? element.border.enabled : (element.border?.borderWidth || element.borderWidth || 0) > 0}
+                  checked={element.border?.enabled !== undefined ? element.border.enabled : getBorderWidth(element) > 0}
                   onChange={(e) => {
-                    const storedWidth = element.border?.originalBorderWidth ?? element.originalBorderWidth ?? element.border?.borderWidth ?? element.borderWidth ?? 1;
+                    const storedWidth = element.border?.originalBorderWidth ?? element.originalBorderWidth ?? getBorderWidth(element);
                     const newWidth = e.target.checked ? storedWidth : 0;
                     updateElementSetting('border', {
                       enabled: e.target.checked,
                       borderWidth: newWidth,
                       originalBorderWidth: storedWidth,
-                      borderColor: element.border?.borderColor || element.borderColor || '#000000',
-                      borderOpacity: element.border?.borderOpacity || element.borderOpacity || 1,
-                      borderTheme: element.border?.borderTheme || element.border?.inheritTheme || element.theme || 'default'
+                      borderColor: getBorderColor(element),
+                      borderOpacity: getBorderOpacity(element),
+                      borderTheme: getBorderTheme(element)
                     });
                   }}
                   className="rounded w-3 h-3"
@@ -1917,19 +1923,19 @@ export function ToolSettingsContent({
               </Label>
             </div>
             
-            {(element.border?.enabled !== undefined ? element.border.enabled : (element.border?.borderWidth || element.borderWidth || 0) > 0) && (
+            {(element.border?.enabled !== undefined ? element.border.enabled : getBorderWidth(element) > 0) && (
               <IndentedSection>
                 <Slider
                   label="Border Width"
-                  value={actualToCommonStrokeWidth(element.border?.borderWidth ?? element.borderWidth ?? 1, element.border?.borderTheme || element.border?.inheritTheme || element.theme || 'default')}
+                  value={actualToCommonStrokeWidth(getBorderWidth(element), getBorderTheme(element))}
                   onChange={(value) => {
-                    const actualWidth = commonToActualStrokeWidth(value, element.border?.borderTheme || element.border?.inheritTheme || element.theme || 'default');
+                    const actualWidth = commonToActualStrokeWidth(value, getBorderTheme(element));
                     updateElementSetting('border', {
                       enabled: element.border?.enabled !== undefined ? element.border.enabled : true,
                       borderWidth: actualWidth,
-                      borderColor: element.border?.borderColor || element.borderColor || '#000000',
-                      borderOpacity: element.border?.borderOpacity ?? element.borderOpacity ?? 1,
-                      borderTheme: element.border?.borderTheme || element.border?.inheritTheme || element.theme || 'default'
+                      borderColor: getBorderColor(element),
+                      borderOpacity: getBorderOpacity(element),
+                      borderTheme: getBorderTheme(element)
                     });
                   }}
                   min={1}
@@ -1940,13 +1946,13 @@ export function ToolSettingsContent({
                 <div>
                   <Label variant="xs">Border Theme</Label>
                   <ThemeSelect 
-                    value={element.border?.borderTheme || element.border?.inheritTheme || element.theme || 'default'}
+                    value={getBorderTheme(element)}
                     onChange={(value) => {
                       updateElementSetting('border', {
                         enabled: element.border?.enabled !== undefined ? element.border.enabled : true,
-                        borderWidth: element.border?.borderWidth ?? element.borderWidth ?? 1,
-                        borderColor: element.border?.borderColor || element.borderColor || '#000000',
-                        borderOpacity: element.border?.borderOpacity ?? element.borderOpacity ?? 1,
+                        borderWidth: getBorderWidth(element),
+                        borderColor: getBorderColor(element),
+                        borderOpacity: getBorderOpacity(element),
                         borderTheme: value
                       });
                       updateElementSetting('cornerRadius', 0);
@@ -1973,10 +1979,10 @@ export function ToolSettingsContent({
               <Label className="flex items-center gap-1" variant="xs">
                 <input
                   type="checkbox"
-                  checked={element.background?.enabled !== undefined ? element.background.enabled : ((element.background?.backgroundColor || element.backgroundColor) !== 'transparent' && (element.background?.backgroundColor || element.backgroundColor) !== undefined)}
+                  checked={getBackgroundEnabled(element)}
                   onChange={(e) => {
-                    const storedColor = element.background?.originalBackgroundColor ?? element.originalBackgroundColor ?? element.background?.backgroundColor ?? element.backgroundColor ?? '#ffffff';
-                    const storedOpacity = element.background?.originalBackgroundOpacity ?? element.originalBackgroundOpacity ?? element.background?.backgroundOpacity ?? element.backgroundOpacity ?? 1;
+                    const storedColor = element.background?.originalBackgroundColor ?? element.originalBackgroundColor ?? (getBackgroundColor(element) !== 'transparent' ? getBackgroundColor(element) : '#ffffff');
+                    const storedOpacity = element.background?.originalBackgroundOpacity ?? element.originalBackgroundOpacity ?? getBackgroundOpacity(element);
                     updateElementSetting('background', {
                       enabled: e.target.checked,
                       backgroundColor: e.target.checked ? storedColor : 'transparent',
@@ -1991,7 +1997,7 @@ export function ToolSettingsContent({
               </Label>
             </div>
             
-            {(element.background?.enabled !== undefined ? element.background.enabled : ((element.background?.backgroundColor || element.backgroundColor) !== 'transparent' && (element.background?.backgroundColor || element.backgroundColor) !== undefined)) && (
+            {getBackgroundEnabled(element) && (
               <IndentedSection>
                 <div>
                   <Button
@@ -2010,7 +2016,7 @@ export function ToolSettingsContent({
             <Separator />
 
             
-            {(element.textType === 'text' || element.textType === 'question' || element.textType === 'answer' || element.type === 'qna_textbox') && ((element.borderWidth || 0) === 0 || (element.theme !== 'candy' && element.theme !== 'zigzag' && element.theme !== 'wobbly')) && (
+            {(element.textType === 'text' || element.textType === 'question' || element.textType === 'answer' || element.textType === 'qna') && ((element.borderWidth || 0) === 0 || (element.theme !== 'candy' && element.theme !== 'zigzag' && element.theme !== 'wobbly')) && (
               <Slider
                 label="Corner Radius"
                 value={actualToCommonRadius(element.cornerRadius || 0)}
@@ -2022,7 +2028,7 @@ export function ToolSettingsContent({
             
             <Slider
               label="Padding"
-              value={element.format?.padding || element.padding || 4}
+              value={getPadding(element)}
               onChange={(value) => {
                 if (element.format) {
                   updateElementSetting('format', { ...element.format, padding: value });

@@ -198,7 +198,6 @@ export default function Canvas() {
   // Prevent authors from opening question dialog
   useEffect(() => {
     if (showQuestionDialog && user?.role === 'author') {
-      // console.log('Canvas: Author detected, closing question dialog');
       setShowQuestionDialog(false);
       setSelectedQuestionElementId(null);
     }
@@ -362,7 +361,7 @@ export default function Canvas() {
           setPreviewShape({ x, y, width: 0, height: 0, type: state.activeTool });
         }
       }
-    } else if (state.activeTool === 'text' || state.activeTool === 'question' || state.activeTool === 'answer' || state.activeTool === 'qna' || state.activeTool === 'qna_textbox') {
+    } else if (state.activeTool === 'text' || state.activeTool === 'question' || state.activeTool === 'answer' || state.activeTool === 'qna') {
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
         const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
@@ -783,7 +782,7 @@ export default function Canvas() {
           const currentPage = state.currentBook?.pages[state.activePageIndex];
           const pageTheme = currentPage?.background?.pageTheme;
           const bookTheme = state.currentBook?.bookTheme;
-          const textDefaults = getToolDefaults('text', pageTheme, bookTheme);
+          const qnaDefaults = getToolDefaults('qna', pageTheme, bookTheme);
           newElement = {
             id: uuidv4(),
             type: 'text',
@@ -792,34 +791,14 @@ export default function Canvas() {
             width: previewTextbox.width,
             height: previewTextbox.height,
             text: '',
-            fontSize: textDefaults.fontSize,
-            align: textDefaults.align,
-            fontFamily: textDefaults.fontFamily,
+            fontSize: qnaDefaults.fontSize,
+            align: qnaDefaults.align,
+            fontFamily: qnaDefaults.fontFamily,
             textType: 'qna',
-            paragraphSpacing: textDefaults.paragraphSpacing,
-            cornerRadius: textDefaults.cornerRadius
+            paragraphSpacing: qnaDefaults.paragraphSpacing,
+            cornerRadius: qnaDefaults.cornerRadius
           };
-        } else if (previewTextbox.type === 'qna_textbox') {
-          const currentPage = state.currentBook?.pages[state.activePageIndex];
-          const pageTheme = currentPage?.background?.pageTheme;
-          const bookTheme = state.currentBook?.bookTheme;
-          const textDefaults = getToolDefaults('qna', pageTheme, bookTheme);
-          newElement = {
-            id: uuidv4(),
-            type: 'text',
-            textType: 'qna',
-            x: previewTextbox.x,
-            y: previewTextbox.y,
-            width: previewTextbox.width,
-            height: previewTextbox.height,
-            text: '',
-            fontSize: textDefaults.fontSize,
-            align: textDefaults.align,
-            fontFamily: textDefaults.fontFamily,
-            paragraphSpacing: textDefaults.paragraphSpacing,
-            cornerRadius: textDefaults.cornerRadius,
-            answerId: uuidv4()
-          };
+
         } else {
           const currentPage = state.currentBook?.pages[state.activePageIndex];
           const pageTheme = currentPage?.background?.pageTheme;
@@ -1595,21 +1574,17 @@ export default function Canvas() {
     
     const handleQuestionSelected = (event: CustomEvent) => {
       const { questionId, questionText } = event.detail;
-      
-      // Find the qna textbox that was selected
-      const selectedElements = state.selectedElementIds;
-      if (selectedElements.length === 1) {
-        const elementId = selectedElements[0];
-        const element = currentPage?.elements.find(el => el.id === elementId);
-        
-        if (element && element.textType === 'qna') {
-
-          const fontColor = element.fontColor || element.fill || TOOL_DEFAULTS.qna.fontColor;
-          
+            
+      // Use the selectedQuestionElementId which is set when opening the dialog
+      if (selectedQuestionElementId) {
+        const element = currentPage?.elements.find(el => el.id === selectedQuestionElementId);
+                
+        if (element && (element.textType === 'qna' || element.textType === 'question')) {
+          const fontColor = element.fontColor || element.fill || TOOL_DEFAULTS.qna.fontColor;          
           dispatch({
             type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
             payload: {
-              id: elementId,
+              id: selectedQuestionElementId,
               updates: { 
                 questionId: questionId || undefined,
                 fontColor: fontColor
@@ -1626,7 +1601,7 @@ export default function Canvas() {
         return;
       }
       const element = currentPage?.elements.find(el => el.id === event.detail.elementId);
-      if (element && (element.textType === 'question' || element.textType === 'qna' || element.type === 'qna_textbox')) {
+      if (element && (element.textType === 'question' || element.textType === 'qna')) {
         setSelectedQuestionElementId(element.id);
         setShowQuestionDialog(true);
       }
@@ -1655,22 +1630,38 @@ export default function Canvas() {
       }, 3000);
     };
     
+    const handleResetQuestion = (event: CustomEvent) => {
+      const { clearAnswer } = event.detail;
+      
+      if (clearAnswer && selectedQuestionElementId) {
+        const element = currentPage?.elements.find(el => el.id === selectedQuestionElementId);
+        
+        if (element && element.questionId) {
+          // DON'T clear answer from tempAnswers - keep it so it reappears when question is re-selected
+          // The answer should remain in tempAnswers for future use
+          // Only the UI display is cleared by removing the questionId from the element
+        }
+      }
+    };
+    
     window.addEventListener('editText', handleTextEdit as EventListener);
     window.addEventListener('openQuestionModal', handleOpenQuestionModal as EventListener);
     window.addEventListener('findQuestionElement', handleFindQuestionElement as EventListener);
     window.addEventListener('questionSelected', handleQuestionSelected as EventListener);
     window.addEventListener('showAlert', handleShowAlert as EventListener);
+    window.addEventListener('resetQuestion', handleResetQuestion as EventListener);
     return () => {
       window.removeEventListener('editText', handleTextEdit as EventListener);
       window.removeEventListener('openQuestionModal', handleOpenQuestionModal as EventListener);
       window.removeEventListener('findQuestionElement', handleFindQuestionElement as EventListener);
       window.removeEventListener('questionSelected', handleQuestionSelected as EventListener);
       window.removeEventListener('showAlert', handleShowAlert as EventListener);
+      window.removeEventListener('resetQuestion', handleResetQuestion as EventListener);
       if (editingTimeoutRef.current) {
         clearTimeout(editingTimeoutRef.current);
       }
     };
-  }, [currentPage, editingElement]);
+  }, [currentPage, editingElement, selectedQuestionElementId]);
 
   // Expose stage reference for PDF export
   useEffect(() => {
@@ -2142,13 +2133,13 @@ export default function Canvas() {
                   if (element) {
                     const updates: any = {};
                     
-                    // For text, qna_textbox and image elements, convert scale to width/height changes
-                    if (element.type === 'text' || element.type === 'qna_textbox' || element.type === 'image') {
+                    // For text and image elements, convert scale to width/height changes
+                    if (element.type === 'text' || element.type === 'image') {
                       const scaleX = node.scaleX();
                       const scaleY = node.scaleY();
                       
-                      updates.width = Math.max(element.type === 'text' || element.type === 'qna_textbox' ? 50 : 20, (element.width || 150) * scaleX);
-                      updates.height = Math.max(element.type === 'text' || element.type === 'qna_textbox' ? 20 : 20, (element.height || 50) * scaleY);
+                      updates.width = Math.max(element.type === 'text' ? 50 : 20, (element.width || 150) * scaleX);
+                      updates.height = Math.max(element.type === 'text' ? 20 : 20, (element.height || 50) * scaleY);
                       updates.x = node.x();
                       updates.y = node.y();
                       updates.rotation = node.rotation();
@@ -2281,13 +2272,35 @@ export default function Canvas() {
                   const element = currentPage?.elements.find(el => el.id === selectedQuestionElementId);
                   
                   if (element?.textType === 'qna') {
-                    // For QnA elements, insert question text into the active textarea
-                    window.dispatchEvent(new CustomEvent('insertQuestionIntoQnA', {
-                      detail: { questionId, questionText }
-                    }));
+                    // For QnA elements, update the element with questionId and load existing answer
+                    const updates = questionId === '' 
+                      ? { questionId: undefined }
+                      : { questionId: questionId };
+                    
+                    dispatch({
+                      type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                      payload: {
+                        id: selectedQuestionElementId,
+                        updates
+                      }
+                    });
+                    
+                    // If questionId is provided, check for existing answer in tempAnswers
+                    if (questionId && questionId !== '') {
+                      const assignedUser = state.pageAssignments[state.activePageIndex + 1];
+                      const userIdToCheck = assignedUser?.id || user?.id;
+                      
+                      if (userIdToCheck) {
+                        const existingAnswer = getAnswerText(questionId, userIdToCheck);
+                        if (existingAnswer) {
+                          // Answer exists in tempAnswers, no need to do anything
+                          // The textbox will automatically display it via getDisplayText()
+                        }
+                      }
+                    }
                   } else {
                     // For regular question elements
-                    const updates = questionId === 0 
+                    const updates = questionId === '' 
                       ? { text: '', fontColor: '#9ca3af', questionId: undefined }
                       : { text: questionText, fontColor: '#1f2937', questionId: questionId };
                     dispatch({
@@ -2304,36 +2317,59 @@ export default function Canvas() {
                         el.textType === 'answer' && el.questionElementId === selectedQuestionElementId
                       );
                       if (answerElement) {
-                        if (questionId === 0) {
+                        if (questionId === '' || questionId === 0) {
                           // If resetting question, clear answer text
                           dispatch({
                             type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
                             payload: {
                               id: answerElement.id,
-                              updates: { text: '', formattedText: '' }
+                              updates: { text: '', formattedText: '', questionId: undefined }
                             }
                           });
                         } else {
                           // Load existing answer for the new question
-                          const answerText = getAnswerText(questionId);
-                          dispatch({
-                            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                            payload: {
-                              id: answerElement.id,
-                              updates: { text: answerText || '', formattedText: answerText || '' }
+                          const assignedUser = state.pageAssignments[state.activePageIndex + 1];
+                          const userIdToCheck = assignedUser?.id || user?.id;
+                          
+                          if (userIdToCheck) {
+                            const existingAnswer = getAnswerText(questionId, userIdToCheck);
+                            
+                            dispatch({
+                              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                              payload: {
+                                id: answerElement.id,
+                                updates: { 
+                                  text: existingAnswer || '', 
+                                  formattedText: existingAnswer || '',
+                                  questionId: questionId
+                                }
+                              }
+                            });
+                            
+                            // Update temp answers to ensure consistency
+                            if (existingAnswer) {
+                              dispatch({
+                                type: 'UPDATE_TEMP_ANSWER',
+                                payload: {
+                                  questionId: questionId,
+                                  text: existingAnswer,
+                                  userId: userIdToCheck
+                                }
+                              });
                             }
-                          });
+                          }
                         }
                       }
                     }
                   }
                 }
                 setShowQuestionDialog(false);
-                setSelectedQuestionElementId(null);
+                // Reset selectedQuestionElementId after a delay to allow questionSelected event to process
+                setTimeout(() => setSelectedQuestionElementId(null), 100);
               }}
               onClose={() => {
                 setShowQuestionDialog(false);
-                setSelectedQuestionElementId(null);
+                setTimeout(() => setSelectedQuestionElementId(null), 100);
               }}
             />
           </DialogContent>
