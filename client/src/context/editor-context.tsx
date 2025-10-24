@@ -330,6 +330,7 @@ export interface EditorState {
   historyIndex: number;
   historyActions: string[];
   magneticSnapping: boolean;
+  qnaActiveSection: 'question' | 'answer';
 }
 
 type EditorAction =
@@ -374,7 +375,8 @@ type EditorAction =
   | { type: 'SET_PAGE_THEME'; payload: { pageIndex: number; themeId: string } }
   | { type: 'APPLY_THEME_TO_ELEMENTS'; payload: { pageIndex: number; themeId: string; elementType?: string } }
   | { type: 'REORDER_PAGES'; payload: { fromIndex: number; toIndex: number } }
-  | { type: 'TOGGLE_MAGNETIC_SNAPPING' };
+  | { type: 'TOGGLE_MAGNETIC_SNAPPING' }
+  | { type: 'SET_QNA_ACTIVE_SECTION'; payload: 'question' | 'answer' };
 
 const initialState: EditorState = {
   currentBook: null,
@@ -398,6 +400,7 @@ const initialState: EditorState = {
   historyIndex: -1,
   historyActions: [],
   magneticSnapping: true,
+  qnaActiveSection: 'question',
 };
 
 const MAX_HISTORY_SIZE = 50;
@@ -997,6 +1000,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'TOGGLE_MAGNETIC_SNAPPING':
       return { ...state, magneticSnapping: !state.magneticSnapping };
+    
+    case 'SET_QNA_ACTIVE_SECTION':
+      return { ...state, qnaActiveSection: action.payload };
     
     default:
       return state;

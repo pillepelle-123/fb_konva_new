@@ -2082,6 +2082,8 @@ export default function Canvas() {
               key={state.selectedElementIds.length === 1 ? `${state.selectedElementIds[0]}-${currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.width}-${currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.height}` : 'multi'}
               ref={transformerRef}
               keepRatio={state.selectedElementIds.length === 1 && currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.type === 'image'}
+              rotationSnaps={[0, 90, 180, 270]}
+              rotationSnapTolerance={5}
               onDragStart={() => {
                 dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Move Elements' });
               }}
@@ -2091,7 +2093,7 @@ export default function Canvas() {
                   const node = nodes[0];
                   const currentX = node.x();
                   const currentY = node.y();
-                  const snapped = handleSnapPosition(node, currentX, currentY, true); // Enable grid snapping
+                  const snapped = handleSnapPosition(node, currentX, currentY, true);
                   
                   if (snapped.x !== currentX || snapped.y !== currentY) {
                     node.x(snapped.x);
@@ -2100,10 +2102,8 @@ export default function Canvas() {
                 }
               }}
               onDragEnd={(e) => {
-                // Clear guidelines when drag ends
                 setSnapGuidelines([]);
                 
-                // Update positions after drag
                 const nodes = transformerRef.current?.nodes() || [];
                 nodes.forEach(node => {
                   const elementId = node.id();
@@ -2118,6 +2118,79 @@ export default function Canvas() {
                   }
                 });
               }}
+              boundBoxFunc={(oldBox, newBox) => {
+                if (newBox.width < 5 || newBox.height < 5) return oldBox;
+                
+                const transformer = transformerRef.current;
+                if (!transformer) return newBox;
+                
+                const activeAnchor = transformer.getActiveAnchor();
+                if (!activeAnchor) return newBox;
+                
+                const SNAP_THRESHOLD = 15;
+                
+                currentPage?.elements.forEach(otherElement => {
+                  const node = transformer.nodes()[0];
+                  if (!node || otherElement.id === node.id()) return;
+                  
+                  const otherBox = {
+                    x: (otherElement.x + pageOffsetX),
+                    y: (otherElement.y + pageOffsetY),
+                    width: otherElement.width || 100,
+                    height: otherElement.height || 100
+                  };
+                  
+                  if (activeAnchor.includes('right') || activeAnchor === 'middle-right') {
+                    const rightEdge = newBox.x + newBox.width;
+                    if (Math.abs(rightEdge - otherBox.x) < SNAP_THRESHOLD) {
+                      newBox.width = otherBox.x - newBox.x;
+                    }
+                    if (Math.abs(rightEdge - (otherBox.x + otherBox.width)) < SNAP_THRESHOLD) {
+                      newBox.width = (otherBox.x + otherBox.width) - newBox.x;
+                    }
+                  }
+                  
+                  if (activeAnchor.includes('bottom') || activeAnchor === 'bottom-center') {
+                    const bottomEdge = newBox.y + newBox.height;
+                    if (Math.abs(bottomEdge - otherBox.y) < SNAP_THRESHOLD) {
+                      newBox.height = otherBox.y - newBox.y;
+                    }
+                    if (Math.abs(bottomEdge - (otherBox.y + otherBox.height)) < SNAP_THRESHOLD) {
+                      newBox.height = (otherBox.y + otherBox.height) - newBox.y;
+                    }
+                  }
+                  
+                  if (activeAnchor.includes('left') || activeAnchor === 'middle-left') {
+                    if (Math.abs(newBox.x - otherBox.x) < SNAP_THRESHOLD) {
+                      const diff = otherBox.x - newBox.x;
+                      newBox.x = otherBox.x;
+                      newBox.width = newBox.width - diff;
+                    }
+                    if (Math.abs(newBox.x - (otherBox.x + otherBox.width)) < SNAP_THRESHOLD) {
+                      const diff = (otherBox.x + otherBox.width) - newBox.x;
+                      newBox.x = otherBox.x + otherBox.width;
+                      newBox.width = newBox.width - diff;
+                    }
+                  }
+                  
+                  if (activeAnchor.includes('top') || activeAnchor === 'top-center') {
+                    if (Math.abs(newBox.y - otherBox.y) < SNAP_THRESHOLD) {
+                      const diff = otherBox.y - newBox.y;
+                      newBox.y = otherBox.y;
+                      newBox.height = newBox.height - diff;
+                    }
+                    if (Math.abs(newBox.y - (otherBox.y + otherBox.height)) < SNAP_THRESHOLD) {
+                      const diff = (otherBox.y + otherBox.height) - newBox.y;
+                      newBox.y = otherBox.y + otherBox.height;
+                      newBox.height = newBox.height - diff;
+                    }
+                  }
+                });
+                
+                return newBox;
+              }}
+              rotationSnaps={[0, 90, 180, 270]}
+              rotationSnapTolerance={5}
               onTransformStart={() => {
                 dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Transform Elements' });
               }}

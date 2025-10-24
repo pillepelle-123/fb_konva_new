@@ -235,6 +235,8 @@ function getThemeCategory(elementType: string): keyof GlobalTheme['elementDefaul
       return 'question';
     case 'answer':
       return 'answer';
+    case 'qna':
+      return 'text'; // QnA uses text defaults as base
     case 'text':
       return 'text';
     case 'image':
@@ -262,6 +264,14 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string): Pa
   
   const category = getThemeCategory(elementType);
   return theme.elementDefaults[category] || {};
+}
+
+export function getQnAThemeDefaults(themeId: string, section: 'question' | 'answer'): any {
+  const themeConfig = (themesData as Record<string, any>)[themeId];
+  if (!themeConfig?.elementDefaults?.qna) return {};
+  
+  const qnaDefaults = themeConfig.elementDefaults.qna;
+  return section === 'question' ? qnaDefaults.questionSettings : qnaDefaults.answerSettings;
 }
 
 export function applyThemeToElement(element: CanvasElement, themeId: string): CanvasElement {

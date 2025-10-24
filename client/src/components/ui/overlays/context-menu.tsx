@@ -21,17 +21,50 @@ const ContextMenu = React.forwardRef<
   HTMLDivElement,
   ContextMenuProps
 >(({ x, y, visible, onDuplicate, onDelete, onCopy, onPaste, onMoveToFront, onMoveToBack, onMoveUp, onMoveDown, hasSelection, hasClipboard }, ref) => {
+  const menuRef = React.useRef<HTMLDivElement>(null);
+  const [adjustedPosition, setAdjustedPosition] = React.useState({ x, y });
+
+  React.useEffect(() => {
+    if (visible && menuRef.current) {
+      const menu = menuRef.current;
+      const rect = menu.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      
+      let adjustedX = x;
+      let adjustedY = y;
+      
+      if (x + rect.width > viewportWidth) {
+        adjustedX = viewportWidth - rect.width - 10;
+      }
+      
+      if (y + rect.height > viewportHeight) {
+        adjustedY = viewportHeight - rect.height - 10;
+      }
+      
+      if (adjustedX < 10) {
+        adjustedX = 10;
+      }
+      
+      if (adjustedY < 10) {
+        adjustedY = 10;
+      }
+      
+      setAdjustedPosition({ x: adjustedX, y: adjustedY });
+    }
+  }, [visible, x, y]);
+
   if (!visible) return null;
 
   return (
     <div
-      ref={ref}
+      ref={menuRef}
       className={cn(
         "fixed z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95"
       )}
       style={{
-        top: y,
-        left: x,
+        top: adjustedPosition.y,
+        left: adjustedPosition.x,
       }}
     >
       <ContextMenuItem

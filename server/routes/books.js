@@ -506,30 +506,25 @@ router.put('/:id', authenticateToken, async (req, res) => {
         [name, pageSize, orientation, req.body.bookTheme || 'default', bookId]
       );
 
+      // First, temporarily set all existing page numbers to negative values to avoid conflicts
+      await pool.query(
+        'UPDATE public.pages SET page_number = -page_number WHERE book_id = $1 AND page_number > 0',
+        [bookId]
+      );
+      
       // UPSERT pages: update existing, insert new
-      // console.log(`Processing ${pages.length} pages for book ${bookId}`);
-      const processedPageIds = new Set(); // Track processed pages to avoid duplicates
-      const processedPageNumbers = new Set(); // Track processed page numbers to avoid duplicates
-      const allPageIds = []; // Track all page IDs (existing + new)
+      const processedPageIds = new Set();
+      const allPageIds = [];
       
       for (const page of pages) {
-        // console.log(`Processing page: ID=${page.id}, pageNumber=${page.pageNumber}`);
         let pageId;
         
-        // Skip if we've already processed this page (efficiency fix)
         if (page.id && processedPageIds.has(page.id)) {
           continue;
         }
         
-        // Skip if we've already processed this page number (prevents unique constraint violation)
-        if (processedPageNumbers.has(page.pageNumber)) {
-          continue;
-        }
-        
-        processedPageNumbers.add(page.pageNumber);
-        
         if (page.id && typeof page.id === 'number' && Number.isInteger(page.id) && page.id > 0 && page.id < 2147483647) {
-          // Update existing page - store complete page structure
+          // Update existing page
           const completePageData = {
             id: page.id,
             elements: page.elements || [],
@@ -545,68 +540,32 @@ router.put('/:id', authenticateToken, async (req, res) => {
           pageId = page.id;
           processedPageIds.add(page.id);
         } else {
-          // Insert new page (UUID/timestamp IDs are treated as new pages)
-          // console.log(`Inserting new page with temp ID ${page.id} for book ${bookId}`);
-          try {
-            // Create complete page structure for new pages
-            const completePageData = {
-              elements: page.elements || [],
-              background: page.background || { pageTheme: null },
-              pageNumber: page.pageNumber
-            };
-            
-            const pageResult = await pool.query(
-              'INSERT INTO public.pages (book_id, page_number, elements, page_theme) VALUES ($1, $2, $3, $4) RETURNING id',
-              [bookId, page.pageNumber, JSON.stringify(completePageData), page.background?.pageTheme]
-            );
-            pageId = pageResult.rows[0].id;
-            
-            // Update the inserted page with complete structure including database_id
-            completePageData.id = pageId;
-            completePageData.database_id = pageId;
-            
-            await pool.query(
-              'UPDATE public.pages SET elements = $1 WHERE id = $2',
-              [JSON.stringify(completePageData), pageId]
-            );
-            
-            // console.log(`New page inserted with database ID ${pageId}`);
-          } catch (insertError) {
-            if (insertError.code === '23505') { // Unique constraint violation
-              // Find existing page with this page number and use its ID
-              const existingPage = await pool.query(
-                'SELECT id FROM public.pages WHERE book_id = $1 AND page_number = $2',
-                [bookId, page.pageNumber]
-              );
-              if (existingPage.rows.length > 0) {
-                pageId = existingPage.rows[0].id;
-                
-                // Update existing page with complete structure
-                const completePageData = {
-                  id: pageId,
-                  elements: page.elements || [],
-                  background: page.background || { pageTheme: null },
-                  pageNumber: page.pageNumber,
-                  database_id: pageId
-                };
-                
-                await pool.query(
-                  'UPDATE public.pages SET elements = $1, page_theme = $2 WHERE id = $3',
-                  [JSON.stringify(completePageData), page.background?.pageTheme, pageId]
-                );
-                
-                // console.log(`Using existing page ID ${pageId} for page number ${page.pageNumber}`);
-              } else {
-                throw insertError; // Re-throw if we can't find the existing page
-              }
-            } else {
-              throw insertError; // Re-throw other errors
-            }
-          }
-          if (page.id) processedPageIds.add(page.id); // Track temp ID to avoid duplicates
+          // Insert new page
+          const completePageData = {
+            elements: page.elements || [],
+            background: page.background || { pageTheme: null },
+            pageNumber: page.pageNumber
+          };
+          
+          const pageResult = await pool.query(
+            'INSERT INTO public.pages (book_id, page_number, elements, page_theme) VALUES ($1, $2, $3, $4) RETURNING id',
+            [bookId, page.pageNumber, JSON.stringify(completePageData), page.background?.pageTheme]
+          );
+          pageId = pageResult.rows[0].id;
+          
+          // Update with complete structure including database_id
+          completePageData.id = pageId;
+          completePageData.database_id = pageId;
+          
+          await pool.query(
+            'UPDATE public.pages SET elements = $1 WHERE id = $2',
+            [JSON.stringify(completePageData), pageId]
+          );
+          
+          if (page.id) processedPageIds.add(page.id);
         }
         
-        if (pageId) allPageIds.push(pageId); // Track all page IDs (only if pageId is valid)
+        if (pageId) allPageIds.push(pageId);
 
         // Remove existing question associations for this page
         await pool.query(

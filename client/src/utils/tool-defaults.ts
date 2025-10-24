@@ -110,7 +110,7 @@ export const TOOL_DEFAULTS = {
     padding: 4
   },
   qna: {
-    fontSize: 58, // Common size 14
+    fontSize: 50, // Common size 12 for answer text
     fontFamily: 'Arial, sans-serif',
     fontWeight: 'normal',
     fontStyle: 'normal',
@@ -125,7 +125,14 @@ export const TOOL_DEFAULTS = {
     borderWidth: 0, // Common scale value
     borderColor: '#000000',
     backgroundColor: 'transparent',
-    padding: 4
+    padding: 4,
+    // QnA specific defaults
+    questionSettings: {
+      fontSize: 58 // Common size 14 for question text
+    },
+    answerSettings: {
+      fontSize: 50 // Common size 12 for answer text
+    }
   }
 } as const;
 

@@ -10,10 +10,12 @@ import BaseCanvasItem from './base-canvas-item';
 import type { CanvasItemProps } from './base-canvas-item';
 import ThemedShape from './themed-shape';
 import { getThemeRenderer } from '../../../../utils/themes';
-import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
+import { getGlobalThemeDefaults, getQnAThemeDefaults } from '../../../../utils/global-themes';
 import { getRuledLinesOpacity } from '../../../../utils/ruled-lines-utils';
 import { getParagraphSpacing, getPadding } from '../../../../utils/format-utils';
 import { getRuledLinesTheme, getBorderTheme } from '../../../../utils/theme-utils';
+import { KonvaSkeleton } from '../../../ui/primitives/skeleton';
+import { SelectionHoverRectangle } from '../canvas/selection-hover-rectangle';
 
 
 // Rich text formatting function for Quill HTML output
@@ -183,14 +185,18 @@ export default function Textbox(props: CanvasItemProps) {
   const { state, dispatch, getQuestionText, getAnswerText } = useEditor();
   const { user } = useAuth();
   const textRef = useRef<Konva.Text>(null);
+  const questionTextRef = useRef<Konva.Text>(null);
 
   const [hasOverflow, setHasOverflow] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [isTransforming, setIsTransforming] = useState(false);
+  const [questionHovered, setQuestionHovered] = useState(false);
+  const [answerHovered, setAnswerHovered] = useState(false);
   
   // Check if user is on assigned page and this is an answer textbox
   const isOnAssignedPage = state.pageAssignments[state.activePageIndex + 1]?.id === user?.id;
-  const shouldHighlightAnswer = isOnAssignedPage && element.textType === 'answer';
-  const shouldHighlightQuestion = isOnAssignedPage && element.textType === 'question';
+  const shouldHighlightAnswer = isOnAssignedPage && (element.textType === 'answer' || element.textType === 'qna');
+  const shouldHighlightQuestion = isOnAssignedPage && (element.textType === 'question' || element.textType === 'qna')
   const shouldShowFlashyHover = shouldHighlightAnswer || shouldHighlightQuestion;
   
 
@@ -219,8 +225,16 @@ export default function Textbox(props: CanvasItemProps) {
   })();
   
   // Calculate lineHeight based on paragraph spacing and ruled lines
-  const getLineHeight = () => {
-    const spacing = getParagraphSpacing(element);
+  const getLineHeight = (sectionType?: 'question' | 'answer') => {
+    let spacing = getParagraphSpacing(element);
+    
+    // For QnA textboxes, get spacing from specific section settings
+    if (element.textType === 'qna' && sectionType) {
+      const individualSettings = element.qnaIndividualSettings ?? false;
+      const settings = sectionType === 'question' ? element.questionSettings : 
+                      (individualSettings ? element.answerSettings : element.questionSettings);
+      spacing = settings?.paragraphSpacing || 'medium';
+    }
     
     if (element.ruledLines || (element.text && element.text.includes('data-ruled="true"'))) {
       const ruledSpacingMap = {
@@ -228,7 +242,7 @@ export default function Textbox(props: CanvasItemProps) {
         medium: 2.2,
         large: 2.8
       };
-      return ruledSpacingMap[spacing as keyof typeof ruledSpacingMap];
+      return ruledSpacingMap[spacing as keyof typeof ruledSpacingMap] || 2.2;
     }
     
     const spacingMap = {
@@ -237,17 +251,18 @@ export default function Textbox(props: CanvasItemProps) {
       large: 1.5
     };
     
-    return element.format?.lineHeight || element.lineHeight || spacingMap[spacing as keyof typeof spacingMap];
+    return element.format?.lineHeight || element.lineHeight || spacingMap[spacing as keyof typeof spacingMap] || 1.2;
   };
   
   // Generate themed ruled lines
   const generateRuledLines = () => {
-    if (!element.ruledLines || element.ruledLines?.enabled === false) return [];
+    // For regular textboxes, check the standard ruledLines property
+    if (element.textType !== 'qna' && (!element.ruledLines || element.ruledLines?.enabled === false)) {
+      return [];
+    }
     
     const lines = [];
     const padding = getPadding(element);
-    // For qna textboxes, use the same lineHeight as text rendering for alignment
-    const lineSpacing = element.textType === 'qna' ? fontSize * lineHeight : fontSize * getLineHeight();
     const theme = getRuledLinesTheme(element);
     const ruledLineColor = element.ruledLines?.lineColor || element.ruledLinesColor || '#1f2937';
     const ruledLineWidth = element.ruledLinesWidth || 0.8;
@@ -255,23 +270,56 @@ export default function Textbox(props: CanvasItemProps) {
     
     // Generate lines from top to bottom of textbox (positioned as underlines)
     if (element.textType === 'qna') {
-      // Generate lines for both question and answer areas
-      const questionHeight = getQuestionHeight();
-      const questionFontSize = fontSize * 0.9; // Match the question text font size
-      const questionLineSpacing = questionFontSize * lineHeight;
-      const answerLineSpacing = fontSize * lineHeight;
+      // Get question and answer styles for ruled lines
+      const individualSettings = element.qnaIndividualSettings ?? false;
+      const qStyle = element.questionSettings || {};
+      const aStyle = individualSettings ? (element.answerSettings || {}) : (element.questionSettings || {});
+      const currentPage = state.currentBook?.pages[state.activePageIndex];
+      const pageTheme = currentPage?.background?.pageTheme;
+      const bookTheme = state.currentBook?.bookTheme;
+      const activeTheme = pageTheme || bookTheme;
+      const qnaQuestionDefaults = activeTheme ? getQnAThemeDefaults(activeTheme, 'question') : {};
+      const qnaAnswerDefaults = activeTheme ? getQnAThemeDefaults(activeTheme, individualSettings ? 'answer' : 'question') : {};
       
-      // Question area lines
-      for (let y = padding + questionLineSpacing * 0.85; y < questionHeight; y += questionLineSpacing) {
-        lines.push(...generateLineElement(y, theme, padding, ruledLineColor, ruledLineWidth, ruledLineOpacity));
+      const questionRuledLines = qStyle.ruledLines ?? qnaQuestionDefaults?.ruledLines ?? false;
+      const answerRuledLines = aStyle.ruledLines ?? qnaAnswerDefaults?.ruledLines ?? false;
+      
+      // Get ruled lines properties from settings
+      const questionRuledLinesWidth = qStyle.ruledLinesWidth ?? ruledLineWidth;
+      const answerRuledLinesWidth = aStyle.ruledLinesWidth ?? ruledLineWidth;
+      const questionRuledLinesColor = qStyle.ruledLinesColor ?? ruledLineColor;
+      const answerRuledLinesColor = aStyle.ruledLinesColor ?? ruledLineColor;
+      const questionRuledLinesOpacity = qStyle.ruledLinesOpacity ?? ruledLineOpacity;
+      const answerRuledLinesOpacity = aStyle.ruledLinesOpacity ?? ruledLineOpacity;
+      const questionRuledLinesTheme = qStyle.ruledLinesTheme ?? theme;
+      const answerRuledLinesTheme = aStyle.ruledLinesTheme ?? theme;
+      
+      const questionHeight = getQuestionHeight();
+      const questionFontSize = qStyle.fontSize || qnaQuestionDefaults?.fontSize || fontSize * 0.9;
+      const answerFontSize = aStyle.fontSize || qnaAnswerDefaults?.fontSize || fontSize;
+      const questionLineSpacing = questionFontSize * getLineHeight('question');
+      const answerLineSpacing = answerFontSize * getLineHeight('answer');
+      
+      // Get individual padding values for question and answer
+      const questionPadding = qStyle.padding ?? padding;
+      const answerPadding = aStyle.padding ?? padding;
+      
+      // Question area lines - position under each text line
+      if (questionRuledLines) {
+        for (let y = questionPadding + questionLineSpacing - 2; y < questionHeight; y += questionLineSpacing) {
+          lines.push(...generateLineElement(y, questionRuledLinesTheme, questionPadding, questionRuledLinesColor, questionRuledLinesWidth, questionRuledLinesOpacity));
+        }
       }
       
-      // Answer area lines
-      for (let y = questionHeight + 5 + answerLineSpacing * 0.8; y < element.height - padding; y += answerLineSpacing) {
-        lines.push(...generateLineElement(y, theme, padding, ruledLineColor, ruledLineWidth, ruledLineOpacity));
+      // Answer area lines - position under each text line
+      if (answerRuledLines) {
+        for (let y = questionHeight + 5 + answerPadding + answerLineSpacing - 2; y < element.height - answerPadding; y += answerLineSpacing) {
+          lines.push(...generateLineElement(y, answerRuledLinesTheme, answerPadding, answerRuledLinesColor, answerRuledLinesWidth, answerRuledLinesOpacity));
+        }
       }
     } else {
       // Regular textbox lines
+      const lineSpacing = fontSize * getLineHeight();
       for (let y = padding + lineSpacing * 0.8; y < element.height - padding; y += lineSpacing) {
         lines.push(...generateLineElement(y, theme, padding, ruledLineColor, ruledLineWidth, ruledLineOpacity));
       }
@@ -402,14 +450,24 @@ export default function Textbox(props: CanvasItemProps) {
       return Math.max(40, element.height * 0.3);
     }
     
+    // Get actual question font size from settings
+    const qStyle = element.questionSettings || {};
+    const currentPage = state.currentBook?.pages[state.activePageIndex];
+    const pageTheme = currentPage?.background?.pageTheme;
+    const bookTheme = state.currentBook?.bookTheme;
+    const activeTheme = pageTheme || bookTheme;
+    const qnaDefaults = activeTheme ? getQnAThemeDefaults(activeTheme, 'question') : {};
+    const questionFontSize = qStyle.fontSize || qnaDefaults?.fontSize || fontSize * 0.9;
+    const questionFontFamily = qStyle.fontFamily || qnaDefaults?.fontFamily || fontFamily;
+    
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d')!;
-    const questionFontSize = (element.font?.fontSize || fontSize) * 0.9;
-    context.font = `${questionFontSize}px ${element.font?.fontFamily || fontFamily}`;
+    context.font = `${questionFontSize}px ${questionFontFamily}`;
     
-    const padding = element.format?.padding || element.padding || 4;
-    const textWidth = element.width - (padding * 2);
-    const questionLineHeight = questionFontSize * lineHeight;
+    const questionSettings = element.questionSettings || {};
+    const questionPadding = questionSettings.padding ?? (element.format?.padding || element.padding || 4);
+    const textWidth = element.width - (questionPadding * 2);
+    const questionLineHeight = questionFontSize * getLineHeight('question');
     
     // Calculate lines needed for question text
     const words = questionText.split(' ');
@@ -426,7 +484,7 @@ export default function Textbox(props: CanvasItemProps) {
       }
     });
     
-    return Math.max(40, (lines * questionLineHeight) + padding);
+    return Math.max(40, (lines * questionLineHeight) + (questionPadding * 2));
   };
   
   const lineHeight = getLineHeight();
@@ -481,8 +539,9 @@ export default function Textbox(props: CanvasItemProps) {
         textToUse = questionText;
       }
     } 
-    // For QnA elements, show only answer text
+    // For QnA elements, show only answer text (ignore element.text)
     else if (element.textType === 'qna') {
+      textToUse = ''; // Always start empty for QnA
       if (element.questionId) {
         // Get the assigned user for this page only
         const assignedUser = state.pageAssignments[state.activePageIndex + 1];
@@ -490,13 +549,11 @@ export default function Textbox(props: CanvasItemProps) {
         if (assignedUser) {
           textToUse = getAnswerText(element.questionId, assignedUser.id) || '';
         }
-      } else {
-        // No question selected, clear any previous text
-        textToUse = '';
       }
     }
-    // For answer elements, get text from loaded answers data
+    // For answer elements, get text from loaded answers data (ignore element.text)
     else if (element.textType === 'answer') {
+      textToUse = ''; // Always start empty for answers
       // Use direct questionId from answer element or find via linked question element
       let questionId = element.questionId;
       
@@ -553,7 +610,7 @@ export default function Textbox(props: CanvasItemProps) {
     return textToUse;
   };
 
-  const displayText = useMemo(() => getDisplayText(), [element, state.pageAssignments, state.tempAnswers, getQuestionText, getAnswerText]);
+  const displayText = useMemo(() => getDisplayText(), [element, state.pageAssignments, state.tempAnswers, getQuestionText, getAnswerText, state.activePageIndex]);
   
   // Force re-render when temp answers change for this question
   useEffect(() => {
@@ -565,6 +622,17 @@ export default function Textbox(props: CanvasItemProps) {
       }
     }
   }, [state.tempAnswers, element.questionId, element.textType, state.pageAssignments]);
+  
+  // Update displayed text when page assignments change or active page changes
+  useEffect(() => {
+    if ((element.textType === 'qna' || element.textType === 'answer') && element.questionId) {
+      // Force re-render when page assignment changes or page is duplicated to show correct user's answer
+      if (textRef.current) {
+        textRef.current.text(getDisplayText());
+        textRef.current.getLayer()?.batchDraw();
+      }
+    }
+  }, [state.pageAssignments[state.activePageIndex + 1]?.id, state.activePageIndex]);
 
   // Check for text overflow and update text wrapping
   useEffect(() => {
@@ -586,6 +654,12 @@ export default function Textbox(props: CanvasItemProps) {
       const containerHeight = element.height - (padding * 2);
       setHasOverflow(textHeight > containerHeight);
     }
+    
+    // Also reset scale for question text in QnA textboxes
+    if (element.textType === 'qna' && questionTextRef.current) {
+      questionTextRef.current.scaleX(1);
+      questionTextRef.current.scaleY(1);
+    }
   }, [element.text, element.formattedText, element.width, element.height, element.paragraphSpacing, element.ruledLines, element.questionId, fontSize, lineHeight, displayText, state.tempAnswers]);
   
   // Effect to update display when questionId changes for QnA textboxes
@@ -602,14 +676,48 @@ export default function Textbox(props: CanvasItemProps) {
 
   // Additional effect to ensure text never scales during transformations
   useEffect(() => {
-    if (textRef.current && (element.textType === 'question' || element.textType === 'answer')) {
+    if (element.textType === 'qna' || element.textType === 'question' || element.textType === 'answer') {
       const handleTransform = () => {
-        // Immediately reset any scale applied to text nodes
-        textRef.current?.scaleX(1);
-        textRef.current?.scaleY(1);
+        // Hide text and show skeleton during transform
+        setIsTransforming(true);
+        if (textRef.current) {
+          textRef.current.visible(false);
+        }
+        if (questionTextRef.current) {
+          questionTextRef.current.visible(false);
+        }
       };
       
-      const group = textRef.current.getParent();
+      const handleTransformEnd = () => {
+        // Show text and hide skeleton after transform ends
+        setIsTransforming(false);
+        if (textRef.current) {
+          textRef.current.visible(true);
+        }
+        if (questionTextRef.current) {
+          questionTextRef.current.visible(true);
+        }
+      };
+      
+      const mainGroup = textRef.current?.getParent()?.getParent() || questionTextRef.current?.getParent()?.getParent();
+      if (mainGroup) {
+        mainGroup.on('transform', handleTransform);
+        mainGroup.on('transformend', handleTransformEnd);
+        
+        return () => {
+          mainGroup.off('transform', handleTransform);
+          mainGroup.off('transformend', handleTransformEnd);
+        };
+      }
+    } else {
+      const handleTransform = () => {
+        if (textRef.current) {
+          textRef.current.scaleX(1);
+          textRef.current.scaleY(1);
+        }
+      };
+      
+      const group = textRef.current?.getParent();
       if (group) {
         group.on('transform', handleTransform);
         return () => group.off('transform', handleTransform);
@@ -617,11 +725,40 @@ export default function Textbox(props: CanvasItemProps) {
     }
   }, [element.textType]);
 
+  // Force re-render to reset text scaling
+  useEffect(() => {
+    if (element.textType === 'qna') {
+      if (textRef.current) {
+        textRef.current.scaleX(1);
+        textRef.current.scaleY(1);
+      }
+      if (questionTextRef.current) {
+        questionTextRef.current.scaleX(1);
+        questionTextRef.current.scaleY(1);
+      }
+    }
+  }, [element.width, element.height]);
+
+  // Effect to update display when questionId changes for QnA textboxes
+  useEffect(() => {
+    if (element.textType === 'qna') {
+      // Always reset scale transforms to prevent text scaling
+      if (textRef.current) {
+        textRef.current.scaleX(1);
+        textRef.current.scaleY(1);
+      }
+      if (questionTextRef.current) {
+        questionTextRef.current.scaleX(1);
+        questionTextRef.current.scaleY(1);
+      }
+    }
+  }, [element.questionSettings, element.answerSettings]);
+
   const handleDoubleClick = (e?: any) => {
     if (state.activeTool !== 'select') return;
     
-    // For answer_only users, only allow double-click on answer textboxes
-    if (state.editorInteractionLevel === 'answer_only' && element.textType !== 'answer') {
+    // For answer_only users, only allow double-click on answer textboxes and QnA textboxes (which contain answer areas)
+    if (state.editorInteractionLevel === 'answer_only' && element.textType !== 'answer' && element.textType !== 'qna') {
       return;
     }
     
@@ -718,7 +855,8 @@ export default function Textbox(props: CanvasItemProps) {
             x: element.x,
             y: element.y,
             width: element.width,
-            height: element.height
+            height: element.height,
+              backgroundColor: "yellow"
           }
         }));
         return;
@@ -785,7 +923,8 @@ export default function Textbox(props: CanvasItemProps) {
               x: element.x,
               y: element.y,
               width: element.width,
-              height: element.height
+              height: element.height,
+              backgroundColor: "yellow"
             }
           }));
           return;
@@ -979,7 +1118,8 @@ export default function Textbox(props: CanvasItemProps) {
             x: element.x,
             y: element.y,
             width: element.width,
-            height: element.height
+            height: element.height,
+              backgroundColor: "yellow"
           }
         }));
         return;
@@ -1013,7 +1153,19 @@ export default function Textbox(props: CanvasItemProps) {
     textarea.style.left = areaPosition.x + 'px';
     textarea.style.width = ((element.width - (element.format?.padding || element.padding || 4) * 2) * scale) + 'px';
     textarea.style.height = ((element.height - (element.format?.padding || element.padding || 4) * 2) * scale) + 'px';
-    textarea.style.fontSize = ((element.font?.fontSize || element.fontSize || 16) * scale) + 'px';
+    // For QnA textboxes, use answer section font size
+    let textareaFontSize = element.font?.fontSize || element.fontSize || 16;
+    if (element.textType === 'qna') {
+      const individualSettings = element.qnaIndividualSettings ?? false;
+      const aStyle = individualSettings ? (element.answerSettings || {}) : (element.questionSettings || {});
+      const currentPage = state.currentBook?.pages[state.activePageIndex];
+      const pageTheme = currentPage?.background?.pageTheme;
+      const bookTheme = state.currentBook?.bookTheme;
+      const activeTheme = pageTheme || bookTheme;
+      const qnaDefaults = activeTheme ? getQnAThemeDefaults(activeTheme, individualSettings ? 'answer' : 'question') : {};
+      textareaFontSize = aStyle.fontSize || qnaDefaults?.fontSize || fontSize;
+    }
+    textarea.style.fontSize = (textareaFontSize * scale) + 'px';
     textarea.style.fontFamily = element.font?.fontFamily || element.fontFamily || 'Arial, sans-serif';
     textarea.style.fontWeight = element.font?.fontBold || element.fontWeight === 'bold' ? 'bold' : 'normal';
     textarea.style.fontStyle = element.font?.fontItalic || element.fontStyle === 'italic' ? 'italic' : 'normal';
@@ -1107,7 +1259,7 @@ export default function Textbox(props: CanvasItemProps) {
           }
           
           if (questionId) {
-            // Use assigned user's ID only
+            // Always use the currently assigned user's ID for this page
             const assignedUser = state.pageAssignments[state.activePageIndex + 1];
             const userIdToUse = assignedUser?.id;
             
@@ -1220,7 +1372,7 @@ export default function Textbox(props: CanvasItemProps) {
         }
         
         if (questionId) {
-          // Use assigned user's ID only
+          // Always use the currently assigned user's ID for this page
           const assignedUser = state.pageAssignments[state.activePageIndex + 1];
           const userIdToUse = assignedUser?.id;
           
@@ -1244,7 +1396,7 @@ export default function Textbox(props: CanvasItemProps) {
                 type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
                 payload: {
                   id: element.id,
-                  updates: { answerId }
+                updates: { answerId }
                 }
               });
             }
@@ -1379,17 +1531,17 @@ export default function Textbox(props: CanvasItemProps) {
     >
       <Group>
         {/* Background rectangle - render before border for Candy theme */}
-        <Rect
+        {/* <Rect
           width={element.width}
           height={element.height}
           fill={(element.background?.enabled === false) ? "transparent" : (element.background?.backgroundColor || element.backgroundColor || "transparent")}
           opacity={(element.background?.enabled === false) ? 0 : (element.background?.backgroundOpacity || element.backgroundOpacity || 1)}
-          stroke={shouldShowFlashyHover && isHovered ? "hsl(45, 92%, 42%)" : ((element.textType === 'question' || element.textType === 'answer') ? "#9ca3af" : "transparent")}
-          strokeWidth={shouldShowFlashyHover && isHovered ? 4 : ((element.textType === 'question' || element.textType === 'answer') ? 1 : 0)}
-          dash={shouldShowFlashyHover && isHovered ? [] : ((element.textType === 'question' || element.textType === 'answer') ? [5, 5] : [])}
+          stroke={shouldShowFlashyHover && isHovered && element.textType !== 'qna' ? "hsl(45, 92%, 42%)" : ((element.textType === 'question' || element.textType === 'answer') ? "#9ca3af" : "transparent")}
+          strokeWidth={shouldShowFlashyHover && isHovered && element.textType !== 'qna' ? 4 : ((element.textType === 'question' || element.textType === 'answer') ? 1 : 0)}
+          dash={shouldShowFlashyHover && isHovered && element.textType !== 'qna' ? [] : ((element.textType === 'question' || element.textType === 'answer') ? [5, 5] : [])}
           cornerRadius={element.cornerRadius || 0}
           listening={true}
-        />
+        /> */}
         
         {/* Themed border using ThemedShape component */}
         {borderElement && borderWidth > 0 && (element.border?.enabled !== false) && (
@@ -1406,7 +1558,19 @@ export default function Textbox(props: CanvasItemProps) {
         )}
         
         {/* Ruled lines */}
-        {generateRuledLines()}
+        <Group ref={(ref) => {
+          if (ref && element.textType === 'qna') {
+            const mainGroup = textRef.current?.getParent()?.getParent() || questionTextRef.current?.getParent()?.getParent();
+            if (mainGroup) {
+              const handleTransform = () => ref.visible(false);
+              const handleTransformEnd = () => ref.visible(true);
+              mainGroup.on('transform', handleTransform);
+              mainGroup.on('transformend', handleTransformEnd);
+            }
+          }
+        }}>
+          {generateRuledLines()}
+        </Group>
         
         {/* Text content */}
         {(() => {
@@ -1424,61 +1588,256 @@ export default function Textbox(props: CanvasItemProps) {
             const assignedUser = state.pageAssignments[state.activePageIndex + 1];
             const answerText = element.questionId && assignedUser ? getAnswerText(element.questionId, assignedUser.id) : (element.questionId ? 'No answer yet...' : 'Select a question first...');
             
+            // Get question and answer styling
+            const getQuestionStyle = () => {
+              const individualSettings = element.qnaIndividualSettings ?? false;
+              const qStyle = element.questionSettings || {};
+              const currentPage = state.currentBook?.pages[state.activePageIndex];
+              const pageTheme = currentPage?.background?.pageTheme;
+              const bookTheme = state.currentBook?.bookTheme;
+              const activeTheme = pageTheme || bookTheme;
+              const qnaDefaults = activeTheme ? getQnAThemeDefaults(activeTheme, 'question') : {};
+              const fallbackDefaults = activeTheme ? getGlobalThemeDefaults(activeTheme, 'question') : {};
+              
+              return {
+                fontSize: qStyle.fontSize || qnaDefaults?.fontSize || fallbackDefaults?.font?.fontSize || fontSize * 0.9,
+                fontFamily: qStyle.fontFamily || qnaDefaults?.fontFamily || fallbackDefaults?.font?.fontFamily || fontFamily,
+                fontBold: qStyle.fontBold ?? qnaDefaults?.fontBold ?? fallbackDefaults?.font?.fontBold ?? false,
+                fontItalic: qStyle.fontItalic ?? qnaDefaults?.fontItalic ?? fallbackDefaults?.font?.fontItalic ?? false,
+                fontColor: qStyle.fontColor || qnaDefaults?.fontColor || fallbackDefaults?.font?.fontColor || '#1f2937',
+                fontOpacity: qStyle.fontOpacity ?? qnaDefaults?.fontOpacity ?? fallbackDefaults?.font?.fontOpacity ?? 1,
+                align: qStyle.align || qnaDefaults?.align || fallbackDefaults?.format?.textAlign || 'left',
+                ruledLines: qStyle.ruledLines ?? qnaDefaults?.ruledLines ?? false
+              };
+            };
+            
+            const getAnswerStyle = () => {
+              const individualSettings = element.qnaIndividualSettings ?? false;
+              // If individual settings are disabled, use question settings for answer too
+              const aStyle = individualSettings ? (element.answerSettings || {}) : (element.questionSettings || {});
+              const currentPage = state.currentBook?.pages[state.activePageIndex];
+              const pageTheme = currentPage?.background?.pageTheme;
+              const bookTheme = state.currentBook?.bookTheme;
+              const activeTheme = pageTheme || bookTheme;
+              const qnaDefaults = activeTheme ? getQnAThemeDefaults(activeTheme, individualSettings ? 'answer' : 'question') : {};
+              const fallbackDefaults = activeTheme ? getGlobalThemeDefaults(activeTheme, individualSettings ? 'answer' : 'question') : {};
+              
+              return {
+                fontSize: aStyle.fontSize || qnaDefaults?.fontSize || fallbackDefaults?.font?.fontSize || fontSize,
+                fontFamily: aStyle.fontFamily || qnaDefaults?.fontFamily || fallbackDefaults?.font?.fontFamily || fontFamily,
+                fontBold: aStyle.fontBold ?? qnaDefaults?.fontBold ?? fallbackDefaults?.font?.fontBold ?? false,
+                fontItalic: aStyle.fontItalic ?? qnaDefaults?.fontItalic ?? fallbackDefaults?.font?.fontItalic ?? false,
+                fontColor: aStyle.fontColor || qnaDefaults?.fontColor || fallbackDefaults?.font?.fontColor || '#1f2937',
+                fontOpacity: aStyle.fontOpacity ?? qnaDefaults?.fontOpacity ?? fallbackDefaults?.font?.fontOpacity ?? 1,
+                align: aStyle.align || qnaDefaults?.align || fallbackDefaults?.format?.textAlign || 'left',
+                ruledLines: aStyle.ruledLines ?? qnaDefaults?.ruledLines ?? false
+              };
+            };
+            
+            const questionStyle = getQuestionStyle();
+            const answerStyle = getAnswerStyle();
+            
+            const individualSettings = element.qnaIndividualSettings ?? false;
+            const qStyle = element.questionSettings || {};
+            const aStyle = individualSettings ? (element.answerSettings || {}) : (element.questionSettings || {});
+            const questionPadding = qStyle.padding ?? padding;
+            const answerPadding = aStyle.padding ?? padding;
+            
             return (
               <>
-                {/* Question area */}
-                <Text
-                  x={padding}
-                  y={padding}
-                  width={textWidth}
-                  height={questionHeight}
-                  text={questionText}
-                  fontSize={(element.font?.fontSize || fontSize)}
-                  fontFamily={element.font?.fontFamily || element.fontFamily || fontFamily}
-                  fontStyle={`${(element.font?.fontBold || element.fontWeight === 'bold') ? 'bold' : ''} ${(element.font?.fontItalic || element.fontStyle === 'italic') ? 'italic' : ''}`.trim() || 'normal'}
-                  fill={element.questionId ? (element.font?.fontColor || element.fontColor || element.fill || '#1f2937') : '#9ca3af'}
-                  opacity={element.font?.fontOpacity || element.fillOpacity || 1}
-                  align={element.format?.align || align}
-                  verticalAlign="top"
-                  wrap="word"
-                  lineHeight={lineHeight}
-                  listening={false}
-                />
-                {/* Separator line - only show if border is enabled */}
-                {/* {(element.border?.enabled !== false && borderWidth > 0) && (
-                  <Path
-                    data={`M ${padding} ${questionHeight} L ${element.width - padding} ${questionHeight}`}
-                    stroke={borderColor}
-                    strokeWidth={1}
+                {/* Question background */}
+                {qStyle.backgroundEnabled && (
+                  <Rect
+                    x={0}
+                    y={0}
+                    width={element.width}
+                    height={questionHeight}
+                    fill={qStyle.backgroundColor || '#ffffff'}
+                    opacity={qStyle.backgroundOpacity ?? 1}
+                    cornerRadius={qStyle.cornerRadius ?? 0}
                     listening={false}
                   />
-                )} */}
+                )}
+                
+                {/* Question border */}
+                {qStyle.borderEnabled && (() => {
+                  const questionBorderElement = {
+                    ...element,
+                    id: `${element.id}-question-border`,
+                    type: 'rect' as const,
+                    x: 0,
+                    y: 0,
+                    width: element.width,
+                    height: questionHeight,
+                    stroke: qStyle.borderColor || '#000000',
+                    strokeWidth: qStyle.borderWidth ?? 1,
+                    strokeOpacity: qStyle.borderOpacity ?? 1,
+                    fill: 'transparent',
+                    theme: qStyle.borderTheme || 'rough',
+                    inheritTheme: qStyle.borderTheme || 'rough',
+                    cornerRadius: qStyle.cornerRadius ?? 0
+                  };
+                  return (
+                    <Group listening={false}>
+                      <ThemedShape
+                        element={questionBorderElement}
+                        isSelected={false}
+                        isDragging={false}
+                        zoom={props.zoom || 1}
+                        onSelect={() => {}}
+                        onTransform={() => {}}
+                      />
+                    </Group>
+                  );
+                })()}
+                
+                {/* Answer background */}
+                {aStyle.backgroundEnabled && (
+                  <Rect
+                    x={0}
+                    y={questionHeight + 5}
+                    width={element.width}
+                    height={answerHeight}
+                    fill={aStyle.backgroundColor || '#ffffff'}
+                    opacity={aStyle.backgroundOpacity ?? 1}
+                    cornerRadius={aStyle.cornerRadius ?? 0}
+                    listening={false}
+                  />
+                )}
+                
+                {/* Answer border */}
+                {aStyle.borderEnabled && (() => {
+                  const answerBorderElement = {
+                    ...element,
+                    id: `${element.id}-answer-border`,
+                    type: 'rect' as const,
+                    x: 0,
+                    y: questionHeight + 5,
+                    width: element.width,
+                    height: answerHeight,
+                    stroke: aStyle.borderColor || '#000000',
+                    strokeWidth: aStyle.borderWidth ?? 1,
+                    strokeOpacity: aStyle.borderOpacity ?? 1,
+                    fill: 'transparent',
+                    theme: aStyle.borderTheme || 'rough',
+                    inheritTheme: aStyle.borderTheme || 'rough',
+                    cornerRadius: aStyle.cornerRadius ?? 0
+                  };
+                  return (
+                    <Group listening={false}>
+                      <ThemedShape
+                        element={answerBorderElement}
+                        isSelected={false}
+                        isDragging={false}
+                        zoom={props.zoom || 1}
+                        onSelect={() => {}}
+                        onTransform={() => {}}
+                      />
+                    </Group>
+                  );
+                })()}
+                
+                {/* Question hover area */}
+                <Rect
+                  x={0}
+                  y={0}
+                  width={element.width}
+                  height={questionHeight}
+                  fill="transparent"
+                  listening={true}
+                  onMouseEnter={() => setQuestionHovered(true)}
+                  onMouseLeave={() => setQuestionHovered(false)}
+                  onClick={() => {
+                    if (state.activeTool === 'select' && state.selectedElementIds.includes(element.id)) {
+                      dispatch({ type: 'SET_QNA_ACTIVE_SECTION', payload: 'question' });
+                    }
+                  }}
+                />
+                
+                {/* Question area */}
+                <Text
+                  ref={questionTextRef}
+                  x={questionPadding}
+                  y={questionPadding}
+                  width={element.width - (questionPadding * 2)}
+                  height={questionHeight - (questionPadding * 2)}
+                  text={questionText}
+                  fontSize={questionStyle.fontSize}
+                  fontFamily={questionStyle.fontFamily}
+                  fontStyle={`${questionStyle.fontBold ? 'bold' : ''} ${questionStyle.fontItalic ? 'italic' : ''}`.trim() || 'normal'}
+                  fill={element.questionId ? questionStyle.fontColor : '#9ca3af'}
+                  opacity={questionStyle.fontOpacity}
+                  align={questionStyle.align}
+                  verticalAlign="top"
+                  wrap="word"
+                  lineHeight={getLineHeight('question')}
+                  listening={false}
+                  transformsEnabled="position"
+                />
+                {/* Answer hover area */}
+                <Rect
+                  x={0}
+                  y={questionHeight + 5}
+                  width={element.width}
+                  height={answerHeight}
+                  fill="transparent"
+                  listening={true}
+                  onMouseEnter={() => setAnswerHovered(true)}
+                  onMouseLeave={() => setAnswerHovered(false)}
+                  onClick={() => {
+                    if (state.activeTool === 'select' && state.selectedElementIds.includes(element.id)) {
+                      dispatch({ type: 'SET_QNA_ACTIVE_SECTION', payload: 'answer' });
+                    }
+                  }}
+                />
+                
                 {/* Answer area */}
                 <Text
                   ref={textRef}
-                  x={padding}
-                  y={questionHeight + 5}
-                  width={textWidth}
-                  height={answerHeight}
+                  x={answerPadding}
+                  y={questionHeight + 5 + answerPadding}
+                  width={element.width - (answerPadding * 2)}
+                  height={answerHeight - (answerPadding * 2)}
                   text={answerText || 'Double-click to answer...'}
-                  fontSize={element.font?.fontSize || fontSize}
-                  fontFamily={element.font?.fontFamily || element.fontFamily || fontFamily}
-                  fontStyle={`${(element.font?.fontBold || element.fontWeight === 'bold') ? 'bold' : ''} ${(element.font?.fontItalic || element.fontStyle === 'italic') ? 'italic' : ''}`.trim() || 'normal'}
-                  fill={answerText ? (element.font?.fontColor || element.fontColor || element.fill || '#1f2937') : '#9ca3af'}
-                  opacity={answerText ? (element.font?.fontOpacity || element.fillOpacity || 1) : 0.6}
-                  align={element.format?.align || align}
+                  fontSize={answerStyle.fontSize}
+                  fontFamily={answerStyle.fontFamily}
+                  fontStyle={`${answerStyle.fontBold ? 'bold' : ''} ${answerStyle.fontItalic ? 'italic' : ''}`.trim() || 'normal'}
+                  fill={answerText ? answerStyle.fontColor : '#9ca3af'}
+                  opacity={answerText ? answerStyle.fontOpacity : 0.6}
+                  align={answerStyle.align}
                   verticalAlign="top"
                   wrap="word"
-                  lineHeight={lineHeight}
+                  lineHeight={getLineHeight('answer')}
                   listening={false}
+                  transformsEnabled="position"
                 />
+                
+                {/* Question hover rectangle */}
+                {questionHovered && (
+                  <SelectionHoverRectangle
+                    x={0}
+                    y={0}
+                    width={element.width}
+                    height={questionHeight}
+                  />
+                )}
+                
+                {/* Answer hover rectangle */}
+                {answerHovered && (
+                  <SelectionHoverRectangle
+                    x={0}
+                    y={questionHeight + 5}
+                    width={element.width}
+                    height={answerHeight}
+                  />
+                )}
               </>
             );
           }
           
           return (element.formattedText || element.text) && ((element.formattedText || element.text).includes('<') && ((element.formattedText || element.text).includes('<strong>') || (element.formattedText || element.text).includes('<em>') || (element.formattedText || element.text).includes('<u>') || (element.formattedText || element.text).includes('color:') || (element.formattedText || element.text).includes('font-family:') || (element.formattedText || element.text).includes('ql-font-') || (element.formattedText || element.text).includes('data-ruled=') || (element.formattedText || element.text).includes('<h'))) ? (
             <>
-              {formatRichText(element.formattedText || element.text, fontSize, fontFamily, textWidth, element.ruledLines || (element.formattedText || element.text).includes('data-ruled="true"')).map((textPart, index) => (
+              {formatRichText(element.formattedText || element.text, fontSize, fontFamily, textWidth, element.ruledLines || (element.formattedText || element.text).includes('data-ruled="true"'), getParagraphSpacing(element)).map((textPart, index) => (
                 <Text
                   key={index}
                   text={textPart.text}
@@ -1518,18 +1877,104 @@ export default function Textbox(props: CanvasItemProps) {
         })()}
         
         {/* Flashy hover border - renders on top */}
-        {shouldShowFlashyHover && isHovered && (
+        {shouldShowFlashyHover && isHovered && element.textType === 'answer' && (
           <Rect
           position={{ x: -10, y: -10 }}
             width={element.width + 20}
             height={element.height + 20}
             fill="transparent"
             stroke="hsl(45, 92%, 42%)"
-            strokeWidth={30}
-            // cornerRadius={element.cornerRadius || 0}
+            strokeWidth={10}
             listening={false}
           />
         )}
+        
+        {/* Flashy hover border for QnA answer area only */}
+        {shouldShowFlashyHover && isHovered && element.textType === 'qna' && (() => {
+          const questionHeight = getQuestionHeight();
+          return (
+            <Rect
+              x={0}
+              y={questionHeight + 5}
+              width={element.width}
+              height={element.height - questionHeight - 5}
+              fill="transparent"
+              stroke="hsl(45, 92%, 42%)"
+              strokeWidth={10}
+              listening={false}
+            />
+          );
+        })()}
+        
+        {/* Hover message for answer textboxes */}
+        {shouldShowFlashyHover && isHovered && element.textType === 'answer' && (
+          <Group>
+            <Rect
+                x={element.width / 2 - (80 / (props.zoom || 1))}
+                y={-50 / (props.zoom || 1)}
+                width={520 / (props.zoom || 1)}
+                height={90 / (props.zoom || 1)}
+                fill="hsl(45, 92%, 42%)"
+                cornerRadius={50 / (props.zoom || 1)}
+                listening={false}
+            />
+            <Text
+              x={element.width / 2 - (80 / (props.zoom || 1))}
+              y={-50 / (props.zoom || 1)}
+              width={520 / (props.zoom || 1)}
+              height={90 / (props.zoom || 1)}
+              text="Answer question here!"
+              fontSize={12 / (props.zoom || 1)}
+              fontFamily="Arial, sans-serif"
+              fill="hsl(210, 40%, 98%)"
+              align="center"
+              verticalAlign="middle"
+              listening={false}
+            />
+          </Group>
+        )}
+        
+        {/* Hover message for QnA answer area */}
+        {shouldShowFlashyHover && isHovered && element.textType === 'qna' && (() => {
+          const questionHeight = getQuestionHeight();
+          const answerAreaY = questionHeight + 5;
+          const messageY = answerAreaY - (50 / (props.zoom || 1));
+          return (
+            <Group>
+              <Rect
+                x={element.width / 2}
+                y={messageY}
+                width={120 / (props.zoom || 1)}
+                height={20 / (props.zoom || 1)}
+                fill="hsl(45, 92%, 42%)"
+                cornerRadius={50 / (props.zoom || 1)}
+                listening={false}
+              />
+              <Text
+                x={element.width / 2}
+                y={messageY + (12 / (props.zoom || 1))}
+                width={120 / (props.zoom || 1)}
+                height={20 / (props.zoom || 1)}
+                text="Answer question here!"
+                fontSize={12 / (props.zoom || 1)}
+                fontFamily="Arial, sans-serif"
+                fill="hsl(210, 40%, 98%)"
+                align="center"
+                verticalAlign="middle"
+                listening={false}
+              />
+            </Group>
+          );
+        })()}
+        
+        {/* Skeleton overlay during transform */}
+        {isTransforming && (element.textType === 'qna' || element.textType === 'question' || element.textType === 'answer') && (
+          <KonvaSkeleton width={element.width} height={element.height} />
+        )}
+
+        {/*
+              const questionFontSize = qStyle.fontSize || qnaQuestionDefaults?.fontSize || fontSize * 0.9;
+        */}
         
         {/* Overflow indicator */}
         {hasOverflow && (

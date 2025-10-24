@@ -385,7 +385,7 @@ export function GeneralSettings({
               className="w-full"
             >
               <Palette className="h-4 w-4 mr-2" />
-              Background Color
+              Background Color & Opacity
             </Button>
           </div>
         </div>

@@ -1,3 +1,5 @@
+import { Tooltip } from '../composites/tooltip';
+
 interface SliderProps {
   label: string;
   value: number;
@@ -20,20 +22,23 @@ export function Slider({
   className = ''
 }: SliderProps) {
   return (
-    <div className={className}>
-      <div className="flex justify-between items-center mb-1">
-        <label className="text-xs font-medium">{label}</label>
+    <div className={`${className} flex flex-row gap-2`}>
+      {/* <div className="flex flex-row gap-2"> */}
+        <div className="flex-1">
+          {/* <Tooltip content={label} side='left'> */}
+            <input
+              type="range"
+              value={value}
+              onChange={(e) => onChange(parseInt(e.target.value))}
+              min={min}
+              max={max}
+              step={step}
+              className="w-full"
+            />
+          {/* </Tooltip> */}
+        </div>
         <span className="text-xs text-muted-foreground">{value}</span>
-      </div>
-      <input
-        type="range"
-        value={value}
-        onChange={(e) => onChange(parseInt(e.target.value))}
-        min={min}
-        max={max}
-        step={step}
-        className="w-full"
-      />
+      {/* </div> */}
     </div>
   );
 }

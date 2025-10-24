@@ -12,6 +12,10 @@ export function getPadding(element: CanvasElement): number {
   return element.format?.padding || element.padding || 4;
 }
 
+export function getLineHeight(element: CanvasElement): number {
+  return element.format?.lineHeight || element.lineHeight || 1.2;
+}
+
 export function getFormatConfig(element: CanvasElement) {
   return {
     align: getTextAlign(element),

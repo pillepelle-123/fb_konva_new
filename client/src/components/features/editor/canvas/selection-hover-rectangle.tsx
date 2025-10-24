@@ -5,13 +5,15 @@ interface SelectionHoverRectangleProps {
   y?: number;
   width: number;
   height: number;
+  lighter?: boolean;
 }
 
 export function SelectionHoverRectangle({ 
   x = 0, 
   y = 0, 
   width, 
-  height, 
+  height,
+  lighter = false
 }: SelectionHoverRectangleProps) {
   return (
     <Rect
@@ -20,7 +22,7 @@ export function SelectionHoverRectangle({
       width={width}
       height={height}
       fill="transparent"
-      stroke="#d0d7e0ff"
+      stroke={lighter ? "#e5e7eb" : "#d0d7e0ff"}
       strokeWidth={2}
       dash={[6, 6]}
       cornerRadius={8}

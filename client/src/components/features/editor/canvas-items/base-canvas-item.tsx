@@ -194,6 +194,7 @@ export default function BaseCanvasItem({
           y={defaultHitArea.y}
           width={defaultHitArea.width}
           height={defaultHitArea.height}
+          lighter={element.textType === 'qna'}
         />
       )}
       
@@ -207,6 +208,7 @@ export default function BaseCanvasItem({
           y={defaultHitArea.y}
           width={defaultHitArea.width}
           height={defaultHitArea.height}
+          lighter={element.textType === 'qna'}
         />
       )}
       

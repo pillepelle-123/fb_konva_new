@@ -121,6 +121,27 @@
           "ruledLinesTheme": "default"
         }
       },
+      "qna": {
+        "cornerRadius": 30,
+        "questionSettings": {
+          "fontSize": 12,
+          "fontFamily": "Century Gothic, sans-serif",
+          "fontBold": true,
+          "fontItalic": false,
+          "fontColor": "#374151",
+          "align": "left",
+          "ruledLines": false
+        },
+        "answerSettings": {
+          "fontSize": 12,
+          "fontFamily": "Century Gothic, sans-serif",
+          "fontBold": false,
+          "fontItalic": false,
+          "fontColor": "#1f2937",
+          "align": "left",
+          "ruledLines": true
+        }
+      },
       "shape": {
         "strokeWidth": 2,
         "cornerRadius": 0,
