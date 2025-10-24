@@ -207,6 +207,20 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
           />
         </div>
         
+        {/* Row 6: QnA2 Inline */}
+        <div className={`${isExpanded ? 'grid grid-cols-1 gap-1' : 'space-y-1'} mb-2`}>
+          <ToolButton
+            id="qna2"
+            label="Q&A Inline"
+            icon={MessageCircle}
+            isActive={activeTool === 'qna2'}
+            isExpanded={false}
+            userRole={userRole}
+            isOnAssignedPage={isOnAssignedPage}
+            onClick={() => onToolSelect('qna2')}
+          />
+        </div>
+        
         <Separator/>
         <Tooltip content='Magnetic snapping of elements' side='right'>
           <Button

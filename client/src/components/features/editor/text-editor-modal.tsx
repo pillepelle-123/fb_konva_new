@@ -112,6 +112,23 @@ export default function TextEditorModal({ element, onSave, onClose, onSelectQues
         buttonContainer.appendChild(selectQuestionBtn);
       }
       
+      // Add [question] placeholder button for qna2 elements
+      if (element.textStyle === 'qna2') {
+        const insertPlaceholderBtn = document.createElement('button');
+        insertPlaceholderBtn.textContent = 'Insert [question]';
+        insertPlaceholderBtn.style.cssText = 'padding:8px 16px;border:1px solid #10b981;border-radius:4px;cursor:pointer;background:white;color:#10b981';
+        insertPlaceholderBtn.onmouseover = () => insertPlaceholderBtn.style.background = '#f0fdf4';
+        insertPlaceholderBtn.onmouseout = () => insertPlaceholderBtn.style.background = 'white';
+        insertPlaceholderBtn.onclick = () => {
+          const selection = quill.getSelection();
+          if (selection) {
+            quill.insertText(selection.index, '[question]');
+            quill.setSelection(selection.index + 10);
+          }
+        };
+        buttonContainer.appendChild(insertPlaceholderBtn);
+      }
+      
       buttonContainer.appendChild(cancelBtn);
       buttonContainer.appendChild(saveBtn);
       
@@ -135,7 +152,23 @@ export default function TextEditorModal({ element, onSave, onClose, onSelectQues
           }
         });
         
-        const textToLoad = element.formattedText || element.text;
+        let textToLoad = element.formattedText || element.text || '';
+        
+        // For qna2 elements, show [question] placeholder in editor
+        if (element.textStyle === 'qna2' && element.questionId) {
+          const questionText = getQuestionText(element.questionId);
+          if (questionText && !textToLoad.includes('[question]')) {
+            // If text doesn't contain [question] placeholder, add it
+            if (textToLoad.startsWith(questionText)) {
+              // Replace the actual question text with placeholder
+              textToLoad = textToLoad.replace(questionText, '[question]');
+            } else {
+              // Prepend [question] placeholder
+              textToLoad = '[question]\n\n' + textToLoad;
+            }
+          }
+        }
+        
         if (textToLoad) {
           if (textToLoad.includes('data-ruled="true"')) {
             const tempDiv = document.createElement('div');

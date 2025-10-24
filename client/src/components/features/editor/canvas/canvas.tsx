@@ -361,7 +361,7 @@ export default function Canvas() {
           setPreviewShape({ x, y, width: 0, height: 0, type: state.activeTool });
         }
       }
-    } else if (state.activeTool === 'text' || state.activeTool === 'question' || state.activeTool === 'answer' || state.activeTool === 'qna') {
+    } else if (state.activeTool === 'text' || state.activeTool === 'question' || state.activeTool === 'answer' || state.activeTool === 'qna' || state.activeTool === 'qna2') {
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
         const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
@@ -797,6 +797,29 @@ export default function Canvas() {
             textType: 'qna',
             paragraphSpacing: qnaDefaults.paragraphSpacing,
             cornerRadius: qnaDefaults.cornerRadius
+          };
+        } else if (previewTextbox.type === 'qna2') {
+          const currentPage = state.currentBook?.pages[state.activePageIndex];
+          const pageTheme = currentPage?.background?.pageTheme;
+          const bookTheme = state.currentBook?.bookTheme;
+          const qna2Defaults = getToolDefaults('qna2', pageTheme, bookTheme);
+          newElement = {
+            id: uuidv4(),
+            type: 'text',
+            x: previewTextbox.x,
+            y: previewTextbox.y,
+            width: previewTextbox.width,
+            height: previewTextbox.height,
+            text: '',
+            fontSize: qna2Defaults.fontSize,
+            align: qna2Defaults.align,
+            fontFamily: qna2Defaults.fontFamily,
+            textType: 'qna2',
+            textStyle: 'qna2',
+            paragraphSpacing: qna2Defaults.paragraphSpacing,
+            cornerRadius: qna2Defaults.cornerRadius,
+            questionSettings: qna2Defaults.questionSettings,
+            answerSettings: qna2Defaults.answerSettings
           };
 
         } else {
@@ -1574,12 +1597,14 @@ export default function Canvas() {
     
     const handleQuestionSelected = (event: CustomEvent) => {
       const { questionId, questionText } = event.detail;
+      // console.log('handleQuestionSelected called:', { questionId, questionText, selectedQuestionElementId });
             
       // Use the selectedQuestionElementId which is set when opening the dialog
       if (selectedQuestionElementId) {
         const element = currentPage?.elements.find(el => el.id === selectedQuestionElementId);
+        // console.log('Found element:', element);
                 
-        if (element && (element.textType === 'qna' || element.textType === 'question')) {
+        if (element && (element.textType === 'qna' || element.textType === 'question' || element.textStyle === 'qna2')) {
           const fontColor = element.fontColor || element.fill || TOOL_DEFAULTS.qna.fontColor;          
           dispatch({
             type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
@@ -1591,6 +1616,7 @@ export default function Canvas() {
               }
             }
           });
+          // console.log('Updated element with questionId:', questionId);
         }
       }
     };
@@ -1601,7 +1627,9 @@ export default function Canvas() {
         return;
       }
       const element = currentPage?.elements.find(el => el.id === event.detail.elementId);
-      if (element && (element.textType === 'question' || element.textType === 'qna')) {
+      // console.log('handleOpenQuestionModal - element found:', element);
+      if (element && (element.textType === 'question' || element.textType === 'qna' || element.textStyle === 'qna2')) {
+        // console.log('Setting selectedQuestionElementId:', element.id);
         setSelectedQuestionElementId(element.id);
         setShowQuestionDialog(true);
       }
@@ -1810,7 +1838,7 @@ export default function Canvas() {
             {/* Canvas elements */}
             <Group x={pageOffsetX} y={pageOffsetY}>
               {currentPage?.elements.map(element => (
-                <Group key={element.id}>
+                <Group key={`${element.id}-${element.questionId || 'no-question'}`}>
                   <CanvasItemComponent
                     element={element}
                     isSelected={state.selectedElementIds.includes(element.id)}
@@ -2344,7 +2372,8 @@ export default function Canvas() {
                 if (selectedQuestionElementId) {
                   const element = currentPage?.elements.find(el => el.id === selectedQuestionElementId);
                   
-                  if (element?.textType === 'qna') {
+                  if (element?.textType === 'qna' || element?.textStyle === 'qna2') {
+                    // console.log('Updating QnA/QnA2 element with questionId:', questionId);
                     // For QnA elements, update the element with questionId and load existing answer
                     const updates = questionId === '' 
                       ? { questionId: undefined }

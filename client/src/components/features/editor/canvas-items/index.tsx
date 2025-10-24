@@ -2,6 +2,7 @@ import type { CanvasElement } from '../../../../context/editor-context';
 import type { CanvasItemProps } from './base-canvas-item';
 import ThemedShape from './themed-shape';
 import Textbox from './textbox';
+import TextboxQnA2 from './textbox-qna2';
 import Image from './image';
 
 interface CanvasItemComponentProps extends CanvasItemProps {
@@ -20,6 +21,10 @@ export default function CanvasItemComponent(props: CanvasItemComponentProps) {
   }
 
   if (element.type === 'text') {
+    // Check for QnA2 textStyle
+    if (element.textStyle === 'qna2') {
+      return <TextboxQnA2 {...props} />;
+    }
     return <Textbox {...props} />;
   }
 

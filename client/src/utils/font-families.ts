@@ -157,7 +157,7 @@ export const FONT_GROUPS = [
   }
 ];
 
-export function getFontFamily(fontName: string, isBold: boolean, isItalic: boolean): string {
+export function getFontFamilyByName(fontName: string, isBold: boolean, isItalic: boolean): string {
   for (const group of FONT_GROUPS) {
     const font = group.fonts.find(f => f.name === fontName);
     if (font) {
@@ -168,6 +168,9 @@ export function getFontFamily(fontName: string, isBold: boolean, isItalic: boole
   }
   return "Arial, sans-serif";
 }
+
+// Alias for backward compatibility
+export const getFontFamily = getFontFamilyByName;
 
 export function hasBoldVariant(fontName: string): boolean {
   for (const group of FONT_GROUPS) {

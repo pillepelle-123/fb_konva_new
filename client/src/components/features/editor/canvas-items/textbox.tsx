@@ -16,6 +16,7 @@ import { getParagraphSpacing, getPadding } from '../../../../utils/format-utils'
 import { getRuledLinesTheme, getBorderTheme } from '../../../../utils/theme-utils';
 import { KonvaSkeleton } from '../../../ui/primitives/skeleton';
 import { SelectionHoverRectangle } from '../canvas/selection-hover-rectangle';
+import { useSharedTextRenderer } from './shared-text-renderer';
 
 
 // Rich text formatting function for Quill HTML output
@@ -186,6 +187,9 @@ export default function Textbox(props: CanvasItemProps) {
   const { user } = useAuth();
   const textRef = useRef<Konva.Text>(null);
   const questionTextRef = useRef<Konva.Text>(null);
+  
+  // Debug log to see if component is rendering
+  // console.log('Textbox component rendering for element:', { id: element.id, textStyle: element.textStyle, questionId: element.questionId });
 
   const [hasOverflow, setHasOverflow] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -507,6 +511,12 @@ export default function Textbox(props: CanvasItemProps) {
       }
       return 'Double-click to add question and answer...';
     }
+    if (element.textStyle === 'qna2') {
+      if (!element.questionId) {
+        return 'Double-click to add question and answer...';
+      }
+      return 'Double-click for options...';
+    }
     if (element.textType === 'answer') {
       // Check if answer has questionId or linked question has questionId
       let questionId = element.questionId;
@@ -528,8 +538,21 @@ export default function Textbox(props: CanvasItemProps) {
     return 'Double-click to add text...';
   };
 
+  // Use shared text renderer for qna and answer types
+  const sharedTextRenderer = useSharedTextRenderer({
+    element,
+    getQuestionText,
+    getAnswerText,
+    state
+  });
+
   // Process text to handle HTML content from Quill
   const getDisplayText = () => {
+    // Use shared renderer for qna and answer types
+    if (element.textType === 'qna' || element.textType === 'answer') {
+      return sharedTextRenderer.displayText;
+    }
+
     let textToUse = element.formattedText || element.text;
     
     // For question elements, get text from loaded questions data
@@ -539,47 +562,28 @@ export default function Textbox(props: CanvasItemProps) {
         textToUse = questionText;
       }
     } 
-    // For QnA elements, show only answer text (ignore element.text)
-    else if (element.textType === 'qna') {
-      textToUse = ''; // Always start empty for QnA
+    // For QnA2 elements (inline style), get answer from temp answers and replace [question] placeholders
+    else if (element.textStyle === 'qna2') {
       if (element.questionId) {
-        // Get the assigned user for this page only
+        const questionText = getQuestionText(element.questionId);
         const assignedUser = state.pageAssignments[state.activePageIndex + 1];
+        const answerText = assignedUser ? getAnswerText(element.questionId, assignedUser.id) : '';
         
-        if (assignedUser) {
-          textToUse = getAnswerText(element.questionId, assignedUser.id) || '';
-        }
-      }
-    }
-    // For answer elements, get text from loaded answers data (ignore element.text)
-    else if (element.textType === 'answer') {
-      textToUse = ''; // Always start empty for answers
-      // Use direct questionId from answer element or find via linked question element
-      let questionId = element.questionId;
-      
-      if (!questionId && element.questionElementId) {
-        // Find the linked question element to get questionId
-        const currentPage = state.currentBook?.pages[state.activePageIndex];
-        if (currentPage) {
-          const questionElement = currentPage.elements.find(el => el.id === element.questionElementId);
-          questionId = questionElement?.questionId;
-        }
-      }
-      
-      if (questionId) {
-        // Get the assigned user for this page only
-        const assignedUser = state.pageAssignments[state.activePageIndex + 1];
+        // Use answer text from temp answers, fallback to element text
+        textToUse = answerText || element.formattedText || element.text || '';
         
-        if (assignedUser) {
-          const answerText = getAnswerText(questionId, assignedUser.id);
-          if (answerText) {
-            textToUse = answerText;
-          }
+        if (questionText && textToUse.includes('[question]')) {
+          textToUse = textToUse.replace(/\[question\]/g, questionText);
+        } else if (questionText && !textToUse) {
+          // If no answer text but we have a question, show just the question
+          textToUse = questionText;
         }
+      } else {
+        textToUse = element.formattedText || element.text || '';
       }
     }
     
-    if (!textToUse) return getPlaceholderText();
+    if (!textToUse || textToUse.trim() === '') return getPlaceholderText();
     
     // Handle line breaks from database (\n characters)
     if (textToUse.includes('\n')) {
@@ -610,29 +614,74 @@ export default function Textbox(props: CanvasItemProps) {
     return textToUse;
   };
 
-  const displayText = useMemo(() => getDisplayText(), [element, state.pageAssignments, state.tempAnswers, getQuestionText, getAnswerText, state.activePageIndex]);
+  const displayText = useMemo(() => {
+    if (element.textStyle === 'qna2') {
+      console.log('QnA2 Element Debug - useMemo:', { id: element.id, questionId: element.questionId, textStyle: element.textStyle });
+    }
+    const result = getDisplayText();
+    if (element.textStyle === 'qna2') {
+      console.log('QnA2 useMemo result:', result);
+    }
+    return result;
+  }, [element, element.questionId, state.pageAssignments, state.tempAnswers, getQuestionText, getAnswerText, state.activePageIndex, state.tempQuestions, state.loadedQuestions]);
   
   // Force re-render when temp answers change for this question
   useEffect(() => {
-    if ((element.textType === 'qna' || element.textType === 'answer') && element.questionId) {
+    if ((element.textType === 'qna' || element.textType === 'answer' || element.textStyle === 'qna2') && element.questionId) {
+      console.log('Force re-render useEffect triggered for element:', element.id, 'questionId:', element.questionId);
       // Force re-render whenever temp answers change for this question
       if (textRef.current) {
-        textRef.current.text(getDisplayText());
+        textRef.current.text(displayText);
         textRef.current.getLayer()?.batchDraw();
       }
     }
-  }, [state.tempAnswers, element.questionId, element.textType, state.pageAssignments]);
+  }, [state.tempAnswers, element.questionId, element.textType, element.textStyle, state.pageAssignments, displayText]);
+  
+  // Additional useEffect specifically for qna2 questionId changes
+  useEffect(() => {
+    if (element.textStyle === 'qna2') {
+      console.log('QnA2 questionId change detected:', element.questionId);
+      if (textRef.current) {
+        const newText = getDisplayText();
+        console.log('Setting new text:', newText);
+        textRef.current.text(newText);
+        textRef.current.getLayer()?.batchDraw();
+      }
+    }
+  }, [element.questionId, element.textStyle, state.tempQuestions, state.loadedQuestions]);
+  
+  // Debug useEffect to track element changes
+  useEffect(() => {
+    if (element.textStyle === 'qna2') {
+      console.log('QnA2 element changed:', { id: element.id, questionId: element.questionId, text: element.text, formattedText: element.formattedText });
+      // Force re-render of text
+      if (textRef.current) {
+        const newText = getDisplayText();
+        console.log('Forcing text update to:', newText);
+        textRef.current.text(newText);
+        textRef.current.getLayer()?.batchDraw();
+      }
+    }
+  }, [element]);
   
   // Update displayed text when page assignments change or active page changes
   useEffect(() => {
-    if ((element.textType === 'qna' || element.textType === 'answer') && element.questionId) {
+    if ((element.textType === 'qna' || element.textType === 'answer' || element.textStyle === 'qna2') && element.questionId) {
       // Force re-render when page assignment changes or page is duplicated to show correct user's answer
       if (textRef.current) {
-        textRef.current.text(getDisplayText());
+        textRef.current.text(displayText);
         textRef.current.getLayer()?.batchDraw();
       }
     }
-  }, [state.pageAssignments[state.activePageIndex + 1]?.id, state.activePageIndex]);
+  }, [state.pageAssignments[state.activePageIndex + 1]?.id, state.activePageIndex, displayText]);
+
+  // Force re-render when questionId changes for qna2 elements
+  useEffect(() => {
+    if (element.textStyle === 'qna2' && textRef.current) {
+      textRef.current.text(displayText);
+      textRef.current.getLayer()?.batchDraw();
+    }
+  }, [element.questionId, displayText]);
 
   // Check for text overflow and update text wrapping
   useEffect(() => {
@@ -758,7 +807,13 @@ export default function Textbox(props: CanvasItemProps) {
     if (state.activeTool !== 'select') return;
     
     // For answer_only users, only allow double-click on answer textboxes and QnA textboxes (which contain answer areas)
-    if (state.editorInteractionLevel === 'answer_only' && element.textType !== 'answer' && element.textType !== 'qna') {
+    if (state.editorInteractionLevel === 'answer_only' && element.textType !== 'answer' && element.textType !== 'qna' && element.textStyle !== 'qna2') {
+      return;
+    }
+    
+    // Handle QnA2 textboxes with context menu
+    if (element.textStyle === 'qna2') {
+      showQnA2ContextMenu(e);
       return;
     }
     
@@ -942,6 +997,127 @@ export default function Textbox(props: CanvasItemProps) {
         detail: { elementId: element.id }
       }));
     }
+  };
+
+  const showQnA2ContextMenu = (e?: any) => {
+    if (!e?.target) return;
+    
+    const stage = e.target.getStage();
+    if (!stage) return;
+    
+    const pointerPos = stage.getPointerPosition();
+    if (!pointerPos) return;
+    
+    // Create context menu
+    const menu = document.createElement('div');
+    menu.style.cssText = `
+      position: fixed;
+      top: ${pointerPos.y}px;
+      left: ${pointerPos.x}px;
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      z-index: 10000;
+      min-width: 160px;
+      padding: 4px 0;
+    `;
+    
+    // Remove menu function
+    let menuRemoved = false;
+    const removeMenu = (event?: MouseEvent) => {
+      if (menuRemoved) return;
+      if (event && menu.contains(event.target as Node)) return;
+      try {
+        if (document.body.contains(menu)) {
+          document.body.removeChild(menu);
+        }
+      } catch (e) {
+        // Menu already removed
+      }
+      menuRemoved = true;
+      document.removeEventListener('click', removeMenu);
+    };
+    
+    const createMenuItem = (text: string, onClick: () => void) => {
+      const item = document.createElement('div');
+      item.textContent = text;
+      item.style.cssText = `
+        padding: 8px 16px;
+        cursor: pointer;
+        font-size: 14px;
+        color: #374151;
+        border: none;
+        background: none;
+        width: 100%;
+        text-align: left;
+      `;
+      item.addEventListener('mouseenter', () => {
+        item.style.backgroundColor = '#f3f4f6';
+      });
+      item.addEventListener('mouseleave', () => {
+        item.style.backgroundColor = 'transparent';
+      });
+      item.addEventListener('click', () => {
+        onClick();
+        removeMenu();
+      });
+      return item;
+    };
+    
+    // Add menu items
+    if (!element.questionId) {
+      menu.appendChild(createMenuItem('Add Question', () => {
+        if (state.userRole === 'author') return;
+        window.dispatchEvent(new CustomEvent('openQuestionModal', {
+          detail: { elementId: element.id }
+        }));
+      }));
+    } else {
+      menu.appendChild(createMenuItem('Change Question', () => {
+        if (state.userRole === 'author') return;
+        window.dispatchEvent(new CustomEvent('openQuestionModal', {
+          detail: { elementId: element.id }
+        }));
+      }));
+      menu.appendChild(createMenuItem('Reset Question', () => {
+        dispatch({
+          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+          payload: {
+            id: element.id,
+            updates: { questionId: undefined }
+          }
+        });
+      }));
+    }
+    
+    menu.appendChild(createMenuItem('Edit Text', () => {
+      // Check if user can edit
+      const assignedUser = state.pageAssignments[state.activePageIndex + 1];
+      if (state.editorInteractionLevel === 'answer_only' && (!assignedUser || assignedUser.id !== user?.id)) {
+        window.dispatchEvent(new CustomEvent('showAlert', {
+          detail: { 
+            message: 'Only the person assigned to this page can edit text.',
+            x: element.x,
+            y: element.y,
+            width: element.width,
+            height: element.height
+          }
+        }));
+        return;
+      }
+      
+      window.dispatchEvent(new CustomEvent('editText', {
+        detail: { elementId: element.id }
+      }));
+    }));
+    
+    document.body.appendChild(menu);
+    
+    // Add click listener to remove menu
+    setTimeout(() => {
+      document.addEventListener('click', removeMenu);
+    }, 100);
   };
 
   const enableQnaEditing = () => {
@@ -1586,7 +1762,10 @@ export default function Textbox(props: CanvasItemProps) {
             const questionText = element.questionId ? getQuestionText(element.questionId) : 'Double-click to select question...';
             // Get the assigned user for this page or null if no assignment
             const assignedUser = state.pageAssignments[state.activePageIndex + 1];
-            const answerText = element.questionId && assignedUser ? getAnswerText(element.questionId, assignedUser.id) : (element.questionId ? 'No answer yet...' : 'Select a question first...');
+            // Use shared renderer for answer text to get proper placeholder omission
+            const answerText = element.questionId && assignedUser ? 
+              (assignedUser ? getAnswerText(element.questionId, assignedUser.id) || 'Double-click to answer...' : 'Double-click to answer...') : 
+              (element.questionId ? 'No answer yet...' : 'Select a question first...');
             
             // Get question and answer styling
             const getQuestionStyle = () => {
@@ -1905,24 +2084,52 @@ export default function Textbox(props: CanvasItemProps) {
             />
           );
         })()}
-        
+
         {/* Hover message for answer textboxes */}
-        {shouldShowFlashyHover && isHovered && element.textType === 'answer' && (
+        {shouldShowFlashyHover && isHovered && element.textType === 'qna2' && (
           <Group>
             <Rect
-                x={element.width / 2 - (80 / (props.zoom || 1))}
-                y={-50 / (props.zoom || 1)}
-                width={520 / (props.zoom || 1)}
-                height={90 / (props.zoom || 1)}
+                x={element.width / 2 + 25 }
+                y={-15 / (props.zoom || 1)}
+                width={130 / (props.zoom || 1)}
+                height={30 / (props.zoom || 1)}
                 fill="hsl(45, 92%, 42%)"
                 cornerRadius={50 / (props.zoom || 1)}
                 listening={false}
             />
             <Text
-              x={element.width / 2 - (80 / (props.zoom || 1))}
-              y={-50 / (props.zoom || 1)}
-              width={520 / (props.zoom || 1)}
-              height={90 / (props.zoom || 1)}
+              x={element.width / 2 + 25}
+                y={-15 / (props.zoom || 1)}
+                width={130 / (props.zoom || 1)}
+                height={30 / (props.zoom || 1)}
+              text="Answer question here!"
+              fontSize={12 / (props.zoom || 1)}
+              fontFamily="Arial, sans-serif"
+              fill="hsl(210, 40%, 98%)"
+              align="center"
+              verticalAlign="middle"
+              listening={false}
+            />
+          </Group>
+        )}
+
+        {/* Hover message for answer textboxes */}
+        {shouldShowFlashyHover && isHovered && element.textType === 'answer' && (
+          <Group>
+            <Rect
+                x={element.width / 2 + 25 }
+                y={-15 / (props.zoom || 1)}
+                width={130 / (props.zoom || 1)}
+                height={30 / (props.zoom || 1)}
+                fill="hsl(45, 92%, 42%)"
+                cornerRadius={50 / (props.zoom || 1)}
+                listening={false}
+            />
+            <Text
+              x={element.width / 2 + 25}
+                y={-15 / (props.zoom || 1)}
+                width={130 / (props.zoom || 1)}
+                height={30 / (props.zoom || 1)}
               text="Answer question here!"
               fontSize={12 / (props.zoom || 1)}
               fontFamily="Arial, sans-serif"
@@ -1942,19 +2149,19 @@ export default function Textbox(props: CanvasItemProps) {
           return (
             <Group>
               <Rect
-                x={element.width / 2}
-                y={messageY}
-                width={120 / (props.zoom || 1)}
-                height={20 / (props.zoom || 1)}
+                x={element.width / 2 + 25}
+                y={100 + (props.zoom || 1)}
+                width={130 / (props.zoom || 1)}
+                height={30 / (props.zoom || 1)}
                 fill="hsl(45, 92%, 42%)"
                 cornerRadius={50 / (props.zoom || 1)}
                 listening={false}
               />
               <Text
-                x={element.width / 2}
-                y={messageY + (12 / (props.zoom || 1))}
-                width={120 / (props.zoom || 1)}
-                height={20 / (props.zoom || 1)}
+                x={element.width / 2 + 25}
+                y={100 + (props.zoom || 1)}
+                width={130 / (props.zoom || 1)}
+                height={30 / (props.zoom || 1)}
                 text="Answer question here!"
                 fontSize={12 / (props.zoom || 1)}
                 fontFamily="Arial, sans-serif"

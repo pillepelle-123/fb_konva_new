@@ -239,6 +239,7 @@ export interface CanvasElement {
   fontStyle?: 'normal' | 'italic';
   fontColor?: string;
   textType?: 'question' | 'answer' | 'text' | 'qna';
+  textStyle?: 'qna2'; // For inline QnA style
   questionId?: string; // UUID - for both question and answer elements
   answerId?: string; // UUID - for answer elements
   questionElementId?: string; // Legacy - for linking answer to question element
