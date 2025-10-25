@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useMemo } from 'react';
-import { Text, Rect, Group } from 'react-konva';
+import { Text, Rect, Group, Path } from 'react-konva';
 import Konva from 'konva';
 import { v4 as uuidv4 } from 'uuid';
 import { useEditor } from '../../../../context/editor-context';
@@ -9,6 +9,10 @@ import BaseCanvasItem from './base-canvas-item';
 import type { CanvasItemProps } from './base-canvas-item';
 import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 import { getParagraphSpacing, getPadding } from '../../../../utils/format-utils';
+import { getRuledLinesOpacity } from '../../../../utils/ruled-lines-utils';
+import { getRuledLinesTheme } from '../../../../utils/theme-utils';
+import { getThemeRenderer } from '../../../../utils/themes';
+import rough from 'roughjs';
 
 
 // Rich text formatting function for Quill HTML output
@@ -213,7 +217,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
       }
       if (!size) {
         const { getToolDefaults } = require('../../../utils/tool-defaults');
-        const toolDefaults = getToolDefaults('text', pageTheme, bookTheme);
+        const toolDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme);
         size = toolDefaults.fontSize;
       }
     }
@@ -228,8 +232,16 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
   };
 
   const getUserText = () => {
+    // Get answer from assigned user if question exists
+    if (element.questionId) {
+      const assignedUser = state.pageAssignments[state.activePageIndex + 1];
+      if (assignedUser) {
+        return state.tempAnswers[element.questionId]?.[assignedUser.id]?.text || '';
+      }
+    }
+    
+    // Fallback to element text
     let text = element.formattedText || element.text || '';
-    // Convert HTML to text while preserving line breaks
     if (text.includes('<')) {
       text = text.replace(/<p>/gi, '').replace(/<\/p>/gi, '\n').replace(/<br\s*\/?>/gi, '\n');
       const tempDiv = document.createElement('div');
@@ -250,7 +262,137 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
     return questionText + userText;
   };
 
-  const displayText = useMemo(() => getDisplayText(), [element.text, element.formattedText, element.questionId, state.tempQuestions]);
+  const displayText = useMemo(() => getDisplayText(), [element.text, element.formattedText, element.questionId, state.tempQuestions, state.tempAnswers, state.pageAssignments]);
+  
+  // Update element text when question changes to show assigned user's answer
+  useEffect(() => {
+    if (element.questionId) {
+      const assignedUser = state.pageAssignments[state.activePageIndex + 1];
+      if (assignedUser) {
+        const answerText = state.tempAnswers[element.questionId]?.[assignedUser.id]?.text || '';
+        dispatch({
+          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+          payload: {
+            id: element.id,
+            updates: {
+              text: answerText,
+              formattedText: answerText
+            }
+          }
+        });
+      }
+    }
+  }, [element.questionId, state.tempAnswers, state.pageAssignments]);
+
+  // Generate ruled lines
+  const generateRuledLines = () => {
+    const lines = [];
+    const questionStyle = element.questionSettings || {};
+    const answerStyle = element.answerSettings || {};
+    const padding = questionStyle.padding || answerStyle.padding || element.format?.padding || element.padding || 4;
+    
+    // Check if ruled lines are enabled for question or answer
+    const questionRuledLines = questionStyle.ruledLines ?? false;
+    const answerRuledLines = answerStyle.ruledLines ?? false;
+    
+    if (!questionRuledLines && !answerRuledLines) return [];
+    
+    const questionFontSize = questionStyle.fontSize || fontSize;
+    const answerFontSize = answerStyle.fontSize || fontSize;
+    
+    // Generate lines for question section
+    if (questionRuledLines) {
+      const qTheme = questionStyle.ruledLinesTheme || 'rough';
+      const qColor = questionStyle.ruledLinesColor || '#1f2937';
+      const qWidth = questionStyle.ruledLinesWidth || 0.8;
+      const qOpacity = questionStyle.ruledLinesOpacity ?? 1;
+      const qSpacing = questionStyle.paragraphSpacing || 'medium';
+      
+      const lineSpacing = questionFontSize * (qSpacing === 'small' ? 1.0 : qSpacing === 'large' ? 1.8 : 1.4);
+      for (let y = padding + lineSpacing - 2; y < element.height / 2; y += lineSpacing) {
+        lines.push(...generateLineElement(y, qTheme, padding, qColor, qWidth, qOpacity));
+      }
+    }
+    
+    // Generate lines for answer section
+    if (answerRuledLines) {
+      const aTheme = answerStyle.ruledLinesTheme || 'rough';
+      const aColor = answerStyle.ruledLinesColor || '#1f2937';
+      const aWidth = answerStyle.ruledLinesWidth || 0.8;
+      const aOpacity = answerStyle.ruledLinesOpacity ?? 1;
+      const aSpacing = answerStyle.paragraphSpacing || 'medium';
+      
+      const lineSpacing = answerFontSize * (aSpacing === 'small' ? 1.0 : aSpacing === 'large' ? 1.8 : 1.4);
+      const startY = questionRuledLines ? element.height / 2 : padding + lineSpacing - 2;
+      for (let y = startY; y < element.height - padding; y += lineSpacing) {
+        lines.push(...generateLineElement(y, aTheme, padding, aColor, aWidth, aOpacity));
+      }
+    }
+    
+    return lines;
+  };
+  
+  const generateLineElement = (y: number, theme: string, padding: number, ruledLineColor: string, ruledLineWidth: number, ruledLineOpacity: number) => {
+    const lineElements = [];
+    if (theme === 'rough') {
+      const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      const rc = rough.svg(svg);
+      
+      try {
+        const roughLine = rc.line(padding, y, element.width - padding, y, {
+          roughness: 2,
+          strokeWidth: ruledLineWidth,
+          stroke: ruledLineColor,
+          seed: seed + y
+        });
+        
+        const paths = roughLine.querySelectorAll('path');
+        let combinedPath = '';
+        paths.forEach(path => {
+          const d = path.getAttribute('d');
+          if (d) combinedPath += d + ' ';
+        });
+        
+        if (combinedPath) {
+          lineElements.push(
+            <Path
+              key={y}
+              data={combinedPath.trim()}
+              stroke={ruledLineColor}
+              strokeWidth={ruledLineWidth}
+              opacity={ruledLineOpacity}
+              listening={false}
+            />
+          );
+        }
+      } catch (error) {
+        lineElements.push(
+          <Path
+            key={y}
+            data={`M ${padding} ${y} L ${element.width - padding} ${y}`}
+            stroke={ruledLineColor}
+            strokeWidth={ruledLineWidth}
+            opacity={ruledLineOpacity}
+            listening={false}
+          />
+        );
+      }
+    } else {
+      lineElements.push(
+        <Path
+          key={y}
+          data={`M ${padding} ${y} L ${element.width - padding} ${y}`}
+          stroke={ruledLineColor}
+          strokeWidth={ruledLineWidth}
+          opacity={ruledLineOpacity}
+          listening={false}
+        />
+      );
+    }
+    
+    return lineElements;
+  };
 
   const handleDoubleClick = () => {
     if (state.activeTool !== 'select') return;
@@ -290,10 +432,14 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
       header.innerHTML = '<h2 style="margin:0;font-size:1.25rem;font-weight:600">Text Editor</h2>';
       
       const toolbar = document.createElement('div');
-      toolbar.style.cssText = 'display:flex;gap:8px;margin-bottom:12px;padding:8px;background:#f8fafc;border-radius:4px';
+      toolbar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:8px;background:#f8fafc;border-radius:4px';
+      
+      const questionText = document.createElement('div');
+      const hasExistingQuestion = element.questionId;
+      questionText.textContent = hasExistingQuestion ? getQuestionText() : 'No question selected';
+      questionText.style.cssText = 'font-size:0.875rem;color:#374151;font-weight:500;flex:1';
       
       const insertQuestionBtn = document.createElement('button');
-      const hasExistingQuestion = element.questionId;
       insertQuestionBtn.textContent = hasExistingQuestion ? 'Change Question' : 'Insert Question';
       insertQuestionBtn.style.cssText = 'padding:6px 12px;border:1px solid #e2e8f0;border-radius:4px;cursor:pointer;background:white;font-size:0.875rem';
       insertQuestionBtn.onmouseover = () => insertQuestionBtn.style.background = '#f1f5f9';
@@ -302,10 +448,11 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
         window.dispatchEvent(new CustomEvent('openQuestionDialog'));
       };
       
+      toolbar.appendChild(questionText);
       toolbar.appendChild(insertQuestionBtn);
       
       const editorContainer = document.createElement('div');
-      editorContainer.style.cssText = 'min-height:200px;margin-bottom:12px;border:1px solid #e2e8f0;border-radius:4px';
+      editorContainer.style.cssText = 'min-height:90px;margin-bottom:0px;border:1px solid #e2e8f0;border-radius:4px';
       
       const buttonContainer = document.createElement('div');
       buttonContainer.style.cssText = 'display:flex;justify-content:flex-end;gap:8px;margin-top:12px';
@@ -346,16 +493,38 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
           theme: 'snow'
         });
         
-        // Hide toolbar and style container
+        // Hide toolbar and style container with fixed height
         const style = document.createElement('style');
-        style.textContent = '.ql-toolbar { display: none !important; } .ql-container { border: 2px solid #3b82f6 !important; border-radius: 4px; }';
+        style.textContent = `
+          .ql-toolbar { display: none !important; }
+          .ql-container { 
+            border: 2px solid #3b82f6 !important; 
+            border-radius: 4px;
+            height: 144px !important;
+          }
+          .ql-container.ql-disabled {
+            border: 1px solid #e5e7eb !important;
+          }
+          .ql-editor {
+            height: 144px !important;
+            overflow-y: auto !important;
+            line-height: 24px !important;
+          }
+        `;
         document.head.appendChild(style);
         
-        // Load existing user content only (no question placeholder)
-        let contentToLoad = element.formattedText || element.text || '';
+        // Load existing answer content
+        const assignedUser = state.pageAssignments[state.activePageIndex + 1];
+        let contentToLoad = '';
+        
+        if (element.questionId && assignedUser) {
+          contentToLoad = state.tempAnswers[element.questionId]?.[assignedUser.id]?.text || element.formattedText || element.text || '';
+        } else {
+          contentToLoad = element.formattedText || element.text || '';
+        }
         
         if (contentToLoad) {
-          if (element.formattedText && contentToLoad.includes('<')) {
+          if (contentToLoad.includes('<')) {
             quill.root.innerHTML = contentToLoad;
           } else {
             quill.setText(contentToLoad);
@@ -368,7 +537,23 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
         
         saveBtn.onclick = () => {
           const htmlContent = quill.root.innerHTML;
-          const plainText = quill.getText();
+          const plainText = quill.getText().trim();
+          
+          // Save to answer system if questionId exists
+          if (element.questionId) {
+            const assignedUser = state.pageAssignments[state.activePageIndex + 1];
+            if (assignedUser) {
+              dispatch({
+                type: 'UPDATE_TEMP_ANSWER',
+                payload: {
+                  questionId: element.questionId,
+                  text: plainText,
+                  userId: assignedUser.id,
+                  answerId: element.answerId || uuidv4()
+                }
+              });
+            }
+          }
           
           dispatch({
             type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
@@ -386,10 +571,11 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
         
         // Listen for question selection events
         const handleQuestionSelected = (event: CustomEvent) => {
-          const { questionId, questionText } = event.detail;
+          const { questionId, questionText: selectedQuestionText } = event.detail;
           
-          // Update button text
+          // Update button text and question display
           insertQuestionBtn.textContent = 'Change Question';
+          questionText.textContent = selectedQuestionText || 'No question selected';
           
           // Update element with questionId and load question text
           dispatch({
@@ -405,9 +591,57 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
             type: 'UPDATE_TEMP_QUESTION',
             payload: {
               questionId,
-              text: questionText
+              text: selectedQuestionText
             }
           });
+          
+          // Load assigned user's answer for the new question
+          if (assignedUser) {
+            const existingAnswer = state.tempAnswers[questionId]?.[assignedUser.id]?.text || '';
+            quill.setText(existingAnswer);
+            
+            // Update element text to show the answer
+            dispatch({
+              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+              payload: {
+                id: element.id,
+                updates: {
+                  text: existingAnswer,
+                  formattedText: existingAnswer
+                }
+              }
+            });
+          } else {
+            quill.setText('');
+            
+            // Clear element text if no assigned user
+            dispatch({
+              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+              payload: {
+                id: element.id,
+                updates: {
+                  text: '',
+                  formattedText: ''
+                }
+              }
+            });
+          }
+          
+          // Check if user can edit after question change
+          const canEdit = !assignedUser || assignedUser.id === user?.id;
+          
+          if (!canEdit) {
+            quill.disable();
+            quill.root.setAttribute('data-placeholder', `${assignedUser?.name || 'User'} can answer here`);
+            quill.root.style.backgroundColor = '#f9fafb';
+            quill.root.style.color = '#9ca3af';
+          } else {
+            quill.enable();
+            quill.root.removeAttribute('data-placeholder');
+            quill.root.style.backgroundColor = '';
+            quill.root.style.color = '';
+            quill.focus();
+          }
         };
         
         window.addEventListener('questionSelected', handleQuestionSelected);
@@ -416,7 +650,29 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
         
 
         
-        quill.focus();
+        // Handle paste to insert unformatted text
+        quill.clipboard.addMatcher(Node.ELEMENT_NODE, (node, delta) => {
+          const plaintext = node.innerText || node.textContent || '';
+          const Delta = window.Quill.import('delta');
+          return new Delta().insert(plaintext);
+        });
+        
+        // Check if user can edit
+        const canEdit = !assignedUser || assignedUser.id === user?.id;
+        
+        if (!canEdit) {
+          quill.disable();
+          quill.root.setAttribute('data-placeholder', `${assignedUser?.name || 'User'} can answer here`);
+          quill.root.style.backgroundColor = '#f9fafb';
+          quill.root.style.color = '#9ca3af';
+        } else if (!hasExistingQuestion) {
+          quill.disable();
+          quill.root.setAttribute('data-placeholder', 'Add a question');
+          quill.root.style.backgroundColor = '#f9fafb';
+          quill.root.style.color = '#9ca3af';
+        } else {
+          quill.focus();
+        }
         
         // Block keyboard events from reaching canvas
         modal.addEventListener('keydown', (e: KeyboardEvent) => {
@@ -439,12 +695,101 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
         onMouseLeave={() => setIsHovered(false)}
       >
         <Group>
+          {/* Background and Border */}
+          {(() => {
+            const questionStyle = element.questionSettings || {};
+            const answerStyle = element.answerSettings || {};
+            const showBackground = questionStyle.backgroundEnabled || answerStyle.backgroundEnabled;
+            const showBorder = questionStyle.borderEnabled || answerStyle.borderEnabled;
+            const cornerRadius = questionStyle.cornerRadius || answerStyle.cornerRadius || 0;
+            
+            if (showBackground || showBorder) {
+              const theme = questionStyle.borderTheme || answerStyle.borderTheme || 'default';
+              
+              if (theme === 'rough' && showBorder) {
+                // Use rough.js for border
+                const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+                const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                const rc = rough.svg(svg);
+                
+                try {
+                  const borderColor = questionStyle.borderColor || answerStyle.borderColor || '#000000';
+                  const borderWidth = questionStyle.borderWidth || answerStyle.borderWidth || 1;
+                  const borderOpacity = questionStyle.borderOpacity || answerStyle.borderOpacity || 1;
+                  const backgroundColor = showBackground ? (questionStyle.backgroundColor || answerStyle.backgroundColor || 'transparent') : 'transparent';
+                  const backgroundOpacity = showBackground ? (questionStyle.backgroundOpacity ?? answerStyle.backgroundOpacity ?? 1) : 0;
+                  
+                  const roughRect = rc.rectangle(0, 0, element.width, element.height, {
+                    roughness: 2,
+                    strokeWidth: borderWidth,
+                    stroke: borderColor,
+                    fill: backgroundColor !== 'transparent' ? backgroundColor : undefined,
+                    fillStyle: 'solid',
+                    seed: seed
+                  });
+                  
+                  const paths = roughRect.querySelectorAll('path');
+                  let combinedPath = '';
+                  paths.forEach(path => {
+                    const d = path.getAttribute('d');
+                    if (d) combinedPath += d + ' ';
+                  });
+                  
+                  if (combinedPath) {
+                    return (
+                      <Path
+                        data={combinedPath.trim()}
+                        stroke={borderColor}
+                        strokeWidth={borderWidth}
+                        strokeOpacity={borderOpacity}
+                        fill={backgroundColor !== 'transparent' ? backgroundColor : undefined}
+                        opacity={backgroundColor !== 'transparent' ? backgroundOpacity : 0}
+                        listening={false}
+                      />
+                    );
+                  }
+                } catch (error) {
+                  // Fallback to regular rect
+                }
+              }
+              
+              const backgroundColor = showBackground ? (questionStyle.backgroundColor || answerStyle.backgroundColor || 'transparent') : 'transparent';
+              const backgroundOpacity = showBackground ? (questionStyle.backgroundOpacity ?? answerStyle.backgroundOpacity ?? 1) : 0;
+              
+              return (
+                <Rect
+                  width={element.width}
+                  height={element.height}
+                  fill={backgroundColor !== 'transparent' ? backgroundColor : 'transparent'}
+                  opacity={backgroundColor !== 'transparent' ? backgroundOpacity : 0}
+                  stroke={showBorder ? (questionStyle.borderColor || answerStyle.borderColor || '#000000') : 'transparent'}
+                  strokeWidth={showBorder ? (questionStyle.borderWidth || answerStyle.borderWidth || 1) : 0}
+                  strokeOpacity={showBorder ? (questionStyle.borderOpacity || answerStyle.borderOpacity || 1) : 0}
+                  cornerRadius={cornerRadius}
+                  listening={false}
+                />
+              );
+            }
+            return null;
+          })()}
+          
+          {/* Ruled lines */}
+          <Group>
+            {generateRuledLines()}
+          </Group>
+          
           {/* Text content */}
           {(() => {
-            const padding = element.format?.padding || element.padding || 4;
+            const questionStyle = element.questionSettings || {};
+            const answerStyle = element.answerSettings || {};
+            const padding = questionStyle.padding || answerStyle.padding || element.format?.padding || element.padding || 4;
             const textWidth = element.width - (padding * 2);
             const questionText = getQuestionText();
             const userText = getUserText();
+            
+            // Get alignment settings
+            const questionAlign = questionStyle.align || 'left';
+            const answerAlign = answerStyle.align || 'left';
             
             if (!questionText && !userText) {
               return (
@@ -466,9 +811,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                 />
               );
             }
-            
-            const questionStyle = element.questionSettings || {};
-            const answerStyle = element.answerSettings || {};
+
             
             let currentY = padding;
             const elements = [];
@@ -485,6 +828,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               const qFontColor = questionStyle.fontColor || '#666666';
               const qFontBold = questionStyle.fontBold || false;
               const qFontItalic = questionStyle.fontItalic || false;
+              const qFontOpacity = questionStyle.fontOpacity ?? 1;
               
               // Calculate question text width and handle wrapping
               const canvas = document.createElement('canvas');
@@ -512,19 +856,28 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               }
               if (currentLine) questionLines.push(currentLine);
               
-              // Render question lines
+              // Render question lines with alignment
               questionLines.forEach((line, index) => {
+                let xPos = padding;
+                if (questionAlign === 'center') {
+                  xPos = element.width / 2;
+                } else if (questionAlign === 'right') {
+                  xPos = element.width - padding;
+                }
+                
                 elements.push(
                   <Text
                     key={`question-${index}`}
-                    x={padding}
+                    x={questionAlign === 'left' ? xPos : padding}
                     y={baselineY - qFontSize * 0.8 + (index * qFontSize * 1.2)}
                     text={line}
                     fontSize={qFontSize}
                     fontFamily={qFontFamily}
                     fontStyle={`${qFontBold ? 'bold' : ''} ${qFontItalic ? 'italic' : ''}`.trim() || 'normal'}
                     fill={qFontColor}
-                    opacity={questionStyle.fontOpacity || 1}
+                    opacity={qFontOpacity}
+                    align={questionAlign}
+                    width={textWidth}
                     listening={false}
                   />
                 );
@@ -541,6 +894,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                 const aFontColor = answerStyle.fontColor || '#1f2937';
                 const aFontBold = answerStyle.fontBold || false;
                 const aFontItalic = answerStyle.fontItalic || false;
+                const aFontOpacity = answerStyle.fontOpacity ?? 1;
                 
                 context.font = `${aFontBold ? 'bold ' : ''}${aFontItalic ? 'italic ' : ''}${aFontSize}px ${aFontFamily}`;
                 
@@ -586,19 +940,34 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                       }
                     }
                     
-                    // Render the line
+                    // Render the line with alignment
                     if (lineText) {
+                      let finalX = currentX;
+                      let textAlign = 'left';
+                      
+                      if (!isFirstLine && answerAlign !== 'left') {
+                        if (answerAlign === 'center') {
+                          finalX = element.width / 2;
+                          textAlign = 'center';
+                        } else if (answerAlign === 'right') {
+                          finalX = element.width - padding;
+                          textAlign = 'right';
+                        }
+                      }
+                      
                       elements.push(
                         <Text
                           key={`user-line-${currentLineY}-${currentX}`}
-                          x={currentX}
+                          x={isFirstLine ? finalX : padding}
                           y={currentLineY + (qFontSize - aFontSize) * 0.8}
                           text={lineText}
                           fontSize={aFontSize}
                           fontFamily={aFontFamily}
                           fontStyle={`${aFontBold ? 'bold' : ''} ${aFontItalic ? 'italic' : ''}`.trim() || 'normal'}
                           fill={aFontColor}
-                          opacity={answerStyle.fontOpacity || 1}
+                          opacity={aFontOpacity}
+                          align={isFirstLine ? 'left' : textAlign}
+                          width={isFirstLine ? undefined : textWidth}
                           listening={false}
                         />
                       );
@@ -616,6 +985,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               const aFontColor = answerStyle.fontColor || '#1f2937';
               const aFontBold = answerStyle.fontBold || false;
               const aFontItalic = answerStyle.fontItalic || false;
+              const aFontOpacity = answerStyle.fontOpacity ?? 1;
               
               const canvas = document.createElement('canvas');
               const context = canvas.getContext('2d')!;
@@ -644,6 +1014,13 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                     currentLineWidth += wordWidth;
                   } else {
                     if (currentLine) {
+                      let xPos = padding;
+                      if (answerAlign === 'center') {
+                        xPos = element.width / 2;
+                      } else if (answerAlign === 'right') {
+                        xPos = element.width - padding;
+                      }
+                      
                       elements.push(
                         <Text
                           key={`user-line-${currentLineIndex}`}
@@ -654,7 +1031,9 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                           fontFamily={aFontFamily}
                           fontStyle={`${aFontBold ? 'bold' : ''} ${aFontItalic ? 'italic' : ''}`.trim() || 'normal'}
                           fill={aFontColor}
-                          opacity={answerStyle.fontOpacity || 1}
+                          opacity={aFontOpacity}
+                          align={answerAlign}
+                          width={textWidth}
                           listening={false}
                         />
                       );
@@ -666,6 +1045,13 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                 });
                 
                 if (currentLine) {
+                  let xPos = padding;
+                  if (answerAlign === 'center') {
+                    xPos = element.width / 2;
+                  } else if (answerAlign === 'right') {
+                    xPos = element.width - padding;
+                  }
+                  
                   elements.push(
                     <Text
                       key={`user-line-${currentLineIndex}`}
@@ -676,7 +1062,9 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                       fontFamily={aFontFamily}
                       fontStyle={`${aFontBold ? 'bold' : ''} ${aFontItalic ? 'italic' : ''}`.trim() || 'normal'}
                       fill={aFontColor}
-                      opacity={answerStyle.fontOpacity || 1}
+                      opacity={aFontOpacity}
+                      align={answerAlign}
+                      width={textWidth}
                       listening={false}
                     />
                   );

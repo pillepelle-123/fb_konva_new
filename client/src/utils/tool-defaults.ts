@@ -160,6 +160,35 @@ export const TOOL_DEFAULTS = {
       fontSize: 50, // Normal size for answers
       fontColor: '#1f2937' // Dark color for answers
     }
+  },
+  qna_inline: {
+    fontSize: 50, // Base font size for answer text
+    fontFamily: 'Arial, sans-serif',
+    fontWeight: 'normal',
+    fontStyle: 'normal',
+    fontColor: '#000000',
+    align: 'left',
+    paragraphSpacing: 'medium',
+    ruledLines: false,
+    ruledLinesTheme: 'rough',
+    ruledLinesColor: '#1f2937',
+    ruledLinesWidth: 1, // Common scale value
+    cornerRadius: 0,
+    borderWidth: 0, // Common scale value
+    borderColor: '#000000',
+    backgroundColor: 'transparent',
+    padding: 4,
+    // QnA inline specific defaults - fontSize defines actual text size
+    questionSettings: {
+      fontSize: 45, // Font size for question text in canvas
+      fontColor: '#666666', // Gray color for questions
+      ruledLines: false
+    },
+    answerSettings: {
+      fontSize: 50, // Font size for answer text in canvas
+      fontColor: '#1f2937', // Dark color for answers
+      ruledLines: false
+    }
   }
 } as const;
 

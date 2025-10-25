@@ -1706,7 +1706,7 @@ export default function Textbox(props: CanvasItemProps) {
       header.innerHTML = '<h2 style="margin:0;font-size:1.25rem;font-weight:600">Answer Editor</h2>';
       
       const editorContainer = document.createElement('div');
-      editorContainer.style.cssText = 'min-height:200px;margin-bottom:12px;border:1px solid #e2e8f0;border-radius:4px';
+      editorContainer.style.cssText = 'height:144px;margin-bottom:12px;border:none;border-radius:4px';
       
       const buttonContainer = document.createElement('div');
       buttonContainer.style.cssText = 'display:flex;justify-content:flex-end;gap:8px;margin-top:12px';
@@ -1745,18 +1745,25 @@ export default function Textbox(props: CanvasItemProps) {
       // Initialize Quill
       setTimeout(() => {
         const quill = new window.Quill(editorContainer, {
-          theme: 'snow',
-          formats: ['bold', 'italic', 'underline', 'color', 'font', 'header', 'size'],
-          modules: {
-            toolbar: [
-              [{ 'header': [1, 2, 3, false] }],
-              [{ 'size': ['small', false, 'large', 'huge'] }],
-              ['bold', 'italic', 'underline'],
-              [{ 'color': ['#000000', '#e60000', '#ff9900', '#ffff00', '#008a00', '#0066cc', '#9933ff'] }],
-              [{ 'font': ['helvetica', 'georgia', 'arial', 'courier', 'kalam', 'shadows', 'playwrite', 'msmadi', 'giveyouglory', 'meowscript'] }]
-            ]
-          }
+          theme: 'snow'
         });
+        
+        // Hide toolbar and style container with fixed height
+        const style = document.createElement('style');
+        style.textContent = `
+          .ql-toolbar { display: none !important; }
+          .ql-container { 
+            border: 2px solid #3b82f6 !important; 
+            border-radius: 4px;
+            height: 144px !important;
+          }
+          .ql-editor {
+            height: 144px !important;
+            overflow-y: auto !important;
+            line-height: 24px !important;
+          }
+        `;
+        document.head.appendChild(style);
         
         // Load existing content
         let questionId = element.questionId;

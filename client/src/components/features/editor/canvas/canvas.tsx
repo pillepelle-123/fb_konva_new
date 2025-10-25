@@ -17,7 +17,7 @@ import { Modal } from '../../../ui/overlays/modal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../ui/overlays/dialog';
 import ImagesContent from '../../images/images-content';
 import QuestionsManagerDialog from '../questions-manager-dialog';
-import TextEditorModal from '../text-editor-modal';
+
 import { getToolDefaults, TOOL_DEFAULTS } from '../../../../utils/tool-defaults';
 import { Alert, AlertDescription } from '../../../ui/composites/alert';
 import { snapPosition, type SnapGuideline } from '../../../../utils/snapping';
@@ -2346,36 +2346,7 @@ export default function Canvas() {
         />
       </Modal>
       
-      {editingElement && (
-        <TextEditorModal
-          key={editingElement.id}
-          element={editingElement}
-          onSave={(content, formattedContent) => {
-            dispatch({
-              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-              payload: {
-                id: editingElement.id,
-                updates: { 
-                  text: content,
-                  formattedText: formattedContent 
-                }
-              }
-            });
-            setEditingElement(null);
-          }}
-          onClose={() => {
-            // Clear any pending timeouts
-            if (editingTimeoutRef.current) {
-              clearTimeout(editingTimeoutRef.current);
-            }
-            setEditingElement(null);
-          }}
-          onSelectQuestion={editingElement.textType === 'question' ? () => {} : undefined}
-          bookId={state.currentBook?.id}
-          bookName={state.currentBook?.name}
-          token={token}
-        />
-      )}
+
       
       {showQuestionDialog && state.currentBook && token && user?.role !== 'author' && (
         <Dialog open={showQuestionDialog} onOpenChange={setShowQuestionDialog}>

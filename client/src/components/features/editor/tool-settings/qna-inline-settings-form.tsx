@@ -1,11 +1,16 @@
 import { Button } from '../../../ui/primitives/button';
-import { Palette, Type, AlignLeft, AlignCenter, AlignRight, AlignJustify, ALargeSmall } from 'lucide-react';
+import { Palette, Type, AlignLeft, AlignCenter, AlignRight, AlignJustify, ALargeSmall, Rows4, Rows3, Rows2, SquareRoundCorner, PanelTopBottomDashed } from 'lucide-react';
 import { ButtonGroup } from '../../../ui/composites/button-group';
 import { Slider } from '../../../ui/primitives/slider';
+import { Separator } from '../../../ui/primitives/separator';
 import { Label } from '../../../ui/primitives/label';
+import { IndentedSection } from '../../../ui/primitives/indented-section';
+import { Checkbox } from '../../../ui/primitives/checkbox';
 import { actualToCommon, commonToActual, COMMON_FONT_SIZE_RANGE } from '../../../../utils/font-size-converter';
+import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE } from '../../../../utils/corner-radius-converter';
 import { getFontFamily } from '../../../../utils/font-utils';
 import { FONT_GROUPS } from '../../../../utils/font-families';
+import { ThemeSelect } from '../../../../utils/theme-options';
 import { Tooltip } from '../../../ui';
 
 const getCurrentFontName = (element: any, state: any) => {
@@ -104,45 +109,114 @@ export function QnAInlineSettingsForm({
         </Button>
       </div>
       
+      <Separator/>
+      
       <div className='flex flex-row gap-3'>
         <div className="flex-1 py-2">
-          <Label variant="xs">Text Align</Label>
+          <Label variant="xs">Paragraph Spacing</Label>
           <ButtonGroup className="mt-1 flex flex-row">
             <Button
-              variant={currentStyle.align === 'left' ? 'default' : 'outline'}
+              variant={(() => {
+                const settings = sectionType === 'shared' ? element.questionSettings : (sectionType === 'question' ? element.questionSettings : element.answerSettings);
+                const spacing = settings?.paragraphSpacing || 'medium';
+                return spacing === 'small' ? 'default' : 'outline';
+              })()}
               size="xs"
-              onClick={() => updateSetting('align', 'left')}
+              onClick={() => updateSetting('paragraphSpacing', 'small')}
               className="px-1 h-6 flex-1"
             >
-              <AlignLeft className="h-3 w-3" />
+              <Rows4 className="h-3 w-3" />
             </Button>
             <Button
-              variant={currentStyle.align === 'center' ? 'default' : 'outline'}
+              variant={(() => {
+                const settings = sectionType === 'shared' ? element.questionSettings : (sectionType === 'question' ? element.questionSettings : element.answerSettings);
+                const spacing = settings?.paragraphSpacing || 'medium';
+                return spacing === 'medium' ? 'default' : 'outline';
+              })()}
               size="xs"
-              onClick={() => updateSetting('align', 'center')}
+              onClick={() => updateSetting('paragraphSpacing', 'medium')}
               className="px-1 h-6 flex-1"
             >
-              <AlignCenter className="h-3 w-3" />
+              <Rows3 className="h-3 w-3" />
             </Button>
             <Button
-              variant={currentStyle.align === 'right' ? 'default' : 'outline'}
+              variant={(() => {
+                const settings = sectionType === 'shared' ? element.questionSettings : (sectionType === 'question' ? element.questionSettings : element.answerSettings);
+                const spacing = settings?.paragraphSpacing || 'medium';
+                return spacing === 'large' ? 'default' : 'outline';
+              })()}
               size="xs"
-              onClick={() => updateSetting('align', 'right')}
+              onClick={() => updateSetting('paragraphSpacing', 'large')}
               className="px-1 h-6 flex-1"
             >
-              <AlignRight className="h-3 w-3" />
-            </Button>
-            <Button
-              variant={currentStyle.align === 'justify' ? 'default' : 'outline'}
-              size="xs"
-              onClick={() => updateSetting('align', 'justify')}
-              className="px-1 h-6 flex-1"
-            >
-              <AlignJustify className="h-3 w-3" />
+              <Rows2 className="h-3 w-3" />
             </Button>
           </ButtonGroup>
         </div>
       </div>
+
+      <div className='py-2'>
+        <Label className="flex items-center gap-1" variant="xs">
+          <Checkbox
+            checked={currentStyle.ruledLines}
+            onCheckedChange={(checked) => updateSetting('ruledLines', checked)}
+          />
+          Ruled Lines
+        </Label>
+      </div>
+      
+      {currentStyle.ruledLines && (
+        <IndentedSection>
+          <Slider
+            label="Line Width"
+            value={(() => {
+              const settings = sectionType === 'shared' ? element.questionSettings : (sectionType === 'question' ? element.questionSettings : element.answerSettings);
+              return settings?.ruledLinesWidth ?? 0.8;
+            })()}
+            onChange={(value) => updateSetting('ruledLinesWidth', value)}
+            min={0.01}
+            max={30}
+            step={0.1}
+          />
+          
+          <div>
+            <Label variant="xs">Ruled Lines Theme</Label>
+            <ThemeSelect 
+              value={(() => {
+                const settings = sectionType === 'shared' ? element.questionSettings : (sectionType === 'question' ? element.questionSettings : element.answerSettings);
+                return settings?.ruledLinesTheme || 'rough';
+              })()}
+              onChange={(value) => updateSetting('ruledLinesTheme', value)}
+            />
+          </div>
+          
+          <div>
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => setShowColorSelector('element-ruled-lines-color')}
+              className="w-full"
+            >
+              <Palette className="w-4 mr-2" />
+              Line Color
+            </Button>
+          </div>
+          
+          <Slider
+            label="Line Opacity"
+            value={(() => {
+              const settings = sectionType === 'shared' ? element.questionSettings : (sectionType === 'question' ? element.questionSettings : element.answerSettings);
+              return (settings?.ruledLinesOpacity ?? 1) * 100;
+            })()}
+            onChange={(value) => updateSetting('ruledLinesOpacity', value / 100)}
+            min={0}
+            max={100}
+            step={5}
+          />
+        </IndentedSection>
+      )}
+
+
     </>
   );
 }

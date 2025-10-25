@@ -1,7 +1,7 @@
 import { useEditor } from '../../../../context/editor-context';
 import { useState } from 'react';
 import { Button } from '../../../ui/primitives/button';
-import { SquareMousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, AlignLeft, AlignCenter, AlignRight, AlignJustify, Rows4, Rows3, Rows2, Palette, Type, ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from 'lucide-react';
+import { SquareMousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, AlignLeft, AlignCenter, AlignRight, AlignJustify, Rows4, Rows3, Rows2, Palette, Type, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, SquareRoundCorner, PanelTopBottomDashed } from 'lucide-react';
 import { QuestionPositionTop, QuestionPositionBottom, QuestionPositionLeft, QuestionPositionRight } from '../../../ui/icons/question-position-icons';
 import { ButtonGroup } from '../../../ui/composites/button-group';
 import { Card, Tabs, TabsList, TabsTrigger } from '../../../ui/composites';
@@ -16,6 +16,7 @@ import { Separator } from '../../../ui/primitives/separator';
 import { Label } from '../../../ui/primitives/label';
 import { IndentedSection } from '../../../ui/primitives/indented-section';
 import { Checkbox } from '../../../ui/primitives/checkbox';
+import { Tooltip } from '../../../ui';
 // import { getThemeDefaults } from '../../../../utils/XX_DELETE_theme-defaults';
 import { useAuth } from '../../../../context/auth-context';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
@@ -777,7 +778,8 @@ export function ToolSettingsContent({
         fontBold: qStyle.fontBold ?? qnaDefaults?.fontBold ?? fallbackDefaults?.font?.fontBold ?? false,
         fontItalic: qStyle.fontItalic ?? qnaDefaults?.fontItalic ?? fallbackDefaults?.font?.fontItalic ?? false,
         fontColor: qStyle.fontColor || qnaDefaults?.fontColor || fallbackDefaults?.font?.fontColor || '#666666',
-        align: qStyle.align || qnaDefaults?.align || fallbackDefaults?.format?.textAlign || 'left'
+        align: qStyle.align || qnaDefaults?.align || fallbackDefaults?.format?.textAlign || 'left',
+        ruledLines: qStyle.ruledLines ?? qnaDefaults?.ruledLines ?? false
       };
     };
     
@@ -796,7 +798,8 @@ export function ToolSettingsContent({
         fontBold: aStyle.fontBold ?? qnaDefaults?.fontBold ?? fallbackDefaults?.font?.fontBold ?? false,
         fontItalic: aStyle.fontItalic ?? qnaDefaults?.fontItalic ?? fallbackDefaults?.font?.fontItalic ?? false,
         fontColor: aStyle.fontColor || qnaDefaults?.fontColor || fallbackDefaults?.font?.fontColor || '#1f2937',
-        align: aStyle.align || qnaDefaults?.align || fallbackDefaults?.format?.textAlign || 'left'
+        align: aStyle.align || qnaDefaults?.align || fallbackDefaults?.format?.textAlign || 'left',
+        ruledLines: aStyle.ruledLines ?? qnaDefaults?.ruledLines ?? false
       };
     };
     
@@ -827,6 +830,15 @@ export function ToolSettingsContent({
         switch (showColorSelector) {
           case 'element-text-color':
             return currentStyle.fontColor;
+          case 'element-border-color':
+            const borderSettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
+            return borderSettings?.borderColor || '#000000';
+          case 'element-background-color':
+            const bgSettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
+            return bgSettings?.backgroundColor || '#ffffff';
+          case 'element-ruled-lines-color':
+            const ruledSettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
+            return ruledSettings?.ruledLinesColor || '#1f2937';
           default:
             return '#1f2937';
         }
@@ -836,6 +848,15 @@ export function ToolSettingsContent({
         switch (showColorSelector) {
           case 'element-text-color':
             return currentStyle.fontOpacity ?? 1;
+          case 'element-border-color':
+            const borderOpacitySettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
+            return borderOpacitySettings?.borderOpacity ?? 1;
+          case 'element-background-color':
+            const bgOpacitySettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
+            return bgOpacitySettings?.backgroundOpacity ?? 1;
+          case 'element-ruled-lines-color':
+            const ruledOpacitySettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
+            return ruledOpacitySettings?.ruledLinesOpacity ?? 1;
           default:
             return 1;
         }
@@ -846,6 +867,15 @@ export function ToolSettingsContent({
           case 'element-text-color':
             updateSetting('fontOpacity', opacity);
             break;
+          case 'element-border-color':
+            updateSetting('borderOpacity', opacity);
+            break;
+          case 'element-background-color':
+            updateSetting('backgroundOpacity', opacity);
+            break;
+          case 'element-ruled-lines-color':
+            updateSetting('ruledLinesOpacity', opacity);
+            break;
         }
       };
       
@@ -853,6 +883,15 @@ export function ToolSettingsContent({
         switch (showColorSelector) {
           case 'element-text-color':
             updateSetting('fontColor', color);
+            break;
+          case 'element-border-color':
+            updateSetting('borderColor', color);
+            break;
+          case 'element-background-color':
+            updateSetting('backgroundColor', color);
+            break;
+          case 'element-ruled-lines-color':
+            updateSetting('ruledLinesColor', color);
             break;
         }
       };
@@ -870,6 +909,26 @@ export function ToolSettingsContent({
         />
       );
     }
+    
+    const updateSharedSetting = (key: string, value: any) => {
+      dispatch({ type: 'SAVE_TO_HISTORY', payload: `Update QnA Inline ${key}` });
+      dispatch({
+        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+        payload: {
+          id: element.id,
+          updates: {
+            questionSettings: {
+              ...element.questionSettings,
+              [key]: value
+            },
+            answerSettings: {
+              ...element.answerSettings,
+              [key]: value
+            }
+          }
+        }
+      });
+    };
     
     return (
       <div className="space-y-2">
@@ -893,36 +952,34 @@ export function ToolSettingsContent({
                 <TabsTrigger variant="bootstrap" value="answer" className=' h-5'>Answer</TabsTrigger>
               </TabsList>
             </Tabs>
-          </>
-        ) : null}
-        
-        {individualSettings ? (
-          <div className="overflow-hidden">
-            <div className={`flex flex--row transition-transform duration-300 ease-in-out ${activeSection === 'question' ? 'translate-x-0' : '-translate-x-1/2'}`} style={{ width: '200%' }}>
-              <div className="w-1/2 flex-1 flex-shrink-0">
-                <QnAInlineSettingsForm
-                  sectionType="question"
-                  element={element}
-                  state={state}
-                  currentStyle={questionStyle}
-                  updateSetting={updateQuestionSetting}
-                  setShowFontSelector={setShowFontSelector}
-                  setShowColorSelector={setShowColorSelector}
-                />
-              </div>
-              <div className="w-1/2 flex-1 flex-shrink-0">
-                <QnAInlineSettingsForm
-                  sectionType="answer"
-                  element={element}
-                  state={state}
-                  currentStyle={answerStyle}
-                  updateSetting={updateAnswerSetting}
-                  setShowFontSelector={setShowFontSelector}
-                  setShowColorSelector={setShowColorSelector}
-                />
+            
+            <div className="overflow-hidden">
+              <div className={`flex flex--row transition-transform duration-300 ease-in-out ${activeSection === 'question' ? 'translate-x-0' : '-translate-x-1/2'}`} style={{ width: '200%' }}>
+                <div className="w-1/2 flex-1 flex-shrink-0">
+                  <QnAInlineSettingsForm
+                    sectionType="question"
+                    element={element}
+                    state={state}
+                    currentStyle={questionStyle}
+                    updateSetting={updateQuestionSetting}
+                    setShowFontSelector={setShowFontSelector}
+                    setShowColorSelector={setShowColorSelector}
+                  />
+                </div>
+                <div className="w-1/2 flex-1 flex-shrink-0">
+                  <QnAInlineSettingsForm
+                    sectionType="answer"
+                    element={element}
+                    state={state}
+                    currentStyle={answerStyle}
+                    updateSetting={updateAnswerSetting}
+                    setShowFontSelector={setShowFontSelector}
+                    setShowColorSelector={setShowColorSelector}
+                  />
+                </div>
               </div>
             </div>
-          </div>
+          </>
         ) : (
           <QnAInlineSettingsForm
             sectionType="shared"
@@ -937,6 +994,219 @@ export function ToolSettingsContent({
             setShowColorSelector={setShowColorSelector}
           />
         )}
+        
+        <Separator/>
+        
+        {/* Shared Settings - Always visible */}
+        <div className='py-2'>
+          <Label className="flex items-center gap-1" variant="xs">
+            <Checkbox
+              checked={(() => {
+                const qSettings = element.questionSettings || {};
+                const aSettings = element.answerSettings || {};
+                return qSettings.borderEnabled || aSettings.borderEnabled || false;
+              })()}
+              onCheckedChange={(checked) => updateSharedSetting('borderEnabled', checked)}
+            />
+            Border
+          </Label>
+        </div>
+        
+        {(() => {
+          const qSettings = element.questionSettings || {};
+          const aSettings = element.answerSettings || {};
+          return qSettings.borderEnabled || aSettings.borderEnabled;
+        })() && (
+          <IndentedSection>
+            <Slider
+              label="Border Width"
+              value={(() => {
+                const qSettings = element.questionSettings || {};
+                const aSettings = element.answerSettings || {};
+                return qSettings.borderWidth || aSettings.borderWidth || 1;
+              })()}
+              onChange={(value) => updateSharedSetting('borderWidth', value)}
+              min={0.1}
+              max={10}
+              step={0.1}
+            />
+            
+            <div>
+              <Label variant="xs">Border Theme</Label>
+              <ThemeSelect 
+                value={(() => {
+                  const qSettings = element.questionSettings || {};
+                  const aSettings = element.answerSettings || {};
+                  return qSettings.borderTheme || aSettings.borderTheme || 'rough';
+                })()}
+                onChange={(value) => updateSharedSetting('borderTheme', value)}
+              />
+            </div>
+            
+            <div>
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={() => setShowColorSelector('element-border-color')}
+                className="w-full"
+              >
+                <Palette className="w-4 mr-2" />
+                Border Color
+              </Button>
+            </div>
+            
+            <Slider
+              label="Border Opacity"
+              value={(() => {
+                const qSettings = element.questionSettings || {};
+                const aSettings = element.answerSettings || {};
+                return (qSettings.borderOpacity || aSettings.borderOpacity || 1) * 100;
+              })()}
+              onChange={(value) => updateSharedSetting('borderOpacity', value / 100)}
+              min={0}
+              max={100}
+              step={5}
+            />
+          </IndentedSection>
+        )}
+        
+        <div>
+          <Label className="flex items-center gap-1" variant="xs">
+            <Checkbox
+              checked={(() => {
+                const qSettings = element.questionSettings || {};
+                const aSettings = element.answerSettings || {};
+                return qSettings.backgroundEnabled || aSettings.backgroundEnabled || false;
+              })()}
+              onCheckedChange={(checked) => updateSharedSetting('backgroundEnabled', checked)}
+            />
+            Background
+          </Label>
+        </div>
+        
+        {(() => {
+          const qSettings = element.questionSettings || {};
+          const aSettings = element.answerSettings || {};
+          return qSettings.backgroundEnabled || aSettings.backgroundEnabled;
+        })() && (
+          <IndentedSection>
+            <div>
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={() => setShowColorSelector('element-background-color')}
+                className="w-full"
+              >
+                <Palette className="w-4 mr-2" />
+                Background Color & Opacity
+              </Button>
+            </div>
+          </IndentedSection>
+        )}
+
+        <div className="flex flex-row gap-2 py-2 w-full">
+          <div className='flex-1'>
+            <div className='flex flex-row gap-2'>
+              <SquareRoundCorner className='w-5 h-5'/>
+              <Slider
+                label="Corner Radius"
+                value={actualToCommonRadius((() => {
+                  const qSettings = element.questionSettings || {};
+                  const aSettings = element.answerSettings || {};
+                  return qSettings.cornerRadius || aSettings.cornerRadius || 0;
+                })())}              
+                onChange={(value) => updateSharedSetting('cornerRadius', commonToActualRadius(value))}
+                min={COMMON_CORNER_RADIUS_RANGE.min}
+                max={COMMON_CORNER_RADIUS_RANGE.max}
+                step={1}
+                className='w-full'
+              />
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex flex-row gap-2 py-2 w-full">
+          <div className='flex-1'>
+            <div className='flex flex-row gap-2'>
+              <PanelTopBottomDashed className='w-5 h-5'/>
+              <Slider
+                label="Padding"
+                value={(() => {
+                  const qSettings = element.questionSettings || {};
+                  const aSettings = element.answerSettings || {};
+                  return qSettings.padding || aSettings.padding || 4;
+                })()}              
+                onChange={(value) => updateSharedSetting('padding', value)}
+                min={0}
+                max={50}
+                step={1}
+                className='w-full'
+              />
+            </div>
+          </div>
+        </div>
+        
+        <div className='flex flex-row gap-3'>
+          <div className="flex-1 py-2">
+            <Label variant="xs">Text Align</Label>
+            <ButtonGroup className="mt-1 flex flex-row">
+              <Button
+                variant={(() => {
+                  const qSettings = element.questionSettings || {};
+                  const aSettings = element.answerSettings || {};
+                  const align = qSettings.align || aSettings.align || 'left';
+                  return align === 'left' ? 'default' : 'outline';
+                })()}
+                size="xs"
+                onClick={() => updateSharedSetting('align', 'left')}
+                className="px-1 h-6 flex-1"
+              >
+                <AlignLeft className="h-3 w-3" />
+              </Button>
+              <Button
+                variant={(() => {
+                  const qSettings = element.questionSettings || {};
+                  const aSettings = element.answerSettings || {};
+                  const align = qSettings.align || aSettings.align || 'left';
+                  return align === 'center' ? 'default' : 'outline';
+                })()}
+                size="xs"
+                onClick={() => updateSharedSetting('align', 'center')}
+                className="px-1 h-6 flex-1"
+              >
+                <AlignCenter className="h-3 w-3" />
+              </Button>
+              <Button
+                variant={(() => {
+                  const qSettings = element.questionSettings || {};
+                  const aSettings = element.answerSettings || {};
+                  const align = qSettings.align || aSettings.align || 'left';
+                  return align === 'right' ? 'default' : 'outline';
+                })()}
+                size="xs"
+                onClick={() => updateSharedSetting('align', 'right')}
+                className="px-1 h-6 flex-1"
+              >
+                <AlignRight className="h-3 w-3" />
+              </Button>
+              <Button
+                variant={(() => {
+                  const qSettings = element.questionSettings || {};
+                  const aSettings = element.answerSettings || {};
+                  const align = qSettings.align || aSettings.align || 'left';
+                  return align === 'justify' ? 'default' : 'outline';
+                })()}
+                size="xs"
+                onClick={() => updateSharedSetting('align', 'justify')}
+                className="px-1 h-6 flex-1"
+              >
+                <AlignJustify className="h-3 w-3" />
+              </Button>
+            </ButtonGroup>
+          </div>
+        </div>
+        
+
       </div>
     );
   };
