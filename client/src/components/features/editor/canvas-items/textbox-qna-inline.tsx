@@ -229,8 +229,9 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
 
   const getUserText = () => {
     let text = element.formattedText || element.text || '';
-    // Strip HTML tags for display
+    // Convert HTML to text while preserving line breaks
     if (text.includes('<')) {
+      text = text.replace(/<p>/gi, '').replace(/<\/p>/gi, '\n').replace(/<br\s*\/?>/gi, '\n');
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = text;
       text = tempDiv.textContent || tempDiv.innerText || '';
@@ -342,18 +343,13 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
       
       setTimeout(() => {
         const quill = new window.Quill(editorContainer, {
-          theme: 'snow',
-          formats: ['bold', 'italic', 'underline', 'color', 'font', 'header', 'size'],
-          modules: {
-            toolbar: [
-              [{ 'header': [1, 2, 3, false] }],
-              [{ 'size': ['small', false, 'large', 'huge'] }],
-              ['bold', 'italic', 'underline'],
-              [{ 'color': ['#000000', '#e60000', '#ff9900', '#ffff00', '#008a00', '#0066cc', '#9933ff'] }],
-              [{ 'font': ['helvetica', 'georgia', 'arial', 'courier', 'kalam', 'shadows', 'playwrite', 'msmadi', 'giveyouglory', 'meowscript'] }]
-            ]
-          }
+          theme: 'snow'
         });
+        
+        // Hide toolbar and style container
+        const style = document.createElement('style');
+        style.textContent = '.ql-toolbar { display: none !important; } .ql-container { border: 2px solid #3b82f6 !important; border-radius: 4px; }';
+        document.head.appendChild(style);
         
         // Load existing user content only (no question placeholder)
         let contentToLoad = element.formattedText || element.text || '';
@@ -422,9 +418,14 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
         
         quill.focus();
         
+        // Block keyboard events from reaching canvas
         modal.addEventListener('keydown', (e: KeyboardEvent) => {
+          e.stopPropagation();
           if (e.key === 'Escape') closeModal();
-        });
+        }, true);
+        modal.addEventListener('keyup', (e: KeyboardEvent) => {
+          e.stopPropagation();
+        }, true);
       }, 100);
     }
   };
@@ -543,82 +544,145 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                 
                 context.font = `${aFontBold ? 'bold ' : ''}${aFontItalic ? 'italic ' : ''}${aFontSize}px ${aFontFamily}`;
                 
-                // Calculate where question ends and how much space is left
-                const gap = 40; // Small gap between question and answer
-                const remainingWidth = textWidth - questionTextWidth - gap;
-                const words = userText.split(' ');
+                // Handle line breaks in user text first
+                const userLines = userText.split('\n');
                 let currentLineY = questionEndY;
-                let currentX = padding + questionTextWidth + gap;
-                let availableWidth = remainingWidth;
-                let wordIndex = 0;
+                let isFirstLine = true;
                 
-                while (wordIndex < words.length) {
-                  let lineText = '';
-                  let lineWidth = 0;
+                userLines.forEach((line) => {
+                  if (!line.trim() && !isFirstLine) {
+                    currentLineY += aFontSize * 1.2;
+                    return;
+                  }
                   
-                  // Build line with as many words as fit
+                  const words = line.split(' ');
+                  let wordIndex = 0;
+                  
                   while (wordIndex < words.length) {
-                    const word = words[wordIndex];
-                    const wordWithSpace = lineText ? ' ' + word : word;
-                    const wordWidth = context.measureText(wordWithSpace).width;
+                    let lineText = '';
+                    let lineWidth = 0;
+                    let currentX = padding;
+                    let availableWidth = textWidth;
                     
-                    if (lineWidth + wordWidth <= availableWidth) {
-                      lineText += wordWithSpace;
-                      lineWidth += wordWidth;
-                      wordIndex++;
-                    } else {
-                      break;
+                    // For first line only, start after question
+                    if (isFirstLine) {
+                      const gap = 40;
+                      currentX = padding + questionTextWidth + gap;
+                      availableWidth = textWidth - questionTextWidth - gap;
                     }
+                    
+                    // Build line with as many words as fit
+                    while (wordIndex < words.length) {
+                      const word = words[wordIndex];
+                      const wordWithSpace = lineText ? ' ' + word : word;
+                      const wordWidth = context.measureText(wordWithSpace).width;
+                      
+                      if (lineWidth + wordWidth <= availableWidth) {
+                        lineText += wordWithSpace;
+                        lineWidth += wordWidth;
+                        wordIndex++;
+                      } else {
+                        break;
+                      }
+                    }
+                    
+                    // Render the line
+                    if (lineText) {
+                      elements.push(
+                        <Text
+                          key={`user-line-${currentLineY}-${currentX}`}
+                          x={currentX}
+                          y={currentLineY + (qFontSize - aFontSize) * 0.8}
+                          text={lineText}
+                          fontSize={aFontSize}
+                          fontFamily={aFontFamily}
+                          fontStyle={`${aFontBold ? 'bold' : ''} ${aFontItalic ? 'italic' : ''}`.trim() || 'normal'}
+                          fill={aFontColor}
+                          opacity={answerStyle.fontOpacity || 1}
+                          listening={false}
+                        />
+                      );
+                    }
+                    
+                    // Move to next line
+                    currentLineY += aFontSize * 1.2;
+                    isFirstLine = false;
                   }
-                  
-                  // Render the line with proper baseline alignment
-                  if (lineText) {
-                    elements.push(
-                      <Text
-                        key={`user-line-${currentLineY}`}
-                        x={currentX}
-                        y={currentLineY + (qFontSize - aFontSize) * 0.8}
-                        text={lineText}
-                        fontSize={aFontSize}
-                        fontFamily={aFontFamily}
-                        fontStyle={`${aFontBold ? 'bold' : ''} ${aFontItalic ? 'italic' : ''}`.trim() || 'normal'}
-                        fill={aFontColor}
-                        opacity={answerStyle.fontOpacity || 1}
-                        listening={false}
-                      />
-                    );
-                  }
-                  
-                  // Move to next line - subsequent lines start from left edge
-                  currentLineY += aFontSize * 1.2;
-                  currentX = padding;
-                  availableWidth = textWidth;
-                }
+                });
               }
             } else if (userText) {
-              // Only user text, no question
+              // Only user text, no question - handle line breaks manually
               const aFontFamily = answerStyle.fontFamily || fontFamily;
               const aFontColor = answerStyle.fontColor || '#1f2937';
               const aFontBold = answerStyle.fontBold || false;
               const aFontItalic = answerStyle.fontItalic || false;
               
-              elements.push(
-                <Text
-                  key="user"
-                  x={padding}
-                  y={baselineY - aFontSize * 0.8}
-                  width={textWidth}
-                  text={userText}
-                  fontSize={aFontSize}
-                  fontFamily={aFontFamily}
-                  fontStyle={`${aFontBold ? 'bold' : ''} ${aFontItalic ? 'italic' : ''}`.trim() || 'normal'}
-                  fill={aFontColor}
-                  opacity={answerStyle.fontOpacity || 1}
-                  wrap="word"
-                  lineHeight={1.2}
-                  listening={false}
-                />
-              );
+              const canvas = document.createElement('canvas');
+              const context = canvas.getContext('2d')!;
+              context.font = `${aFontBold ? 'bold ' : ''}${aFontItalic ? 'italic ' : ''}${aFontSize}px ${aFontFamily}`;
+              
+              const lines = userText.split('\n');
+              let currentLineIndex = 0;
+              
+              lines.forEach((line) => {
+                if (!line.trim()) {
+                  // Empty line - just increment line index
+                  currentLineIndex++;
+                  return;
+                }
+                
+                const words = line.split(' ');
+                let currentLine = '';
+                let currentLineWidth = 0;
+                
+                words.forEach((word) => {
+                  const wordWithSpace = currentLine ? ' ' + word : word;
+                  const wordWidth = context.measureText(wordWithSpace).width;
+                  
+                  if (currentLineWidth + wordWidth <= textWidth) {
+                    currentLine += wordWithSpace;
+                    currentLineWidth += wordWidth;
+                  } else {
+                    if (currentLine) {
+                      elements.push(
+                        <Text
+                          key={`user-line-${currentLineIndex}`}
+                          x={padding}
+                          y={baselineY - aFontSize * 0.8 + (currentLineIndex * aFontSize * 1.2)}
+                          text={currentLine}
+                          fontSize={aFontSize}
+                          fontFamily={aFontFamily}
+                          fontStyle={`${aFontBold ? 'bold' : ''} ${aFontItalic ? 'italic' : ''}`.trim() || 'normal'}
+                          fill={aFontColor}
+                          opacity={answerStyle.fontOpacity || 1}
+                          listening={false}
+                        />
+                      );
+                      currentLineIndex++;
+                    }
+                    currentLine = word;
+                    currentLineWidth = context.measureText(word).width;
+                  }
+                });
+                
+                if (currentLine) {
+                  elements.push(
+                    <Text
+                      key={`user-line-${currentLineIndex}`}
+                      x={padding}
+                      y={baselineY - aFontSize * 0.8 + (currentLineIndex * aFontSize * 1.2)}
+                      text={currentLine}
+                      fontSize={aFontSize}
+                      fontFamily={aFontFamily}
+                      fontStyle={`${aFontBold ? 'bold' : ''} ${aFontItalic ? 'italic' : ''}`.trim() || 'normal'}
+                      fill={aFontColor}
+                      opacity={answerStyle.fontOpacity || 1}
+                      listening={false}
+                    />
+                  );
+                  currentLineIndex++;
+                }
+              });
             }
             
             // Add invisible overlay for double-click detection
