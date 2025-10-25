@@ -361,7 +361,7 @@ export default function Canvas() {
           setPreviewShape({ x, y, width: 0, height: 0, type: state.activeTool });
         }
       }
-    } else if (state.activeTool === 'text' || state.activeTool === 'question' || state.activeTool === 'answer' || state.activeTool === 'qna' || state.activeTool === 'qna2') {
+    } else if (state.activeTool === 'text' || state.activeTool === 'question' || state.activeTool === 'answer' || state.activeTool === 'qna' || state.activeTool === 'qna2' || state.activeTool === 'qna_inline') {
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
         const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
@@ -821,7 +821,27 @@ export default function Canvas() {
             questionSettings: qna2Defaults.questionSettings,
             answerSettings: qna2Defaults.answerSettings
           };
-
+        } else if (previewTextbox.type === 'qna_inline') {
+          const currentPage = state.currentBook?.pages[state.activePageIndex];
+          const pageTheme = currentPage?.background?.pageTheme;
+          const bookTheme = state.currentBook?.bookTheme;
+          const textDefaults = getToolDefaults('text', pageTheme, bookTheme);
+          newElement = {
+            id: uuidv4(),
+            type: 'text',
+            x: previewTextbox.x,
+            y: previewTextbox.y,
+            width: previewTextbox.width,
+            height: previewTextbox.height,
+            text: '',
+            fontSize: textDefaults.fontSize,
+            align: textDefaults.align,
+            fontFamily: textDefaults.fontFamily,
+            textType: 'qna_inline',
+            textStyle: 'qna-inline',
+            paragraphSpacing: textDefaults.paragraphSpacing,
+            cornerRadius: textDefaults.cornerRadius
+          };
         } else {
           const currentPage = state.currentBook?.pages[state.activePageIndex];
           const pageTheme = currentPage?.background?.pageTheme;

@@ -10,6 +10,7 @@ import {
   MessageCircle, 
   MessageCircleQuestion, 
   MessageCircleHeart, 
+  MessageCircleMore,
   Image, 
   Minus, 
   Circle, 
@@ -57,6 +58,7 @@ export default function Toolbar() {
         { id: 'question', label: 'Question', icon: MessageCircleQuestion },
         { id: 'answer', label: 'Answer', icon: MessageCircleHeart },
         { id: 'qna', label: 'Q&A', icon: MessagesSquare },
+        { id: 'qna_inline', label: 'Rich Text', icon: MessageCircleMore },
       ]
     },
     {

@@ -20,11 +20,11 @@ import { useSharedTextRenderer } from './shared-text-renderer';
 
 
 // Rich text formatting function for Quill HTML output
-function formatRichText(text: string, fontSize: number, fontFamily: string, maxWidth: number, hasRuledLines: boolean = false) {
+function formatRichText(text: string, fontSize: number, fontFamily: string, maxWidth: number, hasRuledLines: boolean = false, paragraphSpacing: string = 'medium') {
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d')!;
   
-  const lineHeight = hasRuledLines ? fontSize * Math.max(2.5, (element.paragraphSpacing === 'small' ? 1.0 : element.paragraphSpacing === 'large' ? 3.0 : 1.5) * 1.5) : fontSize * 1.2;
+  const lineHeight = hasRuledLines ? fontSize * Math.max(2.5, (paragraphSpacing === 'small' ? 1.0 : paragraphSpacing === 'large' ? 3.0 : 1.5) * 1.5) : fontSize * 1.2;
   const textParts: any[] = [];
   
   // Create temporary div to parse Quill HTML
@@ -81,24 +81,37 @@ function formatRichText(text: string, fontSize: number, fontFamily: string, maxW
       }
     }
     
-    // Check for Quill font classes
+    // Check for Quill font and size classes
     const className = element.getAttribute('class');
-    if (className && className.includes('ql-font-')) {
-      const fontClass = className.match(/ql-font-([a-z]+)/);
-      if (fontClass) {
-        const fontMap: { [key: string]: string } = {
-          'georgia': 'Georgia, serif',
-          'helvetica': 'Helvetica, sans-serif',
-          'arial': 'Arial, sans-serif',
-          'courier': 'Courier New, monospace',
-          'kalam': 'Kalam, cursive',
-          'shadows': 'Shadows Into Light, cursive',
-          'playwrite': 'Playwrite DE SAS, cursive',
-          'msmadi': 'Ms Madi, cursive',
-          'giveyouglory': 'Give You Glory, cursive',
-          'meowscript': 'Meow Script, cursive'
-        };
-        styles.fontFamily = fontMap[fontClass[1]] || fontFamily;
+    if (className) {
+      if (className.includes('ql-font-')) {
+        const fontClass = className.match(/ql-font-([a-z]+)/);
+        if (fontClass) {
+          const fontMap: { [key: string]: string } = {
+            'georgia': 'Georgia, serif',
+            'helvetica': 'Helvetica, sans-serif',
+            'arial': 'Arial, sans-serif',
+            'courier': 'Courier New, monospace',
+            'kalam': 'Kalam, cursive',
+            'shadows': 'Shadows Into Light, cursive',
+            'playwrite': 'Playwrite DE SAS, cursive',
+            'msmadi': 'Ms Madi, cursive',
+            'giveyouglory': 'Give You Glory, cursive',
+            'meowscript': 'Meow Script, cursive'
+          };
+          styles.fontFamily = fontMap[fontClass[1]] || fontFamily;
+        }
+      }
+      if (className.includes('ql-size-')) {
+        const sizeClass = className.match(/ql-size-([a-z]+)/);
+        if (sizeClass) {
+          const sizeMap: { [key: string]: number } = {
+            'small': fontSize * 0.75,
+            'large': fontSize * 1.5,
+            'huge': fontSize * 2.5
+          };
+          styles.fontSize = sizeMap[sizeClass[1]] || fontSize;
+        }
       }
     }
     
@@ -1302,6 +1315,12 @@ export default function Textbox(props: CanvasItemProps) {
       }
     }
     
+    // Use Quill Editor for answer textboxes
+    if (element.textType === 'answer') {
+      enableQuillEditing();
+      return;
+    }
+    
     const textNode = textRef.current;
     const stage = textNode.getStage();
     if (!stage) return;
@@ -1361,8 +1380,8 @@ export default function Textbox(props: CanvasItemProps) {
     textarea.style.whiteSpace = 'pre-wrap';
     textarea.style.wordWrap = 'break-word';
     
-    // For answer textboxes and qna textboxes, use the current answer from tempAnswers
-    if (element.textType === 'answer' || element.textType === 'qna') {
+    // For qna textboxes, use the current answer from tempAnswers
+    if (element.textType === 'qna') {
       let questionId = element.questionId;
       
       if (!questionId && element.questionElementId) {
@@ -1422,8 +1441,8 @@ export default function Textbox(props: CanvasItemProps) {
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
         const newText = textarea.value;
         
-        // For answer textboxes and qna textboxes, update temp answer state using element's answerId
-        if (element.textType === 'answer' || element.textType === 'qna') {
+        // For qna textboxes, update temp answer state using element's answerId
+        if (element.textType === 'qna') {
           let questionId = element.questionId;
           
           if (!questionId && element.questionElementId) {
@@ -1535,8 +1554,8 @@ export default function Textbox(props: CanvasItemProps) {
     textarea.addEventListener('blur', () => {
       const newText = textarea.value;
       
-      // For answer textboxes and qna textboxes, update temp answer state using element's answerId
-      if (element.textType === 'answer' || element.textType === 'qna') {
+      // For qna textboxes, update temp answer state using element's answerId
+      if (element.textType === 'qna') {
         let questionId = element.questionId;
         
         if (!questionId && element.questionElementId) {
@@ -1647,6 +1666,179 @@ export default function Textbox(props: CanvasItemProps) {
     setTextareaWidth();
   };
 
+  const enableQuillEditing = () => {
+    if (!textRef.current) return;
+    
+    const textNode = textRef.current;
+    const stage = textNode.getStage();
+    if (!stage) return;
+    
+    // Hide text node
+    textNode.hide();
+    
+    // Load Quill.js if not already loaded
+    if (!window.Quill) {
+      const quillCSS = document.createElement('link');
+      quillCSS.rel = 'stylesheet';
+      quillCSS.href = 'https://cdn.quilljs.com/1.3.6/quill.snow.css';
+      document.head.appendChild(quillCSS);
+      
+      const quillJS = document.createElement('script');
+      quillJS.src = 'https://cdn.quilljs.com/1.3.6/quill.min.js';
+      document.head.appendChild(quillJS);
+      
+      quillJS.onload = () => initQuillForAnswer();
+      return;
+    } else {
+      initQuillForAnswer();
+    }
+    
+    function initQuillForAnswer() {
+      // Create modal for Quill editor
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);backdrop-filter:blur(2px);display:flex;justify-content:center;align-items:center;z-index:10000';
+      
+      const container = document.createElement('div');
+      container.style.cssText = 'background:white;border-radius:8px;padding:20px;width:80vw;max-width:800px;min-width:400px;box-shadow:0 4px 20px rgba(0,0,0,0.3)';
+      
+      const header = document.createElement('div');
+      header.style.cssText = 'margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #e2e8f0';
+      header.innerHTML = '<h2 style="margin:0;font-size:1.25rem;font-weight:600">Answer Editor</h2>';
+      
+      const editorContainer = document.createElement('div');
+      editorContainer.style.cssText = 'min-height:200px;margin-bottom:12px;border:1px solid #e2e8f0;border-radius:4px';
+      
+      const buttonContainer = document.createElement('div');
+      buttonContainer.style.cssText = 'display:flex;justify-content:flex-end;gap:8px;margin-top:12px';
+      
+      const cancelBtn = document.createElement('button');
+      cancelBtn.textContent = 'Cancel';
+      cancelBtn.style.cssText = 'padding:8px 16px;border:1px solid #e2e8f0;border-radius:4px;cursor:pointer;background:white';
+      cancelBtn.onmouseover = () => cancelBtn.style.background = '#f1f5f9';
+      cancelBtn.onmouseout = () => cancelBtn.style.background = 'white';
+      
+      const saveBtn = document.createElement('button');
+      saveBtn.textContent = 'Save';
+      saveBtn.style.cssText = 'padding:8px 16px;border:none;border-radius:4px;background:#304050;color:white;cursor:pointer';
+      saveBtn.onmouseover = () => saveBtn.style.background = '#303a50e6';
+      saveBtn.onmouseout = () => saveBtn.style.background = '#304050';
+      
+      const closeModal = () => {
+        if (document.body.contains(modal)) {
+          document.body.removeChild(modal);
+        }
+        textNode.show();
+        stage.draw();
+      };
+      
+      cancelBtn.onclick = closeModal;
+      
+      buttonContainer.appendChild(cancelBtn);
+      buttonContainer.appendChild(saveBtn);
+      
+      container.appendChild(header);
+      container.appendChild(editorContainer);
+      container.appendChild(buttonContainer);
+      modal.appendChild(container);
+      document.body.appendChild(modal);
+      
+      // Initialize Quill
+      setTimeout(() => {
+        const quill = new window.Quill(editorContainer, {
+          theme: 'snow',
+          formats: ['bold', 'italic', 'underline', 'color', 'font', 'header', 'size'],
+          modules: {
+            toolbar: [
+              [{ 'header': [1, 2, 3, false] }],
+              [{ 'size': ['small', false, 'large', 'huge'] }],
+              ['bold', 'italic', 'underline'],
+              [{ 'color': ['#000000', '#e60000', '#ff9900', '#ffff00', '#008a00', '#0066cc', '#9933ff'] }],
+              [{ 'font': ['helvetica', 'georgia', 'arial', 'courier', 'kalam', 'shadows', 'playwrite', 'msmadi', 'giveyouglory', 'meowscript'] }]
+            ]
+          }
+        });
+        
+        // Load existing content
+        let questionId = element.questionId;
+        if (!questionId && element.questionElementId) {
+          const currentPage = state.currentBook?.pages[state.activePageIndex];
+          if (currentPage) {
+            const questionElement = currentPage.elements.find(el => el.id === element.questionElementId);
+            questionId = questionElement?.questionId;
+          }
+        }
+        
+        if (questionId) {
+          const assignedUser = state.pageAssignments[state.activePageIndex + 1];
+          const currentAnswer = assignedUser ? getAnswerText(questionId, assignedUser.id) : '';
+          if (currentAnswer) {
+            // Check if content is HTML or plain text
+            if (currentAnswer.includes('<') && currentAnswer.includes('>')) {
+              quill.root.innerHTML = currentAnswer;
+            } else {
+              quill.setText(currentAnswer);
+            }
+          }
+        }
+        
+        saveBtn.onclick = () => {
+          const htmlContent = quill.root.innerHTML;
+          const plainText = quill.getText();
+          
+          // Update temp answer state
+          if (questionId) {
+            const assignedUser = state.pageAssignments[state.activePageIndex + 1];
+            const userIdToUse = assignedUser?.id;
+            
+            if (userIdToUse) {
+              const answerId = element.answerId || uuidv4();
+              
+              dispatch({
+                type: 'UPDATE_TEMP_ANSWER',
+                payload: {
+                  questionId: questionId,
+                  text: plainText,
+                  userId: userIdToUse,
+                  answerId
+                }
+              });
+              
+              // Update element with answerId and formatted text
+              const updates: any = {
+                text: plainText,
+                formattedText: htmlContent
+              };
+              
+              if (!element.answerId) {
+                updates.answerId = answerId;
+              }
+              
+              dispatch({
+                type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                payload: {
+                  id: element.id,
+                  updates
+                }
+              });
+              
+              // Trigger answer saved event
+              window.dispatchEvent(new CustomEvent('answerSaved'));
+            }
+          }
+          
+          closeModal();
+        };
+        
+        // Focus the editor
+        quill.focus();
+        
+        modal.addEventListener('keydown', (e: KeyboardEvent) => {
+          if (e.key === 'Escape') closeModal();
+        });
+      }, 100);
+    }
+  };
+
 
 
   const handleSelectQuestion = () => {
@@ -1753,6 +1945,29 @@ export default function Textbox(props: CanvasItemProps) {
           const padding = element.format?.padding || element.padding || 4;
           const textWidth = element.width - (padding * 2);
           const textHeight = element.height - (padding * 2);
+          
+          // Special rendering for answer textbox with formatted content
+          if (element.textType === 'answer' && element.formattedText && element.formattedText.includes('<')) {
+            return (
+              <>
+                {formatRichText(element.formattedText, fontSize, fontFamily, textWidth, false, getParagraphSpacing(element)).map((textPart, index) => (
+                  <Text
+                    key={index}
+                    text={textPart.text}
+                    x={padding + textPart.x}
+                    y={padding + textPart.y}
+                    fontSize={textPart.fontSize}
+                    fontFamily={textPart.fontFamily}
+                    fontStyle={textPart.fontStyle}
+                    fill={textPart.fill}
+                    opacity={element.font?.fontOpacity || element.fillOpacity || 1}
+                    textDecoration={textPart.textDecoration}
+                    listening={false}
+                  />
+                ))}
+              </>
+            );
+          }
           
           // Special rendering for qna textbox
           if (element.textType === 'qna' ) {

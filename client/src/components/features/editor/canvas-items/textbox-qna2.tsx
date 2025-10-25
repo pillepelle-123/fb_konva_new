@@ -8,7 +8,9 @@ import type { CanvasElement } from '../../../../context/editor-context';
 import BaseCanvasItem from './base-canvas-item';
 import type { CanvasItemProps } from './base-canvas-item';
 import { getGlobalThemeDefaults, getQnAThemeDefaults } from '../../../../utils/global-themes';
-import { getRuledLinesOpacity } from '../../../../utils/ruled-lines-utils';
+import { getRuledLinesOpacity, getRuledLinesConfig } from '../../../../utils/ruled-lines-utils';
+import { getThemeRenderer } from '../../../../utils/themes';
+import rough from 'roughjs';
 import { getParagraphSpacing, getPadding } from '../../../../utils/format-utils';
 import { getRuledLinesTheme } from '../../../../utils/theme-utils';
 import { useSharedTextRenderer } from './shared-text-renderer';
@@ -78,14 +80,6 @@ export default function TextboxQnA2(props: CanvasItemProps) {
   const lineHeight = getLineHeight();
   const align = element.format?.align || element.align || 'left';
   const fontFamily = element.font?.fontFamily || element.fontFamily || 'Arial, sans-serif';
-  
-  // Use shared text renderer
-  const { displayText, getDisplayText } = useSharedTextRenderer({
-    element,
-    getQuestionText,
-    getAnswerText,
-    state
-  });
   
   // Get styles for rendering
   const getQuestionStyle = () => {
@@ -159,6 +153,10 @@ export default function TextboxQnA2(props: CanvasItemProps) {
   
   const effectiveAnswerFontFamily = getEffectiveFontFamily(answerStyle);
   const effectiveQuestionFontFamily = getEffectiveFontFamily(questionStyle);
+
+  const questionText = element.questionId ? getQuestionText(element.questionId) : '';
+  const assignedUser = state.pageAssignments[state.activePageIndex + 1];
+  const answerText = assignedUser && element.questionId ? getAnswerText(element.questionId, assignedUser.id) : '';
 
   // Trigger save process when question is selected to apply formatting immediately
   useEffect(() => {
@@ -235,8 +233,6 @@ export default function TextboxQnA2(props: CanvasItemProps) {
 
 
   const handleDoubleClick = (e?: any) => {
-    if (state.activeTool !== 'select') return;
-    
     // For answer_only users, check if they can edit
     if (state.editorInteractionLevel === 'answer_only') {
       const assignedUser = state.pageAssignments[state.activePageIndex + 1];
@@ -254,7 +250,7 @@ export default function TextboxQnA2(props: CanvasItemProps) {
       }
     }
     
-    // Use inline editing instead of context menu
+    // Use inline editing
     enableInlineEditing();
   };
 
@@ -387,13 +383,34 @@ export default function TextboxQnA2(props: CanvasItemProps) {
   };
 
   const enableInlineEditing = () => {
-    if (!textRef.current) return;
+    // For new textboxes, textRef might be null, so we need to find the stage differently
+    let textNode = textRef.current;
+    let stage;
     
-    const textNode = textRef.current;
-    const stage = textNode.getStage();
+    if (textNode) {
+      stage = textNode.getStage();
+    } else {
+      // Find stage from BaseCanvasItem's group
+      const groupRef = (props as any).groupRef;
+      if (groupRef?.current) {
+        stage = groupRef.current.getStage();
+      } else {
+        // Fallback: Find stage from DOM
+        const stageContainer = document.querySelector('.konvajs-content');
+        if (stageContainer) {
+          const canvas = stageContainer.querySelector('canvas');
+          if (canvas && (canvas as any)._konvaStage) {
+            stage = (canvas as any)._konvaStage;
+          }
+        }
+      }
+    }
+    
     if (!stage) return;
     
-    textNode.hide();
+    if (textNode) {
+      textNode.hide();
+    }
     
     const textarea = document.createElement('textarea');
     const toolbar = document.createElement('div');
@@ -401,17 +418,16 @@ export default function TextboxQnA2(props: CanvasItemProps) {
     document.body.appendChild(textarea);
     document.body.appendChild(toolbar);
     
-    const transform = textNode.getAbsoluteTransform();
-    const pos = transform.point({ x: element.padding || 4, y: element.padding || 4 });
     const stageBox = stage.container().getBoundingClientRect();
-    const scale = transform.m[0];
+    const stageTransform = stage.getAbsoluteTransform();
+    const scale = stage.scaleX();
     
     const areaPosition = {
-      x: stageBox.left + pos.x,
-      y: stageBox.top + pos.y
+      x: stageBox.left + (element.x + (element.padding || 4)) * scale + stage.x(),
+      y: stageBox.top + (element.y + (element.padding || 4)) * scale + stage.y()
     };
     
-    // Set textarea content - get answer text from temp answers and show question in brackets
+    // Set textarea content for friends book format
     let editorText = '';
     
     if (element.questionId) {
@@ -419,26 +435,10 @@ export default function TextboxQnA2(props: CanvasItemProps) {
       const assignedUser = state.pageAssignments[state.activePageIndex + 1];
       const answerText = assignedUser ? getAnswerText(element.questionId, assignedUser.id) : '';
       
-      // Use stored answer text from temp answers, not element.text
-      editorText = answerText || '';
-      
-      if (questionText) {
-        const questionPlaceholder = `[${questionText}]`;
-        if (!editorText.includes(questionPlaceholder) && !editorText.includes('[question]')) {
-          // Add bracketed question if not present
-          editorText = questionPlaceholder + ' ' + editorText;
-        } else if (editorText.includes('[question]')) {
-          // Replace generic placeholder with actual question
-          editorText = editorText.replace('[question]', questionPlaceholder);
-        }
-      } else {
-        // No question text available, use generic placeholder
-        if (!editorText.includes('[question]')) {
-          editorText = '[question] ' + editorText;
-        }
-      }
+      // Show question followed by answer text for friends book format
+      editorText = (questionText || '[question]') + ' ' + (answerText || '');
     } else {
-      // No question assigned, show only generic placeholder (ignore element.text completely)
+      // No question assigned, show placeholder
       editorText = '[question] ';
     }
     
@@ -461,7 +461,7 @@ export default function TextboxQnA2(props: CanvasItemProps) {
     textarea.style.lineHeight = lineHeight.toString();
     textarea.style.padding = '4px';
     textarea.style.borderRadius = '4px';
-    textarea.placeholder = 'Type your answer here. Use [question] to insert the question.';
+    textarea.placeholder = 'Question: [your question text] Answer text goes here...';
     
     // Add custom CSS for question text styling
     const styleId = 'qna2-editor-style';
@@ -547,10 +547,17 @@ export default function TextboxQnA2(props: CanvasItemProps) {
     });
     
     textarea.focus();
-    // Position cursor after [question] placeholder with space
-    const questionMatch = textarea.value.match(/\[[^\]]+\]/);
-    if (questionMatch) {
-      const cursorPos = questionMatch.index! + questionMatch[0].length + 1; // +1 for space
+    // Position cursor after question text
+    if (element.questionId) {
+      const questionText = getQuestionText(element.questionId);
+      if (questionText && textarea.value.startsWith(questionText + ' ')) {
+        const cursorPos = questionText.length + 1; // +1 for space
+        textarea.setSelectionRange(cursorPos, cursorPos);
+      } else {
+        textarea.select();
+      }
+    } else if (textarea.value.startsWith('[question] ')) {
+      const cursorPos = '[question] '.length;
       textarea.setSelectionRange(cursorPos, cursorPos);
     } else {
       textarea.select();
@@ -559,7 +566,9 @@ export default function TextboxQnA2(props: CanvasItemProps) {
     const removeElements = () => {
       document.body.removeChild(textarea);
       document.body.removeChild(toolbar);
-      textNode.show();
+      if (textNode) {
+        textNode.show();
+      }
       stage.draw();
       
       // Clean up custom styles
@@ -573,17 +582,21 @@ export default function TextboxQnA2(props: CanvasItemProps) {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as Node;
       if (!textarea.contains(target) && !toolbar.contains(target)) {
-        // Extract answer text with [question] placeholder for storage
+        // Extract answer text from friends book format
         const fullText = textarea.value;
-        let answerText = fullText;
+        let answerText = '';
         
-        // Replace actual question text with [question] placeholder for storage
         if (element.questionId) {
           const questionText = getQuestionText(element.questionId);
-          if (questionText) {
-            const questionPlaceholder = `[${questionText}]`;
-            answerText = fullText.replace(questionPlaceholder, '[question]');
+          if (questionText && fullText.startsWith(questionText + ' ')) {
+            answerText = fullText.substring(questionText.length + 1);
+          } else if (fullText.startsWith('[question] ')) {
+            answerText = fullText.substring('[question] '.length);
+          } else {
+            answerText = fullText;
           }
+        } else {
+          answerText = fullText.replace(/^\[question\]\s*/, '');
         }
         
         // Store answer in temp answers if questionId exists
@@ -679,17 +692,21 @@ export default function TextboxQnA2(props: CanvasItemProps) {
         removeElements();
       }
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-        // Extract answer text with [question] placeholder for storage
+        // Extract answer text from friends book format
         const fullText = textarea.value;
-        let answerText = fullText;
+        let answerText = '';
         
-        // Replace actual question text with [question] placeholder for storage
         if (element.questionId) {
           const questionText = getQuestionText(element.questionId);
-          if (questionText) {
-            const questionPlaceholder = `[${questionText}]`;
-            answerText = fullText.replace(questionPlaceholder, '[question]');
+          if (questionText && fullText.startsWith(questionText + ' ')) {
+            answerText = fullText.substring(questionText.length + 1);
+          } else if (fullText.startsWith('[question] ')) {
+            answerText = fullText.substring('[question] '.length);
+          } else {
+            answerText = fullText;
           }
+        } else {
+          answerText = fullText.replace(/^\[question\]\s*/, '');
         }
         
         // Store answer in temp answers if questionId exists
@@ -748,46 +765,46 @@ export default function TextboxQnA2(props: CanvasItemProps) {
       
       const cursorPos = textarea.selectionStart;
       const text = textarea.value;
-      const bracketMatches = text.match(/\[[^\]]+\]/g) || [];
       
-      // Check if cursor is inside bracketed content
-      for (const match of bracketMatches) {
-        const matchStart = text.indexOf(match);
-        const matchEnd = matchStart + match.length;
+      // Protect question text at start of line
+      if (element.questionId) {
+        const questionText = getQuestionText(element.questionId);
+        if (questionText && text.startsWith(questionText + ' ')) {
+          const questionEnd = questionText.length + 1; // +1 for space
+          
+          // Prevent editing within question text area
+          if (cursorPos < questionEnd) {
+            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'ArrowUp' && e.key !== 'ArrowDown' && 
+                e.key !== 'Home' && e.key !== 'End' && e.key !== 'Tab' && !e.ctrlKey && !e.metaKey && e.key !== 'Escape') {
+              e.preventDefault();
+              return;
+            }
+          }
+          
+          // Prevent deletion of question text
+          if ((e.key === 'Backspace' && cursorPos <= questionEnd) || 
+              (e.key === 'Delete' && cursorPos < questionEnd)) {
+            e.preventDefault();
+            return;
+          }
+        }
+      } else if (text.startsWith('[question]')) {
+        const placeholderEnd = '[question] '.length;
         
-        if (cursorPos > matchStart && cursorPos < matchEnd) {
-          // Cursor is inside brackets - prevent most key inputs
+        // Prevent editing within placeholder
+        if (cursorPos < placeholderEnd) {
           if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'ArrowUp' && e.key !== 'ArrowDown' && 
               e.key !== 'Home' && e.key !== 'End' && e.key !== 'Tab' && !e.ctrlKey && !e.metaKey && e.key !== 'Escape') {
             e.preventDefault();
             return;
           }
         }
-      }
-      
-      // Prevent deletion of question placeholder (both [question] and actual question text in brackets)
-      if (e.key === 'Backspace' || e.key === 'Delete') {
-        const selectedText = textarea.value.substring(textarea.selectionStart, textarea.selectionEnd);
         
-        // Check if selection includes any bracketed content
-        if (selectedText && bracketMatches.some(match => selectedText.includes(match))) {
+        // Prevent deletion of placeholder
+        if ((e.key === 'Backspace' && cursorPos <= placeholderEnd) || 
+            (e.key === 'Delete' && cursorPos < placeholderEnd)) {
           e.preventDefault();
           return;
-        }
-        
-        // Check if cursor is about to delete bracketed content
-        for (const match of bracketMatches) {
-          const matchStart = text.indexOf(match);
-          const matchEnd = matchStart + match.length;
-          
-          if (e.key === 'Backspace' && cursorPos > matchStart && cursorPos <= matchEnd) {
-            e.preventDefault();
-            return;
-          }
-          if (e.key === 'Delete' && cursorPos >= matchStart && cursorPos < matchEnd) {
-            e.preventDefault();
-            return;
-          }
         }
       }
     };
@@ -797,17 +814,21 @@ export default function TextboxQnA2(props: CanvasItemProps) {
     textarea.addEventListener('blur', () => {
       setTimeout(() => {
         if (!showQuestionDialog && !toolbar.contains(document.activeElement)) {
-          // Extract answer text with [question] placeholder for storage
+          // Extract answer text from friends book format
           const fullText = textarea.value;
-          let answerText = fullText;
+          let answerText = '';
           
-          // Replace actual question text with [question] placeholder for storage
           if (element.questionId) {
             const questionText = getQuestionText(element.questionId);
-            if (questionText) {
-              const questionPlaceholder = `[${questionText}]`;
-              answerText = fullText.replace(questionPlaceholder, '[question]');
+            if (questionText && fullText.startsWith(questionText + ' ')) {
+              answerText = fullText.substring(questionText.length + 1);
+            } else if (fullText.startsWith('[question] ')) {
+              answerText = fullText.substring('[question] '.length);
+            } else {
+              answerText = fullText;
             }
+          } else {
+            answerText = fullText.replace(/^\[question\]\s*/, '');
           }
           
           // Store answer in temp answers if questionId exists
@@ -880,23 +901,51 @@ export default function TextboxQnA2(props: CanvasItemProps) {
           cornerRadius={element.cornerRadius || 0}
         />
         
-        {/* Text content */}
-        <Text
-          ref={textRef}
-          x={element.padding || 4}
-          y={element.padding || 4}
-          width={element.width - (element.padding || 4) * 2}
-          text={displayText}
-          fontSize={answerStyle.fontSize}
-          fontFamily={effectiveAnswerFontFamily}
-          fontStyle={`${answerStyle.fontBold ? 'bold' : ''} ${answerStyle.fontItalic ? 'italic' : ''}`.trim() || 'normal'}
-          fill={answerStyle.fontColor}
-          align={align}
-          verticalAlign="top"
-          wrap="word"
-          lineHeight={lineHeight}
-          listening={false}
-        />
+        {/* Question text - prominent styling */}
+        {questionText && (
+          <Text
+            x={element.padding || 4}
+            y={element.padding || 4}
+            text={`Q: ${questionText}`}
+            fontSize={questionStyle.fontSize}
+            fontFamily={effectiveQuestionFontFamily}
+            fontStyle={`bold ${questionStyle.fontItalic ? 'italic' : ''}`.trim()}
+            fill={questionStyle.fontColor}
+            width={element.width - (element.padding || 4) * 2}
+            wrap="word"
+            listening={false}
+          />
+        )}
+        
+        {/* Answer text - positioned below question */}
+        {answerText ? (
+          <Text
+            ref={textRef}
+            x={element.padding || 4}
+            y={(element.padding || 4) + (questionText ? questionStyle.fontSize * 1.3 : 0)}
+            text={`A: ${answerText}`}
+            fontSize={answerStyle.fontSize}
+            fontFamily={effectiveAnswerFontFamily}
+            fontStyle={`${answerStyle.fontBold ? 'bold' : ''} ${answerStyle.fontItalic ? 'italic' : ''}`.trim() || 'normal'}
+            fill={answerStyle.fontColor}
+            width={element.width - (element.padding || 4) * 2}
+            wrap="word"
+            listening={false}
+          />
+        ) : (
+          <Text
+            ref={textRef}
+            x={element.padding || 4}
+            y={element.padding || 4}
+            text=""
+            fontSize={answerStyle.fontSize}
+            fontFamily={effectiveAnswerFontFamily}
+            fill="transparent"
+            width={element.width - (element.padding || 4) * 2}
+            height={element.height - (element.padding || 4) * 2}
+            listening={false}
+          />
+        )}
         
         {/* Overflow indicator */}
         {hasOverflow && (
@@ -911,8 +960,6 @@ export default function TextboxQnA2(props: CanvasItemProps) {
           />
         )}
       </Group>
-      
-
     </BaseCanvasItem>
   );
 }

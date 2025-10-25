@@ -1,6 +1,6 @@
 import { ToolButton } from './tool-button';
 import { ToolPopover } from './tool-popover';
-import { type Icon, Info, Hand, Brush, Pipette, Square, Sticker, MessageCircle, MessageCircleQuestionMark, Search, SquareMousePointer, Magnet } from 'lucide-react';
+import { type Icon, Info, Hand, Brush, Pipette, Square, Sticker, MessageCircle, MessageCircleQuestionMark, MessageCircleMore, Search, SquareMousePointer, Magnet, MessageCircleHeart } from 'lucide-react';
 import { useState, forwardRef, useImperativeHandle } from 'react';
 import { Button } from '../../../ui/primitives/button';
 import { ShortcutsDialog } from './shortcuts-dialog';
@@ -207,17 +207,27 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
           />
         </div>
         
-        {/* Row 6: QnA2 Inline */}
-        <div className={`${isExpanded ? 'grid grid-cols-1 gap-1' : 'space-y-1'} mb-2`}>
+        {/* Row 6: QnA2 Inline + Rich Text */}
+        <div className={`${isExpanded ? 'grid grid-cols-2 gap-1' : 'space-y-1'} mb-2`}>
           <ToolButton
             id="qna2"
             label="Q&A Inline"
-            icon={MessageCircle}
+            icon={MessageCircleHeart}
             isActive={activeTool === 'qna2'}
             isExpanded={false}
             userRole={userRole}
             isOnAssignedPage={isOnAssignedPage}
             onClick={() => onToolSelect('qna2')}
+          />
+          <ToolButton
+            id="qna_inline"
+            label="Rich Text"
+            icon={MessageCircleMore}
+            isActive={activeTool === 'qna_inline'}
+            isExpanded={false}
+            userRole={userRole}
+            isOnAssignedPage={isOnAssignedPage}
+            onClick={() => onToolSelect('qna_inline')}
           />
         </div>
         

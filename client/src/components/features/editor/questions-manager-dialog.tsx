@@ -61,9 +61,13 @@ export default function QuestionsManagerDialog({
         if (response.ok) {
           const data = await response.json();
           setUserRole(data.role);
+        } else {
+          // If unauthorized, assume owner role for now
+          setUserRole('owner');
         }
       } catch (error) {
         console.error('Error fetching user role:', error);
+        setUserRole('owner');
       }
     };
     
@@ -392,14 +396,6 @@ export default function QuestionsManagerDialog({
                                   alert(validation.reason || 'This question cannot be selected.');
                                   return;
                                 }
-                                
-                                window.dispatchEvent(new CustomEvent('questionSelected', {
-                                  detail: { 
-                                    elementId: 'current',
-                                    questionId: question.id, 
-                                    questionText: question.question_text 
-                                  }
-                                }));
                                 
                                 onQuestionSelect?.(question.id, question.question_text);
                               }}

@@ -7,6 +7,7 @@ import { ButtonGroup } from '../../../ui/composites/button-group';
 import { Card, Tabs, TabsList, TabsTrigger } from '../../../ui/composites';
 import { QnASettingsForm } from './qna-settings-form';
 import { QnA2SettingsForm } from './qna2-settings-form';
+import { QnAInlineSettingsForm } from './qna-inline-settings-form';
 import type { PageBackground } from '../../../../context/editor-context';
 import { ThemeSelect } from '../../../../utils/theme-options';
 import { ColorSelector } from './color-selector';
@@ -408,6 +409,10 @@ export function ToolSettingsContent({
         if (selectedElement.textStyle === 'qna2' || selectedElement.textType === 'qna2') {
           return renderQnA2Settings(selectedElement);
         }
+        // Special handling for QnA Inline textboxes
+        if (selectedElement.textType === 'qna_inline' || selectedElement.textStyle === 'qna-inline') {
+          return renderQnAInlineSettings(selectedElement);
+        }
         return renderElementSettings(selectedElement);
       }
     }
@@ -692,6 +697,234 @@ export function ToolSettingsContent({
           </div>
         ) : (
           <QnASettingsForm
+            sectionType="shared"
+            element={element}
+            state={state}
+            currentStyle={questionStyle}
+            updateSetting={(key: string, value: any) => {
+              updateQuestionSetting(key, value);
+              updateAnswerSetting(key, value);
+            }}
+            setShowFontSelector={setShowFontSelector}
+            setShowColorSelector={setShowColorSelector}
+          />
+        )}
+      </div>
+    );
+  };
+  
+  const renderQnAInlineSettings = (element: any) => {
+    const activeSection = state.qnaActiveSection;
+    const setActiveSection = (section: 'question' | 'answer') => {
+      dispatch({ type: 'SET_QNA_ACTIVE_SECTION', payload: section });
+    };
+    
+    const individualSettings = element.qnaIndividualSettings ?? false;
+    const setIndividualSettings = (enabled: boolean) => {
+      dispatch({
+        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+        payload: {
+          id: element.id,
+          updates: { qnaIndividualSettings: enabled }
+        }
+      });
+    };
+    
+    const updateQuestionSetting = (key: string, value: any) => {
+      dispatch({ type: 'SAVE_TO_HISTORY', payload: `Update QnA Inline Question ${key}` });
+      dispatch({
+        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+        payload: {
+          id: element.id,
+          updates: {
+            questionSettings: {
+              ...element.questionSettings,
+              [key]: value
+            }
+          }
+        }
+      });
+    };
+    
+    const updateAnswerSetting = (key: string, value: any) => {
+      dispatch({ type: 'SAVE_TO_HISTORY', payload: `Update QnA Inline Answer ${key}` });
+      dispatch({
+        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+        payload: {
+          id: element.id,
+          updates: {
+            answerSettings: {
+              ...element.answerSettings,
+              [key]: value
+            }
+          }
+        }
+      });
+    };
+    
+    const getQuestionStyle = () => {
+      const qStyle = element.questionSettings || {};
+      const currentPage = state.currentBook?.pages[state.activePageIndex];
+      const pageTheme = currentPage?.background?.pageTheme;
+      const bookTheme = state.currentBook?.bookTheme;
+      const activeTheme = pageTheme || bookTheme;
+      const qnaDefaults = activeTheme ? getQnAThemeDefaults(activeTheme, 'question') : {};
+      const fallbackDefaults = activeTheme ? getGlobalThemeDefaults(activeTheme, 'question') : {};
+      
+      return {
+        fontSize: qStyle.fontSize || qnaDefaults?.fontSize || fallbackDefaults?.font?.fontSize || 16,
+        fontFamily: qStyle.fontFamily || qnaDefaults?.fontFamily || fallbackDefaults?.font?.fontFamily || 'Arial, sans-serif',
+        fontBold: qStyle.fontBold ?? qnaDefaults?.fontBold ?? fallbackDefaults?.font?.fontBold ?? false,
+        fontItalic: qStyle.fontItalic ?? qnaDefaults?.fontItalic ?? fallbackDefaults?.font?.fontItalic ?? false,
+        fontColor: qStyle.fontColor || qnaDefaults?.fontColor || fallbackDefaults?.font?.fontColor || '#666666',
+        align: qStyle.align || qnaDefaults?.align || fallbackDefaults?.format?.textAlign || 'left'
+      };
+    };
+    
+    const getAnswerStyle = () => {
+      const aStyle = element.answerSettings || {};
+      const currentPage = state.currentBook?.pages[state.activePageIndex];
+      const pageTheme = currentPage?.background?.pageTheme;
+      const bookTheme = state.currentBook?.bookTheme;
+      const activeTheme = pageTheme || bookTheme;
+      const qnaDefaults = activeTheme ? getQnAThemeDefaults(activeTheme, 'answer') : {};
+      const fallbackDefaults = activeTheme ? getGlobalThemeDefaults(activeTheme, 'answer') : {};
+      
+      return {
+        fontSize: aStyle.fontSize || qnaDefaults?.fontSize || fallbackDefaults?.font?.fontSize || 16,
+        fontFamily: aStyle.fontFamily || qnaDefaults?.fontFamily || fallbackDefaults?.font?.fontFamily || 'Arial, sans-serif',
+        fontBold: aStyle.fontBold ?? qnaDefaults?.fontBold ?? fallbackDefaults?.font?.fontBold ?? false,
+        fontItalic: aStyle.fontItalic ?? qnaDefaults?.fontItalic ?? fallbackDefaults?.font?.fontItalic ?? false,
+        fontColor: aStyle.fontColor || qnaDefaults?.fontColor || fallbackDefaults?.font?.fontColor || '#1f2937',
+        align: aStyle.align || qnaDefaults?.align || fallbackDefaults?.format?.textAlign || 'left'
+      };
+    };
+    
+    const questionStyle = getQuestionStyle();
+    const answerStyle = getAnswerStyle();
+    const currentStyle = activeSection === 'question' ? questionStyle : answerStyle;
+    const updateSetting = activeSection === 'question' ? updateQuestionSetting : updateAnswerSetting;
+    
+    if (showFontSelector) {
+      return (
+        <FontSelector
+          currentFont={currentStyle.fontFamily}
+          isBold={currentStyle.fontBold}
+          isItalic={currentStyle.fontItalic}
+          onFontSelect={(fontName) => {
+            const fontFamily = getFontFamilyByName(fontName, false, false);
+            updateSetting('fontFamily', fontFamily);
+          }}
+          onBack={() => setShowFontSelector(false)}
+          element={element}
+          state={state}
+        />
+      );
+    }
+    
+    if (showColorSelector && showColorSelector.startsWith('element-')) {
+      const getColorValue = () => {
+        switch (showColorSelector) {
+          case 'element-text-color':
+            return currentStyle.fontColor;
+          default:
+            return '#1f2937';
+        }
+      };
+      
+      const getElementOpacityValue = () => {
+        switch (showColorSelector) {
+          case 'element-text-color':
+            return currentStyle.fontOpacity ?? 1;
+          default:
+            return 1;
+        }
+      };
+      
+      const handleElementOpacityChange = (opacity: number) => {
+        switch (showColorSelector) {
+          case 'element-text-color':
+            updateSetting('fontOpacity', opacity);
+            break;
+        }
+      };
+      
+      const handleElementColorChange = (color: string) => {
+        switch (showColorSelector) {
+          case 'element-text-color':
+            updateSetting('fontColor', color);
+            break;
+        }
+      };
+      
+      return (
+        <ColorSelector
+          value={getColorValue()}
+          onChange={handleElementColorChange}
+          opacity={getElementOpacityValue()}
+          onOpacityChange={handleElementOpacityChange}
+          favoriteColors={favoriteStrokeColors}
+          onAddFavorite={addFavoriteStrokeColor}
+          onRemoveFavorite={removeFavoriteStrokeColor}
+          onBack={() => setShowColorSelector(null)}
+        />
+      );
+    }
+    
+    return (
+      <div className="space-y-2">
+        <div className="text-xs font-medium mb-2">QnA Inline Textbox</div>
+        
+        <div className="flex items-center gap-2 mb-2">
+          <Checkbox
+            checked={individualSettings}
+            onCheckedChange={setIndividualSettings}
+          />
+          <Label variant="xs" className="text-xs font-medium">
+            Individual for Question and Answer
+          </Label>
+        </div>
+        
+        {individualSettings ? (
+          <>
+            <Tabs value={activeSection} onValueChange={setActiveSection}>
+              <TabsList variant="bootstrap" className="w-full h-5">
+                <TabsTrigger variant="bootstrap" value="question" className=' h-5'>Question</TabsTrigger>
+                <TabsTrigger variant="bootstrap" value="answer" className=' h-5'>Answer</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </>
+        ) : null}
+        
+        {individualSettings ? (
+          <div className="overflow-hidden">
+            <div className={`flex flex--row transition-transform duration-300 ease-in-out ${activeSection === 'question' ? 'translate-x-0' : '-translate-x-1/2'}`} style={{ width: '200%' }}>
+              <div className="w-1/2 flex-1 flex-shrink-0">
+                <QnAInlineSettingsForm
+                  sectionType="question"
+                  element={element}
+                  state={state}
+                  currentStyle={questionStyle}
+                  updateSetting={updateQuestionSetting}
+                  setShowFontSelector={setShowFontSelector}
+                  setShowColorSelector={setShowColorSelector}
+                />
+              </div>
+              <div className="w-1/2 flex-1 flex-shrink-0">
+                <QnAInlineSettingsForm
+                  sectionType="answer"
+                  element={element}
+                  state={state}
+                  currentStyle={answerStyle}
+                  updateSetting={updateAnswerSetting}
+                  setShowFontSelector={setShowFontSelector}
+                  setShowColorSelector={setShowColorSelector}
+                />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <QnAInlineSettingsForm
             sectionType="shared"
             element={element}
             state={state}

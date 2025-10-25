@@ -24,6 +24,7 @@ import MessengerPage from './pages/messenger'
 import NotFound from './pages/404'
 import ProtectedRoute from './components/layouts/protected-route'
 import BookAccessGuard from './components/layouts/book-access-guard'
+import QuestionDialogHandler from './components/features/editor/question-dialog-handler'
 
 
 function App() {
@@ -109,6 +110,7 @@ function EditorWithBar() {
   return (
     <EditorProvider>
       <Editor />
+      <QuestionDialogHandler />
     </EditorProvider>
   );
 }

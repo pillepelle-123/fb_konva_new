@@ -153,10 +153,11 @@ export default function EnhancedQuillEditor({ element, onSave, onClose, bookId, 
       setTimeout(() => {
         const quill = new window.Quill(editorContainer, {
           theme: 'snow',
-          formats: ['bold', 'italic', 'underline', 'color', 'font', 'header'],
+          formats: ['bold', 'italic', 'underline', 'color', 'font', 'header', 'size'],
           modules: {
             toolbar: [
               [{ 'header': [1, 2, 3, false] }],
+              [{ 'size': ['small', false, 'large', 'huge'] }],
               ['bold', 'italic', 'underline'],
               [{ 'color': ['#000000', '#e60000', '#ff9900', '#ffff00', '#008a00', '#0066cc', '#9933ff'] }],
               [{ 'font': ['helvetica', 'georgia', 'arial', 'courier'] }]
