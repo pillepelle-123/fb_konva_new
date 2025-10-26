@@ -8,6 +8,7 @@ import ToolSettingsPanel, { type ToolSettingsPanelRef } from '../../components/f
 import { StatusBar } from '../../components/features/editor/status-bar';
 import { Toast } from '../../components/ui/overlays/toast';
 import QuestionSelectionHandler from '../../components/features/editor/question-selection-handler';
+import PagePreviewOverlay from '../../components/features/editor/preview/page-preview-overlay';
 
 
 function EditorContent() {
@@ -15,6 +16,8 @@ function EditorContent() {
   const { state, dispatch, loadBook, undo, redo, saveBook, canAccessEditor, canEditCanvas } = useEditor();
   const toolSettingsPanelRef = useRef<ToolSettingsPanelRef>(null);
   const [showSaveToast, setShowSaveToast] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewContent, setPreviewContent] = useState<'preview' | 'questions'>('preview');
 
   useEffect(() => {
     if (bookId) {
@@ -88,11 +91,23 @@ function EditorContent() {
         saveBook().then(() => {
           setShowSaveToast(true);
         }).catch(console.error);
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+        e.preventDefault();
+        setShowPreview(true);
       }
+    };
+    
+    const handleOpenQuestions = () => {
+      setPreviewContent('questions');
+      setShowPreview(true);
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('openQuestions', handleOpenQuestions);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('openQuestions', handleOpenQuestions);
+    };
   }, [undo, redo, saveBook]);
 
   if (!state.currentBook) {
@@ -140,6 +155,12 @@ function EditorContent() {
           
           <StatusBar />
         </div>
+        
+        <PagePreviewOverlay 
+          isOpen={showPreview} 
+          onClose={() => setShowPreview(false)}
+          content={previewContent}
+        />
       </div>
       
     </div>

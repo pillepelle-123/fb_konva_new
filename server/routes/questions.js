@@ -18,6 +18,21 @@ pool.on('connect', (client) => {
 });
 
 // Get questions by book ID
+router.get('/book/:bookId', authenticateToken, async (req, res) => {
+  try {
+    const bookId = req.params.bookId;
+    const result = await pool.query(
+      'SELECT * FROM public.questions WHERE book_id = $1 ORDER BY created_at DESC',
+      [bookId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get questions error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get questions by book ID (legacy route)
 router.get('/:bookId', authenticateToken, async (req, res) => {
   try {
     const bookId = req.params.bookId;

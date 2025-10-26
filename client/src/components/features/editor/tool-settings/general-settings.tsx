@@ -1,7 +1,7 @@
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import { Button } from '../../../ui/primitives/button';
-import { ChevronLeft, Settings, Palette, Image, PaintBucket } from 'lucide-react';
+import { ChevronLeft, Settings, Palette, Image, PaintBucket, CircleHelp } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '../../../ui/composites/tabs';
 import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
 import type { PageBackground } from '../../../../context/editor-context';
@@ -556,16 +556,27 @@ export function GeneralSettings({
     <div className="space-y-3">
       <div>
         <Label variant="xs" className="text-muted-foreground mb-2 block">Book Settings</Label>
-        <Button
-          variant="ghost_hover"
-          size="sm"
-          onClick={() => canAccessAnySettings && canAccessBookSettings && setShowBookTheme(true)}
-          className={`w-full justify-start ${!canAccessAnySettings || !canAccessBookSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
-          disabled={!canAccessAnySettings || !canAccessBookSettings}
-        >
-          <Palette className="h-4 w-4 mr-2" />
-          Book Theme
-        </Button>
+        <div className="space-y-1">
+          <Button
+            variant="ghost_hover"
+            size="sm"
+            onClick={() => window.dispatchEvent(new CustomEvent('openQuestions'))}
+            className="w-full justify-start"
+          >
+            <CircleHelp className="h-4 w-4 mr-2" />
+            Questions
+          </Button>
+          <Button
+            variant="ghost_hover"
+            size="sm"
+            onClick={() => canAccessAnySettings && canAccessBookSettings && setShowBookTheme(true)}
+            className={`w-full justify-start ${!canAccessAnySettings || !canAccessBookSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={!canAccessAnySettings || !canAccessBookSettings}
+          >
+            <Palette className="h-4 w-4 mr-2" />
+            Book Theme
+          </Button>
+        </div>
       </div>
       
       <Separator />

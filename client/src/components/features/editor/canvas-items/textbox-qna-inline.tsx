@@ -13,6 +13,7 @@ import { getRuledLinesOpacity } from '../../../../utils/ruled-lines-utils';
 import { getRuledLinesTheme } from '../../../../utils/theme-utils';
 import { getThemeRenderer } from '../../../../utils/themes';
 import rough from 'roughjs';
+import { KonvaSkeleton } from '../../../ui/primitives/skeleton';
 
 
 // Rich text formatting function for Quill HTML output
@@ -200,6 +201,30 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
   const textRef = useRef<Konva.Text>(null);
   
   const [isHovered, setIsHovered] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  
+  // Listen for transformer events from the canvas
+  useEffect(() => {
+    const handleTransformStart = (e: CustomEvent) => {
+      if (e.detail.elementId === element.id) {
+        setIsResizing(true);
+      }
+    };
+    
+    const handleTransformEnd = (e: CustomEvent) => {
+      if (e.detail.elementId === element.id) {
+        setIsResizing(false);
+      }
+    };
+    
+    window.addEventListener('transformStart', handleTransformStart as EventListener);
+    window.addEventListener('transformEnd', handleTransformEnd as EventListener);
+    
+    return () => {
+      window.removeEventListener('transformStart', handleTransformStart as EventListener);
+      window.removeEventListener('transformEnd', handleTransformEnd as EventListener);
+    };
+  }, [element.id]);
 
 
   
@@ -308,8 +333,9 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
       const qOpacity = questionStyle.ruledLinesOpacity ?? 1;
       const qSpacing = questionStyle.paragraphSpacing || 'medium';
       
-      const lineSpacing = questionFontSize * (qSpacing === 'small' ? 1.0 : qSpacing === 'large' ? 1.8 : 1.4);
-      for (let y = padding + lineSpacing - 2; y < element.height / 2; y += lineSpacing) {
+      const lineSpacing = questionFontSize * (qSpacing === 'small' ? 1.0 : qSpacing === 'large' ? 1.5 : 1.2);
+      const firstLineY = padding + Math.max(questionFontSize, answerFontSize) * 0.8;
+      for (let y = firstLineY; y < element.height / 2; y += lineSpacing) {
         lines.push(...generateLineElement(y, qTheme, padding, qColor, qWidth, qOpacity));
       }
     }
@@ -322,9 +348,9 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
       const aOpacity = answerStyle.ruledLinesOpacity ?? 1;
       const aSpacing = answerStyle.paragraphSpacing || 'medium';
       
-      const lineSpacing = answerFontSize * (aSpacing === 'small' ? 1.0 : aSpacing === 'large' ? 1.8 : 1.4);
-      const startY = questionRuledLines ? element.height / 2 : padding + lineSpacing - 2;
-      for (let y = startY; y < element.height - padding; y += lineSpacing) {
+      const lineSpacing = answerFontSize * (aSpacing === 'small' ? 1.0 : aSpacing === 'large' ? 1.5 : 1.2);
+      const firstLineY = questionRuledLines ? element.height / 2 : padding + Math.max(questionFontSize, answerFontSize) * 0.8;
+      for (let y = firstLineY; y < element.height - padding; y += lineSpacing) {
         lines.push(...generateLineElement(y, aTheme, padding, aColor, aWidth, aOpacity));
       }
     }
@@ -586,14 +612,16 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
             }
           });
           
-          // Store question text in temp questions
-          dispatch({
-            type: 'UPDATE_TEMP_QUESTION',
-            payload: {
-              questionId,
-              text: selectedQuestionText
-            }
-          });
+          // Store question text in temp questions only if it doesn't exist yet
+          if (!state.tempQuestions[questionId]) {
+            dispatch({
+              type: 'UPDATE_TEMP_QUESTION',
+              payload: {
+                questionId,
+                text: selectedQuestionText
+              }
+            });
+          }
           
           // Load assigned user's answer for the new question
           if (assignedUser) {
@@ -693,6 +721,8 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
         onDoubleClick={handleDoubleClick}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
+        onTransformStart={() => setIsResizing(true)}
+        onTransformEnd={() => setIsResizing(false)}
       >
         <Group>
           {/* Background and Border */}
@@ -774,12 +804,16 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
           })()}
           
           {/* Ruled lines */}
-          <Group>
-            {generateRuledLines()}
-          </Group>
+          {!isResizing && (
+            <Group>
+              {generateRuledLines()}
+            </Group>
+          )}
           
-          {/* Text content */}
-          {(() => {
+          {/* Show skeleton during resize, otherwise show text content */}
+          {isResizing ? (
+            <KonvaSkeleton width={element.width} height={element.height} />
+          ) : (() => {
             const questionStyle = element.questionSettings || {};
             const answerStyle = element.answerSettings || {};
             const padding = questionStyle.padding || answerStyle.padding || element.format?.padding || element.padding || 4;
@@ -821,6 +855,29 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
             const aFontSize = answerStyle.fontSize || fontSize;
             const maxFontSize = Math.max(qFontSize, aFontSize);
             const baselineY = currentY + maxFontSize * 0.8; // Baseline position
+            
+            // Get paragraph spacing settings
+            const qParagraphSpacing = questionStyle.paragraphSpacing || 'small';
+            const aParagraphSpacing = answerStyle.paragraphSpacing || 'small';
+            
+            // Calculate line heights based on paragraph spacing
+            const getLineHeightMultiplier = (spacing: string) => {
+              switch (spacing) {
+                case 'small': return 1.0;
+                case 'medium': return 1.2;
+                case 'large': return 1.5;
+                default: return 1.0;
+              }
+            };
+            
+            const qLineHeight = qFontSize * getLineHeightMultiplier(qParagraphSpacing);
+            const aLineHeight = aFontSize * getLineHeightMultiplier(aParagraphSpacing);
+            
+            // Text baseline offset to float above ruled lines - accounts for font size and paragraph spacing
+            const maxFontSizeUsed = Math.max(qFontSize, aFontSize);
+            const maxLineHeightMultiplier = Math.max(getLineHeightMultiplier(qParagraphSpacing), getLineHeightMultiplier(aParagraphSpacing));
+            const factor = aFontSize >= 50 ? aFontSize >= 96 ? aFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1;
+            const textBaselineOffset = -(maxFontSizeUsed * maxLineHeightMultiplier * 0.15) + (maxFontSizeUsed * factor); 
             
             // Render question text first
             if (questionText) {
@@ -869,7 +926,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                   <Text
                     key={`question-${index}`}
                     x={questionAlign === 'left' ? xPos : padding}
-                    y={baselineY - qFontSize * 0.8 + (index * qFontSize * 1.2)}
+                    y={baselineY - qFontSize * 0.8 + (index * qLineHeight) + textBaselineOffset}
                     text={line}
                     fontSize={qFontSize}
                     fontFamily={qFontFamily}
@@ -886,7 +943,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               // Calculate where question ends for user text positioning
               const lastQuestionLine = questionLines[questionLines.length - 1] || '';
               const questionTextWidth = context.measureText(lastQuestionLine).width;
-              const questionEndY = baselineY - qFontSize * 0.8 + ((questionLines.length - 1) * qFontSize * 1.2);
+              const questionEndY = baselineY - qFontSize * 0.8 + ((questionLines.length - 1) * qLineHeight);
               
               // Render user text with custom wrapping logic
               if (userText) {
@@ -905,7 +962,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                 
                 userLines.forEach((line) => {
                   if (!line.trim() && !isFirstLine) {
-                    currentLineY += aFontSize * 1.2;
+                    currentLineY += aLineHeight;
                     return;
                   }
                   
@@ -959,7 +1016,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                         <Text
                           key={`user-line-${currentLineY}-${currentX}`}
                           x={isFirstLine ? finalX : padding}
-                          y={currentLineY + (qFontSize - aFontSize) * 0.8}
+                          y={currentLineY + (qFontSize - aFontSize) * 0.8 + textBaselineOffset}
                           text={lineText}
                           fontSize={aFontSize}
                           fontFamily={aFontFamily}
@@ -974,7 +1031,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                     }
                     
                     // Move to next line
-                    currentLineY += aFontSize * 1.2;
+                    currentLineY += aLineHeight;
                     isFirstLine = false;
                   }
                 });

@@ -1082,12 +1082,13 @@ export default function Canvas() {
           id: newId,
           x: element.x + 20,
           y: element.y + 20,
-          // Clear text for question-answer pairs
-          text: (element.textType === 'question' || element.textType === 'answer') ? '' : element.text,
-          formattedText: (element.textType === 'question' || element.textType === 'answer') ? '' : element.formattedText,
+          // Clear text for question-answer pairs and qna_inline
+          text: (element.textType === 'question' || element.textType === 'answer' || element.textType === 'qna_inline') ? '' : element.text,
+          formattedText: (element.textType === 'question' || element.textType === 'answer' || element.textType === 'qna_inline') ? '' : element.formattedText,
           // Clear question styling for duplicated questions
           fontColor: element.textType === 'question' ? '#9ca3af' : (element.fontColor || element.fill),
-          questionId: element.textType === 'question' ? undefined : element.questionId,
+          // Clear questionId for qna_inline to reset question assignment
+          questionId: (element.textType === 'question' || element.textType === 'qna_inline') ? undefined : element.questionId,
           // Update questionElementId reference for answer elements
           questionElementId: element.questionElementId ? idMapping.get(element.questionElementId) : element.questionElementId
         };
@@ -1202,12 +1203,13 @@ export default function Canvas() {
         x: x + (element.x - minX),
         y: y + (element.y - minY),
         pageId: state.currentBook?.pages[state.activePageIndex]?.id, // Track source page
-        // Clear text for both question and answer when pasting
-        text: (element.textType === 'question' || element.textType === 'answer') ? '' : element.text,
-        formattedText: (element.textType === 'question' || element.textType === 'answer') ? '' : element.formattedText,
+        // Clear text for question, answer, and qna_inline when pasting
+        text: (element.textType === 'question' || element.textType === 'answer' || element.textType === 'qna_inline') ? '' : element.text,
+        formattedText: (element.textType === 'question' || element.textType === 'answer' || element.textType === 'qna_inline') ? '' : element.formattedText,
         // Clear question styling for pasted questions
         fontColor: element.textType === 'question' ? '#9ca3af' : (element.fontColor || element.fill),
-        questionId: element.textType === 'question' ? undefined : element.questionId,
+        // Clear questionId for qna_inline to reset question assignment
+        questionId: (element.textType === 'question' || element.textType === 'qna_inline') ? undefined : element.questionId,
         // Update questionElementId reference for answer elements
         questionElementId: element.questionElementId ? idMapping.get(element.questionElementId) : element.questionElementId
       };
@@ -2241,8 +2243,21 @@ export default function Canvas() {
               rotationSnapTolerance={5}
               onTransformStart={() => {
                 dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Transform Elements' });
+                // Dispatch custom events for each selected element
+                state.selectedElementIds.forEach(elementId => {
+                  window.dispatchEvent(new CustomEvent('transformStart', {
+                    detail: { elementId }
+                  }));
+                });
               }}
               onTransformEnd={(e) => {
+                // Dispatch custom events for each selected element
+                state.selectedElementIds.forEach(elementId => {
+                  window.dispatchEvent(new CustomEvent('transformEnd', {
+                    detail: { elementId }
+                  }));
+                });
+                
                 // Store current selection to preserve it
                 const currentSelection = [...state.selectedElementIds];
                 
