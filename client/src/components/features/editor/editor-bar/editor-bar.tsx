@@ -32,7 +32,8 @@ interface EditorBarProps {
 }
 
 export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
-  const { state, dispatch, saveBook, refreshPageAssignments } = useEditor();
+  const { state, dispatch, saveBook, refreshPageAssignments, getVisiblePages, getVisiblePageNumbers } = useEditor();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [isSaving, setIsSaving] = useState(false);
   const [showPDFModal, setShowPDFModal] = useState(false);
@@ -49,7 +50,30 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
   if (!state.currentBook) return null;
 
   const { pages } = state.currentBook;
+  const visiblePages = getVisiblePages();
+  const visiblePageNumbers = getVisiblePageNumbers();
   const currentPage = state.activePageIndex + 1;
+  
+  // For own_page access, calculate visible page index and total
+  const getVisiblePageInfo = () => {
+    if (state.pageAccessLevel === 'own_page' && state.assignedPages.length > 0) {
+      const visibleIndex = visiblePageNumbers.indexOf(currentPage);
+      return {
+        currentVisiblePage: visibleIndex + 1,
+        totalVisiblePages: visiblePageNumbers.length,
+        canGoPrev: visibleIndex > 0,
+        canGoNext: visibleIndex < visiblePageNumbers.length - 1
+      };
+    }
+    return {
+      currentVisiblePage: currentPage,
+      totalVisiblePages: pages.length,
+      canGoPrev: state.activePageIndex > 0,
+      canGoNext: state.activePageIndex < pages.length - 1
+    };
+  };
+  
+  const { currentVisiblePage, totalVisiblePages, canGoPrev, canGoNext } = getVisiblePageInfo();
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -83,14 +107,30 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
   };
 
   const handlePrevPage = () => {
-    if (state.activePageIndex > 0) {
-      dispatch({ type: 'SET_ACTIVE_PAGE', payload: state.activePageIndex - 1 });
+    if (state.pageAccessLevel === 'own_page' && state.assignedPages.length > 0) {
+      const currentVisibleIndex = visiblePageNumbers.indexOf(currentPage);
+      if (currentVisibleIndex > 0) {
+        const prevPageNumber = visiblePageNumbers[currentVisibleIndex - 1];
+        dispatch({ type: 'SET_ACTIVE_PAGE', payload: prevPageNumber - 1 });
+      }
+    } else {
+      if (state.activePageIndex > 0) {
+        dispatch({ type: 'SET_ACTIVE_PAGE', payload: state.activePageIndex - 1 });
+      }
     }
   };
 
   const handleNextPage = () => {
-    if (state.activePageIndex < pages.length - 1) {
-      dispatch({ type: 'SET_ACTIVE_PAGE', payload: state.activePageIndex + 1 });
+    if (state.pageAccessLevel === 'own_page' && state.assignedPages.length > 0) {
+      const currentVisibleIndex = visiblePageNumbers.indexOf(currentPage);
+      if (currentVisibleIndex < visiblePageNumbers.length - 1) {
+        const nextPageNumber = visiblePageNumbers[currentVisibleIndex + 1];
+        dispatch({ type: 'SET_ACTIVE_PAGE', payload: nextPageNumber - 1 });
+      }
+    } else {
+      if (state.activePageIndex < pages.length - 1) {
+        dispatch({ type: 'SET_ACTIVE_PAGE', payload: state.activePageIndex + 1 });
+      }
     }
   };
 
@@ -118,7 +158,15 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
   };
 
   const handleGoToPage = (page: number) => {
-    dispatch({ type: 'SET_ACTIVE_PAGE', payload: page - 1 });
+    if (state.pageAccessLevel === 'own_page' && state.assignedPages.length > 0) {
+      // For own_page access, page parameter is the visible page number (1-based)
+      if (page >= 1 && page <= visiblePageNumbers.length) {
+        const actualPageNumber = visiblePageNumbers[page - 1];
+        dispatch({ type: 'SET_ACTIVE_PAGE', payload: actualPageNumber - 1 });
+      }
+    } else {
+      dispatch({ type: 'SET_ACTIVE_PAGE', payload: page - 1 });
+    }
   };
 
   const handleReorderPages = (fromIndex: number, toIndex: number) => {
@@ -140,40 +188,43 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
       <EditorBarContainer isVisible={state.editorBarVisible}>
         {showPagesSubmenu ? (
           <PagesSubmenu 
-            pages={pages}
-            activePageIndex={state.activePageIndex}
+            pages={state.pageAccessLevel === 'own_page' ? visiblePages : pages}
+            activePageIndex={state.pageAccessLevel === 'own_page' ? visiblePageNumbers.indexOf(currentPage) : state.activePageIndex}
             onClose={() => setShowPagesSubmenu(false)}
             onPageSelect={handleGoToPage}
             onReorderPages={handleReorderPages}
             bookId={state.currentBook.id}
+            isRestrictedView={state.pageAccessLevel === 'own_page'}
           />
         ) : (
           <div className="flex items-center justify-between w-full h-12 px-4 py-1 gap-4">
             {/* Left Section - Page Controls */}
             <div className="flex items-center gap-3">
               <PageNavigation
-                currentPage={currentPage}
-                totalPages={pages.length}
+                currentPage={currentVisiblePage}
+                totalPages={totalVisiblePages}
                 onPrevPage={handlePrevPage}
                 onNextPage={handleNextPage}
                 onGoToPage={handleGoToPage}
-                canGoPrev={state.activePageIndex > 0}
-                canGoNext={state.activePageIndex < pages.length - 1}
+                canGoPrev={canGoPrev}
+                canGoNext={canGoNext}
                 onOpenPagesSubmenu={() => setShowPagesSubmenu(true)}
               />
               
-              <PageActions
-                onAddPage={handleAddPage}
-                onDuplicatePage={handleDuplicatePage}
-                onDeletePage={handleDeletePage}
-                canDelete={pages.length > 1}
-                showAssignFriends={false}
-              />
+              {state.userRole !== 'author' && (
+                <PageActions
+                  onAddPage={handleAddPage}
+                  onDuplicatePage={handleDuplicatePage}
+                  onDeletePage={handleDeletePage}
+                  canDelete={pages.length > 1}
+                  showAssignFriends={false}
+                />
+              )}
             </div>
 
             {/* Center Section - Book Title */}
             <div className="flex items-center gap-2 flex-1 justify-center">
-              <BookTitle title={state.currentBook.name} />
+              <BookTitle title={state.currentBook.name} readOnly={state.userRole === 'author'} />
             </div>
 
             {/* Right Section - User Assignment & Settings */}
@@ -184,18 +235,20 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
                 onOpenDialog={() => setShowPageAssignment(true)} 
               />
               
-              <Tooltip content="Settings" side="bottom_editor_bar">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
-                    dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [] });
-                  }}
-                >
-                  <Settings className="h-5 w-5" />
-                </Button>
-              </Tooltip>
+              {(state.userRole !== 'author' || (state.userRole === 'author' && state.editorInteractionLevel === 'full_edit_with_settings')) && (
+                <Tooltip content="Settings" side="bottom_editor_bar">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+                      dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [] });
+                    }}
+                  >
+                    <Settings className="h-5 w-5" />
+                  </Button>
+                </Tooltip>
+              )}
               
               <UndoRedoControls />
               
@@ -272,10 +325,9 @@ function PageAssignmentButton({ currentPage, bookId, onOpenDialog }: { currentPa
   const { state } = useEditor();
   const { user } = useAuth();
   const assignedUser = state.pageAssignments[currentPage];
-  const isAuthor = user?.role === 'author';
+  const isAuthor = state.userRole === 'author';
   
   const handleClick = () => {
-    if (isAuthor) return; // Block dialog opening for authors
     onOpenDialog();
   };
   
@@ -283,17 +335,36 @@ function PageAssignmentButton({ currentPage, bookId, onOpenDialog }: { currentPa
   const assignmentKey = `${currentPage}-${assignedUser?.id || 'none'}`;
 
   if (assignedUser) {
+    if (isAuthor) {
+      return (
+        <Tooltip content={`Assigned to ${assignedUser.name}`} side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
+          <div className="h-full w-full p-0 pt-1.5 rounded-full" key={assignmentKey}>
+            <ProfilePicture name={assignedUser.name} size="sm" userId={assignedUser.id} variant='withColoredBorder' className='h-full w-full' />
+          </div>
+        </Tooltip>
+      );
+    }
     return (
       <Tooltip content={`Assigned to ${assignedUser.name}`} side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
         <Button
           variant="ghost"
           size="md"
           onClick={handleClick}
-          className={`h-full w-full p-0 pt-1.5 rounded-full ${isAuthor ? 'cursor-not-allowed opacity-50' : ''}`}
+          className="h-full w-full p-0 pt-1.5 rounded-full"
           key={assignmentKey}
         >
           <ProfilePicture name={assignedUser.name} size="sm" userId={assignedUser.id} variant='withColoredBorder' className='h-full w-full hover:ring hover:ring-highlight hover:ring-offset-1' />
         </Button>
+      </Tooltip>
+    );
+  }
+
+  if (isAuthor) {
+    return (
+      <Tooltip content="Assign user to page" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
+        <div className="h-full w-full p-0 pt-1.5 rounded-full">
+          <CircleUser className="rounded-full h-10 w-10 stroke-highlight" />
+        </div>
       </Tooltip>
     );
   }
@@ -304,7 +375,7 @@ function PageAssignmentButton({ currentPage, bookId, onOpenDialog }: { currentPa
         variant="ghost"
         size="sm"
         onClick={handleClick}
-          className={`h-full w-full p-0 pt-1.5 rounded-full ${isAuthor ? 'cursor-not-allowed opacity-50' : ''}`}
+        className="h-full w-full p-0 pt-1.5 rounded-full"
       >
         <CircleUser className="rounded-full h-10 w-10 stroke-highlight hover:bg-highlight hover:stroke-background transition-all duration-300 ease-in-out" />
       </Button>

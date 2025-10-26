@@ -121,8 +121,8 @@ function EditorContent() {
     );
   }
   
-  // Block editor access for no_access level
-  if (state.editorInteractionLevel === 'no_access') {
+  // Block editor access for no_access level or form_only access
+  if (state.editorInteractionLevel === 'no_access' || state.pageAccessLevel === 'form_only') {
     window.location.href = `/books/${bookId}/answers`;
     return (
       <div className="flex items-center justify-center h-full">
@@ -131,6 +131,39 @@ function EditorContent() {
         </div>
       </div>
     );
+  }
+
+  // Filter pages based on page access level
+  const getVisiblePages = () => {
+    if (!state.currentBook) return [];
+    
+    if (state.pageAccessLevel === 'own_page' && state.assignedPages.length > 0) {
+      // Show only assigned pages
+      return state.currentBook.pages.filter((_, index) => 
+        state.assignedPages.includes(index + 1)
+      );
+    }
+    
+    // Show all pages for 'all_pages' or when no restrictions
+    return state.currentBook.pages;
+  };
+
+  const visiblePages = getVisiblePages();
+  
+  // If user has own_page access but current page is not visible, redirect to first visible page
+  if (state.pageAccessLevel === 'own_page' && visiblePages.length > 0) {
+    const currentPageNumber = state.activePageIndex + 1;
+    if (!state.assignedPages.includes(currentPageNumber)) {
+      const firstVisiblePageIndex = state.currentBook!.pages.findIndex((_, index) => 
+        state.assignedPages.includes(index + 1)
+      );
+      if (firstVisiblePageIndex !== -1 && firstVisiblePageIndex !== state.activePageIndex) {
+        // Use setTimeout to avoid state update during render
+        setTimeout(() => {
+          dispatch({ type: 'SET_ACTIVE_PAGE', payload: firstVisiblePageIndex });
+        }, 0);
+      }
+    }
   }
 
   return (

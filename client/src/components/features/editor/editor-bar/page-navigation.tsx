@@ -104,7 +104,19 @@ export function PageNavigation({
         <span className="text-xs md:text-sm font-medium text-foreground pl">/</span><span>{totalPages}</span>
       </div>
 
-      <Tooltip content={canGoNext ? "Go to next page" : "Already on last page"} side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
+      {canGoNext ? (
+        <Tooltip content="Go to next page" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onNextPage}
+            disabled={!canGoNext}
+            className="h-8 w-8 p-0 md:h-9 md:w-9"
+          >
+            <ChevronRight className="h-3 w-3 md:h-4 md:w-4" />
+          </Button>
+        </Tooltip>
+      ) : (
         <Button
           variant="outline"
           size="sm"
@@ -114,7 +126,8 @@ export function PageNavigation({
         >
           <ChevronRight className="h-3 w-3 md:h-4 md:w-4" />
         </Button>
-      </Tooltip>
+      )}
+
     </div>
   );
 }

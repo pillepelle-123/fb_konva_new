@@ -6,13 +6,14 @@ import PagePreview from '../../books/page-preview';
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 
-export function PagesSubmenu({ pages, activePageIndex, onClose, onPageSelect, onReorderPages, bookId }: {
+export function PagesSubmenu({ pages, activePageIndex, onClose, onPageSelect, onReorderPages, bookId, isRestrictedView = false }: {
   pages: any[];
   activePageIndex: number;
   onClose: () => void;
   onPageSelect: (page: number) => void;
   onReorderPages: (fromIndex: number, toIndex: number) => void;
   bookId: number;
+  isRestrictedView?: boolean;
 }) {
   const { state } = useEditor();
   const { user } = useAuth();
@@ -81,13 +82,13 @@ export function PagesSubmenu({ pages, activePageIndex, onClose, onPageSelect, on
                 ${draggedIndex === index ? 'opacity-50' : ''}
                 ${isAuthor ? 'cursor-default' : ''}
               `}
-              onClick={() => onPageSelect(index + 1)}
+              onClick={() => onPageSelect(isRestrictedView ? index + 1 : page.pageNumber)}
             >
               <PagePreview 
                 bookId={bookId} 
                 pageId={page.id} 
-                pageNumber={index + 1}
-                assignedUser={state.pageAssignments[index + 1] || null}
+                pageNumber={isRestrictedView ? index + 1 : page.pageNumber}
+                assignedUser={state.pageAssignments[page.pageNumber] || null}
                 isActive={index === activePageIndex}
               />
             </div>

@@ -200,9 +200,6 @@ export default function Textbox(props: CanvasItemProps) {
   const { user } = useAuth();
   const textRef = useRef<Konva.Text>(null);
   const questionTextRef = useRef<Konva.Text>(null);
-  
-  // Debug log to see if component is rendering
-  // console.log('Textbox component rendering for element:', { id: element.id, textStyle: element.textStyle, questionId: element.questionId });
 
   const [hasOverflow, setHasOverflow] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -628,20 +625,13 @@ export default function Textbox(props: CanvasItemProps) {
   };
 
   const displayText = useMemo(() => {
-    if (element.textStyle === 'qna2') {
-      console.log('QnA2 Element Debug - useMemo:', { id: element.id, questionId: element.questionId, textStyle: element.textStyle });
-    }
     const result = getDisplayText();
-    if (element.textStyle === 'qna2') {
-      console.log('QnA2 useMemo result:', result);
-    }
     return result;
   }, [element, element.questionId, state.pageAssignments, state.tempAnswers, getQuestionText, getAnswerText, state.activePageIndex, state.tempQuestions, state.loadedQuestions]);
   
   // Force re-render when temp answers change for this question
   useEffect(() => {
     if ((element.textType === 'qna' || element.textType === 'answer' || element.textStyle === 'qna2') && element.questionId) {
-      console.log('Force re-render useEffect triggered for element:', element.id, 'questionId:', element.questionId);
       // Force re-render whenever temp answers change for this question
       if (textRef.current) {
         textRef.current.text(displayText);
@@ -653,10 +643,8 @@ export default function Textbox(props: CanvasItemProps) {
   // Additional useEffect specifically for qna2 questionId changes
   useEffect(() => {
     if (element.textStyle === 'qna2') {
-      console.log('QnA2 questionId change detected:', element.questionId);
       if (textRef.current) {
         const newText = getDisplayText();
-        console.log('Setting new text:', newText);
         textRef.current.text(newText);
         textRef.current.getLayer()?.batchDraw();
       }
@@ -666,11 +654,9 @@ export default function Textbox(props: CanvasItemProps) {
   // Debug useEffect to track element changes
   useEffect(() => {
     if (element.textStyle === 'qna2') {
-      console.log('QnA2 element changed:', { id: element.id, questionId: element.questionId, text: element.text, formattedText: element.formattedText });
       // Force re-render of text
       if (textRef.current) {
         const newText = getDisplayText();
-        console.log('Forcing text update to:', newText);
         textRef.current.text(newText);
         textRef.current.getLayer()?.batchDraw();
       }

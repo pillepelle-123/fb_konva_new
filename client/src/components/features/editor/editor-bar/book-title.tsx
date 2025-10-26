@@ -4,9 +4,10 @@ import { useAuth } from '../../../../context/auth-context';
 
 interface BookTitleProps {
   title: string;
+  readOnly?: boolean;
 }
 
-export function BookTitle({ title }: BookTitleProps) {
+export function BookTitle({ title, readOnly = false }: BookTitleProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(title);
   const { state, dispatch } = useEditor();
@@ -55,8 +56,8 @@ export function BookTitle({ title }: BookTitleProps) {
         />
       ) : (
         <h1 
-          className="text-sm md:text-lg text-foreground whitespace-nowrap cursor-pointer hover:text-primary"
-          onClick={() => { setEditName(title); setIsEditing(true); }}
+          className={`text-sm md:text-lg text-foreground whitespace-nowrap ${readOnly ? '' : 'cursor-pointer hover:text-primary'}`}
+          onClick={readOnly ? undefined : () => { setEditName(title); setIsEditing(true); }}
         >
           {title}
         </h1>

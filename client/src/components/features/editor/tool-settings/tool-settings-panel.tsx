@@ -164,9 +164,8 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, {}>((props, ref) => {
 
 
 
-  // Hide tool settings panel completely for answer_only users
-  // console.log('Tool settings panel - editorInteractionLevel:', state.editorInteractionLevel);
-  if (state.editorInteractionLevel === 'answer_only') {
+  // Hide tool settings panel completely for authors without "Full + Settings" permission
+  if (state.userRole === 'author' && state.editorInteractionLevel !== 'full_edit_with_settings') {
     return null;
   }
 

@@ -32,6 +32,29 @@ router.get('/book/:bookId', authenticateToken, async (req, res) => {
   }
 });
 
+// Get questions assigned to current user for a specific book
+router.get('/book/:bookId/user', authenticateToken, async (req, res) => {
+  try {
+    const bookId = req.params.bookId;
+    const userId = req.user.id;
+    
+    // Get questions from pages assigned to the current user
+    const result = await pool.query(`
+      SELECT DISTINCT q.*
+      FROM public.questions q
+      JOIN public.pages p ON p.book_id = q.book_id
+      JOIN public.page_assignments pa ON pa.page_id = p.id
+      WHERE q.book_id = $1 AND pa.user_id = $2
+      ORDER BY q.created_at DESC
+    `, [bookId, userId]);
+    
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get user questions error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Get questions by book ID (legacy route)
 router.get('/:bookId', authenticateToken, async (req, res) => {
   try {

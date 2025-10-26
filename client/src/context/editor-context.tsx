@@ -1134,6 +1134,8 @@ const EditorContext = createContext<{
   canAccessEditor: () => boolean;
   canEditCanvas: () => boolean;
   canEditSettings: () => boolean;
+  getVisiblePages: () => Page[];
+  getVisiblePageNumbers: () => number[];
 } | undefined>(undefined);
 
 export const useEditor = () => {
@@ -1641,6 +1643,32 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     return state.editorInteractionLevel === 'full_edit_with_settings';
   };
   
+  const getVisiblePages = () => {
+    if (!state.currentBook) return [];
+    
+    if (state.pageAccessLevel === 'own_page' && state.assignedPages.length > 0) {
+      // Show only assigned pages in correct order
+      return state.currentBook.pages
+        .filter((_, index) => state.assignedPages.includes(index + 1))
+        .sort((a, b) => a.pageNumber - b.pageNumber);
+    }
+    
+    // Show all pages for 'all_pages' or when no restrictions
+    return state.currentBook.pages;
+  };
+  
+  const getVisiblePageNumbers = () => {
+    if (!state.currentBook) return [];
+    
+    if (state.pageAccessLevel === 'own_page' && state.assignedPages.length > 0) {
+      // Return only assigned page numbers in sorted order
+      return [...state.assignedPages].sort((a, b) => a - b);
+    }
+    
+    // Return all page numbers
+    return state.currentBook.pages.map((_, index) => index + 1);
+  };
+  
   const validateQuestionSelection = (questionId: string, currentPageNumber: number): { valid: boolean; reason?: string } => {
     if (!state.currentBook) return { valid: false, reason: 'No book loaded' };
     
@@ -1693,7 +1721,9 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       validateQuestionSelection,
       canAccessEditor,
       canEditCanvas,
-      canEditSettings
+      canEditSettings,
+      getVisiblePages,
+      getVisiblePageNumbers
     }}>
       {children}
     </EditorContext.Provider>

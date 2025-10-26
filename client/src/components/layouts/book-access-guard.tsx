@@ -70,6 +70,13 @@ export default function BookAccessGuard({ children }: BookAccessGuardProps) {
   if (editorInteractionLevel === 'no_access' && location.pathname.includes('/editor/')) {
     return <Navigate to={`/books/${bookId}/answers`} replace />;
   }
+  
+  // Check if user has form_only access and is trying to access editor
+  // This needs to be checked after we have the user role data
+  if (hasAccess && location.pathname.includes('/editor/')) {
+    // We need to fetch the page access level to check for form_only
+    // This will be handled in the editor component itself
+  }
 
   return <>{children}</>;
 }

@@ -979,19 +979,37 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
     );
 
     if (existingFriend.rows.length > 0) {
+      // Automatically set permissions for publishers
+      let finalPageAccessLevel = page_access_level || 'own_page';
+      let finalEditorInteractionLevel = editor_interaction_level || 'full_edit';
+      
+      if ((book_role || role) === 'publisher') {
+        finalPageAccessLevel = 'all_pages';
+        finalEditorInteractionLevel = 'full_edit_with_settings';
+      }
+      
       // Update existing friend's permissions instead of returning error
       const result = await pool.query(
         'UPDATE public.book_friends SET book_role = $1, page_access_level = $2, editor_interaction_level = $3 WHERE book_id = $4 AND user_id = $5 RETURNING *',
-        [book_role || role, page_access_level || 'own_page', editor_interaction_level || 'full_edit', bookId, userToAdd]
+        [book_role || role, finalPageAccessLevel, finalEditorInteractionLevel, bookId, userToAdd]
       );
       // console.log('Friend permissions updated:', result.rows[0]);
       return res.json({ success: true, friend: result.rows[0] });
     }
 
+    // Automatically set permissions for publishers
+    let finalPageAccessLevel = page_access_level || 'own_page';
+    let finalEditorInteractionLevel = editor_interaction_level || 'full_edit';
+    
+    if ((book_role || role) === 'publisher') {
+      finalPageAccessLevel = 'all_pages';
+      finalEditorInteractionLevel = 'full_edit_with_settings';
+    }
+
     // Add friend to book with permissions
     const result = await pool.query(
       'INSERT INTO public.book_friends (book_id, user_id, book_role, page_access_level, editor_interaction_level) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [bookId, userToAdd, book_role || role, page_access_level || 'own_page', editor_interaction_level || 'full_edit']
+      [bookId, userToAdd, book_role || role, finalPageAccessLevel, finalEditorInteractionLevel]
     );
 
     // console.log('Friend added successfully:', result.rows[0]);
@@ -1233,9 +1251,18 @@ router.put('/:id/friends/:friendId/role', authenticateToken, async (req, res) =>
       return res.status(403).json({ error: 'Not authorized' });
     }
 
+    // Automatically set permissions for publishers
+    let finalPageAccessLevel = page_access_level;
+    let finalEditorInteractionLevel = editor_interaction_level;
+    
+    if ((book_role || role) === 'publisher') {
+      finalPageAccessLevel = 'all_pages';
+      finalEditorInteractionLevel = 'full_edit_with_settings';
+    }
+    
     await pool.query(
       'UPDATE public.book_friends SET book_role = $1, page_access_level = $2, editor_interaction_level = $3 WHERE book_id = $4 AND user_id = $5',
-      [book_role || role, page_access_level, editor_interaction_level, bookId, friendId]
+      [book_role || role, finalPageAccessLevel, finalEditorInteractionLevel, bookId, friendId]
     );
 
     res.json({ success: true });
@@ -1268,9 +1295,19 @@ router.put('/:id/friends/bulk-update', authenticateToken, async (req, res) => {
     // Update each friend's permissions
     for (const friend of friends) {
       // console.log('Updating friend:', friend);
+      
+      // Automatically set permissions for publishers
+      let finalPageAccessLevel = friend.page_access_level;
+      let finalEditorInteractionLevel = friend.editor_interaction_level;
+      
+      if (friend.book_role === 'publisher') {
+        finalPageAccessLevel = 'all_pages';
+        finalEditorInteractionLevel = 'full_edit_with_settings';
+      }
+      
       const result = await pool.query(
         'UPDATE public.book_friends SET book_role = $1, page_access_level = $2, editor_interaction_level = $3 WHERE book_id = $4 AND user_id = $5 RETURNING *',
-        [friend.book_role, friend.page_access_level, friend.editor_interaction_level, bookId, friend.user_id]
+        [friend.book_role, finalPageAccessLevel, finalEditorInteractionLevel, bookId, friend.user_id]
       );
       // console.log('Update result:', result.rows[0]);
     }

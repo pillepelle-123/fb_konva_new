@@ -41,11 +41,17 @@ export default function AnswerForm() {
           const bookData = await bookResponse.json();
           setBookTitle(bookData.name || 'Book');
           
-          // Extract questions
-          const questionsData = bookData.questions || [];
-          setQuestions(questionsData.map(q => ({ id: q.id, text: q.question_text })));
+          // Fetch questions assigned to current user
+          const questionsResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/questions/book/${bookId}/user`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
           
-          // Fetch answers assigned to current user
+          if (questionsResponse.ok) {
+            const questionsData = await questionsResponse.json();
+            setQuestions(questionsData.map(q => ({ id: q.id, text: q.question_text })));
+          }
+          
+          // Fetch answers for current user
           const answersResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/answers/book/${bookId}`, {
             headers: { Authorization: `Bearer ${token}` }
           });
