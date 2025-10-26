@@ -1,1 +1,0 @@
-You are always allowed to also edit / add / delete code in the app's "backend" (underneath [root_folder]/backend) 

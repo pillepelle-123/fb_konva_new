@@ -243,16 +243,16 @@ export default function PagesContent({ bookId, bookFriends: propBookFriends, onS
     }
   };
 
-  const inviteUser = async (email: string) => {
+  const inviteUser = async (name: string, email: string) => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/friends/invite`, {
+      const response = await fetch(`${apiUrl}/invitations/send`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ name, email, bookId })
       });
       
       if (response.ok) {
@@ -458,19 +458,28 @@ export default function PagesContent({ bookId, bookFriends: propBookFriends, onS
   );
 }
 
-function InviteForm({ onInvite, onCancel }: { onInvite: (email: string) => void; onCancel: () => void }) {
+function InviteForm({ onInvite, onCancel }: { onInvite: (name: string, email: string) => void; onCancel: () => void }) {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (email.trim()) {
-      onInvite(email.trim());
+    if (name.trim() && email.trim()) {
+      onInvite(name.trim(), email.trim());
+      setName('');
       setEmail('');
     }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <Input
+        type="text"
+        placeholder="Full name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        required
+      />
       <Input
         type="email"
         placeholder="user@example.com"

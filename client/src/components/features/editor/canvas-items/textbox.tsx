@@ -818,6 +818,7 @@ export default function Textbox(props: CanvasItemProps) {
 
   const handleDoubleClick = (e?: any) => {
     if (state.activeTool !== 'select') return;
+    if (e?.evt?.button !== 0) return; // Only left button (0)
     
     // For answer_only users, only allow double-click on answer textboxes and QnA textboxes (which contain answer areas)
     if (state.editorInteractionLevel === 'answer_only' && element.textType !== 'answer' && element.textType !== 'qna' && element.textStyle !== 'qna2') {

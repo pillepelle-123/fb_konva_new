@@ -1,22 +1,53 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/auth-context';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Button } from '../../components/ui/primitives/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/composites/card';
 import { Input } from '../../components/ui/primitives/input';
 import { UserPlus, User, Mail, Lock } from 'lucide-react';
 
 export default function Register() {
+  const [searchParams] = useSearchParams();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const { register } = useAuth();
 
+  useEffect(() => {
+    const emailParam = searchParams.get('email');
+    const tokenParam = searchParams.get('token');
+    if (emailParam) {
+      setEmail(emailParam);
+    }
+    // Store token for potential temporary user conversion
+    if (tokenParam) {
+      sessionStorage.setItem('invitationToken', tokenParam);
+    }
+  }, [searchParams]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await register(name, email, password);
+      const invitationToken = sessionStorage.getItem('invitationToken');
+      if (invitationToken) {
+        // Convert temporary user
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+        const response = await fetch(`${apiUrl}/invitations/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: invitationToken, name, email, password })
+        });
+        if (response.ok) {
+          sessionStorage.removeItem('invitationToken');
+          // User is now converted and registered, redirect to login or dashboard
+          window.location.href = '/login?message=Registration successful, please login';
+        } else {
+          throw new Error('Failed to convert invitation');
+        }
+      } else {
+        await register(name, email, password);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
     }

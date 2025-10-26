@@ -284,6 +284,11 @@ export default function Canvas() {
   }, [state.selectedElementIds.length]);
 
   const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    // Deactivate style painter on any click
+    if (state.stylePainterActive && e.evt.button === 0) {
+      dispatch({ type: 'TOGGLE_STYLE_PAINTER' });
+    }
+    
     // Block all interactions for no_access level
     if (!canAccessEditor()) return;
     
@@ -1305,6 +1310,17 @@ export default function Canvas() {
     // Don't clear selection on right-click
     if (e.evt.button === 2) return;
     
+    // If style painter is active, deactivate it on any click that's not on an element
+    if (state.stylePainterActive && e.evt.button === 0) {
+      const clickedOnElement = e.target !== e.target.getStage() && 
+        (e.target.getClassName() !== 'Rect' || e.target.id());
+      
+      if (!clickedOnElement) {
+        dispatch({ type: 'TOGGLE_STYLE_PAINTER' });
+        return;
+      }
+    }
+    
     const isBackgroundClick = e.target === e.target.getStage() || 
       (e.target.getClassName() === 'Rect' && !e.target.id());
     
@@ -1478,6 +1494,12 @@ export default function Canvas() {
         e.preventDefault();
         handleDeleteItems();
       // Arrow keys are now handled in the repeat handler
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        // Deactivate style painter on ESC key
+        if (state.stylePainterActive) {
+          dispatch({ type: 'TOGGLE_STYLE_PAINTER' });
+        }
       } else if (e.ctrlKey || e.metaKey) {
         if (e.key === 'c' && state.selectedElementIds.length > 0) {
           e.preventDefault();
@@ -1835,7 +1857,12 @@ export default function Canvas() {
   return (
     <>
       <CanvasPageContainer assignedUser={state.pageAssignments[state.activePageIndex + 1] || null}>
-        <CanvasContainer ref={containerRef} pageId={currentPage?.id} activeTool={state.activeTool}>
+        <CanvasContainer 
+          ref={containerRef} 
+          pageId={currentPage?.id} 
+          activeTool={state.activeTool}
+          stylePainterActive={state.stylePainterActive}
+        >
         <CanvasStage
           ref={stageRef}
           width={containerSize.width}
@@ -1849,6 +1876,7 @@ export default function Canvas() {
           onMouseUp={handleMouseUp}
           onContextMenu={handleContextMenu}
           onWheel={handleWheel}
+          style={{ cursor: state.stylePainterActive ? 'url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTkuMDYgMTEuOUwxMi4wNiA4LjlMMTUuMDYgMTEuOUwxMi4wNiAxNC45TDkuMDYgMTEuOVoiIGZpbGw9IiMwMDAiLz4KPHA+YXRoIGQ9Ik0xMi4wNiA4LjlMMTUuMDYgNS45TDE4LjA2IDguOUwxNS4wNiAxMS45TDEyLjA2IDguOVoiIGZpbGw9IiMwMDAiLz4KPC9zdmc+") 12 12, auto' : undefined }}
         >
           <Layer>
             {/* Page boundary */}
@@ -1866,6 +1894,12 @@ export default function Canvas() {
                     isSelected={state.selectedElementIds.includes(element.id)}
                     zoom={zoom}
                     onSelect={(e) => {
+                    // Handle style painter click
+                    if (state.stylePainterActive && e?.evt?.button === 0) {
+                      dispatch({ type: 'APPLY_COPIED_STYLE', payload: element.id });
+                      return;
+                    }
+                    
                     // Block all selection for answer_only users except double-click on answer textboxes
                     if (state.editorInteractionLevel === 'answer_only') {
                       // Only allow double-click on answer textboxes

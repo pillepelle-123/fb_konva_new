@@ -257,11 +257,16 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
   };
 
   const getUserText = () => {
-    // Get answer from assigned user if question exists
     if (element.questionId) {
+      // 1st: current user's answer
+      if (user?.id && state.tempAnswers[element.questionId]?.[user.id]?.text) {
+        return state.tempAnswers[element.questionId][user.id].text;
+      }
+      
+      // 2nd: assigned user's answer
       const assignedUser = state.pageAssignments[state.activePageIndex + 1];
-      if (assignedUser) {
-        return state.tempAnswers[element.questionId]?.[assignedUser.id]?.text || '';
+      if (assignedUser && state.tempAnswers[element.questionId]?.[assignedUser.id]?.text) {
+        return state.tempAnswers[element.questionId][assignedUser.id].text;
       }
     }
     
@@ -420,8 +425,9 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
     return lineElements;
   };
 
-  const handleDoubleClick = () => {
+  const handleDoubleClick = (e: any) => {
     if (state.activeTool !== 'select') return;
+    if (e.evt.button !== 0) return; // Only left button (0)
     enableQuillEditing();
   };
 
@@ -448,14 +454,14 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
     
     function initQuillForQnAInline() {
       const modal = document.createElement('div');
-      modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);backdrop-filter:blur(2px);display:flex;justify-content:center;align-items:center;z-index:10000';
+      modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255, 255, 255, 0.5);backdrop-filter:blur(2px);display:flex;justify-content:center;align-items:center;z-index:10000';
       
       const container = document.createElement('div');
-      container.style.cssText = 'background:white;border-radius:8px;padding:20px;width:80vw;max-width:800px;min-width:400px;box-shadow:0 4px 20px rgba(0,0,0,0.3)';
+      container.style.cssText = 'background:white;border-radius:8px;padding:20px;width:80vw;max-width:800px;min-width:400px;box-shadow:0 3px 6px rgba(0,0,0,0.1)';
       
       const header = document.createElement('div');
-      header.style.cssText = 'margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #e2e8f0';
-      header.innerHTML = '<h2 style="margin:0;font-size:1.25rem;font-weight:600">Text Editor</h2>';
+      header.style.cssText = 'margin-bottom:16px;padding-bottom:12px';
+      header.innerHTML = '<h2 style="margin:0;font-size:1.25rem;font-weight:600">Frage Antwort</h2>';
       
       const toolbar = document.createElement('div');
       toolbar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:8px;background:#f8fafc;border-radius:4px';
@@ -485,13 +491,13 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
       
       const cancelBtn = document.createElement('button');
       cancelBtn.textContent = 'Cancel';
-      cancelBtn.style.cssText = 'padding:8px 16px;border:1px solid #e2e8f0;border-radius:4px;cursor:pointer;background:white';
+      cancelBtn.style.cssText = 'padding:4px 16px;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;background:white;font-size:0.875rem';
       cancelBtn.onmouseover = () => cancelBtn.style.background = '#f1f5f9';
       cancelBtn.onmouseout = () => cancelBtn.style.background = 'white';
       
       const saveBtn = document.createElement('button');
       saveBtn.textContent = 'Save';
-      saveBtn.style.cssText = 'padding:8px 16px;border:none;border-radius:4px;background:#304050;color:white;cursor:pointer';
+      saveBtn.style.cssText = 'padding:8px 16px;border:none;border-radius:6px;background:#304050;color:white;cursor:pointer;font-size:0.875rem';
       saveBtn.onmouseover = () => saveBtn.style.background = '#303a50e6';
       saveBtn.onmouseout = () => saveBtn.style.background = '#304050';
       
@@ -566,19 +572,16 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
           const plainText = quill.getText().trim();
           
           // Save to answer system if questionId exists
-          if (element.questionId) {
-            const assignedUser = state.pageAssignments[state.activePageIndex + 1];
-            if (assignedUser) {
-              dispatch({
-                type: 'UPDATE_TEMP_ANSWER',
-                payload: {
-                  questionId: element.questionId,
-                  text: plainText,
-                  userId: assignedUser.id,
-                  answerId: element.answerId || uuidv4()
-                }
-              });
-            }
+          if (element.questionId && user?.id) {
+            dispatch({
+              type: 'UPDATE_TEMP_ANSWER',
+              payload: {
+                questionId: element.questionId,
+                text: plainText,
+                userId: user.id, // Use current user's ID who is actually answering
+                answerId: element.answerId || uuidv4()
+              }
+            });
           }
           
           dispatch({
@@ -833,7 +836,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                   y={padding}
                   width={textWidth}
                   text="Double-click to add text..."
-                  fontSize={fontSize}
+                  fontSize={Math.max(fontSize * 1, 54)}
                   fontFamily={fontFamily}
                   fill="#9ca3af"
                   opacity={0.7}

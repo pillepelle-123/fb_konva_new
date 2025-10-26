@@ -22,6 +22,7 @@ import Settings from './pages/profile/settings'
 import Editor from './pages/editor'
 import MessengerPage from './pages/messenger'
 import NotFound from './pages/404'
+import InvitationResponse from './pages/invitations/respond'
 import ProtectedRoute from './components/layouts/protected-route'
 import BookAccessGuard from './components/layouts/book-access-guard'
 import QuestionDialogHandler from './components/features/editor/question-dialog-handler'
@@ -62,6 +63,7 @@ function AppContent() {
           <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Home serverMessage={serverMessage} />} />
           <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <Login />} />
           <Route path="/register" element={user ? <Navigate to="/dashboard" /> : <Register />} />
+          <Route path="/invitations/respond" element={<InvitationResponse />} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/books" element={<ProtectedRoute><BooksList /></ProtectedRoute>} />
           <Route path="/books/archive" element={<ProtectedRoute><BookArchive /></ProtectedRoute>} />

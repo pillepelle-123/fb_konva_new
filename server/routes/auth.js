@@ -30,13 +30,24 @@ router.post('/register', async (req, res) => {
     
     const existingUser = await pool.query('SELECT * FROM public.users WHERE email = $1', [email]);
     if (existingUser.rows.length > 0) {
-      return res.status(400).json({ error: 'User already exists' });
+      if (existingUser.rows[0].registered) {
+        return res.status(400).json({ error: 'User already exists' });
+      }
+      // Convert temporary user to registered
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const result = await pool.query(
+        'UPDATE public.users SET name = $1, password_hash = $2, registered = true WHERE email = $3 RETURNING id, name, email, role',
+        [name, hashedPassword, email]
+      );
+      const user = result.rows[0];
+      const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, process.env.JWT_SECRET);
+      return res.json({ token, user });
     }
     
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      'INSERT INTO public.users (name, email, password_hash) VALUES ($1, $2, $3) RETURNING id, name, email, role',
-      [name, email, hashedPassword]
+      'INSERT INTO public.users (name, email, password_hash, registered) VALUES ($1, $2, $3, $4) RETURNING id, name, email, role',
+      [name, email, hashedPassword, true]
     );
     
     const user = result.rows[0];
@@ -58,6 +69,10 @@ router.post('/login', async (req, res) => {
     
     if (!user || !await bcrypt.compare(password, user.password_hash)) {
       return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    if (!user.registered) {
+      return res.status(401).json({ error: 'Account not activated' });
     }
     
     const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, process.env.JWT_SECRET);

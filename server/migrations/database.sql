@@ -7,6 +7,9 @@ CREATE TABLE users (
   email VARCHAR(255) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
   role VARCHAR(50) NOT NULL DEFAULT 'user', -- 'admin' or 'user'
+  registered BOOLEAN NOT NULL DEFAULT TRUE,
+  invitation_token UUID,
+  invited_by INTEGER REFERENCES users(id),
   profile_picture_192 VARCHAR(255),
   profile_picture_32 VARCHAR(255),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

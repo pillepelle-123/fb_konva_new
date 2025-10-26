@@ -332,6 +332,8 @@ export interface EditorState {
   historyActions: string[];
   magneticSnapping: boolean;
   qnaActiveSection: 'question' | 'answer';
+  stylePainterActive: boolean;
+  copiedStyle: Partial<CanvasElement> | null;
 }
 
 type EditorAction =
@@ -377,7 +379,9 @@ type EditorAction =
   | { type: 'APPLY_THEME_TO_ELEMENTS'; payload: { pageIndex: number; themeId: string; elementType?: string } }
   | { type: 'REORDER_PAGES'; payload: { fromIndex: number; toIndex: number } }
   | { type: 'TOGGLE_MAGNETIC_SNAPPING' }
-  | { type: 'SET_QNA_ACTIVE_SECTION'; payload: 'question' | 'answer' };
+  | { type: 'SET_QNA_ACTIVE_SECTION'; payload: 'question' | 'answer' }
+  | { type: 'TOGGLE_STYLE_PAINTER' }
+  | { type: 'APPLY_COPIED_STYLE'; payload: string };
 
 const initialState: EditorState = {
   currentBook: null,
@@ -402,6 +406,8 @@ const initialState: EditorState = {
   historyActions: [],
   magneticSnapping: true,
   qnaActiveSection: 'question',
+  stylePainterActive: false,
+  copiedStyle: null,
 };
 
 const MAX_HISTORY_SIZE = 50;
@@ -1004,6 +1010,103 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'SET_QNA_ACTIVE_SECTION':
       return { ...state, qnaActiveSection: action.payload };
+    
+    case 'TOGGLE_STYLE_PAINTER':
+      console.log('TOGGLE_STYLE_PAINTER action received', { currentBook: !!state.currentBook, selectedCount: state.selectedElementIds.length, active: state.stylePainterActive });
+      if (!state.currentBook || state.selectedElementIds.length !== 1) return state;
+      
+      if (!state.stylePainterActive) {
+        // Activate style painter and copy style from selected element
+        const selectedElement = state.currentBook.pages[state.activePageIndex]?.elements
+          .find(el => el.id === state.selectedElementIds[0]);
+        
+        console.log('Selected element for style copy:', selectedElement);
+        if (!selectedElement) return state;
+        
+        // Copy all style-related properties
+        const copiedStyle: Partial<CanvasElement> = {
+          fontSize: selectedElement.fontSize,
+          fontFamily: selectedElement.fontFamily,
+          fontStyle: selectedElement.fontStyle,
+          fontColor: selectedElement.fontColor,
+          backgroundColor: selectedElement.backgroundColor,
+          backgroundOpacity: selectedElement.backgroundOpacity,
+          borderWidth: selectedElement.borderWidth,
+          borderColor: selectedElement.borderColor,
+          padding: selectedElement.padding,
+          align: selectedElement.align,
+          paragraphSpacing: selectedElement.paragraphSpacing,
+          lineHeight: selectedElement.lineHeight,
+          stroke: selectedElement.stroke,
+          strokeWidth: selectedElement.strokeWidth,
+          fill: selectedElement.fill,
+          theme: selectedElement.theme,
+          roughness: selectedElement.roughness,
+          // Copy all nested style objects
+          font: selectedElement.font ? { ...selectedElement.font } : undefined,
+          format: selectedElement.format ? { ...selectedElement.format } : undefined,
+          background: selectedElement.background ? { ...selectedElement.background } : undefined,
+          border: selectedElement.border ? { ...selectedElement.border } : undefined,
+          ruledLines: selectedElement.ruledLines ? { ...selectedElement.ruledLines } : undefined,
+          ruledLinesWidth: selectedElement.ruledLinesWidth,
+          ruledLinesColor: selectedElement.ruledLinesColor,
+          ruledLinesTheme: selectedElement.ruledLinesTheme,
+          // QnA specific styles
+          questionSettings: selectedElement.questionSettings ? { ...selectedElement.questionSettings } : undefined,
+          answerSettings: selectedElement.answerSettings ? { ...selectedElement.answerSettings } : undefined,
+          qnaIndividualSettings: selectedElement.qnaIndividualSettings
+        };
+        
+        console.log('Activating style painter with copied style:', copiedStyle);
+        return {
+          ...state,
+          stylePainterActive: true,
+          copiedStyle
+        };
+      } else {
+        // Deactivate style painter
+        return {
+          ...state,
+          stylePainterActive: false,
+          copiedStyle: null
+        };
+      }
+    
+    case 'APPLY_COPIED_STYLE':
+      if (!state.currentBook || !state.stylePainterActive || !state.copiedStyle) return state;
+      
+      const targetElement = state.currentBook.pages[state.activePageIndex]?.elements
+        .find(el => el.id === action.payload);
+      
+      if (!targetElement) return state;
+      
+      const savedStyleState = saveToHistory(state, 'Apply Style');
+      
+      // Apply copied style to target element
+      const updatedBookStyle = { ...savedStyleState.currentBook! };
+      const pageStyle = updatedBookStyle.pages[savedStyleState.activePageIndex];
+      const targetElementIndex = pageStyle.elements.findIndex(el => el.id === action.payload);
+      
+      if (targetElementIndex !== -1) {
+        // Filter out undefined values and apply style
+        const styleToApply = Object.fromEntries(
+          Object.entries(savedStyleState.copiedStyle!).filter(([_, value]) => value !== undefined)
+        );
+        
+        pageStyle.elements[targetElementIndex] = {
+          ...pageStyle.elements[targetElementIndex],
+          ...styleToApply
+        };
+      }
+      
+      // Deactivate style painter after applying
+      return {
+        ...savedStyleState,
+        currentBook: updatedBookStyle,
+        stylePainterActive: false,
+        copiedStyle: null,
+        hasUnsavedChanges: true
+      };
     
     default:
       return state;

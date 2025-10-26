@@ -1,6 +1,6 @@
 import { ToolButton } from './tool-button';
 import { ToolPopover } from './tool-popover';
-import { type Icon, Info, Hand, Brush, Pipette, Square, Sticker, MessageCircle, MessageCircleQuestionMark, MessageCircleMore, Search, SquareMousePointer, Magnet, MessageCircleHeart } from 'lucide-react';
+import { type Icon, Info, Hand, Brush, Pipette, Square, Sticker, MessageCircle, MessageCircleQuestionMark, MessageCircleMore, Search, SquareMousePointer, Magnet, MessageCircleHeart, Paintbrush } from 'lucide-react';
 import { useState, forwardRef, useImperativeHandle } from 'react';
 import { Button } from '../../../ui/primitives/button';
 import { ShortcutsDialog } from './shortcuts-dialog';
@@ -232,6 +232,25 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
         </div>
         
         <Separator/>
+        <Tooltip content='Style Painter - Copy formatting from one element to another' side='right'>
+          <Button
+            variant={state.stylePainterActive ? "default" : "ghost"}
+            size="xs"
+            onClick={() => {
+              console.log('Style painter clicked', { selectedCount: state.selectedElementIds.length, active: state.stylePainterActive });
+              if (state.selectedElementIds.length === 1) {
+                dispatch({ type: 'TOGGLE_STYLE_PAINTER' });
+              }
+            }}
+            disabled={state.selectedElementIds.length !== 1}
+            className={`w-full flex flex-col items-center gap-1 h-auto py-2 ${state.stylePainterActive ? 'bg-highlight text-white' : ''}`}
+          >
+            <Paintbrush className="h-4 w-4" />
+            {isExpanded && (
+              <span className="text-xs">Style</span>
+            )}
+          </Button>
+        </Tooltip>
         <Tooltip content='Magnetic snapping of elements' side='right'>
           <Button
             variant={state.magneticSnapping ? "default" : "ghost"}

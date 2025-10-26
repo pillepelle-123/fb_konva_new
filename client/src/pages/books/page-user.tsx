@@ -177,16 +177,16 @@ export default function PageUserPage() {
     }
   };
 
-  const inviteUser = async (email: string) => {
+  const inviteUser = async (name: string, email: string) => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/books/${bookId}/collaborators`, {
+      const response = await fetch(`${apiUrl}/invitations/send`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ name, email, bookId: parseInt(bookId!) })
       });
       
       if (response.ok) {
@@ -412,12 +412,24 @@ export default function PageUserPage() {
   );
 }
 
-function InviteForm({ onInvite, onCancel }: { onInvite: (email: string) => void; onCancel: () => void }) {
+function InviteForm({ onInvite, onCancel }: { onInvite: (name: string, email: string) => void; onCancel: () => void }) {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onInvite(email); }} className="space-y-4">
+    <form onSubmit={(e) => { e.preventDefault(); if (name.trim() && email.trim()) onInvite(name.trim(), email.trim()); }} className="space-y-4">
       <div className="space-y-2">
-        <label htmlFor="email" className="text-sm font-medium">Invite Friend by Email</label>
+        <label htmlFor="name" className="text-sm font-medium">Name</label>
+        <Input
+          id="name"
+          type="text"
+          placeholder="name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
+      </div>
+      <div className="space-y-2">
+        <label htmlFor="email" className="text-sm font-medium">Email Address</label>
         <Input
           id="email"
           type="email"
@@ -432,7 +444,7 @@ function InviteForm({ onInvite, onCancel }: { onInvite: (email: string) => void;
           Cancel
         </Button>
         <Button type="submit">
-          Invite Friend
+          Send Invite
         </Button>
       </div>
     </form>

@@ -53,6 +53,7 @@ app.use('/api/messenger', require('./routes/messenger'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/editor-settings', require('./routes/editor-settings'));
 app.use('/api/user-question-assignments', require('./routes/user-question-assignments'));
+app.use('/api/invitations', require('./routes/invitations'));
 
 // Socket.IO authentication middleware
 io.use((socket, next) => {

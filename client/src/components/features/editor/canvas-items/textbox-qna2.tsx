@@ -233,6 +233,7 @@ export default function TextboxQnA2(props: CanvasItemProps) {
 
 
   const handleDoubleClick = (e?: any) => {
+    if (e?.evt?.button !== 0) return; // Only left button (0)
     // For answer_only users, check if they can edit
     if (state.editorInteractionLevel === 'answer_only') {
       const assignedUser = state.pageAssignments[state.activePageIndex + 1];
