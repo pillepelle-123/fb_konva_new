@@ -829,7 +829,7 @@ export default function Canvas() {
           const currentPage = state.currentBook?.pages[state.activePageIndex];
           const pageTheme = currentPage?.background?.pageTheme;
           const bookTheme = state.currentBook?.bookTheme;
-          const textDefaults = getToolDefaults('text', pageTheme, bookTheme);
+          const qnaInlineDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme);
           newElement = {
             id: uuidv4(),
             type: 'text',
@@ -838,12 +838,14 @@ export default function Canvas() {
             width: previewTextbox.width,
             height: previewTextbox.height,
             text: '',
-            fontSize: textDefaults.fontSize,
-            align: textDefaults.align,
-            fontFamily: textDefaults.fontFamily,
+            fontSize: qnaInlineDefaults.fontSize,
+            align: qnaInlineDefaults.align,
+            fontFamily: qnaInlineDefaults.fontFamily,
             textType: 'qna_inline',
-            paragraphSpacing: textDefaults.paragraphSpacing,
-            cornerRadius: textDefaults.cornerRadius
+            paragraphSpacing: qnaInlineDefaults.paragraphSpacing,
+            cornerRadius: qnaInlineDefaults.cornerRadius,
+            questionSettings: qnaInlineDefaults.questionSettings,
+            answerSettings: qnaInlineDefaults.answerSettings
           };
         } else {
           const currentPage = state.currentBook?.pages[state.activePageIndex];

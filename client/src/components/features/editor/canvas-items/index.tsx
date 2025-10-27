@@ -23,11 +23,11 @@ export default function CanvasItemComponent(props: CanvasItemComponentProps) {
 
   if (element.type === 'text') {
     // Check for QnA2 textType
-    if (element.textStyle === 'qna2') {
+    if (element.textType === 'qna2') {
       return <TextboxQnA2 {...props} />;
     }
-    // Check for QnA Inline textType or textType
-    if (element.textStyle === 'qna_inline') {
+    // Check for QnA Inline textType
+    if (element.textType === 'qna_inline') {
       return <TextboxQnAInline {...props} />;
     }
     return <Textbox {...props} />;

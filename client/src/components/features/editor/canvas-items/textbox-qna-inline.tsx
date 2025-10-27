@@ -12,6 +12,7 @@ import { getParagraphSpacing, getPadding } from '../../../../utils/format-utils'
 import { getRuledLinesOpacity } from '../../../../utils/ruled-lines-utils';
 import { getRuledLinesTheme } from '../../../../utils/theme-utils';
 import { getThemeRenderer } from '../../../../utils/themes';
+import { getToolDefaults } from '../../../../utils/tool-defaults';
 import rough from 'roughjs';
 import { KonvaSkeleton } from '../../../ui/primitives/skeleton';
 
@@ -241,12 +242,11 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
         size = themeDefaults?.font?.fontSize || themeDefaults?.fontSize;
       }
       if (!size) {
-        const { getToolDefaults } = require('../../../utils/tool-defaults');
         const toolDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme);
         size = toolDefaults.fontSize;
       }
     }
-    return size || 58;
+    return size || 50;
   })();
   
   const fontFamily = element.font?.fontFamily || element.fontFamily || 'Arial, sans-serif';
@@ -300,8 +300,20 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
   // Generate ruled lines
   const generateRuledLines = () => {
     const lines = [];
-    const questionStyle = element.questionSettings || {};
-    const answerStyle = element.answerSettings || {};
+    // Get default settings from tool defaults if not present
+    const currentPage = state.currentBook?.pages[state.activePageIndex];
+    const pageTheme = currentPage?.background?.pageTheme;
+    const bookTheme = state.currentBook?.bookTheme;
+    const qnaInlineDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme);
+    
+    const questionStyle = {
+      ...qnaInlineDefaults.questionSettings,
+      ...element.questionSettings
+    };
+    const answerStyle = {
+      ...qnaInlineDefaults.answerSettings,
+      ...element.answerSettings
+    };
     const padding = questionStyle.padding || answerStyle.padding || element.format?.padding || element.padding || 4;
     
     // Check if ruled lines are enabled for question or answer
@@ -728,8 +740,20 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
         <Group>
           {/* Background and Border */}
           {(() => {
-            const questionStyle = element.questionSettings || {};
-            const answerStyle = element.answerSettings || {};
+            // Get default settings from tool defaults if not present
+            const currentPage = state.currentBook?.pages[state.activePageIndex];
+            const pageTheme = currentPage?.background?.pageTheme;
+            const bookTheme = state.currentBook?.bookTheme;
+            const qnaInlineDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme);
+            
+            const questionStyle = {
+              ...qnaInlineDefaults.questionSettings,
+              ...element.questionSettings
+            };
+            const answerStyle = {
+              ...qnaInlineDefaults.answerSettings,
+              ...element.answerSettings
+            };
             const showBackground = questionStyle.backgroundEnabled || answerStyle.backgroundEnabled;
             const showBorder = questionStyle.borderEnabled || answerStyle.borderEnabled;
             const cornerRadius = questionStyle.cornerRadius || answerStyle.cornerRadius || 0;
@@ -815,8 +839,20 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
           {isResizing ? (
             <KonvaSkeleton width={element.width} height={element.height} />
           ) : (() => {
-            const questionStyle = element.questionSettings || {};
-            const answerStyle = element.answerSettings || {};
+            // Get default settings from tool defaults if not present
+            const currentPage = state.currentBook?.pages[state.activePageIndex];
+            const pageTheme = currentPage?.background?.pageTheme;
+            const bookTheme = state.currentBook?.bookTheme;
+            const qnaInlineDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme);
+            
+            const questionStyle = {
+              ...qnaInlineDefaults.questionSettings,
+              ...element.questionSettings
+            };
+            const answerStyle = {
+              ...qnaInlineDefaults.answerSettings,
+              ...element.answerSettings
+            };
             const padding = questionStyle.padding || answerStyle.padding || element.format?.padding || element.padding || 4;
             const textWidth = element.width - (padding * 2);
             const questionText = getQuestionText();
