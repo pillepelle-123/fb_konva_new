@@ -637,7 +637,7 @@ export default function Canvas() {
       const pageTheme = currentPage?.background?.pageTheme;
       const bookTheme = state.currentBook?.bookTheme;
       const brushDefaults = getToolDefaults('brush', pageTheme, bookTheme);
-      // Points are already relative to Group position
+      const toolSettings = state.toolSettings?.brush || {};
       const adjustedPoints = smoothedPath;
       const newElement: CanvasElement = {
         id: uuidv4(),
@@ -647,10 +647,10 @@ export default function Canvas() {
         width: 0,
         height: 0,
         points: adjustedPoints,
-        stroke: brushDefaults.stroke,
+        stroke: toolSettings.strokeColor || brushDefaults.stroke,
         fill: 'transparent',
         roughness: 1,
-        strokeWidth: brushDefaults.strokeWidth,
+        strokeWidth: toolSettings.strokeWidth || brushDefaults.strokeWidth,
         theme: brushDefaults.theme
       };
       dispatch({ type: 'ADD_ELEMENT', payload: newElement });
@@ -664,6 +664,7 @@ export default function Canvas() {
         const pageTheme = currentPage?.background?.pageTheme;
         const bookTheme = state.currentBook?.bookTheme;
         const lineDefaults = getToolDefaults('line', pageTheme, bookTheme);
+        const toolSettings = state.toolSettings?.line || {};
         const newElement: CanvasElement = {
           id: uuidv4(),
           type: 'line',
@@ -671,9 +672,9 @@ export default function Canvas() {
           y: previewLine.y1,
           width: width,
           height: height,
-          stroke: lineDefaults.stroke,
+          stroke: toolSettings.strokeColor || lineDefaults.stroke,
           roughness: 3,
-          strokeWidth: lineDefaults.strokeWidth,
+          strokeWidth: toolSettings.strokeWidth || lineDefaults.strokeWidth,
           theme: lineDefaults.theme
         };
         dispatch({ type: 'ADD_ELEMENT', payload: newElement });
@@ -688,6 +689,7 @@ export default function Canvas() {
         const pageTheme = currentPage?.background?.pageTheme;
         const bookTheme = state.currentBook?.bookTheme;
         const shapeDefaults = getToolDefaults(previewShape.type as any, pageTheme, bookTheme);
+        const toolSettings = state.toolSettings?.[previewShape.type] || {};
         const newElement: CanvasElement = {
           id: uuidv4(),
           type: previewShape.type as any,
@@ -695,10 +697,10 @@ export default function Canvas() {
           y: previewShape.y,
           width: previewShape.width,
           height: previewShape.height,
-          fill: shapeDefaults.fill || 'transparent',
-          stroke: shapeDefaults.stroke,
+          fill: toolSettings.fillColor !== undefined ? toolSettings.fillColor : (shapeDefaults.fill || 'transparent'),
+          stroke: toolSettings.strokeColor || shapeDefaults.stroke,
           roughness: 3,
-          strokeWidth: shapeDefaults.strokeWidth,
+          strokeWidth: toolSettings.strokeWidth || shapeDefaults.strokeWidth,
           cornerRadius: shapeDefaults.cornerRadius || 0,
           theme: shapeDefaults.theme,
           polygonSides: previewShape.type === 'polygon' ? (state.toolSettings?.polygon?.polygonSides || 5) : undefined
@@ -1943,17 +1945,17 @@ export default function Canvas() {
                       return;
                     }
                     
-                    // Handle Ctrl+click for multi-selection
+                    // Handle Ctrl+click for multi-selection and deselection
                     if (e?.evt?.ctrlKey || e?.evt?.metaKey) {
                       const isSelected = state.selectedElementIds.includes(element.id);
                       if (isSelected) {
-                        // Remove from selection
+                        // Deselect: Remove from selection
                         dispatch({ 
                           type: 'SET_SELECTED_ELEMENTS', 
                           payload: state.selectedElementIds.filter(id => id !== element.id) 
                         });
                       } else {
-                        // Add to selection
+                        // Select: Add to selection
                         dispatch({ 
                           type: 'SET_SELECTED_ELEMENTS', 
                           payload: [...state.selectedElementIds, element.id] 

@@ -1,5 +1,6 @@
 import { ToolButton } from './tool-button';
 import { ToolPopover } from './tool-popover';
+import { ToolSettingsPopover } from './tool-settings-popover';
 import { type Icon, Info, Hand, Brush, Pipette, Square, Sticker, MessageCircle, MessageCircleQuestionMark, MessageCircleMore, Search, SquareMousePointer, Magnet, MessageCircleHeart, Paintbrush } from 'lucide-react';
 import { useState, forwardRef, useImperativeHandle } from 'react';
 import { Button } from '../../../ui/primitives/button';
@@ -101,16 +102,18 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
 
         {/* Row 2: Brush + Pipette */}
         <div className={`${isExpanded ? 'grid grid-cols-2 gap-1' : 'space-y-1'} mb-1`}>
-          <ToolButton
-            id="brush"
-            label="Brush"
-            icon={Brush}
-            isActive={activeTool === 'brush'}
-            isExpanded={false}
-            userRole={userRole}
-            isOnAssignedPage={isOnAssignedPage}
-            onClick={() => onToolSelect('brush')}
-          />
+          <ToolSettingsPopover activeTool={activeTool}>
+            <ToolButton
+              id="brush"
+              label="Brush"
+              icon={Brush}
+              isActive={activeTool === 'brush'}
+              isExpanded={false}
+              userRole={userRole}
+              isOnAssignedPage={isOnAssignedPage}
+              onClick={() => onToolSelect('brush')}
+            />
+          </ToolSettingsPopover>
           <ToolButton
             id="pipette"
             label="Pipette"

@@ -2,6 +2,8 @@ import { Tooltip } from '../composites/tooltip';
 
 interface SliderProps {
   label: string;
+  tooltipPosition?: 'top' | 'left' | 'right' | 'bottom';
+  hasLabel?: boolean;
   value: number;
   onChange: (value: number) => void;
   min: number;
@@ -19,26 +21,34 @@ export function Slider({
   max, 
   step = 1, 
   unit = 'px',
-  className = ''
+  className = '',
+  tooltipPosition = 'left',
+  hasLabel = true,
 }: SliderProps) {
+  const sliderInput = (
+    <input
+      type="range"
+      value={value}
+      onChange={(e) => onChange(parseInt(e.target.value))}
+      min={min}
+      max={max}
+      step={step}
+      className="w-full"
+    />
+  );
+
   return (
     <div className={`${className} flex flex-row gap-2`}>
-      {/* <div className="flex flex-row gap-2"> */}
-        <div className="flex-1">
-          <Tooltip content={label} side='left'>
-            <input
-              type="range"
-              value={value}
-              onChange={(e) => onChange(parseInt(e.target.value))}
-              min={min}
-              max={max}
-              step={step}
-              className="w-full"
-            />
+      <div className="flex-1">
+        {hasLabel ? (
+          <Tooltip content={label} side={tooltipPosition}>
+            {sliderInput}
           </Tooltip>
-        </div>
-        <span className="text-xs text-muted-foreground">{value}</span>
-      {/* </div> */}
+        ) : (
+          sliderInput
+        )}
+      </div>
+      <span className="text-xs text-muted-foreground">{value}</span>
     </div>
   );
 }

@@ -3,8 +3,6 @@ import { createPortal } from 'react-dom';
 import { Button } from '../../../ui/primitives/button';
 import { ToolButton } from './tool-button';
 import { X, Square, Minus, Circle, Heart, Star, MessageCircle, Dog, Cat, Smile, Triangle, Pentagon } from 'lucide-react';
-import { Label } from '../../../ui/primitives/label';
-import { Input } from '../../../ui/primitives/input';
 import { useEditor } from '../../../../context/editor-context';
 
 interface ShapeTool {
@@ -36,17 +34,14 @@ const shapeTools: ShapeTool[] = [
 ];
 
 export function ToolPopover({ activeTool, userRole, isOnAssignedPage, onToolSelect, children }: ToolPopoverProps) {
-  const { state, dispatch } = useEditor();
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [polygonSides, setPolygonSides] = useState(state.toolSettings?.polygon?.polygonSides || 5);
   const triggerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   const handleToolSelect = (toolId: string) => {
     onToolSelect(toolId);
-    if (toolId !== 'polygon') {
-      setIsOpen(false);
-    }
+    setIsOpen(false);
   };
 
   const updatePosition = () => {
@@ -61,13 +56,30 @@ export function ToolPopover({ activeTool, userRole, isOnAssignedPage, onToolSele
     setIsOpen(!isOpen);
   };
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        popoverRef.current && !popoverRef.current.contains(e.target as Node) &&
+        triggerRef.current && !triggerRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
   return (
     <div ref={triggerRef}>
       <div onClick={handleClick}>
         {children}
       </div>
       {isOpen && createPortal(
-        <div 
+        <div
+          ref={popoverRef}
           className="fixed w-30 p-3 bg-background border rounded-md shadow-lg"
           style={{ left: position.x, top: position.y, zIndex: 10000 }}
         >
@@ -97,26 +109,6 @@ export function ToolPopover({ activeTool, userRole, isOnAssignedPage, onToolSele
               />
             ))}
           </div>
-          {activeTool === 'polygon' && isOpen && (
-            <div className="mt-3 pt-3 border-t">
-              <Label className="text-xs mb-1">Polygon Sides</Label>
-              <Input
-                type="number"
-                min={3}
-                max={12}
-                value={polygonSides}
-                onChange={(e) => {
-                  const value = Math.max(3, Math.min(12, parseInt(e.target.value) || 5));
-                  setPolygonSides(value);
-                  dispatch({
-                    type: 'UPDATE_TOOL_SETTINGS',
-                    payload: { tool: 'polygon', settings: { polygonSides: value } }
-                  });
-                }}
-                className="h-8"
-              />
-            </div>
-          )}
         </div>,
         document.body
       )}

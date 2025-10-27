@@ -84,8 +84,9 @@ export default function BaseCanvasItem({
       if (e.evt.button === 0) {
         e.cancelBubble = true;
         // For question-answer pairs, always call onSelect to handle sequential selection
-        // For other elements, only call if not already selected
-        if (element.textType === 'question' || element.textType === 'answer' || !isSelected) {
+        // For other elements with Ctrl+click, always call onSelect to handle multi-selection/deselection
+        // For other elements without Ctrl, only call if not already selected
+        if (element.textType === 'question' || element.textType === 'answer' || !isSelected || e.evt.ctrlKey || e.evt.metaKey) {
           onSelect(e);
         }
       } else if (e.evt.button === 2) {
@@ -110,7 +111,8 @@ export default function BaseCanvasItem({
       e.cancelBubble = true;
       // For regular elements, select on mouseDown if not already selected
       // Skip for question-answer pairs as they use onClick for sequential selection
-      if (!isSelected && !(element.textType === 'question' || element.textType === 'answer')) {
+      // Skip if Ctrl/Cmd is pressed (multi-selection is handled in onClick)
+      if (!isSelected && !(element.textType === 'question' || element.textType === 'answer') && !e.evt.ctrlKey && !e.evt.metaKey) {
         onSelect(e);
       }
     }
