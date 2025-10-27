@@ -21,7 +21,7 @@ export default function UndoRedoControls() {
         className="h-8 md:h-9 px-2 md:px-3"
         title="Undo"
       >
-        <Undo className="h-3 w-3 md:h-4 md:w-4" />
+        <Undo className="h-4 w-4 md:h-5 md:w-5" />
       </Button>
       
       <Popover>
@@ -32,7 +32,7 @@ export default function UndoRedoControls() {
             className="h-8 md:h-9 px-2 md:px-3"
             title="History"
           >
-            <History className="h-3 w-3 md:h-4 md:w-4" />
+            <History className="h-4 w-4 md:h-5 md:w-5" />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-64 p-2">
@@ -66,7 +66,7 @@ export default function UndoRedoControls() {
         className="h-8 md:h-9 px-2 md:px-3"
         title="Redo"
       >
-        <Redo className="h-3 w-3 md:h-4 md:w-4" />
+        <Redo className="h-4 w-4 md:h-5 md:w-5" />
       </Button>
     </ButtonGroup>
   );

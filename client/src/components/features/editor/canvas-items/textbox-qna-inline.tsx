@@ -258,15 +258,9 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
 
   const getUserText = () => {
     if (element.questionId) {
-      // 1st: current user's answer
-      if (user?.id && state.tempAnswers[element.questionId]?.[user.id]?.text) {
-        return state.tempAnswers[element.questionId][user.id].text;
-      }
-      
-      // 2nd: assigned user's answer
       const assignedUser = state.pageAssignments[state.activePageIndex + 1];
-      if (assignedUser && state.tempAnswers[element.questionId]?.[assignedUser.id]?.text) {
-        return state.tempAnswers[element.questionId][assignedUser.id].text;
+      if (assignedUser) {
+        return state.tempAnswers[element.questionId]?.[assignedUser.id]?.text || '';
       }
     }
     
@@ -281,38 +275,27 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
     return text;
   };
 
-  const getDisplayText = () => {
-    const questionText = getQuestionText();
-    const userText = getUserText();
-    
-    if (!questionText && !userText) {
-      return 'Double-click to add text...';
-    }
-    
-    return questionText + userText;
-  };
 
-  const displayText = useMemo(() => getDisplayText(), [element.text, element.formattedText, element.questionId, state.tempQuestions, state.tempAnswers, state.pageAssignments]);
   
-  // Update element text when question changes to show assigned user's answer
+  // Update element text when assigned user changes to show their answer
   useEffect(() => {
     if (element.questionId) {
       const assignedUser = state.pageAssignments[state.activePageIndex + 1];
-      if (assignedUser) {
-        const answerText = state.tempAnswers[element.questionId]?.[assignedUser.id]?.text || '';
-        dispatch({
-          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-          payload: {
-            id: element.id,
-            updates: {
-              text: answerText,
-              formattedText: answerText
-            }
+      const answerText = assignedUser ? (state.tempAnswers[element.questionId]?.[assignedUser.id]?.text || '') : '';
+      
+      // Always update to show the assigned user's answer (or empty if no answer yet)
+      dispatch({
+        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+        payload: {
+          id: element.id,
+          updates: {
+            text: answerText,
+            formattedText: answerText
           }
-        });
-      }
+        }
+      });
     }
-  }, [element.questionId, state.tempAnswers, state.pageAssignments]);
+  }, [element.questionId, state.pageAssignments, state.activePageIndex, state.tempAnswers, element.id, dispatch]);
 
   // Generate ruled lines
   const generateRuledLines = () => {
@@ -477,7 +460,9 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
       insertQuestionBtn.onmouseover = () => insertQuestionBtn.style.background = '#f1f5f9';
       insertQuestionBtn.onmouseout = () => insertQuestionBtn.style.background = 'white';
       insertQuestionBtn.onclick = () => {
-        window.dispatchEvent(new CustomEvent('openQuestionDialog'));
+        window.dispatchEvent(new CustomEvent('openQuestionDialog', {
+          detail: { elementId: element.id }
+        }));
       };
       
       toolbar.appendChild(questionText);
@@ -598,7 +583,10 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
           closeModal();
         };
         
-        // Listen for question selection events
+        // Create unique event name for this element
+        const uniqueEventName = `questionSelected-${element.id}`;
+        
+        // Listen for question selection events specific to this element
         const handleQuestionSelected = (event: CustomEvent) => {
           const { questionId, questionText: selectedQuestionText } = event.detail;
           
@@ -675,7 +663,17 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
           }
         };
         
-        window.addEventListener('questionSelected', handleQuestionSelected);
+        window.addEventListener(uniqueEventName, handleQuestionSelected);
+        
+        // Cleanup function to remove the event listener when modal closes
+        const originalCloseModal = closeModal;
+        closeModal = () => {
+          window.removeEventListener(uniqueEventName, handleQuestionSelected);
+          originalCloseModal();
+        };
+        
+        // Update cancel button to use new closeModal
+        cancelBtn.onclick = closeModal;
         
 
         

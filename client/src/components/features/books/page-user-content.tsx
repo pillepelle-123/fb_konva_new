@@ -12,6 +12,7 @@ import { ChevronUp, ChevronDown, UserPlus, UserSearch, X, FileText, User } from 
 import FindFriendsDialog from '../friends/find-friends-dialog';
 import ProfilePicture from '../users/profile-picture';
 import PagePreview from './page-preview';
+import InviteUserDialog from './invite-user-dialog';
 
 interface PageAssignment {
   pageId: number;
@@ -443,58 +444,12 @@ export default function PagesContent({ bookId, bookFriends: propBookFriends, onS
       />
 
       {/* Invite Dialog */}
-      <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Invite User</DialogTitle>
-            <DialogDescription>
-              Invite a new user by email
-            </DialogDescription>
-          </DialogHeader>
-          <InviteForm onInvite={inviteUser} onCancel={() => setShowInviteDialog(false)} />
-        </DialogContent>
-      </Dialog>
+      <InviteUserDialog
+        open={showInviteDialog}
+        onOpenChange={setShowInviteDialog}
+        onInvite={inviteUser}
+      />
     </div>
   );
 }
 
-function InviteForm({ onInvite, onCancel }: { onInvite: (name: string, email: string) => void; onCancel: () => void }) {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (name.trim() && email.trim()) {
-      onInvite(name.trim(), email.trim());
-      setName('');
-      setEmail('');
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <Input
-        type="text"
-        placeholder="Full name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        required
-      />
-      <Input
-        type="email"
-        placeholder="user@example.com"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        required
-      />
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button type="submit">
-          Send Invite
-        </Button>
-      </div>
-    </form>
-  );
-}

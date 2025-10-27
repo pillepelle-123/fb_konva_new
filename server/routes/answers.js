@@ -333,4 +333,47 @@ router.delete('/:answerId', authenticateToken, async (req, res) => {
   }
 });
 
+// Deactivate answers for a user when removed from book
+router.put('/deactivate-user/:userId/book/:bookId', authenticateToken, async (req, res) => {
+  try {
+    const { userId: targetUserId, bookId } = req.params;
+    const requestUserId = req.user.id;
+
+    // Check if requesting user has permission (book owner or publisher)
+    const bookCheck = await pool.query(
+      `SELECT b.owner_id, bf.book_role FROM public.books b
+       LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $1
+       WHERE b.id = $2 AND (b.owner_id = $1 OR bf.book_role = 'publisher')`,
+      [requestUserId, bookId]
+    );
+
+    if (bookCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Get all questions for this book
+    const questions = await pool.query(
+      'SELECT id FROM public.questions WHERE book_id = $1',
+      [bookId]
+    );
+
+    if (questions.rows.length > 0) {
+      const questionIds = questions.rows.map(q => q.id);
+      
+      // Deactivate answers for this user in this book
+      const result = await pool.query(
+        'UPDATE public.answers SET is_active = false WHERE user_id = $1 AND question_id = ANY($2::uuid[])',
+        [targetUserId, questionIds]
+      );
+      
+      res.json({ success: true, deactivated: result.rowCount });
+    } else {
+      res.json({ success: true, deactivated: 0 });
+    }
+  } catch (error) {
+    console.error('Answer deactivation error:', error);
+    res.status(500).json({ error: 'Server error', details: error.message });
+  }
+});
+
 module.exports = router;

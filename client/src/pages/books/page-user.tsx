@@ -180,13 +180,13 @@ export default function PageUserPage() {
   const inviteUser = async (name: string, email: string) => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/invitations/send`, {
+      const response = await fetch(`${apiUrl}/books/${bookId}/invite`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ name, email, bookId: parseInt(bookId!) })
+        body: JSON.stringify({ name, email })
       });
       
       if (response.ok) {

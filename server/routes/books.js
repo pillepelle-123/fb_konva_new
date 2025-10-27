@@ -1356,6 +1356,72 @@ router.delete('/:id/friends/:friendId', authenticateToken, async (req, res) => {
   }
 });
 
+// Invite user to book (create unregistered user)
+router.post('/:id/invite', authenticateToken, async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const { name, email } = req.body;
+    const userId = req.user.id;
+
+    // Check if user is owner or publisher
+    const bookAccess = await pool.query(`
+      SELECT b.*, bf.book_role as user_book_role FROM public.books b
+      LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
+      WHERE b.id = $1 AND (b.owner_id = $2 OR bf.book_role = 'publisher')
+    `, [bookId, userId]);
+
+    if (bookAccess.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Check if user already exists
+    let user = await pool.query(
+      'SELECT id, name, email, registered FROM public.users WHERE email = $1',
+      [email]
+    );
+
+    if (user.rows.length === 0) {
+      // Create unregistered user with dummy password hash
+      const result = await pool.query(
+        'INSERT INTO public.users (name, email, password_hash, registered) VALUES ($1, $2, $3, false) RETURNING *',
+        [name, email, 'UNREGISTERED']
+      );
+      user = result;
+    }
+
+    const newUser = user.rows[0];
+
+    // Check if already in book
+    const existingFriend = await pool.query(
+      'SELECT * FROM public.book_friends WHERE book_id = $1 AND user_id = $2',
+      [bookId, newUser.id]
+    );
+
+    if (existingFriend.rows.length > 0) {
+      return res.status(409).json({ error: 'User already in book' });
+    }
+
+    // Add to book_friends
+    await pool.query(
+      'INSERT INTO public.book_friends (book_id, user_id, book_role, page_access_level, editor_interaction_level) VALUES ($1, $2, $3, $4, $5)',
+      [bookId, newUser.id, 'author', 'own_page', 'full_edit']
+    );
+
+    res.json({
+      id: newUser.id,
+      name: newUser.name,
+      email: newUser.email,
+      role: 'author',
+      book_role: 'author',
+      pageAccessLevel: 'own_page',
+      editorInteractionLevel: 'full_edit'
+    });
+  } catch (error) {
+    console.error('User invite error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Update page order
 router.put('/:id/page-order', authenticateToken, async (req, res) => {
   try {

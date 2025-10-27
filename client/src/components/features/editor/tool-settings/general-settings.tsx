@@ -423,7 +423,7 @@ export function GeneralSettings({
           </Tabs>
         </div>
 
-        {(background.type === 'color' || background.type === 'pattern') && (
+        {background.type !== 'image' && (
           <div className="space-y-2">
             <div>
               <Button
@@ -549,37 +549,40 @@ export function GeneralSettings({
   // Check if user can access book-related settings (only publishers and book owners)
   const canAccessBookSettings = (state.userRole === 'publisher' || (user && state.currentBook && user.id === state.currentBook.owner_id)) && canAccessAnySettings;
   
-  // Check if user can access page-related settings (Background and Page Theme for full_edit_with_settings)
-  const canAccessPageSettings = canAccessAnySettings;
+  // Check if user can access page-related settings (Background and Page Theme for full_edit and full_edit_with_settings)
+  const canAccessPageSettings = state.editorInteractionLevel === 'full_edit' || state.editorInteractionLevel === 'full_edit_with_settings';
 
   return (
     <div className="space-y-3">
-      <div>
-        <Label variant="xs" className="text-muted-foreground mb-2 block">Book Settings</Label>
-        <div className="space-y-1">
-          <Button
-            variant="ghost_hover"
-            size="sm"
-            onClick={() => window.dispatchEvent(new CustomEvent('openQuestions'))}
-            className="w-full justify-start"
-          >
-            <CircleHelp className="h-4 w-4 mr-2" />
-            Questions
-          </Button>
-          <Button
-            variant="ghost_hover"
-            size="sm"
-            onClick={() => canAccessAnySettings && canAccessBookSettings && setShowBookTheme(true)}
-            className={`w-full justify-start ${!canAccessAnySettings || !canAccessBookSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
-            disabled={!canAccessAnySettings || !canAccessBookSettings}
-          >
-            <Palette className="h-4 w-4 mr-2" />
-            Book Theme
-          </Button>
-        </div>
-      </div>
-      
-      <Separator />
+      {state.editorInteractionLevel === 'full_edit_with_settings' && (
+        <>
+          <div>
+            <Label variant="xs" className="text-muted-foreground mb-2 block">Book Settings</Label>
+            <div className="space-y-1">
+              <Button
+                variant="ghost_hover"
+                size="sm"
+                onClick={() => window.dispatchEvent(new CustomEvent('openQuestions'))}
+                className="w-full justify-start"
+              >
+                <CircleHelp className="h-4 w-4 mr-2" />
+                Questions
+              </Button>
+              <Button
+                variant="ghost_hover"
+                size="sm"
+                onClick={() => setShowBookTheme(true)}
+                className="w-full justify-start"
+              >
+                <Palette className="h-4 w-4 mr-2" />
+                Book Theme
+              </Button>
+            </div>
+          </div>
+          
+          <Separator />
+        </>
+      )}
       
       <div>
         <Label variant="xs" className="text-muted-foreground mb-2 block">Page Settings</Label>

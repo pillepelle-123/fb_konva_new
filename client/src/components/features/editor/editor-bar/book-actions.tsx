@@ -24,7 +24,7 @@ export function BookActions({
           disabled={isSaving}
           className="h-8 md:h-9 px-2 md:px-3"
         >
-          <Save className="h-3 w-3 md:h-4 md:w-4" />
+          <Save className="h-4 w-4 md:h-5 md:w-5" />
           {/* <span className="hidden md:inline ml-2">{isSaving ? 'Saving...' : 'Save'}</span> */}
         </Button>
       </Tooltip>
@@ -36,7 +36,7 @@ export function BookActions({
           onClick={onExport}
           className="h-8 md:h-9 px-2 md:px-3"
         >
-          <Download className="h-3 w-3 md:h-4 md:w-4" />
+          <Download className="h-4 w-4 md:h-5 md:w-5" />
           {/* <span className="hidden md:inline ml-2">Export</span> */}
         </Button>
       </Tooltip>

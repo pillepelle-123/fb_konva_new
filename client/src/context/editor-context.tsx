@@ -238,8 +238,7 @@ export interface CanvasElement {
   fontFamily?: string;
   fontStyle?: 'normal' | 'italic';
   fontColor?: string;
-  textType?: 'question' | 'answer' | 'text' | 'qna';
-  textStyle?: 'qna2'; // For inline QnA style
+  textType?: 'question' | 'answer' | 'text' | 'qna' | 'qna2' | 'qna_inline';
   questionId?: string; // UUID - for both question and answer elements
   answerId?: string; // UUID - for answer elements
   questionElementId?: string; // Legacy - for linking answer to question element
@@ -363,6 +362,7 @@ type EditorAction =
   | { type: 'UPDATE_TOOL_SETTINGS'; payload: { tool: string; settings: Record<string, any> } }
   | { type: 'SET_EDITOR_SETTINGS'; payload: Record<string, Record<string, any>> }
   | { type: 'UPDATE_TEMP_QUESTION'; payload: { questionId: string; text: string } }
+  | { type: 'DELETE_TEMP_QUESTION'; payload: { questionId: string } }
   | { type: 'UPDATE_TEMP_ANSWER'; payload: { questionId: string; text: string; userId?: number; answerId?: string } }
   | { type: 'UPDATE_BOOK_NAME'; payload: string }
   | { type: 'CLEAR_TEMP_DATA' }
@@ -736,6 +736,37 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           ...state.tempQuestions,
           [action.payload.questionId]: action.payload.text
         },
+        hasUnsavedChanges: true
+      };
+    
+    case 'DELETE_TEMP_QUESTION':
+      const newTempQuestions = { ...state.tempQuestions };
+      const newTempAnswers = { ...state.tempAnswers };
+      delete newTempQuestions[action.payload.questionId];
+      delete newTempAnswers[action.payload.questionId];
+      
+      // Reset textboxes that reference this question
+      let bookWithResetTextboxes = state.currentBook;
+      if (bookWithResetTextboxes) {
+        bookWithResetTextboxes = {
+          ...bookWithResetTextboxes,
+          pages: bookWithResetTextboxes.pages.map(page => ({
+            ...page,
+            elements: page.elements.map(element => {
+              if (element.questionId === action.payload.questionId) {
+                return { ...element, questionId: undefined, text: '', formattedText: '' };
+              }
+              return element;
+            })
+          }))
+        };
+      }
+      
+      return {
+        ...state,
+        currentBook: bookWithResetTextboxes,
+        tempQuestions: newTempQuestions,
+        tempAnswers: newTempAnswers,
         hasUnsavedChanges: true
       };
     

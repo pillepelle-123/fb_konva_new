@@ -17,7 +17,7 @@ function EditorContent() {
   const toolSettingsPanelRef = useRef<ToolSettingsPanelRef>(null);
   const [showSaveToast, setShowSaveToast] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
-  const [previewContent, setPreviewContent] = useState<'preview' | 'questions'>('preview');
+  const [previewContent, setPreviewContent] = useState<'preview' | 'questions' | 'manager'>('preview');
 
   useEffect(() => {
     if (bookId) {
@@ -101,12 +101,19 @@ function EditorContent() {
       setPreviewContent('questions');
       setShowPreview(true);
     };
+    
+    const handleOpenManager = () => {
+      setPreviewContent('manager');
+      setShowPreview(true);
+    };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('openQuestions', handleOpenQuestions);
+    window.addEventListener('openManager', handleOpenManager);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('openQuestions', handleOpenQuestions);
+      window.removeEventListener('openManager', handleOpenManager);
     };
   }, [undo, redo, saveBook]);
 

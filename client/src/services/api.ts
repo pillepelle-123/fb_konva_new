@@ -93,6 +93,11 @@ class ApiService {
     return response.ok ? response.json() : [];
   }
 
+  async getQuestionAnswers(questionId: string) {
+    const response = await fetch(`${this.baseUrl}/answers/question/${questionId}`, { headers: this.getHeaders() });
+    return response.ok ? response.json() : [];
+  }
+
   async saveAnswer(questionId: string, answerText: string, userId: number, answerId?: string) {
     const response = await fetch(`${this.baseUrl}/answers`, {
       method: 'POST',

@@ -76,9 +76,22 @@ router.post('/', authenticateToken, async (req, res) => {
     const { id, bookId, questionText } = req.body;
     const userId = req.user.id;
     
-    // Check if user owns the book
-    const book = await pool.query('SELECT owner_id FROM public.books WHERE id = $1', [bookId]);
-    if (book.rows.length === 0 || book.rows[0].owner_id !== userId) {
+    // Check if user owns the book or is a publisher
+    const book = await pool.query(`
+      SELECT b.owner_id, bf.book_role
+      FROM public.books b
+      LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
+      WHERE b.id = $1
+    `, [bookId, userId]);
+    
+    if (book.rows.length === 0) {
+      return res.status(404).json({ error: 'Book not found' });
+    }
+    
+    const isOwner = book.rows[0].owner_id === userId;
+    const isPublisher = book.rows[0].book_role === 'publisher';
+    
+    if (!isOwner && !isPublisher) {
       return res.status(403).json({ error: 'Not authorized' });
     }
     

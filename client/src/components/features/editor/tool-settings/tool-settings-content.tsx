@@ -407,11 +407,11 @@ export function ToolSettingsContent({
           return renderQnASettings(selectedElement);
         }
         // Special handling for QnA2 textboxes
-        if (selectedElement.textStyle === 'qna2' || selectedElement.textType === 'qna2') {
+        if (selectedElement.textType === 'qna2') {
           return renderQnA2Settings(selectedElement);
         }
         // Special handling for QnA Inline textboxes
-        if (selectedElement.textType === 'qna_inline' || selectedElement.textStyle === 'qna-inline') {
+        if (selectedElement.textType === 'qna_inline') {
           return renderQnAInlineSettings(selectedElement);
         }
         return renderElementSettings(selectedElement);

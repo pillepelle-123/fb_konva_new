@@ -7,6 +7,7 @@ interface UnsavedChangesDialogProps {
   onSaveAndExit: () => void;
   onExitWithoutSaving: () => void;
   onCancel: () => void;
+  title?: string;
 }
 
 export default function UnsavedChangesDialog({
@@ -14,13 +15,14 @@ export default function UnsavedChangesDialog({
   onOpenChange,
   onSaveAndExit,
   onExitWithoutSaving,
-  onCancel
+  onCancel,
+  title = "Unsaved Changes"
 }: UnsavedChangesDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Unsaved Changes</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
             You have unsaved changes. What would you like to do?
           </DialogDescription>

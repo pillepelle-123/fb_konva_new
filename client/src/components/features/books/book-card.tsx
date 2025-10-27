@@ -5,7 +5,7 @@ import { Button } from '../../ui/primitives/button';
 import { Card, CardContent } from '../../ui/composites/card';
 import { Badge } from '../../ui/composites/badge';
 import { Tooltip } from '../../ui/composites/tooltip';
-import { Users, Edit, FileText, Image, CircleHelp, RotateCcw, Trash2, Archive, Contact, Pen } from 'lucide-react';
+import { Users, Edit, FileText, Image, CircleHelp, RotateCcw, Trash2, Archive, Contact, Pen, Settings, FilePenLine } from 'lucide-react';
 import PageUserIcon from '../../ui/icons/page-user-icon';
 import BookRoleBadge from './book-role-badge';
 
@@ -219,32 +219,32 @@ export default function BookCard({ book, isArchived = false, onRestore, onDelete
                 <Tooltip content="Edit Book" side="bottom">
                 <Link to={`/editor/${book.id}`} className="block">
                   <Button variant="default" size="sm" className="w-full space-x-2 bg-primary hover:bg-primary/90">
-                    <Edit className="h-4 w-4" />
+                    <FilePenLine className="h-5 w-5" />
                   </Button>
                 </Link>
                 </Tooltip>
               </div>
-              <Tooltip content="Page User Manager" side="bottom">
+              <Tooltip content="Manage Book" side="bottom">
                 <Button 
                   variant="outline" 
                   size="sm"
-                  onClick={() => onPageUserManager?.(book.id)}
+                  onClick={() => navigate(`/books/${book.id}/manager`)}
                   className="space-x-2"
                 >
-                  <PageUserIcon className="h-4 w-4" />
+                  <Settings className="h-5 w-5" />
                 </Button>
               </Tooltip>
-              <Tooltip content="Questions" side="bottom">
+              {/* <Tooltip content="Questions" side="bottom">
                 <Button 
                   variant="outline" 
                   size="sm"
                   onClick={() => navigate(`/questions/${book.id}`)}
                   className="space-x-2"
                 >
-                  <CircleHelp className="h-4 w-4" />
+                  <CircleHelp className="h-5 w-5" />
                 </Button>
               </Tooltip>
-              
+               */}
               <Tooltip content="Archive" side="bottom">
                 <Button 
                   variant="outline" 
@@ -252,7 +252,7 @@ export default function BookCard({ book, isArchived = false, onRestore, onDelete
                   onClick={() => onArchive?.(book.id)}
                   className="space-x-2"
                 >
-                  <Archive className="h-4 w-4" />
+                  <Archive className="h-5 w-5" />
                 </Button>
               </Tooltip>
             </>

@@ -819,7 +819,6 @@ export default function Canvas() {
             fontSize: qna2Defaults.fontSize,
             align: qna2Defaults.align,
             fontFamily: qna2Defaults.fontFamily,
-            textType: 'qna2',
             textStyle: 'qna2',
             paragraphSpacing: qna2Defaults.paragraphSpacing,
             cornerRadius: qna2Defaults.cornerRadius,
@@ -843,7 +842,6 @@ export default function Canvas() {
             align: textDefaults.align,
             fontFamily: textDefaults.fontFamily,
             textType: 'qna_inline',
-            textStyle: 'qna-inline',
             paragraphSpacing: textDefaults.paragraphSpacing,
             cornerRadius: textDefaults.cornerRadius
           };
@@ -1648,7 +1646,7 @@ export default function Canvas() {
         const element = currentPage?.elements.find(el => el.id === selectedQuestionElementId);
         // console.log('Found element:', element);
                 
-        if (element && (element.textType === 'qna' || element.textType === 'question' || element.textStyle === 'qna2')) {
+        if (element && (element.textType === 'qna' || element.textType === 'question' || element.textType === 'qna2' || element.textType === 'qna_inline')) {
           const fontColor = element.fontColor || element.fill || TOOL_DEFAULTS.qna.fontColor;          
           dispatch({
             type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
@@ -1672,7 +1670,7 @@ export default function Canvas() {
       }
       const element = currentPage?.elements.find(el => el.id === event.detail.elementId);
       // console.log('handleOpenQuestionModal - element found:', element);
-      if (element && (element.textType === 'question' || element.textType === 'qna' || element.textStyle === 'qna2')) {
+      if (element && (element.textType === 'question' || element.textType === 'qna' || element.textType === 'qna2' || element.textType === 'qna_inline')) {
         // console.log('Setting selectedQuestionElementId:', element.id);
         setSelectedQuestionElementId(element.id);
         setShowQuestionDialog(true);
@@ -2412,7 +2410,7 @@ export default function Canvas() {
                 if (selectedQuestionElementId) {
                   const element = currentPage?.elements.find(el => el.id === selectedQuestionElementId);
                   
-                  if (element?.textType === 'qna' || element?.textStyle === 'qna2') {
+                  if (element?.textType === 'qna' || element?.textType === 'qna2' || element?.textType === 'qna_inline') {
                     // console.log('Updating QnA/QnA2 element with questionId:', questionId);
                     // For QnA elements, update the element with questionId and load existing answer
                     const updates = questionId === '' 

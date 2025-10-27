@@ -100,9 +100,12 @@ CREATE TABLE IF NOT EXISTS answers (
     question_id UUID REFERENCES questions(id) ON DELETE CASCADE,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     answer_text TEXT NOT NULL,
+    is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX IF NOT EXISTS idx_answers_is_active ON answers(is_active);
 
 -- ####### ALT mit Serial statt UUID #########
 -- CREATE TABLE IF NOT EXISTS answers (

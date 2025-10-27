@@ -1,11 +1,12 @@
 import { X } from 'lucide-react';
 import { useEditor } from '../../../../context/editor-context';
 import QuestionsManager from '../../questions/questions-manager';
+import BookManagerContent from '../../books/book-manager-content';
 
 interface PagePreviewOverlayProps {
   isOpen: boolean;
   onClose: () => void;
-  content?: 'preview' | 'questions';
+  content?: 'preview' | 'questions' | 'manager';
 }
 
 export default function PagePreviewOverlay({ isOpen, onClose, content = 'preview' }: PagePreviewOverlayProps) {
@@ -62,7 +63,10 @@ export default function PagePreviewOverlay({ isOpen, onClose, content = 'preview
   return (
     <div className="fixed top-0 left-0 right-0 bottom-0 bg-white z-40">
       <div className="flex items-center justify-between p-4 border-b bg-white">
-        <h2 className="text-lg font-semibold">{content === 'questions' ? 'Questions' : 'Page Preview'}</h2>
+        <h2 className="text-lg font-semibold">
+          {content === 'questions' ? 'Questions' : 
+           content === 'manager' ? 'Book Manager' : 'Page Preview'}
+        </h2>
         <button
           onClick={onClose}
           className="p-2 hover:bg-gray-100 rounded-full"
@@ -76,6 +80,12 @@ export default function PagePreviewOverlay({ isOpen, onClose, content = 'preview
           <div className="p-6">
             {state.currentBook && (
               <QuestionsManager bookId={state.currentBook.id} onClose={onClose} />
+            )}
+          </div>
+        ) : content === 'manager' ? (
+          <div className="h-full flex flex-col">
+            {state.currentBook && (
+              <BookManagerContent bookId={state.currentBook.id} onClose={onClose} />
             )}
           </div>
         ) : (

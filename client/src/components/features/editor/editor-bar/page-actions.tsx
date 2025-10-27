@@ -32,7 +32,7 @@ export function PageActions({
           disabled={isAuthor}
           className={`h-8 md:h-9 px-2 md:px-3 ${isAuthor ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
-          <Plus className="h-3 w-3 md:h-4 md:w-4" />
+          <Plus className="h-4 w-4 md:h-5 md:w-5" />
           {/* <span className="hidden md:inline ml-2">Add</span> */}
         </Button>
       </Tooltip>
@@ -45,7 +45,7 @@ export function PageActions({
           disabled={isAuthor}
           className={`h-8 md:h-9 px-2 md:px-3 ${isAuthor ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
-          <Copy className="h-3 w-3 md:h-4 md:w-4" />
+          <Copy className="h-4 w-4 md:h-5 md:w-5" />
           {/* <span className="hidden md:inline ml-2">Duplicate</span> */}
         </Button>
       </Tooltip>
@@ -59,7 +59,7 @@ export function PageActions({
             disabled={isAuthor}
             className={`h-8 md:h-9 px-2 md:px-3 ${isAuthor ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            <Users className="h-3 w-3 md:h-4 md:w-4" />
+            <Users className="h-4 w-4 md:h-5 md:w-5" />
           </Button>
         </Tooltip>
       )}
@@ -72,7 +72,7 @@ export function PageActions({
           disabled={!canDelete || isAuthor}
           className={`h-8 md:h-9 px-2 md:px-3 text-destructive hover:text-destructive ${isAuthor ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
-          <Trash2 className="h-3 w-3 md:h-4 md:w-4" />
+          <Trash2 className="h-4 w-4 md:h-5 md:w-5" />
           {/* <span className="hidden md:inline ml-2">Delete</span> */}
         </Button>
       </Tooltip>

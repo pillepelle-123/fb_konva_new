@@ -7,13 +7,17 @@ interface ListProps<T> {
   itemsPerPage?: number;
   renderItem: (item: T) => ReactNode;
   keyExtractor: (item: T) => string | number;
+  interactive?: boolean;
+  size?: 'sm' | 'md' | 'lg';
 }
 
 export default function List<T>({ 
   items, 
   itemsPerPage = 10, 
   renderItem, 
-  keyExtractor 
+  keyExtractor,
+  interactive = false,
+  size = 'md'
 }: ListProps<T>) {
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -50,11 +54,22 @@ export default function List<T>({
 
       {/* Items List */}
       <div className="space-y-4">
-        {currentItems.map(item => (
-          <div key={keyExtractor(item)}>
-            {renderItem(item)}
-          </div>
-        ))}
+        {currentItems.map(item => {
+          const sizeClasses = {
+            sm: 'min-h-12',
+            md: 'min-h-16', 
+            lg: 'min-h-20'
+          };
+          
+          return (
+            <div 
+              key={keyExtractor(item)}
+              className={`${sizeClasses[size]} ${interactive ? 'hover:bg-[hsl(var(--secondary))] cursor-pointer transition-colors' : ''}`}
+            >
+              {renderItem(item)}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

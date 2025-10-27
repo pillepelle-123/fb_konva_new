@@ -521,7 +521,7 @@ export default function Textbox(props: CanvasItemProps) {
       }
       return 'Double-click to add question and answer...';
     }
-    if (element.textStyle === 'qna2') {
+    if (element.textType === 'qna2') {
       if (!element.questionId) {
         return 'Double-click to add question and answer...';
       }
@@ -573,7 +573,7 @@ export default function Textbox(props: CanvasItemProps) {
       }
     } 
     // For QnA2 elements (inline style), get answer from temp answers and replace [question] placeholders
-    else if (element.textStyle === 'qna2') {
+    else if (element.textType === 'qna2') {
       if (element.questionId) {
         const questionText = getQuestionText(element.questionId);
         const assignedUser = state.pageAssignments[state.activePageIndex + 1];
@@ -631,29 +631,29 @@ export default function Textbox(props: CanvasItemProps) {
   
   // Force re-render when temp answers change for this question
   useEffect(() => {
-    if ((element.textType === 'qna' || element.textType === 'answer' || element.textStyle === 'qna2') && element.questionId) {
+    if ((element.textType === 'qna' || element.textType === 'answer' || element.textType === 'qna2') && element.questionId) {
       // Force re-render whenever temp answers change for this question
       if (textRef.current) {
         textRef.current.text(displayText);
         textRef.current.getLayer()?.batchDraw();
       }
     }
-  }, [state.tempAnswers, element.questionId, element.textType, element.textStyle, state.pageAssignments, displayText]);
+  }, [state.tempAnswers, element.questionId, element.textType, state.pageAssignments, displayText]);
   
   // Additional useEffect specifically for qna2 questionId changes
   useEffect(() => {
-    if (element.textStyle === 'qna2') {
+    if (element.textType === 'qna2') {
       if (textRef.current) {
         const newText = getDisplayText();
         textRef.current.text(newText);
         textRef.current.getLayer()?.batchDraw();
       }
     }
-  }, [element.questionId, element.textStyle, state.tempQuestions, state.loadedQuestions]);
+  }, [element.questionId, element.textType, state.tempQuestions, state.loadedQuestions]);
   
   // Debug useEffect to track element changes
   useEffect(() => {
-    if (element.textStyle === 'qna2') {
+    if (element.textType === 'qna2') {
       // Force re-render of text
       if (textRef.current) {
         const newText = getDisplayText();
@@ -665,18 +665,18 @@ export default function Textbox(props: CanvasItemProps) {
   
   // Update displayed text when page assignments change or active page changes
   useEffect(() => {
-    if ((element.textType === 'qna' || element.textType === 'answer' || element.textStyle === 'qna2') && element.questionId) {
+    if ((element.textType === 'qna' || element.textType === 'answer' || element.textType === 'qna2') && element.questionId) {
       // Force re-render when page assignment changes or page is duplicated to show correct user's answer
       if (textRef.current) {
         textRef.current.text(displayText);
         textRef.current.getLayer()?.batchDraw();
       }
     }
-  }, [state.pageAssignments[state.activePageIndex + 1]?.id, state.activePageIndex, displayText]);
+  }, [state.pageAssignments[state.activePageIndex + 1]?.id, state.activePageIndex, displayText, state.pageAssignments]);
 
   // Force re-render when questionId changes for qna2 elements
   useEffect(() => {
-    if (element.textStyle === 'qna2' && textRef.current) {
+    if (element.textType === 'qna2' && textRef.current) {
       textRef.current.text(displayText);
       textRef.current.getLayer()?.batchDraw();
     }
@@ -807,12 +807,12 @@ export default function Textbox(props: CanvasItemProps) {
     if (e?.evt?.button !== 0) return; // Only left button (0)
     
     // For answer_only users, only allow double-click on answer textboxes and QnA textboxes (which contain answer areas)
-    if (state.editorInteractionLevel === 'answer_only' && element.textType !== 'answer' && element.textType !== 'qna' && element.textStyle !== 'qna2') {
+    if (state.editorInteractionLevel === 'answer_only' && element.textType !== 'answer' && element.textType !== 'qna' && element.textType !== 'qna2') {
       return;
     }
     
     // Handle QnA2 textboxes with context menu
-    if (element.textStyle === 'qna2') {
+    if (element.textType === 'qna2') {
       showQnA2ContextMenu(e);
       return;
     }
@@ -2294,7 +2294,7 @@ export default function Textbox(props: CanvasItemProps) {
           );
         })()}
 
-        {/* Hover message for answer textboxes */}
+        {/* Hover message for qna2 textboxes */}
         {shouldShowFlashyHover && isHovered && element.textType === 'qna2' && (
           <Group>
             <Rect

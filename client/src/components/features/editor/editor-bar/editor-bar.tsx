@@ -23,9 +23,10 @@ import { Button } from '../../../ui/primitives/button';
 import { X } from 'lucide-react';
 import { Tooltip } from '../../../ui/composites/tooltip';
 import { EditorBarContainer } from './editor-bar-container';
-import PageAssignmentDialog from '../page-assignment-dialog';
+
 import ProfilePicture from '../../users/profile-picture';
 import { PagesSubmenu } from './page-explorer';
+import PageAssignmentPopover from './page-assignment-popover';
 
 interface EditorBarProps {
   toolSettingsPanelRef: React.RefObject<{ openBookTheme: () => void }>;
@@ -40,7 +41,7 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showAlert, setShowAlert] = useState<{ title: string; message: string } | null>(null);
-  const [showPageAssignment, setShowPageAssignment] = useState(false);
+
   const [showPagesSubmenu, setShowPagesSubmenu] = useState(false);
   const [showSaveToast, setShowSaveToast] = useState(false);
 
@@ -232,7 +233,7 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
               <PageAssignmentButton 
                 currentPage={currentPage} 
                 bookId={state.currentBook.id} 
-                onOpenDialog={() => setShowPageAssignment(true)} 
+                onOpenDialog={() => {}} 
               />
               
               {(state.userRole !== 'author' || (state.userRole === 'author' && state.editorInteractionLevel === 'full_edit_with_settings')) && (
@@ -243,6 +244,7 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
                     onClick={() => {
                       dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
                       dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [] });
+                      window.dispatchEvent(new CustomEvent('openManager'));
                     }}
                   >
                     <Settings className="h-5 w-5" />
@@ -266,7 +268,7 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
                   onClick={handleClose}
                   className="h-8 w-8 p-0"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-5 w-5" />
                 </Button>
               </Tooltip>
             </div>
@@ -306,12 +308,7 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
         onClose={() => setShowAlert(null)}
       />
       
-      <PageAssignmentDialog
-        open={showPageAssignment}
-        onOpenChange={setShowPageAssignment}
-        currentPage={currentPage}
-        bookId={state.currentBook.id}
-      />
+
       <Toast 
         message="Book saved successfully" 
         isVisible={showSaveToast} 
@@ -322,13 +319,19 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
 }
 
 function PageAssignmentButton({ currentPage, bookId, onOpenDialog }: { currentPage: number; bookId: number; onOpenDialog: () => void }) {
-  const { state } = useEditor();
+  const { state, dispatch } = useEditor();
   const { user } = useAuth();
   const assignedUser = state.pageAssignments[currentPage];
   const isAuthor = state.userRole === 'author';
   
-  const handleClick = () => {
-    onOpenDialog();
+  const handleAssignUser = (user: any) => {
+    const updatedAssignments = { ...state.pageAssignments };
+    if (user) {
+      updatedAssignments[currentPage] = user;
+    } else {
+      delete updatedAssignments[currentPage];
+    }
+    dispatch({ type: 'SET_PAGE_ASSIGNMENTS', payload: updatedAssignments });
   };
   
   // Force re-render when assignments change
@@ -345,17 +348,21 @@ function PageAssignmentButton({ currentPage, bookId, onOpenDialog }: { currentPa
       );
     }
     return (
-      <Tooltip content={`Assigned to ${assignedUser.name}`} side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
+      <PageAssignmentPopover
+        currentPage={currentPage}
+        bookId={bookId}
+        onAssignUser={handleAssignUser}
+      >
         <Button
           variant="ghost"
           size="md"
-          onClick={handleClick}
           className="h-full w-full p-0 pt-1.5 rounded-full"
           key={assignmentKey}
+          title={`Assigned to ${assignedUser.name} - Click to reassign`}
         >
           <ProfilePicture name={assignedUser.name} size="sm" userId={assignedUser.id} variant='withColoredBorder' className='h-full w-full hover:ring hover:ring-highlight hover:ring-offset-1' />
         </Button>
-      </Tooltip>
+      </PageAssignmentPopover>
     );
   }
 
@@ -370,16 +377,20 @@ function PageAssignmentButton({ currentPage, bookId, onOpenDialog }: { currentPa
   }
 
   return (
-    <Tooltip content="Assign user to page" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
+    <PageAssignmentPopover
+      currentPage={currentPage}
+      bookId={bookId}
+      onAssignUser={handleAssignUser}
+    >
       <Button
         variant="ghost"
         size="sm"
-        onClick={handleClick}
         className="h-full w-full p-0 pt-1.5 rounded-full"
+        title="Assign user to page"
       >
         <CircleUser className="rounded-full h-10 w-10 stroke-highlight hover:bg-highlight hover:stroke-background transition-all duration-300 ease-in-out" />
       </Button>
-    </Tooltip>
+    </PageAssignmentPopover>
   );
 }
 

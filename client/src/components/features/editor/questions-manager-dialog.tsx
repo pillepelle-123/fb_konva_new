@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Button } from '../../ui/primitives/button';
 import { Card, CardContent } from '../../ui/composites/card';
@@ -34,7 +34,7 @@ export default function QuestionsManagerDialog({
   onClose
 }: QuestionsManagerDialogProps) {
   const { user } = useAuth();
-  const { state, isQuestionAvailableForUser, validateQuestionSelection } = useEditor();
+  const { state, dispatch, isQuestionAvailableForUser, validateQuestionSelection } = useEditor();
   
   const [userRole, setUserRole] = useState<string | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -45,6 +45,7 @@ export default function QuestionsManagerDialog({
   const [newQuestion, setNewQuestion] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const editInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const fetchUserRole = async () => {
@@ -167,6 +168,9 @@ export default function QuestionsManagerDialog({
         : q
     ));
     
+    // Update the temp questions state to immediately update textboxes on canvas
+    dispatch({ type: 'UPDATE_TEMP_QUESTION', payload: { questionId, text: editText } });
+    
     setEditingId(null);
     setEditText('');
   };
@@ -187,6 +191,12 @@ export default function QuestionsManagerDialog({
     setEditingId(question.id);
     setEditText(question.question_text);
   };
+
+  useEffect(() => {
+    if (editingId && editInputRef.current) {
+      editInputRef.current.focus();
+    }
+  }, [editingId]);
 
   const cancelEdit = () => {
     setEditingId(null);
@@ -212,7 +222,7 @@ export default function QuestionsManagerDialog({
       const currentPage = state.currentBook.pages.find(p => p.pageNumber === currentPageNumber);
       if (currentPage) {
         return !currentPage.elements.some(el => 
-          (el.textType === 'question' || el.textType === 'qna') && el.questionId === questionId
+          (el.textType === 'question' || el.textType === 'qna' || el.textType === 'qna_inline') && el.questionId === questionId
         );
       }
       return true;
@@ -226,7 +236,7 @@ export default function QuestionsManagerDialog({
     for (const page of state.currentBook.pages) {
       if (userPages.includes(page.pageNumber)) {
         const hasQuestion = page.elements.some(el => 
-          (el.textType === 'question' || el.textType === 'qna') && el.questionId === questionId
+          (el.textType === 'question' || el.textType === 'qna' || el.textType === 'qna_inline') && el.questionId === questionId
         );
         if (hasQuestion) {
           return false;
@@ -354,6 +364,7 @@ export default function QuestionsManagerDialog({
                         {editingId === question.id ? (
                           <div className="space-y-3">
                             <Input
+                              ref={editInputRef}
                               type="text"
                               value={editText}
                               onChange={(e) => setEditText(e.target.value)}
