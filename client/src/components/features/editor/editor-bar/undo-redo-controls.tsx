@@ -10,6 +10,11 @@ export default function UndoRedoControls() {
   const historyActions = getHistoryActions();
   const canUndo = state.historyIndex > 0;
   const canRedo = state.historyIndex < state.history.length - 1;
+  
+  // Disable for authors on unassigned pages
+  const isAuthorOnUnassignedPage = state.userRole === 'author' && 
+    !state.assignedPages.includes(state.activePageIndex + 1);
+  const isDisabled = isAuthorOnUnassignedPage;
 
   return (
     <ButtonGroup>
@@ -17,7 +22,7 @@ export default function UndoRedoControls() {
         variant="outline"
         size="sm"
         onClick={undo}
-        disabled={!canUndo}
+        disabled={!canUndo || isDisabled}
         className="h-8 md:h-9 px-2 md:px-3"
         title="Undo"
       >
@@ -29,6 +34,7 @@ export default function UndoRedoControls() {
           <Button
             variant="outline"
             size="sm"
+            disabled={isDisabled}
             className="h-8 md:h-9 px-2 md:px-3"
             title="History"
           >
@@ -62,7 +68,7 @@ export default function UndoRedoControls() {
         variant="outline"
         size="sm"
         onClick={redo}
-        disabled={!canRedo}
+        disabled={!canRedo || isDisabled}
         className="h-8 md:h-9 px-2 md:px-3"
         title="Redo"
       >

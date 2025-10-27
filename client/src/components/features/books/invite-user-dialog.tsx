@@ -2,14 +2,16 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../ui/overlays/dialog';
 import { Input } from '../../ui/primitives/input';
 import { Button } from '../../ui/primitives/button';
+import { Alert, AlertDescription } from '../../ui/composites/alert';
 
 interface InviteUserDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onInvite: (name: string, email: string) => void;
+  errorMessage?: string;
 }
 
-export default function InviteUserDialog({ open, onOpenChange, onInvite }: InviteUserDialogProps) {
+export default function InviteUserDialog({ open, onOpenChange, onInvite, errorMessage }: InviteUserDialogProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
 
@@ -32,6 +34,11 @@ export default function InviteUserDialog({ open, onOpenChange, onInvite }: Invit
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {errorMessage && (
+            <Alert>
+              <AlertDescription>{errorMessage}</AlertDescription>
+            </Alert>
+          )}
           <Input
             type="text"
             placeholder="Full name"

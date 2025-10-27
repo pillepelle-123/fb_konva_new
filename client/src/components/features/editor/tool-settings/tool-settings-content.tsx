@@ -1,7 +1,7 @@
 import { useEditor } from '../../../../context/editor-context';
 import { useState } from 'react';
 import { Button } from '../../../ui/primitives/button';
-import { SquareMousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, AlignLeft, AlignCenter, AlignRight, AlignJustify, Rows4, Rows3, Rows2, Palette, Type, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, SquareRoundCorner, PanelTopBottomDashed } from 'lucide-react';
+import { SquareMousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, AlignLeft, AlignCenter, AlignRight, AlignJustify, Rows4, Rows3, Rows2, Palette, Type, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, SquareRoundCorner, PanelTopBottomDashed, Triangle, Pentagon } from 'lucide-react';
 import { QuestionPositionTop, QuestionPositionBottom, QuestionPositionLeft, QuestionPositionRight } from '../../../ui/icons/question-position-icons';
 import { ButtonGroup } from '../../../ui/composites/button-group';
 import { Card, Tabs, TabsList, TabsTrigger } from '../../../ui/composites';
@@ -109,7 +109,9 @@ const TOOL_ICONS = {
   'speech-bubble': MessageSquare,
   dog: Dog,
   cat: Cat,
-  smiley: Smile
+  smiley: Smile,
+  triangle: Triangle,
+  polygon: Pentagon
 };
 
 interface ToolSettingsContentProps {
@@ -2443,6 +2445,8 @@ export function ToolSettingsContent({
 
       case 'rect':
       case 'circle':
+      case 'triangle':
+      case 'polygon':
       case 'heart':
       case 'star':
       case 'speech-bubble':

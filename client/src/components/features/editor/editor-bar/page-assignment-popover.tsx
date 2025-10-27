@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../../../../context/auth-context';
 import { useEditor } from '../../../../context/editor-context';
 import { Popover, PopoverContent, PopoverTrigger } from '../../../ui/overlays/popover';
@@ -25,39 +25,15 @@ export default function PageAssignmentPopover({
   bookId, 
   onAssignUser 
 }: PageAssignmentPopoverProps) {
-  const { token, user } = useAuth();
+  const { user } = useAuth();
   const { state } = useEditor();
-  const [bookFriends, setBookFriends] = useState<BookFriend[]>([]);
-  const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
 
-  useEffect(() => {
-    if (open && bookFriends.length === 0) {
-      fetchBookFriends();
-    }
-  }, [open, bookId]);
-
-  const fetchBookFriends = async () => {
-    setLoading(true);
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/books/${bookId}/friends`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        // Add current user (book owner) to the list if not already included
-        if (user && !data.find((f: BookFriend) => f.id === user.id)) {
-          data.unshift({ id: user.id, name: user.name, email: user.email, role: 'owner' });
-        }
-        setBookFriends(data);
-      }
-    } catch (error) {
-      console.error('Error fetching book friends:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Use bookFriends from editor state instead of fetching
+  // Ensure current user is included if not already in the list
+  const bookFriends = state.bookFriends || [];
+  const currentUserInList = bookFriends.find(f => f.id === user?.id);
+  const allFriends = currentUserInList ? bookFriends : [...bookFriends, { id: user!.id, name: user!.name, email: user!.email, role: 'owner' }];
 
   const handleAssignUser = (user: BookFriend | null) => {
     onAssignUser(user);
@@ -77,7 +53,6 @@ export default function PageAssignmentPopover({
             Assign Page {currentPage}
           </div>
           
-          {/* Remove assignment option */}
           {assignedUser && (
             <div 
               className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer"
@@ -90,42 +65,36 @@ export default function PageAssignmentPopover({
             </div>
           )}
           
-          {loading ? (
-            <div className="flex items-center justify-center py-4">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-            </div>
-          ) : (
-            <div className="max-h-48 overflow-y-auto space-y-1">
-              {bookFriends.map((friend) => (
-                <div
-                  key={friend.id}
-                  className={`flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer ${
-                    assignedUser?.id === friend.id ? 'bg-primary/10' : ''
-                  }`}
-                  onClick={() => handleAssignUser(friend)}
-                >
-                  <ProfilePicture 
-                    name={friend.name} 
-                    size="sm" 
-                    userId={friend.id} 
-                    variant="withColoredBorder"
-                    className="w-8 h-8"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{friend.name}</p>
-                  </div>
-                  {assignedUser?.id === friend.id && (
-                    <div className="w-2 h-2 bg-primary rounded-full"></div>
-                  )}
+          <div className="max-h-48 overflow-y-auto space-y-1">
+            {allFriends.map((friend) => (
+              <div
+                key={friend.id}
+                className={`flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer ${
+                  assignedUser?.id === friend.id ? 'bg-primary/10' : ''
+                }`}
+                onClick={() => handleAssignUser(friend)}
+              >
+                <ProfilePicture 
+                  name={friend.name} 
+                  size="sm" 
+                  userId={friend.id} 
+                  variant="withColoredBorder"
+                  className="w-8 h-8"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{friend.name}</p>
                 </div>
-              ))}
-              {bookFriends.length === 0 && !loading && (
-                <div className="text-center py-4 text-sm text-muted-foreground">
-                  No friends in this book
-                </div>
-              )}
-            </div>
-          )}
+                {assignedUser?.id === friend.id && (
+                  <div className="w-2 h-2 bg-primary rounded-full"></div>
+                )}
+              </div>
+            ))}
+            {allFriends.length === 0 && (
+              <div className="text-center py-4 text-sm text-muted-foreground">
+                No friends in this book
+              </div>
+            )}
+          </div>
         </div>
       </PopoverContent>
     </Popover>

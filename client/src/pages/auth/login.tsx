@@ -1,16 +1,26 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/auth-context';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Button } from '../../components/ui/primitives/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/composites/card';
 import { Input } from '../../components/ui/primitives/input';
 import { LogIn, Mail, Lock } from 'lucide-react';
+import { Alert, AlertDescription } from '../../components/ui/composites/alert';
 
 export default function Login() {
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const { login } = useAuth();
+
+  useEffect(() => {
+    const message = searchParams.get('message');
+    if (message) {
+      setSuccessMessage(message);
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +45,11 @@ export default function Login() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {successMessage && (
+              <Alert variant="default">
+                <AlertDescription>{successMessage}</AlertDescription>
+              </Alert>
+            )}
             {error && (
               <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-2">
                 <p className="text-sm text-destructive text-center">{error}</p>

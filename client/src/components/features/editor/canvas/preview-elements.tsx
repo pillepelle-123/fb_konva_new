@@ -31,7 +31,18 @@ interface PreviewShapeProps {
 
 export function PreviewShape({ x, y, width, height, type }: PreviewShapeProps) {
   const generatePreviewPath = () => {
-    if (type === 'heart') {
+    if (type === 'triangle') {
+      return `M ${width/2} 0 L ${width} ${height} L 0 ${height} Z`;
+    } else if (type === 'polygon') {
+      const sides = 5;
+      const cx = width / 2, cy = height / 2, r = Math.min(width, height) / 2 * 0.9;
+      const points = [];
+      for (let i = 0; i < sides; i++) {
+        const angle = (i * 2 * Math.PI) / sides - Math.PI / 2;
+        points.push([cx + r * Math.cos(angle), cy + r * Math.sin(angle)]);
+      }
+      return `M ${points[0][0]} ${points[0][1]} ` + points.slice(1).map(p => `L ${p[0]} ${p[1]}`).join(' ') + ' Z';
+    } else if (type === 'heart') {
       return `M ${width/2} ${height*0.8} C ${width/2} ${height*0.8} ${width*0.1} ${height*0.4} ${width*0.1} ${height*0.25} C ${width*0.1} ${height*0.1} ${width*0.25} ${height*0.05} ${width/2} ${height*0.25} C ${width*0.75} ${height*0.05} ${width*0.9} ${height*0.1} ${width*0.9} ${height*0.25} C ${width*0.9} ${height*0.4} ${width/2} ${height*0.8} ${width/2} ${height*0.8} Z`;
     } else if (type === 'star') {
       const cx = width / 2;

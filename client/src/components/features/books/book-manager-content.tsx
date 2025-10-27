@@ -52,6 +52,7 @@ interface Answer {
 interface BookManagerContentProps {
   bookId: number | string;
   onClose: () => void;
+  isStandalone?: boolean;
 }
 
 interface TempState {
@@ -62,11 +63,30 @@ interface TempState {
   removedFriends: Set<number>;
   tempQuestions: Record<string, string>;
   deletedQuestions: Set<string>;
+  bookSettings: {
+    pageSize: string;
+    orientation: string;
+  };
 }
 
-export default function BookManagerContent({ bookId, onClose }: BookManagerContentProps) {
+export default function BookManagerContent({ bookId, onClose, isStandalone = false }: BookManagerContentProps) {
   const { token, user } = useAuth();
-  const { state, dispatch, checkUserQuestionConflicts } = useEditor();
+  
+  // Try to use editor context if available, otherwise work standalone
+  let state = null;
+  let dispatch = null;
+  let checkUserQuestionConflicts = null;
+  
+  try {
+    if (!isStandalone) {
+      const editor = useEditor();
+      state = editor.state;
+      dispatch = editor.dispatch;
+      checkUserQuestionConflicts = editor.checkUserQuestionConflicts;
+    }
+  } catch {
+    // Editor context not available in standalone mode
+  }
 
   const [tempState, setTempState] = useState<TempState>({
     bookFriends: [],
@@ -75,7 +95,11 @@ export default function BookManagerContent({ bookId, onClose }: BookManagerConte
     hasRemovedAssignment: false,
     removedFriends: new Set(),
     tempQuestions: {},
-    deletedQuestions: new Set()
+    deletedQuestions: new Set(),
+    bookSettings: {
+      pageSize: state?.currentBook?.pageSize || 'A4',
+      orientation: state?.currentBook?.orientation || 'portrait'
+    }
   });
   const [originalState, setOriginalState] = useState<TempState>({
     bookFriends: [],
@@ -84,7 +108,11 @@ export default function BookManagerContent({ bookId, onClose }: BookManagerConte
     hasRemovedAssignment: false,
     removedFriends: new Set(),
     tempQuestions: {},
-    deletedQuestions: new Set()
+    deletedQuestions: new Set(),
+    bookSettings: {
+      pageSize: state?.currentBook?.pageSize || 'A4',
+      orientation: state?.currentBook?.orientation || 'portrait'
+    }
   });
   const [allFriends, setAllFriends] = useState<User[]>([]);
   const [showAddUser, setShowAddUser] = useState(false);
@@ -92,6 +120,7 @@ export default function BookManagerContent({ bookId, onClose }: BookManagerConte
   const [conflictAlert, setConflictAlert] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
   const [removeConfirm, setRemoveConfirm] = useState<{ show: boolean; user: BookFriend | null }>({ show: false, user: null });
   const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [inviteError, setInviteError] = useState<string>('');
   const [activeTab, setActiveTab] = useState('pages-assignments');
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -102,8 +131,8 @@ export default function BookManagerContent({ bookId, onClose }: BookManagerConte
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
 
-  const currentPage = state.activePageIndex + 1;
-  const assignedUser = tempState.hasRemovedAssignment ? null : (tempState.pendingAssignment !== null ? tempState.pendingAssignment : state.pageAssignments[currentPage]);
+  const currentPage = state?.activePageIndex + 1 || 1;
+  const assignedUser = tempState.hasRemovedAssignment ? null : (tempState.pendingAssignment !== null ? tempState.pendingAssignment : state?.pageAssignments?.[currentPage]);
   
   const hasChanges = () => {
     // Compare basic properties
@@ -112,6 +141,7 @@ export default function BookManagerContent({ bookId, onClose }: BookManagerConte
     if (JSON.stringify(tempState.pendingAssignment) !== JSON.stringify(originalState.pendingAssignment)) return true;
     if (tempState.hasRemovedAssignment !== originalState.hasRemovedAssignment) return true;
     if (JSON.stringify(tempState.tempQuestions) !== JSON.stringify(originalState.tempQuestions)) return true;
+    if (JSON.stringify(tempState.bookSettings) !== JSON.stringify(originalState.bookSettings)) return true;
     
     // Compare Sets
     if (tempState.removedFriends.size !== originalState.removedFriends.size) return true;
@@ -141,8 +171,10 @@ export default function BookManagerContent({ bookId, onClose }: BookManagerConte
   };
 
   const renderBookParticipant = (friend: BookFriend) => {
-    const isOwner = friend.id === user?.id;
-    const isPublisher = (tempState.pendingPermissions[friend.id]?.book_role || friend.book_role || friend.role) === 'publisher';
+    const bookRole = tempState.pendingPermissions[friend.id]?.book_role || friend.book_role || friend.role;
+    const isOwner = bookRole === 'owner';
+    const isPublisher = bookRole === 'publisher';
+    const isCurrentUser = friend.id === user?.id;
     
     return (
       <Card>
@@ -155,7 +187,7 @@ export default function BookManagerContent({ bookId, onClose }: BookManagerConte
               <p className="text-xs text-primary font-medium">{isOwner ? 'Owner' : isPublisher ? 'Publisher' : 'Author'}</p>
             </div>
 
-            {!isOwner && (
+            {!isOwner && !isCurrentUser && (
               <div className="flex items-center gap-2">
                 {!isPublisher && (
                   <>
@@ -202,7 +234,44 @@ export default function BookManagerContent({ bookId, onClose }: BookManagerConte
     );
   };
   
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (isStandalone) {
+      // Save directly to database in standalone mode
+      await saveToDatabase();
+    } else {
+      // Save to editor context in editor mode
+      await saveToEditorContext();
+    }
+    onClose();
+  };
+  
+  const saveToEditorContext = async () => {
+    if (!state || !dispatch) return;
+    
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    const existingFriendIds = new Set((state.bookFriends || []).map(f => f.id));
+    const newFriends = tempState.bookFriends.filter(f => !existingFriendIds.has(f.id));
+
+    for (const friend of newFriends) {
+      try {
+        await fetch(`${apiUrl}/books/${bookId}/friends`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            friendId: friend.id,
+            book_role: 'author',
+            page_access_level: 'own_page',
+            editor_interaction_level: 'full_edit'
+          })
+        });
+      } catch (error) {
+        console.error('Error adding friend:', error);
+      }
+    }
+    
     // Save page assignment changes
     if (tempState.pendingAssignment !== null || tempState.hasRemovedAssignment) {
       const updatedAssignments = { ...state.pageAssignments };
@@ -255,7 +324,102 @@ export default function BookManagerContent({ bookId, onClose }: BookManagerConte
       dispatch({ type: 'DELETE_TEMP_QUESTION', payload: { questionId } });
     });
     
-    onClose();
+    // Update book settings
+    if (state.currentBook && (tempState.bookSettings.pageSize !== state.currentBook.pageSize || tempState.bookSettings.orientation !== state.currentBook.orientation)) {
+      dispatch({ type: 'UPDATE_BOOK_SETTINGS', payload: tempState.bookSettings });
+    }
+  };
+  
+  const saveToDatabase = async () => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      
+      // Save book settings
+      if (tempState.bookSettings) {
+        await fetch(`${apiUrl}/books/${bookId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            pageSize: tempState.bookSettings.pageSize,
+            orientation: tempState.bookSettings.orientation
+          })
+        });
+      }
+      
+      // Add new friends to book first
+      for (const friend of tempState.bookFriends) {
+        try {
+          await fetch(`${apiUrl}/books/${bookId}/friends`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              friendId: friend.id,
+              book_role: tempState.pendingPermissions[friend.id]?.book_role || friend.book_role || 'author',
+              page_access_level: tempState.pendingPermissions[friend.id]?.pageAccessLevel || friend.pageAccessLevel || 'own_page',
+              editor_interaction_level: tempState.pendingPermissions[friend.id]?.editorInteractionLevel || friend.editorInteractionLevel || 'full_edit'
+            })
+          });
+        } catch (error) {
+          // Ignore 409 errors (friend already exists)
+          if (!error.message?.includes('409')) {
+            console.error('Error adding friend:', error);
+          }
+        }
+      }
+      
+      // Update book friends permissions
+      const friendsWithPermissions = tempState.bookFriends.map(friend => ({
+        user_id: friend.id,
+        role: friend.role,
+        book_role: tempState.pendingPermissions[friend.id]?.book_role || friend.book_role || 'author',
+        page_access_level: tempState.pendingPermissions[friend.id]?.pageAccessLevel || friend.pageAccessLevel || 'own_page',
+        editor_interaction_level: tempState.pendingPermissions[friend.id]?.editorInteractionLevel || friend.editorInteractionLevel || 'full_edit'
+      }));
+      
+      await fetch(`${apiUrl}/books/${bookId}/friends/bulk-update`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ friends: friendsWithPermissions })
+      });
+      
+      // Save questions
+      for (const [questionId, questionText] of Object.entries(tempState.tempQuestions)) {
+        if (questionText && questionText.trim()) {
+          await fetch(`${apiUrl}/questions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              id: questionId,
+              bookId: bookId,
+              questionText: questionText
+            })
+          });
+        }
+      }
+      
+      // Delete questions
+      for (const questionId of tempState.deletedQuestions) {
+        await fetch(`${apiUrl}/questions/${questionId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+      }
+    } catch (error) {
+      console.error('Error saving to database:', error);
+      throw error;
+    }
   };
   
   const handleCancel = () => {
@@ -266,8 +430,8 @@ export default function BookManagerContent({ bookId, onClose }: BookManagerConte
     }
   };
   
-  const handleSaveAndExit = () => {
-    handleSave();
+  const handleSaveAndExit = async () => {
+    await handleSave();
     setShowUnsavedDialog(false);
   };
   
@@ -395,25 +559,76 @@ export default function BookManagerContent({ bookId, onClose }: BookManagerConte
 
   useEffect(() => {
     fetchAllFriends();
-    // Use editor state first, fallback to API if empty
-    const initialBookFriends = state.bookFriends && state.bookFriends.length > 0 ? state.bookFriends : [];
-    const initialState = {
-      bookFriends: initialBookFriends,
-      pendingPermissions: {},
-      pendingAssignment: null,
-      hasRemovedAssignment: false,
-      removedFriends: new Set(),
-      tempQuestions: { ...state.tempQuestions },
-      deletedQuestions: new Set()
-    };
-    setTempState(initialState);
-    setOriginalState(initialState);
     
-    if (initialBookFriends.length === 0) {
+    if (isStandalone) {
+      // In standalone mode, always fetch from API
+      fetchBookData();
       fetchBookFriends();
+      const initialState = {
+        bookFriends: [],
+        pendingPermissions: {},
+        pendingAssignment: null,
+        hasRemovedAssignment: false,
+        removedFriends: new Set(),
+        tempQuestions: {},
+        deletedQuestions: new Set(),
+        bookSettings: { pageSize: 'A4', orientation: 'portrait' }
+      };
+      setTempState(initialState);
+      setOriginalState(initialState);
+    } else {
+      // Use editor state first, fallback to API if empty
+      const initialBookFriends = state?.bookFriends && state.bookFriends.length > 0 ? state.bookFriends : [];
+      const initialState = {
+        bookFriends: initialBookFriends,
+        pendingPermissions: {},
+        pendingAssignment: null,
+        hasRemovedAssignment: false,
+        removedFriends: new Set(),
+        tempQuestions: { ...state?.tempQuestions || {} },
+        deletedQuestions: new Set(),
+        bookSettings: {
+          pageSize: state?.currentBook?.pageSize || 'A4',
+          orientation: state?.currentBook?.orientation || 'portrait'
+        }
+      };
+      setTempState(initialState);
+      setOriginalState(initialState);
+      
+      if (initialBookFriends.length === 0) {
+        fetchBookFriends();
+      }
     }
     setLoading(false);
-  }, [state.bookFriends]);
+  }, [isStandalone, state?.bookFriends]);
+  
+  const fetchBookData = async () => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/books/${bookId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setTempState(prev => ({
+          ...prev,
+          bookSettings: {
+            pageSize: data.pageSize || 'A4',
+            orientation: data.orientation || 'portrait'
+          }
+        }));
+        setOriginalState(prev => ({
+          ...prev,
+          bookSettings: {
+            pageSize: data.pageSize || 'A4',
+            orientation: data.orientation || 'portrait'
+          }
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching book data:', error);
+    }
+  };
 
   useEffect(() => {
     fetchQuestionsWithAnswers();
@@ -435,7 +650,9 @@ export default function BookManagerContent({ bookId, onClose }: BookManagerConte
         const data = await response.json();
         setTempState(prev => ({ ...prev, bookFriends: data }));
         setOriginalState(prev => ({ ...prev, bookFriends: data }));
-        dispatch({ type: 'SET_BOOK_FRIENDS', payload: data });
+        if (dispatch) {
+          dispatch({ type: 'SET_BOOK_FRIENDS', payload: data });
+        }
       }
     } catch (error) {
       console.error('Error fetching book friends:', error);
@@ -459,15 +676,17 @@ export default function BookManagerContent({ bookId, onClose }: BookManagerConte
 
   const handleAssignUser = (user: User) => {
     // Check for question conflicts before assigning
-    const conflicts = checkUserQuestionConflicts(user.id, currentPage);
-    
-    if (conflicts.length > 0) {
-      const conflictMessage = `${user.name} already has the following questions on other pages:\n\n` +
-        conflicts.map(c => `• "${c.questionText}" on page ${c.pageNumber}`).join('\n') +
-        '\n\nThis page assignment cannot be made because a question can be assigned to each user only once.';
+    if (checkUserQuestionConflicts) {
+      const conflicts = checkUserQuestionConflicts(user.id, currentPage);
       
-      setConflictAlert({ show: true, message: conflictMessage });
-      return;
+      if (conflicts.length > 0) {
+        const conflictMessage = `${user.name} already has the following questions on other pages:\n\n` +
+          conflicts.map(c => `• "${c.questionText}" on page ${c.pageNumber}`).join('\n') +
+          '\n\nThis page assignment cannot be made because a question can be assigned to each user only once.';
+        
+        setConflictAlert({ show: true, message: conflictMessage });
+        return;
+      }
     }
     
     // Only set pending assignment - don't update global state yet
@@ -490,8 +709,7 @@ export default function BookManagerContent({ bookId, onClose }: BookManagerConte
     const updatedBookFriends = [...tempState.bookFriends, newFriend];
     setTempState(prev => ({ 
       ...prev, 
-      bookFriends: updatedBookFriends,
-      pendingAssignment: { ...friend, role: 'author' }
+      bookFriends: updatedBookFriends
     }));
     setShowAddUser(false);
   };
@@ -508,28 +726,32 @@ export default function BookManagerContent({ bookId, onClose }: BookManagerConte
   };
 
   const handleInviteUser = async (name: string, email: string) => {
+    setInviteError('');
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       
-      // Create unregistered user and add to book
-      const response = await fetch(`${apiUrl}/books/${bookId}/invite`, {
+      // Send invitation via invitations endpoint
+      const response = await fetch(`${apiUrl}/invitations/send`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ name, email })
+        body: JSON.stringify({ name, email, bookId })
       });
       
       if (response.ok) {
-        const newFriend = await response.json();
-        const updatedBookFriends = [...tempState.bookFriends, newFriend];
-        setTempState(prev => ({ ...prev, bookFriends: updatedBookFriends }));
-        dispatch({ type: 'SET_BOOK_FRIENDS', payload: updatedBookFriends });
+        // Refresh book friends from server to get the newly invited user
+        await fetchBookFriends();
         setShowInviteDialog(false);
+        setInviteError('');
+      } else if (response.status === 409) {
+        setInviteError('A user with this email address already exists or is already in this book.');
+      } else {
+        setInviteError('Failed to send invitation. Please try again.');
       }
     } catch (error) {
-      console.error('Error inviting user:', error);
+      setInviteError('Failed to send invitation. Please try again.');
     }
   };
 
@@ -537,11 +759,8 @@ export default function BookManagerContent({ bookId, onClose }: BookManagerConte
     !tempState.bookFriends.some(bookFriend => bookFriend.id === friend.id) && friend.id !== user?.id
   );
 
-  // Include current user in book collaborators list
-  const allBookCollaborators = user ? [
-    { ...user, role: 'owner', book_role: 'owner' },
-    ...tempState.bookFriends.filter(friend => friend.id !== user.id)
-  ] : tempState.bookFriends;
+  // Use book friends list directly (current user is already included from API)
+  const allBookCollaborators = tempState.bookFriends;
 
   const renderBookFriend = (user: User) => (
     <div 
@@ -674,12 +893,7 @@ export default function BookManagerContent({ bookId, onClose }: BookManagerConte
             </div>
             {allBookCollaborators.length > 0 ? (
               <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium">Book Friends:</p>
-                  <Tooltip content="Configure access levels and publisher permissions for book participants">
-                    <Info className="h-4 w-4 text-muted-foreground" />
-                  </Tooltip>
-                </div>
+                
                 <div className="overflow-y-auto">
                   <List
                     items={allBookCollaborators}
@@ -836,9 +1050,45 @@ export default function BookManagerContent({ bookId, onClose }: BookManagerConte
         </TabsContent>
 
         <TabsContent value="book-settings" className="space-y-4">
-          <div className="text-center py-8">
-            <p className="text-muted-foreground">Book Settings (page size, orientation) coming soon...</p>
-          </div>
+          <Card>
+            <CardHeader>
+              <h3 className="text-lg font-semibold">Page Settings</h3>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Page Size</label>
+                <SelectInput
+                  value={tempState.bookSettings.pageSize}
+                  onChange={(value) => setTempState(prev => ({
+                    ...prev,
+                    bookSettings: { ...prev.bookSettings, pageSize: value }
+                  }))}
+                  className="w-full"
+                >
+                  <option value="A4">A4 (210 × 297 mm)</option>
+                  <option value="Letter">Letter (8.5 × 11 in)</option>
+                  <option value="Legal">Legal (8.5 × 14 in)</option>
+                  <option value="A5">A5 (148 × 210 mm)</option>
+                  <option value="Square">Square (210 × 210 mm)</option>
+                </SelectInput>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Orientation</label>
+                <SelectInput
+                  value={tempState.bookSettings.orientation}
+                  onChange={(value) => setTempState(prev => ({
+                    ...prev,
+                    bookSettings: { ...prev.bookSettings, orientation: value }
+                  }))}
+                  className="w-full"
+                >
+                  <option value="portrait">Portrait</option>
+                  <option value="landscape">Landscape</option>
+                </SelectInput>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
       
@@ -847,7 +1097,7 @@ export default function BookManagerContent({ bookId, onClose }: BookManagerConte
           Cancel
         </Button>
         <Button onClick={handleSave}>
-          Save
+          Save and Close
         </Button>
       </div>
       
@@ -900,8 +1150,12 @@ export default function BookManagerContent({ bookId, onClose }: BookManagerConte
       
       <InviteUserDialog
         open={showInviteDialog}
-        onOpenChange={setShowInviteDialog}
+        onOpenChange={(open) => {
+          setShowInviteDialog(open);
+          if (!open) setInviteError('');
+        }}
         onInvite={handleInviteUser}
+        errorMessage={inviteError}
       />
       
       <UnsavedChangesDialog

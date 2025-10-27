@@ -60,6 +60,19 @@ export const TOOL_DEFAULTS = {
     stroke: '#1f2937',
     fill: 'transparent'
   },
+  triangle: {
+    theme: 'default',
+    strokeWidth: 2, // Common scale value
+    stroke: '#1f2937',
+    fill: 'transparent'
+  },
+  polygon: {
+    theme: 'default',
+    strokeWidth: 2, // Common scale value
+    stroke: '#1f2937',
+    fill: 'transparent',
+    polygonSides: 5
+  },
   text: {
     fontSize: 58, // Common size 14
     fontFamily: 'Arial, sans-serif',

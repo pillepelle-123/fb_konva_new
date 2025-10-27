@@ -17,7 +17,7 @@ export default function CanvasItemComponent(props: CanvasItemComponentProps) {
     return <ThemedShape {...props} />;
   }
 
-  if (['rect', 'circle', 'line', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(element.type)) {
+  if (['rect', 'circle', 'line', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(element.type)) {
     return <ThemedShape {...props} />;
   }
 

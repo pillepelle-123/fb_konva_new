@@ -22,7 +22,9 @@ import {
   Dog,
   Cat,
   Smile,
-  MessagesSquare
+  MessagesSquare,
+  Triangle,
+  Pentagon
 } from 'lucide-react';
 
 export default function Toolbar() {
@@ -72,7 +74,9 @@ export default function Toolbar() {
       tools: [
         { id: 'line', label: 'Line', icon: Minus },
         { id: 'circle', label: 'Circle', icon: Circle },
+        { id: 'triangle', label: 'Triangle', icon: Triangle },
         { id: 'rect', label: 'Rectangle', icon: Square },
+        { id: 'polygon', label: 'Polygon', icon: Pentagon },
         { id: 'heart', label: 'Heart', icon: Heart },
         { id: 'star', label: 'Star', icon: Star },
         { id: 'speech-bubble', label: 'Speech Bubble', icon: MessageSquare },

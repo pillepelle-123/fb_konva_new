@@ -224,37 +224,30 @@ export default function BookCard({ book, isArchived = false, onRestore, onDelete
                 </Link>
                 </Tooltip>
               </div>
-              <Tooltip content="Manage Book" side="bottom">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => navigate(`/books/${book.id}/manager`)}
-                  className="space-x-2"
-                >
-                  <Settings className="h-5 w-5" />
-                </Button>
-              </Tooltip>
-              {/* <Tooltip content="Questions" side="bottom">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => navigate(`/questions/${book.id}`)}
-                  className="space-x-2"
-                >
-                  <CircleHelp className="h-5 w-5" />
-                </Button>
-              </Tooltip>
-               */}
-              <Tooltip content="Archive" side="bottom">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => onArchive?.(book.id)}
-                  className="space-x-2"
-                >
-                  <Archive className="h-5 w-5" />
-                </Button>
-              </Tooltip>
+              {(book.userRole === 'owner' || book.userRole === 'publisher') && (
+                <>
+                  <Tooltip content="Manage Book" side="bottom">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => navigate(`/books/${book.id}/manager`)}
+                      className="space-x-2"
+                    >
+                      <Settings className="h-5 w-5" />
+                    </Button>
+                  </Tooltip>
+                  <Tooltip content="Archive" side="bottom">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => onArchive?.(book.id)}
+                      className="space-x-2"
+                    >
+                      <Archive className="h-5 w-5" />
+                    </Button>
+                  </Tooltip>
+                </>
+              )}
             </>
           )}
         </div>

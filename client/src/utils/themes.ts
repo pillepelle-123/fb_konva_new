@@ -137,6 +137,20 @@ function generateComplexShapePath(element: CanvasElement): string {
   const w = element.width, h = element.height;
   
   switch (element.type) {
+    case 'triangle':
+      return `M ${w/2} 0 L ${w} ${h} L 0 ${h} Z`;
+    
+    case 'polygon': {
+      const sides = element.polygonSides || 5;
+      const cx = w / 2, cy = h / 2, r = Math.min(w, h) / 2;
+      const points = [];
+      for (let i = 0; i < sides; i++) {
+        const angle = (i * 2 * Math.PI) / sides - Math.PI / 2;
+        points.push([cx + r * Math.cos(angle), cy + r * Math.sin(angle)]);
+      }
+      return `M ${points[0][0]} ${points[0][1]} ` + points.slice(1).map(p => `L ${p[0]} ${p[1]}`).join(' ') + ' Z';
+    }
+    
     case 'heart':
       return `M ${w/2} ${h*0.8} C ${w/2} ${h*0.8} ${w*0.1} ${h*0.4} ${w*0.1} ${h*0.25} C ${w*0.1} ${h*0.1} ${w*0.25} ${h*0.05} ${w/2} ${h*0.25} C ${w*0.75} ${h*0.05} ${w*0.9} ${h*0.1} ${w*0.9} ${h*0.25} C ${w*0.9} ${h*0.4} ${w/2} ${h*0.8} ${w/2} ${h*0.8} Z`;
     
@@ -193,11 +207,10 @@ const glowTheme: ThemeRenderer = {
 
 
 
-// Candy theme - individual circles with randomness support
 const candyTheme: ThemeRenderer = {
   generatePath: (element: CanvasElement, zoom = 1) => {
-    const baseCircleSize = element.strokeWidth ? element.strokeWidth * 0.8 : 1.6;
-    const spacing = baseCircleSize * 1.5;
+    const baseCircleSize = element.strokeWidth ? element.strokeWidth * 2 : 4;
+    const spacing = baseCircleSize * 2;
     const hasRandomness = element.candyRandomness || false;
     const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 4), 10) || 1;
     
@@ -260,6 +273,31 @@ const candyTheme: ThemeRenderer = {
           circleIndex++;
         }
       });
+    } else if (element.type === 'triangle' || element.type === 'polygon') {
+      const path = generateComplexShapePath(element);
+      const perimeter = element.type === 'triangle' ? 
+        element.width + element.height + Math.sqrt(element.width * element.width + element.height * element.height) :
+        2 * Math.PI * Math.min(element.width, element.height) / 2;
+      const numCircles = Math.max(3, Math.floor(perimeter / spacing));
+      
+      const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      pathEl.setAttribute('d', path);
+      const pathLength = pathEl.getTotalLength?.() || perimeter;
+      
+      for (let i = 0; i < numCircles; i++) {
+        const t = (i / numCircles) * pathLength;
+        const point = pathEl.getPointAtLength?.(t) || { x: 0, y: 0 };
+        
+        const random = () => {
+          const x = Math.sin(seed + circleIndex) * 10000;
+          return x - Math.floor(x);
+        };
+        const sizeVariation = hasRandomness ? 1 + (random() - 0.5) * getVariationAmount() : 1;
+        const radius = (baseCircleSize * sizeVariation) / 2;
+        
+        pathString += `M ${point.x - radius} ${point.y} A ${radius} ${radius} 0 1 0 ${point.x + radius} ${point.y} A ${radius} ${radius} 0 1 0 ${point.x - radius} ${point.y} `;
+        circleIndex++;
+      }
     } else if (element.type === 'circle') {
       const cx = element.width / 2;
       const cy = element.height / 2;
@@ -370,7 +408,27 @@ const zigzagTheme: ThemeRenderer = {
       return path;
     }
     
-    if (element.type === 'rect') {
+    if (element.type === 'triangle' || element.type === 'polygon') {
+      const path = generateComplexShapePath(element);
+      const perimeter = element.type === 'triangle' ? 
+        element.width + element.height + Math.sqrt(element.width * element.width + element.height * element.height) :
+        2 * Math.PI * Math.min(element.width, element.height) / 2;
+      const segments = Math.max(4, Math.floor(perimeter / zigzagSize));
+      
+      const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      pathEl.setAttribute('d', path);
+      const pathLength = pathEl.getTotalLength?.() || perimeter;
+      
+      let zigzagPath = '';
+      for (let i = 0; i <= segments; i++) {
+        const t = (i / segments) * pathLength;
+        const point = pathEl.getPointAtLength?.(t) || { x: 0, y: 0 };
+        const offset = (i % 2 === 0) ? 0 : thickness;
+        if (i === 0) zigzagPath += `M ${point.x} ${point.y}`;
+        else zigzagPath += ` L ${point.x + offset} ${point.y + offset}`;
+      }
+      return zigzagPath + ' Z';
+    } else if (element.type === 'rect') {
       const perimeter = 2 * (element.width + element.height);
       const segments = Math.max(4, Math.floor(perimeter / zigzagSize));
       
@@ -677,7 +735,7 @@ const wobblyTheme: ThemeRenderer = {
   },
   
   getStrokeProps: (element: CanvasElement, zoom = 1) => {
-    if (element.type === 'brush' || element.type === 'line' || element.type === 'rect' || element.type === 'circle') {
+    if (element.type === 'brush' || element.type === 'line' || element.type === 'rect' || element.type === 'circle' || element.type === 'triangle' || element.type === 'polygon') {
       return {
         stroke: 'transparent',
         strokeWidth: 0,

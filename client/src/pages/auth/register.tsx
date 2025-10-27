@@ -40,8 +40,8 @@ export default function Register() {
         });
         if (response.ok) {
           sessionStorage.removeItem('invitationToken');
-          // User is now converted and registered, redirect to login or dashboard
-          window.location.href = '/login?message=Registration successful, please login';
+          // User is now converted and registered, redirect to login
+          window.location.href = '/login?message=Registration successful, please login with your new credentials';
         } else {
           throw new Error('Failed to convert invitation');
         }

@@ -203,6 +203,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
   
   const [isHovered, setIsHovered] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   
   // Listen for transformer events from the canvas
   useEffect(() => {
@@ -226,6 +227,16 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
       window.removeEventListener('transformEnd', handleTransformEnd as EventListener);
     };
   }, [element.id]);
+
+  // Force refresh when element properties change (e.g., from Style Painter)
+  useEffect(() => {
+    // Simulate the resize process to force proper re-calculation of ruled lines
+    setIsResizing(true);
+    setTimeout(() => {
+      setIsResizing(false);
+      setRefreshKey(prev => prev + 1);
+    }, 10);
+  }, [element.questionSettings, element.answerSettings, element.fontSize, element.fontFamily, element.fontColor, element.width, element.height]);
 
 
   
@@ -731,13 +742,34 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
     <>
       <BaseCanvasItem 
         {...props} 
+        onSelect={(e) => {
+          // Handle right-click to exit Style Painter mode
+          if (e?.evt?.button === 2 && state.stylePainterActive) {
+            e.evt.preventDefault();
+            dispatch({ type: 'TOGGLE_STYLE_PAINTER' });
+            return;
+          }
+          // Call original onSelect if provided
+          if (props.onSelect) {
+            props.onSelect(e);
+          }
+        }}
         onDoubleClick={handleDoubleClick}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onTransformStart={() => setIsResizing(true)}
         onTransformEnd={() => setIsResizing(false)}
       >
-        <Group>
+        <Group 
+          key={refreshKey}
+          onContextMenu={(e) => {
+            if (state.stylePainterActive) {
+              e.evt.preventDefault();
+              e.evt.stopPropagation();
+              dispatch({ type: 'TOGGLE_STYLE_PAINTER' });
+            }
+          }}
+        >
           {/* Background and Border */}
           {(() => {
             // Get default settings from tool defaults if not present

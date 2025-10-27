@@ -352,7 +352,7 @@ export default function Canvas() {
           setPreviewLine({ x1: x, y1: y, x2: x, y2: y });
         }
       }
-    } else if (['rect', 'circle', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(state.activeTool)) {
+    } else if (['rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(state.activeTool)) {
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
         const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
@@ -700,7 +700,8 @@ export default function Canvas() {
           roughness: 3,
           strokeWidth: shapeDefaults.strokeWidth,
           cornerRadius: shapeDefaults.cornerRadius || 0,
-          theme: shapeDefaults.theme
+          theme: shapeDefaults.theme,
+          polygonSides: previewShape.type === 'polygon' ? (state.toolSettings?.polygon?.polygonSides || 5) : undefined
         };
         dispatch({ type: 'ADD_ELEMENT', payload: newElement });
         dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
@@ -1033,6 +1034,12 @@ export default function Canvas() {
 
   const handleContextMenu = (e: Konva.KonvaEventObject<PointerEvent>) => {
     e.evt.preventDefault();
+    
+    // Exit Style Painter mode on right-click anywhere
+    if (state.stylePainterActive) {
+      dispatch({ type: 'TOGGLE_STYLE_PAINTER' });
+      return;
+    }
     
     // Block context menu for restricted users
     if (!canEditCanvas() || state.editorInteractionLevel === 'answer_only') return;
@@ -1649,6 +1656,25 @@ export default function Canvas() {
         // console.log('Found element:', element);
                 
         if (element && (element.textType === 'qna' || element.textType === 'question' || element.textType === 'qna2' || element.textType === 'qna_inline')) {
+          // Validate: Check if question already exists on this page (excluding current element)
+          if (questionId && currentPage) {
+            const questionsOnPage = currentPage.elements
+              .filter(el => el.id !== selectedQuestionElementId && el.questionId === questionId)
+              .map(el => el.questionId);
+            
+            if (questionsOnPage.length > 0) {
+              setAlertMessage('This question already exists on this page.');
+              const alertX = (element.x + (element.width || 100) / 2);
+              const alertY = (element.y + (element.height || 50) + 10);
+              setAlertPosition({ x: alertX, y: alertY });
+              
+              setTimeout(() => {
+                setAlertMessage(null);
+                setAlertPosition(null);
+              }, 3000);
+              return;
+            }
+          }
           const fontColor = element.fontColor || element.fill || TOOL_DEFAULTS.qna.fontColor;          
           dispatch({
             type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
@@ -2442,6 +2468,29 @@ export default function Canvas() {
                     }
                   } else {
                     // For regular question elements
+                    // Validate: Check if question already exists on this page
+                    if (questionId && questionId !== '' && currentPage) {
+                      const questionsOnPage = currentPage.elements
+                        .filter(el => el.id !== selectedQuestionElementId && el.questionId === questionId)
+                        .map(el => el.questionId);
+                      
+                      if (questionsOnPage.length > 0) {
+                        const element = currentPage.elements.find(el => el.id === selectedQuestionElementId);
+                        if (element) {
+                          setAlertMessage('This question already exists on this page.');
+                          const alertX = (element.x + (element.width || 100) / 2);
+                          const alertY = (element.y + (element.height || 50) + 10);
+                          setAlertPosition({ x: alertX, y: alertY });
+                          
+                          setTimeout(() => {
+                            setAlertMessage(null);
+                            setAlertPosition(null);
+                          }, 3000);
+                          return;
+                        }
+                      }
+                    }
+                    
                     const updates = questionId === '' 
                       ? { text: '', fontColor: '#9ca3af', questionId: undefined }
                       : { text: questionText, fontColor: '#1f2937', questionId: questionId };

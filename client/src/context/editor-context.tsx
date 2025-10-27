@@ -223,7 +223,8 @@ function logThemeStructure(book: Book | null) {
 
 export interface CanvasElement {
   id: string;
-  type: 'text' | 'image' | 'placeholder' | 'line' | 'circle' | 'rect' | 'brush' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley';
+  type: 'text' | 'image' | 'placeholder' | 'line' | 'circle' | 'rect' | 'brush' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley' | 'triangle' | 'polygon';
+  polygonSides?: number;
   x: number;
   y: number;
   width: number;
@@ -309,7 +310,7 @@ export interface HistoryState {
 export interface EditorState {
   currentBook: Book | null;
   activePageIndex: number;
-  activeTool: 'select' | 'text' | 'question' | 'answer' | 'qna' | 'image' | 'line' | 'circle' | 'rect' | 'brush' | 'pan' | 'zoom' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley';
+  activeTool: 'select' | 'text' | 'question' | 'answer' | 'qna' | 'image' | 'line' | 'circle' | 'rect' | 'brush' | 'pan' | 'zoom' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley' | 'triangle' | 'polygon';
   selectedElementIds: string[];
   user?: { id: number; role: string } | null;
   userRole?: 'author' | 'publisher' | null;
@@ -381,7 +382,8 @@ type EditorAction =
   | { type: 'TOGGLE_MAGNETIC_SNAPPING' }
   | { type: 'SET_QNA_ACTIVE_SECTION'; payload: 'question' | 'answer' }
   | { type: 'TOGGLE_STYLE_PAINTER' }
-  | { type: 'APPLY_COPIED_STYLE'; payload: string };
+  | { type: 'APPLY_COPIED_STYLE'; payload: string }
+  | { type: 'UPDATE_BOOK_SETTINGS'; payload: { pageSize: string; orientation: string } };
 
 const initialState: EditorState = {
   currentBook: null,
@@ -943,6 +945,19 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         currentBook: {
           ...state.currentBook,
           name: action.payload
+        },
+        hasUnsavedChanges: true
+      };
+    
+    case 'UPDATE_BOOK_SETTINGS':
+      if (!state.currentBook) return state;
+      const savedBookSettingsState = saveToHistory(state, 'Update Book Settings');
+      return {
+        ...savedBookSettingsState,
+        currentBook: {
+          ...savedBookSettingsState.currentBook!,
+          pageSize: action.payload.pageSize,
+          orientation: action.payload.orientation
         },
         hasUnsavedChanges: true
       };

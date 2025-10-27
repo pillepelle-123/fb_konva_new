@@ -45,9 +45,8 @@ export default function ThemedShape(props: CanvasItemProps) {
   const pathData = renderer.generatePath(element, zoom);
   const strokeProps = renderer.getStrokeProps(element, zoom);
 
-  // Apply separate stroke and fill opacity
-  const finalStrokeOpacity = element.strokeOpacity !== undefined ? element.strokeOpacity : 1;
-  const finalFillOpacity = element.fillOpacity !== undefined ? element.fillOpacity : 1;
+  const finalStrokeOpacity = element.strokeOpacity !== undefined ? element.strokeOpacity : (element.opacity !== undefined ? element.opacity : 1);
+  const finalFillOpacity = element.fillOpacity !== undefined ? element.fillOpacity : (element.opacity !== undefined ? element.opacity : 1);
 
   if (!pathData) return null;
 

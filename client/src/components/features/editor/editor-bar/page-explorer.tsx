@@ -18,7 +18,7 @@ export function PagesSubmenu({ pages, activePageIndex, onClose, onPageSelect, on
   const { state } = useEditor();
   const { user } = useAuth();
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const isAuthor = user?.role === 'author';
+  const isAuthor = state.userRole === 'author';
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     if (isAuthor) {
@@ -60,61 +60,56 @@ export function PagesSubmenu({ pages, activePageIndex, onClose, onPageSelect, on
     setDraggedIndex(null);
   };
 
+  const pagesContent = (
+    <div className="flex items-center gap-2 flex-1">
+      <div className="flex items-center gap-2">
+        {pages.map((page, index) => (
+          <div
+            key={page.id}
+            draggable={!isAuthor}
+            onDragStart={(e) => handleDragStart(e, index)}
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDrop(e, index)}
+            className={`
+              cursor-pointer transition-all duration-200
+              ${index === activePageIndex 
+                ? 'shadow-lg' 
+                : ''
+              }
+              ${draggedIndex === index ? 'opacity-50' : ''}
+              ${isAuthor ? 'cursor-default' : ''}
+            `}
+            onClick={() => onPageSelect(isRestrictedView ? index + 1 : page.pageNumber)}
+          >
+            <PagePreview 
+              bookId={bookId} 
+              pageId={page.id} 
+              pageNumber={isRestrictedView ? index + 1 : page.pageNumber}
+              assignedUser={state.pageAssignments[page.pageNumber] || null}
+              isActive={index === activePageIndex}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
-    <div className="flex items-start justify-between w-full px-4 py-3">
-      <Tooltip content="Drag and Drop to re-arrange pages" side="bottom">
-      <div className="flex items-center gap-2 flex-1">
-        <span className="text-sm font-medium">Pages:</span>
-        <div className="flex items-center gap-2">
-          {pages.map((page, index) => (
-            <div
-              key={page.id}
-              draggable={!isAuthor}
-              onDragStart={(e) => handleDragStart(e, index)}
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, index)}
-              className={`
-                cursor-pointer transition-all duration-200
-                ${index === activePageIndex 
-                  ? 'shadow-lg' 
-                  : ''
-                }
-                ${draggedIndex === index ? 'opacity-50' : ''}
-                ${isAuthor ? 'cursor-default' : ''}
-              `}
-              onClick={() => onPageSelect(isRestrictedView ? index + 1 : page.pageNumber)}
-            >
-              <PagePreview 
-                bookId={bookId} 
-                pageId={page.id} 
-                pageNumber={isRestrictedView ? index + 1 : page.pageNumber}
-                assignedUser={state.pageAssignments[page.pageNumber] || null}
-                isActive={index === activePageIndex}
-              />
-            </div>
-          ))}
-        </div>
-      </div>
-      </Tooltip>
-      <div className='items-end h-full'>
-        {/* <Button
-          variant="outline"
-          size="md"
-          onClick={onClose}
-          className="h-8 w-8 p-0"
-        >
-          <X className="h-4 w-4" />
-        </Button> */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onClose}
-          className="px-2 h-8"
-        >
-          <ChevronLeft className="h-4 w-4 mr-1" />
-          Back
-        </Button>
-      </div>
+    <div className="flex items-start w-full px-4 py-3 gap-4">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={onClose}
+        className="px-2 h-8"
+      >
+        <ChevronLeft className="h-4 w-4 mr-1" />
+        Back
+      </Button>
+      {isAuthor ? pagesContent : (
+        <Tooltip content="Drag and Drop to re-arrange pages" side="bottom">
+          {pagesContent}
+        </Tooltip>
+      )}
     </div>
   );
 }

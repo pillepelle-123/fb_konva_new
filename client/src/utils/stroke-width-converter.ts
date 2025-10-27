@@ -9,18 +9,15 @@ export const THEME_STROKE_RANGES: Record<string, ThemeStrokeRange> = {
   default: { min: 1, max: 100 },
   rough: { min: 1, max: 100 },
   glow: { min: 1, max: 50 },
-  candy: { min: 15, max: 100 },
-  zigzag: { min: 4, max: 24 },
-  wobbly: { min: 6, max: 500 }
+  candy: { min: 1, max: 10 },
+  zigzag: { min: 1, max: 20 },
+  wobbly: { min: 1, max: 50 }
 };
 
-// Convert from common scale (1-100) to actual theme stroke width
 export function commonToActualStrokeWidth(commonWidth: number, theme: string): number {
   const range = THEME_STROKE_RANGES[theme] || THEME_STROKE_RANGES.default;
   const normalizedWidth = Math.max(1, Math.min(100, commonWidth));
-    // console.log('Common: ' + commonWidth)
-    // console.log('Actual Return: ' + Math.round(range.min + ((normalizedWidth - 1) / 99) * (range.max - range.min)))
-return Math.round(range.min + ((normalizedWidth - 1) / 99) * (range.max - range.min));
+  return range.min + ((normalizedWidth - 1) / 99) * (range.max - range.min);
 }
 
 // Convert from actual theme stroke width to common scale (1-100)
