@@ -36,13 +36,38 @@ export const snapToElements = (
   let snappedY = y;
   const guidelines: SnapGuideline[] = [];
   
-  // Get node dimensions with safety checks
+  // Get node dimensions - handle both single nodes and groups
   let nodeWidth = 0;
   let nodeHeight = 0;
+  let nodeX = x;
+  let nodeY = y;
+  
+  // Track selected element IDs to exclude from snapping
+  const selectedIds = new Set<string>();
   
   try {
-    nodeWidth = (node.width() || 0) * (node.scaleX() || 1);
-    nodeHeight = (node.height() || 0) * (node.scaleY() || 1);
+    // Check if this is a Transformer (multi-selection)
+    if (node.getClassName() === 'Transformer') {
+      const transformer = node as Konva.Transformer;
+      const nodes = transformer.nodes();
+      if (nodes.length > 0) {
+        // Collect all selected element IDs
+        nodes.forEach(n => {
+          if (n.id()) selectedIds.add(n.id());
+        });
+        
+        // Use the provided x, y as the bounding box position
+        nodeWidth = transformer.width();
+        nodeHeight = transformer.height();
+        nodeX = x;
+        nodeY = y;
+      }
+    } else {
+      // Single node
+      if (node.id()) selectedIds.add(node.id());
+      nodeWidth = (node.width() || 0) * (node.scaleX() || 1);
+      nodeHeight = (node.height() || 0) * (node.scaleY() || 1);
+    }
   } catch (e) {
     // Fallback if node methods fail
   }
@@ -59,20 +84,26 @@ export const snapToElements = (
   currentPage.elements?.forEach(element => {
     if (!element) return;
     
+    // Skip if this element is part of the selection
+    if (selectedIds.has(element.id)) return;
+    
+    // Skip brush elements from snapping
+    if (element.type === 'brush') return;
+    
     const stage = stageRef.current;
     if (!stage) return;
     
     try {
       const otherNode = stage.findOne(`#${element.id}`);
-      if (otherNode === node || !otherNode) return;
+      if (!otherNode) return;
 
       const elementWidth = element.width || 0;
       const elementHeight = element.height || 0;
 
-    // Edge snapping
-    const leftToLeft = Math.abs(x - element.x);
+      // Edge snapping
+    const leftToLeft = Math.abs(nodeX - element.x);
     if (leftToLeft < GUIDELINE_OFFSET) {
-      snappedX = element.x;
+      snappedX = x + (element.x - nodeX);
       guidelines.push({
         type: 'vertical',
         position: pageOffsetX + element.x,
@@ -83,9 +114,9 @@ export const snapToElements = (
       });
     }
     
-    const leftToRight = Math.abs(x - (element.x + elementWidth));
+    const leftToRight = Math.abs(nodeX - (element.x + elementWidth));
     if (leftToRight < GUIDELINE_OFFSET) {
-      snappedX = element.x + elementWidth;
+      snappedX = x + (element.x + elementWidth - nodeX);
       guidelines.push({
         type: 'vertical',
         position: pageOffsetX + element.x + elementWidth,
@@ -96,9 +127,9 @@ export const snapToElements = (
       });
     }
     
-    const rightToLeft = Math.abs((x + nodeWidth) - element.x);
+    const rightToLeft = Math.abs((nodeX + nodeWidth) - element.x);
     if (rightToLeft < GUIDELINE_OFFSET) {
-      snappedX = element.x - nodeWidth;
+      snappedX = x + (element.x - nodeWidth - nodeX);
       guidelines.push({
         type: 'vertical',
         position: pageOffsetX + element.x,
@@ -109,9 +140,9 @@ export const snapToElements = (
       });
     }
     
-    const rightToRight = Math.abs((x + nodeWidth) - (element.x + elementWidth));
+    const rightToRight = Math.abs((nodeX + nodeWidth) - (element.x + elementWidth));
     if (rightToRight < GUIDELINE_OFFSET) {
-      snappedX = element.x + elementWidth - nodeWidth;
+      snappedX = x + (element.x + elementWidth - nodeWidth - nodeX);
       guidelines.push({
         type: 'vertical',
         position: pageOffsetX + element.x + elementWidth,
@@ -122,9 +153,9 @@ export const snapToElements = (
       });
     }
     
-    const topToTop = Math.abs(y - element.y);
+    const topToTop = Math.abs(nodeY - element.y);
     if (topToTop < GUIDELINE_OFFSET) {
-      snappedY = element.y;
+      snappedY = y + (element.y - nodeY);
       guidelines.push({
         type: 'horizontal',
         position: pageOffsetY + element.y,
@@ -135,9 +166,9 @@ export const snapToElements = (
       });
     }
     
-    const topToBottom = Math.abs(y - (element.y + elementHeight));
+    const topToBottom = Math.abs(nodeY - (element.y + elementHeight));
     if (topToBottom < GUIDELINE_OFFSET) {
-      snappedY = element.y + elementHeight;
+      snappedY = y + (element.y + elementHeight - nodeY);
       guidelines.push({
         type: 'horizontal',
         position: pageOffsetY + element.y + elementHeight,
@@ -148,9 +179,9 @@ export const snapToElements = (
       });
     }
     
-    const bottomToTop = Math.abs((y + nodeHeight) - element.y);
+    const bottomToTop = Math.abs((nodeY + nodeHeight) - element.y);
     if (bottomToTop < GUIDELINE_OFFSET) {
-      snappedY = element.y - nodeHeight;
+      snappedY = y + (element.y - nodeHeight - nodeY);
       guidelines.push({
         type: 'horizontal',
         position: pageOffsetY + element.y,
@@ -161,9 +192,9 @@ export const snapToElements = (
       });
     }
     
-    const bottomToBottom = Math.abs((y + nodeHeight) - (element.y + elementHeight));
+    const bottomToBottom = Math.abs((nodeY + nodeHeight) - (element.y + elementHeight));
     if (bottomToBottom < GUIDELINE_OFFSET) {
-      snappedY = element.y + elementHeight - nodeHeight;
+      snappedY = y + (element.y + elementHeight - nodeHeight - nodeY);
       guidelines.push({
         type: 'horizontal',
         position: pageOffsetY + element.y + elementHeight,
@@ -175,11 +206,11 @@ export const snapToElements = (
     }
 
     // Center snapping
-    const centerX = x + nodeWidth / 2;
+    const centerX = nodeX + nodeWidth / 2;
     const elementCenterX = element.x + elementWidth / 2;
     const centerToCenter = Math.abs(centerX - elementCenterX);
     if (centerToCenter < GUIDELINE_OFFSET) {
-      snappedX = elementCenterX - nodeWidth / 2;
+      snappedX = x + (elementCenterX - nodeWidth / 2 - nodeX);
       guidelines.push({
         type: 'vertical',
         position: pageOffsetX + elementCenterX,
@@ -190,11 +221,11 @@ export const snapToElements = (
       });
     }
     
-    const centerY = y + nodeHeight / 2;
+    const centerY = nodeY + nodeHeight / 2;
     const elementCenterY = element.y + elementHeight / 2;
     const centerToCenterY = Math.abs(centerY - elementCenterY);
     if (centerToCenterY < GUIDELINE_OFFSET) {
-      snappedY = elementCenterY - nodeHeight / 2;
+      snappedY = y + (elementCenterY - nodeHeight / 2 - nodeY);
       guidelines.push({
         type: 'horizontal',
         position: pageOffsetY + elementCenterY,
@@ -211,9 +242,9 @@ export const snapToElements = (
   });
 
   // Canvas edge snapping
-  const leftEdge = Math.abs(x);
+  const leftEdge = Math.abs(nodeX);
   if (leftEdge < GUIDELINE_OFFSET) {
-    snappedX = 0;
+    snappedX = x + (0 - nodeX);
     guidelines.push({
       type: 'vertical',
       position: pageOffsetX,
@@ -224,9 +255,9 @@ export const snapToElements = (
     });
   }
   
-  const rightEdge = Math.abs(x + nodeWidth - canvasWidth);
+  const rightEdge = Math.abs(nodeX + nodeWidth - canvasWidth);
   if (rightEdge < GUIDELINE_OFFSET) {
-    snappedX = canvasWidth - nodeWidth;
+    snappedX = x + (canvasWidth - nodeWidth - nodeX);
     guidelines.push({
       type: 'vertical',
       position: pageOffsetX + canvasWidth,
@@ -237,9 +268,9 @@ export const snapToElements = (
     });
   }
   
-  const topEdge = Math.abs(y);
+  const topEdge = Math.abs(nodeY);
   if (topEdge < GUIDELINE_OFFSET) {
-    snappedY = 0;
+    snappedY = y + (0 - nodeY);
     guidelines.push({
       type: 'horizontal',
       position: pageOffsetY,
@@ -250,9 +281,9 @@ export const snapToElements = (
     });
   }
   
-  const bottomEdge = Math.abs(y + nodeHeight - canvasHeight);
+  const bottomEdge = Math.abs(nodeY + nodeHeight - canvasHeight);
   if (bottomEdge < GUIDELINE_OFFSET) {
-    snappedY = canvasHeight - nodeHeight;
+    snappedY = y + (canvasHeight - nodeHeight - nodeY);
     guidelines.push({
       type: 'horizontal',
       position: pageOffsetY + canvasHeight,

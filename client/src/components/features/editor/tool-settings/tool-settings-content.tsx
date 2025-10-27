@@ -999,6 +999,104 @@ export function ToolSettingsContent({
         
         <Separator/>
         
+        {/* Layout Variant Selection */}
+        <div className='py-2'>
+          <Label variant="xs">Layout Variant</Label>
+          <ButtonGroup className="mt-1 w-full">
+            <Button
+              variant={(element.layoutVariant || 'inline') === 'inline' ? 'default' : 'outline'}
+              size="xs"
+              onClick={() => {
+                dispatch({
+                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                  payload: {
+                    id: element.id,
+                    updates: { layoutVariant: 'inline' }
+                  }
+                });
+              }}
+              className="flex-1"
+            >
+              Inline Question
+            </Button>
+            <Button
+              variant={(element.layoutVariant || 'inline') === 'block' ? 'default' : 'outline'}
+              size="xs"
+              onClick={() => {
+                dispatch({
+                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                  payload: {
+                    id: element.id,
+                    updates: { layoutVariant: 'block', questionPosition: element.questionPosition || 'left' }
+                  }
+                });
+              }}
+              className="flex-1"
+            >
+              Block Question
+            </Button>
+          </ButtonGroup>
+        </div>
+        
+        {/* Question Position for Block Variant */}
+        {(element.layoutVariant || 'inline') === 'block' && (
+          <div className='py-2'>
+            <Label variant="xs">Question Position</Label>
+            <ButtonGroup className="mt-1">
+              <Button
+                variant={(element.questionPosition || 'left') === 'left' ? 'default' : 'outline'}
+                size="xs"
+                onClick={() => {
+                  dispatch({
+                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                    payload: {
+                      id: element.id,
+                      updates: { questionPosition: 'left' }
+                    }
+                  });
+                }}
+                className="w-8 h-8 p-0"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </Button>
+              <Button
+                variant={(element.questionPosition || 'left') === 'top' ? 'default' : 'outline'}
+                size="xs"
+                onClick={() => {
+                  dispatch({
+                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                    payload: {
+                      id: element.id,
+                      updates: { questionPosition: 'top' }
+                    }
+                  });
+                }}
+                className="w-8 h-8 p-0"
+              >
+                <ArrowUp className="w-4 h-4" />
+              </Button>
+              <Button
+                variant={(element.questionPosition || 'left') === 'right' ? 'default' : 'outline'}
+                size="xs"
+                onClick={() => {
+                  dispatch({
+                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                    payload: {
+                      id: element.id,
+                      updates: { questionPosition: 'right' }
+                    }
+                  });
+                }}
+                className="w-8 h-8 p-0"
+              >
+                <ArrowRight className="w-4 h-4" />
+              </Button>
+            </ButtonGroup>
+          </div>
+        )}
+        
+        <Separator/>
+        
         {/* Shared Settings - Always visible */}
         <div className='py-2'>
           <Label className="flex items-center gap-1" variant="xs">

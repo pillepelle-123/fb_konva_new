@@ -268,6 +268,19 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
   };
 
   const getUserText = () => {
+    // First check element text (for immediate display after save)
+    let text = element.formattedText || element.text || '';
+    if (text) {
+      if (text.includes('<')) {
+        text = text.replace(/<p>/gi, '').replace(/<\/p>/gi, '\n').replace(/<br\s*\/?>/gi, '\n');
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = text;
+        text = tempDiv.textContent || tempDiv.innerText || '';
+      }
+      return text;
+    }
+    
+    // Fallback to temp answers if no element text
     if (element.questionId) {
       const assignedUser = state.pageAssignments[state.activePageIndex + 1];
       if (assignedUser) {
@@ -275,15 +288,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
       }
     }
     
-    // Fallback to element text
-    let text = element.formattedText || element.text || '';
-    if (text.includes('<')) {
-      text = text.replace(/<p>/gi, '').replace(/<\/p>/gi, '\n').replace(/<br\s*\/?>/gi, '\n');
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = text;
-      text = tempDiv.textContent || tempDiv.innerText || '';
-    }
-    return text;
+    return '';
   };
 
 
@@ -579,19 +584,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
           const htmlContent = quill.root.innerHTML;
           const plainText = quill.getText().trim();
           
-          // Save to answer system if questionId exists
-          if (element.questionId && user?.id) {
-            dispatch({
-              type: 'UPDATE_TEMP_ANSWER',
-              payload: {
-                questionId: element.questionId,
-                text: plainText,
-                userId: user.id, // Use current user's ID who is actually answering
-                answerId: element.answerId || uuidv4()
-              }
-            });
-          }
-          
+          // Always update element text first
           dispatch({
             type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
             payload: {
@@ -602,6 +595,19 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               }
             }
           });
+          
+          // Save to answer system if questionId exists
+          if (element.questionId && user?.id) {
+            dispatch({
+              type: 'UPDATE_TEMP_ANSWER',
+              payload: {
+                questionId: element.questionId,
+                text: plainText,
+                userId: user.id,
+                answerId: element.answerId || uuidv4()
+              }
+            });
+          }
           
           closeModal();
         };
@@ -894,6 +900,10 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
             const questionAlign = questionStyle.align || 'left';
             const answerAlign = answerStyle.align || 'left';
             
+            // Get layout variant
+            const layoutVariant = element.layoutVariant || 'inline';
+            const questionPosition = element.questionPosition || 'left';
+            
             if (!questionText && !userText) {
               return (
                 <Text
@@ -948,8 +958,178 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
             const factor = aFontSize >= 50 ? aFontSize >= 96 ? aFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1;
             const textBaselineOffset = -(maxFontSizeUsed * maxLineHeightMultiplier * 0.15) + (maxFontSizeUsed * factor); 
             
-            // Render question text first
-            if (questionText) {
+            // Render based on layout variant
+            if (layoutVariant === 'block') {
+              // Block layout: question and answer in separate areas
+              const qFontFamily = questionStyle.fontFamily || fontFamily;
+              const qFontColor = questionStyle.fontColor || '#666666';
+              const qFontBold = questionStyle.fontBold || false;
+              const qFontItalic = questionStyle.fontItalic || false;
+              const qFontOpacity = questionStyle.fontOpacity ?? 1;
+              
+              const aFontFamily = answerStyle.fontFamily || fontFamily;
+              const aFontColor = answerStyle.fontColor || '#1f2937';
+              const aFontBold = answerStyle.fontBold || false;
+              const aFontItalic = answerStyle.fontItalic || false;
+              const aFontOpacity = answerStyle.fontOpacity ?? 1;
+              
+              let questionArea = { x: padding, y: padding, width: textWidth, height: element.height - padding * 2 };
+              let answerArea = { x: padding, y: padding, width: textWidth, height: element.height - padding * 2 };
+              
+              // Calculate areas based on position
+              if (questionPosition === 'left' || questionPosition === 'right') {
+                const questionWidth = element.width * 0.3;
+                const answerWidth = element.width - questionWidth - padding * 3;
+                
+                if (questionPosition === 'left') {
+                  questionArea = { x: padding, y: padding, width: questionWidth, height: element.height - padding * 2 };
+                  answerArea = { x: questionWidth + padding * 2, y: padding, width: answerWidth, height: element.height - padding * 2 };
+                } else {
+                  answerArea = { x: padding, y: padding, width: answerWidth, height: element.height - padding * 2 };
+                  questionArea = { x: answerWidth + padding * 2, y: padding, width: questionWidth, height: element.height - padding * 2 };
+                }
+              } else {
+                const questionHeight = element.height * 0.3;
+                const answerHeight = element.height - questionHeight - padding * 3;
+                
+                if (questionPosition === 'top') {
+                  questionArea = { x: padding, y: padding, width: textWidth, height: questionHeight };
+                  answerArea = { x: padding, y: questionHeight + padding * 2, width: textWidth, height: answerHeight };
+                } else {
+                  answerArea = { x: padding, y: padding, width: textWidth, height: answerHeight };
+                  questionArea = { x: padding, y: answerHeight + padding * 2, width: textWidth, height: questionHeight };
+                }
+              }
+              
+              // Render question in its area
+              if (questionText) {
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d')!;
+                context.font = `${qFontBold ? 'bold ' : ''}${qFontItalic ? 'italic ' : ''}${qFontSize}px ${qFontFamily}`;
+                
+                const words = questionText.split(' ');
+                let currentLine = '';
+                let currentY = questionArea.y;
+                
+                words.forEach((word, index) => {
+                  const testLine = currentLine ? currentLine + ' ' + word : word;
+                  const testWidth = context.measureText(testLine).width;
+                  
+                  if (testWidth > questionArea.width && currentLine) {
+                    elements.push(
+                      <Text
+                        key={`q-${currentY}`}
+                        x={questionArea.x}
+                        y={currentY}
+                        text={currentLine}
+                        fontSize={qFontSize}
+                        fontFamily={qFontFamily}
+                        fontStyle={`${qFontBold ? 'bold' : ''} ${qFontItalic ? 'italic' : ''}`.trim() || 'normal'}
+                        fill={qFontColor}
+                        opacity={qFontOpacity}
+                        align={questionAlign}
+                        width={questionArea.width}
+                        listening={false}
+                      />
+                    );
+                    currentLine = word;
+                    currentY += qLineHeight;
+                  } else {
+                    currentLine = testLine;
+                  }
+                });
+                
+                if (currentLine) {
+                  elements.push(
+                    <Text
+                      key={`q-${currentY}`}
+                      x={questionArea.x}
+                      y={currentY}
+                      text={currentLine}
+                      fontSize={qFontSize}
+                      fontFamily={qFontFamily}
+                      fontStyle={`${qFontBold ? 'bold' : ''} ${qFontItalic ? 'italic' : ''}`.trim() || 'normal'}
+                      fill={qFontColor}
+                      opacity={qFontOpacity}
+                      align={questionAlign}
+                      width={questionArea.width}
+                      listening={false}
+                    />
+                  );
+                }
+              }
+              
+              // Render answer in its area
+              if (userText) {
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d')!;
+                context.font = `${aFontBold ? 'bold ' : ''}${aFontItalic ? 'italic ' : ''}${aFontSize}px ${aFontFamily}`;
+                
+                const lines = userText.split('\n');
+                let currentY = answerArea.y;
+                
+                lines.forEach((line) => {
+                  if (!line.trim()) {
+                    currentY += aLineHeight;
+                    return;
+                  }
+                  
+                  const words = line.split(' ');
+                  let currentLine = '';
+                  
+                  words.forEach((word) => {
+                    const testLine = currentLine ? currentLine + ' ' + word : word;
+                    const testWidth = context.measureText(testLine).width;
+                    
+                    if (testWidth > answerArea.width && currentLine) {
+                      elements.push(
+                        <Text
+                          key={`a-${currentY}`}
+                          x={answerArea.x}
+                          y={currentY}
+                          text={currentLine}
+                          fontSize={aFontSize}
+                          fontFamily={aFontFamily}
+                          fontStyle={`${aFontBold ? 'bold' : ''} ${aFontItalic ? 'italic' : ''}`.trim() || 'normal'}
+                          fill={aFontColor}
+                          opacity={aFontOpacity}
+                          align={answerAlign}
+                          width={answerArea.width}
+                          listening={false}
+                        />
+                      );
+                      currentLine = word;
+                      currentY += aLineHeight;
+                    } else {
+                      currentLine = testLine;
+                    }
+                  });
+                  
+                  if (currentLine) {
+                    elements.push(
+                      <Text
+                        key={`a-${currentY}`}
+                        x={answerArea.x}
+                        y={currentY}
+                        text={currentLine}
+                        fontSize={aFontSize}
+                        fontFamily={aFontFamily}
+                        fontStyle={`${aFontBold ? 'bold' : ''} ${aFontItalic ? 'italic' : ''}`.trim() || 'normal'}
+                        fill={aFontColor}
+                        opacity={aFontOpacity}
+                        align={answerAlign}
+                        width={answerArea.width}
+                        listening={false}
+                      />
+                    );
+                    currentY += aLineHeight;
+                  }
+                });
+              }
+            } else {
+              // Inline layout: original implementation
+              // Render question text first
+              if (questionText) {
               const qFontFamily = questionStyle.fontFamily || fontFamily;
               const qFontColor = questionStyle.fontColor || '#666666';
               const qFontBold = questionStyle.fontBold || false;
@@ -1198,6 +1378,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                 }
               });
             }
+            } // End of inline layout
             
             // Add invisible overlay for double-click detection
             elements.push(

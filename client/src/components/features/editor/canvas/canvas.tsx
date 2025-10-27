@@ -2200,8 +2200,14 @@ export default function Canvas() {
                 dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Move Elements' });
               }}
               onDragMove={(e) => {
-                const nodes = transformerRef.current?.nodes() || [];
+                const transformer = transformerRef.current;
+                if (!transformer) return;
+                
+                const nodes = transformer.nodes();
+                if (nodes.length === 0) return;
+                
                 if (nodes.length === 1) {
+                  // Single element snapping
                   const node = nodes[0];
                   const currentX = node.x();
                   const currentY = node.y();
@@ -2210,6 +2216,24 @@ export default function Canvas() {
                   if (snapped.x !== currentX || snapped.y !== currentY) {
                     node.x(snapped.x);
                     node.y(snapped.y);
+                  }
+                } else {
+                  // Multi-selection snapping using transformer as the node
+                  const box = transformer.getClientRect();
+                  const currentX = (box.x - stagePos.x) / zoom - pageOffsetX;
+                  const currentY = (box.y - stagePos.y) / zoom - pageOffsetY;
+                  
+                  const snapped = handleSnapPosition(transformer, currentX, currentY, false);
+                  
+                  if (snapped.x !== currentX || snapped.y !== currentY) {
+                    const deltaX = snapped.x - currentX;
+                    const deltaY = snapped.y - currentY;
+                    
+                    // Apply delta to all selected nodes
+                    nodes.forEach(node => {
+                      node.x(node.x() + deltaX);
+                      node.y(node.y() + deltaY);
+                    });
                   }
                 }
               }}

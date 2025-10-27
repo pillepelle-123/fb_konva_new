@@ -1085,7 +1085,10 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           lineHeight: selectedElement.lineHeight,
           stroke: selectedElement.stroke,
           strokeWidth: selectedElement.strokeWidth,
+          strokeOpacity: selectedElement.strokeOpacity,
           fill: selectedElement.fill,
+          fillOpacity: selectedElement.fillOpacity,
+          opacity: selectedElement.opacity,
           theme: selectedElement.theme,
           roughness: selectedElement.roughness,
           // Copy all nested style objects
