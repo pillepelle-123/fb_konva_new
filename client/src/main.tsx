@@ -5,7 +5,6 @@ import App from './app.tsx'
 import './styles/app.css'
 import './utils/theme-verification'
 import { FONT_GROUPS } from './utils/font-families'
-import { FONT_GROUPS } from './utils/font-families'
 
 // Preload all fonts by creating hidden elements
 const fontPreloader = document.createElement('div')
