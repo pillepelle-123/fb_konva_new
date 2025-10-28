@@ -13,14 +13,18 @@ interface ContextMenuProps {
   onMoveToBack: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
+  onGroup?: () => void;
+  onUngroup?: () => void;
   hasSelection: boolean;
   hasClipboard: boolean;
+  canGroup?: boolean;
+  canUngroup?: boolean;
 }
 
 const ContextMenu = React.forwardRef<
   HTMLDivElement,
   ContextMenuProps
->(({ x, y, visible, onDuplicate, onDelete, onCopy, onPaste, onMoveToFront, onMoveToBack, onMoveUp, onMoveDown, hasSelection, hasClipboard }, ref) => {
+>(({ x, y, visible, onDuplicate, onDelete, onCopy, onPaste, onMoveToFront, onMoveToBack, onMoveUp, onMoveDown, onGroup, onUngroup, hasSelection, hasClipboard, canGroup, canUngroup }, ref) => {
   const menuRef = React.useRef<HTMLDivElement>(null);
   const [adjustedPosition, setAdjustedPosition] = React.useState({ x, y });
 
@@ -113,6 +117,22 @@ const ContextMenu = React.forwardRef<
       >
         Send to Back
       </ContextMenuItem>
+      {onGroup && (
+        <ContextMenuItem
+          disabled={!canGroup}
+          onClick={canGroup ? onGroup : undefined}
+        >
+          Group
+        </ContextMenuItem>
+      )}
+      {onUngroup && (
+        <ContextMenuItem
+          disabled={!canUngroup}
+          onClick={canUngroup ? onUngroup : undefined}
+        >
+          Ungroup
+        </ContextMenuItem>
+      )}
       <ContextMenuItem
         disabled={!hasSelection}
         onClick={hasSelection ? onDelete : undefined}

@@ -223,7 +223,7 @@ function logThemeStructure(book: Book | null) {
 
 export interface CanvasElement {
   id: string;
-  type: 'text' | 'image' | 'placeholder' | 'line' | 'circle' | 'rect' | 'brush' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley' | 'triangle' | 'polygon';
+  type: 'text' | 'image' | 'placeholder' | 'line' | 'circle' | 'rect' | 'brush' | 'brush-multicolor' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley' | 'triangle' | 'polygon' | 'group';
   polygonSides?: number;
   x: number;
   y: number;
@@ -258,6 +258,10 @@ export interface CanvasElement {
   theme?: 'rough' | 'default' | 'chalk' | 'watercolor' | 'crayon' | 'candy' | 'zigzag' | 'multi-strokes';
   // Backward compatibility
   fill?: string; // @deprecated - use fontColor instead
+  // Group properties
+  groupedElements?: CanvasElement[];
+  // Brush-multicolor properties
+  brushStrokes?: Array<{ points: number[]; strokeColor: string; strokeWidth: number }>;
 }
 
 export interface PageBackground {
@@ -312,6 +316,7 @@ export interface EditorState {
   activePageIndex: number;
   activeTool: 'select' | 'text' | 'question' | 'answer' | 'qna' | 'image' | 'line' | 'circle' | 'rect' | 'brush' | 'pan' | 'zoom' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley' | 'triangle' | 'polygon';
   selectedElementIds: string[];
+  selectedGroupedElement?: { groupId: string; elementId: string };
   user?: { id: number; role: string } | null;
   userRole?: 'author' | 'publisher' | null;
   assignedPages: number[];
@@ -341,6 +346,7 @@ type EditorAction =
   | { type: 'SET_ACTIVE_PAGE'; payload: number }
   | { type: 'SET_ACTIVE_TOOL'; payload: EditorState['activeTool'] }
   | { type: 'SET_SELECTED_ELEMENTS'; payload: string[] }
+  | { type: 'SELECT_GROUPED_ELEMENT'; payload: { groupId: string; elementId: string } }
   | { type: 'SET_USER'; payload: { id: number; role: string } | null }
   | { type: 'SET_USER_ROLE'; payload: { role: 'author' | 'publisher' | null; assignedPages: number[] } }
   | { type: 'SET_USER_PERMISSIONS'; payload: { pageAccessLevel: 'form_only' | 'own_page' | 'all_pages'; editorInteractionLevel: 'no_access' | 'answer_only' | 'full_edit' | 'full_edit_with_settings' } }
@@ -348,6 +354,7 @@ type EditorAction =
   | { type: 'UPDATE_ELEMENT'; payload: { id: string; updates: Partial<CanvasElement> } }
   | { type: 'UPDATE_ELEMENT_PRESERVE_SELECTION'; payload: { id: string; updates: Partial<CanvasElement> } }
   | { type: 'UPDATE_ELEMENT_ALL_PAGES'; payload: { id: string; updates: Partial<CanvasElement> } }
+  | { type: 'UPDATE_GROUPED_ELEMENT'; payload: { groupId: string; elementId: string; updates: Partial<CanvasElement> } }
   | { type: 'DELETE_ELEMENT'; payload: string }
   | { type: 'MOVE_ELEMENT_TO_FRONT'; payload: string }
   | { type: 'MOVE_ELEMENT_TO_BACK'; payload: string }
@@ -479,7 +486,21 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       return { ...state, activeTool: action.payload };
     
     case 'SET_SELECTED_ELEMENTS':
-      return { ...state, selectedElementIds: action.payload };
+      // Preserve selectedGroupedElement if the group is still selected
+      const preserveGroupedElement = state.selectedGroupedElement && 
+        action.payload.includes(state.selectedGroupedElement.groupId);
+      return { 
+        ...state, 
+        selectedElementIds: action.payload, 
+        selectedGroupedElement: preserveGroupedElement ? state.selectedGroupedElement : undefined 
+      };
+    
+    case 'SELECT_GROUPED_ELEMENT':
+      return { 
+        ...state, 
+        selectedElementIds: [action.payload.groupId],
+        selectedGroupedElement: action.payload
+      };
     
     case 'SET_USER':
       return { ...state, user: action.payload };
@@ -580,6 +601,34 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         })
       };
       return { ...state, currentBook: updatedBookPreserve, hasUnsavedChanges: true };
+    
+    case 'UPDATE_GROUPED_ELEMENT':
+      if (!state.currentBook) return state;
+      const updatedBookGrouped = {
+        ...state.currentBook,
+        pages: state.currentBook.pages.map((page, index) => {
+          if (index === state.activePageIndex) {
+            return {
+              ...page,
+              elements: page.elements.map(el => {
+                if (el.id === action.payload.groupId && el.groupedElements) {
+                  return {
+                    ...el,
+                    groupedElements: el.groupedElements.map(groupedEl => 
+                      groupedEl.id === action.payload.elementId
+                        ? { ...groupedEl, ...action.payload.updates }
+                        : groupedEl
+                    )
+                  };
+                }
+                return el;
+              })
+            };
+          }
+          return page;
+        })
+      };
+      return { ...state, currentBook: updatedBookGrouped, hasUnsavedChanges: true };
     
     case 'UPDATE_ELEMENT_ALL_PAGES':
       if (!state.currentBook) return state;

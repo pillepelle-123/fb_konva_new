@@ -9,7 +9,7 @@ import CanvasItemComponent from '../canvas-items';
 import { CanvasStage } from './canvas-stage';
 import { CanvasTransformer } from './canvas-transformer';
 import { SelectionRectangle } from './selection-rectangle';
-import { PreviewLine, PreviewShape, PreviewTextbox, PreviewBrush } from './preview-elements';
+import { PreviewLine, PreviewShape, PreviewTextbox, PreviewBrush, MaterializedBrush } from './preview-elements';
 import { CanvasContainer } from './canvas-container';
 import { SnapGuidelines } from './snap-guidelines';
 import ContextMenu from '../../../ui/overlays/context-menu';
@@ -162,6 +162,9 @@ export default function Canvas() {
   const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentPath, setCurrentPath] = useState<number[]>([]);
+  const [brushStrokes, setBrushStrokes] = useState<Array<{ points: number[]; strokeColor: string; strokeWidth: number }>>([]);
+  const [isBrushMode, setIsBrushMode] = useState(false);
+  const isBrushModeRef = useRef(false);
   const [selectionRect, setSelectionRect] = useState<{
     x: number;
     y: number;
@@ -254,6 +257,7 @@ export default function Canvas() {
         }).filter(node => node && node.getStage());
         
         transformer.nodes(selectedNodes);
+        transformer.forceUpdate();
         transformer.moveToTop();
         transformer.getLayer()?.batchDraw();
       } else {
@@ -275,6 +279,34 @@ export default function Canvas() {
       }, 10);
     }
   }, [currentPage?.elements.map(el => `${el.id}-${el.width}-${el.height}`).join(',')]);
+
+  // Force transformer update after group movement ends
+  useEffect(() => {
+    if (!isMovingGroup && transformerRef.current && stageRef.current && state.selectedElementIds.length > 0) {
+      const transformer = transformerRef.current;
+      const stage = stageRef.current;
+      
+      // Small delay to ensure Konva nodes have updated positions
+      const timer = setTimeout(() => {
+        const selectedNodes = state.selectedElementIds.map(id => {
+          let node = stage.findOne(`#${id}`);
+          if (!node) {
+            const allNodes = stage.find('*');
+            node = allNodes.find(n => n.id() === id);
+          }
+          return node;
+        }).filter(node => node && node.getStage());
+        
+        if (selectedNodes.length > 0) {
+          transformer.nodes(selectedNodes);
+          transformer.forceUpdate();
+          transformer.getLayer()?.batchDraw();
+        }
+      }, 0);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isMovingGroup, state.selectedElementIds]);
 
   // Reset selection mode state when no elements are selected
   useEffect(() => {
@@ -633,28 +665,32 @@ export default function Canvas() {
       setPanStart({ x: 0, y: 0 });
     } else if (isDrawing && state.activeTool === 'brush' && currentPath.length > 2) {
       const smoothedPath = smoothPath(currentPath);
+      
+      if (!isBrushMode) {
+        // Start brush mode on first stroke
+        setIsBrushMode(true);
+        isBrushModeRef.current = true;
+        window.dispatchEvent(new CustomEvent('brushModeStart'));
+      }
+      
+      // Capture current tool settings for this stroke
       const currentPage = state.currentBook?.pages[state.activePageIndex];
       const pageTheme = currentPage?.background?.pageTheme;
       const bookTheme = state.currentBook?.bookTheme;
       const brushDefaults = getToolDefaults('brush', pageTheme, bookTheme);
       const toolSettings = state.toolSettings?.brush || {};
-      const adjustedPoints = smoothedPath;
-      const newElement: CanvasElement = {
-        id: uuidv4(),
-        type: 'brush',
-        x: 0,
-        y: 0,
-        width: 0,
-        height: 0,
-        points: adjustedPoints,
-        stroke: toolSettings.strokeColor || brushDefaults.stroke,
-        fill: 'transparent',
-        roughness: 1,
-        strokeWidth: toolSettings.strokeWidth || brushDefaults.strokeWidth,
-        theme: brushDefaults.theme
+      
+      const strokeData = {
+        points: smoothedPath,
+        strokeColor: toolSettings.strokeColor || brushDefaults.stroke,
+        strokeWidth: toolSettings.strokeWidth || brushDefaults.strokeWidth
       };
-      dispatch({ type: 'ADD_ELEMENT', payload: newElement });
-      dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+      
+      // Add stroke to collection with its settings
+      setBrushStrokes(prev => [...prev, strokeData]);
+      window.dispatchEvent(new CustomEvent('brushStrokeAdded', { detail: { points: smoothedPath } }));
+      
+      // Don't create element yet - wait for Done button
     } else if (isDrawingLine && lineStart && previewLine) {
       const width = previewLine.x2 - previewLine.x1;
       const height = previewLine.y2 - previewLine.y1;
@@ -974,7 +1010,32 @@ export default function Canvas() {
       };
       
       // Calculate bounds for ALL toolbar element types
-      if (element.type === 'brush' && element.points) {
+      if ((element.type === 'brush-multicolor' || element.type === 'group') && element.groupedElements) {
+        // For groups and brush-multicolor, calculate bounds from grouped elements
+        let minX = Infinity, maxX = -Infinity;
+        let minY = Infinity, maxY = -Infinity;
+        
+        element.groupedElements.forEach(groupedEl => {
+          if (groupedEl.type === 'brush' && groupedEl.points) {
+            for (let i = 0; i < groupedEl.points.length; i += 2) {
+              minX = Math.min(minX, groupedEl.x + groupedEl.points[i]);
+              maxX = Math.max(maxX, groupedEl.x + groupedEl.points[i]);
+              minY = Math.min(minY, groupedEl.y + groupedEl.points[i + 1]);
+              maxY = Math.max(maxY, groupedEl.y + groupedEl.points[i + 1]);
+            }
+          } else {
+            minX = Math.min(minX, groupedEl.x);
+            maxX = Math.max(maxX, groupedEl.x + (groupedEl.width || 100));
+            minY = Math.min(minY, groupedEl.y);
+            maxY = Math.max(maxY, groupedEl.y + (groupedEl.height || 100));
+          }
+        });
+        
+        elementBounds.x = element.x + minX;
+        elementBounds.y = element.y + minY;
+        elementBounds.width = maxX - minX;
+        elementBounds.height = maxY - minY;
+      } else if (element.type === 'brush' && element.points) {
         // Brush strokes - calculate from points
         let minX = element.points[0], maxX = element.points[0];
         let minY = element.points[1], maxY = element.points[1];
@@ -1270,6 +1331,65 @@ export default function Canvas() {
     setContextMenu({ x: 0, y: 0, visible: false });
   };
 
+  const handleGroup = () => {
+    if (!currentPage || state.selectedElementIds.length < 2) return;
+    
+    const groupId = uuidv4();
+    const selectedElements = state.selectedElementIds
+      .map(id => currentPage.elements.find(el => el.id === id))
+      .filter(Boolean) as CanvasElement[];
+    
+    // Create group element
+    const minX = Math.min(...selectedElements.map(el => el.x));
+    const minY = Math.min(...selectedElements.map(el => el.y));
+    const maxX = Math.max(...selectedElements.map(el => el.x + (el.width || 100)));
+    const maxY = Math.max(...selectedElements.map(el => el.y + (el.height || 100)));
+    
+    const groupElement: CanvasElement = {
+      id: groupId,
+      type: 'group',
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY,
+      groupedElements: selectedElements.map(el => ({
+        ...el,
+        x: el.x - minX,
+        y: el.y - minY
+      }))
+    };
+    
+    // Remove individual elements and add group
+    state.selectedElementIds.forEach(id => {
+      dispatch({ type: 'DELETE_ELEMENT', payload: id });
+    });
+    dispatch({ type: 'ADD_ELEMENT', payload: groupElement });
+    dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [groupId] });
+    setContextMenu({ x: 0, y: 0, visible: false });
+  };
+
+  const handleUngroup = () => {
+    if (!currentPage || state.selectedElementIds.length !== 1) return;
+    
+    const groupElement = currentPage.elements.find(el => el.id === state.selectedElementIds[0]);
+    if (!groupElement || (groupElement.type !== 'group' && groupElement.type !== 'brush-multicolor') || !groupElement.groupedElements) return;
+    
+    const newElementIds: string[] = [];
+    groupElement.groupedElements.forEach(el => {
+      const newElement = {
+        ...el,
+        x: groupElement.x + el.x,
+        y: groupElement.y + el.y
+      };
+      newElementIds.push(newElement.id);
+      dispatch({ type: 'ADD_ELEMENT', payload: newElement });
+    });
+    
+    dispatch({ type: 'DELETE_ELEMENT', payload: groupElement.id });
+    dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: newElementIds });
+    setContextMenu({ x: 0, y: 0, visible: false });
+  };
+
   const handleWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault();
     
@@ -1318,6 +1438,9 @@ export default function Canvas() {
     
     // Don't clear selection on right-click
     if (e.evt.button === 2) return;
+    
+    // Don't handle click if in brush mode
+    if (isBrushMode || isBrushModeRef.current) return;
     
     // If style painter is active, deactivate it on any click that's not on an element
     if (state.stylePainterActive && e.evt.button === 0) {
@@ -1469,17 +1592,78 @@ export default function Canvas() {
       dispatch({ type: 'SET_ACTIVE_PAGE', payload: event.detail });
     };
     
+    const handleBrushDone = () => {
+      if (brushStrokes.length > 0) {
+        const currentPage = state.currentBook?.pages[state.activePageIndex];
+        const pageTheme = currentPage?.background?.pageTheme;
+        const bookTheme = state.currentBook?.bookTheme;
+        const brushDefaults = getToolDefaults('brush', pageTheme, bookTheme);
+        
+        // Convert each stroke to individual brush elements for grouping
+        const groupedBrushElements: CanvasElement[] = brushStrokes.map(strokeData => ({
+          id: uuidv4(),
+          type: 'brush' as const,
+          x: 0,
+          y: 0,
+          width: 0,
+          height: 0,
+          points: strokeData.points,
+          stroke: strokeData.strokeColor,
+          strokeWidth: strokeData.strokeWidth,
+          theme: brushDefaults.theme
+        }));
+        
+        // Create brush-multicolor group element
+        const newElement: CanvasElement = {
+          id: uuidv4(),
+          type: 'brush-multicolor',
+          x: 0,
+          y: 0,
+          width: 0,
+          height: 0,
+          groupedElements: groupedBrushElements,
+          theme: brushDefaults.theme
+        };
+        dispatch({ type: 'ADD_ELEMENT', payload: newElement });
+      }
+      
+      setBrushStrokes([]);
+      setIsBrushMode(false);
+      isBrushModeRef.current = false;
+      window.dispatchEvent(new CustomEvent('brushModeEnd'));
+      dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+    };
+    
+    const handleBrushCancel = () => {
+      setBrushStrokes([]);
+      setIsBrushMode(false);
+      isBrushModeRef.current = false;
+      window.dispatchEvent(new CustomEvent('brushModeEnd'));
+    };
+    
+    const handleBrushUndo = () => {
+      if (brushStrokes.length > 0) {
+        setBrushStrokes(prev => prev.slice(0, -1));
+      }
+    };
+    
     updateSize();
     window.addEventListener('resize', updateSize);
     window.addEventListener('click', handleClickOutside);
     window.addEventListener('changePage', handlePageChange as EventListener);
+    window.addEventListener('brushDone', handleBrushDone as EventListener);
+    window.addEventListener('brushCancel', handleBrushCancel as EventListener);
+    window.addEventListener('brushUndo', handleBrushUndo as EventListener);
     
     return () => {
       window.removeEventListener('resize', updateSize);
       window.removeEventListener('click', handleClickOutside);
       window.removeEventListener('changePage', handlePageChange as EventListener);
+      window.removeEventListener('brushDone', handleBrushDone as EventListener);
+      window.removeEventListener('brushCancel', handleBrushCancel as EventListener);
+      window.removeEventListener('brushUndo', handleBrushUndo as EventListener);
     };
-  }, []);
+  }, [brushStrokes, state.currentBook, state.activePageIndex, state.toolSettings]);
   
   // Separate useEffect for keyboard shortcuts
   useEffect(() => {
@@ -2148,6 +2332,16 @@ export default function Canvas() {
                 <PreviewBrush points={currentPath} />
               )}
               
+              {/* Show all accumulated brush strokes with their individual settings */}
+              {brushStrokes.map((strokeData, index) => (
+                <MaterializedBrush 
+                  key={`brush-stroke-${index}`} 
+                  points={strokeData.points}
+                  stroke={strokeData.strokeColor}
+                  strokeWidth={strokeData.strokeWidth}
+                />
+              ))}
+              
               {previewLine && (
                 <PreviewLine
                   x1={previewLine.x1}
@@ -2185,6 +2379,24 @@ export default function Canvas() {
               height={selectionRect.height}
               visible={selectionRect.visible}
             />
+            
+            {/* Selection rectangle for grouped element */}
+            {state.selectedGroupedElement && (() => {
+              const groupElement = currentPage?.elements.find(el => el.id === state.selectedGroupedElement.groupId);
+              const childElement = groupElement?.groupedElements?.find(el => el.id === state.selectedGroupedElement.elementId);
+              if (groupElement && childElement) {
+                return (
+                  <SelectionRectangle
+                    x={pageOffsetX + groupElement.x + childElement.x}
+                    y={pageOffsetY + groupElement.y + childElement.y}
+                    width={childElement.width || 100}
+                    height={childElement.height || 100}
+                    visible={true}
+                  />
+                );
+              }
+              return null;
+            })()}
             
             {/* Snap guidelines */}
             <SnapGuidelines guidelines={snapGuidelines} />
@@ -2428,8 +2640,12 @@ export default function Canvas() {
           onMoveToBack={handleMoveToBack}
           onMoveUp={handleMoveUp}
           onMoveDown={handleMoveDown}
+          onGroup={handleGroup}
+          onUngroup={handleUngroup}
           hasSelection={state.selectedElementIds.length > 0}
           hasClipboard={clipboard.length > 0}
+          canGroup={state.selectedElementIds.length >= 2}
+          canUngroup={state.selectedElementIds.length === 1 && currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.type === 'group' || (state.selectedElementIds.length === 1 && currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.type === 'brush-multicolor')}
         />
         </CanvasContainer>
       

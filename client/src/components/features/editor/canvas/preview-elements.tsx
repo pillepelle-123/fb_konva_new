@@ -149,6 +149,12 @@ interface PreviewBrushProps {
   points: number[];
 }
 
+interface MaterializedBrushProps {
+  points: number[];
+  stroke: string;
+  strokeWidth: number;
+}
+
 export function PreviewBrush({ points }: PreviewBrushProps) {
   if (points.length < 2) return null;
 
@@ -162,6 +168,29 @@ export function PreviewBrush({ points }: PreviewBrushProps) {
       listening={false}
       opacity={0.7}
       dash={[18, 18]}
+    />
+  );
+}
+
+interface MaterializedBrushProps {
+  points: number[];
+  stroke: string;
+  strokeWidth: number;
+}
+
+export function MaterializedBrush({ points, stroke, strokeWidth }: MaterializedBrushProps) {
+  if (points.length < 2) return null;
+
+  return (
+    <Line
+      points={points}
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+      lineCap="round"
+      lineJoin="round"
+      listening={false}
+      tension={0.5}
+      globalCompositeOperation="source-over"
     />
   );
 }

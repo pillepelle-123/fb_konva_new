@@ -1,10 +1,46 @@
-import { Path, Rect, Group, Circle, Text } from 'react-konva';
+import { Path, Rect, Group, Circle, Text, Line } from 'react-konva';
 import BaseCanvasItem from './base-canvas-item';
 import type { CanvasItemProps } from './base-canvas-item';
 import { getThemeRenderer } from '../../../../utils/themes';
 
 export default function ThemedShape(props: CanvasItemProps) {
   const { element, isDragging, zoom = 1 } = props;
+
+  // Handle brush-multicolor type
+  if (element.type === 'brush-multicolor' && element.brushStrokes) {
+    const allBounds = element.brushStrokes.map(stroke => getBounds(stroke.points));
+    const minX = Math.min(...allBounds.map(b => b.minX));
+    const minY = Math.min(...allBounds.map(b => b.minY));
+    const maxX = Math.max(...allBounds.map(b => b.minX + b.width));
+    const maxY = Math.max(...allBounds.map(b => b.minY + b.height));
+    
+    const hitArea = {
+      x: minX - 10,
+      y: minY - 10,
+      width: maxX - minX + 20,
+      height: maxY - minY + 20
+    };
+    
+    return (
+      <BaseCanvasItem {...props} hitArea={hitArea}>
+        <Group>
+          {element.brushStrokes.map((strokeData, index) => (
+            <Line
+              key={index}
+              points={strokeData.points}
+              stroke={strokeData.strokeColor}
+              strokeWidth={strokeData.strokeWidth}
+              lineCap="round"
+              lineJoin="round"
+              listening={false}
+              tension={0.5}
+              globalCompositeOperation="source-over"
+            />
+          ))}
+        </Group>
+      </BaseCanvasItem>
+    );
+  }
 
   const theme = element.inheritTheme || element.theme || 'rough';
   const renderer = getThemeRenderer(theme);

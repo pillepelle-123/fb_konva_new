@@ -1,7 +1,7 @@
 import { ToolButton } from './tool-button';
 import { ToolPopover } from './tool-popover';
 import { ToolSettingsPopover } from './tool-settings-popover';
-import { type Icon, Info, Hand, Brush, Pipette, Square, Sticker, MessageCircle, MessageCircleQuestionMark, MessageCircleMore, Search, SquareMousePointer, Magnet, MessageCircleHeart, Paintbrush } from 'lucide-react';
+import { type Icon, Info, Hand, Brush, Pipette, Square, Sticker, MessageCircle, MessageCircleQuestionMark, MessageCircleMore, Search, SquareMousePointer, Magnet, MessageCircleHeart, Paintbrush, Image } from 'lucide-react';
 import { useState, forwardRef, useImperativeHandle } from 'react';
 import { Button } from '../../../ui/primitives/button';
 import { ShortcutsDialog } from './shortcuts-dialog';
@@ -127,7 +127,7 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
         </div>
 
         {/* Row 3: Rectangle + Sticker */}
-        <div className={`${isExpanded ? 'grid grid-cols-2 gap-1' : 'space-y-1'} mb-2`}>
+        <div className={`${isExpanded ? 'grid grid-cols-2 gap-1' : 'space-y-1'} mb-1`}>
           <ToolPopover
             activeTool={activeTool}
             userRole={userRole}
@@ -155,6 +155,20 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
             userRole={userRole}
             isOnAssignedPage={isOnAssignedPage}
             onClick={() => onToolSelect('sticker')}
+          />
+        </div>
+
+        {/* Row 3.5: Image */}
+        <div className={`${isExpanded ? 'grid grid-cols-2 gap-1' : 'space-y-1'} mb-2`}>
+          <ToolButton
+            id="image"
+            label="Image"
+            icon={Image}
+            isActive={activeTool === 'image'}
+            isExpanded={false}
+            userRole={userRole}
+            isOnAssignedPage={isOnAssignedPage}
+            onClick={() => onToolSelect('image')}
           />
         </div>
 

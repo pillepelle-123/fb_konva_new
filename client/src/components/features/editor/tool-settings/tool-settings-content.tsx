@@ -104,6 +104,7 @@ const TOOL_ICONS = {
   circle: Circle,
   rect: Square,
   brush: Paintbrush,
+  'brush-multicolor': Paintbrush,
   heart: Heart,
   star: Star,
   'speech-bubble': MessageSquare,
@@ -344,6 +345,24 @@ export function ToolSettingsContent({
     );
   };
 
+  const updateElementSetting = (elementId: string, updates: Partial<any>) => {
+    if (state.selectedGroupedElement) {
+      dispatch({
+        type: 'UPDATE_GROUPED_ELEMENT',
+        payload: {
+          groupId: state.selectedGroupedElement.groupId,
+          elementId: state.selectedGroupedElement.elementId,
+          updates
+        }
+      });
+    } else {
+      dispatch({
+        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+        payload: { id: elementId, updates }
+      });
+    }
+  };
+
   const renderToolSettings = () => {
     if (showColorSelector && !showColorSelector.startsWith('element-')) {
       return renderColorSelectorForTool(showColorSelector);
@@ -399,11 +418,55 @@ export function ToolSettingsContent({
     
     // If single element is selected, show settings for that element
     if (state.selectedElementIds.length === 1 && state.currentBook) {
-      const selectedElement = state.currentBook.pages[state.activePageIndex]?.elements.find(
+      let selectedElement = state.currentBook.pages[state.activePageIndex]?.elements.find(
         el => el.id === state.selectedElementIds[0]
       );
       
+      // If a grouped element is selected, show that element's settings
+      if (state.selectedGroupedElement && selectedElement?.groupedElements) {
+        selectedElement = selectedElement.groupedElements.find(
+          el => el.id === state.selectedGroupedElement.elementId
+        );
+      }
+      
       if (selectedElement) {
+        // Special handling for grouped elements (including brush-multicolor)
+        if ((selectedElement.type === 'group' || selectedElement.type === 'brush-multicolor') && selectedElement.groupedElements) {
+          return (
+            <div className="space-y-1">
+              <div className="text-xs font-medium mb-2">Grouped Items ({selectedElement.groupedElements.length})</div>
+              {selectedElement.groupedElements.map((element, index) => {
+                const elementType = element.type === 'text' && element.textType 
+                  ? element.textType 
+                  : element.type;
+                const IconComponent = TOOL_ICONS[elementType as keyof typeof TOOL_ICONS];
+                return (
+                  <div 
+                    key={element.id} 
+                    className="flex items-center gap-1 p-1 bg-muted rounded text-xs cursor-pointer hover:bg-muted/80"
+                    onClick={() => {
+                      dispatch({ 
+                        type: 'SELECT_GROUPED_ELEMENT', 
+                        payload: { 
+                          groupId: selectedElement.id, 
+                          elementId: element.id 
+                        } 
+                      });
+                    }}
+                  >
+                    {IconComponent && <IconComponent className="h-3 w-3" />}
+                    <span>{elementType.charAt(0).toUpperCase() + elementType.slice(1)}</span>
+                    {element.text && (
+                      <span className="text-muted-foreground truncate max-w-20">
+                        - {element.text.length > 15 ? element.text.substring(0, 15) + '...' : element.text}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        }
         // Special handling for QnA textboxes
         if (selectedElement.textType === 'qna') {
           return renderQnASettings(selectedElement);
@@ -735,34 +798,54 @@ export function ToolSettingsContent({
     
     const updateQuestionSetting = (key: string, value: any) => {
       dispatch({ type: 'SAVE_TO_HISTORY', payload: `Update QnA Inline Question ${key}` });
-      dispatch({
-        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-        payload: {
-          id: element.id,
-          updates: {
-            questionSettings: {
-              ...element.questionSettings,
-              [key]: value
-            }
-          }
+      const updates = {
+        questionSettings: {
+          ...element.questionSettings,
+          [key]: value
         }
-      });
+      };
+      
+      if (state.selectedGroupedElement) {
+        dispatch({
+          type: 'UPDATE_GROUPED_ELEMENT',
+          payload: {
+            groupId: state.selectedGroupedElement.groupId,
+            elementId: state.selectedGroupedElement.elementId,
+            updates
+          }
+        });
+      } else {
+        dispatch({
+          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+          payload: { id: element.id, updates }
+        });
+      }
     };
     
     const updateAnswerSetting = (key: string, value: any) => {
       dispatch({ type: 'SAVE_TO_HISTORY', payload: `Update QnA Inline Answer ${key}` });
-      dispatch({
-        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-        payload: {
-          id: element.id,
-          updates: {
-            answerSettings: {
-              ...element.answerSettings,
-              [key]: value
-            }
-          }
+      const updates = {
+        answerSettings: {
+          ...element.answerSettings,
+          [key]: value
         }
-      });
+      };
+      
+      if (state.selectedGroupedElement) {
+        dispatch({
+          type: 'UPDATE_GROUPED_ELEMENT',
+          payload: {
+            groupId: state.selectedGroupedElement.groupId,
+            elementId: state.selectedGroupedElement.elementId,
+            updates
+          }
+        });
+      } else {
+        dispatch({
+          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+          payload: { id: element.id, updates }
+        });
+      }
     };
     
     const getQuestionStyle = () => {
@@ -914,22 +997,32 @@ export function ToolSettingsContent({
     
     const updateSharedSetting = (key: string, value: any) => {
       dispatch({ type: 'SAVE_TO_HISTORY', payload: `Update QnA Inline ${key}` });
-      dispatch({
-        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-        payload: {
-          id: element.id,
-          updates: {
-            questionSettings: {
-              ...element.questionSettings,
-              [key]: value
-            },
-            answerSettings: {
-              ...element.answerSettings,
-              [key]: value
-            }
-          }
+      const updates = {
+        questionSettings: {
+          ...element.questionSettings,
+          [key]: value
+        },
+        answerSettings: {
+          ...element.answerSettings,
+          [key]: value
         }
-      });
+      };
+      
+      if (state.selectedGroupedElement) {
+        dispatch({
+          type: 'UPDATE_GROUPED_ELEMENT',
+          payload: {
+            groupId: state.selectedGroupedElement.groupId,
+            elementId: state.selectedGroupedElement.elementId,
+            updates
+          }
+        });
+      } else {
+        dispatch({
+          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+          payload: { id: element.id, updates }
+        });
+      }
     };
     
     return (
@@ -2364,14 +2457,9 @@ export function ToolSettingsContent({
   };
 
   const renderElementSettings = (element: any) => {
-    const updateElementSetting = (key: string, value: any) => {
+    const updateElementSettingLocal = (key: string, value: any) => {
       dispatch({ type: 'SAVE_TO_HISTORY', payload: `Update ${element.type} ${key}` });
-      const updates = { [key]: value };
-
-      dispatch({
-        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-        payload: { id: element.id, updates }
-      });
+      updateElementSetting(element.id, { [key]: value });
     };
 
     if (showFontSelector && element.type === 'text') {
@@ -2383,9 +2471,9 @@ export function ToolSettingsContent({
           onFontSelect={(fontName) => {
             const fontFamily = getFontFamilyByName(fontName, false, false);
             if (element.font) {
-              updateElementSetting('font', { ...element.font, fontFamily });
+              updateElementSettingLocal('font', { ...element.font, fontFamily });
             }
-            updateElementSetting('fontFamily', fontFamily);
+            updateElementSettingLocal('fontFamily', fontFamily);
           }}
           onBack={() => setShowFontSelector(false)}
           element={element}
@@ -2441,43 +2529,43 @@ export function ToolSettingsContent({
         switch (showColorSelector) {
           case 'element-brush-stroke':
           case 'element-line-stroke':
-            updateElementSetting('strokeOpacity', opacity);
+            updateElementSettingLocal('strokeOpacity', opacity);
             break;
           case 'element-shape-stroke':
-            updateElementSetting('opacity', opacity);
+            updateElementSettingLocal('opacity', opacity);
             break;
           case 'element-shape-fill':
-            updateElementSetting('fillOpacity', opacity);
+            updateElementSettingLocal('fillOpacity', opacity);
             break;
           case 'element-text-color':
             if (element.font) {
-              updateElementSetting('font', { ...element.font, fontOpacity: opacity });
+              updateElementSettingLocal('font', { ...element.font, fontOpacity: opacity });
             }
-            updateElementSetting('fillOpacity', opacity);
+            updateElementSettingLocal('fillOpacity', opacity);
             break;
           case 'element-text-border':
-            updateElementSetting('border', {
+            updateElementSettingLocal('border', {
               borderWidth: getBorderWidth(element),
               borderColor: getBorderColor(element),
               borderOpacity: opacity,
               borderTheme: getBorderTheme(element)
             });
-            updateElementSetting('borderOpacity', opacity);
+            updateElementSettingLocal('borderOpacity', opacity);
             break;
           case 'element-text-background':
-            updateElementSetting('background', {
+            updateElementSettingLocal('background', {
               backgroundColor: getBackgroundColor(element),
               backgroundOpacity: opacity
             });
-            updateElementSetting('backgroundOpacity', opacity);
+            updateElementSettingLocal('backgroundOpacity', opacity);
             break;
           case 'element-ruled-lines-color':
-            updateElementSetting('ruledLines', {
+            updateElementSettingLocal('ruledLines', {
               ...element.ruledLines,
               lineColor: element.ruledLines?.lineColor || element.ruledLinesColor || '#1f2937',
               lineOpacity: opacity
             });
-            updateElementSetting('ruledLinesOpacity', opacity);
+            updateElementSettingLocal('ruledLinesOpacity', opacity);
             break;
         }
       };
@@ -2487,47 +2575,47 @@ export function ToolSettingsContent({
           case 'element-brush-stroke':
           case 'element-line-stroke':
           case 'element-shape-stroke':
-            updateElementSetting('stroke', color);
+            updateElementSettingLocal('stroke', color);
             localStorage.setItem(`shape-border-color-${element.id}`, color);
             break;
           case 'element-shape-fill':
-            updateElementSetting('fill', color);
+            updateElementSettingLocal('fill', color);
             localStorage.setItem(`shape-fill-color-${element.id}`, color);
             break;
           case 'element-text-color':
             if (element.font) {
-              updateElementSetting('font', { ...element.font, fontColor: color });
+              updateElementSettingLocal('font', { ...element.font, fontColor: color });
             }
-            updateElementSetting('fontColor', color);
-            updateElementSetting('fill', color);
+            updateElementSettingLocal('fontColor', color);
+            updateElementSettingLocal('fill', color);
             break;
           case 'element-text-border':
-            updateElementSetting('border', {
+            updateElementSettingLocal('border', {
               borderWidth: getBorderWidth(element),
               borderColor: color,
               borderOpacity: getBorderOpacity(element),
               borderTheme: getBorderTheme(element)
             });
-            updateElementSetting('borderColor', color);
+            updateElementSettingLocal('borderColor', color);
             break;
           case 'element-text-background':
-            updateElementSetting('background', {
+            updateElementSettingLocal('background', {
               backgroundColor: color,
               backgroundOpacity: getBackgroundOpacity(element)
             });
-            updateElementSetting('backgroundColor', color);
+            updateElementSettingLocal('backgroundColor', color);
             localStorage.setItem(`text-bg-color-${element.id}`, color);
             break;
           case 'element-ruled-lines-color':
-            updateElementSetting('ruledLines', {
+            updateElementSettingLocal('ruledLines', {
               ...element.ruledLines,
               lineColor: color,
               lineOpacity: getRuledLinesOpacity(element)
             });
-            updateElementSetting('ruledLinesColor', color);
+            updateElementSettingLocal('ruledLinesColor', color);
             break;
           default:
-            updateElementSetting('stroke', color);
+            updateElementSettingLocal('stroke', color);
         }
       };
       
@@ -2551,78 +2639,18 @@ export function ToolSettingsContent({
       case 'brush':
         return (
           <div className="space-y-2">
-            <div>
-              <Label variant="xs">Theme</Label>
-              <ThemeSelect 
-                value={getElementTheme(element)}
-                onChange={(value) => {
-                  updateElementSetting('theme', value);
-                  updateElementSetting('inheritTheme', value);
-                }}
-              />
+            <div className="text-xs text-muted-foreground">
+              No settings available for brush elements.
             </div>
-            
-            <Separator />
+          </div>
+        );
 
-            <Slider
-              label="Brush Size"
-              value={actualToCommonStrokeWidth(element.strokeWidth || 3, getElementTheme(element))}
-              onChange={(value) => updateElementSetting('strokeWidth', commonToActualStrokeWidth(value, getElementTheme(element)))}
-              min={1}
-              max={getMaxStrokeWidth()}
-            />
-            
-            {element.theme === 'candy' && (
-              <div className="flex items-center gap-2 h-12">
-                <Label className="flex items-center gap-1" variant="xs">
-                  <input
-                    type="checkbox"
-                    checked={element.candyRandomness || false}
-                    onChange={(e) => updateElementSetting('candyRandomness', e.target.checked)}
-                    className="rounded w-3 h-3"
-                  />
-                  Random bubble size
-                </Label>
-                {element.candyRandomness && (
-                  <ButtonGroup>
-                    <Button
-                      variant={(!element.candyIntensity || element.candyIntensity === 'weak') ? 'default' : 'outline'}
-                      size="xs"
-                      onClick={() => updateElementSetting('candyIntensity', 'weak')}
-                    >
-                      S
-                    </Button>
-                    <Button
-                      variant={element.candyIntensity === 'middle' ? 'default' : 'outline'}
-                      size="xs"
-                      onClick={() => updateElementSetting('candyIntensity', 'middle')}
-                    >
-                      M
-                    </Button>
-                    <Button
-                      variant={element.candyIntensity === 'strong' ? 'default' : 'outline'}
-                      size="xs"
-                      onClick={() => updateElementSetting('candyIntensity', 'strong')}
-                    >
-                      L
-                    </Button>
-                  </ButtonGroup>
-                )}
-              </div>
-            )}            
-            
-            <Separator />
-            
-            <div>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => setShowColorSelector('element-brush-stroke')}
-                className="w-full"
-              >
-                <Palette className="h-4 w-4 mr-2" />
-                Color
-              </Button>
+      case 'brush-multicolor':
+        return (
+          <div className="space-y-2">
+            <div className="text-xs font-medium mb-2">Brush Multicolor</div>
+            <div className="text-xs text-muted-foreground">
+              This element contains {element.brushStrokes?.length || 0} brush stroke{(element.brushStrokes?.length || 0) !== 1 ? 's' : ''} with individual colors and sizes.
             </div>
           </div>
         );
@@ -2635,8 +2663,8 @@ export function ToolSettingsContent({
               <ThemeSelect 
                 value={getElementTheme(element)}
                 onChange={(value) => {
-                  updateElementSetting('theme', value);
-                  updateElementSetting('inheritTheme', value);
+                  updateElementSettingLocal('theme', value);
+                  updateElementSettingLocal('inheritTheme', value);
                 }}
               />
             </div>
@@ -2646,7 +2674,7 @@ export function ToolSettingsContent({
             <Slider
               label="Stroke Width"
               value={actualToCommonStrokeWidth(element.strokeWidth || 2, getElementTheme(element))}
-              onChange={(value) => updateElementSetting('strokeWidth', commonToActualStrokeWidth(value, getElementTheme(element)))}
+              onChange={(value) => updateElementSettingLocal('strokeWidth', commonToActualStrokeWidth(value, getElementTheme(element)))}
               min={1}
               max={getMaxStrokeWidth()}
             />
@@ -2684,8 +2712,8 @@ export function ToolSettingsContent({
               <ThemeSelect 
                 value={getElementTheme(element)}
                 onChange={(value) => {
-                  updateElementSetting('inheritTheme', value);
-                  updateElementSetting('theme', value);
+                  updateElementSettingLocal('inheritTheme', value);
+                  updateElementSettingLocal('theme', value);
                 }}
               />
             </div>
@@ -2706,18 +2734,18 @@ export function ToolSettingsContent({
                   type="checkbox"
                   checked={element.borderEnabled !== undefined ? element.borderEnabled : (element.strokeWidth || 0) > 0}
                   onChange={(e) => {
-                    updateElementSetting('borderEnabled', e.target.checked);
+                    updateElementSettingLocal('borderEnabled', e.target.checked);
                     if (e.target.checked) {
                       const lastBorderWidth = localStorage.getItem(`shape-border-width-${element.id}`) || '2';
                       const lastBorderColor = localStorage.getItem(`shape-border-color-${element.id}`) || '#1f2937';
-                      updateElementSetting('strokeWidth', Math.max(1, parseInt(lastBorderWidth)));
-                      updateElementSetting('stroke', lastBorderColor);
+                      updateElementSettingLocal('strokeWidth', Math.max(1, parseInt(lastBorderWidth)));
+                      updateElementSettingLocal('stroke', lastBorderColor);
                     } else {
                       if ((element.strokeWidth || 0) > 0) {
                         localStorage.setItem(`shape-border-width-${element.id}`, String(element.strokeWidth));
                       }
                       localStorage.setItem(`shape-border-color-${element.id}`, element.stroke || '#1f2937');
-                      updateElementSetting('strokeWidth', 0);
+                      updateElementSettingLocal('strokeWidth', 0);
                     }
                   }}
                   className="rounded w-3 h-3"
@@ -2733,7 +2761,7 @@ export function ToolSettingsContent({
                   value={actualToCommonStrokeWidth(element.strokeWidth || 0, getElementTheme(element))}
                   onChange={(value) => {
                     const actualWidth = commonToActualStrokeWidth(value, getElementTheme(element));
-                    updateElementSetting('strokeWidth', actualWidth);
+                    updateElementSettingLocal('strokeWidth', actualWidth);
                     localStorage.setItem(`shape-border-width-${element.id}`, String(actualWidth));
                   }}
                   min={1}
@@ -2771,13 +2799,13 @@ export function ToolSettingsContent({
                   type="checkbox"
                   checked={element.backgroundEnabled !== undefined ? element.backgroundEnabled : (element.fill !== 'transparent' && element.fill !== undefined)}
                   onChange={(e) => {
-                    updateElementSetting('backgroundEnabled', e.target.checked);
+                    updateElementSettingLocal('backgroundEnabled', e.target.checked);
                     if (e.target.checked) {
                       const lastFillColor = localStorage.getItem(`shape-fill-color-${element.id}`) || '#ffffff';
-                      updateElementSetting('fill', lastFillColor);
+                      updateElementSettingLocal('fill', lastFillColor);
                     } else {
                       localStorage.setItem(`shape-fill-color-${element.id}`, element.fill || '#ffffff');
-                      updateElementSetting('fill', 'transparent');
+                      updateElementSettingLocal('fill', 'transparent');
                     }
                   }}
                   className="rounded w-3 h-3"
@@ -2805,7 +2833,7 @@ export function ToolSettingsContent({
             <Slider
               label="Opacity"
               value={Math.round((element.opacity || element.strokeOpacity || 1) * 100)}
-              onChange={(value) => updateElementSetting('opacity', value / 100)}
+              onChange={(value) => updateElementSettingLocal('opacity', value / 100)}
               min={0}
               max={100}
               step={5}
@@ -2820,7 +2848,7 @@ export function ToolSettingsContent({
                     <input
                       type="checkbox"
                       checked={element.candyRandomness || false}
-                      onChange={(e) => updateElementSetting('candyRandomness', e.target.checked)}
+                      onChange={(e) => updateElementSettingLocal('candyRandomness', e.target.checked)}
                       className="rounded w-3 h-3"
                     />
                     Randomness
@@ -2830,21 +2858,21 @@ export function ToolSettingsContent({
                       <Button
                         variant={(!element.candyIntensity || element.candyIntensity === 'weak') ? 'default' : 'outline'}
                         size="xs"
-                        onClick={() => updateElementSetting('candyIntensity', 'weak')}
+                        onClick={() => updateElementSettingLocal('candyIntensity', 'weak')}
                       >
                         weak
                       </Button>
                       <Button
                         variant={element.candyIntensity === 'middle' ? 'default' : 'outline'}
                         size="xs"
-                        onClick={() => updateElementSetting('candyIntensity', 'middle')}
+                        onClick={() => updateElementSettingLocal('candyIntensity', 'middle')}
                       >
                         middle
                       </Button>
                       <Button
                         variant={element.candyIntensity === 'strong' ? 'default' : 'outline'}
                         size="xs"
-                        onClick={() => updateElementSetting('candyIntensity', 'strong')}
+                        onClick={() => updateElementSettingLocal('candyIntensity', 'strong')}
                       >
                         strong
                       </Button>
@@ -2873,7 +2901,7 @@ export function ToolSettingsContent({
             <Slider
               label="Corner Radius"
               value={actualToCommonRadius(element.cornerRadius || 0)}
-              onChange={(value) => updateElementSetting('cornerRadius', commonToActualRadius(value))}
+              onChange={(value) => updateElementSettingLocal('cornerRadius', commonToActualRadius(value))}
               min={COMMON_CORNER_RADIUS_RANGE.min}
               max={COMMON_CORNER_RADIUS_RANGE.max}
             />
@@ -2913,10 +2941,10 @@ export function ToolSettingsContent({
                     const newFontFamily = getFontFamilyByName(fontName, newBold, currentItalic);
                     
                     if (element.font) {
-                      updateElementSetting('font', { ...element.font, fontBold: newBold, fontFamily: newFontFamily });
+                      updateElementSettingLocal('font', { ...element.font, fontBold: newBold, fontFamily: newFontFamily });
                     } else {
-                      updateElementSetting('fontWeight', newBold ? 'bold' : 'normal');
-                      updateElementSetting('fontFamily', newFontFamily);
+                      updateElementSettingLocal('fontWeight', newBold ? 'bold' : 'normal');
+                      updateElementSettingLocal('fontFamily', newFontFamily);
                     }
                   }}
                   className="px-3"
@@ -2935,10 +2963,10 @@ export function ToolSettingsContent({
                     const newFontFamily = getFontFamilyByName(fontName, currentBold, newItalic);
                     
                     if (element.font) {
-                      updateElementSetting('font', { ...element.font, fontItalic: newItalic, fontFamily: newFontFamily });
+                      updateElementSettingLocal('font', { ...element.font, fontItalic: newItalic, fontFamily: newFontFamily });
                     } else {
-                      updateElementSetting('fontStyle', newItalic ? 'italic' : 'normal');
-                      updateElementSetting('fontFamily', newFontFamily);
+                      updateElementSettingLocal('fontStyle', newItalic ? 'italic' : 'normal');
+                      updateElementSettingLocal('fontFamily', newFontFamily);
                     }
                   }}
                   className="px-3"
@@ -2977,9 +3005,9 @@ export function ToolSettingsContent({
               onChange={(value) => {
                 const newSize = commonToActual(value);
                 if (element.font) {
-                  updateElementSetting('font', { ...element.font, fontSize: newSize });
+                  updateElementSettingLocal('font', { ...element.font, fontSize: newSize });
                 }
-                updateElementSetting('fontSize', newSize);
+                updateElementSettingLocal('fontSize', newSize);
               }}
               min={COMMON_FONT_SIZE_RANGE.min}
               max={COMMON_FONT_SIZE_RANGE.max}
@@ -3009,9 +3037,9 @@ export function ToolSettingsContent({
                     size="xs"
                     onClick={() => {
                       if (element.format) {
-                        updateElementSetting('format', { ...element.format, align: 'left' });
+                        updateElementSettingLocal('format', { ...element.format, align: 'left' });
                       }
-                      updateElementSetting('align', 'left');
+                      updateElementSettingLocal('align', 'left');
                     }}
                     className="px-1 h-6 flex-1"
                   >
@@ -3022,9 +3050,9 @@ export function ToolSettingsContent({
                     size="xs"
                     onClick={() => {
                       if (element.format) {
-                        updateElementSetting('format', { ...element.format, align: 'center' });
+                        updateElementSettingLocal('format', { ...element.format, align: 'center' });
                       }
-                      updateElementSetting('align', 'center');
+                      updateElementSettingLocal('align', 'center');
                     }}
                     className="px-1 h-6 flex-1"
                   >
@@ -3035,9 +3063,9 @@ export function ToolSettingsContent({
                     size="xs"
                     onClick={() => {
                       if (element.format) {
-                        updateElementSetting('format', { ...element.format, align: 'right' });
+                        updateElementSettingLocal('format', { ...element.format, align: 'right' });
                       }
-                      updateElementSetting('align', 'right');
+                      updateElementSettingLocal('align', 'right');
                     }}
                     className="px-1 h-6 flex-1"
                   >
@@ -3048,9 +3076,9 @@ export function ToolSettingsContent({
                     size="xs"
                     onClick={() => {
                       if (element.format) {
-                        updateElementSetting('format', { ...element.format, align: 'justify' });
+                        updateElementSettingLocal('format', { ...element.format, align: 'justify' });
                       }
-                      updateElementSetting('align', 'justify');
+                      updateElementSettingLocal('align', 'justify');
                     }}
                     className="px-1 h-6 flex-1"
                   >
@@ -3067,9 +3095,9 @@ export function ToolSettingsContent({
                     size="xs"
                     onClick={() => {
                       if (element.format) {
-                        updateElementSetting('format', { ...element.format, paragraphSpacing: 'small' });
+                        updateElementSettingLocal('format', { ...element.format, paragraphSpacing: 'small' });
                       }
-                      updateElementSetting('paragraphSpacing', 'small');
+                      updateElementSettingLocal('paragraphSpacing', 'small');
                     }}
                     className="px-1 h-6 flex-1"
                   >
@@ -3080,9 +3108,9 @@ export function ToolSettingsContent({
                     size="xs"
                     onClick={() => {
                       if (element.format) {
-                        updateElementSetting('format', { ...element.format, paragraphSpacing: 'medium' });
+                        updateElementSettingLocal('format', { ...element.format, paragraphSpacing: 'medium' });
                       }
-                      updateElementSetting('paragraphSpacing', 'medium');
+                      updateElementSettingLocal('paragraphSpacing', 'medium');
                     }}
                     className="px-1 h-6 flex-1"
                   >
@@ -3093,9 +3121,9 @@ export function ToolSettingsContent({
                     size="xs"
                     onClick={() => {
                       if (element.format) {
-                        updateElementSetting('format', { ...element.format, paragraphSpacing: 'large' });
+                        updateElementSettingLocal('format', { ...element.format, paragraphSpacing: 'large' });
                       }
-                      updateElementSetting('paragraphSpacing', 'large');
+                      updateElementSettingLocal('paragraphSpacing', 'large');
                     }}
                     className="px-1 h-6 flex-1"
                   >
@@ -3110,7 +3138,7 @@ export function ToolSettingsContent({
                 <input
                   type="checkbox"
                   checked={element.ruledLines?.enabled !== undefined ? element.ruledLines.enabled : (element.ruledLines || false)}
-                  onChange={(e) => updateElementSetting('ruledLines', { ...element.ruledLines, enabled: e.target.checked })}
+                  onChange={(e) => updateElementSettingLocal('ruledLines', { ...element.ruledLines, enabled: e.target.checked })}
                   className="rounded w-3 h-3"
                 />
                 Ruled Lines
@@ -3123,7 +3151,7 @@ export function ToolSettingsContent({
                 <Slider
                   label="Line Width"
                   value={element.ruledLinesWidth || 0.8}
-                  onChange={(value) => updateElementSetting('ruledLinesWidth', value)}
+                  onChange={(value) => updateElementSettingLocal('ruledLinesWidth', value)}
                   min={0.01}
                   max={30}
                   step={0.1}
@@ -3134,7 +3162,7 @@ export function ToolSettingsContent({
                   <ThemeSelect 
                     value={getRuledLinesTheme(element)}
                     onChange={(value) => {
-                      updateElementSetting('ruledLines', {
+                      updateElementSettingLocal('ruledLines', {
                         enabled: element.ruledLines?.enabled !== undefined ? element.ruledLines.enabled : (element.ruledLines || false),
                         inheritTheme: value,
                         lineWidth: element.ruledLinesWidth || 0.8,
@@ -3170,7 +3198,7 @@ export function ToolSettingsContent({
                   onChange={(e) => {
                     const storedWidth = element.border?.originalBorderWidth ?? element.originalBorderWidth ?? getBorderWidth(element);
                     const newWidth = e.target.checked ? storedWidth : 0;
-                    updateElementSetting('border', {
+                    updateElementSettingLocal('border', {
                       enabled: e.target.checked,
                       borderWidth: newWidth,
                       originalBorderWidth: storedWidth,
@@ -3192,7 +3220,7 @@ export function ToolSettingsContent({
                   value={actualToCommonStrokeWidth(getBorderWidth(element), getBorderTheme(element))}
                   onChange={(value) => {
                     const actualWidth = commonToActualStrokeWidth(value, getBorderTheme(element));
-                    updateElementSetting('border', {
+                    updateElementSettingLocal('border', {
                       enabled: element.border?.enabled !== undefined ? element.border.enabled : true,
                       borderWidth: actualWidth,
                       borderColor: getBorderColor(element),
@@ -3210,14 +3238,14 @@ export function ToolSettingsContent({
                   <ThemeSelect 
                     value={getBorderTheme(element)}
                     onChange={(value) => {
-                      updateElementSetting('border', {
+                      updateElementSettingLocal('border', {
                         enabled: element.border?.enabled !== undefined ? element.border.enabled : true,
                         borderWidth: getBorderWidth(element),
                         borderColor: getBorderColor(element),
                         borderOpacity: getBorderOpacity(element),
                         borderTheme: value
                       });
-                      updateElementSetting('cornerRadius', 0);
+                      updateElementSettingLocal('cornerRadius', 0);
                     }}
                   />
                 </div>
@@ -3245,7 +3273,7 @@ export function ToolSettingsContent({
                   onChange={(e) => {
                     const storedColor = element.background?.originalBackgroundColor ?? element.originalBackgroundColor ?? (getBackgroundColor(element) !== 'transparent' ? getBackgroundColor(element) : '#ffffff');
                     const storedOpacity = element.background?.originalBackgroundOpacity ?? element.originalBackgroundOpacity ?? getBackgroundOpacity(element);
-                    updateElementSetting('background', {
+                    updateElementSettingLocal('background', {
                       enabled: e.target.checked,
                       backgroundColor: e.target.checked ? storedColor : 'transparent',
                       backgroundOpacity: storedOpacity,
@@ -3282,7 +3310,7 @@ export function ToolSettingsContent({
               <Slider
                 label="Corner Radius"
                 value={actualToCommonRadius(element.cornerRadius || 0)}
-                onChange={(value) => updateElementSetting('cornerRadius', commonToActualRadius(value))}
+                onChange={(value) => updateElementSettingLocal('cornerRadius', commonToActualRadius(value))}
                 min={COMMON_CORNER_RADIUS_RANGE.min}
                 max={COMMON_CORNER_RADIUS_RANGE.max}
               />
@@ -3293,9 +3321,9 @@ export function ToolSettingsContent({
               value={getPadding(element)}
               onChange={(value) => {
                 if (element.format) {
-                  updateElementSetting('format', { ...element.format, padding: value });
+                  updateElementSettingLocal('format', { ...element.format, padding: value });
                 }
-                updateElementSetting('padding', value);
+                updateElementSettingLocal('padding', value);
               }}
               min={0}
               max={100}

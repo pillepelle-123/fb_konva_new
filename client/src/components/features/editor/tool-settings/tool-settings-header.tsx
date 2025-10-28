@@ -83,9 +83,17 @@ export function ToolSettingsHeader({
                 </>
               );
             } else if (state.selectedElementIds.length === 1 && state.currentBook) {
-              const selectedElement = state.currentBook.pages[state.activePageIndex]?.elements.find(
+              let selectedElement = state.currentBook.pages[state.activePageIndex]?.elements.find(
                 el => el.id === state.selectedElementIds[0]
               );
+              
+              // If a grouped element is selected, show that element's type
+              if (state.selectedGroupedElement && selectedElement?.groupedElements) {
+                selectedElement = selectedElement.groupedElements.find(
+                  el => el.id === state.selectedGroupedElement.elementId
+                );
+              }
+              
               if (selectedElement) {
                 const elementType = selectedElement.type === 'text' && selectedElement.textType 
                   ? selectedElement.textType 

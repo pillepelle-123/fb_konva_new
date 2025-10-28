@@ -15,6 +15,7 @@ export interface CanvasItemProps {
   isWithinSelection?: boolean;
   isDragging?: boolean;
   zoom?: number;
+  isInsideGroup?: boolean;
 }
 
 interface BaseCanvasItemProps extends CanvasItemProps {
@@ -33,6 +34,7 @@ export default function BaseCanvasItem({
   onDragEnd, 
   isMovingGroup, 
   isWithinSelection,
+  isInsideGroup = false,
   children,
   hitArea,
   onDoubleClick,
@@ -80,6 +82,7 @@ export default function BaseCanvasItem({
   const [lastClickTime, setLastClickTime] = useState(0);
 
   const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (isInsideGroup) return; // Don't handle clicks for grouped elements
     if (state.activeTool === 'select') {
       if (e.evt.button === 0) {
         e.cancelBubble = true;
@@ -107,6 +110,7 @@ export default function BaseCanvasItem({
   };
 
   const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (isInsideGroup) return; // Don't handle mousedown for grouped elements
     if (state.activeTool === 'select' && e.evt.button === 0) {
       e.cancelBubble = true;
       // For regular elements, select on mouseDown if not already selected
@@ -140,7 +144,7 @@ export default function BaseCanvasItem({
       scaleX={(element.textType === 'question' || element.textType === 'answer') ? 1 : (element.scaleX || 1)}
       scaleY={(element.textType === 'question' || element.textType === 'answer') ? 1 : (element.scaleY || 1)}
       rotation={element.rotation || 0}
-      draggable={state.activeTool === 'select' && !isMovingGroup && state.editorInteractionLevel !== 'answer_only'}
+      draggable={state.activeTool === 'select' && !isMovingGroup && !isInsideGroup && state.editorInteractionLevel !== 'answer_only'}
       onMouseDown={handleMouseDown}
       onClick={handleClick}
       onDblClick={handleDoubleClick}
@@ -202,6 +206,7 @@ export default function BaseCanvasItem({
       
       {/* Permanent dashed border for shapes with no border and no background */}
       {state.activeTool === 'select' && 
+       !isInsideGroup &&
        ['rect', 'circle', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(element.type) &&
        (!element.strokeWidth || element.strokeWidth === 0) &&
        (element.fill === 'transparent' || !element.fill) && (

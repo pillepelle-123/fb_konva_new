@@ -46,6 +46,34 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
   const triggerRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   
+  // Listen for brush mode events
+  const [brushStrokes, setBrushStrokes] = useState<number[][]>([]);
+  const [isBrushMode, setIsBrushMode] = useState(false);
+  
+  useEffect(() => {
+    const handleBrushStroke = (e: CustomEvent) => {
+      setIsBrushMode(true);
+      setBrushStrokes(prev => [...prev, e.detail.points]);
+    };
+    const handleBrushModeStart = () => {
+      setIsBrushMode(true);
+    };
+    const handleBrushModeEnd = () => {
+      setIsBrushMode(false);
+      setBrushStrokes([]);
+    };
+    
+    window.addEventListener('brushStrokeAdded', handleBrushStroke as EventListener);
+    window.addEventListener('brushModeStart', handleBrushModeStart as EventListener);
+    window.addEventListener('brushModeEnd', handleBrushModeEnd as EventListener);
+    
+    return () => {
+      window.removeEventListener('brushStrokeAdded', handleBrushStroke as EventListener);
+      window.removeEventListener('brushModeStart', handleBrushModeStart as EventListener);
+      window.removeEventListener('brushModeEnd', handleBrushModeEnd as EventListener);
+    };
+  }, []);
+  
   const favoriteColors = state.editorSettings?.favoriteColors?.strokeColors || [];
   
   const addFavoriteColor = (color: string) => {
@@ -97,15 +125,19 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
     if (needsSettings && !isOpen) {
       setIsOpen(true);
       updatePosition();
-    } else if (!needsSettings && isOpen) {
+    } else if (!needsSettings && isOpen && brushStrokes.length === 0) {
       setIsOpen(false);
-    }
-  }, [activeTool, needsSettings]);
+    } 
+  }, [activeTool, needsSettings, brushStrokes.length]);
 
   useEffect(() => {
     if (!isOpen) return;
 
     const handleClickOutside = (e: MouseEvent) => {
+      if (activeTool === 'brush' || brushStrokes.length > 0) {
+        return;
+      }
+      
       if (
         popoverRef.current && !popoverRef.current.contains(e.target as Node) &&
         triggerRef.current && !triggerRef.current.contains(e.target as Node)
@@ -118,7 +150,7 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen]);
+  }, [isOpen, activeTool, brushStrokes.length]);
 
   const updateSetting = (key: string, value: any) => {
     dispatch({
@@ -127,7 +159,7 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
     });
   };
 
-  if (!needsSettings) {
+  if (!needsSettings && brushStrokes.length === 0) {
     return <>{children}</>;
   }
 
@@ -135,6 +167,7 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
   const ToolIcon = toolConfig?.icon;
 
   const strokeWidthLabel = activeTool === 'brush' ? 'Brush Size' : activeTool === 'line' ? 'Stroke Width' : 'Border Width';
+  const strokeColorLabel = activeTool === 'brush' ? 'Brush Color' : 'Border Color';
   const fillColorLabel = 'Background Color';
 
   return (
@@ -158,7 +191,13 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setIsOpen(false)}
+              onClick={() => {
+                if (isBrushMode) {
+                  window.dispatchEvent(new CustomEvent('brushCancel'));
+                  dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+                }
+                setIsOpen(false);
+              }}
               className="h-6 w-6 p-0"
             >
               <X className="h-4 w-4" />
@@ -172,7 +211,9 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
               favoriteColors={favoriteColors}
               onAddFavorite={addFavoriteColor}
               onRemoveFavorite={removeFavoriteColor}
-              onBack={() => setShowStrokeColorPicker(false)}
+              onBack={() => {
+                setShowStrokeColorPicker(false);
+              }}
             />
           ) : showFillColorPicker ? (
             <ColorSelector
@@ -181,8 +222,97 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
               favoriteColors={favoriteColors}
               onAddFavorite={addFavoriteColor}
               onRemoveFavorite={removeFavoriteColor}
-              onBack={() => setShowFillColorPicker(false)}
+              onBack={() => {
+                setShowFillColorPicker(false);
+              }}
             />
+          ) : isBrushMode ? (
+            <>
+              {/* Brush Mode Controls */}
+              <div className="space-y-3">
+                {/* Brush Size */}
+                <div className="mb-4">
+                  <Label className="text-xs mb-2 block">Brush Size</Label>
+                  <Slider
+                    label="Brush Size"
+                    value={strokeWidth}
+                    onChange={(value) => updateSetting('strokeWidth', value)}
+                    min={1}
+                    max={100}
+                    step={1}
+                    hasLabel={false}
+                  />
+                </div>
+
+                {/* Brush Color */}
+                <div className="mb-4">
+                  <Label className="text-xs mb-2 block">Brush Color</Label>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start gap-2 h-10"
+                    onClick={() => setShowStrokeColorPicker(true)}
+                  >
+                    <div
+                      className="w-6 h-6 rounded border"
+                      style={{ 
+                        backgroundColor: strokeColor === 'transparent' ? '#ffffff' : strokeColor,
+                        backgroundImage: strokeColor === 'transparent' ? 'linear-gradient(to top right, transparent 0%, transparent calc(50% - 1px), #ff0000 calc(50% - 1px), #ff0000 calc(50% + 1px), transparent calc(50% + 1px), transparent 100%)' : 'none'
+                      }}
+                    />
+                    <span className="text-xs">{strokeColor}</span>
+                  </Button>
+                </div>
+                
+                <div className="border-t pt-3" />
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (brushStrokes.length > 0) {
+                        window.dispatchEvent(new CustomEvent('brushUndo'));
+                        setBrushStrokes(prev => prev.slice(0, -1));
+                      }
+                    }}
+                    disabled={brushStrokes.length === 0}
+                    className="flex-1"
+                  >
+                    <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                    </svg>
+                    Undo
+                  </Button>
+                </div>
+                
+                <div className="flex gap-2">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent('brushDone'));
+                    }}
+                    className="flex-1"
+                  >
+                    Done
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent('brushCancel'));
+                      dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+                    }}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+                
+                <div className="text-xs text-muted-foreground text-center pt-2 border-t">
+                  {brushStrokes.length} stroke{brushStrokes.length !== 1 ? 's' : ''}
+                </div>
+              </div>
+            </>
           ) : (
             <>
               {/* Stroke Width */}
@@ -201,7 +331,7 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
 
               {/* Stroke Color */}
               <div className="mb-4">
-                <Label className="text-xs mb-2 block">Border Color</Label>
+                <Label className="text-xs mb-2 block">{strokeColorLabel}</Label>
                 <Button
                   variant="outline"
                   className="w-full justify-start gap-2 h-10"

@@ -1,4 +1,6 @@
+import { Group } from 'react-konva';
 import type { CanvasElement } from '../../../../context/editor-context';
+import { useEditor } from '../../../../context/editor-context';
 import type { CanvasItemProps } from './base-canvas-item';
 import ThemedShape from './themed-shape';
 import Textbox from './textbox';
@@ -11,7 +13,54 @@ interface CanvasItemComponentProps extends CanvasItemProps {
 }
 
 export default function CanvasItemComponent(props: CanvasItemComponentProps) {
-  const { element } = props;
+  const { element, onDragStart, onSelect } = props;
+  const { dispatch, state } = useEditor();
+
+  if ((element.type === 'group' || element.type === 'brush-multicolor') && element.groupedElements) {
+    return (
+      <Group 
+        x={element.x} 
+        y={element.y} 
+        id={element.id}
+        listening={true}
+        draggable={state.activeTool === 'select'}
+        onMouseDown={(e) => {
+          if (state.activeTool === 'select') {
+            e.cancelBubble = true;
+          }
+        }}
+        onClick={(e) => {
+          if (state.activeTool === 'select') {
+            e.cancelBubble = true;
+            onSelect?.(e);
+          }
+        }}
+        onTap={(e) => {
+          if (state.activeTool === 'select') {
+            e.cancelBubble = true;
+            onSelect?.();
+          }
+        }}
+        onDragStart={(e) => {
+          dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Move Group' });
+          onDragStart?.();
+        }}
+        onDragEnd={(e) => {
+          dispatch({
+            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+            payload: {
+              id: element.id,
+              updates: { x: e.target.x(), y: e.target.y() }
+            }
+          });
+        }}
+      >
+        {element.groupedElements.map(groupedEl => (
+          <CanvasItemComponent key={groupedEl.id} {...props} element={groupedEl} isSelected={false} isInsideGroup={true} />
+        ))}
+      </Group>
+    );
+  }
 
   if (element.type === 'brush') {
     return <ThemedShape {...props} />;
