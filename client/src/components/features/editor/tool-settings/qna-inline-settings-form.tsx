@@ -155,67 +155,6 @@ export function QnAInlineSettingsForm({
         </div>
       </div>
 
-      <div className='py-2'>
-        <Label className="flex items-center gap-1" variant="xs">
-          <Checkbox
-            checked={currentStyle.ruledLines}
-            onCheckedChange={(checked) => updateSetting('ruledLines', checked)}
-          />
-          Ruled Lines
-        </Label>
-      </div>
-      
-      {currentStyle.ruledLines && (
-        <IndentedSection>
-          <Slider
-            label="Line Width"
-            value={(() => {
-              const settings = sectionType === 'shared' ? element.questionSettings : (sectionType === 'question' ? element.questionSettings : element.answerSettings);
-              return settings?.ruledLinesWidth ?? 0.8;
-            })()}
-            onChange={(value) => updateSetting('ruledLinesWidth', value)}
-            min={0.01}
-            max={30}
-            step={0.1}
-          />
-          
-          <div>
-            <Label variant="xs">Ruled Lines Theme</Label>
-            <ThemeSelect 
-              value={(() => {
-                const settings = sectionType === 'shared' ? element.questionSettings : (sectionType === 'question' ? element.questionSettings : element.answerSettings);
-                return settings?.ruledLinesTheme || 'rough';
-              })()}
-              onChange={(value) => updateSetting('ruledLinesTheme', value)}
-            />
-          </div>
-          
-          <div>
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={() => setShowColorSelector('element-ruled-lines-color')}
-              className="w-full"
-            >
-              <Palette className="w-4 mr-2" />
-              Line Color
-            </Button>
-          </div>
-          
-          <Slider
-            label="Line Opacity"
-            value={(() => {
-              const settings = sectionType === 'shared' ? element.questionSettings : (sectionType === 'question' ? element.questionSettings : element.answerSettings);
-              return (settings?.ruledLinesOpacity ?? 1) * 100;
-            })()}
-            onChange={(value) => updateSetting('ruledLinesOpacity', value / 100)}
-            min={0}
-            max={100}
-            step={5}
-          />
-        </IndentedSection>
-      )}
-
 
     </>
   );

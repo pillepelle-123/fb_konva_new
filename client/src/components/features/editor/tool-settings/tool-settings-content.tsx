@@ -936,6 +936,104 @@ export function ToolSettingsContent({
       <div className="space-y-2">
         <div className="text-xs font-medium mb-2">QnA Inline Textbox</div>
         
+        {/* Layout Variant */}
+        <div className="space-y-1">
+          <Label variant="xs">Layout</Label>
+          <ButtonGroup className="w-full">
+            <Button
+              variant={(element.layoutVariant || 'inline') === 'inline' ? 'default' : 'outline'}
+              size="xs"
+              onClick={() => {
+                dispatch({
+                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                  payload: {
+                    id: element.id,
+                    updates: { layoutVariant: 'inline' }
+                  }
+                });
+              }}
+              className="flex-1"
+            >
+              Inline
+            </Button>
+            <Button
+              variant={(element.layoutVariant || 'inline') === 'block' ? 'default' : 'outline'}
+              size="xs"
+              onClick={() => {
+                dispatch({
+                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                  payload: {
+                    id: element.id,
+                    updates: { layoutVariant: 'block' }
+                  }
+                });
+              }}
+              className="flex-1"
+            >
+              Block
+            </Button>
+          </ButtonGroup>
+        </div>
+        
+        {/* Question Position (only for block layout) */}
+        {element.layoutVariant === 'block' && (
+          <div className="space-y-1">
+            <Label variant="xs">Question Position</Label>
+            <ButtonGroup>
+              <Button
+                variant={(element.questionPosition || 'left') === 'left' ? 'default' : 'outline'}
+                size="xs"
+                onClick={() => {
+                  dispatch({
+                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                    payload: {
+                      id: element.id,
+                      updates: { questionPosition: 'left' }
+                    }
+                  });
+                }}
+                className="w-8 h-8 p-0"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </Button>
+              <Button
+                variant={(element.questionPosition || 'left') === 'top' ? 'default' : 'outline'}
+                size="xs"
+                onClick={() => {
+                  dispatch({
+                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                    payload: {
+                      id: element.id,
+                      updates: { questionPosition: 'top' }
+                    }
+                  });
+                }}
+                className="w-8 h-8 p-0"
+              >
+                <ArrowUp className="w-4 h-4" />
+              </Button>
+              <Button
+                variant={(element.questionPosition || 'left') === 'right' ? 'default' : 'outline'}
+                size="xs"
+                onClick={() => {
+                  dispatch({
+                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                    payload: {
+                      id: element.id,
+                      updates: { questionPosition: 'right' }
+                    }
+                  });
+                }}
+                className="w-8 h-8 p-0"
+              >
+                <ArrowRight className="w-4 h-4" />
+              </Button>
+            </ButtonGroup>
+          </div>
+        )}
+        
+        <Separator />
+        
         <div className="flex items-center gap-2 mb-2">
           <Checkbox
             checked={individualSettings}
@@ -999,100 +1097,128 @@ export function ToolSettingsContent({
         
         <Separator/>
         
-        {/* Layout Variant Selection */}
+        {/* Ruled Lines - Common Settings */}
         <div className='py-2'>
-          <Label variant="xs">Layout Variant</Label>
-          <ButtonGroup className="mt-1 w-full">
-            <Button
-              variant={(element.layoutVariant || 'inline') === 'inline' ? 'default' : 'outline'}
-              size="xs"
-              onClick={() => {
+          <Label className="flex items-center gap-1" variant="xs">
+            <Checkbox
+              checked={(() => {
+                const aSettings = element.answerSettings || {};
+                return aSettings.ruledLines ?? false;
+              })()}
+              onCheckedChange={(checked) => {
+                dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Update QnA Inline Ruled Lines' });
                 dispatch({
                   type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
                   payload: {
                     id: element.id,
-                    updates: { layoutVariant: 'inline' }
+                    updates: {
+                      answerSettings: {
+                        ...element.answerSettings,
+                        ruledLines: checked
+                      }
+                    }
                   }
                 });
               }}
-              className="flex-1"
-            >
-              Inline Question
-            </Button>
-            <Button
-              variant={(element.layoutVariant || 'inline') === 'block' ? 'default' : 'outline'}
-              size="xs"
-              onClick={() => {
-                dispatch({
-                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                  payload: {
-                    id: element.id,
-                    updates: { layoutVariant: 'block', questionPosition: element.questionPosition || 'left' }
-                  }
-                });
-              }}
-              className="flex-1"
-            >
-              Block Question
-            </Button>
-          </ButtonGroup>
+            />
+            Ruled Lines
+          </Label>
         </div>
         
-        {/* Question Position for Block Variant */}
-        {(element.layoutVariant || 'inline') === 'block' && (
-          <div className='py-2'>
-            <Label variant="xs">Question Position</Label>
-            <ButtonGroup className="mt-1">
-              <Button
-                variant={(element.questionPosition || 'left') === 'left' ? 'default' : 'outline'}
-                size="xs"
-                onClick={() => {
+        {(() => {
+          const aSettings = element.answerSettings || {};
+          return aSettings.ruledLines ?? false;
+        })() && (
+          <IndentedSection>
+            <Slider
+              label="Line Width"
+              value={(() => {
+                const aSettings = element.answerSettings || {};
+                return aSettings.ruledLinesWidth ?? 0.8;
+              })()}
+              onChange={(value) => {
+                dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Update QnA Inline Line Width' });
+                dispatch({
+                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                  payload: {
+                    id: element.id,
+                    updates: {
+                      answerSettings: {
+                        ...element.answerSettings,
+                        ruledLinesWidth: value
+                      }
+                    }
+                  }
+                });
+              }}
+              min={0.01}
+              max={30}
+              step={0.1}
+            />
+            
+            <div>
+              <Label variant="xs">Ruled Lines Theme</Label>
+              <ThemeSelect 
+                value={(() => {
+                  const aSettings = element.answerSettings || {};
+                  return aSettings.ruledLinesTheme || 'rough';
+                })()}
+                onChange={(value) => {
+                  dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Update QnA Inline Line Theme' });
                   dispatch({
                     type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
                     payload: {
                       id: element.id,
-                      updates: { questionPosition: 'left' }
+                      updates: {
+                        answerSettings: {
+                          ...element.answerSettings,
+                          ruledLinesTheme: value
+                        }
+                      }
                     }
                   });
                 }}
-                className="w-8 h-8 p-0"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </Button>
+              />
+            </div>
+            
+            <div>
               <Button
-                variant={(element.questionPosition || 'left') === 'top' ? 'default' : 'outline'}
+                variant="outline"
                 size="xs"
-                onClick={() => {
-                  dispatch({
-                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                    payload: {
-                      id: element.id,
-                      updates: { questionPosition: 'top' }
-                    }
-                  });
-                }}
-                className="w-8 h-8 p-0"
+                onClick={() => setShowColorSelector('element-ruled-lines-color')}
+                className="w-full"
               >
-                <ArrowUp className="w-4 h-4" />
+                <Palette className="w-4 mr-2" />
+                Line Color
               </Button>
-              <Button
-                variant={(element.questionPosition || 'left') === 'right' ? 'default' : 'outline'}
-                size="xs"
-                onClick={() => {
-                  dispatch({
-                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                    payload: {
-                      id: element.id,
-                      updates: { questionPosition: 'right' }
+            </div>
+            
+            <Slider
+              label="Line Opacity"
+              value={(() => {
+                const aSettings = element.answerSettings || {};
+                return (aSettings.ruledLinesOpacity ?? 1) * 100;
+              })()}
+              onChange={(value) => {
+                dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Update QnA Inline Line Opacity' });
+                dispatch({
+                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                  payload: {
+                    id: element.id,
+                    updates: {
+                      answerSettings: {
+                        ...element.answerSettings,
+                        ruledLinesOpacity: value / 100
+                      }
                     }
-                  });
-                }}
-                className="w-8 h-8 p-0"
-              >
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-            </ButtonGroup>
-          </div>
+                  }
+                });
+              }}
+              min={0}
+              max={100}
+              step={5}
+            />
+          </IndentedSection>
         )}
         
         <Separator/>

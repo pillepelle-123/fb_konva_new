@@ -209,7 +209,10 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
                 >
                   <div
                     className="w-6 h-6 rounded border"
-                    style={{ backgroundColor: strokeColor }}
+                    style={{ 
+                      backgroundColor: strokeColor === 'transparent' ? '#ffffff' : strokeColor,
+                      backgroundImage: strokeColor === 'transparent' ? 'linear-gradient(to top right, transparent 0%, transparent calc(50% - 1px), #ff0000 calc(50% - 1px), #ff0000 calc(50% + 1px), transparent calc(50% + 1px), transparent 100%)' : 'none'
+                    }}
                   />
                   <span className="text-xs">{strokeColor}</span>
                 </Button>
@@ -228,7 +231,7 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
                       className="w-6 h-6 rounded border"
                       style={{ 
                         backgroundColor: fillColor === 'transparent' ? '#ffffff' : fillColor,
-                        backgroundImage: fillColor === 'transparent' ? 'linear-gradient(135deg, transparent 45%, red 45%, red 55%, transparent 55%)' : 'none'
+                        backgroundImage: fillColor === 'transparent' ? 'linear-gradient(to top right, transparent 0%, transparent calc(50% - 1px), #ff0000 calc(50% - 1px), #ff0000 calc(50% + 1px), transparent calc(50% + 1px), transparent 100%)' : 'none'
                       }}
                     />
                     <span className="text-xs">{fillColor}</span>

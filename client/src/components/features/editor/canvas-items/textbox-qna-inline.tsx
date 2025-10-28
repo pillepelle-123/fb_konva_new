@@ -316,7 +316,6 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
   // Generate ruled lines
   const generateRuledLines = () => {
     const lines = [];
-    // Get default settings from tool defaults if not present
     const currentPage = state.currentBook?.pages[state.activePageIndex];
     const pageTheme = currentPage?.background?.pageTheme;
     const bookTheme = state.currentBook?.bookTheme;
@@ -331,41 +330,70 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
       ...element.answerSettings
     };
     const padding = questionStyle.padding || answerStyle.padding || element.format?.padding || element.padding || 4;
-    
-    // Check if ruled lines are enabled for question or answer
-    const questionRuledLines = questionStyle.ruledLines ?? false;
     const answerRuledLines = answerStyle.ruledLines ?? false;
     
-    if (!questionRuledLines && !answerRuledLines) return [];
+    if (!answerRuledLines) return [];
     
-    const questionFontSize = questionStyle.fontSize || fontSize;
+    const layoutVariant = element.layoutVariant || 'inline';
+    const questionPosition = element.questionPosition || 'left';
     const answerFontSize = answerStyle.fontSize || fontSize;
-    
-    // Generate lines for question section
-    if (questionRuledLines) {
-      const qTheme = questionStyle.ruledLinesTheme || 'rough';
-      const qColor = questionStyle.ruledLinesColor || '#1f2937';
-      const qWidth = questionStyle.ruledLinesWidth || 0.8;
-      const qOpacity = questionStyle.ruledLinesOpacity ?? 1;
-      const qSpacing = questionStyle.paragraphSpacing || 'medium';
-      
-      const lineSpacing = questionFontSize * (qSpacing === 'small' ? 1.0 : qSpacing === 'large' ? 1.5 : 1.2);
-      const firstLineY = padding + Math.max(questionFontSize, answerFontSize) * 0.8;
-      for (let y = firstLineY; y < element.height / 2; y += lineSpacing) {
-        lines.push(...generateLineElement(y, qTheme, padding, qColor, qWidth, qOpacity));
+    const aSpacing = answerStyle.paragraphSpacing || 'small';
+    const getLineHeightMultiplier = (spacing: string) => {
+      switch (spacing) {
+        case 'small': return 1.0;
+        case 'medium': return 1.2;
+        case 'large': return 1.5;
+        default: return 1.0;
       }
-    }
+    };
+    const aLineHeight = answerFontSize * getLineHeightMultiplier(aSpacing);
     
-    // Generate lines for answer section
-    if (answerRuledLines) {
+    // For block layout, only show ruled lines in answer area
+    if (layoutVariant === 'block') {
       const aTheme = answerStyle.ruledLinesTheme || 'rough';
       const aColor = answerStyle.ruledLinesColor || '#1f2937';
       const aWidth = answerStyle.ruledLinesWidth || 0.8;
       const aOpacity = answerStyle.ruledLinesOpacity ?? 1;
-      const aSpacing = answerStyle.paragraphSpacing || 'medium';
+      
+      let answerArea = { x: padding, y: padding, width: element.width - padding * 2, height: element.height - padding * 2 };
+      
+      // Calculate answer area based on question position
+      if (questionPosition === 'left' || questionPosition === 'right') {
+        const questionWidth = element.width * 0.3;
+        const answerWidth = element.width - questionWidth - padding * 3;
+        
+        if (questionPosition === 'left') {
+          answerArea = { x: questionWidth + padding * 2, y: padding, width: answerWidth, height: element.height - padding * 2 };
+        } else {
+          answerArea = { x: padding, y: padding, width: answerWidth, height: element.height - padding * 2 };
+        }
+      } else {
+        const questionHeight = element.height * 0.3;
+        const answerHeight = element.height - questionHeight - padding * 3;
+        
+        if (questionPosition === 'top') {
+          answerArea = { x: padding, y: questionHeight + padding * 2, width: element.width - padding * 2, height: answerHeight };
+        } else {
+          answerArea = { x: padding, y: padding, width: element.width - padding * 2, height: answerHeight };
+        }
+      }
+      
+      // Generate lines in answer area with proper spacing
+      const firstLineY = answerArea.y + answerFontSize;
+      const endY = answerArea.y + answerArea.height;
+      
+      for (let y = firstLineY; y < endY; y += aLineHeight) {
+        lines.push(...generateLineElement(y, aTheme, answerArea.x, aColor, aWidth, aOpacity, answerArea.x + answerArea.width));
+      }
+    } else {
+      // Inline layout: original behavior
+      const aTheme = answerStyle.ruledLinesTheme || 'rough';
+      const aColor = answerStyle.ruledLinesColor || '#1f2937';
+      const aWidth = answerStyle.ruledLinesWidth || 0.8;
+      const aOpacity = answerStyle.ruledLinesOpacity ?? 1;
       
       const lineSpacing = answerFontSize * (aSpacing === 'small' ? 1.0 : aSpacing === 'large' ? 1.5 : 1.2);
-      const firstLineY = questionRuledLines ? element.height / 2 : padding + Math.max(questionFontSize, answerFontSize) * 0.8;
+      const firstLineY = padding + Math.max(answerFontSize, answerFontSize) * 0.8;
       for (let y = firstLineY; y < element.height - padding; y += lineSpacing) {
         lines.push(...generateLineElement(y, aTheme, padding, aColor, aWidth, aOpacity));
       }
@@ -374,15 +402,17 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
     return lines;
   };
   
-  const generateLineElement = (y: number, theme: string, padding: number, ruledLineColor: string, ruledLineWidth: number, ruledLineOpacity: number) => {
+  const generateLineElement = (y: number, theme: string, startX: number, ruledLineColor: string, ruledLineWidth: number, ruledLineOpacity: number, endX?: number) => {
     const lineElements = [];
+    const lineEndX = endX || (element.width - startX);
+    
     if (theme === 'rough') {
       const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
       const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       const rc = rough.svg(svg);
       
       try {
-        const roughLine = rc.line(padding, y, element.width - padding, y, {
+        const roughLine = rc.line(startX, y, lineEndX, y, {
           roughness: 2,
           strokeWidth: ruledLineWidth,
           stroke: ruledLineColor,
@@ -412,7 +442,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
         lineElements.push(
           <Path
             key={y}
-            data={`M ${padding} ${y} L ${element.width - padding} ${y}`}
+            data={`M ${startX} ${y} L ${lineEndX} ${y}`}
             stroke={ruledLineColor}
             strokeWidth={ruledLineWidth}
             opacity={ruledLineOpacity}
@@ -424,7 +454,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
       lineElements.push(
         <Path
           key={y}
-          data={`M ${padding} ${y} L ${element.width - padding} ${y}`}
+          data={`M ${startX} ${y} L ${lineEndX} ${y}`}
           stroke={ruledLineColor}
           strokeWidth={ruledLineWidth}
           opacity={ruledLineOpacity}

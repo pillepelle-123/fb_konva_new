@@ -94,6 +94,15 @@ export function ColorSelector({
       <div>
         <Label variant="xs">Standard Colors</Label>
         <div className="grid grid-cols-8 gap-1">
+          <button
+            className="w-8 h-8 rounded border-2 border-gray-300 hover:border-gray-400 relative"
+            style={{ 
+              backgroundColor: '#ffffff',
+              backgroundImage: 'linear-gradient(to top right, transparent 0%, transparent calc(50% - 1px), #ff0000 calc(50% - 1px), #ff0000 calc(50% + 1px), transparent calc(50% + 1px), transparent 100%)'
+            }}
+            onClick={() => onChange('transparent')}
+            title="transparent"
+          />
           {STANDARD_COLORS.map((color, index) => (
             <button
               key={index}
