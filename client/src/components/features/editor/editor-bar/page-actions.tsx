@@ -28,7 +28,7 @@ export function PageActions({
         <Button
           variant="outline"
           size="sm"
-          onClick={onAddPage}
+          onClick={() => window.dispatchEvent(new CustomEvent('addPage'))}
           disabled={isAuthor}
           className={`h-8 md:h-9 px-2 md:px-3 ${isAuthor ? 'opacity-50 cursor-not-allowed' : ''}`}
         >

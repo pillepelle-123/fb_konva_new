@@ -139,6 +139,7 @@ interface ToolSettingsContentProps {
   selectedQuestionElementId: string | null;
   setSelectedQuestionElementId: (value: string | null) => void;
   activeLinkedElement: string | null;
+  onOpenTemplates?: () => void;
 }
 
 export function ToolSettingsContent({
@@ -164,7 +165,8 @@ export function ToolSettingsContent({
   setShowQuestionDialog,
   selectedQuestionElementId,
   setSelectedQuestionElementId,
-  activeLinkedElement
+  activeLinkedElement,
+  onOpenTemplates
 }: ToolSettingsContentProps) {
   const { state, dispatch } = useEditor();
   const { user } = useAuth();
@@ -666,6 +668,7 @@ export function ToolSettingsContent({
           showBookTheme={showBookTheme}
           setShowBookTheme={setShowBookTheme}
           setShowBackgroundImageModal={setShowBackgroundImageModal}
+          onOpenTemplates={onOpenTemplates}
         />
       );
     }

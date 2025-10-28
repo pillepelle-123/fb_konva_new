@@ -55,6 +55,9 @@ app.use('/api/editor-settings', require('./routes/editor-settings'));
 app.use('/api/user-question-assignments', require('./routes/user-question-assignments'));
 app.use('/api/invitations', require('./routes/invitations'));
 app.use('/api/question-pool', require('./routes/question-pool'));
+app.use('/api/templates', require('./routes/templates'));
+app.use('/api/color-palettes', require('./routes/templates'));
+app.use('/api/pages', require('./routes/templates'));
 
 // Socket.IO authentication middleware
 io.use((socket, next) => {

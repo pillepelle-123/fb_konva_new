@@ -3,12 +3,90 @@ import type { ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from './auth-context';
 import { getToolDefaults } from '../utils/tool-defaults';
-import { apiService } from '../services/api';
+// Load real book data from API
+const apiService = {
+  loadBook: async (bookId) => {
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    const token = localStorage.getItem('token');
+    
+    try {
+      // Load book data
+      const bookResponse = await fetch(`${apiUrl}/books/${bookId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!bookResponse.ok) throw new Error('Failed to load book');
+      const book = await bookResponse.json();
+      
+      // Load questions
+      const questionsResponse = await fetch(`${apiUrl}/books/${bookId}/questions`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const questions = questionsResponse.ok ? await questionsResponse.json() : [];
+      
+      // Load answers
+      let answers = [];
+      try {
+        const answersResponse = await fetch(`${apiUrl}/answers/book/${bookId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (answersResponse.ok) {
+          const answersData = await answersResponse.json();
+          answers = Array.isArray(answersData) ? answersData : answersData.answers || [];
+          // console.log('Loaded answers:', answers);
+        } else {
+          // console.log('Answers response not ok:', answersResponse.status);
+        }
+      } catch (error) {
+        // console.error('Failed to load answers:', error);
+      }
+      
+      // Load user role
+      const roleResponse = await fetch(`${apiUrl}/books/${bookId}/user-role`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const userRole = roleResponse.ok ? await roleResponse.json() : null;
+      
+      // Load page assignments
+      const assignmentsResponse = await fetch(`${apiUrl}/page-assignments/book/${bookId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const pageAssignments = assignmentsResponse.ok ? await assignmentsResponse.json() : [];
+      
+      return {
+        book,
+        questions,
+        answers,
+        userRole,
+        pageAssignments
+      };
+    } catch (error) {
+      console.error('Failed to load book:', error);
+      // Fallback to empty book
+      return {
+        book: {
+          id: bookId,
+          name: 'Book',
+          pageSize: 'A4',
+          orientation: 'portrait',
+          pages: [{ id: 1, pageNumber: 1, elements: [] }]
+        },
+        questions: [],
+        answers: [],
+        userRole: null,
+        pageAssignments: []
+      };
+    }
+  }
+};
 import { actualToCommon } from '../utils/font-size-converter';
 import { actualToCommonStrokeWidth, commonToActualStrokeWidth, THEME_STROKE_RANGES } from '../utils/stroke-width-converter';
 import { actualToCommonRadius } from '../utils/corner-radius-converter';
 import { getRuledLinesOpacity } from '../utils/ruled-lines-utils';
 import { getBorderTheme } from '../utils/theme-utils';
+import { convertTemplateToElements } from '../utils/template-to-elements';
+import { pageTemplates } from '../data/templates/page-templates';
+import { colorPalettes } from '../data/templates/color-palettes';
+import type { PageTemplate, ColorPalette } from '../types/template-types';
 
 // Function to extract theme structure from current book state
 function logThemeStructure(book: Book | null) {
@@ -311,6 +389,12 @@ export interface HistoryState {
   editorSettings: Record<string, Record<string, any>>;
 }
 
+export interface WizardTemplateSelection {
+  selectedTemplateId: string | null;
+  selectedPaletteId: string | null;
+  templateCustomizations?: any;
+}
+
 export interface EditorState {
   currentBook: Book | null;
   activePageIndex: number;
@@ -340,6 +424,10 @@ export interface EditorState {
   stylePainterActive: boolean;
   copiedStyle: Partial<CanvasElement> | null;
   hoveredElementId: string | null;
+  selectedTemplate: PageTemplate | null;
+  availableTemplates: PageTemplate[];
+  colorPalettes: ColorPalette[];
+  wizardTemplateSelection: WizardTemplateSelection;
 }
 
 type EditorAction =
@@ -392,7 +480,13 @@ type EditorAction =
   | { type: 'TOGGLE_STYLE_PAINTER' }
   | { type: 'APPLY_COPIED_STYLE'; payload: string }
   | { type: 'UPDATE_BOOK_SETTINGS'; payload: { pageSize: string; orientation: string } }
-  | { type: 'SET_HOVERED_ELEMENT'; payload: string | null };
+  | { type: 'SET_HOVERED_ELEMENT'; payload: string | null }
+  | { type: 'SET_SELECTED_TEMPLATE'; payload: PageTemplate | null }
+  | { type: 'LOAD_TEMPLATES'; payload: PageTemplate[] }
+  | { type: 'LOAD_COLOR_PALETTES'; payload: ColorPalette[] }
+  | { type: 'APPLY_TEMPLATE_TO_PAGE'; payload: { pageIndex: number; template: PageTemplate } }
+  | { type: 'LOAD_TEMPLATES'; payload: PageTemplate[] }
+  | { type: 'SET_WIZARD_TEMPLATE_SELECTION'; payload: WizardTemplateSelection };
 
 const initialState: EditorState = {
   currentBook: null,
@@ -420,6 +514,14 @@ const initialState: EditorState = {
   stylePainterActive: false,
   copiedStyle: null,
   hoveredElementId: null,
+  selectedTemplate: null,
+  availableTemplates: pageTemplates,
+  colorPalettes: colorPalettes,
+  wizardTemplateSelection: {
+    selectedTemplateId: null,
+    selectedPaletteId: null,
+    templateCustomizations: undefined
+  },
 };
 
 const MAX_HISTORY_SIZE = 50;
@@ -1233,6 +1335,51 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         hasUnsavedChanges: true
       };
     
+    case 'SET_SELECTED_TEMPLATE':
+      return { ...state, selectedTemplate: action.payload };
+    
+    case 'LOAD_TEMPLATES':
+      return { ...state, availableTemplates: action.payload };
+    
+    case 'LOAD_COLOR_PALETTES':
+      return { ...state, colorPalettes: action.payload };
+    
+    case 'APPLY_TEMPLATE_TO_PAGE':
+      if (!state.currentBook) return state;
+      const savedTemplateState = saveToHistory(state, 'Apply Template');
+      const { pageIndex, template } = action.payload;
+      const updatedBookTemplate = { ...savedTemplateState.currentBook! };
+      const targetPageTemplate = updatedBookTemplate.pages[pageIndex];
+      
+      if (targetPageTemplate) {
+        // Set page background
+        targetPageTemplate.background = {
+          type: template.background.type,
+          value: template.background.value,
+          opacity: 1,
+          pageTheme: template.theme
+        };
+        
+        // Convert template to canvas elements
+        const newElements = convertTemplateToElements(template);
+        
+        // Add elements to page (replace existing elements)
+        targetPageTemplate.elements = newElements;
+      }
+      
+      return { 
+        ...savedTemplateState, 
+        currentBook: updatedBookTemplate, 
+        selectedTemplate: template,
+        hasUnsavedChanges: true 
+      };
+    
+    case 'LOAD_TEMPLATES':
+      return { ...state, availableTemplates: action.payload };
+    
+    case 'SET_WIZARD_TEMPLATE_SELECTION':
+      return { ...state, wizardTemplateSelection: action.payload };
+    
     default:
       return state;
   }
@@ -1243,6 +1390,9 @@ const EditorContext = createContext<{
   dispatch: React.Dispatch<EditorAction>;
   saveBook: () => Promise<void>;
   loadBook: (bookId: number) => Promise<void>;
+  applyTemplateToPage: (template: PageTemplate, pageIndex?: number) => void;
+  getWizardTemplateSelection: () => WizardTemplateSelection;
+  setWizardTemplateSelection: (selection: WizardTemplateSelection) => void;
   getQuestionText: (questionId: string) => string;
   getAnswerText: (questionId: string, userId?: number) => string;
   updateTempQuestion: (questionId: string, text: string) => void;
@@ -1818,6 +1968,22 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     return state.currentBook.pages.map((_, index) => index + 1);
   };
   
+  const applyTemplateToPage = (template: PageTemplate, pageIndex?: number) => {
+    const targetPageIndex = pageIndex ?? state.activePageIndex;
+    dispatch({ 
+      type: 'APPLY_TEMPLATE_TO_PAGE', 
+      payload: { pageIndex: targetPageIndex, template } 
+    });
+  };
+  
+  const getWizardTemplateSelection = (): WizardTemplateSelection => {
+    return state.wizardTemplateSelection;
+  };
+  
+  const setWizardTemplateSelection = (selection: WizardTemplateSelection) => {
+    dispatch({ type: 'SET_WIZARD_TEMPLATE_SELECTION', payload: selection });
+  };
+  
   const validateQuestionSelection = (questionId: string, currentPageNumber: number): { valid: boolean; reason?: string } => {
     if (!state.currentBook) return { valid: false, reason: 'No book loaded' };
     
@@ -1872,7 +2038,10 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       canEditCanvas,
       canEditSettings,
       getVisiblePages,
-      getVisiblePageNumbers
+      getVisiblePageNumbers,
+      applyTemplateToPage,
+      getWizardTemplateSelection,
+      setWizardTemplateSelection
     }}>
       {children}
     </EditorContext.Provider>

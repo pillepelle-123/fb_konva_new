@@ -307,3 +307,14 @@ INSERT INTO public.question_pool (question_text, category, language) VALUES
 ('What superpower would you choose?', 'Hypothetical', 'en'),
 ('If you could change one thing about the world, what would it be?', 'Hypothetical', 'en');
 
+-- ###############################################################
+-- Custom Templates Table
+-- ###############################################################
+
+CREATE TABLE custom_templates (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id),
+  template_data JSONB NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  is_public BOOLEAN DEFAULT FALSE
+);

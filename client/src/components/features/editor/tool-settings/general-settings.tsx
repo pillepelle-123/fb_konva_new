@@ -1,7 +1,7 @@
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import { Button } from '../../../ui/primitives/button';
-import { ChevronLeft, Settings, Palette, Image, PaintBucket, CircleHelp } from 'lucide-react';
+import { ChevronLeft, Settings, Palette, Image, PaintBucket, CircleHelp, LayoutPanelLeft } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '../../../ui/composites/tabs';
 import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
 import type { PageBackground } from '../../../../context/editor-context';
@@ -16,6 +16,7 @@ import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { PaletteSelector } from '../palette-selector';
 import { commonToActual } from '../../../../utils/font-size-converter';
 import { useState } from 'react';
+import ConfirmationDialog from '../../../ui/overlays/confirmation-dialog';
 
 interface GeneralSettingsProps {
   showColorSelector: string | null;
@@ -29,6 +30,7 @@ interface GeneralSettingsProps {
   showBookTheme: boolean;
   setShowBookTheme: (value: boolean) => void;
   setShowBackgroundImageModal: (value: boolean) => void;
+  onOpenTemplates?: () => void;
 }
 
 export function GeneralSettings({
@@ -42,12 +44,14 @@ export function GeneralSettings({
   setShowPageTheme,
   showBookTheme,
   setShowBookTheme,
-  setShowBackgroundImageModal
+  setShowBackgroundImageModal,
+  onOpenTemplates
 }: GeneralSettingsProps) {
   const { state, dispatch, canEditSettings } = useEditor();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
   const [showPagePalette, setShowPagePalette] = useState(false);
   const [showBookPalette, setShowBookPalette] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   const updateBackground = (updates: Partial<PageBackground>) => {
     const currentPage = state.currentBook?.pages[state.activePageIndex];
@@ -57,6 +61,22 @@ export function GeneralSettings({
       type: 'UPDATE_PAGE_BACKGROUND',
       payload: { pageIndex: state.activePageIndex, background: newBackground }
     });
+  };
+
+  const handleTemplatesClick = () => {
+    const currentPage = state.currentBook?.pages[state.activePageIndex];
+    const hasContent = currentPage?.elements && currentPage.elements.length > 0;
+    
+    if (hasContent) {
+      setShowConfirmDialog(true);
+    } else {
+      onOpenTemplates?.();
+    }
+  };
+
+  const handleConfirmTemplates = () => {
+    setShowConfirmDialog(false);
+    onOpenTemplates?.();
   };
 
   const renderPageThemeSettings = () => {
@@ -553,62 +573,86 @@ export function GeneralSettings({
   const canAccessPageSettings = state.editorInteractionLevel === 'full_edit' || state.editorInteractionLevel === 'full_edit_with_settings';
 
   return (
-    <div className="space-y-3">
-      {state.editorInteractionLevel === 'full_edit_with_settings' && (
-        <>
-          <div>
-            <Label variant="xs" className="text-muted-foreground mb-2 block">Book Settings</Label>
-            <div className="space-y-1">
-              <Button
-                variant="ghost_hover"
-                size="sm"
-                onClick={() => window.dispatchEvent(new CustomEvent('openQuestions'))}
-                className="w-full justify-start"
-              >
-                <CircleHelp className="h-4 w-4 mr-2" />
-                Questions
-              </Button>
-              <Button
-                variant="ghost_hover"
-                size="sm"
-                onClick={() => setShowBookTheme(true)}
-                className="w-full justify-start"
-              >
-                <Palette className="h-4 w-4 mr-2" />
-                Book Theme
-              </Button>
+    <>
+      <div className="space-y-3">
+        {state.editorInteractionLevel === 'full_edit_with_settings' && (
+          <>
+            <div>
+              <Label variant="xs" className="text-muted-foreground mb-2 block">Book Settings</Label>
+              <div className="space-y-1">
+                <Button
+                  variant="ghost_hover"
+                  size="sm"
+                  onClick={() => window.dispatchEvent(new CustomEvent('openQuestions'))}
+                  className="w-full justify-start"
+                >
+                  <CircleHelp className="h-4 w-4 mr-2" />
+                  Questions
+                </Button>
+                <Button
+                  variant="ghost_hover"
+                  size="sm"
+                  onClick={() => setShowBookTheme(true)}
+                  className="w-full justify-start"
+                >
+                  <Palette className="h-4 w-4 mr-2" />
+                  Book Theme
+                </Button>
+              </div>
             </div>
+            
+            <Separator />
+          </>
+        )}
+        
+        <div>
+          <Label variant="xs" className="text-muted-foreground mb-2 block">Page Settings</Label>
+          <div className="space-y-1">
+            <Button
+              variant="ghost_hover"
+              size="sm"
+              onClick={() => canAccessPageSettings && setShowBackgroundSettings(true)}
+              className={`w-full justify-start ${!canAccessPageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={!canAccessPageSettings}
+            >
+              <PaintBucket className="h-4 w-4 mr-2" />
+              Background
+            </Button>
+            <Button
+              variant="ghost_hover"
+              size="sm"
+              onClick={() => canAccessPageSettings && setShowPageTheme(true)}
+              className={`w-full justify-start ${!canAccessPageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={!canAccessPageSettings}
+            >
+              <Palette className="h-4 w-4 mr-2" />
+              Page Theme
+            </Button>
+            <Button
+              variant="ghost_hover"
+              size="sm"
+              onClick={() => canAccessPageSettings && handleTemplatesClick()}
+              className={`w-full justify-start ${!canAccessPageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={!canAccessPageSettings}
+              title="Choose Template"
+            >
+              <LayoutPanelLeft className="h-4 w-4 mr-2" />
+              Templates
+            </Button>
           </div>
-          
-          <Separator />
-        </>
-      )}
-      
-      <div>
-        <Label variant="xs" className="text-muted-foreground mb-2 block">Page Settings</Label>
-        <div className="space-y-1">
-          <Button
-            variant="ghost_hover"
-            size="sm"
-            onClick={() => canAccessPageSettings && setShowBackgroundSettings(true)}
-            className={`w-full justify-start ${!canAccessPageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
-            disabled={!canAccessPageSettings}
-          >
-            <PaintBucket className="h-4 w-4 mr-2" />
-            Background
-          </Button>
-          <Button
-            variant="ghost_hover"
-            size="sm"
-            onClick={() => canAccessPageSettings && setShowPageTheme(true)}
-            className={`w-full justify-start ${!canAccessPageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
-            disabled={!canAccessPageSettings}
-          >
-            <Palette className="h-4 w-4 mr-2" />
-            Page Theme
-          </Button>
         </div>
       </div>
-    </div>
+      
+      <ConfirmationDialog
+        open={showConfirmDialog}
+        onOpenChange={setShowConfirmDialog}
+        title="Replace Existing Elements"
+        description="This will replace existing elements. Continue?"
+        onConfirm={handleConfirmTemplates}
+        onCancel={() => setShowConfirmDialog(false)}
+        confirmText="Continue"
+        cancelText="Cancel"
+      />
+    </>
   );
 }

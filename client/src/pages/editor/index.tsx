@@ -9,6 +9,8 @@ import { StatusBar } from '../../components/features/editor/status-bar';
 import { Toast } from '../../components/ui/overlays/toast';
 import QuestionSelectionHandler from '../../components/features/editor/question-selection-handler';
 import PagePreviewOverlay from '../../components/features/editor/preview/page-preview-overlay';
+import TemplateGallery from '../../components/templates/template-gallery';
+import { fetchTemplates, fetchColorPalettes } from '../../services/api';
 
 
 function EditorContent() {
@@ -18,6 +20,26 @@ function EditorContent() {
   const [showSaveToast, setShowSaveToast] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [previewContent, setPreviewContent] = useState<'preview' | 'questions' | 'manager'>('preview');
+  const [showTemplateGallery, setShowTemplateGallery] = useState(false);
+  const [showNewPageDialog, setShowNewPageDialog] = useState(false);
+
+  // Load templates and palettes on mount
+  useEffect(() => {
+    const loadTemplateData = async () => {
+      try {
+        const [templatesData, palettesData] = await Promise.all([
+          fetchTemplates(),
+          fetchColorPalettes()
+        ]);
+        dispatch({ type: 'LOAD_TEMPLATES', payload: templatesData.templates });
+        dispatch({ type: 'LOAD_COLOR_PALETTES', payload: palettesData.palettes });
+      } catch (error) {
+        console.error('Failed to load template data:', error);
+      }
+    };
+    
+    loadTemplateData();
+  }, [dispatch]);
 
   useEffect(() => {
     if (bookId) {
@@ -106,14 +128,27 @@ function EditorContent() {
       setPreviewContent('manager');
       setShowPreview(true);
     };
+    
+    const handleShowPDFExport = () => {
+      setPreviewContent('preview');
+      setShowPreview(true);
+    };
+    
+    const handleAddPage = () => {
+      setShowNewPageDialog(true);
+    };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('openQuestions', handleOpenQuestions);
     window.addEventListener('openManager', handleOpenManager);
+    window.addEventListener('showPDFExport', handleShowPDFExport);
+    window.addEventListener('addPage', handleAddPage);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('openQuestions', handleOpenQuestions);
       window.removeEventListener('openManager', handleOpenManager);
+      window.removeEventListener('showPDFExport', handleShowPDFExport);
+      window.removeEventListener('addPage', handleAddPage);
     };
   }, [undo, redo, saveBook]);
 
@@ -186,11 +221,11 @@ function EditorContent() {
       />
         <div className="h-full flex flex-col bg-background">
           <div className="flex-1 flex min-h-0">
-            {canEditCanvas() && <Toolbar />}
+            {canEditCanvas() && <Toolbar onOpenTemplates={() => setShowTemplateGallery(true)} />}
             <div className="flex-1 overflow-hidden bg-muted">
               <Canvas />
             </div>
-            {canEditCanvas() && <ToolSettingsPanel ref={toolSettingsPanelRef} />}
+            {canEditCanvas() && <ToolSettingsPanel ref={toolSettingsPanelRef} onOpenTemplates={() => setShowTemplateGallery(true)} />}
           </div>
           
           <StatusBar />
@@ -201,6 +236,51 @@ function EditorContent() {
           onClose={() => setShowPreview(false)}
           content={previewContent}
         />
+        
+        <TemplateGallery
+          isOpen={showTemplateGallery}
+          onClose={() => setShowTemplateGallery(false)}
+        />
+        
+        {/* New Page Dialog */}
+        {showNewPageDialog && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setShowNewPageDialog(false)} />
+            <div className="relative bg-white rounded-lg p-6 shadow-xl max-w-md w-full mx-4">
+              <h3 className="text-lg font-semibold mb-4">Create New Page</h3>
+              <div className="space-y-3">
+                <button
+                  onClick={() => {
+                    setShowNewPageDialog(false);
+                    setShowTemplateGallery(true);
+                  }}
+                  className="w-full p-4 text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <div className="font-medium">Start from Template</div>
+                  <div className="text-sm text-gray-600">Choose from pre-designed layouts</div>
+                </button>
+                <button
+                  onClick={() => {
+                    dispatch({ type: 'ADD_PAGE' });
+                    setShowNewPageDialog(false);
+                  }}
+                  className="w-full p-4 text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <div className="font-medium">Blank Page</div>
+                  <div className="text-sm text-gray-600">Start with an empty canvas</div>
+                </button>
+              </div>
+              <div className="mt-4 flex justify-end">
+                <button
+                  onClick={() => setShowNewPageDialog(false)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       
     </div>

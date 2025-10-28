@@ -34,7 +34,11 @@ export interface ToolSettingsPanelRef {
   openBookTheme: () => void;
 }
 
-const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, {}>((props, ref) => {
+interface ToolSettingsPanelProps {
+  onOpenTemplates?: () => void;
+}
+
+const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProps>(({ onOpenTemplates }, ref) => {
   const { state, dispatch } = useEditor();
   const { token, user } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -257,6 +261,7 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, {}>((props, ref) => {
             activeLinkedElement={activeLinkedElement}
             showFontSelector={showFontSelector}
             setShowFontSelector={setShowFontSelector}
+            onOpenTemplates={onOpenTemplates}
           />
         )}
       </ToolSettingsContainer>

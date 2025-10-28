@@ -3,6 +3,7 @@ import { Button } from '../ui/primitives/button';
 import { MessageSquare, IdCard, Settings, UserStar, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/auth-context';
 import { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 
 interface NavigationSubMenuProps {
   onClose: () => void;
@@ -23,8 +24,8 @@ export default function NavigationSubMenu({ onClose }: NavigationSubMenuProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [onClose]);
 
-  return (
-    <div ref={menuRef} className="absolute top-full right-0 mt-1 bg-white border rounded-md shadow-lg py-1 min-w-[160px] z-50">
+  return createPortal(
+    <div ref={menuRef} className="fixed top-16 right-4 bg-white border rounded-md shadow-lg py-1 min-w-[160px] z-[9999]">
       <Link to="/messenger" onClick={onClose}>
         <Button
           variant="ghost"
@@ -79,6 +80,7 @@ export default function NavigationSubMenu({ onClose }: NavigationSubMenuProps) {
         <LogOut className="h-5 w-5" />
         <span>Logout</span>
       </Button>
-    </div>
+    </div>,
+    document.body
   );
 }

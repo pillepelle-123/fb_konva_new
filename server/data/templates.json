@@ -1,0 +1,37 @@
+{
+  "version": "1.0.0",
+  "templates": [
+    {
+      "id": "structured-grid-1",
+      "name": "Classic Grid",
+      "category": "structured",
+      "thumbnail": "/templates/structured-grid-1.png",
+      "theme": "default",
+      "colorPalette": {
+        "primary": "#1976D2",
+        "secondary": "#42A5F5",
+        "accent": "#81C784",
+        "background": "#FFFFFF",
+        "text": "#1A1A1A"
+      },
+      "background": {
+        "type": "color",
+        "value": "#FFFFFF",
+        "enabled": true
+      },
+      "textboxes": [
+        { "type": "question", "position": { "x": 200, "y": 300 }, "size": { "width": 800, "height": 120 } },
+        { "type": "question", "position": { "x": 1200, "y": 300 }, "size": { "width": 800, "height": 120 } }
+      ],
+      "elements": [
+        { "type": "image", "position": { "x": 800, "y": 2000 }, "size": { "width": 600, "height": 400 } }
+      ],
+      "constraints": {
+        "minQuestions": 8,
+        "maxQuestions": 12,
+        "imageSlots": 1,
+        "stickerSlots": 2
+      }
+    }
+  ]
+}
