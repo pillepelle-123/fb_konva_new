@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '../../../ui/primitives/button';
-import { X, Paintbrush, Minus, Circle, Square, Triangle, Pentagon, Heart, Star, MessageSquare, Dog, Cat, Smile } from 'lucide-react';
+import { X, Paintbrush, Minus, Circle, Square, Triangle, Pentagon, Heart, Star, MessageSquare, Dog, Cat, Smile, Pipette } from 'lucide-react';
 import { Label } from '../../../ui/primitives/label';
 import { Input } from '../../../ui/primitives/input';
 import { Slider } from '../../../ui/primitives/slider';
@@ -35,6 +35,7 @@ const TOOL_CONFIG: Record<string, { label: string; icon: any }> = {
   dog: { label: 'Dog', icon: Dog },
   cat: { label: 'Cat', icon: Cat },
   smiley: { label: 'Smiley', icon: Smile },
+  pipette: { label: 'Pipette', icon: Pipette },
 };
 
 export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopoverProps) {
@@ -49,6 +50,7 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
   // Listen for brush mode events
   const [brushStrokes, setBrushStrokes] = useState<number[][]>([]);
   const [isBrushMode, setIsBrushMode] = useState(false);
+  const [isPipetteMode, setIsPipetteMode] = useState(false);
   
   useEffect(() => {
     const handleBrushStroke = (e: CustomEvent) => {
@@ -74,6 +76,13 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
     };
   }, []);
   
+  // Set pipette mode when pipette tool is activated
+  useEffect(() => {
+    if (activeTool === 'pipette' && !isPipetteMode) {
+      setIsPipetteMode(true);
+    }
+  }, [activeTool, isPipetteMode]);
+  
   const favoriteColors = state.editorSettings?.favoriteColors?.strokeColors || [];
   
   const addFavoriteColor = (color: string) => {
@@ -98,11 +107,11 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
     });
   };
   
-  const needsSettings = ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(activeTool);
+  const needsSettings = ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'pipette'].includes(activeTool);
   const needsFill = ['rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(activeTool);
   
   const settings = state.toolSettings?.[activeTool] || {};
-  const strokeWidth = settings.strokeWidth || 50;
+  const strokeWidth = settings.strokeWidth || 2;
   const strokeColor = settings.strokeColor || '#1f2937';
   const fillColor = settings.fillColor || 'transparent';
   const polygonSides = settings.polygonSides || 5;
@@ -125,16 +134,16 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
     if (needsSettings && !isOpen) {
       setIsOpen(true);
       updatePosition();
-    } else if (!needsSettings && isOpen && brushStrokes.length === 0) {
+    } else if (!needsSettings && isOpen && brushStrokes.length === 0 && !isPipetteMode) {
       setIsOpen(false);
     } 
-  }, [activeTool, needsSettings, brushStrokes.length]);
+  }, [activeTool, needsSettings, brushStrokes.length, isOpen, isPipetteMode]);
 
   useEffect(() => {
     if (!isOpen) return;
 
     const handleClickOutside = (e: MouseEvent) => {
-      if (activeTool === 'brush' || brushStrokes.length > 0) {
+      if (activeTool === 'brush' || brushStrokes.length > 0 || isPipetteMode) {
         return;
       }
       
@@ -150,7 +159,7 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen, activeTool, brushStrokes.length]);
+  }, [isOpen, activeTool, brushStrokes.length, isPipetteMode]);
 
   const updateSetting = (key: string, value: any) => {
     dispatch({
@@ -159,7 +168,7 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
     });
   };
 
-  if (!needsSettings && brushStrokes.length === 0) {
+  if (!needsSettings && brushStrokes.length === 0 && !isPipetteMode) {
     return <>{children}</>;
   }
 
@@ -196,6 +205,10 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
                   window.dispatchEvent(new CustomEvent('brushCancel'));
                   dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
                 }
+                if (isPipetteMode) {
+                  setIsPipetteMode(false);
+                  dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+                }
                 setIsOpen(false);
               }}
               className="h-6 w-6 p-0"
@@ -204,7 +217,15 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
             </Button>
           </div>
 
-          {showStrokeColorPicker ? (
+          {isPipetteMode ? (
+            <ColorSelector
+              value={settings.pipetteColor || '#1f2937'}
+              onChange={(color) => updateSetting('pipetteColor', color)}
+              favoriteColors={favoriteColors}
+              onAddFavorite={addFavoriteColor}
+              onRemoveFavorite={removeFavoriteColor}
+            />
+          ) : showStrokeColorPicker ? (
             <ColorSelector
               value={strokeColor}
               onChange={(color) => updateSetting('strokeColor', color)}
@@ -235,7 +256,8 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
                   <Label className="text-xs mb-2 block">Brush Size</Label>
                   <Slider
                     label="Brush Size"
-                    value={strokeWidth}
+                    value={Math.round(strokeWidth)}
+                    displayValue={Math.round(strokeWidth)}
                     onChange={(value) => updateSetting('strokeWidth', value)}
                     min={1}
                     max={100}
@@ -320,7 +342,8 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
                 <Label className="text-xs mb-2 block">{strokeWidthLabel}</Label>
                 <Slider
                   label="Stroke Width"
-                  value={strokeWidth}
+                  value={Math.round(strokeWidth)}
+                  displayValue={Math.round(strokeWidth)}
                   onChange={(value) => updateSetting('strokeWidth', value)}
                   min={1}
                   max={100}

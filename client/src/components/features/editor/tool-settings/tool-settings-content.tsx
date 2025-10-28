@@ -1,7 +1,7 @@
 import { useEditor } from '../../../../context/editor-context';
 import { useState } from 'react';
 import { Button } from '../../../ui/primitives/button';
-import { SquareMousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, AlignLeft, AlignCenter, AlignRight, AlignJustify, Rows4, Rows3, Rows2, Palette, Type, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, SquareRoundCorner, PanelTopBottomDashed, Triangle, Pentagon } from 'lucide-react';
+import { SquareMousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, AlignLeft, AlignCenter, AlignRight, AlignJustify, Rows4, Rows3, Rows2, Palette, Type, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, SquareRoundCorner, PanelTopBottomDashed, Triangle, Pentagon, ChevronLeft } from 'lucide-react';
 import { QuestionPositionTop, QuestionPositionBottom, QuestionPositionLeft, QuestionPositionRight } from '../../../ui/icons/question-position-icons';
 import { ButtonGroup } from '../../../ui/composites/button-group';
 import { Card, Tabs, TabsList, TabsTrigger } from '../../../ui/composites';
@@ -424,16 +424,182 @@ export function ToolSettingsContent({
       
       // If a grouped element is selected, show that element's settings
       if (state.selectedGroupedElement && selectedElement?.groupedElements) {
+        const parentElement = selectedElement;
         selectedElement = selectedElement.groupedElements.find(
           el => el.id === state.selectedGroupedElement.elementId
         );
+        
+        // Show Back button for individual grouped element
+        if (selectedElement) {
+          return (
+            <div className="space-y-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  // Clear the grouped element selection first
+                  dispatch({ 
+                    type: 'SET_SELECTED_ELEMENTS', 
+                    payload: [] 
+                  });
+                  // Then select the parent group
+                  setTimeout(() => {
+                    dispatch({ 
+                      type: 'SET_SELECTED_ELEMENTS', 
+                      payload: [parentElement.id] 
+                    });
+                  }, 0);
+                }}
+                className="w-full justify-start gap-1 h-7 px-2"
+              >
+                <ChevronLeft className="h-3 w-3" />
+                <span className="text-sm">Back</span>
+              </Button>
+              <Separator />
+              {renderElementSettings(selectedElement)}
+            </div>
+          );
+        }
       }
       
       if (selectedElement) {
         // Special handling for grouped elements (including brush-multicolor)
         if ((selectedElement.type === 'group' || selectedElement.type === 'brush-multicolor') && selectedElement.groupedElements) {
+          // If brush-multicolor has only one item, show individual brush settings
+          if (selectedElement.type === 'brush-multicolor' && selectedElement.groupedElements.length === 1) {
+            const singleBrush = selectedElement.groupedElements[0];
+            
+            // Show color selector if requested
+            if (showColorSelector === 'element-brush-stroke') {
+              return (
+                <ColorSelector
+                  value={singleBrush.stroke || '#1f2937'}
+                  onChange={(color) => {
+                    dispatch({
+                      type: 'UPDATE_GROUPED_ELEMENT',
+                      payload: {
+                        groupId: selectedElement.id,
+                        elementId: singleBrush.id,
+                        updates: { stroke: color }
+                      }
+                    });
+                  }}
+                  opacity={singleBrush.strokeOpacity || 1}
+                  onOpacityChange={(opacity) => {
+                    dispatch({
+                      type: 'UPDATE_GROUPED_ELEMENT',
+                      payload: {
+                        groupId: selectedElement.id,
+                        elementId: singleBrush.id,
+                        updates: { strokeOpacity: opacity }
+                      }
+                    });
+                  }}
+                  favoriteColors={favoriteStrokeColors}
+                  onAddFavorite={addFavoriteStrokeColor}
+                  onRemoveFavorite={removeFavoriteStrokeColor}
+                  onBack={() => setShowColorSelector(null)}
+                />
+              );
+            }
+            
+            return (
+              <div className="space-y-2">
+                <Slider
+                  label="Brush Size"
+                  value={Math.round(singleBrush.strokeWidth || 2)}
+                  displayValue={Math.round(singleBrush.strokeWidth || 2)}
+                  onChange={(value) => {
+                    dispatch({
+                      type: 'UPDATE_GROUPED_ELEMENT',
+                      payload: {
+                        groupId: selectedElement.id,
+                        elementId: singleBrush.id,
+                        updates: { 
+                          strokeWidth: value,
+                          originalStrokeWidth: singleBrush.originalStrokeWidth || value
+                        }
+                      }
+                    });
+                  }}
+                  min={1}
+                  max={100}
+                />
+                
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={() => setShowColorSelector('element-brush-stroke')}
+                  className="w-full"
+                >
+                  <Palette className="h-4 w-4 mr-2" />
+                  Brush Color
+                </Button>
+                
+                <Slider
+                  label="Opacity"
+                  value={Math.round((singleBrush.strokeOpacity || 1) * 100)}
+                  onChange={(value) => {
+                    dispatch({
+                      type: 'UPDATE_GROUPED_ELEMENT',
+                      payload: {
+                        groupId: selectedElement.id,
+                        elementId: singleBrush.id,
+                        updates: { strokeOpacity: value / 100 }
+                      }
+                    });
+                  }}
+                  min={0}
+                  max={100}
+                  step={5}
+                  unit="%"
+                />
+              </div>
+            );
+          }
+          
+          const brushElements = selectedElement.groupedElements.filter(el => el.type === 'brush');
+          const hasBrushElements = brushElements.length > 0;
+          
+          // Calculate current relative scale from smallest brush
+          const minStrokeWidth = hasBrushElements ? Math.min(...brushElements.map(el => el.strokeWidth || 2)) : 2;
+          const maxPossibleScale = Math.floor((100 / minStrokeWidth) * 100); // Max scale before smallest brush exceeds 100
+          const currentScale = hasBrushElements ? Math.round((brushElements[0].strokeWidth || 2) / (brushElements[0].originalStrokeWidth || brushElements[0].strokeWidth || 2) * 100) : 100;
+          
           return (
             <div className="space-y-1">
+              {hasBrushElements && (
+                <>
+                  <div className="text-xs font-medium mb-2">Brush Size</div>
+                  <Slider
+                    label="Relative Brush Size"
+                    value={currentScale}
+                    displayValue={currentScale}
+                    onChange={(value) => {
+                      const scaleFactor = value / 100;
+                      brushElements.forEach(brushEl => {
+                        const originalWidth = brushEl.originalStrokeWidth || brushEl.strokeWidth || 2;
+                        const newWidth = Math.max(0.5, originalWidth * scaleFactor);
+                        dispatch({
+                          type: 'UPDATE_GROUPED_ELEMENT',
+                          payload: {
+                            groupId: selectedElement.id,
+                            elementId: brushEl.id,
+                            updates: { 
+                              strokeWidth: newWidth,
+                              originalStrokeWidth: originalWidth
+                            }
+                          }
+                        });
+                      });
+                    }}
+                    min={10}
+                    max={Math.min(300, maxPossibleScale)}
+                    step={5}
+                  />
+                  <Separator />
+                </>
+              )}
               <div className="text-xs font-medium mb-2">Grouped Items ({selectedElement.groupedElements.length})</div>
               {selectedElement.groupedElements.map((element, index) => {
                 const elementType = element.type === 'text' && element.textType 
@@ -444,6 +610,8 @@ export function ToolSettingsContent({
                   <div 
                     key={element.id} 
                     className="flex items-center gap-1 p-1 bg-muted rounded text-xs cursor-pointer hover:bg-muted/80"
+                    onMouseEnter={() => dispatch({ type: 'SET_HOVERED_ELEMENT', payload: element.id })}
+                    onMouseLeave={() => dispatch({ type: 'SET_HOVERED_ELEMENT', payload: null })}
                     onClick={() => {
                       dispatch({ 
                         type: 'SELECT_GROUPED_ELEMENT', 
@@ -2639,9 +2807,39 @@ export function ToolSettingsContent({
       case 'brush':
         return (
           <div className="space-y-2">
-            <div className="text-xs text-muted-foreground">
-              No settings available for brush elements.
-            </div>
+            <Slider
+              label="Brush Size"
+              value={Math.round(element.strokeWidth || 2)}
+              displayValue={Math.round(element.strokeWidth || 2)}
+              onChange={(value) => {
+                updateElementSettingLocal('strokeWidth', value);
+                if (!element.originalStrokeWidth) {
+                  updateElementSettingLocal('originalStrokeWidth', value);
+                }
+              }}
+              min={1}
+              max={100}
+            />
+            
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => setShowColorSelector('element-brush-stroke')}
+              className="w-full"
+            >
+              <Palette className="h-4 w-4 mr-2" />
+              Brush Color
+            </Button>
+            
+            <Slider
+              label="Opacity"
+              value={Math.round((element.strokeOpacity || 1) * 100)}
+              onChange={(value) => updateElementSettingLocal('strokeOpacity', value / 100)}
+              min={0}
+              max={100}
+              step={5}
+              unit="%"
+            />
           </div>
         );
 

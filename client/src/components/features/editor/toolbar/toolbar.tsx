@@ -24,7 +24,8 @@ import {
   Smile,
   MessagesSquare,
   Triangle,
-  Pentagon
+  Pentagon,
+  Pipette
 } from 'lucide-react';
 
 export default function Toolbar() {
@@ -89,6 +90,7 @@ export default function Toolbar() {
       name: 'Drawing',
       tools: [
         { id: 'brush', label: 'Brush', icon: Paintbrush },
+        { id: 'pipette', label: 'Pipette', icon: Pipette },
       ]
     },
   ];

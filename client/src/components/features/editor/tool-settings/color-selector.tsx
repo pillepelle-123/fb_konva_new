@@ -19,7 +19,7 @@ interface ColorSelectorProps {
   favoriteColors: string[];
   onAddFavorite: (color: string) => void;
   onRemoveFavorite: (color: string) => void;
-  onBack: () => void;
+  onBack?: () => void;
 }
 
 export function ColorSelector({
@@ -34,51 +34,57 @@ export function ColorSelector({
 }: ColorSelectorProps) {
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 mb-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onBack}
-          className="px-2 h-8"
-        >
-          <ChevronLeft className="h-4 w-4 mr-1" />
-          Back
-        </Button>
-      </div>
-      
-      <div>
-        <Label variant="xs">Selected Color</Label>
+      {onBack && (
         <div className="flex items-center gap-2 mb-2">
-          <button
-            className="w-8 h-8 rounded border-2 border-gray-300"
-            style={{ backgroundColor: value === 'transparent' ? '#ffffff' : (value || '#000000') }}
-          />
-          <input
-            type="text"
-            value={value === 'transparent' ? 'transparent' : (value || '')}
-            onChange={(e) => onChange(e.target.value)}
-            className="flex-1 px-2 py-1 text-xs border rounded"
-            placeholder="#000000"
-          />
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => {
-              const isFavorite = favoriteColors.includes(value);
-              if (isFavorite) {
-                onRemoveFavorite(value);
-              } else {
-                onAddFavorite(value);
-              }
-            }}
-            className="p-0 h-6 w-6"
+            onClick={onBack}
+            className="px-2 h-8"
           >
-            {favoriteColors.includes(value) ? (
-              <Heart className="h-3 w-3 fill-current text-red-500" />
-            ) : (
-              <Heart className="h-3 w-3" />
-            )}
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Back
           </Button>
+        </div>
+      )}
+      
+      <div>
+        <Label variant="xs">Selected Color</Label>
+        <div className="mb-2">
+          <div
+            className="w-full h-10 rounded border-2 border-gray-300 mb-2"
+            style={{ backgroundColor: value === 'transparent' ? '#ffffff' : (value || '#000000') }}
+          />
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={value === 'transparent' ? 'transparent' : (value || '')}
+              onChange={(e) => onChange(e.target.value)}
+              className="flex-1 px-2 py-1 text-xs border rounded"
+              placeholder="#000000"
+            />
+            <Tooltip content="Add to your Favorite Colors">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  const isFavorite = favoriteColors.includes(value);
+                  if (isFavorite) {
+                    onRemoveFavorite(value);
+                  } else {
+                    onAddFavorite(value);
+                  }
+                }}
+                className="p-0 h-8 w-8"
+              >
+                {favoriteColors.includes(value) ? (
+                  <Heart className="h-5 w-5 fill-current text-red-500" />
+                ) : (
+                  <Heart className="h-5 w-5" />
+                )}
+              </Button>
+            </Tooltip>
+          </div>
         </div>
         {/* <div className="[&_.sketch-picker]:!rounded-none [&_.sketch-picker]:!shadow-none"> */}
           <SketchPicker

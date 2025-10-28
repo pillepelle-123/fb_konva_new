@@ -16,6 +16,7 @@ export interface CanvasItemProps {
   isDragging?: boolean;
   zoom?: number;
   isInsideGroup?: boolean;
+  hoveredElementId?: string | null;
 }
 
 interface BaseCanvasItemProps extends CanvasItemProps {
@@ -24,6 +25,7 @@ interface BaseCanvasItemProps extends CanvasItemProps {
   onDoubleClick?: (e?: any) => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
+  hoveredElementId?: string | null;
 }
 
 export default function BaseCanvasItem({ 
@@ -39,7 +41,8 @@ export default function BaseCanvasItem({
   hitArea,
   onDoubleClick,
   onMouseEnter,
-  onMouseLeave
+  onMouseLeave,
+  hoveredElementId
 }: BaseCanvasItemProps) {
   const { state, dispatch } = useEditor();
   const groupRef = useRef<Konva.Group>(null);
@@ -194,7 +197,7 @@ export default function BaseCanvasItem({
       />
       
       {/* Dashed border on hover or within selection */}
-      {(isHovered || partnerHovered || isWithinSelection) && state.activeTool === 'select' && (
+      {(isHovered || partnerHovered || isWithinSelection || hoveredElementId === element.id) && state.activeTool === 'select' && (
         <SelectionHoverRectangle
           x={defaultHitArea.x}
           y={defaultHitArea.y}

@@ -11,6 +11,7 @@ interface SliderProps {
   step?: number;
   unit?: string;
   className?: string;
+  displayValue?: number;
 }
 
 export function Slider({ 
@@ -24,6 +25,7 @@ export function Slider({
   className = '',
   tooltipPosition = 'left',
   hasLabel = true,
+  displayValue,
 }: SliderProps) {
   const sliderInput = (
     <input
@@ -48,7 +50,7 @@ export function Slider({
           sliderInput
         )}
       </div>
-      <span className="text-xs text-muted-foreground">{value}</span>
+      <span className="text-xs text-muted-foreground">{displayValue !== undefined ? displayValue : value}</span>
     </div>
   );
 }

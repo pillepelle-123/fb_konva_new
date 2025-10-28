@@ -13,7 +13,7 @@ interface CanvasItemComponentProps extends CanvasItemProps {
 }
 
 export default function CanvasItemComponent(props: CanvasItemComponentProps) {
-  const { element, onDragStart, onSelect } = props;
+  const { element, onDragStart, onSelect, hoveredElementId } = props;
   const { dispatch, state } = useEditor();
 
   if ((element.type === 'group' || element.type === 'brush-multicolor') && element.groupedElements) {
@@ -56,7 +56,7 @@ export default function CanvasItemComponent(props: CanvasItemComponentProps) {
         }}
       >
         {element.groupedElements.map(groupedEl => (
-          <CanvasItemComponent key={groupedEl.id} {...props} element={groupedEl} isSelected={false} isInsideGroup={true} />
+          <CanvasItemComponent key={groupedEl.id} {...props} element={groupedEl} isSelected={false} isInsideGroup={true} hoveredElementId={hoveredElementId} />
         ))}
       </Group>
     );

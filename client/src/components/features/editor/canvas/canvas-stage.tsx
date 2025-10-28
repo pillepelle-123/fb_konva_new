@@ -51,7 +51,7 @@ const CanvasStage = forwardRef<Konva.Stage, CanvasStageProps>(({
       x={stagePos.x}
       y={stagePos.y}
       style={{ 
-        cursor: activeTool === 'pan' ? 'grab' : (activeTool === 'select' ? 'default' : 'crosshair'),
+        cursor: activeTool === 'pan' ? 'grab' : (activeTool === 'select' ? 'default' : (activeTool === 'pipette' ? 'crosshair' : 'crosshair')),
         backgroundColor: '#F9FAFB' 
       }}
     >

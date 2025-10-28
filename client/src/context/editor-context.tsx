@@ -339,6 +339,7 @@ export interface EditorState {
   qnaActiveSection: 'question' | 'answer';
   stylePainterActive: boolean;
   copiedStyle: Partial<CanvasElement> | null;
+  hoveredElementId: string | null;
 }
 
 type EditorAction =
@@ -390,7 +391,8 @@ type EditorAction =
   | { type: 'SET_QNA_ACTIVE_SECTION'; payload: 'question' | 'answer' }
   | { type: 'TOGGLE_STYLE_PAINTER' }
   | { type: 'APPLY_COPIED_STYLE'; payload: string }
-  | { type: 'UPDATE_BOOK_SETTINGS'; payload: { pageSize: string; orientation: string } };
+  | { type: 'UPDATE_BOOK_SETTINGS'; payload: { pageSize: string; orientation: string } }
+  | { type: 'SET_HOVERED_ELEMENT'; payload: string | null };
 
 const initialState: EditorState = {
   currentBook: null,
@@ -417,6 +419,7 @@ const initialState: EditorState = {
   qnaActiveSection: 'question',
   stylePainterActive: false,
   copiedStyle: null,
+  hoveredElementId: null,
 };
 
 const MAX_HISTORY_SIZE = 50;
@@ -1010,6 +1013,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         },
         hasUnsavedChanges: true
       };
+    
+    case 'SET_HOVERED_ELEMENT':
+      return { ...state, hoveredElementId: action.payload };
     
     case 'REORDER_PAGES':
       if (!state.currentBook || state.userRole === 'author') return state;

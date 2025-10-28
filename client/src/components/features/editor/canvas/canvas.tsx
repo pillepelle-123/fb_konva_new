@@ -1433,6 +1433,37 @@ export default function Canvas() {
       setContextMenu({ x: 0, y: 0, visible: false });
     }
     
+    // Handle pipette tool
+    if (state.activeTool === 'pipette' && e.evt.button === 0) {
+      const stage = stageRef.current;
+      if (!stage) return;
+      
+      const pos = stage.getPointerPosition();
+      if (!pos) return;
+      
+      // Get pixel color at click position
+      try {
+        const canvas = stage.toCanvas();
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          const pixelData = ctx.getImageData(pos.x, pos.y, 1, 1).data;
+          const r = pixelData[0];
+          const g = pixelData[1];
+          const b = pixelData[2];
+          const hex = `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+          
+          // Update pipette color in tool settings
+          dispatch({
+            type: 'UPDATE_TOOL_SETTINGS',
+            payload: { tool: 'pipette', settings: { pipetteColor: hex } }
+          });
+        }
+      } catch (error) {
+        console.error('Failed to pick color:', error);
+      }
+      return;
+    }
+    
     // Don't clear selection if we just completed a selection rectangle
     if (isSelecting) return;
     
@@ -1460,8 +1491,8 @@ export default function Canvas() {
       // Clear selection for all tools when clicking background
       dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [] });
       
-      // Don't switch away from pan tool
-      if (state.activeTool !== 'select' && state.activeTool !== 'pan') {
+      // Don't switch away from pan tool or pipette tool
+      if (state.activeTool !== 'select' && state.activeTool !== 'pan' && state.activeTool !== 'pipette') {
         dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
       }
     }
@@ -2105,6 +2136,7 @@ export default function Canvas() {
                     element={element}
                     isSelected={state.selectedElementIds.includes(element.id)}
                     zoom={zoom}
+                    hoveredElementId={state.hoveredElementId}
                     onSelect={(e) => {
                     // Handle style painter click
                     if (state.stylePainterActive && e?.evt?.button === 0) {
