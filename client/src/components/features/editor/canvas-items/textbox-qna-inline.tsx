@@ -264,7 +264,19 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
   
   const getQuestionText = () => {
     if (!element.questionId) return '';
-    return state.tempQuestions[element.questionId] || 'Loading question...';
+    const questionData = state.tempQuestions[element.questionId];
+    if (!questionData) return 'Loading question...';
+    
+    // Parse if JSON (contains poolId), otherwise return as-is
+    try {
+      const parsed = JSON.parse(questionData);
+      if (parsed && typeof parsed === 'object' && parsed.text) {
+        return parsed.text;
+      }
+      return questionData;
+    } catch {
+      return questionData;
+    }
   };
 
   const getUserText = () => {
@@ -606,6 +618,9 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
           }
         }
         
+        // Track current question ID (can change when user selects new question)
+        let currentQuestionId = element.questionId;
+        
         // No need to protect placeholder since it's not in the editor
         
         // No need to block deletion since there's no placeholder
@@ -626,12 +641,12 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
             }
           });
           
-          // Save to answer system if questionId exists
-          if (element.questionId && user?.id) {
+          // Save to answer system using current question ID (not element.questionId which might be stale)
+          if (currentQuestionId && user?.id) {
             dispatch({
               type: 'UPDATE_TEMP_ANSWER',
               payload: {
-                questionId: element.questionId,
+                questionId: currentQuestionId,
                 text: plainText,
                 userId: user.id,
                 answerId: element.answerId || uuidv4()
@@ -648,6 +663,9 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
         // Listen for question selection events specific to this element
         const handleQuestionSelected = (event: CustomEvent) => {
           const { questionId, questionText: selectedQuestionText } = event.detail;
+          
+          // Update current question ID
+          currentQuestionId = questionId;
           
           // Update button text and question display
           insertQuestionBtn.textContent = 'Change Question';

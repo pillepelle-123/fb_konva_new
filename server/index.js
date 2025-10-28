@@ -54,6 +54,7 @@ app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/editor-settings', require('./routes/editor-settings'));
 app.use('/api/user-question-assignments', require('./routes/user-question-assignments'));
 app.use('/api/invitations', require('./routes/invitations'));
+app.use('/api/question-pool', require('./routes/question-pool'));
 
 // Socket.IO authentication middleware
 io.use((socket, next) => {

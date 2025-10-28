@@ -129,6 +129,30 @@ class ApiService {
     const response = await fetch(`${this.baseUrl}/books/${bookId}/user-role`, { headers: this.getHeaders() });
     return response.ok ? response.json() : null;
   }
+
+  // Question pool operations
+  async getQuestionPool(category?: string, language?: string) {
+    const params = new URLSearchParams();
+    if (category) params.append('category', category);
+    if (language) params.append('language', language);
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+    const response = await fetch(`${this.baseUrl}/question-pool${queryString}`, { headers: this.getHeaders() });
+    return response.ok ? response.json() : [];
+  }
+
+  async getQuestionPoolCategories() {
+    const response = await fetch(`${this.baseUrl}/question-pool/categories`, { headers: this.getHeaders() });
+    return response.ok ? response.json() : [];
+  }
+
+  async addQuestionsFromPool(bookId: number, questionPoolIds: number[]) {
+    const response = await fetch(`${this.baseUrl}/questions/from-pool`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ bookId, questionPoolIds })
+    });
+    return response.json();
+  }
 }
 
 export const apiService = new ApiService();

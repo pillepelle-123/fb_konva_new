@@ -370,7 +370,7 @@ type EditorAction =
   | { type: 'MARK_SAVED' }
   | { type: 'UPDATE_TOOL_SETTINGS'; payload: { tool: string; settings: Record<string, any> } }
   | { type: 'SET_EDITOR_SETTINGS'; payload: Record<string, Record<string, any>> }
-  | { type: 'UPDATE_TEMP_QUESTION'; payload: { questionId: string; text: string } }
+  | { type: 'UPDATE_TEMP_QUESTION'; payload: { questionId: string; text: string; questionPoolId?: number } }
   | { type: 'DELETE_TEMP_QUESTION'; payload: { questionId: string } }
   | { type: 'UPDATE_TEMP_ANSWER'; payload: { questionId: string; text: string; userId?: number; answerId?: string } }
   | { type: 'UPDATE_BOOK_NAME'; payload: string }
@@ -784,11 +784,34 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       };
     
     case 'UPDATE_TEMP_QUESTION':
+      // Preserve existing poolId if not provided in payload
+      const existingData = state.tempQuestions[action.payload.questionId];
+      let existingPoolId = null;
+      
+      // Try to extract existing poolId
+      if (existingData) {
+        try {
+          const parsed = JSON.parse(existingData);
+          existingPoolId = parsed.poolId || null;
+        } catch {
+          // Not JSON, no poolId
+        }
+      }
+      
+      // Use provided poolId or preserve existing one
+      const finalPoolId = action.payload.questionPoolId !== undefined ? action.payload.questionPoolId : existingPoolId;
+      
+      const questionValue = finalPoolId
+        ? JSON.stringify({ text: action.payload.text, poolId: finalPoolId })
+        : action.payload.text;
+      
+      console.log('UPDATE_TEMP_QUESTION:', { questionId: action.payload.questionId, providedPoolId: action.payload.questionPoolId, existingPoolId, finalPoolId, storedValue: questionValue });
+      
       return {
         ...state,
         tempQuestions: {
           ...state.tempQuestions,
-          [action.payload.questionId]: action.payload.text
+          [action.payload.questionId]: questionValue
         },
         hasUnsavedChanges: true
       };
@@ -1280,9 +1303,24 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       
       // Save questions first (skip for authors and answer_only users)
       if (user?.role !== 'author' && state.userRole !== 'author' && state.editorInteractionLevel !== 'answer_only') {
-        for (const [questionId, questionText] of Object.entries(state.tempQuestions)) {
-          if (questionText && questionText.trim()) {
+        for (const [questionId, questionData] of Object.entries(state.tempQuestions)) {
+          if (questionData && questionData.trim()) {
             try {
+              // Parse question data (might be JSON with poolId or plain text)
+              let questionText = questionData;
+              let questionPoolId = null;
+              try {
+                const parsed = JSON.parse(questionData);
+                if (parsed.text) {
+                  questionText = parsed.text;
+                  questionPoolId = parsed.poolId || null;
+                }
+              } catch {
+                // Not JSON, use as plain text
+              }
+              
+              console.log('Saving question:', { questionId, questionText, questionPoolId });
+              
               const response = await fetch(`${apiUrl}/questions`, {
                 method: 'POST',
                 headers: {
@@ -1292,13 +1330,17 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
                 body: JSON.stringify({
                   id: questionId,
                   bookId: state.currentBook.id,
-                  questionText: questionText
+                  questionText: questionText,
+                  questionPoolId: questionPoolId
                 })
               });
               
               if (!response.ok) {
                 const errorText = await response.text();
                 console.error('Question save failed:', response.status, errorText);
+              } else {
+                const result = await response.json();
+                console.log('Question saved successfully:', result);
               }
             } catch (error) {
               console.error('Failed to save question', questionId, ':', error);
@@ -1480,7 +1522,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       
       // Store questions and answers in temp storage using UUID keys
       questions.forEach(q => {
-        dispatch({ type: 'UPDATE_TEMP_QUESTION', payload: { questionId: q.id, text: q.question_text } });
+        dispatch({ type: 'UPDATE_TEMP_QUESTION', payload: { questionId: q.id, text: q.question_text, questionPoolId: q.question_pool_id } });
       });
       
       answers.forEach(a => {
@@ -1580,7 +1622,17 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
   const getQuestionText = (questionId: string): string => {
     // Check temporary storage first, then fallback to canvas elements
     if (state.tempQuestions[questionId]) {
-      return state.tempQuestions[questionId];
+      const questionData = state.tempQuestions[questionId];
+      // Parse if JSON (contains poolId), otherwise return as-is
+      try {
+        const parsed = JSON.parse(questionData);
+        if (parsed && typeof parsed === 'object' && parsed.text) {
+          return parsed.text;
+        }
+        return questionData;
+      } catch {
+        return questionData;
+      }
     }
     
     // Find question text from canvas elements

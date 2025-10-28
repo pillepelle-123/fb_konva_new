@@ -6,14 +6,16 @@ import { Input } from '../../ui/primitives/input';
 import { DialogDescription, DialogHeader, DialogTitle, Dialog, DialogContent, DialogFooter } from '../../ui/overlays/dialog';
 import { useAuth } from '../../../context/auth-context';
 import { useEditor } from '../../../context/editor-context';
-import { Plus, Edit, Trash2, Save, Calendar, MessageCircleQuestionMark } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, Calendar, MessageCircleQuestionMark, Library } from 'lucide-react';
 import { apiService } from '../../../services/api';
+import QuestionPoolModal from '../questions/question-pool-modal';
 
 interface Question {
   id: string; // UUID
   question_text: string;
   created_at: string;
   updated_at: string | null;
+  question_pool_id?: number | null;
   answered_by_user?: boolean;
   isNew?: boolean; // Flag for newly added questions not yet saved to DB
 }
@@ -45,6 +47,7 @@ export default function QuestionsManagerDialog({
   const [newQuestion, setNewQuestion] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showQuestionPool, setShowQuestionPool] = useState(false);
   const editInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -105,13 +108,29 @@ export default function QuestionsManagerDialog({
       const data = await apiService.getQuestions(bookId as number);
       
       // Add questions from React state that aren't in database yet
-      const tempQuestions = Object.entries(state.tempQuestions).map(([id, text]) => ({
-        id,
-        question_text: text,
-        created_at: new Date().toISOString(),
-        updated_at: null,
-        isNew: true
-      }));
+      const tempQuestions = Object.entries(state.tempQuestions).map(([id, questionData]) => {
+        // Parse question data (might be JSON with poolId or plain text)
+        let questionText = questionData;
+        let questionPoolId = null;
+        try {
+          const parsed = JSON.parse(questionData);
+          if (parsed.text) {
+            questionText = parsed.text;
+            questionPoolId = parsed.poolId || null;
+          }
+        } catch {
+          // Not JSON, use as plain text
+        }
+        
+        return {
+          id,
+          question_text: questionText,
+          question_pool_id: questionPoolId,
+          created_at: new Date().toISOString(),
+          updated_at: null,
+          isNew: true
+        };
+      });
       
       // Filter out temp questions that are already in database
       const newTempQuestions = tempQuestions.filter(tempQ => 
@@ -156,6 +175,32 @@ export default function QuestionsManagerDialog({
     
     setQuestions(prev => [newQuestionObj, ...prev]);
     setNewQuestion('');
+  };
+
+  const handleQuestionFromPool = (poolQuestion: any) => {
+    console.log('handleQuestionFromPool called with:', poolQuestion);
+    // Create new question from pool
+    const questionId = uuidv4();
+    const newQuestionObj: Question = {
+      id: questionId,
+      question_text: poolQuestion.question_text,
+      created_at: new Date().toISOString(),
+      updated_at: null,
+      question_pool_id: poolQuestion.id,
+      isNew: true
+    };
+    
+    console.log('Created question object:', newQuestionObj);
+    
+    // Add to questions list
+    setQuestions(prev => [newQuestionObj, ...prev]);
+    
+    // Add to temp questions in state with pool id
+    console.log('Dispatching UPDATE_TEMP_QUESTION with:', { questionId, text: poolQuestion.question_text, questionPoolId: poolQuestion.id });
+    dispatch({ type: 'UPDATE_TEMP_QUESTION', payload: { questionId: questionId, text: poolQuestion.question_text, questionPoolId: poolQuestion.id } });
+    
+    // Select the question immediately
+    onQuestionSelect?.(questionId, poolQuestion.question_text);
   };
 
   const handleEditQuestion = (questionId: string) => {
@@ -314,6 +359,15 @@ export default function QuestionsManagerDialog({
                   <Plus className="h-4 w-4" />
                   <span>Add</span>
                 </Button>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setShowQuestionPool(true)}
+                  className="space-x-2"
+                >
+                  <Library className="h-4 w-4" />
+                  <span>Browse Pool</span>
+                </Button>
               </div>
             </form>
           </CardContent>
@@ -419,6 +473,11 @@ export default function QuestionsManagerDialog({
                                       New
                                     </span>
                                   )}
+                                  {question.question_pool_id && (
+                                    <span className="ml-2 px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                                      From Pool
+                                    </span>
+                                  )}
                                 </p>
                                 {userAnswers.has(question.id) && (
                                   <span className="ml-2 px-2 py-1 text-xs rounded-full bg-ring/10 text-ring border border-ring/20">
@@ -437,26 +496,28 @@ export default function QuestionsManagerDialog({
                                 )}
                               </div>
                             </div>
-                            <div className="flex gap-2 ml-4">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => startEdit(question)}
-                                className="space-x-2"
-                              >
-                                <Edit className="h-4 w-4" />
-                                <span>Edit</span>
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteQuestion(question.id)}
-                                className="space-x-2 text-destructive hover:text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                <span>Delete</span>
-                              </Button>
-                            </div>
+                            {!question.question_pool_id && (
+                              <div className="flex gap-2 ml-4">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => startEdit(question)}
+                                  className="space-x-2"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                  <span>Edit</span>
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteQuestion(question.id)}
+                                  className="space-x-2 text-destructive hover:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  <span>Delete</span>
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -510,6 +571,24 @@ export default function QuestionsManagerDialog({
               Reset Question
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showQuestionPool} onOpenChange={setShowQuestionPool}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden z-[10003]">
+          {typeof bookId === 'number' && (
+            <QuestionPoolModal
+              bookId={bookId}
+              onClose={() => setShowQuestionPool(false)}
+              onQuestionsAdded={(questions) => {
+                if (questions.length > 0) {
+                  handleQuestionFromPool(questions[0]);
+                }
+                setShowQuestionPool(false);
+              }}
+              singleSelect
+            />
+          )}
         </DialogContent>
       </Dialog>
     </>

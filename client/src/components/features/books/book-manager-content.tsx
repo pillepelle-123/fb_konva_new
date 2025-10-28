@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from '../../../context/auth-context';
 import { useEditor } from '../../../context/editor-context';
 import { Button } from '../../ui/primitives/button';
-import { Plus, Trash2, Info, UserRoundX, Send, SquarePen, Save, X, MessageCircleQuestion } from 'lucide-react';
+import { Plus, Trash2, Info, UserRoundX, Send, SquarePen, Save, X, MessageCircleQuestion, Library } from 'lucide-react';
 import List from '../../shared/list';
 import CompactList from '../../shared/list';
 import ProfilePicture from '../users/profile-picture';
@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader } from '../../ui/composites/card';
 import { Input } from '../../ui/primitives/input';
 import InviteUserDialog from './invite-user-dialog';
 import UnsavedChangesDialog from '../../ui/overlays/unsaved-changes-dialog';
+import QuestionPoolModal from '../questions/question-pool-modal';
 
 interface User {
   id: number;
@@ -38,6 +39,7 @@ interface Question {
   question_text: string;
   created_at: string;
   updated_at: string | null;
+  question_pool_id?: number | null;
   answers?: Answer[];
 }
 
@@ -129,6 +131,7 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
   const [editText, setEditText] = useState('');
   const [newQuestion, setNewQuestion] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [showQuestionPool, setShowQuestionPool] = useState(false);
   const editInputRef = useRef<HTMLInputElement>(null);
 
   const currentPage = state?.activePageIndex + 1 || 1;
@@ -494,18 +497,45 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
         
         // Add API questions first
         filteredQuestions.forEach(q => {
+          const tempQuestionData = tempState.tempQuestions[q.id];
+          let questionText = q.question_text;
+          
+          // Check if there's an updated text in temp state
+          if (tempQuestionData) {
+            try {
+              const parsed = JSON.parse(tempQuestionData);
+              questionText = parsed.text || tempQuestionData;
+            } catch {
+              questionText = tempQuestionData;
+            }
+          }
+          
           questionsMap.set(q.id, {
             ...q,
-            question_text: tempState.tempQuestions[q.id] || q.question_text
+            question_text: questionText
           });
         });
         
         // Add temp questions (only if not already in API questions)
-        Object.entries(tempState.tempQuestions).forEach(([id, text]) => {
+        Object.entries(tempState.tempQuestions).forEach(([id, questionData]) => {
           if (!questionsMap.has(id)) {
+            // Parse question data (might be JSON with poolId or plain text)
+            let questionText = questionData;
+            let questionPoolId = null;
+            try {
+              const parsed = JSON.parse(questionData);
+              if (parsed.text) {
+                questionText = parsed.text;
+                questionPoolId = parsed.poolId || null;
+              }
+            } catch {
+              // Not JSON, use as plain text
+            }
+            
             questionsMap.set(id, {
               id,
-              question_text: text,
+              question_text: questionText,
+              question_pool_id: questionPoolId,
               created_at: new Date().toISOString(),
               updated_at: null,
               answers: []
@@ -529,6 +559,20 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
     const questionId = uuidv4();
     handleQuestionAdd(questionId, newQuestion);
     setNewQuestion('');
+  };
+
+  const handleQuestionsFromPool = (addedQuestions: any[]) => {
+    addedQuestions.forEach(q => {
+      const questionId = require('uuid').v4 ? require('uuid').v4() : crypto.randomUUID();
+      setTempState(prev => ({
+        ...prev,
+        tempQuestions: { 
+          ...prev.tempQuestions, 
+          [questionId]: JSON.stringify({ text: q.question_text, poolId: q.id })
+        }
+      }));
+    });
+    fetchQuestionsWithAnswers();
   };
 
   const handleEditQuestion = (questionId: string) => {
@@ -922,7 +966,17 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
                 {/* Add Question Form */}
                 <Card>
                   <CardHeader>
-                    <h3 className="text-lg font-semibold">Add New Question</h3>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold">Add New Question</h3>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowQuestionPool(true)}
+                      >
+                        <Library className="h-4 w-4 mr-2" />
+                        Browse Question Pool
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     <form onSubmit={handleAddQuestion} className="flex gap-2">
@@ -959,7 +1013,7 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
                             {/* Question Header */}
                             <div className="flex items-start justify-between">
                               <div className="flex-1">
-                                {editingId === question.id ? (
+                                {editingId === question.id && !question.question_pool_id ? (
                                   <div className="space-y-3">
                                     <Input
                                       ref={editInputRef}
@@ -983,6 +1037,11 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
                                   <>
                                     <h4 className="text-lg font-medium text-foreground mb-2">
                                       {question.question_text}
+                                      {question.question_pool_id && (
+                                        <span className="ml-2 px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                                          From Pool
+                                        </span>
+                                      )}
                                     </h4>
                                     <p className="text-sm text-muted-foreground">
                                       Created: {new Date(question.created_at).toLocaleDateString()}
@@ -994,7 +1053,7 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
                                 )}
                               </div>
                               
-                              {editingId !== question.id && (
+                              {editingId !== question.id && !question.question_pool_id && (
                                 <div className="flex gap-2 ml-4">
                                   <Button
                                     variant="outline"
@@ -1185,6 +1244,15 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
             </div>
           </div>
         </div>
+      )}
+
+      {/* Question Pool Modal */}
+      {showQuestionPool && typeof bookId === 'number' && (
+        <QuestionPoolModal
+          bookId={bookId}
+          onClose={() => setShowQuestionPool(false)}
+          onQuestionsAdded={handleQuestionsFromPool}
+        />
       )}
     </div>
   );
