@@ -5,6 +5,8 @@ import App from './app.tsx'
 import './styles/app.css'
 import './utils/theme-verification'
 
-createRoot(document.getElementById('root')!).render(
-  <App />
-)
+document.fonts.ready.then(() => {
+  createRoot(document.getElementById('root')!).render(
+    <App />
+  )
+})
