@@ -80,7 +80,7 @@ export default function Profile() {
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-center h-64">
           <div className="text-center space-y-4">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
@@ -93,7 +93,7 @@ export default function Profile() {
 
   if (!user) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-4">
         <Card>
           <CardContent className="text-center py-12">
             <p className="text-muted-foreground">User not found</p>
@@ -107,7 +107,7 @@ export default function Profile() {
   const hasSharedBooks = sharedBooks.length > 0;
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-8">
+    <div className="container mx-auto px-4 py-4 space-y-8">
       {/* Profile Header */}
       <Card>
         <CardHeader>

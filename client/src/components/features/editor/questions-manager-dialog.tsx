@@ -178,7 +178,6 @@ export default function QuestionsManagerDialog({
   };
 
   const handleQuestionFromPool = (poolQuestion: any) => {
-    console.log('handleQuestionFromPool called with:', poolQuestion);
     // Create new question from pool
     const questionId = uuidv4();
     const newQuestionObj: Question = {
@@ -190,13 +189,10 @@ export default function QuestionsManagerDialog({
       isNew: true
     };
     
-    console.log('Created question object:', newQuestionObj);
-    
     // Add to questions list
     setQuestions(prev => [newQuestionObj, ...prev]);
     
     // Add to temp questions in state with pool id
-    console.log('Dispatching UPDATE_TEMP_QUESTION with:', { questionId, text: poolQuestion.question_text, questionPoolId: poolQuestion.id });
     dispatch({ type: 'UPDATE_TEMP_QUESTION', payload: { questionId: questionId, text: poolQuestion.question_text, questionPoolId: poolQuestion.id } });
     
     // Select the question immediately

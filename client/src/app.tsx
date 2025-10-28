@@ -87,10 +87,10 @@ function AppContent() {
 
 function Home({ serverMessage }: { serverMessage: string }) {
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-4">
       <div className="max-w-2xl mx-auto text-center space-y-6">
         <h1 className="text-4xl tracking-tight text-foreground">
-          Welcome to freundebuch.io
+          Welcome to dein-freundebuch.de
         </h1>
         <p className="text-xl text-muted-foreground">
           Create and collaborate on beautiful books and documents
@@ -118,7 +118,7 @@ function EditorWithBar() {
 
 function AdminPanel() {
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-4">
       <div className="max-w-2xl mx-auto text-center space-y-6">
         <h1 className="text-3xl font-bold tracking-tight text-foreground">
           Admin Panel

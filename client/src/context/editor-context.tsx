@@ -805,8 +805,6 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         ? JSON.stringify({ text: action.payload.text, poolId: finalPoolId })
         : action.payload.text;
       
-      console.log('UPDATE_TEMP_QUESTION:', { questionId: action.payload.questionId, providedPoolId: action.payload.questionPoolId, existingPoolId, finalPoolId, storedValue: questionValue });
-      
       return {
         ...state,
         tempQuestions: {
@@ -1319,8 +1317,6 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
                 // Not JSON, use as plain text
               }
               
-              console.log('Saving question:', { questionId, questionText, questionPoolId });
-              
               const response = await fetch(`${apiUrl}/questions`, {
                 method: 'POST',
                 headers: {
@@ -1338,9 +1334,6 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
               if (!response.ok) {
                 const errorText = await response.text();
                 console.error('Question save failed:', response.status, errorText);
-              } else {
-                const result = await response.json();
-                console.log('Question saved successfully:', result);
               }
             } catch (error) {
               console.error('Failed to save question', questionId, ':', error);

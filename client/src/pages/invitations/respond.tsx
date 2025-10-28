@@ -103,7 +103,7 @@ export default function InvitationResponse() {
 
   if (!token) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-4">
         <Card>
           <CardContent className="text-center py-8">
             <p className="text-destructive">Invalid invitation link</p>
@@ -115,7 +115,7 @@ export default function InvitationResponse() {
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-center h-64">
           <div className="text-center space-y-4">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
@@ -127,7 +127,7 @@ export default function InvitationResponse() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
+    <div className="container mx-auto px-4 py-4 max-w-4xl">
       <div className="space-y-6">
         {/* Header */}
         <Card>

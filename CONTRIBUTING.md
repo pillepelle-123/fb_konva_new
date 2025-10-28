@@ -1,4 +1,4 @@
-# Contributing to freundebuch.io Application
+# Contributing to dein-freundebuch.de Application
 
 Thank you for your interest in contributing! This document provides guidelines for contributing to the project.
 

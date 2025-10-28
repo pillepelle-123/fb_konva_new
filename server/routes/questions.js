@@ -137,8 +137,6 @@ router.post('/', authenticateToken, async (req, res) => {
     const { id, bookId, questionText, questionPoolId } = req.body;
     const userId = req.user.id;
     
-    console.log('Received question POST:', { id, bookId, questionText, questionPoolId });
-    
     // Check if user owns the book or is a publisher
     const book = await pool.query(`
       SELECT b.owner_id, bf.book_role
@@ -158,14 +156,10 @@ router.post('/', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized' });
     }
     
-    console.log('Inserting question with params:', [id, questionText, bookId, userId, questionPoolId || null]);
-    
     const result = await pool.query(
       'INSERT INTO public.questions (id, question_text, book_id, created_by, question_pool_id, created_at) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP) ON CONFLICT (id) DO UPDATE SET question_text = EXCLUDED.question_text, question_pool_id = EXCLUDED.question_pool_id, updated_at = CURRENT_TIMESTAMP RETURNING *',
       [id, questionText, bookId, userId, questionPoolId || null]
     );
-    
-    console.log('Question inserted/updated:', result.rows[0]);
     
     res.json(result.rows[0]);
   } catch (error) {

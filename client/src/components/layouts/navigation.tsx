@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../ui/primitives/button';
-import { Book, BookOpen, Home, Archive, LogOut, User, Menu, Image, IdCard, Settings, ChevronDown, Bell, MessageSquare, Users, LayoutDashboard } from 'lucide-react';
+import { Book, BookUser, Home, Archive, LogOut, User, Menu, Image, IdCard, Settings, ChevronDown, Bell, MessageSquare, Users, LayoutDashboard, LibraryBig } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import ProfilePicture from '../features/users/profile-picture';
 import { Popover, PopoverTrigger, PopoverContent } from '../ui/overlays/popover';
@@ -130,15 +130,15 @@ export default function Navigation() {
   ];
 
   return (
-    <nav className="border-b bg-primary sticky top-0 z-50">
+    <nav className="relative bg-primary sticky top-0 z-50 pb-4 shadow-lg" style={{ clipPath: 'ellipse(70% 100% at 50% 0%)' }}>
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center">
           {/* Logo */}
           <Link to={user ? '/dashboard' : '/'} className="flex items-center space-x-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-background">
-              <BookOpen className="h-5 w-5 text-primary" />
+              <LibraryBig className="h-7 w-7 text-primary"/>
             </div>
-            <span className="text-xl text-primary-foreground">freundebuch.io</span>
+            <span className="text-2xl text-primary-foreground pt-2" style={{ fontFamily: '"Gochi Hand", cursive' }}>dein-freundebuch.de</span>
           </Link>
 
           {/* Desktop Navigation */}

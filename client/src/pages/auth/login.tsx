@@ -32,7 +32,7 @@ export default function Login() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-4">
       <div className="max-w-md mx-auto">
         <Card className="border-0 shadow-lg">
           <CardHeader className="text-center space-y-2">
