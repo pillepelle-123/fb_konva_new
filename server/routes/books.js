@@ -1139,6 +1139,37 @@ router.post('/:id/questions', authenticateToken, async (req, res) => {
   }
 });
 
+// Get user answers for a book
+router.get('/:id/answers', authenticateToken, async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const userId = req.user.id;
+
+    // Check if user has access to this book
+    const bookAccess = await pool.query(`
+      SELECT b.* FROM public.books b
+      LEFT JOIN public.book_friends bf ON b.id = bf.book_id
+      WHERE b.id = $1 AND (b.owner_id = $2 OR bf.user_id = $2)
+    `, [bookId, userId]);
+
+    if (bookAccess.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Get user's answers for this book
+    const answers = await pool.query(`
+      SELECT a.* FROM public.answers a
+      JOIN public.questions q ON a.question_id = q.id
+      WHERE q.book_id = $1 AND a.user_id = $2
+    `, [bookId, userId]);
+
+    res.json(answers.rows);
+  } catch (error) {
+    console.error('User answers fetch error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Get user role and page assignments for a book
 router.get('/:id/user-role', authenticateToken, async (req, res) => {
   try {

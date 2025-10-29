@@ -1,4 +1,5 @@
 export type TemplateCategory = 'structured' | 'playful' | 'minimal' | 'creative';
+export type ThemeVariant = 'default' | 'sketchy' | 'minimal' | 'colorful' | 'vintage' | 'dark';
 
 export interface ColorPalette {
   id: string;
@@ -17,6 +18,53 @@ export interface ElementArrangement {
   pattern: 'grid' | 'scattered' | 'linear' | 'circular' | 'custom';
   spacing?: number;
   alignment?: 'left' | 'center' | 'right' | 'top' | 'bottom';
+}
+
+export interface TextboxStyle {
+  font?: {
+    fontSize?: number;
+    fontFamily?: string;
+    fontBold?: boolean;
+    fontItalic?: boolean;
+    fontColor?: string;
+    fontOpacity?: number;
+  };
+  border?: {
+    enabled?: boolean;
+    borderWidth?: number;
+    borderColor?: string;
+    borderOpacity?: number;
+    borderTheme?: string;
+  };
+  format?: {
+    textAlign?: 'left' | 'center' | 'right';
+    paragraphSpacing?: 'small' | 'medium' | 'large';
+    padding?: number;
+  };
+  background?: {
+    enabled?: boolean;
+    backgroundColor?: string;
+    backgroundOpacity?: number;
+  };
+  ruledLines?: {
+    enabled?: boolean;
+    lineWidth?: number;
+    lineColor?: string;
+    lineOpacity?: number;
+    ruledLinesTheme?: string;
+  };
+  cornerRadius?: number;
+}
+
+export interface ShapeStyle {
+  strokeWidth?: number;
+  cornerRadius?: number;
+  stroke?: string;
+  fill?: string;
+  opacity?: number;
+  inheritTheme?: string;
+  borderEnabled?: boolean;
+  backgroundEnabled?: boolean;
 }
 
 export interface PageTemplate {
@@ -41,6 +89,7 @@ export interface PageTemplate {
     type: 'question' | 'answer' | 'text';
     position: { x: number; y: number };
     size: { width: number; height: number };
+    style?: TextboxStyle;
     questionSettings?: Record<string, any>;
     answerSettings?: Record<string, any>;
     layoutVariant?: string;
@@ -49,7 +98,8 @@ export interface PageTemplate {
     type: 'image' | 'shape' | 'sticker';
     position: { x: number; y: number };
     size: { width: number; height: number };
-    style?: Record<string, any>;
+    style?: ShapeStyle;
+    shapeType?: string;
   }>;
   constraints: {
     minQuestions: number;
