@@ -50,7 +50,7 @@ export function Slider({
           sliderInput
         )}
       </div>
-      <span className="text-xs text-muted-foreground">{displayValue !== undefined ? displayValue : value}</span>
+      <span className="text-xs text-muted-foreground">{displayValue !== undefined ? displayValue : value}{unit}</span>
     </div>
   );
 }

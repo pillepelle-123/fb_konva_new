@@ -1,12 +1,12 @@
 import { useEditor } from '../../../../context/editor-context';
 import { useState } from 'react';
 import { Button } from '../../../ui/primitives/button';
-import { SquareMousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, AlignLeft, AlignCenter, AlignRight, AlignJustify, Rows4, Rows3, Rows2, Palette, Type, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, SquareRoundCorner, PanelTopBottomDashed, Triangle, Pentagon, ChevronLeft } from 'lucide-react';
+import { SquareMousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, AlignLeft, AlignCenter, AlignRight, AlignJustify, Rows4, Rows3, Rows2, Palette, Type, SquareRoundCorner, PanelTopBottomDashed, Triangle, Pentagon, ChevronLeft } from 'lucide-react';
 import { QuestionPositionTop, QuestionPositionBottom, QuestionPositionLeft, QuestionPositionRight } from '../../../ui/icons/question-position-icons';
 import { ButtonGroup } from '../../../ui/composites/button-group';
 import { Card, Tabs, TabsList, TabsTrigger } from '../../../ui/composites';
-import { QnASettingsForm } from './qna-settings-form';
-import { QnA2SettingsForm } from './qna2-settings-form';
+// ARCHIVED: import { QnASettingsForm } from './qna-settings-form';
+// ARCHIVED: import { QnA2SettingsForm } from './qna2-settings-form';
 import { QnAInlineSettingsForm } from './qna-inline-settings-form';
 import type { PageBackground } from '../../../../context/editor-context';
 import { ThemeSelect } from '../../../../utils/theme-options';
@@ -637,17 +637,17 @@ export function ToolSettingsContent({
             </div>
           );
         }
-        // Special handling for QnA textboxes
-        if (selectedElement.textType === 'qna') {
-          return renderQnASettings(selectedElement);
-        }
-        // Special handling for QnA2 textboxes
-        if (selectedElement.textType === 'qna2') {
-          return renderQnA2Settings(selectedElement);
-        }
-        // Special handling for QnA Inline textboxes
-        if (selectedElement.textType === 'qna_inline') {
-          return renderQnAInlineSettings(selectedElement);
+        // ARCHIVED: Special handling for QnA textboxes
+        // if (selectedElement.textType === 'qna') {
+        //   return renderQnASettings(selectedElement);
+        // }
+        // ARCHIVED: Special handling for QnA2 textboxes
+        // if (selectedElement.textType === 'qna2') {
+        //   return renderQnA2Settings(selectedElement);
+        // }
+        // Special handling for Question/Answer textboxes
+        if (selectedElement.textType === 'qna' || selectedElement.textType === 'qna_inline' || selectedElement.textType === 'qna2') {
+          return renderQuestionAnswerSettings(selectedElement);
         }
         return renderElementSettings(selectedElement);
       }
@@ -704,7 +704,6 @@ export function ToolSettingsContent({
     };
     
     const updateQuestionSetting = (key: string, value: any) => {
-      dispatch({ type: 'SAVE_TO_HISTORY', payload: `Update QnA Question ${key}` });
       dispatch({
         type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
         payload: {
@@ -720,7 +719,6 @@ export function ToolSettingsContent({
     };
     
     const updateAnswerSetting = (key: string, value: any) => {
-      dispatch({ type: 'SAVE_TO_HISTORY', payload: `Update QnA Answer ${key}` });
       dispatch({
         type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
         payload: {
@@ -950,7 +948,7 @@ export function ToolSettingsContent({
     );
   };
   
-  const renderQnAInlineSettings = (element: any) => {
+  const renderQuestionAnswerSettings = (element: any) => {
     const activeSection = state.qnaActiveSection;
     const setActiveSection = (section: 'question' | 'answer') => {
       dispatch({ type: 'SET_QNA_ACTIVE_SECTION', payload: section });
@@ -968,7 +966,6 @@ export function ToolSettingsContent({
     };
     
     const updateQuestionSetting = (key: string, value: any) => {
-      dispatch({ type: 'SAVE_TO_HISTORY', payload: `Update QnA Inline Question ${key}` });
       const updates = {
         questionSettings: {
           ...element.questionSettings,
@@ -994,7 +991,6 @@ export function ToolSettingsContent({
     };
     
     const updateAnswerSetting = (key: string, value: any) => {
-      dispatch({ type: 'SAVE_TO_HISTORY', payload: `Update QnA Inline Answer ${key}` });
       const updates = {
         answerSettings: {
           ...element.answerSettings,
@@ -1105,8 +1101,9 @@ export function ToolSettingsContent({
           case 'element-text-color':
             return currentStyle.fontOpacity ?? 1;
           case 'element-border-color':
-            const borderOpacitySettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
-            return borderOpacitySettings?.borderOpacity ?? 1;
+            const qSettings = element.questionSettings || {};
+            const aSettings = element.answerSettings || {};
+            return qSettings.borderOpacity ?? aSettings.borderOpacity ?? 1;
           case 'element-background-color':
             const bgOpacitySettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
             return bgOpacitySettings?.backgroundOpacity ?? 1;
@@ -1166,537 +1163,51 @@ export function ToolSettingsContent({
       );
     }
     
-    const updateSharedSetting = (key: string, value: any) => {
-      dispatch({ type: 'SAVE_TO_HISTORY', payload: `Update QnA Inline ${key}` });
-      const updates = {
-        questionSettings: {
-          ...element.questionSettings,
-          [key]: value
-        },
-        answerSettings: {
-          ...element.answerSettings,
-          [key]: value
-        }
-      };
-      
-      if (state.selectedGroupedElement) {
-        dispatch({
-          type: 'UPDATE_GROUPED_ELEMENT',
-          payload: {
-            groupId: state.selectedGroupedElement.groupId,
-            elementId: state.selectedGroupedElement.elementId,
-            updates
-          }
-        });
-      } else {
-        dispatch({
-          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-          payload: { id: element.id, updates }
-        });
-      }
-    };
-    
     return (
       <div className="space-y-2">
         <div className="text-xs font-medium mb-2">QnA Inline Textbox</div>
         
-        {/* Layout Variant */}
-        <div className="space-y-1">
-          <Label variant="xs">Layout</Label>
-          <ButtonGroup className="w-full">
-            <Button
-              variant={(element.layoutVariant || 'inline') === 'inline' ? 'default' : 'outline'}
-              size="xs"
-              onClick={() => {
-                dispatch({
-                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                  payload: {
-                    id: element.id,
-                    updates: { layoutVariant: 'inline' }
-                  }
-                });
-              }}
-              className="flex-1"
-            >
-              Inline
-            </Button>
-            <Button
-              variant={(element.layoutVariant || 'inline') === 'block' ? 'default' : 'outline'}
-              size="xs"
-              onClick={() => {
-                dispatch({
-                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                  payload: {
-                    id: element.id,
-                    updates: { layoutVariant: 'block' }
-                  }
-                });
-              }}
-              className="flex-1"
-            >
-              Block
-            </Button>
-          </ButtonGroup>
-        </div>
-        
-        {/* Question Position (only for block layout) */}
-        {element.layoutVariant === 'block' && (
-          <div className="space-y-1">
-            <Label variant="xs">Question Position</Label>
-            <ButtonGroup>
-              <Button
-                variant={(element.questionPosition || 'left') === 'left' ? 'default' : 'outline'}
-                size="xs"
-                onClick={() => {
-                  dispatch({
-                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                    payload: {
-                      id: element.id,
-                      updates: { questionPosition: 'left' }
-                    }
-                  });
-                }}
-                className="w-8 h-8 p-0"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </Button>
-              <Button
-                variant={(element.questionPosition || 'left') === 'top' ? 'default' : 'outline'}
-                size="xs"
-                onClick={() => {
-                  dispatch({
-                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                    payload: {
-                      id: element.id,
-                      updates: { questionPosition: 'top' }
-                    }
-                  });
-                }}
-                className="w-8 h-8 p-0"
-              >
-                <ArrowUp className="w-4 h-4" />
-              </Button>
-              <Button
-                variant={(element.questionPosition || 'left') === 'right' ? 'default' : 'outline'}
-                size="xs"
-                onClick={() => {
-                  dispatch({
-                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                    payload: {
-                      id: element.id,
-                      updates: { questionPosition: 'right' }
-                    }
-                  });
-                }}
-                className="w-8 h-8 p-0"
-              >
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-            </ButtonGroup>
-          </div>
-        )}
-        
-        <Separator />
-        
-        <div className="flex items-center gap-2 mb-2">
-          <Checkbox
-            checked={individualSettings}
-            onCheckedChange={setIndividualSettings}
-          />
-          <Label variant="xs" className="text-xs font-medium">
-            Individual for Question and Answer
-          </Label>
-        </div>
-        
-        {individualSettings ? (
-          <>
-            <Tabs value={activeSection} onValueChange={setActiveSection}>
-              <TabsList variant="bootstrap" className="w-full h-5">
-                <TabsTrigger variant="bootstrap" value="question" className=' h-5'>Question</TabsTrigger>
-                <TabsTrigger variant="bootstrap" value="answer" className=' h-5'>Answer</TabsTrigger>
-              </TabsList>
-            </Tabs>
+        {/* Layout controls and all settings */}
+        <QnAInlineSettingsForm
+          sectionType="shared"
+          element={element}
+          state={state}
+          currentStyle={questionStyle}
+          updateSetting={(key: string, value: any) => {
+            updateQuestionSetting(key, value);
+            updateAnswerSetting(key, value);
+          }}
+          setShowFontSelector={setShowFontSelector}
+          setShowColorSelector={setShowColorSelector}
+          showLayoutControls={true}
+          individualSettings={individualSettings}
+          onIndividualSettingsChange={(enabled: boolean) => {
+            const updates: any = { qnaIndividualSettings: enabled };
             
-            <div className="overflow-hidden">
-              <div className={`flex flex--row transition-transform duration-300 ease-in-out ${activeSection === 'question' ? 'translate-x-0' : '-translate-x-1/2'}`} style={{ width: '200%' }}>
-                <div className="w-1/2 flex-1 flex-shrink-0">
-                  <QnAInlineSettingsForm
-                    sectionType="question"
-                    element={element}
-                    state={state}
-                    currentStyle={questionStyle}
-                    updateSetting={updateQuestionSetting}
-                    setShowFontSelector={setShowFontSelector}
-                    setShowColorSelector={setShowColorSelector}
-                  />
-                </div>
-                <div className="w-1/2 flex-1 flex-shrink-0">
-                  <QnAInlineSettingsForm
-                    sectionType="answer"
-                    element={element}
-                    state={state}
-                    currentStyle={answerStyle}
-                    updateSetting={updateAnswerSetting}
-                    setShowFontSelector={setShowFontSelector}
-                    setShowColorSelector={setShowColorSelector}
-                  />
-                </div>
-              </div>
-            </div>
-          </>
-        ) : (
-          <QnAInlineSettingsForm
-            sectionType="shared"
-            element={element}
-            state={state}
-            currentStyle={questionStyle}
-            updateSetting={(key: string, value: any) => {
-              updateQuestionSetting(key, value);
-              updateAnswerSetting(key, value);
-            }}
-            setShowFontSelector={setShowFontSelector}
-            setShowColorSelector={setShowColorSelector}
-          />
-        )}
-        
-        <Separator/>
-        
-        {/* Ruled Lines - Common Settings */}
-        <div className='py-2'>
-          <Label className="flex items-center gap-1" variant="xs">
-            <Checkbox
-              checked={(() => {
-                const aSettings = element.answerSettings || {};
-                return aSettings.ruledLines ?? false;
-              })()}
-              onCheckedChange={(checked) => {
-                dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Update QnA Inline Ruled Lines' });
-                dispatch({
-                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                  payload: {
-                    id: element.id,
-                    updates: {
-                      answerSettings: {
-                        ...element.answerSettings,
-                        ruledLines: checked
-                      }
-                    }
-                  }
-                });
-              }}
-            />
-            Ruled Lines
-          </Label>
-        </div>
-        
-        {(() => {
-          const aSettings = element.answerSettings || {};
-          return aSettings.ruledLines ?? false;
-        })() && (
-          <IndentedSection>
-            <Slider
-              label="Line Width"
-              value={(() => {
-                const aSettings = element.answerSettings || {};
-                return aSettings.ruledLinesWidth ?? 0.8;
-              })()}
-              onChange={(value) => {
-                dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Update QnA Inline Line Width' });
-                dispatch({
-                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                  payload: {
-                    id: element.id,
-                    updates: {
-                      answerSettings: {
-                        ...element.answerSettings,
-                        ruledLinesWidth: value
-                      }
-                    }
-                  }
-                });
-              }}
-              min={0.01}
-              max={30}
-              step={0.1}
-            />
+            // When disabling individual settings, sync question font size to answer font size
+            if (!enabled) {
+              const answerStyle = getAnswerStyle();
+              updates.questionSettings = {
+                ...element.questionSettings,
+                fontSize: answerStyle.fontSize
+              };
+            }
             
-            <div>
-              <Label variant="xs">Ruled Lines Theme</Label>
-              <ThemeSelect 
-                value={(() => {
-                  const aSettings = element.answerSettings || {};
-                  return aSettings.ruledLinesTheme || 'rough';
-                })()}
-                onChange={(value) => {
-                  dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Update QnA Inline Line Theme' });
-                  dispatch({
-                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                    payload: {
-                      id: element.id,
-                      updates: {
-                        answerSettings: {
-                          ...element.answerSettings,
-                          ruledLinesTheme: value
-                        }
-                      }
-                    }
-                  });
-                }}
-              />
-            </div>
-            
-            <div>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => setShowColorSelector('element-ruled-lines-color')}
-                className="w-full"
-              >
-                <Palette className="w-4 mr-2" />
-                Line Color
-              </Button>
-            </div>
-            
-            <Slider
-              label="Line Opacity"
-              value={(() => {
-                const aSettings = element.answerSettings || {};
-                return (aSettings.ruledLinesOpacity ?? 1) * 100;
-              })()}
-              onChange={(value) => {
-                dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Update QnA Inline Line Opacity' });
-                dispatch({
-                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                  payload: {
-                    id: element.id,
-                    updates: {
-                      answerSettings: {
-                        ...element.answerSettings,
-                        ruledLinesOpacity: value / 100
-                      }
-                    }
-                  }
-                });
-              }}
-              min={0}
-              max={100}
-              step={5}
-            />
-          </IndentedSection>
-        )}
-        
-        <Separator/>
-        
-        {/* Shared Settings - Always visible */}
-        <div className='py-2'>
-          <Label className="flex items-center gap-1" variant="xs">
-            <Checkbox
-              checked={(() => {
-                const qSettings = element.questionSettings || {};
-                const aSettings = element.answerSettings || {};
-                return qSettings.borderEnabled || aSettings.borderEnabled || false;
-              })()}
-              onCheckedChange={(checked) => updateSharedSetting('borderEnabled', checked)}
-            />
-            Border
-          </Label>
-        </div>
-        
-        {(() => {
-          const qSettings = element.questionSettings || {};
-          const aSettings = element.answerSettings || {};
-          return qSettings.borderEnabled || aSettings.borderEnabled;
-        })() && (
-          <IndentedSection>
-            <Slider
-              label="Border Width"
-              value={(() => {
-                const qSettings = element.questionSettings || {};
-                const aSettings = element.answerSettings || {};
-                return qSettings.borderWidth || aSettings.borderWidth || 1;
-              })()}
-              onChange={(value) => updateSharedSetting('borderWidth', value)}
-              min={0.1}
-              max={10}
-              step={0.1}
-            />
-            
-            <div>
-              <Label variant="xs">Border Theme</Label>
-              <ThemeSelect 
-                value={(() => {
-                  const qSettings = element.questionSettings || {};
-                  const aSettings = element.answerSettings || {};
-                  return qSettings.borderTheme || aSettings.borderTheme || 'rough';
-                })()}
-                onChange={(value) => updateSharedSetting('borderTheme', value)}
-              />
-            </div>
-            
-            <div>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => setShowColorSelector('element-border-color')}
-                className="w-full"
-              >
-                <Palette className="w-4 mr-2" />
-                Border Color
-              </Button>
-            </div>
-            
-            <Slider
-              label="Border Opacity"
-              value={(() => {
-                const qSettings = element.questionSettings || {};
-                const aSettings = element.answerSettings || {};
-                return (qSettings.borderOpacity || aSettings.borderOpacity || 1) * 100;
-              })()}
-              onChange={(value) => updateSharedSetting('borderOpacity', value / 100)}
-              min={0}
-              max={100}
-              step={5}
-            />
-          </IndentedSection>
-        )}
-        
-        <div>
-          <Label className="flex items-center gap-1" variant="xs">
-            <Checkbox
-              checked={(() => {
-                const qSettings = element.questionSettings || {};
-                const aSettings = element.answerSettings || {};
-                return qSettings.backgroundEnabled || aSettings.backgroundEnabled || false;
-              })()}
-              onCheckedChange={(checked) => updateSharedSetting('backgroundEnabled', checked)}
-            />
-            Background
-          </Label>
-        </div>
-        
-        {(() => {
-          const qSettings = element.questionSettings || {};
-          const aSettings = element.answerSettings || {};
-          return qSettings.backgroundEnabled || aSettings.backgroundEnabled;
-        })() && (
-          <IndentedSection>
-            <div>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => setShowColorSelector('element-background-color')}
-                className="w-full"
-              >
-                <Palette className="w-4 mr-2" />
-                Background Color & Opacity
-              </Button>
-            </div>
-          </IndentedSection>
-        )}
-
-        <div className="flex flex-row gap-2 py-2 w-full">
-          <div className='flex-1'>
-            <div className='flex flex-row gap-2'>
-              <SquareRoundCorner className='w-5 h-5'/>
-              <Slider
-                label="Corner Radius"
-                value={actualToCommonRadius((() => {
-                  const qSettings = element.questionSettings || {};
-                  const aSettings = element.answerSettings || {};
-                  return qSettings.cornerRadius || aSettings.cornerRadius || 0;
-                })())}              
-                onChange={(value) => updateSharedSetting('cornerRadius', commonToActualRadius(value))}
-                min={COMMON_CORNER_RADIUS_RANGE.min}
-                max={COMMON_CORNER_RADIUS_RANGE.max}
-                step={1}
-                className='w-full'
-              />
-            </div>
-          </div>
-        </div>
-        
-        <div className="flex flex-row gap-2 py-2 w-full">
-          <div className='flex-1'>
-            <div className='flex flex-row gap-2'>
-              <PanelTopBottomDashed className='w-5 h-5'/>
-              <Slider
-                label="Padding"
-                value={(() => {
-                  const qSettings = element.questionSettings || {};
-                  const aSettings = element.answerSettings || {};
-                  return qSettings.padding || aSettings.padding || 4;
-                })()}              
-                onChange={(value) => updateSharedSetting('padding', value)}
-                min={0}
-                max={50}
-                step={1}
-                className='w-full'
-              />
-            </div>
-          </div>
-        </div>
-        
-        <div className='flex flex-row gap-3'>
-          <div className="flex-1 py-2">
-            <Label variant="xs">Text Align</Label>
-            <ButtonGroup className="mt-1 flex flex-row">
-              <Button
-                variant={(() => {
-                  const qSettings = element.questionSettings || {};
-                  const aSettings = element.answerSettings || {};
-                  const align = qSettings.align || aSettings.align || 'left';
-                  return align === 'left' ? 'default' : 'outline';
-                })()}
-                size="xs"
-                onClick={() => updateSharedSetting('align', 'left')}
-                className="px-1 h-6 flex-1"
-              >
-                <AlignLeft className="h-3 w-3" />
-              </Button>
-              <Button
-                variant={(() => {
-                  const qSettings = element.questionSettings || {};
-                  const aSettings = element.answerSettings || {};
-                  const align = qSettings.align || aSettings.align || 'left';
-                  return align === 'center' ? 'default' : 'outline';
-                })()}
-                size="xs"
-                onClick={() => updateSharedSetting('align', 'center')}
-                className="px-1 h-6 flex-1"
-              >
-                <AlignCenter className="h-3 w-3" />
-              </Button>
-              <Button
-                variant={(() => {
-                  const qSettings = element.questionSettings || {};
-                  const aSettings = element.answerSettings || {};
-                  const align = qSettings.align || aSettings.align || 'left';
-                  return align === 'right' ? 'default' : 'outline';
-                })()}
-                size="xs"
-                onClick={() => updateSharedSetting('align', 'right')}
-                className="px-1 h-6 flex-1"
-              >
-                <AlignRight className="h-3 w-3" />
-              </Button>
-              <Button
-                variant={(() => {
-                  const qSettings = element.questionSettings || {};
-                  const aSettings = element.answerSettings || {};
-                  const align = qSettings.align || aSettings.align || 'left';
-                  return align === 'justify' ? 'default' : 'outline';
-                })()}
-                size="xs"
-                onClick={() => updateSharedSetting('align', 'justify')}
-                className="px-1 h-6 flex-1"
-              >
-                <AlignJustify className="h-3 w-3" />
-              </Button>
-            </ButtonGroup>
-          </div>
-        </div>
-        
-
+            dispatch({
+              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+              payload: {
+                id: element.id,
+                updates
+              }
+            });
+          }}
+          activeSection={activeSection}
+          onActiveSectionChange={setActiveSection}
+          questionStyle={questionStyle}
+          answerStyle={answerStyle}
+          updateQuestionSetting={updateQuestionSetting}
+          updateAnswerSetting={updateAnswerSetting}
+        />
       </div>
     );
   };
@@ -1719,7 +1230,6 @@ export function ToolSettingsContent({
     };
     
     const updateQuestionSetting = (key: string, value: any) => {
-      dispatch({ type: 'SAVE_TO_HISTORY', payload: `Update QnA2 Question ${key}` });
       dispatch({
         type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
         payload: {
@@ -1735,7 +1245,6 @@ export function ToolSettingsContent({
     };
     
     const updateAnswerSetting = (key: string, value: any) => {
-      dispatch({ type: 'SAVE_TO_HISTORY', payload: `Update QnA2 Answer ${key}` });
       dispatch({
         type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
         payload: {
@@ -1969,7 +1478,6 @@ export function ToolSettingsContent({
   
   const renderQuestionAnswerPairSettings = (questionElement: any, answerElement: any) => {
     const updateBothElements = (key: string, value: any) => {
-      dispatch({ type: 'SAVE_TO_HISTORY', payload: `Update Question-Answer ${key}` });
       dispatch({
         type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
         payload: { id: questionElement.id, updates: { [key]: value } }
@@ -2629,7 +2137,6 @@ export function ToolSettingsContent({
 
   const renderElementSettings = (element: any) => {
     const updateElementSettingLocal = (key: string, value: any) => {
-      dispatch({ type: 'SAVE_TO_HISTORY', payload: `Update ${element.type} ${key}` });
       updateElementSetting(element.id, { [key]: value });
     };
 

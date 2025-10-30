@@ -397,13 +397,13 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
         }
       }
       
-      // Generate lines in answer area underneath text - adjust for text baseline offset
-      let lineY = answerArea.y + answerFontSize + textBaselineOffset + 8;
+      // Generate lines in answer area underneath text - adjust for text baseline offset and block mode positioning
+      let lineY = answerArea.y + answerFontSize + textBaselineOffset + 36; // Move down a tiny bit more for block mode
       const endY = answerArea.y + answerArea.height;
       
       while (lineY < endY) {
         lines.push(...generateLineElement(lineY, aTheme, answerArea.x, aColor, aWidth, aOpacity, answerArea.x + answerArea.width));
-        lineY += answerFontSize + 8;
+        lineY += answerFontSize; // Even smaller gap between lines for block mode
       }
     } else {
       // Inline layout: adjust line positioning to account for text baseline offset
@@ -441,21 +441,28 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
           }
         }
         
-        // First line uses question line height
-        let lineY = padding + qFontSize + textBaselineOffset + 4;
+        // Use consistent line height if font sizes are the same
+        const useConsistentSpacing = qFontSize === answerFontSize;
+        const consistentLineHeight = useConsistentSpacing ? Math.max(qLineHeight, aLineHeight) : qLineHeight;
+        
+        // Add extra spacing for small question fonts to prevent overlap
+        const extraSpacing = qFontSize < 11 ? (qFontSize < 9 ? 8 : 4) : 0;
+        
+        // First line uses consistent or question line height
+        let lineY = padding + qFontSize + textBaselineOffset + 4 + extraSpacing;
         lines.push(...generateLineElement(lineY, aTheme, padding, aColor, aWidth, aOpacity));
         
-        // Additional question lines use question line height
+        // Additional question lines use consistent or question line height
         for (let i = 1; i < questionLineCount; i++) {
-          lineY += qLineHeight;
+          lineY += useConsistentSpacing ? consistentLineHeight : qLineHeight;
           lines.push(...generateLineElement(lineY, aTheme, padding, aColor, aWidth, aOpacity));
         }
         
-        // Answer lines use answer font size spacing to match text line height
-        lineY += aLineHeight + (answerFontSize * 0.2);
+        // Answer lines use consistent or answer line height
+        lineY += (useConsistentSpacing ? consistentLineHeight : aLineHeight) + (answerFontSize * 0.2);
         while (lineY < element.height - padding - 10) {
           lines.push(...generateLineElement(lineY, aTheme, padding, aColor, aWidth, aOpacity));
-          lineY += aLineHeight;
+          lineY += useConsistentSpacing ? consistentLineHeight : aLineHeight;
         }
       } else {
         // Single text - use appropriate font size + gap, adjust for baseline offset
@@ -882,7 +889,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
             }
           }}
         >
-          {/* Background and Border */}
+          {/* Background */}
           {(() => {
             // Get default settings from tool defaults if not present
             const currentPage = state.currentBook?.pages[state.activePageIndex];
@@ -899,71 +906,73 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               ...element.answerSettings
             };
             const showBackground = questionStyle.backgroundEnabled || answerStyle.backgroundEnabled;
-            const showBorder = questionStyle.borderEnabled || answerStyle.borderEnabled;
-            const cornerRadius = questionStyle.cornerRadius || answerStyle.cornerRadius || 0;
             
-            if (showBackground || showBorder) {
-              const theme = questionStyle.borderTheme || answerStyle.borderTheme || 'default';
-              
-              if (theme === 'rough' && showBorder) {
-                // Use rough.js for border
-                const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-                const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-                const rc = rough.svg(svg);
-                
-                try {
-                  const borderColor = questionStyle.borderColor || answerStyle.borderColor || '#000000';
-                  const borderWidth = questionStyle.borderWidth || answerStyle.borderWidth || 1;
-                  const borderOpacity = questionStyle.borderOpacity || answerStyle.borderOpacity || 1;
-                  const backgroundColor = showBackground ? (questionStyle.backgroundColor || answerStyle.backgroundColor || 'transparent') : 'transparent';
-                  const backgroundOpacity = showBackground ? (questionStyle.backgroundOpacity ?? answerStyle.backgroundOpacity ?? 1) : 0;
-                  
-                  const roughRect = rc.rectangle(0, 0, element.width, element.height, {
-                    roughness: 2,
-                    strokeWidth: borderWidth,
-                    stroke: borderColor,
-                    fill: backgroundColor !== 'transparent' ? backgroundColor : undefined,
-                    fillStyle: 'solid',
-                    seed: seed
-                  });
-                  
-                  const paths = roughRect.querySelectorAll('path');
-                  let combinedPath = '';
-                  paths.forEach(path => {
-                    const d = path.getAttribute('d');
-                    if (d) combinedPath += d + ' ';
-                  });
-                  
-                  if (combinedPath) {
-                    return (
-                      <Path
-                        data={combinedPath.trim()}
-                        stroke={borderColor}
-                        strokeWidth={borderWidth}
-                        strokeOpacity={borderOpacity}
-                        fill={backgroundColor !== 'transparent' ? backgroundColor : undefined}
-                        opacity={backgroundColor !== 'transparent' ? backgroundOpacity : 0}
-                        listening={false}
-                      />
-                    );
-                  }
-                } catch (error) {
-                  // Fallback to regular rect
-                }
-              }
-              
-              const backgroundColor = showBackground ? (questionStyle.backgroundColor || answerStyle.backgroundColor || 'transparent') : 'transparent';
-              const backgroundOpacity = showBackground ? (questionStyle.backgroundOpacity ?? answerStyle.backgroundOpacity ?? 1) : 0;
+            if (showBackground) {
+              const backgroundColor = questionStyle.backgroundColor || answerStyle.backgroundColor || 'transparent';
+              const backgroundOpacity = questionStyle.backgroundOpacity ?? answerStyle.backgroundOpacity ?? 1;
+              const cornerRadius = questionStyle.cornerRadius || answerStyle.cornerRadius || 0;
               
               return (
                 <Rect
                   width={element.width}
                   height={element.height}
-                  fill={backgroundColor !== 'transparent' ? backgroundColor : 'transparent'}
-                  opacity={backgroundColor !== 'transparent' ? backgroundOpacity : 0}
-                  stroke={showBorder ? (questionStyle.borderColor || answerStyle.borderColor || '#000000') : 'transparent'}
-                  strokeWidth={showBorder ? (questionStyle.borderWidth || answerStyle.borderWidth || 1) : 0}
-                  strokeOpacity={showBorder ? (questionStyle.borderOpacity || answerStyle.borderOpacity || 1) : 0}
+                  fill={backgroundColor}
+                  opacity={backgroundOpacity}
+                  cornerRadius={cornerRadius}
+                  listening={false}
+                />
+              );
+            }
+            return null;
+          })()}
+          
+          {/* Border */}
+          {(() => {
+            // Get default settings from tool defaults if not present
+            const currentPage = state.currentBook?.pages[state.activePageIndex];
+            const pageTheme = currentPage?.background?.pageTheme;
+            const bookTheme = state.currentBook?.bookTheme;
+            const qnaInlineDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme);
+            
+            const questionStyle = {
+              ...qnaInlineDefaults.questionSettings,
+              ...element.questionSettings
+            };
+            const answerStyle = {
+              ...qnaInlineDefaults.answerSettings,
+              ...element.answerSettings
+            };
+            const showBorder = questionStyle.borderEnabled || answerStyle.borderEnabled;
+            
+            if (showBorder) {
+              const borderColor = questionStyle.borderColor || answerStyle.borderColor || '#000000';
+              const borderWidth = questionStyle.borderWidth || answerStyle.borderWidth || 1;
+              const borderOpacity = questionStyle.borderOpacity ?? answerStyle.borderOpacity ?? 1;
+              const cornerRadius = questionStyle.cornerRadius || answerStyle.cornerRadius || 0;
+              const theme = questionStyle.borderTheme || answerStyle.borderTheme || 'default';
+              
+              // Use theme renderer for consistent border rendering
+              const themeRenderer = getThemeRenderer(theme);
+              if (themeRenderer && theme !== 'default') {
+                return themeRenderer.renderBorder({
+                  width: element.width,
+                  height: element.height,
+                  borderWidth,
+                  borderColor,
+                  borderOpacity,
+                  cornerRadius,
+                  elementId: element.id
+                });
+              }
+              
+              return (
+                <Rect
+                  width={element.width}
+                  height={element.height}
+                  fill="transparent"
+                  stroke={borderColor}
+                  strokeWidth={borderWidth}
+                  opacity={borderOpacity}
                   cornerRadius={cornerRadius}
                   listening={false}
                 />
@@ -1371,7 +1380,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                         <Text
                           key={`user-line-${currentLineY}-${currentX}`}
                           x={isFirstLine ? finalX : padding}
-                          y={currentLineY + (qFontSize - aFontSize) * 0.8 + textBaselineOffset + (isFirstLine ? qFontSize * 0.15 : qFontSize * 0.2)}
+                          y={currentLineY + (qFontSize - aFontSize) * 0.8 + textBaselineOffset + (isFirstLine ? qFontSize * 0.05 : qFontSize * 0.2)}
                           text={lineText}
                           fontSize={aFontSize}
                           fontFamily={aFontFamily}

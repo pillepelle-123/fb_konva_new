@@ -398,7 +398,7 @@ export default function Canvas() {
           setPreviewShape({ x, y, width: 0, height: 0, type: state.activeTool });
         }
       }
-    } else if (state.activeTool === 'text' || state.activeTool === 'question' || state.activeTool === 'answer' || state.activeTool === 'qna' || state.activeTool === 'qna2' || state.activeTool === 'qna_inline') {
+    } else if (state.activeTool === 'text' || state.activeTool === 'question' || state.activeTool === 'answer' || state.activeTool === 'qna' || state.activeTool === 'qna2' || state.activeTool === 'qna_inline' || state.activeTool === 'free_text') {
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
         const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
@@ -885,6 +885,27 @@ export default function Canvas() {
             cornerRadius: qnaInlineDefaults.cornerRadius,
             questionSettings: qnaInlineDefaults.questionSettings,
             answerSettings: qnaInlineDefaults.answerSettings
+          };
+        } else if (previewTextbox.type === 'free_text') {
+          const currentPage = state.currentBook?.pages[state.activePageIndex];
+          const pageTheme = currentPage?.background?.pageTheme;
+          const bookTheme = state.currentBook?.bookTheme;
+          const freeTextDefaults = getToolDefaults('free_text', pageTheme, bookTheme);
+          newElement = {
+            id: uuidv4(),
+            type: 'text',
+            x: previewTextbox.x,
+            y: previewTextbox.y,
+            width: previewTextbox.width,
+            height: previewTextbox.height,
+            text: '',
+            fontSize: freeTextDefaults.fontSize,
+            align: freeTextDefaults.align,
+            fontFamily: freeTextDefaults.fontFamily,
+            textType: 'free_text',
+            paragraphSpacing: freeTextDefaults.paragraphSpacing,
+            cornerRadius: freeTextDefaults.cornerRadius,
+            textSettings: freeTextDefaults.textSettings
           };
         } else {
           const currentPage = state.currentBook?.pages[state.activePageIndex];
@@ -2057,8 +2078,13 @@ export default function Canvas() {
 
   // Auto-fit when entering the canvas editor or when container size changes
   useEffect(() => {
-    fitToView();
-  }, [fitToView, containerSize]);
+    // Only auto-fit on initial load, not on every container size change
+    // This prevents zoom reset when settings panel updates cause re-renders
+    const hasInitialZoom = zoom !== 0.8; // 0.8 is the initial zoom value
+    if (!hasInitialZoom) {
+      fitToView();
+    }
+  }, [fitToView]);
 
   const handleImageSelect = (imageId: number, imageUrl: string) => {
     if (!pendingImagePosition) return;

@@ -7,6 +7,7 @@ export { Label } from './label';
 export { NumberInput } from './number-input';
 export { RadioGroup } from './radio-group';
 export { SelectInput } from './select-input';
+export { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select';
 export { Separator } from './separator';
 export { Slider } from './slider';
 export { Switch } from './switch';

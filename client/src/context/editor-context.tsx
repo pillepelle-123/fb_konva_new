@@ -317,7 +317,7 @@ export interface CanvasElement {
   fontFamily?: string;
   fontStyle?: 'normal' | 'italic';
   fontColor?: string;
-  textType?: 'question' | 'answer' | 'text' | 'qna' | 'qna2' | 'qna_inline';
+  textType?: 'question' | 'answer' | 'text' | 'qna' | 'qna2' | 'qna_inline' | 'free_text';
   questionId?: string; // UUID - for both question and answer elements
   answerId?: string; // UUID - for answer elements
   questionElementId?: string; // Legacy - for linking answer to question element
@@ -398,7 +398,7 @@ export interface WizardTemplateSelection {
 export interface EditorState {
   currentBook: Book | null;
   activePageIndex: number;
-  activeTool: 'select' | 'text' | 'question' | 'answer' | 'qna' | 'image' | 'line' | 'circle' | 'rect' | 'brush' | 'pan' | 'zoom' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley' | 'triangle' | 'polygon';
+  activeTool: 'select' | 'text' | 'question' | 'answer' | 'qna' | 'qna2' | 'qna_inline' | 'free_text' | 'image' | 'line' | 'circle' | 'rect' | 'brush' | 'pan' | 'zoom' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley' | 'triangle' | 'polygon' | 'pipette';
   selectedElementIds: string[];
   selectedGroupedElement?: { groupId: string; elementId: string };
   user?: { id: number; role: string } | null;

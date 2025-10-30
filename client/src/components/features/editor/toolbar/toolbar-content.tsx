@@ -174,34 +174,8 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
 
         {/* <Separator className="mb-2" /> */}
 
-        {/* Row 4: Text + Question */}
-        <div className={`${isExpanded ? 'grid grid-cols-2 gap-1' : 'space-y-1'} mb-2`}>
-          <ToolButton
-            id="text"
-            label="Text"
-            icon={MessageCircle}
-            isActive={activeTool === 'text'}
-            isExpanded={false}
-            userRole={userRole}
-            isOnAssignedPage={isOnAssignedPage}
-            onClick={() => onToolSelect('text')}
-          />
-          <ToolButton
-            id="question"
-            label="Question"
-            icon={MessageCircleQuestionMark}
-            isActive={activeTool === 'question'}
-            isExpanded={false}
-            userRole={userRole}
-            isOnAssignedPage={isOnAssignedPage}
-            onClick={() => onToolSelect('question')}
-          />
-        </div>
-
-        {/* <Separator className="mb-2" /> */}
-
-        {/* Row 5: Zoom + Q&A Textbox */}
-        <div className={`${isExpanded ? 'grid grid-cols-2 gap-1' : 'space-y-1'} mb-2`}>
+        {/* Row 4: Zoom + Rich Text */}
+        <div className={`${isExpanded ? 'grid grid-cols-2 gap-1' : 'space-y-1'} mb-1`}>
           <ToolButton
             id="zoom"
             label="Zoom"
@@ -213,30 +187,6 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
             onClick={() => onToolSelect('zoom')}
           />
           <ToolButton
-            id="qna"
-            label="Q&A Textbox"
-            icon={MessageCircle}
-            isActive={activeTool === 'qna'}
-            isExpanded={false}
-            userRole={userRole}
-            isOnAssignedPage={isOnAssignedPage}
-            onClick={() => onToolSelect('qna')}
-          />
-        </div>
-        
-        {/* Row 6: QnA2 Inline + Rich Text */}
-        <div className={`${isExpanded ? 'grid grid-cols-2 gap-1' : 'space-y-1'} mb-2`}>
-          <ToolButton
-            id="qna2"
-            label="Q&A Inline"
-            icon={MessageCircleHeart}
-            isActive={activeTool === 'qna2'}
-            isExpanded={false}
-            userRole={userRole}
-            isOnAssignedPage={isOnAssignedPage}
-            onClick={() => onToolSelect('qna2')}
-          />
-          <ToolButton
             id="qna_inline"
             label="Rich Text"
             icon={MessageCircleMore}
@@ -245,6 +195,20 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
             userRole={userRole}
             isOnAssignedPage={isOnAssignedPage}
             onClick={() => onToolSelect('qna_inline')}
+          />
+        </div>
+        
+        {/* Row 5: Free Text */}
+        <div className={`${isExpanded ? 'grid grid-cols-2 gap-1' : 'space-y-1'} mb-2`}>
+          <ToolButton
+            id="free_text"
+            label="Free Text"
+            icon={MessageCircle}
+            isActive={activeTool === 'free_text'}
+            isExpanded={false}
+            userRole={userRole}
+            isOnAssignedPage={isOnAssignedPage}
+            onClick={() => onToolSelect('free_text')}
           />
         </div>
         

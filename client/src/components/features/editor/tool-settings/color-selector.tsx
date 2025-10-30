@@ -130,6 +130,7 @@ export function ColorSelector({
           max={100}
           step={5}
           unit="%"
+          hasLabel={false}
         />
       )}
       

@@ -202,6 +202,39 @@ export const TOOL_DEFAULTS = {
       fontColor: '#1f2937', // Dark color for answers
       ruledLines: false
     }
+  },
+  free_text: {
+    fontSize: 50,
+    fontFamily: 'Arial, sans-serif',
+    fontWeight: 'normal',
+    fontStyle: 'normal',
+    fontColor: '#1f2937',
+    align: 'left',
+    paragraphSpacing: 'medium',
+    ruledLines: false,
+    ruledLinesTheme: 'rough',
+    ruledLinesColor: '#1f2937',
+    ruledLinesWidth: 1,
+    cornerRadius: 0,
+    borderWidth: 0,
+    borderColor: '#000000',
+    backgroundColor: 'transparent',
+    padding: 4,
+    textSettings: {
+      fontSize: 50,
+      fontColor: '#1f2937',
+      fontFamily: 'Arial, sans-serif',
+      align: 'left',
+      paragraphSpacing: 'medium',
+      ruledLines: false,
+      ruledLinesTheme: 'rough',
+      ruledLinesColor: '#1f2937',
+      ruledLinesWidth: 1,
+      background: { enabled: false, color: 'transparent', opacity: 1 },
+      border: { enabled: false, color: '#000000', width: 1, opacity: 1, theme: 'default' },
+      cornerRadius: 0,
+      padding: 4
+    }
   }
 } as const;
 
