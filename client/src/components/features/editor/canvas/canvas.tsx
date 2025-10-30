@@ -2802,9 +2802,9 @@ export default function Canvas() {
                       }
                     });
                     
-                    const currentPage = state.currentBook?.pages[state.activePageIndex];
-                    if (currentPage) {
-                      const answerElement = currentPage.elements.find(el => 
+                    const currentPageForAnswer = state.currentBook?.pages[state.activePageIndex];
+                    if (currentPageForAnswer) {
+                      const answerElement = currentPageForAnswer.elements.find(el => 
                         el.textType === 'answer' && el.questionElementId === selectedQuestionElementId
                       );
                       if (answerElement) {

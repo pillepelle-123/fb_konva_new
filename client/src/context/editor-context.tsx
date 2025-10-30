@@ -485,7 +485,6 @@ type EditorAction =
   | { type: 'LOAD_TEMPLATES'; payload: PageTemplate[] }
   | { type: 'LOAD_COLOR_PALETTES'; payload: ColorPalette[] }
   | { type: 'APPLY_TEMPLATE_TO_PAGE'; payload: { pageIndex: number; template: PageTemplate } }
-  | { type: 'LOAD_TEMPLATES'; payload: PageTemplate[] }
   | { type: 'SET_WIZARD_TEMPLATE_SELECTION'; payload: WizardTemplateSelection };
 
 const initialState: EditorState = {
@@ -1373,9 +1372,6 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         selectedTemplate: template,
         hasUnsavedChanges: true 
       };
-    
-    case 'LOAD_TEMPLATES':
-      return { ...state, availableTemplates: action.payload };
     
     case 'SET_WIZARD_TEMPLATE_SELECTION':
       return { ...state, wizardTemplateSelection: action.payload };
