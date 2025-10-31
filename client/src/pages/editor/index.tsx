@@ -40,6 +40,71 @@ function EditorContent() {
     
     loadTemplateData();
   }, [dispatch]);
+  
+  // Apply wizard selections after book is loaded
+  useEffect(() => {
+    if (state.currentBook && (state.wizardTemplateSelection.selectedTemplateId || state.wizardTemplateSelection.selectedPaletteId) && state.availableTemplates && state.colorPalettes) {
+      const template = state.availableTemplates.find(t => t.id === state.wizardTemplateSelection.selectedTemplateId);
+      const palette = state.colorPalettes.find(p => p.id === state.wizardTemplateSelection.selectedPaletteId);
+      
+      if (template) {
+        // Apply template to first page
+        dispatch({ 
+          type: 'APPLY_TEMPLATE', 
+          payload: { 
+            template, 
+            pageIndex: 0, 
+            applyToAllPages: false 
+          } 
+        });
+      } else if (!state.wizardTemplateSelection.selectedTemplateId && palette) {
+        // No template selected, create simple textbox with palette colors
+        const simpleElement = {
+          id: `element_${Date.now()}`,
+          type: 'text' as const,
+          textType: 'text' as const,
+          x: 200,
+          y: 200,
+          width: 400,
+          height: 100,
+          text: '',
+          fontSize: 16,
+          fontFamily: 'Century Gothic, sans-serif',
+          fontColor: palette.colors.text,
+          align: 'left' as const,
+          padding: 12,
+          cornerRadius: 8
+        };
+        
+        dispatch({ 
+          type: 'ADD_ELEMENT', 
+          payload: simpleElement 
+        });
+      }
+      
+      if (palette) {
+        // Apply color palette to first page
+        dispatch({ 
+          type: 'APPLY_COLOR_PALETTE', 
+          payload: { 
+            palette, 
+            pageIndex: 0, 
+            applyToAllPages: false 
+          } 
+        });
+      }
+      
+      // Clear wizard selection after applying
+      dispatch({ 
+        type: 'SET_WIZARD_TEMPLATE_SELECTION', 
+        payload: {
+          selectedTemplateId: null,
+          selectedPaletteId: null,
+          templateCustomizations: undefined
+        }
+      });
+    }
+  }, [state.currentBook, state.wizardTemplateSelection, state.availableTemplates, state.colorPalettes, dispatch]);
 
   useEffect(() => {
     if (bookId) {
@@ -65,12 +130,28 @@ function EditorContent() {
                 name: tempBook?.name || 'New Book',
                 pageSize: tempBook?.pageSize || 'A4',
                 orientation: tempBook?.orientation || 'portrait',
-                bookTheme: 'default'
+                bookTheme: tempBook?.bookTheme || 'default'
               })
             });
             
             if (response.ok) {
               const newBook = await response.json();
+              
+              // Apply wizard selections if available
+              if (tempBook?.wizardSelections) {
+                const { template, theme, palette } = tempBook.wizardSelections;
+                
+                // Set wizard template selection in context for later use
+                dispatch({ 
+                  type: 'SET_WIZARD_TEMPLATE_SELECTION', 
+                  payload: {
+                    selectedTemplateId: template?.id || null,
+                    selectedPaletteId: palette?.id || null,
+                    templateCustomizations: { theme }
+                  }
+                });
+              }
+              
               // Clean up temporary book
               if (tempBooks) {
                 tempBooks.delete(bookId);

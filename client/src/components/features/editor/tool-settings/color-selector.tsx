@@ -124,7 +124,8 @@ export function ColorSelector({
       {onOpacityChange && (
         <Slider
           label="Opacity"
-          value={Math.round(opacity * 100)}
+          value={Math.round((opacity || 1) * 100)}
+          displayValue={Math.round((opacity || 1) * 100)}
           onChange={(value) => onOpacityChange(value / 100)}
           min={0}
           max={100}

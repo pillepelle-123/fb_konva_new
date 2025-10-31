@@ -105,7 +105,14 @@ export const GLOBAL_PALETTES: ColorPalette[] = [
   { id: 'sketchy-palette', name: 'Sketchy', colors: { primary: '#e0fbfc', secondary: '#c2dfe3', accent: '#9db4c0', background: '#5c6b73', surface: '#253237' }, category: 'Default' },
   { id: 'professional-palette', name: 'Professional', colors: { primary: '#ff6700', secondary: '#ebebeb', accent: '#c0c0c0', background: '#3a6ea5', surface: '#004e98' }, category: 'Default' },
   { id: 'playful-palette', name: 'Playful', colors: { primary: '#ff595e', secondary: '#ffca3a', accent: '#8ac926', background: '#1982c4', surface: '#6a4c93' }, category: 'Default' },
-  { id: 'vintage-palette', name: 'Vintage', colors: { primary: '#cebebe', secondary: '#ece2d0', accent: '#d5b9b2', background: '#a26769', surface: '#6d2e46' }, category: 'Default' }
+  { id: 'vintage-palette', name: 'Vintage', colors: { primary: '#cebebe', secondary: '#ece2d0', accent: '#d5b9b2', background: '#a26769', surface: '#6d2e46' }, category: 'Default' },
+  
+  // New mood-focused palettes
+  { id: 'energetic', name: 'Energetic', colors: { primary: '#FF4081', secondary: '#FF9800', accent: '#FFEB3B', background: '#FFF3E0', surface: '#FFE0B2' }, category: 'Mood' },
+  { id: 'calm', name: 'Calm', colors: { primary: '#4FC3F7', secondary: '#81C784', accent: '#AED581', background: '#E8F5E8', surface: '#E1F5FE' }, category: 'Mood' },
+  { id: 'mysterious', name: 'Mysterious', colors: { primary: '#7E57C2', secondary: '#5C6BC0', accent: '#42A5F5', background: '#1A1A2E', surface: '#16213E' }, category: 'Mood' },
+  { id: 'warm', name: 'Warm', colors: { primary: '#FF7043', secondary: '#FFAB40', accent: '#FFD54F', background: '#FFF8E1', surface: '#FFECB3' }, category: 'Mood' },
+  { id: 'elegant', name: 'Elegant', colors: { primary: '#8D6E63', secondary: '#A1887F', accent: '#D7CCC8', background: '#EFEBE9', surface: '#F5F5F5' }, category: 'Mood' }
 ];
 
 export function getPalette(id: string): ColorPalette | undefined {
@@ -127,25 +134,56 @@ export function applyPaletteToElement(palette: ColorPalette, elementType: string
     case 'text':
       updates.fill = palette.colors.primary;
       updates.stroke = palette.colors.primary;
+      updates.fontColor = palette.colors.primary;
       updates.borderColor = palette.colors.secondary;
       updates.backgroundColor = palette.colors.background;
-      updates.backgroundOpacity = 0.3;
+      updates.ruledLinesColor = palette.colors.accent;
+      // Nested properties
+      updates.font = { fontColor: palette.colors.primary };
+      updates.border = { borderColor: palette.colors.secondary };
+      updates.background = { backgroundColor: palette.colors.background };
+      updates.ruledLines = { lineColor: palette.colors.accent };
       break;
       
     case 'question':
       updates.fill = palette.colors.primary;
       updates.stroke = palette.colors.primary;
+      updates.fontColor = palette.colors.primary;
       updates.borderColor = palette.colors.secondary;
       updates.backgroundColor = palette.colors.surface;
-      updates.backgroundOpacity = 0.4;
+      updates.ruledLinesColor = palette.colors.accent;
+      updates.font = { fontColor: palette.colors.primary };
+      updates.border = { borderColor: palette.colors.secondary };
+      updates.background = { backgroundColor: palette.colors.surface };
+      updates.ruledLines = { lineColor: palette.colors.accent };
       break;
       
     case 'answer':
       updates.fill = palette.colors.accent;
       updates.stroke = palette.colors.accent;
+      updates.fontColor = palette.colors.accent;
       updates.borderColor = palette.colors.secondary;
       updates.backgroundColor = palette.colors.background;
-      updates.backgroundOpacity = 0.3;
+      updates.ruledLinesColor = palette.colors.primary;
+      updates.font = { fontColor: palette.colors.accent };
+      updates.border = { borderColor: palette.colors.secondary };
+      updates.background = { backgroundColor: palette.colors.background };
+      updates.ruledLines = { lineColor: palette.colors.primary };
+      break;
+      
+    case 'qna_inline':
+      updates.questionSettings = {
+        fontColor: palette.colors.primary,
+        borderColor: palette.colors.secondary,
+        backgroundColor: palette.colors.surface,
+        ruledLinesColor: palette.colors.accent
+      };
+      updates.answerSettings = {
+        fontColor: palette.colors.accent,
+        borderColor: palette.colors.secondary,
+        backgroundColor: palette.colors.background,
+        ruledLinesColor: palette.colors.primary
+      };
       break;
       
     case 'brush':
@@ -161,17 +199,55 @@ export function applyPaletteToElement(palette: ColorPalette, elementType: string
     case 'dog':
     case 'cat':
     case 'smiley':
+    case 'triangle':
+    case 'polygon':
+    case 'sticker':
       updates.stroke = palette.colors.primary;
       updates.fill = palette.colors.surface;
-      updates.fillOpacity = 0.6;
       break;
       
     case 'image':
     case 'placeholder':
       updates.borderColor = palette.colors.secondary;
       updates.backgroundColor = palette.colors.background;
-      updates.backgroundOpacity = 0.2;
       break;
+  }
+  
+  return updates;
+}
+
+export function applyPaletteToAllElements(palette: ColorPalette, elements: any[]): any[] {
+  return elements.map(element => {
+    const elementType = element.textType || element.type;
+    const colorUpdates = applyPaletteToElement(palette, elementType);
+    
+    // Deep merge color properties while preserving non-color properties
+    const updatedElement = { ...element };
+    
+    // Apply flat color properties
+    Object.keys(colorUpdates).forEach(key => {
+      if (key === 'font' || key === 'border' || key === 'background' || key === 'ruledLines' || key === 'questionSettings' || key === 'answerSettings') {
+        // Merge nested objects
+        updatedElement[key] = { ...updatedElement[key], ...colorUpdates[key] };
+      } else {
+        // Apply flat properties
+        updatedElement[key] = colorUpdates[key];
+      }
+    });
+    
+    return updatedElement;
+  });
+}
+
+export function applyPaletteToPage(palette: ColorPalette, pageBackground: any): any {
+  const updates = { ...pageBackground };
+  
+  // Update background colors only, preserve type and other settings
+  if (updates.type === 'color') {
+    updates.value = palette.colors.background;
+  } else if (updates.type === 'pattern') {
+    updates.patternForegroundColor = palette.colors.primary;
+    updates.patternBackgroundColor = palette.colors.background;
   }
   
   return updates;

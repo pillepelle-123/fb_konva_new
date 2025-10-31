@@ -50,7 +50,7 @@ const defaultTheme: ThemeRenderer = {
   getStrokeProps: (element: CanvasElement, zoom = 1) => ({
     stroke: element.stroke || '#1f2937',
     strokeWidth: element.strokeWidth ? commonToActualStrokeWidth(element.strokeWidth, element.theme || 'default') * zoom : 0,
-    fill: element.fill !== 'transparent' ? element.fill : undefined
+    fill: element.type === 'line' ? undefined : (element.fill !== 'transparent' ? element.fill : undefined)
   })
 };
 
@@ -126,7 +126,7 @@ const roughTheme: ThemeRenderer = {
   getStrokeProps: (element: CanvasElement, zoom = 1) => ({
     stroke: element.stroke || '#1f2937',
     strokeWidth: element.strokeWidth ? commonToActualStrokeWidth(element.strokeWidth, element.theme || 'rough') * zoom : 0,
-    fill: element.fill !== 'transparent' ? element.fill : undefined
+    fill: element.type === 'line' ? undefined : (element.fill !== 'transparent' ? element.fill : undefined)
   })
 };
 
@@ -194,7 +194,7 @@ const glowTheme: ThemeRenderer = {
     return {
       stroke: element.stroke || '#1f2937',
       strokeWidth: baseStrokeWidth * 2,
-      fill: element.fill !== 'transparent' ? element.fill : undefined,
+      fill: element.type === 'line' ? undefined : (element.fill !== 'transparent' ? element.fill : undefined),
       opacity: 0.6,
       shadowColor: element.stroke || '#1f2937',
       shadowBlur: baseStrokeWidth * 2,
@@ -746,7 +746,7 @@ const wobblyTheme: ThemeRenderer = {
     return {
       stroke: element.stroke || '#1f2937',
       strokeWidth: element.strokeWidth ? commonToActualStrokeWidth(element.strokeWidth, element.theme || 'wobbly') * zoom : 0,
-      fill: element.fill !== 'transparent' ? element.fill : undefined
+      fill: element.type === 'line' ? undefined : (element.fill !== 'transparent' ? element.fill : undefined)
     };
   }
 };

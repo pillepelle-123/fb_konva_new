@@ -216,5 +216,65 @@ export const colorPalettes: ColorPalette[] = [
       text: '#1A1A1A'
     },
     contrast: 'AA'
+  },
+  {
+    id: 'energetic-mood',
+    name: 'Energetic',
+    colors: {
+      background: '#FFF3E0',
+      primary: '#FF4081',
+      secondary: '#FF9800',
+      accent: '#FFEB3B',
+      text: '#1A1A1A'
+    },
+    contrast: 'AA'
+  },
+  {
+    id: 'calm-mood',
+    name: 'Calm',
+    colors: {
+      background: '#E8F5E8',
+      primary: '#4FC3F7',
+      secondary: '#81C784',
+      accent: '#AED581',
+      text: '#1A1A1A'
+    },
+    contrast: 'AA'
+  },
+  {
+    id: 'mysterious-mood',
+    name: 'Mysterious',
+    colors: {
+      background: '#1A1A2E',
+      primary: '#7E57C2',
+      secondary: '#5C6BC0',
+      accent: '#42A5F5',
+      text: '#FFFFFF'
+    },
+    contrast: 'AA'
+  },
+  {
+    id: 'warm-mood',
+    name: 'Warm',
+    colors: {
+      background: '#FFF8E1',
+      primary: '#FF7043',
+      secondary: '#FFAB40',
+      accent: '#FFD54F',
+      text: '#1A1A1A'
+    },
+    contrast: 'AA'
+  },
+  {
+    id: 'elegant-mood',
+    name: 'Elegant',
+    colors: {
+      background: '#EFEBE9',
+      primary: '#8D6E63',
+      secondary: '#A1887F',
+      accent: '#D7CCC8',
+      text: '#1A1A1A'
+    },
+    contrast: 'AA'
   }
 ];

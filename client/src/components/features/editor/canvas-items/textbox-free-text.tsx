@@ -48,29 +48,21 @@ export default function TextboxFreeText(props: CanvasItemProps) {
       setIsResizing(false);
       setRefreshKey(prev => prev + 1);
     }, 10);
-  }, [element.textSettings, element.fontSize, element.fontFamily, element.fontColor, element.width, element.height]);
+  }, [element.textSettings, element.fontSize, element.fontFamily, element.fontColor, element.font, element.width, element.height]);
 
-  const fontSize = (() => {
-    let size = element.font?.fontSize || element.fontSize;
-    if (!size) {
-      const currentPage = state.currentBook?.pages[state.activePageIndex];
-      const pageTheme = currentPage?.background?.pageTheme;
-      const bookTheme = state.currentBook?.bookTheme;
-      const elementTheme = element.theme;
-      const activeTheme = pageTheme || bookTheme || elementTheme;
-      if (activeTheme) {
-        const themeDefaults = getGlobalThemeDefaults(activeTheme, 'text');
-        size = themeDefaults?.font?.fontSize || themeDefaults?.fontSize;
-      }
-      if (!size) {
-        const toolDefaults = getToolDefaults('free_text', pageTheme, bookTheme);
-        size = toolDefaults.fontSize;
-      }
-    }
-    return size || 50;
-  })();
+  // Get current theme context
+  const currentPage = state.currentBook?.pages[state.activePageIndex];
+  const pageTheme = currentPage?.background?.pageTheme;
+  const bookTheme = state.currentBook?.bookTheme;
+  const elementTheme = element.theme;
+  const activeTheme = pageTheme || bookTheme || elementTheme;
   
-  const fontFamily = element.font?.fontFamily || element.fontFamily || 'Arial, sans-serif';
+  // Get tool defaults with theme applied
+  const toolDefaults = getToolDefaults('free_text', pageTheme, bookTheme);
+  
+  const fontSize = element.font?.fontSize || element.fontSize || toolDefaults.fontSize || 50;
+  const fontFamily = element.font?.fontFamily || element.fontFamily || toolDefaults.fontFamily || 'Arial, sans-serif';
+  const fontColor = element.font?.fontColor || element.fontColor || toolDefaults.fontColor || '#1f2937';
   
   const getUserText = () => {
     let text = element.formattedText || element.text || '';
@@ -529,11 +521,11 @@ export default function TextboxFreeText(props: CanvasItemProps) {
 
             const elements = [];
             const textFontSize = textStyle.fontSize || fontSize;
-            const textFontFamily = textStyle.fontFamily || fontFamily;
-            const textFontColor = textStyle.fontColor || '#1f2937';
-            const textFontBold = textStyle.fontBold || false;
-            const textFontItalic = textStyle.fontItalic || false;
-            const textFontOpacity = textStyle.fontOpacity ?? 1;
+            const textFontFamily = textStyle.fontFamily || element.font?.fontFamily || element.fontFamily || fontFamily;
+            const textFontColor = textStyle.fontColor || fontColor;
+            const textFontBold = textStyle.fontBold || toolDefaults.textSettings?.fontBold || false;
+            const textFontItalic = textStyle.fontItalic || toolDefaults.textSettings?.fontItalic || false;
+            const textFontOpacity = textStyle.fontOpacity ?? toolDefaults.textSettings?.fontOpacity ?? 1;
             
             const spacing = textStyle.paragraphSpacing || 'medium';
             const getLineHeightMultiplier = (spacing: string) => {

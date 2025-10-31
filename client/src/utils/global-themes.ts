@@ -63,12 +63,24 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
 
     // Map nested font properties to flat canvas element properties
     if (base.font) {
-      if (base.font.fontColor) base.stroke = base.font.fontColor;
+      if (base.font.fontColor) {
+        base.stroke = base.font.fontColor;
+        base.fontColor = base.font.fontColor;
+      }
       if (base.font.fontSize) base.fontSize = base.font.fontSize;
       if (base.font.fontFamily) base.fontFamily = base.font.fontFamily;
-      if (base.font.fontBold !== undefined) base.fontWeight = base.font.fontBold ? 'bold' : 'normal';
-      if (base.font.fontItalic !== undefined) base.fontStyle = base.font.fontItalic ? 'italic' : 'normal';
-      if (base.font.fontOpacity !== undefined) base.strokeOpacity = base.font.fontOpacity;
+      if (base.font.fontBold !== undefined) {
+        base.fontWeight = base.font.fontBold ? 'bold' : 'normal';
+        base.fontBold = base.font.fontBold;
+      }
+      if (base.font.fontItalic !== undefined) {
+        base.fontStyle = base.font.fontItalic ? 'italic' : 'normal';
+        base.fontItalic = base.font.fontItalic;
+      }
+      if (base.font.fontOpacity !== undefined) {
+        base.strokeOpacity = base.font.fontOpacity;
+        base.fontOpacity = base.font.fontOpacity;
+      }
     }
 
     // Map nested border properties to flat canvas element properties
@@ -236,6 +248,9 @@ function getThemeCategory(elementType: string): keyof GlobalTheme['elementDefaul
     case 'answer':
       return 'answer';
     case 'qna':
+    case 'qna2':
+    case 'qna_inline':
+    case 'free_text':
       return 'text'; // QnA uses text defaults as base
     case 'text':
       return 'text';
@@ -263,7 +278,18 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string): Pa
   if (!theme) return {};
   
   const category = getThemeCategory(elementType);
-  return theme.elementDefaults[category] || {};
+  const baseDefaults = theme.elementDefaults[category] || {};
+  
+  // For QnA inline elements, add questionSettings and answerSettings
+  if (elementType === 'qna_inline') {
+    const qnaDefaults = getQnAInlineThemeDefaults(themeId);
+    return {
+      ...baseDefaults,
+      ...qnaDefaults
+    };
+  }
+  
+  return baseDefaults;
 }
 
 export function getQnAThemeDefaults(themeId: string, section: 'question' | 'answer'): any {
@@ -274,22 +300,112 @@ export function getQnAThemeDefaults(themeId: string, section: 'question' | 'answ
   return section === 'question' ? qnaDefaults.questionSettings : qnaDefaults.answerSettings;
 }
 
+// Get theme defaults specifically for QnA inline elements
+export function getQnAInlineThemeDefaults(themeId: string): any {
+  const theme = getGlobalTheme(themeId);
+  if (!theme) return {};
+  
+  const textDefaults = theme.elementDefaults.text;
+  
+  // Extract questionSettings and answerSettings from the theme if available
+  const themeConfig = (themesData as Record<string, any>)[themeId];
+  const qnaConfig = themeConfig?.elementDefaults?.qna;
+  
+  if (qnaConfig?.questionSettings && qnaConfig?.answerSettings) {
+    return {
+      questionSettings: {
+        ...textDefaults,
+        ...qnaConfig.questionSettings,
+        fontSize: qnaConfig.questionSettings.fontSize ? commonToActual(qnaConfig.questionSettings.fontSize) : textDefaults.fontSize
+      },
+      answerSettings: {
+        ...textDefaults,
+        ...qnaConfig.answerSettings,
+        fontSize: qnaConfig.answerSettings.fontSize ? commonToActual(qnaConfig.answerSettings.fontSize) : textDefaults.fontSize
+      }
+    };
+  }
+  
+  return {
+    questionSettings: textDefaults,
+    answerSettings: textDefaults
+  };
+}
+
 export function applyThemeToElement(element: CanvasElement, themeId: string): CanvasElement {
   const themeDefaults = getGlobalThemeDefaults(themeId, element.type);
+  
+  // Apply all theme defaults including colors
+  const allDefaults = { ...themeDefaults };
+  
+  // Handle nested objects properly
+  if (themeDefaults.font) {
+    allDefaults.font = { ...element.font, ...themeDefaults.font };
+  }
+  
+  if (themeDefaults.border) {
+    allDefaults.border = { ...element.border, ...themeDefaults.border };
+  }
+  
+  if (themeDefaults.background) {
+    allDefaults.background = { ...element.background, ...themeDefaults.background };
+  }
+  
+  if (themeDefaults.ruledLines) {
+    allDefaults.ruledLines = { ...element.ruledLines, ...themeDefaults.ruledLines };
+  }
+  
   return {
     ...element,
-    ...themeDefaults,
+    ...allDefaults,
     theme: themeId
   };
+}
+
+export function applyThemeToAllElements(theme: any, elements: any[]): any[] {
+  return elements.map(element => {
+    const elementType = element.textType || element.type;
+    const themeDefaults = getGlobalThemeDefaults(theme.id || theme, elementType);
+    
+    // Apply only non-color properties
+    const nonColorUpdates = {};
+    
+    Object.keys(themeDefaults).forEach(key => {
+      if (!['stroke', 'fill', 'fontColor', 'borderColor', 'backgroundColor', 'ruledLinesColor'].includes(key)) {
+        if (key === 'font' || key === 'border' || key === 'background' || key === 'ruledLines') {
+          // Handle nested objects - preserve colors
+          const nested = themeDefaults[key];
+          const filteredNested = Object.fromEntries(
+            Object.entries(nested).filter(([nestedKey]) => 
+              !['fontColor', 'borderColor', 'backgroundColor', 'lineColor'].includes(nestedKey)
+            )
+          );
+          nonColorUpdates[key] = { ...element[key], ...filteredNested };
+        } else {
+          nonColorUpdates[key] = themeDefaults[key];
+        }
+      }
+    });
+    
+    return { ...element, ...nonColorUpdates };
+  });
 }
 
 export function applyThemeToPage(pageSettings: any, themeId: string): any {
   const theme = getGlobalTheme(themeId);
   if (!theme) return pageSettings;
   
+  // Apply only non-color page settings
+  const { backgroundColor, patternBackgroundColor, ...nonColorPageSettings } = theme.pageSettings;
+  
   return {
     ...pageSettings,
-    ...theme.pageSettings
+    ...nonColorPageSettings,
+    backgroundPattern: {
+      ...pageSettings.backgroundPattern,
+      ...theme.pageSettings.backgroundPattern,
+      patternBackgroundColor: pageSettings.backgroundPattern?.patternBackgroundColor // Preserve existing color
+    }
   };
 }
 

@@ -8,6 +8,7 @@ import { Dialog, DialogContent } from '../../../ui/overlays/dialog';
 import { Modal } from '../../../ui/overlays/modal';
 import QuestionsManagerDialog from '../questions-manager-dialog';
 import ImagesContent from '../../images/images-content';
+import PagePreviewOverlay from '../preview/page-preview-overlay';
 import { SquareMousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile } from 'lucide-react';
 
 
@@ -34,11 +35,9 @@ export interface ToolSettingsPanelRef {
   openBookTheme: () => void;
 }
 
-interface ToolSettingsPanelProps {
-  onOpenTemplates?: () => void;
-}
+interface ToolSettingsPanelProps {}
 
-const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProps>(({ onOpenTemplates }, ref) => {
+const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProps>((props, ref) => {
   const { state, dispatch } = useEditor();
   const { token, user } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -55,6 +54,7 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
   const [showPageTheme, setShowPageTheme] = useState(false);
   const [showBookTheme, setShowBookTheme] = useState(false);
   const [showFontSelector, setShowFontSelector] = useState(false);
+  const [showTemplateOverlay, setShowTemplateOverlay] = useState(false);
 
   const activeTool = state.activeTool;
 
@@ -261,7 +261,7 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
             activeLinkedElement={activeLinkedElement}
             showFontSelector={showFontSelector}
             setShowFontSelector={setShowFontSelector}
-            onOpenTemplates={onOpenTemplates}
+            onOpenTemplates={() => setShowTemplateOverlay(true)}
           />
         )}
       </ToolSettingsContainer>
@@ -458,6 +458,12 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
           onClose={() => setShowBackgroundImageModal(false)}
         />
       </Modal>
+      
+      <PagePreviewOverlay
+        isOpen={showTemplateOverlay}
+        onClose={() => setShowTemplateOverlay(false)}
+        content="templates"
+      />
 
     </>
   );

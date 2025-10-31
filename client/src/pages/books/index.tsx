@@ -6,7 +6,7 @@ import { Card, CardContent } from '../../components/ui/composites/card';
 import { Input } from '../../components/ui/primitives/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
 import BooksGrid from '../../components/features/books/book-grid';
-import CreateBookDialog from '../../components/features/books/create-book-dialog';
+import BookCreationWizard from '../../components/features/books/book-creation-wizard';
 import { Book, BookPlus, Archive, ChevronRight, ChevronUp, Plus } from 'lucide-react';
 import PageUserIcon from '../../components/ui/icons/page-user-icon';
 import FloatingActionButton from '../../components/ui/composites/floating-action-button';
@@ -164,8 +164,8 @@ export default function BooksList() {
           <BooksGrid books={books} onArchive={handleArchive} onPageUserManager={(bookId) => navigate(`/books/${bookId}/page-users`)} />
         )}
 
-        {/* Add Book Dialog */}
-        <CreateBookDialog 
+        {/* Add Book Wizard */}
+        <BookCreationWizard 
           open={showAddForm} 
           onOpenChange={setShowAddForm} 
           onSuccess={fetchBooks} 

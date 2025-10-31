@@ -16,34 +16,35 @@ interface FontSelectorProps {
 }
 
 export function FontSelector({ currentFont, isBold, isItalic, onFontSelect, onBack, element, state }: FontSelectorProps) {
-  const getCurrentFontName = () => {
-    let fontFamily = currentFont;
+  let fontFamily = currentFont || element?.font?.fontFamily || element?.fontFamily;
+  
+  // If no fontFamily provided, try to get from theme defaults
+  if (!fontFamily && element && state) {
+    const currentPage = state.currentBook?.pages[state.activePageIndex];
+    const pageTheme = currentPage?.background?.pageTheme;
+    const bookTheme = state.currentBook?.bookTheme;
+    const activeTheme = pageTheme || bookTheme;
     
-    // If no fontFamily provided, try to get from theme defaults
-    if (!fontFamily && element && state) {
-      const currentPage = state.currentBook?.pages[state.activePageIndex];
-      const pageTheme = currentPage?.background?.pageTheme;
-      const bookTheme = state.currentBook?.bookTheme;
-      const activeTheme = pageTheme || bookTheme;
-      
-      if (activeTheme) {
-        const themeDefaults = getGlobalThemeDefaults(activeTheme, element.textType || element.type || 'text');
-        fontFamily = themeDefaults?.font?.fontFamily || themeDefaults?.fontFamily;
-      }
+    if (activeTheme) {
+      const themeDefaults = getGlobalThemeDefaults(activeTheme, element.textType || element.type || 'text');
+      fontFamily = themeDefaults?.font?.fontFamily || themeDefaults?.fontFamily;
     }
-    
-    if (!fontFamily) return "Arial";
-    
-    for (const group of FONT_GROUPS) {
-      const font = group.fonts.find(f => 
-        f.family === fontFamily || 
-        f.bold === fontFamily || 
-        f.italic === fontFamily
-      );
-      if (font) return font.name;
+  }
+  
+  if (!fontFamily) fontFamily = "Arial, sans-serif";
+  
+  let currentFontName = "Arial";
+  for (const group of FONT_GROUPS) {
+    const font = group.fonts.find(f => 
+      f.family === fontFamily || 
+      f.bold === fontFamily || 
+      f.italic === fontFamily
+    );
+    if (font) {
+      currentFontName = font.name;
+      break;
     }
-    return "Arial";
-  };
+  }
 
   return (
     <div className="space-y-3">
@@ -68,7 +69,7 @@ export function FontSelector({ currentFont, isBold, isItalic, onFontSelect, onBa
           <div className="space-y-1">
             {group.fonts.map((font) => {
               const fontFamily = getFontFamily(font.name, isBold, isItalic);
-              const isSelected = getCurrentFontName() === font.name;
+              const isSelected = currentFontName === font.name;
               
               return (
                 <Button

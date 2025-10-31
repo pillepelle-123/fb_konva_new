@@ -1,13 +1,15 @@
 import { useEditor } from '../../../../context/editor-context';
-import { useState } from 'react';
+
 import { Button } from '../../../ui/primitives/button';
 import { SquareMousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, AlignLeft, AlignCenter, AlignRight, AlignJustify, Rows4, Rows3, Rows2, Palette, Type, SquareRoundCorner, PanelTopBottomDashed, Triangle, Pentagon, ChevronLeft } from 'lucide-react';
 import { QuestionPositionTop, QuestionPositionBottom, QuestionPositionLeft, QuestionPositionRight } from '../../../ui/icons/question-position-icons';
 import { ButtonGroup } from '../../../ui/composites/button-group';
-import { Card, Tabs, TabsList, TabsTrigger } from '../../../ui/composites';
 // ARCHIVED: import { QnASettingsForm } from './qna-settings-form';
 // ARCHIVED: import { QnA2SettingsForm } from './qna2-settings-form';
 import { QnAInlineSettingsForm } from './qna-inline-settings-form';
+import { FreeTextSettingsForm } from './free-text-settings-form';
+import { ShapeSettingsForm } from './shape-settings-form';
+import { ImageSettingsForm } from './image-settings-form';
 import type { PageBackground } from '../../../../context/editor-context';
 import { ThemeSelect } from '../../../../utils/theme-options';
 import { ColorSelector } from './color-selector';
@@ -15,82 +17,25 @@ import { Slider } from '../../../ui/primitives/slider';
 import { Separator } from '../../../ui/primitives/separator';
 import { Label } from '../../../ui/primitives/label';
 import { IndentedSection } from '../../../ui/primitives/indented-section';
-import { Checkbox } from '../../../ui/primitives/checkbox';
+
 import { Tooltip } from '../../../ui';
-// import { getThemeDefaults } from '../../../../utils/XX_DELETE_theme-defaults';
+
 import { useAuth } from '../../../../context/auth-context';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { GeneralSettings } from './general-settings';
-import { commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth } from '../../../../utils/stroke-width-converter';
 import { actualToCommon, commonToActual, COMMON_FONT_SIZE_RANGE } from '../../../../utils/font-size-converter';
 import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE } from '../../../../utils/corner-radius-converter';
-import { getFontFamily as getFontFamilyByName, FONT_GROUPS, hasBoldVariant, hasItalicVariant } from '../../../../utils/font-families';
+import { getFontFamily as getFontFamilyByName, hasBoldVariant, hasItalicVariant } from '../../../../utils/font-families';
 import { FontSelector } from './font-selector';
-import { getGlobalThemeDefaults, getQnAThemeDefaults } from '../../../../utils/global-themes';
+import { getQnAThemeDefaults } from '../../../../utils/global-themes';
 import { getRuledLinesOpacity } from '../../../../utils/ruled-lines-utils';
 import { getBorderWidth, getBorderColor, getBorderOpacity, getBorderTheme } from '../../../../utils/border-utils';
-import { getFontSize, getFontColor, getFontFamily, getFontWeight, getFontStyle } from '../../../../utils/font-utils';
+import { getFontSize, getFontColor, getFontFamily } from '../../../../utils/font-utils';
 import { getBackgroundColor, getBackgroundOpacity, getBackgroundEnabled } from '../../../../utils/background-utils';
-import { getTextAlign, getParagraphSpacing, getPadding, getFormatConfig } from '../../../../utils/format-utils';
-import { getElementTheme, getRuledLinesTheme } from '../../../../utils/theme-utils';
+import { getTextAlign, getParagraphSpacing, getPadding } from '../../../../utils/format-utils';
+import { getRuledLinesTheme } from '../../../../utils/theme-utils';
 
-const getEffectiveFontFamily = (element: any, state: any) => {
-  // First check element's explicit font
-  let fontFamily = getFontFamily(element);
-  
-  // If no explicit font, get from theme defaults (page theme, book theme, or element theme)
-  if (fontFamily === 'Arial, sans-serif') {
-    const currentPage = state.currentBook?.pages[state.activePageIndex];
-    const pageTheme = currentPage?.background?.pageTheme;
-    const bookTheme = state.currentBook?.bookTheme;
-    const elementTheme = element.theme;
-    const activeTheme = pageTheme || bookTheme || elementTheme;
-    
-    if (activeTheme) {
-      const themeDefaults = getGlobalThemeDefaults(activeTheme, element.textType || 'text');
-      fontFamily = themeDefaults?.font?.fontFamily || themeDefaults?.fontFamily;
-    }
-  }
-  
-  return fontFamily;
-};
 
-const getCurrentFontName = (element: any, state: any) => {
-  const fontFamily = getEffectiveFontFamily(element, state);
-  
-  for (const group of FONT_GROUPS) {
-    const font = group.fonts.find(f => 
-      f.family === fontFamily || 
-      f.bold === fontFamily || 
-      f.italic === fontFamily
-    );
-    if (font) return font.name;
-  }
-  
-  return "Arial";
-};
-
-const isFontBold = (element: any, state: any) => {
-  const fontFamily = getEffectiveFontFamily(element, state);
-  
-  for (const group of FONT_GROUPS) {
-    const font = group.fonts.find(f => f.bold === fontFamily);
-    if (font) return true;
-  }
-  
-  return false;
-};
-
-const isFontItalic = (element: any, state: any) => {
-  const fontFamily = getEffectiveFontFamily(element, state);
-  
-  for (const group of FONT_GROUPS) {
-    const font = group.fonts.find(f => f.italic === fontFamily);
-    if (font) return true;
-  }
-  
-  return false;
-};
 
 const TOOL_ICONS = {
   select: SquareMousePointer,
@@ -139,7 +84,7 @@ interface ToolSettingsContentProps {
   selectedQuestionElementId: string | null;
   setSelectedQuestionElementId: (value: string | null) => void;
   activeLinkedElement: string | null;
-  onOpenTemplates?: () => void;
+  onOpenTemplates: () => void;
 }
 
 export function ToolSettingsContent({
@@ -261,7 +206,7 @@ export function ToolSettingsContent({
         case 'text-background':
           updateToolSetting('backgroundOpacity', opacity);
           break;
-        case 'background-color':
+        case 'background-color': {
           const updateBackground = (updates: Partial<PageBackground>) => {
             const newBackground = { ...background, ...updates };
             dispatch({
@@ -271,7 +216,8 @@ export function ToolSettingsContent({
           };
           updateBackground({ opacity });
           break;
-        case 'pattern-background':
+        }
+        case 'pattern-background': {
           const updatePatternBackground = (updates: Partial<PageBackground>) => {
             const newBackground = { ...background, ...updates };
             dispatch({
@@ -281,6 +227,7 @@ export function ToolSettingsContent({
           };
           updatePatternBackground({ patternBackgroundOpacity: opacity });
           break;
+        }
         case 'ruled-lines-color':
           break;
       }
@@ -370,20 +317,7 @@ export function ToolSettingsContent({
       return renderColorSelectorForTool(showColorSelector);
     }
     
-    // Check if we have linked question-answer pair selected
-    if (state.selectedElementIds.length === 2 && state.currentBook) {
-      const selectedElements = state.currentBook.pages[state.activePageIndex]?.elements.filter(
-        el => state.selectedElementIds.includes(el.id)
-      ) || [];
-      
-      const questionElement = selectedElements.find(el => el.textType === 'question');
-      const answerElement = selectedElements.find(el => el.textType === 'answer' && el.questionElementId === questionElement?.id);
-      
-      if (questionElement && answerElement) {
-        return renderQuestionAnswerPairSettings(questionElement, answerElement);
-      }
-    }
-    
+
     // If multiple elements are selected (not linked pair), show selection list
     if (state.selectedElementIds.length > 1 && state.currentBook) {
       const selectedElements = state.currentBook.pages[state.activePageIndex]?.elements.filter(
@@ -393,7 +327,7 @@ export function ToolSettingsContent({
       return (
         <div className="space-y-1">
           <div className="text-xs font-medium mb-2">Selected Items ({selectedElements.length})</div>
-          {selectedElements.map((element, index) => {
+          {selectedElements.map((element) => {
             const elementType = element.type === 'text' && element.textType 
               ? element.textType 
               : element.type;
@@ -486,14 +420,14 @@ export function ToolSettingsContent({
                       }
                     });
                   }}
-                  opacity={singleBrush.strokeOpacity || 1}
+                  opacity={(singleBrush as any).strokeOpacity || 1}
                   onOpacityChange={(opacity) => {
                     dispatch({
                       type: 'UPDATE_GROUPED_ELEMENT',
                       payload: {
                         groupId: selectedElement.id,
                         elementId: singleBrush.id,
-                        updates: { strokeOpacity: opacity }
+                        updates: { strokeOpacity: opacity } as any
                       }
                     });
                   }}
@@ -519,7 +453,7 @@ export function ToolSettingsContent({
                         elementId: singleBrush.id,
                         updates: { 
                           strokeWidth: value,
-                          originalStrokeWidth: singleBrush.originalStrokeWidth || value
+                          originalStrokeWidth: (singleBrush as any).originalStrokeWidth || value
                         }
                       }
                     });
@@ -540,14 +474,14 @@ export function ToolSettingsContent({
                 
                 <Slider
                   label="Opacity"
-                  value={Math.round((singleBrush.strokeOpacity || 1) * 100)}
+                  value={Math.round(((singleBrush as any).strokeOpacity || 1) * 100)}
                   onChange={(value) => {
                     dispatch({
                       type: 'UPDATE_GROUPED_ELEMENT',
                       payload: {
                         groupId: selectedElement.id,
                         elementId: singleBrush.id,
-                        updates: { strokeOpacity: value / 100 }
+                        updates: { strokeOpacity: value / 100 } as any
                       }
                     });
                   }}
@@ -564,9 +498,9 @@ export function ToolSettingsContent({
           const hasBrushElements = brushElements.length > 0;
           
           // Calculate current relative scale from smallest brush
-          const minStrokeWidth = hasBrushElements ? Math.min(...brushElements.map(el => el.strokeWidth || 2)) : 2;
-          const maxPossibleScale = Math.floor((100 / minStrokeWidth) * 100); // Max scale before smallest brush exceeds 100
-          const currentScale = hasBrushElements ? Math.round((brushElements[0].strokeWidth || 2) / (brushElements[0].originalStrokeWidth || brushElements[0].strokeWidth || 2) * 100) : 100;
+          const minStrokeWidth = hasBrushElements ? Math.min(...brushElements.map(el => (el as any).strokeWidth || 2)) : 2;
+          const maxPossibleScale = Math.floor((100 / minStrokeWidth) * 100);
+          const currentScale = hasBrushElements ? Math.round(((brushElements[0] as any).strokeWidth || 2) / ((brushElements[0] as any).originalStrokeWidth || (brushElements[0] as any).strokeWidth || 2) * 100) : 100;
           
           return (
             <div className="space-y-1">
@@ -580,7 +514,7 @@ export function ToolSettingsContent({
                     onChange={(value) => {
                       const scaleFactor = value / 100;
                       brushElements.forEach(brushEl => {
-                        const originalWidth = brushEl.originalStrokeWidth || brushEl.strokeWidth || 2;
+                        const originalWidth = (brushEl as any).originalStrokeWidth || (brushEl as any).strokeWidth || 2;
                         const newWidth = Math.max(0.5, originalWidth * scaleFactor);
                         dispatch({
                           type: 'UPDATE_GROUPED_ELEMENT',
@@ -603,7 +537,7 @@ export function ToolSettingsContent({
                 </>
               )}
               <div className="text-xs font-medium mb-2">Grouped Items ({selectedElement.groupedElements.length})</div>
-              {selectedElement.groupedElements.map((element, index) => {
+              {selectedElement.groupedElements.map((element) => {
                 const elementType = element.type === 'text' && element.textType 
                   ? element.textType 
                   : element.type;
@@ -637,17 +571,72 @@ export function ToolSettingsContent({
             </div>
           );
         }
-        // ARCHIVED: Special handling for QnA textboxes
-        // if (selectedElement.textType === 'qna') {
-        //   return renderQnASettings(selectedElement);
-        // }
-        // ARCHIVED: Special handling for QnA2 textboxes
-        // if (selectedElement.textType === 'qna2') {
-        //   return renderQnA2Settings(selectedElement);
-        // }
-        // Special handling for Question/Answer textboxes
+
+        // Handle QnA textboxes
         if (selectedElement.textType === 'qna' || selectedElement.textType === 'qna_inline' || selectedElement.textType === 'qna2') {
-          return renderQuestionAnswerSettings(selectedElement);
+          const activeSection = state.qnaActiveSection;
+          const setActiveSection = (section: 'question' | 'answer') => {
+            dispatch({ type: 'SET_QNA_ACTIVE_SECTION', payload: section });
+          };
+          
+          const individualSettings = selectedElement.qnaIndividualSettings ?? false;
+          
+          const updateQuestionSetting = (key: string, value: any) => {
+            const updates = {
+              questionSettings: {
+                ...selectedElement.questionSettings,
+                [key]: value
+              }
+            };
+            updateElementSetting(selectedElement.id, updates);
+          };
+          
+          const updateAnswerSetting = (key: string, value: any) => {
+            const updates = {
+              answerSettings: {
+                ...selectedElement.answerSettings,
+                [key]: value
+              }
+            };
+            updateElementSetting(selectedElement.id, updates);
+          };
+          
+          return (
+            <div className="space-y-2">
+              <div className="text-xs font-medium mb-2">QnA Inline Textbox</div>
+              <QnAInlineSettingsForm
+                sectionType="shared"
+                element={selectedElement}
+                state={state}
+                currentStyle={{
+                  fontSize: selectedElement.questionSettings?.fontSize || selectedElement.answerSettings?.fontSize || 16,
+                  fontFamily: selectedElement.questionSettings?.fontFamily || selectedElement.answerSettings?.fontFamily || 'Arial, sans-serif',
+                  fontBold: selectedElement.questionSettings?.fontBold || selectedElement.answerSettings?.fontBold || false,
+                  fontItalic: selectedElement.questionSettings?.fontItalic || selectedElement.answerSettings?.fontItalic || false,
+                  fontColor: selectedElement.questionSettings?.fontColor || selectedElement.answerSettings?.fontColor || '#1f2937',
+                  fontOpacity: selectedElement.questionSettings?.fontOpacity || selectedElement.answerSettings?.fontOpacity || 1
+                }}
+                updateSetting={(key: string, value: any) => {
+                  updateQuestionSetting(key, value);
+                  updateAnswerSetting(key, value);
+                }}
+                setShowFontSelector={setShowFontSelector}
+                setShowColorSelector={setShowColorSelector}
+                showLayoutControls={true}
+                individualSettings={individualSettings}
+                onIndividualSettingsChange={(enabled: boolean) => {
+                  const updates: any = { qnaIndividualSettings: enabled };
+                  updateElementSetting(selectedElement.id, updates);
+                }}
+                activeSection={activeSection}
+                onActiveSectionChange={setActiveSection}
+                updateQuestionSetting={updateQuestionSetting}
+                updateAnswerSetting={updateAnswerSetting}
+                showFontSelector={showFontSelector}
+                showColorSelector={showColorSelector}
+              />
+            </div>
+          );
         }
         return renderElementSettings(selectedElement);
       }
@@ -682,1458 +671,15 @@ export function ToolSettingsContent({
 
 
 
-  const getMaxStrokeWidth = () => {
-    return getMaxCommonWidth(); // Always 100 for common scale
-  };
 
-  const renderQnASettings = (element: any) => {
-    const activeSection = state.qnaActiveSection;
-    const setActiveSection = (section: 'question' | 'answer') => {
-      dispatch({ type: 'SET_QNA_ACTIVE_SECTION', payload: section });
-    };
-    
-    const individualSettings = element.qnaIndividualSettings ?? false;
-    const setIndividualSettings = (enabled: boolean) => {
-      dispatch({
-        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-        payload: {
-          id: element.id,
-          updates: { qnaIndividualSettings: enabled }
-        }
-      });
-    };
-    
-    const updateQuestionSetting = (key: string, value: any) => {
-      dispatch({
-        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-        payload: {
-          id: element.id,
-          updates: {
-            questionSettings: {
-              ...element.questionSettings,
-              [key]: value
-            }
-          }
-        }
-      });
-    };
-    
-    const updateAnswerSetting = (key: string, value: any) => {
-      dispatch({
-        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-        payload: {
-          id: element.id,
-          updates: {
-            answerSettings: {
-              ...element.answerSettings,
-              [key]: value
-            }
-          }
-        }
-      });
-    };
-    
-    const getQuestionStyle = () => {
-      const qStyle = element.questionSettings || {};
-      const currentPage = state.currentBook?.pages[state.activePageIndex];
-      const pageTheme = currentPage?.background?.pageTheme;
-      const bookTheme = state.currentBook?.bookTheme;
-      const activeTheme = pageTheme || bookTheme;
-      const qnaDefaults = activeTheme ? getQnAThemeDefaults(activeTheme, 'question') : {};
-      const fallbackDefaults = activeTheme ? getGlobalThemeDefaults(activeTheme, 'question') : {};
-      
-      return {
-        fontSize: qStyle.fontSize || qnaDefaults?.fontSize || fallbackDefaults?.font?.fontSize || 16,
-        fontFamily: qStyle.fontFamily || qnaDefaults?.fontFamily || fallbackDefaults?.font?.fontFamily || 'Arial, sans-serif',
-        fontBold: qStyle.fontBold ?? qnaDefaults?.fontBold ?? fallbackDefaults?.font?.fontBold ?? false,
-        fontItalic: qStyle.fontItalic ?? qnaDefaults?.fontItalic ?? fallbackDefaults?.font?.fontItalic ?? false,
-        fontColor: qStyle.fontColor || qnaDefaults?.fontColor || fallbackDefaults?.font?.fontColor || '#1f2937',
-        align: qStyle.align || qnaDefaults?.align || fallbackDefaults?.format?.textAlign || 'left',
-        ruledLines: qStyle.ruledLines ?? qnaDefaults?.ruledLines ?? false
-      };
-    };
-    
-    const getAnswerStyle = () => {
-      const aStyle = element.answerSettings || {};
-      const currentPage = state.currentBook?.pages[state.activePageIndex];
-      const pageTheme = currentPage?.background?.pageTheme;
-      const bookTheme = state.currentBook?.bookTheme;
-      const activeTheme = pageTheme || bookTheme;
-      const qnaDefaults = activeTheme ? getQnAThemeDefaults(activeTheme, 'answer') : {};
-      const fallbackDefaults = activeTheme ? getGlobalThemeDefaults(activeTheme, 'answer') : {};
-      
-      return {
-        fontSize: aStyle.fontSize || qnaDefaults?.fontSize || fallbackDefaults?.font?.fontSize || 16,
-        fontFamily: aStyle.fontFamily || qnaDefaults?.fontFamily || fallbackDefaults?.font?.fontFamily || 'Arial, sans-serif',
-        fontBold: aStyle.fontBold ?? qnaDefaults?.fontBold ?? fallbackDefaults?.font?.fontBold ?? false,
-        fontItalic: aStyle.fontItalic ?? qnaDefaults?.fontItalic ?? fallbackDefaults?.font?.fontItalic ?? false,
-        fontColor: aStyle.fontColor || qnaDefaults?.fontColor || fallbackDefaults?.font?.fontColor || '#1f2937',
-        align: aStyle.align || qnaDefaults?.align || fallbackDefaults?.format?.textAlign || 'left',
-        ruledLines: aStyle.ruledLines ?? qnaDefaults?.ruledLines ?? false
-      };
-    };
-    
-    const questionStyle = getQuestionStyle();
-    const answerStyle = getAnswerStyle();
-    const currentStyle = activeSection === 'question' ? questionStyle : answerStyle;
-    const updateSetting = activeSection === 'question' ? updateQuestionSetting : updateAnswerSetting;
-    
-    if (showFontSelector) {
-      return (
-        <FontSelector
-          currentFont={currentStyle.fontFamily}
-          isBold={currentStyle.fontBold}
-          isItalic={currentStyle.fontItalic}
-          onFontSelect={(fontName) => {
-            const fontFamily = getFontFamilyByName(fontName, false, false);
-            updateSetting('fontFamily', fontFamily);
-          }}
-          onBack={() => setShowFontSelector(false)}
-          element={element}
-          state={state}
-        />
-      );
-    }
-    
-    if (showColorSelector && showColorSelector.startsWith('element-')) {
-      const getColorValue = () => {
-        switch (showColorSelector) {
-          case 'element-text-color':
-            return currentStyle.fontColor;
-          case 'element-border-color':
-            const settings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
-            return settings?.borderColor || '#000000';
-          case 'element-background-color':
-            const bgSettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
-            return bgSettings?.backgroundColor || '#ffffff';
-          case 'element-ruled-lines-color':
-            const ruledSettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
-            return ruledSettings?.ruledLinesColor || '#1f2937';
-          default:
-            return '#1f2937';
-        }
-      };
-      
-      const getElementOpacityValue = () => {
-        switch (showColorSelector) {
-          case 'element-text-color':
-            return currentStyle.fontOpacity ?? 1;
-          case 'element-border-color':
-            const settings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
-            return settings?.borderOpacity ?? 1;
-          case 'element-background-color':
-            const bgSettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
-            return bgSettings?.backgroundOpacity ?? 1;
-          case 'element-ruled-lines-color':
-            const ruledOpacitySettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
-            return ruledOpacitySettings?.ruledLinesOpacity ?? 1;
-          default:
-            return 1;
-        }
-      };
-      
-      const handleElementOpacityChange = (opacity: number) => {
-        switch (showColorSelector) {
-          case 'element-text-color':
-            updateSetting('fontOpacity', opacity);
-            break;
-          case 'element-border-color':
-            updateSetting('borderOpacity', opacity);
-            break;
-          case 'element-background-color':
-            updateSetting('backgroundOpacity', opacity);
-            break;
-          case 'element-ruled-lines-color':
-            updateSetting('ruledLinesOpacity', opacity);
-            break;
-        }
-      };
-      
-      const handleElementColorChange = (color: string) => {
-        switch (showColorSelector) {
-          case 'element-text-color':
-            updateSetting('fontColor', color);
-            break;
-          case 'element-border-color':
-            updateSetting('borderColor', color);
-            break;
-          case 'element-background-color':
-            updateSetting('backgroundColor', color);
-            break;
-          case 'element-ruled-lines-color':
-            updateSetting('ruledLinesColor', color);
-            break;
-        }
-      };
-      
-      return (
-        <ColorSelector
-          value={getColorValue()}
-          onChange={handleElementColorChange}
-          opacity={getElementOpacityValue()}
-          onOpacityChange={handleElementOpacityChange}
-          favoriteColors={favoriteStrokeColors}
-          onAddFavorite={addFavoriteStrokeColor}
-          onRemoveFavorite={removeFavoriteStrokeColor}
-          onBack={() => setShowColorSelector(null)}
-        />
-      );
-    }
-    
-    return (
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 mb-2">
-          <Checkbox
-            checked={individualSettings}
-            onCheckedChange={setIndividualSettings}
-          />
-          <Label variant="xs" className="text-xs font-medium">
-            Individual for Question and Answer
-          </Label>
-        </div>
-        
-        {individualSettings ? (
-          <>
-            {/* Section Toggle */}
-            <Tabs value={activeSection} onValueChange={setActiveSection}>
-              <TabsList variant="bootstrap" className="w-full h-5">
-                <TabsTrigger variant="bootstrap" value="question" className=' h-5'>Question</TabsTrigger>
-                <TabsTrigger variant="bootstrap" value="answer" className=' h-5'>Answer</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </>
-        ) : null}
-        {individualSettings ? (
-          <div className="overflow-hidden">
-            <div className={`flex flex--row transition-transform duration-300 ease-in-out ${activeSection === 'question' ? 'translate-x-0' : '-translate-x-1/2'}`} style={{ width: '200%' }}>
-              <div className="w-1/2 flex-1 flex-shrink-0">
-                <QnASettingsForm
-                  sectionType="question"
-                  element={element}
-                  state={state}
-                  currentStyle={questionStyle}
-                  updateSetting={updateQuestionSetting}
-                  setShowFontSelector={setShowFontSelector}
-                  setShowColorSelector={setShowColorSelector}
-                />
-              </div>
-              <div className="w-1/2 flex-1 flex-shrink-0">
-                <QnASettingsForm
-                  sectionType="answer"
-                  element={element}
-                  state={state}
-                  currentStyle={answerStyle}
-                  updateSetting={updateAnswerSetting}
-                  setShowFontSelector={setShowFontSelector}
-                  setShowColorSelector={setShowColorSelector}
-                />
-              </div>
-            </div>
-          </div>
-        ) : (
-          <QnASettingsForm
-            sectionType="shared"
-            element={element}
-            state={state}
-            currentStyle={questionStyle}
-            updateSetting={(key: string, value: any) => {
-              updateQuestionSetting(key, value);
-              updateAnswerSetting(key, value);
-            }}
-            setShowFontSelector={setShowFontSelector}
-            setShowColorSelector={setShowColorSelector}
-          />
-        )}
-      </div>
-    );
-  };
+
+
   
-  const renderQuestionAnswerSettings = (element: any) => {
-    const activeSection = state.qnaActiveSection;
-    const setActiveSection = (section: 'question' | 'answer') => {
-      dispatch({ type: 'SET_QNA_ACTIVE_SECTION', payload: section });
-    };
-    
-    const individualSettings = element.qnaIndividualSettings ?? false;
-    const setIndividualSettings = (enabled: boolean) => {
-      dispatch({
-        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-        payload: {
-          id: element.id,
-          updates: { qnaIndividualSettings: enabled }
-        }
-      });
-    };
-    
-    const updateQuestionSetting = (key: string, value: any) => {
-      const updates = {
-        questionSettings: {
-          ...element.questionSettings,
-          [key]: value
-        }
-      };
-      
-      if (state.selectedGroupedElement) {
-        dispatch({
-          type: 'UPDATE_GROUPED_ELEMENT',
-          payload: {
-            groupId: state.selectedGroupedElement.groupId,
-            elementId: state.selectedGroupedElement.elementId,
-            updates
-          }
-        });
-      } else {
-        dispatch({
-          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-          payload: { id: element.id, updates }
-        });
-      }
-    };
-    
-    const updateAnswerSetting = (key: string, value: any) => {
-      const updates = {
-        answerSettings: {
-          ...element.answerSettings,
-          [key]: value
-        }
-      };
-      
-      if (state.selectedGroupedElement) {
-        dispatch({
-          type: 'UPDATE_GROUPED_ELEMENT',
-          payload: {
-            groupId: state.selectedGroupedElement.groupId,
-            elementId: state.selectedGroupedElement.elementId,
-            updates
-          }
-        });
-      } else {
-        dispatch({
-          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-          payload: { id: element.id, updates }
-        });
-      }
-    };
-    
-    const getQuestionStyle = () => {
-      const qStyle = element.questionSettings || {};
-      const currentPage = state.currentBook?.pages[state.activePageIndex];
-      const pageTheme = currentPage?.background?.pageTheme;
-      const bookTheme = state.currentBook?.bookTheme;
-      const activeTheme = pageTheme || bookTheme;
-      const qnaDefaults = activeTheme ? getQnAThemeDefaults(activeTheme, 'question') : {};
-      const fallbackDefaults = activeTheme ? getGlobalThemeDefaults(activeTheme, 'question') : {};
-      
-      return {
-        fontSize: qStyle.fontSize || qnaDefaults?.fontSize || fallbackDefaults?.font?.fontSize || 16,
-        fontFamily: qStyle.fontFamily || qnaDefaults?.fontFamily || fallbackDefaults?.font?.fontFamily || 'Arial, sans-serif',
-        fontBold: qStyle.fontBold ?? qnaDefaults?.fontBold ?? fallbackDefaults?.font?.fontBold ?? false,
-        fontItalic: qStyle.fontItalic ?? qnaDefaults?.fontItalic ?? fallbackDefaults?.font?.fontItalic ?? false,
-        fontColor: qStyle.fontColor || qnaDefaults?.fontColor || fallbackDefaults?.font?.fontColor || '#666666',
-        align: qStyle.align || qnaDefaults?.align || fallbackDefaults?.format?.textAlign || 'left',
-        ruledLines: qStyle.ruledLines ?? qnaDefaults?.ruledLines ?? false
-      };
-    };
-    
-    const getAnswerStyle = () => {
-      const aStyle = element.answerSettings || {};
-      const currentPage = state.currentBook?.pages[state.activePageIndex];
-      const pageTheme = currentPage?.background?.pageTheme;
-      const bookTheme = state.currentBook?.bookTheme;
-      const activeTheme = pageTheme || bookTheme;
-      const qnaDefaults = activeTheme ? getQnAThemeDefaults(activeTheme, 'answer') : {};
-      const fallbackDefaults = activeTheme ? getGlobalThemeDefaults(activeTheme, 'answer') : {};
-      
-      return {
-        fontSize: aStyle.fontSize || qnaDefaults?.fontSize || fallbackDefaults?.font?.fontSize || 16,
-        fontFamily: aStyle.fontFamily || qnaDefaults?.fontFamily || fallbackDefaults?.font?.fontFamily || 'Arial, sans-serif',
-        fontBold: aStyle.fontBold ?? qnaDefaults?.fontBold ?? fallbackDefaults?.font?.fontBold ?? false,
-        fontItalic: aStyle.fontItalic ?? qnaDefaults?.fontItalic ?? fallbackDefaults?.font?.fontItalic ?? false,
-        fontColor: aStyle.fontColor || qnaDefaults?.fontColor || fallbackDefaults?.font?.fontColor || '#1f2937',
-        align: aStyle.align || qnaDefaults?.align || fallbackDefaults?.format?.textAlign || 'left',
-        ruledLines: aStyle.ruledLines ?? qnaDefaults?.ruledLines ?? false
-      };
-    };
-    
-    const questionStyle = getQuestionStyle();
-    const answerStyle = getAnswerStyle();
-    const currentStyle = activeSection === 'question' ? questionStyle : answerStyle;
-    const updateSetting = activeSection === 'question' ? updateQuestionSetting : updateAnswerSetting;
-    
-    if (showFontSelector) {
-      return (
-        <FontSelector
-          currentFont={currentStyle.fontFamily}
-          isBold={currentStyle.fontBold}
-          isItalic={currentStyle.fontItalic}
-          onFontSelect={(fontName) => {
-            const fontFamily = getFontFamilyByName(fontName, false, false);
-            updateSetting('fontFamily', fontFamily);
-          }}
-          onBack={() => setShowFontSelector(false)}
-          element={element}
-          state={state}
-        />
-      );
-    }
-    
-    if (showColorSelector && showColorSelector.startsWith('element-')) {
-      const getColorValue = () => {
-        switch (showColorSelector) {
-          case 'element-text-color':
-            return currentStyle.fontColor;
-          case 'element-border-color':
-            const borderSettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
-            return borderSettings?.borderColor || '#000000';
-          case 'element-background-color':
-            const bgSettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
-            return bgSettings?.backgroundColor || '#ffffff';
-          case 'element-ruled-lines-color':
-            const ruledSettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
-            return ruledSettings?.ruledLinesColor || '#1f2937';
-          default:
-            return '#1f2937';
-        }
-      };
-      
-      const getElementOpacityValue = () => {
-        switch (showColorSelector) {
-          case 'element-text-color':
-            return currentStyle.fontOpacity ?? 1;
-          case 'element-border-color':
-            const qSettings = element.questionSettings || {};
-            const aSettings = element.answerSettings || {};
-            return qSettings.borderOpacity ?? aSettings.borderOpacity ?? 1;
-          case 'element-background-color':
-            const bgOpacitySettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
-            return bgOpacitySettings?.backgroundOpacity ?? 1;
-          case 'element-ruled-lines-color':
-            const ruledOpacitySettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
-            return ruledOpacitySettings?.ruledLinesOpacity ?? 1;
-          default:
-            return 1;
-        }
-      };
-      
-      const handleElementOpacityChange = (opacity: number) => {
-        switch (showColorSelector) {
-          case 'element-text-color':
-            updateSetting('fontOpacity', opacity);
-            break;
-          case 'element-border-color':
-            updateSetting('borderOpacity', opacity);
-            break;
-          case 'element-background-color':
-            updateSetting('backgroundOpacity', opacity);
-            break;
-          case 'element-ruled-lines-color':
-            updateSetting('ruledLinesOpacity', opacity);
-            break;
-        }
-      };
-      
-      const handleElementColorChange = (color: string) => {
-        switch (showColorSelector) {
-          case 'element-text-color':
-            updateSetting('fontColor', color);
-            break;
-          case 'element-border-color':
-            updateSetting('borderColor', color);
-            break;
-          case 'element-background-color':
-            updateSetting('backgroundColor', color);
-            break;
-          case 'element-ruled-lines-color':
-            updateSetting('ruledLinesColor', color);
-            break;
-        }
-      };
-      
-      return (
-        <ColorSelector
-          value={getColorValue()}
-          onChange={handleElementColorChange}
-          opacity={getElementOpacityValue()}
-          onOpacityChange={handleElementOpacityChange}
-          favoriteColors={favoriteStrokeColors}
-          onAddFavorite={addFavoriteStrokeColor}
-          onRemoveFavorite={removeFavoriteStrokeColor}
-          onBack={() => setShowColorSelector(null)}
-        />
-      );
-    }
-    
-    return (
-      <div className="space-y-2">
-        <div className="text-xs font-medium mb-2">QnA Inline Textbox</div>
-        
-        {/* Layout controls and all settings */}
-        <QnAInlineSettingsForm
-          sectionType="shared"
-          element={element}
-          state={state}
-          currentStyle={questionStyle}
-          updateSetting={(key: string, value: any) => {
-            updateQuestionSetting(key, value);
-            updateAnswerSetting(key, value);
-          }}
-          setShowFontSelector={setShowFontSelector}
-          setShowColorSelector={setShowColorSelector}
-          showLayoutControls={true}
-          individualSettings={individualSettings}
-          onIndividualSettingsChange={(enabled: boolean) => {
-            const updates: any = { qnaIndividualSettings: enabled };
-            
-            // When disabling individual settings, sync question font size to answer font size
-            if (!enabled) {
-              const answerStyle = getAnswerStyle();
-              updates.questionSettings = {
-                ...element.questionSettings,
-                fontSize: answerStyle.fontSize
-              };
-            }
-            
-            dispatch({
-              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-              payload: {
-                id: element.id,
-                updates
-              }
-            });
-          }}
-          activeSection={activeSection}
-          onActiveSectionChange={setActiveSection}
-          questionStyle={questionStyle}
-          answerStyle={answerStyle}
-          updateQuestionSetting={updateQuestionSetting}
-          updateAnswerSetting={updateAnswerSetting}
-        />
-      </div>
-    );
-  };
+
   
-  const renderQnA2Settings = (element: any) => {
-    const activeSection = state.qnaActiveSection;
-    const setActiveSection = (section: 'question' | 'answer') => {
-      dispatch({ type: 'SET_QNA_ACTIVE_SECTION', payload: section });
-    };
-    
-    const individualSettings = element.qnaIndividualSettings ?? false;
-    const setIndividualSettings = (enabled: boolean) => {
-      dispatch({
-        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-        payload: {
-          id: element.id,
-          updates: { qnaIndividualSettings: enabled }
-        }
-      });
-    };
-    
-    const updateQuestionSetting = (key: string, value: any) => {
-      dispatch({
-        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-        payload: {
-          id: element.id,
-          updates: {
-            questionSettings: {
-              ...element.questionSettings,
-              [key]: value
-            }
-          }
-        }
-      });
-    };
-    
-    const updateAnswerSetting = (key: string, value: any) => {
-      dispatch({
-        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-        payload: {
-          id: element.id,
-          updates: {
-            answerSettings: {
-              ...element.answerSettings,
-              [key]: value
-            }
-          }
-        }
-      });
-    };
-    
-    const getQuestionStyle = () => {
-      const qStyle = element.questionSettings || {};
-      const currentPage = state.currentBook?.pages[state.activePageIndex];
-      const pageTheme = currentPage?.background?.pageTheme;
-      const bookTheme = state.currentBook?.bookTheme;
-      const activeTheme = pageTheme || bookTheme;
-      const qnaDefaults = activeTheme ? getQnAThemeDefaults(activeTheme, 'question') : {};
-      const fallbackDefaults = activeTheme ? getGlobalThemeDefaults(activeTheme, 'question') : {};
-      
-      return {
-        fontSize: qStyle.fontSize || qnaDefaults?.fontSize || fallbackDefaults?.font?.fontSize || 16,
-        fontFamily: qStyle.fontFamily || qnaDefaults?.fontFamily || fallbackDefaults?.font?.fontFamily || 'Arial, sans-serif',
-        fontBold: qStyle.fontBold ?? qnaDefaults?.fontBold ?? fallbackDefaults?.font?.fontBold ?? false,
-        fontItalic: qStyle.fontItalic ?? qnaDefaults?.fontItalic ?? fallbackDefaults?.font?.fontItalic ?? false,
-        fontColor: qStyle.fontColor || qnaDefaults?.fontColor || fallbackDefaults?.font?.fontColor || '#666666',
-        align: qStyle.align || qnaDefaults?.align || fallbackDefaults?.format?.textAlign || 'left',
-        ruledLines: qStyle.ruledLines ?? qnaDefaults?.ruledLines ?? false
-      };
-    };
-    
-    const getAnswerStyle = () => {
-      const aStyle = element.answerSettings || {};
-      const currentPage = state.currentBook?.pages[state.activePageIndex];
-      const pageTheme = currentPage?.background?.pageTheme;
-      const bookTheme = state.currentBook?.bookTheme;
-      const activeTheme = pageTheme || bookTheme;
-      const qnaDefaults = activeTheme ? getQnAThemeDefaults(activeTheme, 'answer') : {};
-      const fallbackDefaults = activeTheme ? getGlobalThemeDefaults(activeTheme, 'answer') : {};
-      
-      return {
-        fontSize: aStyle.fontSize || qnaDefaults?.fontSize || fallbackDefaults?.font?.fontSize || 16,
-        fontFamily: aStyle.fontFamily || qnaDefaults?.fontFamily || fallbackDefaults?.font?.fontFamily || 'Arial, sans-serif',
-        fontBold: aStyle.fontBold ?? qnaDefaults?.fontBold ?? fallbackDefaults?.font?.fontBold ?? false,
-        fontItalic: aStyle.fontItalic ?? qnaDefaults?.fontItalic ?? fallbackDefaults?.font?.fontItalic ?? false,
-        fontColor: aStyle.fontColor || qnaDefaults?.fontColor || fallbackDefaults?.font?.fontColor || '#1f2937',
-        align: aStyle.align || qnaDefaults?.align || fallbackDefaults?.format?.textAlign || 'left',
-        ruledLines: aStyle.ruledLines ?? qnaDefaults?.ruledLines ?? false
-      };
-    };
-    
-    const questionStyle = getQuestionStyle();
-    const answerStyle = getAnswerStyle();
-    const currentStyle = activeSection === 'question' ? questionStyle : answerStyle;
-    const updateSetting = activeSection === 'question' ? updateQuestionSetting : updateAnswerSetting;
-    
-    if (showFontSelector) {
-      return (
-        <FontSelector
-          currentFont={currentStyle.fontFamily}
-          isBold={currentStyle.fontBold}
-          isItalic={currentStyle.fontItalic}
-          onFontSelect={(fontName) => {
-            const fontFamily = getFontFamilyByName(fontName, false, false);
-            updateSetting('fontFamily', fontFamily);
-          }}
-          onBack={() => setShowFontSelector(false)}
-          element={element}
-          state={state}
-        />
-      );
-    }
-    
-    if (showColorSelector && showColorSelector.startsWith('element-')) {
-      const getColorValue = () => {
-        switch (showColorSelector) {
-          case 'element-text-color':
-            return currentStyle.fontColor;
-          case 'element-border-color':
-            const settings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
-            return settings?.borderColor || '#000000';
-          case 'element-background-color':
-            const bgSettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
-            return bgSettings?.backgroundColor || '#ffffff';
-          case 'element-ruled-lines-color':
-            const ruledSettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
-            return ruledSettings?.ruledLinesColor || '#1f2937';
-          default:
-            return '#1f2937';
-        }
-      };
-      
-      const getElementOpacityValue = () => {
-        switch (showColorSelector) {
-          case 'element-text-color':
-            return currentStyle.fontOpacity ?? 1;
-          case 'element-border-color':
-            const settings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
-            return settings?.borderOpacity ?? 1;
-          case 'element-background-color':
-            const bgSettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
-            return bgSettings?.backgroundOpacity ?? 1;
-          case 'element-ruled-lines-color':
-            const ruledOpacitySettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
-            return ruledOpacitySettings?.ruledLinesOpacity ?? 1;
-          default:
-            return 1;
-        }
-      };
-      
-      const handleElementOpacityChange = (opacity: number) => {
-        switch (showColorSelector) {
-          case 'element-text-color':
-            updateSetting('fontOpacity', opacity);
-            break;
-          case 'element-border-color':
-            updateSetting('borderOpacity', opacity);
-            break;
-          case 'element-background-color':
-            updateSetting('backgroundOpacity', opacity);
-            break;
-          case 'element-ruled-lines-color':
-            updateSetting('ruledLinesOpacity', opacity);
-            break;
-        }
-      };
-      
-      const handleElementColorChange = (color: string) => {
-        switch (showColorSelector) {
-          case 'element-text-color':
-            updateSetting('fontColor', color);
-            break;
-          case 'element-border-color':
-            updateSetting('borderColor', color);
-            break;
-          case 'element-background-color':
-            updateSetting('backgroundColor', color);
-            break;
-          case 'element-ruled-lines-color':
-            updateSetting('ruledLinesColor', color);
-            break;
-        }
-      };
-      
-      return (
-        <ColorSelector
-          value={getColorValue()}
-          onChange={handleElementColorChange}
-          opacity={getElementOpacityValue()}
-          onOpacityChange={handleElementOpacityChange}
-          favoriteColors={favoriteStrokeColors}
-          onAddFavorite={addFavoriteStrokeColor}
-          onRemoveFavorite={removeFavoriteStrokeColor}
-          onBack={() => setShowColorSelector(null)}
-        />
-      );
-    }
-    
-    return (
-      <div className="space-y-2">
-        <div className="text-xs font-medium mb-2">QnA2 Inline Textbox</div>
-        
-        <div className="flex items-center gap-2 mb-2">
-          <Checkbox
-            checked={individualSettings}
-            onCheckedChange={setIndividualSettings}
-          />
-          <Label variant="xs" className="text-xs font-medium">
-            Individual for Question and Answer
-          </Label>
-        </div>
-        
-        {individualSettings ? (
-          <>
-            <Tabs value={activeSection} onValueChange={setActiveSection}>
-              <TabsList variant="bootstrap" className="w-full h-5">
-                <TabsTrigger variant="bootstrap" value="question" className=' h-5'>Question</TabsTrigger>
-                <TabsTrigger variant="bootstrap" value="answer" className=' h-5'>Answer</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </>
-        ) : null}
-        
-        {individualSettings ? (
-          <div className="overflow-hidden">
-            <div className={`flex flex--row transition-transform duration-300 ease-in-out ${activeSection === 'question' ? 'translate-x-0' : '-translate-x-1/2'}`} style={{ width: '200%' }}>
-              <div className="w-1/2 flex-1 flex-shrink-0">
-                <QnA2SettingsForm
-                  sectionType="question"
-                  element={element}
-                  state={state}
-                  currentStyle={questionStyle}
-                  updateSetting={updateQuestionSetting}
-                  setShowFontSelector={setShowFontSelector}
-                  setShowColorSelector={setShowColorSelector}
-                />
-              </div>
-              <div className="w-1/2 flex-1 flex-shrink-0">
-                <QnA2SettingsForm
-                  sectionType="answer"
-                  element={element}
-                  state={state}
-                  currentStyle={answerStyle}
-                  updateSetting={updateAnswerSetting}
-                  setShowFontSelector={setShowFontSelector}
-                  setShowColorSelector={setShowColorSelector}
-                />
-              </div>
-            </div>
-          </div>
-        ) : (
-          <QnA2SettingsForm
-            sectionType="shared"
-            element={element}
-            state={state}
-            currentStyle={questionStyle}
-            updateSetting={(key: string, value: any) => {
-              updateQuestionSetting(key, value);
-              updateAnswerSetting(key, value);
-            }}
-            setShowFontSelector={setShowFontSelector}
-            setShowColorSelector={setShowColorSelector}
-          />
-        )}
-      </div>
-    );
-  };
+
   
-  const renderQuestionAnswerPairSettings = (questionElement: any, answerElement: any) => {
-    const updateBothElements = (key: string, value: any) => {
-      dispatch({
-        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-        payload: { id: questionElement.id, updates: { [key]: value } }
-      });
-      dispatch({
-        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-        payload: { id: answerElement.id, updates: { [key]: value } }
-      });
-    };
 
-    const repositionQuestionAnswer = (question: any, answer: any, position: 'top' | 'bottom' | 'left' | 'right') => {
-      const gap = 10; // Gap between question and answer
-      
-      let questionUpdates: any = {};
-      let answerUpdates: any = {};
-      
-      switch (position) {
-        case 'top':
-          // Question above answer
-          questionUpdates = {
-            x: answer.x,
-            y: answer.y - question.height - gap
-          };
-          break;
-        case 'bottom':
-          // Question below answer
-          questionUpdates = {
-            x: answer.x,
-            y: answer.y + answer.height + gap
-          };
-          break;
-        case 'left':
-          // Question to the left of answer
-          questionUpdates = {
-            x: answer.x - question.width - gap,
-            y: answer.y
-          };
-          break;
-        case 'right':
-          // Question to the right of answer
-          questionUpdates = {
-            x: answer.x + answer.width + gap,
-            y: answer.y
-          };
-          break;
-      }
-      
-      dispatch({
-        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-        payload: { id: question.id, updates: questionUpdates }
-      });
-    };
-
-    // Use question element as reference for shared settings
-    const element = questionElement;
-
-    if (showFontSelector) {
-      return (
-        <FontSelector
-          currentFont={getFontFamily(element)}
-          isBold={element.font?.fontBold || element.fontWeight === 'bold'}
-          isItalic={element.font?.fontItalic || element.fontStyle === 'italic'}
-          onFontSelect={(fontName) => {
-            const fontFamily = getFontFamilyByName(fontName, false, false);
-            if (element.font) {
-              updateBothElements('font', { ...element.font, fontFamily });
-            } else {
-              updateBothElements('fontFamily', fontFamily);
-            }
-          }}
-          onBack={() => setShowFontSelector(false)}
-          element={element}
-          state={state}
-        />
-      );
-    }
-
-    if (showColorSelector && showColorSelector.startsWith('element-')) {
-      const getColorValue = () => {
-        switch (showColorSelector) {
-          case 'element-text-color':
-            return getFontColor(element);
-          case 'element-text-border':
-            return getBorderColor(element);
-          case 'element-text-background':
-            return getBackgroundColor(element);
-          case 'element-ruled-lines-color':
-            return element.ruledLinesColor || '#1f2937';
-          default:
-            return '#1f2937';
-        }
-      };
-      
-      const getElementOpacityValue = () => {
-        switch (showColorSelector) {
-          case 'element-text-color':
-            return element.font?.fontOpacity ?? element.fontColorOpacity ?? element.fillOpacity ?? 1;
-          case 'element-text-border':
-            return getBorderOpacity(element);
-          case 'element-text-background':
-            return getBackgroundOpacity(element);
-          case 'element-ruled-lines-color':
-            return getRuledLinesOpacity(element);
-          default:
-            return 1;
-        }
-      };
-      
-      const handleElementOpacityChange = (opacity: number) => {
-        switch (showColorSelector) {
-          case 'element-text-color':
-            if (element.font) {
-              updateBothElements('font', { ...element.font, fontOpacity: opacity });
-            }
-            updateBothElements('fontColorOpacity', opacity);
-            break;
-          case 'element-text-border':
-            updateBothElements('border', {
-              borderWidth: getBorderWidth(element),
-              borderColor: getBorderColor(element),
-              borderOpacity: opacity,
-              borderTheme: getBorderTheme(element)
-            });
-            updateBothElements('borderOpacity', opacity);
-            break;
-          case 'element-text-background':
-            updateBothElements('background', {
-              backgroundColor: getBackgroundColor(element),
-              backgroundOpacity: opacity
-            });
-            updateBothElements('backgroundOpacity', opacity);
-            break;
-          case 'element-ruled-lines-color':
-            updateBothElements('ruledLines', {
-              ...element.ruledLines,
-              lineColor: element.ruledLines?.lineColor || element.ruledLinesColor || '#1f2937',
-              lineOpacity: opacity
-            });
-            updateBothElements('ruledLinesOpacity', opacity);
-            break;
-        }
-      };
-      
-      const handleElementColorChange = (color: string) => {
-        switch (showColorSelector) {
-          case 'element-text-color':
-            if (element.font) {
-              updateBothElements('font', { ...element.font, fontColor: color });
-            }
-            updateBothElements('fontColor', color);
-            break;
-          case 'element-text-border':
-            updateBothElements('border', {
-              borderWidth: getBorderWidth(element),
-              borderColor: color,
-              borderOpacity: getBorderOpacity(element),
-              borderTheme: getBorderTheme(element)
-            });
-            updateBothElements('borderColor', color);
-            break;
-          case 'element-text-background':
-            updateBothElements('background', {
-              backgroundColor: color,
-              backgroundOpacity: getBackgroundOpacity(element)
-            });
-            updateBothElements('backgroundColor', color);
-            break;
-          case 'element-ruled-lines-color':
-            updateBothElements('ruledLines', {
-              ...element.ruledLines,
-              lineColor: color,
-              lineOpacity: getRuledLinesOpacity(element)
-            });
-            updateBothElements('ruledLinesColor', color);
-            break;
-        }
-      };
-      
-      return (
-        <ColorSelector
-          value={getColorValue()}
-          onChange={handleElementColorChange}
-          opacity={getElementOpacityValue()}
-          onOpacityChange={handleElementOpacityChange}
-          favoriteColors={favoriteStrokeColors}
-          onAddFavorite={addFavoriteStrokeColor}
-          onRemoveFavorite={removeFavoriteStrokeColor}
-          onBack={() => setShowColorSelector(null)}
-        />
-      );
-    }
-
-    return (
-      <div className="space-y-2">
-        <div className="text-xs font-medium mb-2">Question-Answer Pair</div>
-        
-        <Label variant='xs'>Font</Label>
-        <div>
-          <div className="flex gap-2">
-            <Button
-              variant={isFontBold(element, state) ? 'default' : 'outline'}
-              size="xs"
-              disabled={!hasBoldVariant(getCurrentFontName(element, state))}
-              onClick={() => {
-                const currentBold = isFontBold(element, state);
-                const newBold = !currentBold;
-                const currentItalic = isFontItalic(element, state);
-                const fontName = getCurrentFontName(element, state);
-                const newFontFamily = getFontFamilyByName(fontName, newBold, currentItalic);
-                
-                if (element.font) {
-                  updateBothElements('font', { ...element.font, fontBold: newBold, fontFamily: newFontFamily });
-                } else {
-                  updateBothElements('fontWeight', newBold ? 'bold' : 'normal');
-                  updateBothElements('fontFamily', newFontFamily);
-                }
-              }}
-              className="px-3"
-            >
-              <strong>B</strong>
-            </Button>
-            <Button
-              variant={isFontItalic(element, state) ? 'default' : 'outline'}
-              size="xs"
-              disabled={!hasItalicVariant(getCurrentFontName(element, state))}
-              onClick={() => {
-                const currentItalic = isFontItalic(element, state);
-                const newItalic = !currentItalic;
-                const currentBold = isFontBold(element, state);
-                const fontName = getCurrentFontName(element, state);
-                const newFontFamily = getFontFamilyByName(fontName, currentBold, newItalic);
-                
-                if (element.font) {
-                  updateBothElements('font', { ...element.font, fontItalic: newItalic, fontFamily: newFontFamily });
-                } else {
-                  updateBothElements('fontStyle', newItalic ? 'italic' : 'normal');
-                  updateBothElements('fontFamily', newFontFamily);
-                }
-              }}
-              className="px-3"
-            >
-              <em>I</em>
-            </Button>
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={() => setShowFontSelector(true)}
-              className="flex-1 justify-start"
-              style={{ fontFamily: getEffectiveFontFamily(element, state) }}
-            >
-              <Type className="h-4 w-4 mr-2" />
-              <span className="truncate">{getCurrentFontName(element, state)}</span>
-            </Button>
-          </div>
-        </div>
-        <Slider
-          label="Font Size"
-          value={actualToCommon((() => {
-            let fontSize = getFontSize(element);
-            if (fontSize === 16) {
-              const currentPage = state.currentBook?.pages[state.activePageIndex];
-              const pageTheme = currentPage?.background?.pageTheme;
-              const bookTheme = state.currentBook?.bookTheme;
-              const elementTheme = element.theme;
-              const activeTheme = pageTheme || bookTheme || elementTheme;
-              if (activeTheme) {
-                const themeDefaults = getGlobalThemeDefaults(activeTheme, element.textType || 'text');
-                fontSize = themeDefaults?.font?.fontSize || 16;
-              }
-            }
-            return fontSize;
-          })())}
-          onChange={(value) => {
-            const newSize = commonToActual(value);
-            if (element.font) {
-              updateBothElements('font', { ...element.font, fontSize: newSize });
-            }
-            updateBothElements('fontSize', newSize);
-          }}
-          min={COMMON_FONT_SIZE_RANGE.min}
-          max={COMMON_FONT_SIZE_RANGE.max}
-          step={1}
-        />
-                       
-        <div>
-          <Button
-            variant="outline"
-            size="xs"
-            onClick={() => setShowColorSelector('element-text-color')}
-            className="w-full"
-          >
-            <Palette className="w-4 mr-2" />
-            Font Color & Opacity
-          </Button>
-        </div>
-        
-        <Separator />
-                    
-        <div className='flex flex-row gap-3'>
-          <div className="flex-1">
-            <Label variant="xs">Text Align</Label>
-            <ButtonGroup className="mt-1 flex flex-row">
-              <Button
-                variant={getTextAlign(element) === 'left' ? 'default' : 'outline'}
-                size="xs"
-                onClick={() => {
-                  if (element.format) {
-                    updateBothElements('format', { ...element.format, align: 'left' });
-                  } else {
-                    updateBothElements('align', 'left');
-                  }
-                }}
-                className="px-1 h-6 flex-1"
-              >
-                <AlignLeft className="h-3 w-3" />
-              </Button>
-              <Button
-                variant={getTextAlign(element) === 'center' ? 'default' : 'outline'}
-                size="xs"
-                onClick={() => {
-                  if (element.format) {
-                    updateBothElements('format', { ...element.format, align: 'center' });
-                  } else {
-                    updateBothElements('align', 'center');
-                  }
-                }}
-                className="px-1 h-6 flex-1"
-              >
-                <AlignCenter className="h-3 w-3" />
-              </Button>
-              <Button
-                variant={getTextAlign(element) === 'right' ? 'default' : 'outline'}
-                size="xs"
-                onClick={() => {
-                  if (element.format) {
-                    updateBothElements('format', { ...element.format, align: 'right' });
-                  } else {
-                    updateBothElements('align', 'right');
-                  }
-                }}
-                className="px-1 h-6 flex-1"
-              >
-                <AlignRight className="h-3 w-3" />
-              </Button>
-              <Button
-                variant={getTextAlign(element) === 'justify' ? 'default' : 'outline'}
-                size="xs"
-                onClick={() => {
-                  if (element.format) {
-                    updateBothElements('format', { ...element.format, align: 'justify' });
-                  } else {
-                    updateBothElements('align', 'justify');
-                  }
-                }}
-                className="px-1 h-6 flex-1"
-              >
-                <AlignJustify className="h-3 w-3" />
-              </Button>
-            </ButtonGroup>
-          </div>
-          
-          <div className="flex-1">
-            <Label variant="xs">Paragraph Spacing</Label>
-            <ButtonGroup className="mt-1 flex flex-row">
-              <Button
-                variant={getParagraphSpacing(element) === 'small' ? 'default' : 'outline'}
-                size="xs"
-                onClick={() => {
-                  if (element.format) {
-                    updateBothElements('format', { ...element.format, paragraphSpacing: 'small' });
-                  } else {
-                    updateBothElements('paragraphSpacing', 'small');
-                  }
-                }}
-                className="px-1 h-6 flex-1"
-              >
-                <Rows4 className="h-3 w-3" />
-              </Button>
-              <Button
-                variant={getParagraphSpacing(element) === 'medium' ? 'default' : 'outline'}
-                size="xs"
-                onClick={() => {
-                  if (element.format) {
-                    updateBothElements('format', { ...element.format, paragraphSpacing: 'medium' });
-                  } else {
-                    updateBothElements('paragraphSpacing', 'medium');
-                  }
-                }}
-                className="px-1 h-6 flex-1"
-              >
-                <Rows3 className="h-3 w-3" />
-              </Button>
-              <Button
-                variant={getParagraphSpacing(element) === 'large' ? 'default' : 'outline'}
-                size="xs"
-                onClick={() => {
-                  if (element.format) {
-                    updateBothElements('format', { ...element.format, paragraphSpacing: 'large' });
-                  } else {
-                    updateBothElements('paragraphSpacing', 'large');
-                  }
-                }}
-                className="px-1 h-6 flex-1"
-              >
-                <Rows2 className="h-3 w-3" />
-              </Button>
-            </ButtonGroup>
-          </div>
-        </div>
-                    
-        <div>
-          <Label className="flex items-center gap-1" variant="xs">
-            <input
-              type="checkbox"
-              checked={element.ruledLines?.enabled !== undefined ? element.ruledLines.enabled : (element.ruledLines || false)}
-              onChange={(e) => updateBothElements('ruledLines', { ...element.ruledLines, enabled: e.target.checked })}
-              className="rounded w-3 h-3"
-            />
-            Ruled Lines
-          </Label>
-        </div>
-        
-        {(element.ruledLines?.enabled !== undefined ? element.ruledLines.enabled : (element.ruledLines || false)) && (
-          <IndentedSection>
-            <Slider
-              label="Line Width"
-              value={element.ruledLinesWidth || 0.8}
-              onChange={(value) => updateBothElements('ruledLinesWidth', value)}
-              min={0.01}
-              max={30}
-              step={0.1}
-            />
-
-            <div>
-              <Label variant="xs">Ruled Lines Theme</Label>
-              <ThemeSelect 
-                value={getRuledLinesTheme(element)}
-                onChange={(value) => {
-                  updateBothElements('ruledLines', { 
-                    enabled: element.ruledLines?.enabled !== undefined ? element.ruledLines.enabled : (element.ruledLines || false),
-                    ruledLinesTheme: value,
-                    lineWidth: element.ruledLinesWidth || 0.8,
-                    lineColor: element.ruledLines?.lineColor || element.ruledLinesColor || '#1f2937',
-                    lineOpacity: getRuledLinesOpacity(element)
-                  });
-                  updateBothElements('ruledLinesTheme', value);
-                }}
-              />
-            </div>
-            
-            <div>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => setShowColorSelector('element-ruled-lines-color')}
-                className="w-full"
-              >
-                <Palette className="h-4 w-4 mr-2" />
-                Line Color
-              </Button>
-            </div>
-          </IndentedSection>
-        )}
-
-        <Separator />
-                    
-        <div>
-          <Label className="flex items-center gap-1" variant="xs">
-            <input
-              type="checkbox"
-              checked={element.border?.enabled !== undefined ? element.border.enabled : getBorderWidth(element) > 0}
-              onChange={(e) => {
-                const storedWidth = element.border?.originalBorderWidth ?? element.originalBorderWidth ?? getBorderWidth(element);
-                const newWidth = e.target.checked ? storedWidth : 0;
-                updateBothElements('border', {
-                  enabled: e.target.checked,
-                  borderWidth: newWidth,
-                  originalBorderWidth: storedWidth,
-                  borderColor: getBorderColor(element),
-                  borderOpacity: getBorderOpacity(element),
-                  borderTheme: getBorderTheme(element)
-                });
-              }}
-              className="rounded w-3 h-3"
-            />
-            Border
-          </Label>
-        </div>
-        
-        {(element.border?.enabled !== undefined ? element.border.enabled : getBorderWidth(element) > 0) && (
-          <IndentedSection>
-            <Slider
-              label="Border Width"
-              value={actualToCommonStrokeWidth(getBorderWidth(element), getBorderTheme(element))}
-              onChange={(value) => {
-                const newWidth = commonToActualStrokeWidth(value, getBorderTheme(element));
-                updateBothElements('border', {
-                  enabled: element.border?.enabled !== undefined ? element.border.enabled : true,
-                  borderWidth: newWidth,
-                  borderColor: getBorderColor(element),
-                  borderOpacity: getBorderOpacity(element),
-                  borderTheme: getBorderTheme(element)
-                });
-              }}
-              min={1}
-              max={getMaxStrokeWidth()}
-            />            
-            
-            <div>
-              <Label variant="xs">Border Theme</Label>
-              <ThemeSelect 
-                value={getBorderTheme(element)}
-                onChange={(value) => {
-                  updateBothElements('border', {
-                    enabled: element.border?.enabled !== undefined ? element.border.enabled : true,
-                    borderWidth: getBorderWidth(element),
-                    borderColor: getBorderColor(element),
-                    borderOpacity: getBorderOpacity(element),
-                    borderTheme: value
-                  });
-                  updateBothElements('cornerRadius', 0);
-                }}
-              />
-            </div>
-            
-            <div>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => setShowColorSelector('element-text-border')}
-                className="w-full"
-              >
-                <Palette className="h-4 w-4 mr-2" />
-                Border Color
-              </Button>
-            </div>
-            
-          </IndentedSection>
-        )}
-        
-        <div>
-          <Label className="flex items-center gap-1" variant="xs">
-            <input
-              type="checkbox"
-              checked={getBackgroundEnabled(element)}
-              onChange={(e) => {
-                const storedColor = element.background?.originalBackgroundColor ?? element.originalBackgroundColor ?? (getBackgroundColor(element) !== 'transparent' ? getBackgroundColor(element) : '#ffffff');
-                const storedOpacity = element.background?.originalBackgroundOpacity ?? element.originalBackgroundOpacity ?? getBackgroundOpacity(element);
-                updateBothElements('background', {
-                  enabled: e.target.checked,
-                  backgroundColor: e.target.checked ? storedColor : 'transparent',
-                  backgroundOpacity: storedOpacity,
-                  originalBackgroundColor: storedColor,
-                  originalBackgroundOpacity: storedOpacity
-                });
-              }}
-              className="rounded w-3 h-3"
-            />
-            Background
-          </Label>
-        </div>
-        
-        {getBackgroundEnabled(element) && (
-          <IndentedSection>
-            <div>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => setShowColorSelector('element-text-background')}
-                className="w-full"
-              >
-                <Palette className="h-4 w-4 mr-2" />
-                Background Color & Opacity
-              </Button>
-            </div>
-          </IndentedSection>
-        )}
-        
-        <Separator />
-        
-        <div>
-          <Label variant="xs">Question Position</Label>
-          <ButtonGroup className="mt-1">
-            <Button
-              variant={(questionElement.questionPosition || 'top') === 'top' ? 'default' : 'outline'}
-              size="xs"
-              onClick={() => {
-                updateBothElements('questionPosition', 'top');
-                repositionQuestionAnswer(questionElement, answerElement, 'top');
-              }}
-              className="w-8 h-8 p-0"
-            >
-              <QuestionPositionTop className="w-4 h-4" />
-            </Button>
-            <Button
-              variant={(questionElement.questionPosition || 'top') === 'left' ? 'default' : 'outline'}
-              size="xs"
-              onClick={() => {
-                updateBothElements('questionPosition', 'left');
-                repositionQuestionAnswer(questionElement, answerElement, 'left');
-              }}
-              className="w-8 h-8 p-0"
-            >
-              <QuestionPositionLeft className="w-4 h-4" />
-            </Button>
-            <Button
-              variant={(questionElement.questionPosition || 'top') === 'right' ? 'default' : 'outline'}
-              size="xs"
-              onClick={() => {
-                updateBothElements('questionPosition', 'right');
-                repositionQuestionAnswer(questionElement, answerElement, 'right');
-              }}
-              className="w-8 h-8 p-0"
-            >
-              <QuestionPositionRight className="w-4 h-4" />
-            </Button>
-            <Button
-              variant={(questionElement.questionPosition || 'top') === 'bottom' ? 'default' : 'outline'}
-              size="xs"
-              onClick={() => {
-                updateBothElements('questionPosition', 'bottom');
-                repositionQuestionAnswer(questionElement, answerElement, 'bottom');
-              }}
-              className="w-8 h-8 p-0"
-            >
-              <QuestionPositionBottom className="w-4 h-4" />
-            </Button>
-          </ButtonGroup>
-        </div>
-        
-        {((element.borderWidth || 0) === 0 || (element.theme !== 'candy' && element.theme !== 'zigzag' && element.theme !== 'wobbly')) && (
-          <Slider
-            label="Corner Radius"
-            value={actualToCommonRadius(element.cornerRadius || 0)}
-            onChange={(value) => updateBothElements('cornerRadius', commonToActualRadius(value))}
-            min={COMMON_CORNER_RADIUS_RANGE.min}
-            max={COMMON_CORNER_RADIUS_RANGE.max}
-          />
-        )}
-        
-        <Slider
-          label="Padding"
-          value={getPadding(element)}
-          onChange={(value) => {
-            if (element.format) {
-              updateBothElements('format', { ...element.format, padding: value });
-            } else {
-              updateBothElements('padding', value);
-            }
-          }}
-          min={0}
-          max={100}
-        />
-      </div>
-    );
-  };
 
   const renderElementSettings = (element: any) => {
     const updateElementSettingLocal = (key: string, value: any) => {
@@ -2315,94 +861,7 @@ export function ToolSettingsContent({
 
     switch (element.type) {
       case 'brush':
-        return (
-          <div className="space-y-2">
-            <Slider
-              label="Brush Size"
-              value={Math.round(element.strokeWidth || 2)}
-              displayValue={Math.round(element.strokeWidth || 2)}
-              onChange={(value) => {
-                updateElementSettingLocal('strokeWidth', value);
-                if (!element.originalStrokeWidth) {
-                  updateElementSettingLocal('originalStrokeWidth', value);
-                }
-              }}
-              min={1}
-              max={100}
-            />
-            
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={() => setShowColorSelector('element-brush-stroke')}
-              className="w-full"
-            >
-              <Palette className="h-4 w-4 mr-2" />
-              Brush Color
-            </Button>
-            
-            <Slider
-              label="Opacity"
-              value={Math.round((element.strokeOpacity || 1) * 100)}
-              onChange={(value) => updateElementSettingLocal('strokeOpacity', value / 100)}
-              min={0}
-              max={100}
-              step={5}
-              unit="%"
-            />
-          </div>
-        );
-
-      case 'brush-multicolor':
-        return (
-          <div className="space-y-2">
-            <div className="text-xs font-medium mb-2">Brush Multicolor</div>
-            <div className="text-xs text-muted-foreground">
-              This element contains {element.brushStrokes?.length || 0} brush stroke{(element.brushStrokes?.length || 0) !== 1 ? 's' : ''} with individual colors and sizes.
-            </div>
-          </div>
-        );
-
       case 'line':
-        return (
-          <div className="space-y-2">
-            <div>
-              <Label variant="xs">Theme</Label>
-              <ThemeSelect 
-                value={getElementTheme(element)}
-                onChange={(value) => {
-                  updateElementSettingLocal('theme', value);
-                  updateElementSettingLocal('inheritTheme', value);
-                }}
-              />
-            </div>
-            
-            <Separator />
-
-            <Slider
-              label="Stroke Width"
-              value={actualToCommonStrokeWidth(element.strokeWidth || 2, getElementTheme(element))}
-              onChange={(value) => updateElementSettingLocal('strokeWidth', commonToActualStrokeWidth(value, getElementTheme(element)))}
-              min={1}
-              max={getMaxStrokeWidth()}
-            />
-            
-            <Separator />
-            
-            <div>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => setShowColorSelector('element-line-stroke')}
-                className="w-full"
-              >
-                <Palette className="h-4 w-4 mr-2" />
-                Color
-              </Button>
-            </div>
-          </div>
-        );
-
       case 'rect':
       case 'circle':
       case 'triangle':
@@ -2414,648 +873,60 @@ export function ToolSettingsContent({
       case 'cat':
       case 'smiley':
         return (
-          <div className="space-y-2">
-            <div>
-              <Label variant="xs">Theme</Label>
-              <ThemeSelect 
-                value={getElementTheme(element)}
-                onChange={(value) => {
-                  updateElementSettingLocal('inheritTheme', value);
-                  updateElementSettingLocal('theme', value);
-                }}
-              />
-            </div>
-            
-            <Separator />
-            
-            {/* <Slider
-              label="Stroke dddd"
-              value={element.strokeWidth || 2}
-              onChange={(value) => updateElementSetting('strokeWidth', value)}
-              min={1}
-              max={getMaxStrokeWidth(element.type, element.theme || 'default')}
-            /> */}
-                        
-            <div>
-              <Label className="flex items-center gap-1" variant="xs">
-                <input
-                  type="checkbox"
-                  checked={element.borderEnabled !== undefined ? element.borderEnabled : (element.strokeWidth || 0) > 0}
-                  onChange={(e) => {
-                    updateElementSettingLocal('borderEnabled', e.target.checked);
-                    if (e.target.checked) {
-                      const lastBorderWidth = localStorage.getItem(`shape-border-width-${element.id}`) || '2';
-                      const lastBorderColor = localStorage.getItem(`shape-border-color-${element.id}`) || '#1f2937';
-                      updateElementSettingLocal('strokeWidth', Math.max(1, parseInt(lastBorderWidth)));
-                      updateElementSettingLocal('stroke', lastBorderColor);
-                    } else {
-                      if ((element.strokeWidth || 0) > 0) {
-                        localStorage.setItem(`shape-border-width-${element.id}`, String(element.strokeWidth));
-                      }
-                      localStorage.setItem(`shape-border-color-${element.id}`, element.stroke || '#1f2937');
-                      updateElementSettingLocal('strokeWidth', 0);
-                    }
-                  }}
-                  className="rounded w-3 h-3"
-                />
-                Border
-              </Label>
-            </div>
-            
-            {(element.borderEnabled !== undefined ? element.borderEnabled : (element.strokeWidth || 0) > 0) && (
-              <IndentedSection>
-                <Slider
-                  label="Border Width"
-                  value={actualToCommonStrokeWidth(element.strokeWidth || 0, getElementTheme(element))}
-                  onChange={(value) => {
-                    const actualWidth = commonToActualStrokeWidth(value, getElementTheme(element));
-                    updateElementSettingLocal('strokeWidth', actualWidth);
-                    localStorage.setItem(`shape-border-width-${element.id}`, String(actualWidth));
-                  }}
-                  min={1}
-                  max={getMaxStrokeWidth()}
-                />
-                
-                {/* <div>
-                  <Label variant="xs">Theme</Label>
-                  <ThemeSelect 
-                    value={element.inheritTheme || element.theme || 'default'}
-                    onChange={(value) => {
-                      updateElementSetting('theme', value);
-                      updateElementSetting('inheritTheme', value);
-                    }}
-                  />
-                </div> */}
-                
-                <div>
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    onClick={() => setShowColorSelector('element-shape-stroke')}
-                    className="w-full"
-                  >
-                    <Palette className="h-4 w-4 mr-2" />
-                    Border Color
-                  </Button>
-                </div>
-              </IndentedSection>
-            )}
-            
-            <div>
-              <Label className="flex items-center gap-1" variant="xs">
-                <input
-                  type="checkbox"
-                  checked={element.backgroundEnabled !== undefined ? element.backgroundEnabled : (element.fill !== 'transparent' && element.fill !== undefined)}
-                  onChange={(e) => {
-                    updateElementSettingLocal('backgroundEnabled', e.target.checked);
-                    if (e.target.checked) {
-                      const lastFillColor = localStorage.getItem(`shape-fill-color-${element.id}`) || '#ffffff';
-                      updateElementSettingLocal('fill', lastFillColor);
-                    } else {
-                      localStorage.setItem(`shape-fill-color-${element.id}`, element.fill || '#ffffff');
-                      updateElementSettingLocal('fill', 'transparent');
-                    }
-                  }}
-                  className="rounded w-3 h-3"
-                />
-                Background
-              </Label>
-            </div>
-            
-            {(element.backgroundEnabled !== undefined ? element.backgroundEnabled : (element.fill !== 'transparent' && element.fill !== undefined)) && (
-              <IndentedSection>
-                <div>
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    onClick={() => setShowColorSelector('element-shape-fill')}
-                    className="w-full"
-                  >
-                    <Palette className="h-4 w-4 mr-2" />
-                    Background Color & Opacity
-                  </Button>
-                </div>
-              </IndentedSection>
-            )}
-            
-            <Slider
-              label="Opacity"
-              value={Math.round((element.opacity || element.strokeOpacity || 1) * 100)}
-              onChange={(value) => updateElementSettingLocal('opacity', value / 100)}
-              min={0}
-              max={100}
-              step={5}
-              unit="%"
-            />
-            
-            {element.theme === 'candy' && (
-              <div>
-                <Separator />
-                <div className="flex items-center gap-2 h-12">
-                  <Label className="flex items-center gap-1" variant="xs">
-                    <input
-                      type="checkbox"
-                      checked={element.candyRandomness || false}
-                      onChange={(e) => updateElementSettingLocal('candyRandomness', e.target.checked)}
-                      className="rounded w-3 h-3"
-                    />
-                    Randomness
-                  </Label>
-                  {element.candyRandomness && (
-                    <ButtonGroup>
-                      <Button
-                        variant={(!element.candyIntensity || element.candyIntensity === 'weak') ? 'default' : 'outline'}
-                        size="xs"
-                        onClick={() => updateElementSettingLocal('candyIntensity', 'weak')}
-                      >
-                        weak
-                      </Button>
-                      <Button
-                        variant={element.candyIntensity === 'middle' ? 'default' : 'outline'}
-                        size="xs"
-                        onClick={() => updateElementSettingLocal('candyIntensity', 'middle')}
-                      >
-                        middle
-                      </Button>
-                      <Button
-                        variant={element.candyIntensity === 'strong' ? 'default' : 'outline'}
-                        size="xs"
-                        onClick={() => updateElementSettingLocal('candyIntensity', 'strong')}
-                      >
-                        strong
-                      </Button>
-                    </ButtonGroup>
-                  )}
-                </div>
-              </div>
-            )}
-            
-            {element.type === 'rect' && (element.theme !== 'candy' && element.theme !== 'zigzag' && element.theme !== 'wobbly') && ( 
-              <Slider
-                label="Corner Radius"
-                value={actualToCommonRadius(element.cornerRadius || 0)}
-                onChange={(value) => updateElementSetting('cornerRadius', commonToActualRadius(value))}
-                min={COMMON_CORNER_RADIUS_RANGE.min}
-                max={COMMON_CORNER_RADIUS_RANGE.max}
-              />
-            )}
-          </div>
+          <ShapeSettingsForm
+            element={element}
+            updateSetting={updateElementSettingLocal}
+            setShowColorSelector={setShowColorSelector}
+          />
         );
 
       case 'image':
       case 'placeholder':
         return (
-          <div className="space-y-2">
-            <Slider
-              label="Corner Radius"
-              value={actualToCommonRadius(element.cornerRadius || 0)}
-              onChange={(value) => updateElementSettingLocal('cornerRadius', commonToActualRadius(value))}
-              min={COMMON_CORNER_RADIUS_RANGE.min}
-              max={COMMON_CORNER_RADIUS_RANGE.max}
-            />
-            
-            <Separator />
-            
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={() => {
-                setSelectedImageElementId(element.id);
-                setShowImageModal(true);
-              }}
-              className="w-full"
-            >
-              <Image className="h-4 w-4 mr-2" />
-              Change Image
-            </Button>
-          </div>
+          <ImageSettingsForm
+            element={element}
+            updateSetting={updateElementSettingLocal}
+            setSelectedImageElementId={setSelectedImageElementId}
+            setShowImageModal={setShowImageModal}
+          />
         );
 
-      case 'text':
+      case 'text': {
+        // Create a style object compatible with FreeTextSettingsForm
+        const textStyle = {
+          fontFamily: getFontFamily(element),
+          fontSize: getFontSize(element),
+          fontBold: element.font?.fontBold || element.fontWeight === 'bold',
+          fontItalic: element.font?.fontItalic || element.fontStyle === 'italic',
+          fontColor: getFontColor(element),
+          align: getTextAlign(element),
+          paragraphSpacing: getParagraphSpacing(element),
+          ruledLines: element.ruledLines?.enabled !== undefined ? element.ruledLines.enabled : (element.ruledLines || false),
+          ruledLinesWidth: element.ruledLinesWidth || 0.8,
+          ruledLinesTheme: getRuledLinesTheme(element),
+          background: {
+            enabled: getBackgroundEnabled(element)
+          },
+          border: {
+            enabled: element.border?.enabled !== undefined ? element.border.enabled : getBorderWidth(element) > 0,
+            width: getBorderWidth(element),
+            theme: getBorderTheme(element)
+          },
+          cornerRadius: element.cornerRadius || 0,
+          padding: getPadding(element)
+        };
+        
         return (
-          <div className="space-y-2">
-            <Label variant='xs'>Font</Label>
-            <div>
-              <div className="flex gap-2">
-                <Button
-                  variant={isFontBold(element, state) ? 'default' : 'outline'}
-                  size="xs"
-                  disabled={!hasBoldVariant(getCurrentFontName(element, state))}
-                  onClick={() => {
-                    const currentBold = isFontBold(element, state);
-                    const newBold = !currentBold;
-                    const currentItalic = isFontItalic(element, state);
-                    const fontName = getCurrentFontName(element, state);
-                    const newFontFamily = getFontFamilyByName(fontName, newBold, currentItalic);
-                    
-                    if (element.font) {
-                      updateElementSettingLocal('font', { ...element.font, fontBold: newBold, fontFamily: newFontFamily });
-                    } else {
-                      updateElementSettingLocal('fontWeight', newBold ? 'bold' : 'normal');
-                      updateElementSettingLocal('fontFamily', newFontFamily);
-                    }
-                  }}
-                  className="px-3"
-                >
-                  <strong>B</strong>
-                </Button>
-                <Button
-                  variant={isFontItalic(element, state) ? 'default' : 'outline'}
-                  size="xs"
-                  disabled={!hasItalicVariant(getCurrentFontName(element, state))}
-                  onClick={() => {
-                    const currentItalic = isFontItalic(element, state);
-                    const newItalic = !currentItalic;
-                    const currentBold = isFontBold(element, state);
-                    const fontName = getCurrentFontName(element, state);
-                    const newFontFamily = getFontFamilyByName(fontName, currentBold, newItalic);
-                    
-                    if (element.font) {
-                      updateElementSettingLocal('font', { ...element.font, fontItalic: newItalic, fontFamily: newFontFamily });
-                    } else {
-                      updateElementSettingLocal('fontStyle', newItalic ? 'italic' : 'normal');
-                      updateElementSettingLocal('fontFamily', newFontFamily);
-                    }
-                  }}
-                  className="px-3"
-                >
-                  <em>I</em>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="xs"
-                  onClick={() => setShowFontSelector(true)}
-                  className="flex-1 justify-start"
-                  style={{ fontFamily: getEffectiveFontFamily(element, state) }}
-                >
-                  <Type className="h-4 w-4 mr-2" />
-                  <span className="truncate">{getCurrentFontName(element, state)}</span>
-                </Button>
-              </div>
-            </div>
-            <Slider
-              label="Font Size"
-              value={actualToCommon((() => {
-                let fontSize = getFontSize(element);
-                if (fontSize === 16) {
-                  const currentPage = state.currentBook?.pages[state.activePageIndex];
-                  const pageTheme = currentPage?.background?.pageTheme;
-                  const bookTheme = state.currentBook?.bookTheme;
-                  const elementTheme = element.theme;
-                  const activeTheme = pageTheme || bookTheme || elementTheme;
-                  if (activeTheme) {
-                    const themeDefaults = getGlobalThemeDefaults(activeTheme, element.textType || 'text');
-                    fontSize = themeDefaults?.font?.fontSize || 16;
-                  }
-                }
-                return fontSize;
-              })())}
-              onChange={(value) => {
-                const newSize = commonToActual(value);
-                if (element.font) {
-                  updateElementSettingLocal('font', { ...element.font, fontSize: newSize });
-                }
-                updateElementSettingLocal('fontSize', newSize);
-              }}
-              min={COMMON_FONT_SIZE_RANGE.min}
-              max={COMMON_FONT_SIZE_RANGE.max}
-              step={1}
-            />
-                           
-            <div>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => setShowColorSelector('element-text-color')}
-                className="w-full"
-              >
-                <Palette className="w-4 mr-2" />
-                Font Color & Opacity
-              </Button>
-            </div>
-            
-            <Separator />
-                        
-            <div className='flex flex-row gap-3'>
-              <div className="flex-1">
-                <Label variant="xs">Text Align</Label>
-                <ButtonGroup className="mt-1 flex flex-row">
-                  <Button
-                    variant={getTextAlign(element) === 'left' ? 'default' : 'outline'}
-                    size="xs"
-                    onClick={() => {
-                      if (element.format) {
-                        updateElementSettingLocal('format', { ...element.format, align: 'left' });
-                      }
-                      updateElementSettingLocal('align', 'left');
-                    }}
-                    className="px-1 h-6 flex-1"
-                  >
-                    <AlignLeft className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    variant={getTextAlign(element) === 'center' ? 'default' : 'outline'}
-                    size="xs"
-                    onClick={() => {
-                      if (element.format) {
-                        updateElementSettingLocal('format', { ...element.format, align: 'center' });
-                      }
-                      updateElementSettingLocal('align', 'center');
-                    }}
-                    className="px-1 h-6 flex-1"
-                  >
-                    <AlignCenter className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    variant={getTextAlign(element) === 'right' ? 'default' : 'outline'}
-                    size="xs"
-                    onClick={() => {
-                      if (element.format) {
-                        updateElementSettingLocal('format', { ...element.format, align: 'right' });
-                      }
-                      updateElementSettingLocal('align', 'right');
-                    }}
-                    className="px-1 h-6 flex-1"
-                  >
-                    <AlignRight className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    variant={getTextAlign(element) === 'justify' ? 'default' : 'outline'}
-                    size="xs"
-                    onClick={() => {
-                      if (element.format) {
-                        updateElementSettingLocal('format', { ...element.format, align: 'justify' });
-                      }
-                      updateElementSettingLocal('align', 'justify');
-                    }}
-                    className="px-1 h-6 flex-1"
-                  >
-                    <AlignJustify className="h-3 w-3" />
-                  </Button>
-                </ButtonGroup>
-              </div>
-              
-              <div className="flex-1">
-                <Label variant="xs">Paragraph Spacing</Label>
-                <ButtonGroup className="mt-1 flex flex-row">
-                  <Button
-                    variant={getParagraphSpacing(element) === 'small' ? 'default' : 'outline'}
-                    size="xs"
-                    onClick={() => {
-                      if (element.format) {
-                        updateElementSettingLocal('format', { ...element.format, paragraphSpacing: 'small' });
-                      }
-                      updateElementSettingLocal('paragraphSpacing', 'small');
-                    }}
-                    className="px-1 h-6 flex-1"
-                  >
-                    <Rows4 className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    variant={getParagraphSpacing(element) === 'medium' ? 'default' : 'outline'}
-                    size="xs"
-                    onClick={() => {
-                      if (element.format) {
-                        updateElementSettingLocal('format', { ...element.format, paragraphSpacing: 'medium' });
-                      }
-                      updateElementSettingLocal('paragraphSpacing', 'medium');
-                    }}
-                    className="px-1 h-6 flex-1"
-                  >
-                    <Rows3 className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    variant={getParagraphSpacing(element) === 'large' ? 'default' : 'outline'}
-                    size="xs"
-                    onClick={() => {
-                      if (element.format) {
-                        updateElementSettingLocal('format', { ...element.format, paragraphSpacing: 'large' });
-                      }
-                      updateElementSettingLocal('paragraphSpacing', 'large');
-                    }}
-                    className="px-1 h-6 flex-1"
-                  >
-                    <Rows2 className="h-3 w-3" />
-                  </Button>
-                </ButtonGroup>
-              </div>
-            </div>
-                        
-            <div>
-              <Label className="flex items-center gap-1" variant="xs">
-                <input
-                  type="checkbox"
-                  checked={element.ruledLines?.enabled !== undefined ? element.ruledLines.enabled : (element.ruledLines || false)}
-                  onChange={(e) => updateElementSettingLocal('ruledLines', { ...element.ruledLines, enabled: e.target.checked })}
-                  className="rounded w-3 h-3"
-                />
-                Ruled Lines
-              </Label>
-            </div>
-            
-            {(element.ruledLines?.enabled !== undefined ? element.ruledLines.enabled : (element.ruledLines || false)) && (
-              <IndentedSection>
-                
-                <Slider
-                  label="Line Width"
-                  value={element.ruledLinesWidth || 0.8}
-                  onChange={(value) => updateElementSettingLocal('ruledLinesWidth', value)}
-                  min={0.01}
-                  max={30}
-                  step={0.1}
-                />
-
-                <div>
-                  <Label variant="xs">Ruled Lines Theme</Label>
-                  <ThemeSelect 
-                    value={getRuledLinesTheme(element)}
-                    onChange={(value) => {
-                      updateElementSettingLocal('ruledLines', {
-                        enabled: element.ruledLines?.enabled !== undefined ? element.ruledLines.enabled : (element.ruledLines || false),
-                        inheritTheme: value,
-                        lineWidth: element.ruledLinesWidth || 0.8,
-                        lineColor: element.ruledLinesColor || '#1f2937',
-                        lineOpacity: 0.5
-                      });
-                    }}
-                  />
-                </div>
-                
-                <div>
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    onClick={() => setShowColorSelector('element-ruled-lines-color')}
-                    className="w-full"
-                  >
-                    <Palette className="h-4 w-4 mr-2" />
-                    Line Color
-                  </Button>
-                </div>
-
-              </IndentedSection>
-            )}
-
-            <Separator />
-                        
-            <div>
-              <Label className="flex items-center gap-1" variant="xs">
-                <input
-                  type="checkbox"
-                  checked={element.border?.enabled !== undefined ? element.border.enabled : getBorderWidth(element) > 0}
-                  onChange={(e) => {
-                    const storedWidth = element.border?.originalBorderWidth ?? element.originalBorderWidth ?? getBorderWidth(element);
-                    const newWidth = e.target.checked ? storedWidth : 0;
-                    updateElementSettingLocal('border', {
-                      enabled: e.target.checked,
-                      borderWidth: newWidth,
-                      originalBorderWidth: storedWidth,
-                      borderColor: getBorderColor(element),
-                      borderOpacity: getBorderOpacity(element),
-                      borderTheme: getBorderTheme(element)
-                    });
-                  }}
-                  className="rounded w-3 h-3"
-                />
-                Border
-              </Label>
-            </div>
-            
-            {(element.border?.enabled !== undefined ? element.border.enabled : getBorderWidth(element) > 0) && (
-              <IndentedSection>
-                <Slider
-                  label="Border Width"
-                  value={actualToCommonStrokeWidth(getBorderWidth(element), getBorderTheme(element))}
-                  onChange={(value) => {
-                    const actualWidth = commonToActualStrokeWidth(value, getBorderTheme(element));
-                    updateElementSettingLocal('border', {
-                      enabled: element.border?.enabled !== undefined ? element.border.enabled : true,
-                      borderWidth: actualWidth,
-                      borderColor: getBorderColor(element),
-                      borderOpacity: getBorderOpacity(element),
-                      borderTheme: getBorderTheme(element)
-                    });
-                  }}
-                  min={1}
-                  max={getMaxStrokeWidth()}
-                />            
-
-                
-                <div>
-                  <Label variant="xs">Border Theme</Label>
-                  <ThemeSelect 
-                    value={getBorderTheme(element)}
-                    onChange={(value) => {
-                      updateElementSettingLocal('border', {
-                        enabled: element.border?.enabled !== undefined ? element.border.enabled : true,
-                        borderWidth: getBorderWidth(element),
-                        borderColor: getBorderColor(element),
-                        borderOpacity: getBorderOpacity(element),
-                        borderTheme: value
-                      });
-                      updateElementSettingLocal('cornerRadius', 0);
-                    }}
-                  />
-                </div>
-                
-                <div>
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    onClick={() => setShowColorSelector('element-text-border')}
-                    className="w-full"
-                  >
-                    <Palette className="h-4 w-4 mr-2" />
-                    Border Color
-                  </Button>
-                </div>
-              </IndentedSection>
-            )}
-            
-
-            <div>
-              <Label className="flex items-center gap-1" variant="xs">
-                <input
-                  type="checkbox"
-                  checked={getBackgroundEnabled(element)}
-                  onChange={(e) => {
-                    const storedColor = element.background?.originalBackgroundColor ?? element.originalBackgroundColor ?? (getBackgroundColor(element) !== 'transparent' ? getBackgroundColor(element) : '#ffffff');
-                    const storedOpacity = element.background?.originalBackgroundOpacity ?? element.originalBackgroundOpacity ?? getBackgroundOpacity(element);
-                    updateElementSettingLocal('background', {
-                      enabled: e.target.checked,
-                      backgroundColor: e.target.checked ? storedColor : 'transparent',
-                      backgroundOpacity: storedOpacity,
-                      originalBackgroundColor: storedColor,
-                      originalBackgroundOpacity: storedOpacity
-                    });
-                  }}
-                  className="rounded w-3 h-3"
-                />
-                Background
-              </Label>
-            </div>
-            
-            {getBackgroundEnabled(element) && (
-              <IndentedSection>
-                <div>
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    onClick={() => setShowColorSelector('element-text-background')}
-                    className="w-full"
-                  >
-                    <Palette className="h-4 w-4 mr-2" />
-                    Background Color & Opacity
-                  </Button>
-                </div>
-              </IndentedSection>
-            )}
-            
-            <Separator />
-
-            
-            {(element.textType === 'text' || element.textType === 'question' || element.textType === 'answer' || element.textType === 'qna') && ((element.borderWidth || 0) === 0 || (element.theme !== 'candy' && element.theme !== 'zigzag' && element.theme !== 'wobbly')) && (
-              <Slider
-                label="Corner Radius"
-                value={actualToCommonRadius(element.cornerRadius || 0)}
-                onChange={(value) => updateElementSettingLocal('cornerRadius', commonToActualRadius(value))}
-                min={COMMON_CORNER_RADIUS_RANGE.min}
-                max={COMMON_CORNER_RADIUS_RANGE.max}
-              />
-            )}
-            
-            <Slider
-              label="Padding"
-              value={getPadding(element)}
-              onChange={(value) => {
-                if (element.format) {
-                  updateElementSettingLocal('format', { ...element.format, padding: value });
-                }
-                updateElementSettingLocal('padding', value);
-              }}
-              min={0}
-              max={100}
-            />
-            
-            {element.textType === 'question' && user?.role !== 'author' && (
-              <>
-                <Separator />
-                
-                <Button
-                  variant="outline"
-                  size="xs"
-                  onClick={() => {
-                    setSelectedQuestionElementId(element.id);
-                    setShowQuestionDialog(true);
-                  }}
-                  className="w-full"
-                >
-                  Question...
-                </Button>
-              </>
-            )}
-          </div>
+          <FreeTextSettingsForm
+            element={element}
+            state={state}
+            currentStyle={textStyle}
+            updateSetting={updateElementSettingLocal}
+            setShowFontSelector={setShowFontSelector}
+            setShowColorSelector={setShowColorSelector}
+          />
         );
+      }
 
       default:
         return (

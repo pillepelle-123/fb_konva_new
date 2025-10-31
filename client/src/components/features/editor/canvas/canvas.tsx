@@ -2595,8 +2595,6 @@ export default function Canvas() {
                 
                 return newBox;
               }}
-              rotationSnaps={[0, 90, 180, 270]}
-              rotationSnapTolerance={5}
               onTransformStart={() => {
                 dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Transform Elements' });
                 // Dispatch custom events for each selected element

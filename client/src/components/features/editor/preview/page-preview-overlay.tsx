@@ -2,11 +2,12 @@ import { X } from 'lucide-react';
 import { useEditor } from '../../../../context/editor-context';
 import QuestionsManager from '../../questions/questions-manager';
 import BookManagerContent from '../../books/book-manager-content';
+import { TemplateSelector } from '../template-selector';
 
 interface PagePreviewOverlayProps {
   isOpen: boolean;
   onClose: () => void;
-  content?: 'preview' | 'questions' | 'manager';
+  content?: 'preview' | 'questions' | 'manager' | 'templates';
 }
 
 export default function PagePreviewOverlay({ isOpen, onClose, content = 'preview' }: PagePreviewOverlayProps) {
@@ -65,7 +66,8 @@ export default function PagePreviewOverlay({ isOpen, onClose, content = 'preview
       <div className="flex items-center justify-between p-4 border-b bg-white">
         <h2 className="text-lg font-semibold">
           {content === 'questions' ? 'Questions' : 
-           content === 'manager' ? 'Book Manager' : 'Page Preview'}
+           content === 'manager' ? 'Book Manager' : 
+           content === 'templates' ? 'Templates' : 'Page Preview'}
         </h2>
         <button
           onClick={onClose}
@@ -87,6 +89,10 @@ export default function PagePreviewOverlay({ isOpen, onClose, content = 'preview
             {state.currentBook && (
               <BookManagerContent bookId={state.currentBook.id} onClose={onClose} />
             )}
+          </div>
+        ) : content === 'templates' ? (
+          <div className="p-6">
+            <TemplateSelector onBack={onClose} />
           </div>
         ) : (
           <div className="p-6">

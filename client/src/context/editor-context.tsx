@@ -84,8 +84,10 @@ import { actualToCommonRadius } from '../utils/corner-radius-converter';
 import { getRuledLinesOpacity } from '../utils/ruled-lines-utils';
 import { getBorderTheme } from '../utils/theme-utils';
 import { convertTemplateToElements } from '../utils/template-to-elements';
+import { applyLayoutTemplateWithPreservation, validateTemplateCompatibility } from '../utils/content-preservation';
 import { pageTemplates } from '../data/templates/page-templates';
 import { colorPalettes } from '../data/templates/color-palettes';
+import { getGlobalTheme } from '../utils/global-themes';
 import type { PageTemplate, ColorPalette } from '../types/template-types';
 
 // Function to extract theme structure from current book state
@@ -301,7 +303,7 @@ function logThemeStructure(book: Book | null) {
 
 export interface CanvasElement {
   id: string;
-  type: 'text' | 'image' | 'placeholder' | 'line' | 'circle' | 'rect' | 'brush' | 'brush-multicolor' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley' | 'triangle' | 'polygon' | 'group';
+  type: 'text' | 'image' | 'placeholder' | 'line' | 'circle' | 'rect' | 'brush' | 'brush-multicolor' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley' | 'triangle' | 'polygon' | 'group' | 'sticker';
   polygonSides?: number;
   x: number;
   y: number;
@@ -473,7 +475,7 @@ type EditorAction =
   | { type: 'UPDATE_PAGE_BACKGROUND'; payload: { pageIndex: number; background: PageBackground } }
   | { type: 'SET_BOOK_THEME'; payload: string }
   | { type: 'SET_PAGE_THEME'; payload: { pageIndex: number; themeId: string } }
-  | { type: 'APPLY_THEME_TO_ELEMENTS'; payload: { pageIndex: number; themeId: string; elementType?: string } }
+  | { type: 'APPLY_THEME_TO_ELEMENTS'; payload: { pageIndex: number; themeId: string; elementType?: string; applyToAllPages?: boolean } }
   | { type: 'REORDER_PAGES'; payload: { fromIndex: number; toIndex: number } }
   | { type: 'TOGGLE_MAGNETIC_SNAPPING' }
   | { type: 'SET_QNA_ACTIVE_SECTION'; payload: 'question' | 'answer' }
@@ -485,6 +487,11 @@ type EditorAction =
   | { type: 'LOAD_TEMPLATES'; payload: PageTemplate[] }
   | { type: 'LOAD_COLOR_PALETTES'; payload: ColorPalette[] }
   | { type: 'APPLY_TEMPLATE_TO_PAGE'; payload: { pageIndex: number; template: PageTemplate } }
+  | { type: 'APPLY_TEMPLATE'; payload: { template: PageTemplate; pageIndex?: number; applyToAllPages?: boolean } }
+  | { type: 'APPLY_LAYOUT_TEMPLATE'; payload: { template: PageTemplate; pageIndex?: number; applyToAllPages?: boolean } }
+  | { type: 'APPLY_THEME_ONLY'; payload: { themeId: string; pageIndex?: number; applyToAllPages?: boolean } }
+  | { type: 'APPLY_COLOR_PALETTE'; payload: { palette: ColorPalette; pageIndex?: number; applyToAllPages?: boolean } }
+  | { type: 'APPLY_COMPLETE_TEMPLATE'; payload: { layoutId?: string; themeId?: string; paletteId?: string; scope: 'current-page' | 'entire-book' } }
   | { type: 'SET_WIZARD_TEMPLATE_SELECTION'; payload: WizardTemplateSelection };
 
 const initialState: EditorState = {
@@ -1076,38 +1083,53 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (!state.currentBook) return state;
       const savedApplyThemeState = saveToHistory(state, 'Apply Theme to Elements');
       const updatedBookApplyTheme = { ...savedApplyThemeState.currentBook! };
-      const targetPageApplyTheme = updatedBookApplyTheme.pages[action.payload.pageIndex];
       
-      if (targetPageApplyTheme) {
-        targetPageApplyTheme.elements = targetPageApplyTheme.elements.map(element => {
-          // Only apply theme to specified element type or all if not specified
-          if (action.payload.elementType && element.type !== action.payload.elementType && element.textType !== action.payload.elementType) {
-            return element;
-          }
-          
-          const toolType = element.textType || element.type;
-          const themeDefaults = getToolDefaults(toolType as any, action.payload.themeId, undefined);
-          
-          // Apply theme defaults while preserving essential properties
-          return {
-            ...themeDefaults,
-            theme: action.payload.themeId,
-            id: element.id,
-            type: element.type,
-            x: element.x,
-            y: element.y,
-            width: element.width,
-            height: element.height,
-            text: element.text,
-            formattedText: element.formattedText,
-            textType: element.textType,
-            questionId: element.questionId,
-            answerId: element.answerId,
-            questionElementId: element.questionElementId,
-            src: element.src,
-            points: element.points
-          };
-        });
+      const applyThemeToPage = (page: any) => {
+        return {
+          ...page,
+          elements: page.elements.map((element: any) => {
+            // Only apply theme to specified element type or all if not specified
+            if (action.payload.elementType && element.type !== action.payload.elementType && element.textType !== action.payload.elementType) {
+              return element;
+            }
+            
+            const toolType = element.textType || element.type;
+            const themeDefaults = getToolDefaults(toolType as any, action.payload.themeId, undefined);
+            
+            // Apply ALL theme properties including colors and fonts
+            const updatedElement = {
+              ...element,
+              ...themeDefaults,
+              theme: action.payload.themeId,
+              // Preserve essential properties that should never be overridden
+              id: element.id,
+              type: element.type,
+              x: element.x,
+              y: element.y,
+              width: element.width,
+              height: element.height,
+              text: element.text,
+              formattedText: element.formattedText,
+              textType: element.textType,
+              questionId: element.questionId,
+              answerId: element.answerId,
+              questionElementId: element.questionElementId,
+              src: element.src,
+              points: element.points
+            };
+            
+            return updatedElement;
+          })
+        };
+      };
+      
+      if (action.payload.applyToAllPages) {
+        updatedBookApplyTheme.pages = updatedBookApplyTheme.pages.map(applyThemeToPage);
+      } else if (action.payload.pageIndex >= 0) {
+        const targetPageApplyTheme = updatedBookApplyTheme.pages[action.payload.pageIndex];
+        if (targetPageApplyTheme) {
+          updatedBookApplyTheme.pages[action.payload.pageIndex] = applyThemeToPage(targetPageApplyTheme);
+        }
       }
       
       return { ...savedApplyThemeState, currentBook: updatedBookApplyTheme, hasUnsavedChanges: true };
@@ -1373,6 +1395,279 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         hasUnsavedChanges: true 
       };
     
+    case 'APPLY_TEMPLATE':
+      if (!state.currentBook) return state;
+      const savedApplyTemplateState = saveToHistory(state, 'Apply Template');
+      const { template: applyTemplate, pageIndex: applyPageIndex, applyToAllPages } = action.payload;
+      const updatedBookApplyTemplate = { ...savedApplyTemplateState.currentBook! };
+      
+      if (applyToAllPages) {
+        // Apply to all pages
+        updatedBookApplyTemplate.pages = updatedBookApplyTemplate.pages.map(page => {
+          const newElements = convertTemplateToElements(applyTemplate);
+          return {
+            ...page,
+            elements: newElements,
+            background: {
+              type: applyTemplate.background.type,
+              value: applyTemplate.background.value,
+              opacity: 1,
+              pageTheme: applyTemplate.theme
+            }
+          };
+        });
+      } else {
+        // Apply to specific page
+        const targetIndex = applyPageIndex ?? savedApplyTemplateState.activePageIndex;
+        const targetPageApplyTemplate = updatedBookApplyTemplate.pages[targetIndex];
+        
+        if (targetPageApplyTemplate) {
+          const newElements = convertTemplateToElements(applyTemplate);
+          targetPageApplyTemplate.elements = newElements;
+          targetPageApplyTemplate.background = {
+            type: applyTemplate.background.type,
+            value: applyTemplate.background.value,
+            opacity: 1,
+            pageTheme: applyTemplate.theme
+          };
+        }
+      }
+      
+      return { 
+        ...savedApplyTemplateState, 
+        currentBook: updatedBookApplyTemplate, 
+        selectedTemplate: applyTemplate,
+        hasUnsavedChanges: true 
+      };
+    
+    case 'APPLY_COLOR_PALETTE':
+      if (!state.currentBook) return state;
+      const savedApplyPaletteState = saveToHistory(state, 'Apply Color Palette');
+      const { palette, pageIndex: palettePageIndex, applyToAllPages: paletteApplyToAll } = action.payload;
+      const updatedBookApplyPalette = { ...savedApplyPaletteState.currentBook! };
+      
+      const applyPaletteToPage = (page: Page) => {
+        return {
+          ...page,
+          background: {
+            ...page.background,
+            value: palette.colors.background
+          },
+          elements: page.elements.map(element => {
+            const updates: Partial<CanvasElement> = {};
+            
+            // Apply palette colors based on element type
+            if (element.type === 'text' || element.textType) {
+              if (element.font) {
+                updates.font = { ...element.font, fontColor: palette.colors.text };
+              }
+              updates.fontColor = palette.colors.text;
+              updates.fill = palette.colors.text;
+            }
+            
+            if (element.stroke) {
+              updates.stroke = palette.colors.primary;
+            }
+            
+            if (element.fill && element.fill !== 'transparent') {
+              updates.fill = palette.colors.accent;
+            }
+            
+            return { ...element, ...updates };
+          })
+        };
+      };
+      
+      if (paletteApplyToAll) {
+        updatedBookApplyPalette.pages = updatedBookApplyPalette.pages.map(applyPaletteToPage);
+      } else {
+        const targetIndex = palettePageIndex ?? savedApplyPaletteState.activePageIndex;
+        updatedBookApplyPalette.pages[targetIndex] = applyPaletteToPage(updatedBookApplyPalette.pages[targetIndex]);
+      }
+      
+      return { 
+        ...savedApplyPaletteState, 
+        currentBook: updatedBookApplyPalette, 
+        hasUnsavedChanges: true 
+      };
+    
+    case 'APPLY_LAYOUT_TEMPLATE':
+      if (!state.currentBook) return state;
+      const savedLayoutState = saveToHistory(state, 'Apply Layout Template');
+      const { template: layoutTemplate, pageIndex: layoutPageIndex, applyToAllPages: layoutApplyToAll } = action.payload;
+      const updatedBookLayout = { ...savedLayoutState.currentBook! };
+      
+      const applyLayoutToPage = (page: Page, pageIdx: number) => {
+        // Validate template compatibility
+        const validation = validateTemplateCompatibility(layoutTemplate, page.elements);
+        
+        // Apply layout with content preservation
+        const newElements = applyLayoutTemplateWithPreservation(page.elements, layoutTemplate);
+        
+        return {
+          ...page,
+          elements: newElements,
+          background: {
+            ...page.background,
+            pageTheme: layoutTemplate.theme
+          }
+        };
+      };
+      
+      if (layoutApplyToAll) {
+        updatedBookLayout.pages = updatedBookLayout.pages.map(applyLayoutToPage);
+      } else {
+        const targetIndex = layoutPageIndex ?? savedLayoutState.activePageIndex;
+        updatedBookLayout.pages[targetIndex] = applyLayoutToPage(updatedBookLayout.pages[targetIndex], targetIndex);
+      }
+      
+      return { 
+        ...savedLayoutState, 
+        currentBook: updatedBookLayout, 
+        hasUnsavedChanges: true 
+      };
+    
+    case 'APPLY_THEME_ONLY':
+      if (!state.currentBook) return state;
+      const savedThemeOnlyState = saveToHistory(state, 'Apply Theme');
+      const { themeId: themeOnlyId, pageIndex: themePageIndex, applyToAllPages: themeApplyToAll } = action.payload;
+      const updatedBookThemeOnly = { ...savedThemeOnlyState.currentBook! };
+      
+      const applyThemeOnlyToPage = (page: Page) => {
+        const theme = getGlobalTheme(themeOnlyId);
+        if (!theme) return page;
+        
+        return {
+          ...page,
+          background: {
+            ...page.background,
+            type: theme.pageSettings.backgroundPattern?.enabled ? 'pattern' : 'color',
+            value: theme.pageSettings.backgroundPattern?.enabled 
+              ? theme.pageSettings.backgroundPattern.style 
+              : theme.pageSettings.backgroundColor,
+            opacity: theme.pageSettings.backgroundOpacity || 1,
+            pageTheme: themeOnlyId,
+            ...(theme.pageSettings.backgroundPattern?.enabled && {
+              patternSize: theme.pageSettings.backgroundPattern.size,
+              patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
+              patternForegroundColor: theme.pageSettings.backgroundColor,
+              patternBackgroundColor: theme.pageSettings.backgroundPattern.patternBackgroundColor,
+              patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity
+            })
+          },
+          elements: page.elements.map(element => {
+            const toolType = element.textType || element.type;
+            const themeDefaults = getToolDefaults(toolType as any, themeOnlyId, undefined);
+            
+            // Apply all theme properties including colors
+            return {
+              ...element,
+              ...themeDefaults,
+              theme: themeOnlyId,
+              // Preserve essential content properties
+              id: element.id,
+              type: element.type,
+              x: element.x,
+              y: element.y,
+              width: element.width,
+              height: element.height,
+              text: element.text,
+              formattedText: element.formattedText,
+              textType: element.textType,
+              questionId: element.questionId,
+              answerId: element.answerId,
+              questionElementId: element.questionElementId,
+              src: element.src,
+              points: element.points
+            };
+          })
+        };
+      };
+      
+      if (themeApplyToAll) {
+        updatedBookThemeOnly.pages = updatedBookThemeOnly.pages.map(applyThemeOnlyToPage);
+      } else {
+        const targetIndex = themePageIndex ?? savedThemeOnlyState.activePageIndex;
+        updatedBookThemeOnly.pages[targetIndex] = applyThemeOnlyToPage(updatedBookThemeOnly.pages[targetIndex]);
+      }
+      
+      return { 
+        ...savedThemeOnlyState, 
+        currentBook: updatedBookThemeOnly, 
+        hasUnsavedChanges: true 
+      };
+    
+    case 'APPLY_COMPLETE_TEMPLATE':
+      if (!state.currentBook) return state;
+      const savedCompleteState = saveToHistory(state, 'Apply Complete Template');
+      const { layoutId, themeId: completeThemeId, paletteId, scope } = action.payload;
+      
+      let completeTemplateState = savedCompleteState;
+      
+      // Apply layout template if provided
+      if (layoutId) {
+        const layoutTemplateToApply = pageTemplates.find(t => t.id === layoutId);
+        if (layoutTemplateToApply) {
+          completeTemplateState = editorReducer(completeTemplateState, {
+            type: 'APPLY_LAYOUT_TEMPLATE',
+            payload: {
+              template: layoutTemplateToApply,
+              applyToAllPages: scope === 'entire-book'
+            }
+          });
+        }
+      }
+      
+      // Apply theme if provided - this should update page theme and apply to all elements
+      if (completeThemeId) {
+        // First set the page/book theme
+        if (scope === 'entire-book') {
+          completeTemplateState = { 
+            ...completeTemplateState, 
+            currentBook: { 
+              ...completeTemplateState.currentBook!, 
+              bookTheme: completeThemeId 
+            } 
+          };
+        } else {
+          const updatedBook = { ...completeTemplateState.currentBook! };
+          const targetPage = updatedBook.pages[completeTemplateState.activePageIndex];
+          if (targetPage) {
+            if (!targetPage.background) {
+              targetPage.background = { type: 'color', value: '#ffffff', opacity: 1 };
+            }
+            targetPage.background.pageTheme = completeThemeId;
+          }
+          completeTemplateState = { ...completeTemplateState, currentBook: updatedBook };
+        }
+        
+        // Then apply theme to elements
+        completeTemplateState = editorReducer(completeTemplateState, {
+          type: 'APPLY_THEME_TO_ELEMENTS',
+          payload: {
+            themeId: completeThemeId,
+            pageIndex: scope === 'entire-book' ? -1 : completeTemplateState.activePageIndex,
+            applyToAllPages: scope === 'entire-book'
+          }
+        });
+      }
+      
+      // Apply color palette if provided
+      if (paletteId) {
+        const paletteToApply = colorPalettes.find(p => p.id === paletteId);
+        if (paletteToApply) {
+          completeTemplateState = editorReducer(completeTemplateState, {
+            type: 'APPLY_COLOR_PALETTE',
+            payload: {
+              palette: paletteToApply,
+              applyToAllPages: scope === 'entire-book'
+            }
+          });
+        }
+      }
+      
+      return completeTemplateState;
+    
     case 'SET_WIZARD_TEMPLATE_SELECTION':
       return { ...state, wizardTemplateSelection: action.payload };
     
@@ -1387,6 +1682,7 @@ const EditorContext = createContext<{
   saveBook: () => Promise<void>;
   loadBook: (bookId: number) => Promise<void>;
   applyTemplateToPage: (template: PageTemplate, pageIndex?: number) => void;
+  applyCompleteTemplate: (layoutId?: string, themeId?: string, paletteId?: string, scope?: 'current-page' | 'entire-book') => void;
   getWizardTemplateSelection: () => WizardTemplateSelection;
   setWizardTemplateSelection: (selection: WizardTemplateSelection) => void;
   getQuestionText: (questionId: string) => string;
@@ -1980,6 +2276,18 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     dispatch({ type: 'SET_WIZARD_TEMPLATE_SELECTION', payload: selection });
   };
   
+  const applyCompleteTemplate = (
+    layoutId?: string, 
+    themeId?: string, 
+    paletteId?: string, 
+    scope: 'current-page' | 'entire-book' = 'current-page'
+  ) => {
+    dispatch({ 
+      type: 'APPLY_COMPLETE_TEMPLATE', 
+      payload: { layoutId, themeId, paletteId, scope } 
+    });
+  };
+  
   const validateQuestionSelection = (questionId: string, currentPageNumber: number): { valid: boolean; reason?: string } => {
     if (!state.currentBook) return { valid: false, reason: 'No book loaded' };
     
@@ -2036,6 +2344,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       getVisiblePages,
       getVisiblePageNumbers,
       applyTemplateToPage,
+      applyCompleteTemplate,
       getWizardTemplateSelection,
       setWizardTemplateSelection
     }}>

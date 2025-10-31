@@ -194,13 +194,27 @@ export const TOOL_DEFAULTS = {
     // QnA inline specific defaults - fontSize defines actual text size
     questionSettings: {
       fontSize: 45, // Font size for question text in canvas
+      fontFamily: 'Arial, sans-serif',
       fontColor: '#666666', // Gray color for questions
-      ruledLines: false
+      fontBold: false,
+      fontItalic: false,
+      fontOpacity: 1,
+      align: 'left',
+      paragraphSpacing: 'small',
+      ruledLines: false,
+      padding: 4
     },
     answerSettings: {
       fontSize: 50, // Font size for answer text in canvas
+      fontFamily: 'Arial, sans-serif',
       fontColor: '#1f2937', // Dark color for answers
-      ruledLines: false
+      fontBold: false,
+      fontItalic: false,
+      fontOpacity: 1,
+      align: 'left',
+      paragraphSpacing: 'medium',
+      ruledLines: false,
+      padding: 4
     }
   },
   free_text: {
@@ -209,6 +223,9 @@ export const TOOL_DEFAULTS = {
     fontWeight: 'normal',
     fontStyle: 'normal',
     fontColor: '#1f2937',
+    fontBold: false,
+    fontItalic: false,
+    fontOpacity: 1,
     align: 'left',
     paragraphSpacing: 'medium',
     ruledLines: false,
@@ -224,6 +241,9 @@ export const TOOL_DEFAULTS = {
       fontSize: 50,
       fontColor: '#1f2937',
       fontFamily: 'Arial, sans-serif',
+      fontBold: false,
+      fontItalic: false,
+      fontOpacity: 1,
       align: 'left',
       paragraphSpacing: 'medium',
       ruledLines: false,
@@ -246,6 +266,9 @@ export function getToolDefaults(tool: ToolType, pageTheme?: string, bookTheme?: 
   const activeTheme = pageTheme || bookTheme || 'default';
   const themeDefaults = getGlobalThemeDefaults(activeTheme, tool);
   
+  // Deep merge theme defaults with base defaults, with theme taking precedence
+  const mergedDefaults = deepMerge(baseDefaults, themeDefaults);
+  
   // If we have an existing element, apply theme defaults but preserve essential properties
   if (existingElement) {
     const preservedProperties = {
@@ -265,10 +288,25 @@ export function getToolDefaults(tool: ToolType, pageTheme?: string, bookTheme?: 
       points: existingElement.points
     };
     
-    // Apply theme defaults and then preserve essential properties
-    return { ...baseDefaults, ...themeDefaults, ...preservedProperties };
+    // Apply merged defaults and then preserve essential properties
+    return { ...mergedDefaults, ...preservedProperties };
   }
   
-  // Theme defaults should override base defaults completely
-  return { ...baseDefaults, ...themeDefaults };
+  // Return merged defaults with theme taking precedence
+  return mergedDefaults;
+}
+
+// Helper function for deep merging objects
+function deepMerge(target: any, source: any): any {
+  const result = { ...target };
+  
+  for (const key in source) {
+    if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+      result[key] = deepMerge(result[key] || {}, source[key]);
+    } else {
+      result[key] = source[key];
+    }
+  }
+  
+  return result;
 }

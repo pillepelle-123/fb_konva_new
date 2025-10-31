@@ -18,6 +18,7 @@ import { commonToActual } from '../../../../utils/font-size-converter';
 import { useState } from 'react';
 import ConfirmationDialog from '../../../ui/overlays/confirmation-dialog';
 
+
 interface GeneralSettingsProps {
   showColorSelector: string | null;
   setShowColorSelector: (value: string | null) => void;
@@ -30,7 +31,7 @@ interface GeneralSettingsProps {
   showBookTheme: boolean;
   setShowBookTheme: (value: boolean) => void;
   setShowBackgroundImageModal: (value: boolean) => void;
-  onOpenTemplates?: () => void;
+  onOpenTemplates: () => void;
 }
 
 export function GeneralSettings({
@@ -51,7 +52,7 @@ export function GeneralSettings({
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
   const [showPagePalette, setShowPagePalette] = useState(false);
   const [showBookPalette, setShowBookPalette] = useState(false);
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+
 
   const updateBackground = (updates: Partial<PageBackground>) => {
     const currentPage = state.currentBook?.pages[state.activePageIndex];
@@ -63,21 +64,7 @@ export function GeneralSettings({
     });
   };
 
-  const handleTemplatesClick = () => {
-    const currentPage = state.currentBook?.pages[state.activePageIndex];
-    const hasContent = currentPage?.elements && currentPage.elements.length > 0;
-    
-    if (hasContent) {
-      setShowConfirmDialog(true);
-    } else {
-      onOpenTemplates?.();
-    }
-  };
 
-  const handleConfirmTemplates = () => {
-    setShowConfirmDialog(false);
-    onOpenTemplates?.();
-  };
 
   const renderPageThemeSettings = () => {
     if (showPagePalette) {
@@ -561,6 +548,8 @@ export function GeneralSettings({
     return renderBookThemeSettings();
   }
 
+
+
   const { user } = useAuth();
   
   // Check if user can access any settings at all
@@ -631,7 +620,7 @@ export function GeneralSettings({
             <Button
               variant="ghost_hover"
               size="sm"
-              onClick={() => canAccessPageSettings && handleTemplatesClick()}
+              onClick={() => canAccessPageSettings && onOpenTemplates()}
               className={`w-full justify-start ${!canAccessPageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
               disabled={!canAccessPageSettings}
               title="Choose Template"
@@ -643,16 +632,7 @@ export function GeneralSettings({
         </div>
       </div>
       
-      <ConfirmationDialog
-        open={showConfirmDialog}
-        onOpenChange={setShowConfirmDialog}
-        title="Replace Existing Elements"
-        description="This will replace existing elements. Continue?"
-        onConfirm={handleConfirmTemplates}
-        onCancel={() => setShowConfirmDialog(false)}
-        confirmText="Continue"
-        cancelText="Cancel"
-      />
+
     </>
   );
 }

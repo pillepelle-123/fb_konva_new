@@ -30,8 +30,8 @@ export function Slider({
   const sliderInput = (
     <input
       type="range"
-      value={value}
-      onChange={(e) => onChange(parseInt(e.target.value))}
+      value={isNaN(value) ? 0 : value}
+      onChange={(e) => onChange(parseFloat(e.target.value))}
       min={min}
       max={max}
       step={step}
