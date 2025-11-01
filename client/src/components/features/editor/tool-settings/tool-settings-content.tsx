@@ -603,7 +603,7 @@ export function ToolSettingsContent({
           
           return (
             <div className="space-y-2">
-              <div className="text-xs font-medium mb-2">QnA Inline Textbox</div>
+              {/* <div className="text-xs font-medium mb-2">QnA Inline Textbox</div> */}
               <QnAInlineSettingsForm
                 sectionType="shared"
                 element={selectedElement}
@@ -686,179 +686,6 @@ export function ToolSettingsContent({
       updateElementSetting(element.id, { [key]: value });
     };
 
-    if (showFontSelector && element.type === 'text') {
-      return (
-        <FontSelector
-          currentFont={getFontFamily(element)}
-          isBold={element.font?.fontBold || element.fontWeight === 'bold'}
-          isItalic={element.font?.fontItalic || element.fontStyle === 'italic'}
-          onFontSelect={(fontName) => {
-            const fontFamily = getFontFamilyByName(fontName, false, false);
-            if (element.font) {
-              updateElementSettingLocal('font', { ...element.font, fontFamily });
-            }
-            updateElementSettingLocal('fontFamily', fontFamily);
-          }}
-          onBack={() => setShowFontSelector(false)}
-          element={element}
-          state={state}
-        />
-      );
-    }
-
-    if (showColorSelector && showColorSelector.startsWith('element-')) {
-      const getColorValue = () => {
-        switch (showColorSelector) {
-          case 'element-brush-stroke':
-          case 'element-line-stroke':
-          case 'element-shape-stroke':
-            return element.stroke || '#1f2937';
-          case 'element-shape-fill':
-            return element.fill !== undefined ? element.fill : 'transparent';
-          case 'element-text-color':
-            return getFontColor(element);
-          case 'element-text-border':
-            return getBorderColor(element);
-          case 'element-text-background':
-            return getBackgroundColor(element);
-          case 'element-ruled-lines-color':
-            return element.ruledLinesColor || '#1f2937';
-          default:
-            return '#1f2937';
-        }
-      };
-      
-      const getElementOpacityValue = () => {
-        switch (showColorSelector) {
-          case 'element-brush-stroke':
-          case 'element-line-stroke':
-            return element.strokeOpacity || 1;
-          case 'element-shape-stroke':
-            return element.opacity || 1;
-          case 'element-shape-fill':
-          case 'element-text-color':
-            return element.font?.fontOpacity || element.fillOpacity || 1;
-          case 'element-text-border':
-            return getBorderOpacity(element);
-          case 'element-text-background':
-            return getBackgroundOpacity(element);
-          case 'element-ruled-lines-color':
-            return getRuledLinesOpacity(element);
-          default:
-            return 1;
-        }
-      };
-      
-      const handleElementOpacityChange = (opacity: number) => {
-        switch (showColorSelector) {
-          case 'element-brush-stroke':
-          case 'element-line-stroke':
-            updateElementSettingLocal('strokeOpacity', opacity);
-            break;
-          case 'element-shape-stroke':
-            updateElementSettingLocal('opacity', opacity);
-            break;
-          case 'element-shape-fill':
-            updateElementSettingLocal('fillOpacity', opacity);
-            break;
-          case 'element-text-color':
-            if (element.font) {
-              updateElementSettingLocal('font', { ...element.font, fontOpacity: opacity });
-            }
-            updateElementSettingLocal('fillOpacity', opacity);
-            break;
-          case 'element-text-border':
-            updateElementSettingLocal('border', {
-              borderWidth: getBorderWidth(element),
-              borderColor: getBorderColor(element),
-              borderOpacity: opacity,
-              borderTheme: getBorderTheme(element)
-            });
-            updateElementSettingLocal('borderOpacity', opacity);
-            break;
-          case 'element-text-background':
-            updateElementSettingLocal('background', {
-              backgroundColor: getBackgroundColor(element),
-              backgroundOpacity: opacity
-            });
-            updateElementSettingLocal('backgroundOpacity', opacity);
-            break;
-          case 'element-ruled-lines-color':
-            updateElementSettingLocal('ruledLines', {
-              ...element.ruledLines,
-              lineColor: element.ruledLines?.lineColor || element.ruledLinesColor || '#1f2937',
-              lineOpacity: opacity
-            });
-            updateElementSettingLocal('ruledLinesOpacity', opacity);
-            break;
-        }
-      };
-      
-      const handleElementColorChange = (color: string) => {
-        switch (showColorSelector) {
-          case 'element-brush-stroke':
-          case 'element-line-stroke':
-          case 'element-shape-stroke':
-            updateElementSettingLocal('stroke', color);
-            localStorage.setItem(`shape-border-color-${element.id}`, color);
-            break;
-          case 'element-shape-fill':
-            updateElementSettingLocal('fill', color);
-            localStorage.setItem(`shape-fill-color-${element.id}`, color);
-            break;
-          case 'element-text-color':
-            if (element.font) {
-              updateElementSettingLocal('font', { ...element.font, fontColor: color });
-            }
-            updateElementSettingLocal('fontColor', color);
-            updateElementSettingLocal('fill', color);
-            break;
-          case 'element-text-border':
-            updateElementSettingLocal('border', {
-              borderWidth: getBorderWidth(element),
-              borderColor: color,
-              borderOpacity: getBorderOpacity(element),
-              borderTheme: getBorderTheme(element)
-            });
-            updateElementSettingLocal('borderColor', color);
-            break;
-          case 'element-text-background':
-            updateElementSettingLocal('background', {
-              backgroundColor: color,
-              backgroundOpacity: getBackgroundOpacity(element)
-            });
-            updateElementSettingLocal('backgroundColor', color);
-            localStorage.setItem(`text-bg-color-${element.id}`, color);
-            break;
-          case 'element-ruled-lines-color':
-            updateElementSettingLocal('ruledLines', {
-              ...element.ruledLines,
-              lineColor: color,
-              lineOpacity: getRuledLinesOpacity(element)
-            });
-            updateElementSettingLocal('ruledLinesColor', color);
-            break;
-          default:
-            updateElementSettingLocal('stroke', color);
-        }
-      };
-      
-      const hasElementOpacity = true;
-      
-      return (
-        <ColorSelector
-          value={getColorValue()}
-          onChange={handleElementColorChange}
-          opacity={showColorSelector === 'element-shape-stroke' || showColorSelector === 'element-shape-fill' ? undefined : (hasElementOpacity ? getElementOpacityValue() : undefined)}
-          onOpacityChange={showColorSelector === 'element-shape-stroke' || showColorSelector === 'element-shape-fill' ? undefined : (hasElementOpacity ? handleElementOpacityChange : undefined)}
-          favoriteColors={favoriteStrokeColors}
-          onAddFavorite={addFavoriteStrokeColor}
-          onRemoveFavorite={removeFavoriteStrokeColor}
-          onBack={() => setShowColorSelector(null)}
-        />
-      );
-    }
-
     switch (element.type) {
       case 'brush':
       case 'line':
@@ -924,6 +751,8 @@ export function ToolSettingsContent({
             updateSetting={updateElementSettingLocal}
             setShowFontSelector={setShowFontSelector}
             setShowColorSelector={setShowColorSelector}
+            showFontSelector={showFontSelector}
+            showColorSelector={showColorSelector}
           />
         );
       }

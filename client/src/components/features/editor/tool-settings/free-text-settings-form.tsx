@@ -1,21 +1,24 @@
 import { Button } from '../../../ui/primitives/button';
-import { Palette, Type, AlignLeft, AlignCenter, AlignRight, AlignJustify, Rows2, Rows3, Rows4, SquareRoundCorner, ALargeSmall, PanelTopBottomDashed, ChevronDown } from 'lucide-react';
+import { Palette, Type, AlignLeft, AlignCenter, AlignRight, AlignJustify, ALargeSmall, Rows4, Rows3, Rows2, SquareRoundCorner, PanelTopBottomDashed } from 'lucide-react';
 import { ButtonGroup } from '../../../ui/composites/button-group';
 import { Slider } from '../../../ui/primitives/slider';
 import { Separator } from '../../../ui/primitives/separator';
 import { Label } from '../../../ui/primitives/label';
 import { IndentedSection } from '../../../ui/primitives/indented-section';
 import { Checkbox } from '../../../ui/primitives/checkbox';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../ui/primitives/select';
 import { actualToCommon, commonToActual, COMMON_FONT_SIZE_RANGE } from '../../../../utils/font-size-converter';
 import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE } from '../../../../utils/corner-radius-converter';
 import { getFontFamily } from '../../../../utils/font-utils';
-import { FONT_GROUPS, getFontFamily as getFontFamilyByName } from '../../../../utils/font-families';
+import { getFontFamily as getFontFamilyByName } from '../../../../utils/font-families';
+import { FONT_GROUPS } from '../../../../utils/font-families';
 import { ThemeSelect } from '../../../../utils/theme-options';
-import { Tooltip } from '../../../ui';
+import { FontSelector } from './font-selector';
+import { ColorSelector } from './color-selector';
+import { useEditorSettings } from '../../../../hooks/useEditorSettings';
+import { useEditor } from '../../../../context/editor-context';
+import { getToolDefaults } from '../../../../utils/tool-defaults';
 
-const getCurrentFontName = (element: any, state: any) => {
-  const fontFamily = getFontFamily(element);
+const getCurrentFontName = (fontFamily: string) => {
   for (const group of FONT_GROUPS) {
     const font = group.fonts.find(f => 
       f.family === fontFamily || 
@@ -27,25 +30,6 @@ const getCurrentFontName = (element: any, state: any) => {
   return "Arial";
 };
 
-const getFontWeightOptions = (fontName: string) => {
-  for (const group of FONT_GROUPS) {
-    const font = group.fonts.find(f => f.name === fontName);
-    if (font) {
-      const options = [{ label: 'Normal', value: 'normal', family: font.family }];
-      if (font.bold) options.push({ label: 'Bold', value: 'bold', family: font.bold });
-      if (font.extraBold) options.push({ label: 'Extra Bold', value: 'extraBold', family: font.extraBold });
-      return options;
-    }
-  }
-  return [{ label: 'Normal', value: 'normal', family: 'Arial, sans-serif' }];
-};
-
-const getCurrentFontWeight = (fontFamily: string, fontName: string) => {
-  const options = getFontWeightOptions(fontName);
-  const current = options.find(opt => opt.family === fontFamily);
-  return current?.value || 'normal';
-};
-
 interface FreeTextSettingsFormProps {
   element: any;
   state: any;
@@ -53,6 +37,8 @@ interface FreeTextSettingsFormProps {
   updateSetting: (key: string, value: any) => void;
   setShowFontSelector: (show: boolean) => void;
   setShowColorSelector: (type: string | null) => void;
+  showFontSelector?: boolean;
+  showColorSelector?: string | null;
 }
 
 export function FreeTextSettingsForm({
@@ -61,83 +47,224 @@ export function FreeTextSettingsForm({
   currentStyle,
   updateSetting,
   setShowFontSelector,
-  setShowColorSelector
+  setShowColorSelector,
+  showFontSelector,
+  showColorSelector
 }: FreeTextSettingsFormProps) {
+  const { dispatch } = useEditor();
+  const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
+  
+  const getTextStyle = () => {
+    const tStyle = element.textSettings || {};
+    const currentPage = state.currentBook?.pages[state.activePageIndex];
+    const pageTheme = currentPage?.background?.pageTheme;
+    const bookTheme = state.currentBook?.bookTheme;
+    const freeTextDefaults = getToolDefaults('free_text', pageTheme, bookTheme);
+    
+    return {
+      fontSize: tStyle.fontSize || freeTextDefaults?.fontSize || 16,
+      fontFamily: tStyle.fontFamily || freeTextDefaults?.fontFamily || 'Arial, sans-serif',
+      fontBold: tStyle.fontBold ?? freeTextDefaults?.fontBold ?? false,
+      fontItalic: tStyle.fontItalic ?? freeTextDefaults?.fontItalic ?? false,
+      fontColor: tStyle.fontColor || freeTextDefaults?.fontColor || '#1f2937',
+      fontOpacity: tStyle.fontOpacity ?? 1,
+      align: tStyle.align || freeTextDefaults?.align || 'left',
+      ruledLines: tStyle.ruledLines ?? freeTextDefaults?.ruledLines ?? false,
+      ruledLinesColor: tStyle.ruledLinesColor || '#1f2937',
+      ruledLinesOpacity: tStyle.ruledLinesOpacity ?? 1,
+      ruledLinesWidth: tStyle.ruledLinesWidth || 0.8,
+      ruledLinesTheme: tStyle.ruledLinesTheme || 'rough',
+      borderEnabled: tStyle.borderEnabled ?? false,
+      borderColor: tStyle.borderColor || '#000000',
+      borderOpacity: tStyle.borderOpacity ?? 1,
+      borderWidth: tStyle.borderWidth || 1,
+      borderTheme: tStyle.borderTheme || 'default',
+      backgroundEnabled: tStyle.backgroundEnabled ?? false,
+      backgroundColor: tStyle.backgroundColor || '#ffffff',
+      backgroundOpacity: tStyle.backgroundOpacity ?? 1,
+      cornerRadius: tStyle.cornerRadius || 0,
+      padding: tStyle.padding || 4,
+      paragraphSpacing: tStyle.paragraphSpacing || 'medium'
+    };
+  };
+  
+  const computedCurrentStyle = getTextStyle();
+  
+  const updateTextSetting = (key: string, value: any) => {
+    dispatch({
+      type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+      payload: {
+        id: element.id,
+        updates: {
+          textSettings: {
+            ...element.textSettings,
+            [key]: value
+          }
+        }
+      }
+    });
+  };
+  
+  if (showFontSelector) {
+    return (
+      <FontSelector
+        currentFont={computedCurrentStyle.fontFamily}
+        isBold={computedCurrentStyle.fontBold}
+        isItalic={computedCurrentStyle.fontItalic}
+        onFontSelect={(fontName) => {
+          const fontFamily = getFontFamilyByName(fontName, computedCurrentStyle.fontBold, computedCurrentStyle.fontItalic);
+          updateTextSetting('fontFamily', fontFamily);
+          
+          // Also update element.font for proper rendering
+          dispatch({
+            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+            payload: {
+              id: element.id,
+              updates: {
+                font: {
+                  ...element.font,
+                  fontFamily: fontFamily
+                },
+                fontFamily: fontFamily
+              }
+            }
+          });
+        }}
+        onBack={() => setShowFontSelector(false)}
+        element={element}
+        state={state}
+      />
+    );
+  }
+  
+  if (showColorSelector && showColorSelector.startsWith('element-')) {
+    const getColorValue = () => {
+      switch (showColorSelector) {
+        case 'element-text-color':
+          return computedCurrentStyle.fontColor;
+        case 'element-border-color':
+          return computedCurrentStyle.borderColor;
+        case 'element-background-color':
+          return computedCurrentStyle.backgroundColor;
+        case 'element-ruled-lines-color':
+          return computedCurrentStyle.ruledLinesColor;
+        default:
+          return '#1f2937';
+      }
+    };
+    
+    const getElementOpacityValue = () => {
+      switch (showColorSelector) {
+        case 'element-text-color':
+          return computedCurrentStyle.fontOpacity;
+        case 'element-border-color':
+          return computedCurrentStyle.borderOpacity;
+        case 'element-background-color':
+          return computedCurrentStyle.backgroundOpacity;
+        case 'element-ruled-lines-color':
+          return computedCurrentStyle.ruledLinesOpacity;
+        default:
+          return 1;
+      }
+    };
+    
+    const handleElementOpacityChange = (opacity: number) => {
+      switch (showColorSelector) {
+        case 'element-text-color':
+          updateTextSetting('fontOpacity', opacity);
+          break;
+        case 'element-border-color':
+          updateTextSetting('borderOpacity', opacity);
+          break;
+        case 'element-background-color':
+          updateTextSetting('backgroundOpacity', opacity);
+          break;
+        case 'element-ruled-lines-color':
+          updateTextSetting('ruledLinesOpacity', opacity);
+          break;
+      }
+    };
+    
+    const handleElementColorChange = (color: string) => {
+      switch (showColorSelector) {
+        case 'element-text-color':
+          updateTextSetting('fontColor', color);
+          break;
+        case 'element-border-color':
+          updateTextSetting('borderColor', color);
+          break;
+        case 'element-background-color':
+          updateTextSetting('backgroundColor', color);
+          break;
+        case 'element-ruled-lines-color':
+          updateTextSetting('ruledLinesColor', color);
+          break;
+      }
+    };
+    
+    return (
+      <ColorSelector
+        value={getColorValue()}
+        onChange={handleElementColorChange}
+        opacity={getElementOpacityValue()}
+        onOpacityChange={handleElementOpacityChange}
+        favoriteColors={favoriteStrokeColors}
+        onAddFavorite={addFavoriteStrokeColor}
+        onRemoveFavorite={removeFavoriteStrokeColor}
+        onBack={() => setShowColorSelector(null)}
+      />
+    );
+  }
+  
   return (
     <>
+      {/* Font Controls */}
       <div>
-        <div className="flex gap-2 mb-2">
-          <div className="flex-1">
-            <Label variant="xs">Font Weight</Label>
-            <Select
-              value={getCurrentFontWeight(currentStyle.fontFamily, getCurrentFontName({ font: { fontFamily: currentStyle.fontFamily } }, state))}
-              onValueChange={(value) => {
-                const fontName = getCurrentFontName({ font: { fontFamily: currentStyle.fontFamily } }, state);
-                const options = getFontWeightOptions(fontName);
-                const selected = options.find(opt => opt.value === value);
-                if (selected) {
-                  updateSetting('fontFamily', selected.family);
-                  updateSetting('fontBold', value !== 'normal');
-                }
-              }}
-            >
-              <SelectTrigger className="h-7 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {getFontWeightOptions(getCurrentFontName({ font: { fontFamily: currentStyle.fontFamily } }, state)).map((option) => (
-                  <SelectItem key={option.value} value={option.value} className="text-xs">
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="flex gap-2">
           <Button
-            variant={currentStyle.fontItalic ? 'default' : 'outline'}
+            variant={computedCurrentStyle.fontBold ? 'default' : 'outline'}
             size="xs"
-            onClick={() => {
-              const newItalic = !currentStyle.fontItalic;
-              updateSetting('fontItalic', newItalic);
-              const fontName = getCurrentFontName({ font: { fontFamily: currentStyle.fontFamily } }, state);
-              const newFontFamily = getFontFamilyByName(fontName, currentStyle.fontBold, newItalic);
-              if (newFontFamily !== currentStyle.fontFamily) {
-                updateSetting('fontFamily', newFontFamily);
-              }
-            }}
-            className="px-3 mt-5"
+            onClick={() => updateTextSetting('fontBold', !computedCurrentStyle.fontBold)}
+            className="px-3"
+          >
+            <strong>B</strong>
+          </Button>
+          <Button
+            variant={computedCurrentStyle.fontItalic ? 'default' : 'outline'}
+            size="xs"
+            onClick={() => updateTextSetting('fontItalic', !computedCurrentStyle.fontItalic)}
+            className="px-3"
           >
             <em>I</em>
           </Button>
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={() => setShowFontSelector(true)}
+            className="flex-1 justify-start"
+            style={{ fontFamily: computedCurrentStyle.fontFamily }}
+          >
+            <Type className="h-4 w-4 mr-2" />
+            <span className="truncate">{getCurrentFontName(computedCurrentStyle.fontFamily)}</span>
+          </Button>
         </div>
-        <Button
-          variant="outline"
-          size="xs"
-          onClick={() => setShowFontSelector(true)}
-          className="w-full justify-start"
-          style={{ fontFamily: currentStyle.fontFamily }}
-        >
-          <Type className="h-4 w-4 mr-2" />
-          <span className="truncate">{getCurrentFontName({ font: { fontFamily: currentStyle.fontFamily } }, state)}</span>
-        </Button>
       </div>
       
       <div className="flex flex-row gap-2 py-2 w-full">
         <div className='flex-1'>
-          <Tooltip content='Font Size' side='left'>
-            <div className='flex flex-row gap-2'>
-              <ALargeSmall className='w-5 h-5'/>
-              <Slider
-                label="Font Size"
-                value={actualToCommon(currentStyle.fontSize)}
-                onChange={(value) => updateSetting('fontSize', commonToActual(value))}
-                min={COMMON_FONT_SIZE_RANGE.min}
-                max={COMMON_FONT_SIZE_RANGE.max}
-                step={1}
-                className='w-full'
-              />
-            </div>
-          </Tooltip>
+          <div className='flex flex-row gap-2'>
+            <ALargeSmall className='w-5 h-5'/>
+            <Slider
+              label="Font Size"
+              value={actualToCommon(computedCurrentStyle.fontSize || 16)}
+              displayValue={actualToCommon(computedCurrentStyle.fontSize || 16)}
+              onChange={(value) => updateTextSetting('fontSize', commonToActual(value))}
+              min={COMMON_FONT_SIZE_RANGE.min}
+              max={COMMON_FONT_SIZE_RANGE.max}
+              step={1}
+              className='w-full'
+            />
+          </div>
         </div>
       </div>
       
@@ -152,71 +279,34 @@ export function FreeTextSettingsForm({
           Font Color & Opacity
         </Button>
       </div>
-
+      
       <Separator/>
       
+      {/* Paragraph Spacing */}
       <div className='flex flex-row gap-3'>
-        <div className="flex-1 py-2">
-          <Label variant="xs">Text Align</Label>
-          <ButtonGroup className="mt-1 flex flex-row">
-            <Button
-              variant={currentStyle.align === 'left' ? 'default' : 'outline'}
-              size="xs"
-              onClick={() => updateSetting('align', 'left')}
-              className="px-1 h-6 flex-1"
-            >
-              <AlignLeft className="h-3 w-3" />
-            </Button>
-            <Button
-              variant={currentStyle.align === 'center' ? 'default' : 'outline'}
-              size="xs"
-              onClick={() => updateSetting('align', 'center')}
-              className="px-1 h-6 flex-1"
-            >
-              <AlignCenter className="h-3 w-3" />
-            </Button>
-            <Button
-              variant={currentStyle.align === 'right' ? 'default' : 'outline'}
-              size="xs"
-              onClick={() => updateSetting('align', 'right')}
-              className="px-1 h-6 flex-1"
-            >
-              <AlignRight className="h-3 w-3" />
-            </Button>
-            <Button
-              variant={currentStyle.align === 'justify' ? 'default' : 'outline'}
-              size="xs"
-              onClick={() => updateSetting('align', 'justify')}
-              className="px-1 h-6 flex-1"
-            >
-              <AlignJustify className="h-3 w-3" />
-            </Button>
-          </ButtonGroup>
-        </div>
-        
         <div className="flex-1 py-2">
           <Label variant="xs">Paragraph Spacing</Label>
           <ButtonGroup className="mt-1 flex flex-row">
             <Button
-              variant={currentStyle.paragraphSpacing === 'small' ? 'default' : 'outline'}
+              variant={computedCurrentStyle.paragraphSpacing === 'small' ? 'default' : 'outline'}
               size="xs"
-              onClick={() => updateSetting('paragraphSpacing', 'small')}
+              onClick={() => updateTextSetting('paragraphSpacing', 'small')}
               className="px-1 h-6 flex-1"
             >
               <Rows4 className="h-3 w-3" />
             </Button>
             <Button
-              variant={currentStyle.paragraphSpacing === 'medium' ? 'default' : 'outline'}
+              variant={computedCurrentStyle.paragraphSpacing === 'medium' ? 'default' : 'outline'}
               size="xs"
-              onClick={() => updateSetting('paragraphSpacing', 'medium')}
+              onClick={() => updateTextSetting('paragraphSpacing', 'medium')}
               className="px-1 h-6 flex-1"
             >
               <Rows3 className="h-3 w-3" />
             </Button>
             <Button
-              variant={currentStyle.paragraphSpacing === 'large' ? 'default' : 'outline'}
+              variant={computedCurrentStyle.paragraphSpacing === 'large' ? 'default' : 'outline'}
               size="xs"
-              onClick={() => updateSetting('paragraphSpacing', 'large')}
+              onClick={() => updateTextSetting('paragraphSpacing', 'large')}
               className="px-1 h-6 flex-1"
             >
               <Rows2 className="h-3 w-3" />
@@ -224,23 +314,26 @@ export function FreeTextSettingsForm({
           </ButtonGroup>
         </div>
       </div>
-
+      
+      <Separator/>
+      
+      {/* Ruled Lines */}
       <div className='py-2'>
         <Label className="flex items-center gap-1" variant="xs">
           <Checkbox
-            checked={currentStyle.ruledLines}
-            onCheckedChange={(checked) => updateSetting('ruledLines', checked)}
+            checked={computedCurrentStyle.ruledLines}
+            onCheckedChange={(checked) => updateTextSetting('ruledLines', checked)}
           />
           Ruled Lines
         </Label>
       </div>
       
-      {currentStyle.ruledLines && (
+      {computedCurrentStyle.ruledLines && (
         <IndentedSection>
           <Slider
             label="Line Width"
-            value={currentStyle.ruledLinesWidth}
-            onChange={(value) => updateSetting('ruledLinesWidth', value)}
+            value={computedCurrentStyle.ruledLinesWidth}
+            onChange={(value) => updateTextSetting('ruledLinesWidth', value)}
             min={0.01}
             max={30}
             step={0.1}
@@ -249,8 +342,8 @@ export function FreeTextSettingsForm({
           <div>
             <Label variant="xs">Ruled Lines Theme</Label>
             <ThemeSelect 
-              value={currentStyle.ruledLinesTheme}
-              onChange={(value) => updateSetting('ruledLinesTheme', value)}
+              value={computedCurrentStyle.ruledLinesTheme}
+              onChange={(value) => updateTextSetting('ruledLinesTheme', value)}
             />
           </div>
           
@@ -262,25 +355,79 @@ export function FreeTextSettingsForm({
               className="w-full"
             >
               <Palette className="w-4 mr-2" />
-              Ruled Lines Color & Opacity
+              Line Color & Opacity
             </Button>
           </div>
         </IndentedSection>
       )}
-
+      
       <Separator/>
-
+      
+      {/* Border */}
       <div className='py-2'>
         <Label className="flex items-center gap-1" variant="xs">
           <Checkbox
-            checked={currentStyle.background?.enabled === true}
-            onCheckedChange={(checked) => updateSetting('background', { ...currentStyle.background, enabled: checked })}
+            checked={computedCurrentStyle.borderEnabled}
+            onCheckedChange={(checked) => updateTextSetting('borderEnabled', checked)}
+          />
+          Border
+        </Label>
+      </div>
+      
+      {computedCurrentStyle.borderEnabled && (
+        <IndentedSection>
+          <Slider
+            label="Border Width"
+            value={computedCurrentStyle.borderWidth}
+            onChange={(value) => updateTextSetting('borderWidth', value)}
+            min={0.1}
+            max={10}
+            step={0.1}
+          />
+          
+          <div>
+            <Label variant="xs">Border Theme</Label>
+            <ThemeSelect 
+              value={computedCurrentStyle.borderTheme}
+              onChange={(value) => updateTextSetting('borderTheme', value)}
+            />
+          </div>
+          
+          <div>
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => setShowColorSelector('element-border-color')}
+              className="w-full"
+            >
+              <Palette className="w-4 mr-2" />
+              Border Color
+            </Button>
+          </div>
+          
+          <Slider
+            label="Border Opacity"
+            value={computedCurrentStyle.borderOpacity * 100}
+            onChange={(value) => updateTextSetting('borderOpacity', value / 100)}
+            min={0}
+            max={100}
+            step={5}
+          />
+        </IndentedSection>
+      )}
+      
+      {/* Background */}
+      <div>
+        <Label className="flex items-center gap-1" variant="xs">
+          <Checkbox
+            checked={computedCurrentStyle.backgroundEnabled}
+            onCheckedChange={(checked) => updateTextSetting('backgroundEnabled', checked)}
           />
           Background
         </Label>
       </div>
       
-      {currentStyle.background?.enabled === true && (
+      {computedCurrentStyle.backgroundEnabled && (
         <IndentedSection>
           <div>
             <Button
@@ -296,84 +443,77 @@ export function FreeTextSettingsForm({
         </IndentedSection>
       )}
 
-      <div className='py-2'>
-        <Label className="flex items-center gap-1" variant="xs">
-          <Checkbox
-            checked={currentStyle.border?.enabled === true}
-            onCheckedChange={(checked) => updateSetting('border', { ...currentStyle.border, enabled: checked })}
-          />
-          Border
-        </Label>
-      </div>
-      
-      {currentStyle.border?.enabled === true && (
-        <IndentedSection>
-          <Slider
-            label="Border Width"
-            value={currentStyle.border.width}
-            onChange={(value) => updateSetting('border', { ...currentStyle.border, width: value })}
-            min={0.01}
-            max={30}
-            step={0.1}
-          />
-          
-          <div>
-            <Label variant="xs">Border Theme</Label>
-            <ThemeSelect 
-              value={currentStyle.border.theme}
-              onChange={(value) => updateSetting('border', { ...currentStyle.border, theme: value })}
+      <div className="flex flex-row gap-2 py-2 w-full">
+        <div className='flex-1'>
+          <div className='flex flex-row gap-2'>
+            <SquareRoundCorner className='w-5 h-5'/>
+            <Slider
+              label="Corner Radius"
+              value={actualToCommonRadius(computedCurrentStyle.cornerRadius)}
+              onChange={(value) => updateTextSetting('cornerRadius', commonToActualRadius(value))}
+              min={COMMON_CORNER_RADIUS_RANGE.min}
+              max={COMMON_CORNER_RADIUS_RANGE.max}
+              step={1}
+              className='w-full'
             />
           </div>
-          
-          <div>
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={() => setShowColorSelector('element-border-color')}
-              className="w-full"
-            >
-              <Palette className="w-4 mr-2" />
-              Border Color & Opacity
-            </Button>
-          </div>
-        </IndentedSection>
-      )}
-
-      <div className="flex flex-row gap-2 py-2 w-full">
-        <div className='flex-1'>
-          <Tooltip content='Corner Radius' side='left'>
-            <div className='flex flex-row gap-2'>
-              <SquareRoundCorner className='w-5 h-5'/>
-              <Slider
-                label="Corner Radius"
-                value={actualToCommonRadius(currentStyle.cornerRadius)}
-                onChange={(value) => updateSetting('cornerRadius', commonToActualRadius(value))}
-                min={COMMON_CORNER_RADIUS_RANGE.min}
-                max={COMMON_CORNER_RADIUS_RANGE.max}
-                step={1}
-                className='w-full'
-              />
-            </div>
-          </Tooltip>
         </div>
       </div>
-
+      
       <div className="flex flex-row gap-2 py-2 w-full">
         <div className='flex-1'>
-          <Tooltip content='Padding' side='left'>
-            <div className='flex flex-row gap-2'>
-              <PanelTopBottomDashed className='w-5 h-5'/>
-              <Slider
-                label="Padding"
-                value={currentStyle.padding}
-                onChange={(value) => updateSetting('padding', value)}
-                min={0}
-                max={100}
-                step={1}
-                className='w-full'
-              />
-            </div>
-          </Tooltip>
+          <div className='flex flex-row gap-2'>
+            <PanelTopBottomDashed className='w-5 h-5'/>
+            <Slider
+              label="Padding"
+              value={computedCurrentStyle.padding}
+              onChange={(value) => updateTextSetting('padding', value)}
+              min={0}
+              max={50}
+              step={1}
+              className='w-full'
+            />
+          </div>
+        </div>
+      </div>
+      
+      <div className='flex flex-row gap-3'>
+        <div className="flex-1 py-2">
+          <Label variant="xs">Text Align</Label>
+          <ButtonGroup className="mt-1 flex flex-row">
+            <Button
+              variant={computedCurrentStyle.align === 'left' ? 'default' : 'outline'}
+              size="xs"
+              onClick={() => updateTextSetting('align', 'left')}
+              className="px-1 h-6 flex-1"
+            >
+              <AlignLeft className="h-3 w-3" />
+            </Button>
+            <Button
+              variant={computedCurrentStyle.align === 'center' ? 'default' : 'outline'}
+              size="xs"
+              onClick={() => updateTextSetting('align', 'center')}
+              className="px-1 h-6 flex-1"
+            >
+              <AlignCenter className="h-3 w-3" />
+            </Button>
+            <Button
+              variant={computedCurrentStyle.align === 'right' ? 'default' : 'outline'}
+              size="xs"
+              onClick={() => updateTextSetting('align', 'right')}
+              className="px-1 h-6 flex-1"
+            >
+              <AlignRight className="h-3 w-3" />
+            </Button>
+            <Button
+              variant={computedCurrentStyle.align === 'justify' ? 'default' : 'outline'}
+              size="xs"
+              onClick={() => updateTextSetting('align', 'justify')}
+              className="px-1 h-6 flex-1"
+            >
+              <AlignJustify className="h-3 w-3" />
+            </Button>
+          </ButtonGroup>
         </div>
       </div>
     </>

@@ -236,7 +236,12 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
       setIsResizing(false);
       setRefreshKey(prev => prev + 1);
     }, 10);
-  }, [element.questionSettings, element.answerSettings, element.fontSize, element.fontFamily, element.fontColor, element.font, element.width, element.height, element.questionWidth]);
+  }, [element.questionSettings?.font?.fontSize, element.answerSettings?.font?.fontSize, element.questionSettings?.fontSize, element.answerSettings?.fontSize, element.questionSettings, element.answerSettings, element.fontSize, element.fontFamily, element.fontColor, element.font, element.width, element.height, element.questionWidth]);
+
+  // Force refresh when ruled lines settings change
+  useEffect(() => {
+    setRefreshKey(prev => prev + 1);
+  }, [element.answerSettings?.ruledLinesColor, element.answerSettings?.ruledLinesOpacity, element.answerSettings?.ruledLinesTheme, element.answerSettings?.ruledLinesWidth, element.questionSettings?.fontSize]);
 
 
   
@@ -360,10 +365,10 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
     
     // For block layout, only show ruled lines in answer area
     if (layoutVariant === 'block') {
-      const aTheme = answerStyle.ruledLinesTheme || 'rough';
-      const aColor = answerStyle.ruledLinesColor || '#1f2937';
-      const aWidth = answerStyle.ruledLinesWidth || 0.8;
-      const aOpacity = answerStyle.ruledLinesOpacity ?? 1;
+      const aTheme = element.answerSettings?.ruledLinesTheme || answerStyle.ruledLinesTheme || 'rough';
+      const aColor = element.answerSettings?.ruledLinesColor || answerStyle.ruledLinesColor || '#1f2937';
+      const aWidth = element.answerSettings?.ruledLinesWidth || answerStyle.ruledLinesWidth || 0.8;
+      const aOpacity = element.answerSettings?.ruledLinesOpacity ?? answerStyle.ruledLinesOpacity ?? 1;
       
       let answerArea = { x: padding, y: padding, width: element.width - padding * 2, height: element.height - padding * 2 };
       
@@ -379,7 +384,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
           answerArea = { x: padding, y: padding, width: answerWidth, height: element.height - padding * 2 };
         }
       } else {
-        const questionHeight = element.height * 0.3;
+        const questionHeight = answerFontSize + padding * 2;
         const answerHeight = element.height - questionHeight - padding * 3;
         
         if (questionPosition === 'top') {
@@ -389,10 +394,11 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
         }
       }
       
-      // Generate lines in answer area with simple font-based spacing
-      let lineY = answerArea.y + answerFontSize;
+      // Generate lines in answer area using paragraph spacing - align with text baselines
+      const aLineHeight = answerFontSize * getLineHeightMultiplier(aSpacing);
+      let lineY = answerArea.y + answerFontSize * 0.2 + answerFontSize + 4;
       const endY = answerArea.y + answerArea.height;
-      const lineSpacing = answerFontSize * 1.2; // Simple line spacing based on font size
+      const lineSpacing = aLineHeight;
       
       while (lineY < endY) {
         lines.push(...generateLineElement(lineY, aTheme, answerArea.x, aColor, aWidth, aOpacity, answerArea.x + answerArea.width));
@@ -400,17 +406,23 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
       }
     } else {
       // Inline layout: adjust line positioning to account for text baseline offset
-      const aTheme = answerStyle.ruledLinesTheme || 'rough';
-      const aColor = answerStyle.ruledLinesColor || '#1f2937';
-      const aWidth = answerStyle.ruledLinesWidth || 0.8;
-      const aOpacity = answerStyle.ruledLinesOpacity ?? 1;
+      const aTheme = element.answerSettings?.ruledLinesTheme || answerStyle.ruledLinesTheme || 'rough';
+      const aColor = element.answerSettings?.ruledLinesColor || answerStyle.ruledLinesColor || '#1f2937';
+      const aWidth = element.answerSettings?.ruledLinesWidth || answerStyle.ruledLinesWidth || 0.8;
+      const aOpacity = element.answerSettings?.ruledLinesOpacity ?? answerStyle.ruledLinesOpacity ?? 1;
       
       const questionText = getQuestionText();
       const userText = getUserText();
       
+      // Get computed question style to match text rendering
+      const computedQuestionStyle = {
+        ...qnaInlineDefaults.questionSettings,
+        ...element.questionSettings
+      };
+      
       if (questionText && userText) {
-        // Calculate question line count to determine spacing
-        const qFontSize = questionStyle.fontSize || fontSize;
+        // Use the same font size calculation as the actual text rendering
+        const qFontSize = element.questionSettings?.font?.fontSize || element.questionSettings?.fontSize || questionStyle.fontSize || fontSize;
         const qSpacing = questionStyle.paragraphSpacing || 'small';
         const qLineHeight = qFontSize * getLineHeightMultiplier(qSpacing);
         
@@ -445,8 +457,9 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
         const largerFontSize = Math.max(qFontSize, answerFontSize);
         const adjustedBaselineOffset = -(largerFontSize * maxLineHeightMultiplier * 0.15) + (largerFontSize * (largerFontSize >= 50 ? largerFontSize >= 96 ? largerFontSize >= 145 ? -0.07 : 0.01 : 0.07 : 0.1));
         
-        // First line uses larger font size for proper clearance
-        let lineY = padding + largerFontSize + adjustedBaselineOffset + 4 + extraSpacing;
+        // First line uses larger font size for proper clearance + question height
+        const questionTextHeight = questionLineCount * qLineHeight;
+        let lineY = padding + largerFontSize + adjustedBaselineOffset + 4 + extraSpacing + questionTextHeight;
         lines.push(...generateLineElement(lineY, aTheme, padding, aColor, aWidth, aOpacity));
         
         // Additional question lines use consistent or question line height
@@ -1222,7 +1235,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                 context.font = `${aFontBold ? 'bold ' : ''}${aFontItalic ? 'italic ' : ''}${aFontSize}px ${aFontFamily}`;
                 
                 const lines = userText.split('\n');
-                let currentY = answerArea.y;
+                let currentY = answerArea.y + aFontSize * 0.2;
                 
                 lines.forEach((line) => {
                   if (!line.trim()) {

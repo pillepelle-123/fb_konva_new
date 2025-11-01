@@ -4,8 +4,8 @@ import Konva from 'konva';
 import { useEditor } from '../../../../context/editor-context';
 import BaseCanvasItem from './base-canvas-item';
 import type { CanvasItemProps } from './base-canvas-item';
-import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 import { getToolDefaults } from '../../../../utils/tool-defaults';
+import { getThemeRenderer } from '../../../../utils/themes';
 import rough from 'roughjs';
 import { KonvaSkeleton } from '../../../ui/primitives/skeleton';
 
@@ -50,29 +50,34 @@ export default function TextboxFreeText(props: CanvasItemProps) {
     }, 10);
   }, [element.textSettings, element.fontSize, element.fontFamily, element.fontColor, element.font, element.width, element.height]);
 
+  // Force refresh when ruled lines settings change
+  useEffect(() => {
+    setRefreshKey(prev => prev + 1);
+  }, [element.textSettings?.ruledLinesColor, element.textSettings?.ruledLinesOpacity, element.textSettings?.ruledLinesTheme, element.textSettings?.ruledLinesWidth]);
+
   // Get current theme context
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const pageTheme = currentPage?.background?.pageTheme;
   const bookTheme = state.currentBook?.bookTheme;
-  const elementTheme = element.theme;
-  const activeTheme = pageTheme || bookTheme || elementTheme;
   
   // Get tool defaults with theme applied
   const toolDefaults = getToolDefaults('free_text', pageTheme, bookTheme);
   
   const fontSize = element.font?.fontSize || element.fontSize || toolDefaults.fontSize || 50;
   const fontFamily = element.font?.fontFamily || element.fontFamily || toolDefaults.fontFamily || 'Arial, sans-serif';
-  const fontColor = element.font?.fontColor || element.fontColor || toolDefaults.fontColor || '#1f2937';
-  
+
   const getUserText = () => {
     let text = element.formattedText || element.text || '';
-    if (text && text.includes('<')) {
-      text = text.replace(/<p>/gi, '').replace(/<\/p>/gi, '\n').replace(/<br\s*\/?>/gi, '\n');
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = text;
-      text = tempDiv.textContent || tempDiv.innerText || '';
+    if (text) {
+      if (text.includes('<')) {
+        text = text.replace(/<p>/gi, '').replace(/<\/p>/gi, '\n').replace(/<br\s*\/?>/gi, '\n');
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = text;
+        text = tempDiv.textContent || tempDiv.innerText || '';
+      }
+      return text;
     }
-    return text;
+    return '';
   };
 
   // Generate ruled lines
@@ -104,16 +109,16 @@ export default function TextboxFreeText(props: CanvasItemProps) {
     };
     const lineHeight = textFontSize * getLineHeightMultiplier(spacing);
     
-    const theme = textStyle.ruledLinesTheme || 'rough';
-    const color = textStyle.ruledLinesColor || '#1f2937';
-    const width = textStyle.ruledLinesWidth || 0.8;
-    const opacity = textStyle.ruledLinesOpacity ?? 1;
+    const theme = element.textSettings?.ruledLinesTheme || textStyle.ruledLinesTheme || 'rough';
+    const color = element.textSettings?.ruledLinesColor || textStyle.ruledLinesColor || '#1f2937';
+    const width = element.textSettings?.ruledLinesWidth || textStyle.ruledLinesWidth || 0.8;
+    const opacity = element.textSettings?.ruledLinesOpacity ?? textStyle.ruledLinesOpacity ?? 1;
     
     // Calculate text baseline offset
     const factor = textFontSize >= 50 ? textFontSize >= 96 ? textFontSize >= 145 ? -0.07 : 0.01 : 0.07 : 0.1;
     const textBaselineOffset = -(textFontSize * getLineHeightMultiplier(spacing) * 0.15) + (textFontSize * factor);
     
-    let lineY = padding + textFontSize + textBaselineOffset + 8;
+    let lineY = padding + textFontSize * 0.2 + textBaselineOffset;
     while (lineY < element.height - padding - 10) {
       lines.push(...generateLineElement(lineY, theme, padding, color, width, opacity));
       lineY += lineHeight;
@@ -360,7 +365,7 @@ export default function TextboxFreeText(props: CanvasItemProps) {
             }
           }}
         >
-          {/* Background and Border */}
+          {/* Background */}
           {(() => {
             const currentPage = state.currentBook?.pages[state.activePageIndex];
             const pageTheme = currentPage?.background?.pageTheme;
@@ -371,105 +376,74 @@ export default function TextboxFreeText(props: CanvasItemProps) {
               ...freeTextDefaults.textSettings,
               ...element.textSettings
             };
-            const showBackground = textStyle.background?.enabled === true;
-            const showBorder = textStyle.border?.enabled === true;
-            const cornerRadius = textStyle.cornerRadius || 0;
+            const showBackground = textStyle.backgroundEnabled;
             
-            const elements = [];
-            
-            // Background (independent of border)
             if (showBackground) {
-              const backgroundColor = textStyle.background?.color || 'transparent';
-              const backgroundOpacity = textStyle.background?.opacity ?? 1;
+              const backgroundColor = textStyle.backgroundColor || 'transparent';
+              const backgroundOpacity = textStyle.backgroundOpacity ?? 1;
+              const cornerRadius = textStyle.cornerRadius || 0;
               
-              elements.push(
+              return (
                 <Rect
-                  key="background"
                   width={element.width}
                   height={element.height}
-                  fill={backgroundColor !== 'transparent' ? backgroundColor : 'transparent'}
-                  opacity={backgroundColor !== 'transparent' ? backgroundOpacity : 0}
+                  fill={backgroundColor}
+                  opacity={backgroundOpacity}
                   cornerRadius={cornerRadius}
                   listening={false}
                 />
               );
             }
+            return null;
+          })()}
+          
+          {/* Border */}
+          {(() => {
+            const currentPage = state.currentBook?.pages[state.activePageIndex];
+            const pageTheme = currentPage?.background?.pageTheme;
+            const bookTheme = state.currentBook?.bookTheme;
+            const freeTextDefaults = getToolDefaults('free_text', pageTheme, bookTheme);
             
-            // Border (independent of background)
+            const textStyle = {
+              ...freeTextDefaults.textSettings,
+              ...element.textSettings
+            };
+            const showBorder = textStyle.borderEnabled;
+            
             if (showBorder) {
-              const theme = textStyle.border?.theme || 'default';
-              const borderColor = textStyle.border?.color || '#000000';
-              const borderWidth = textStyle.border?.width || 1;
-              const borderOpacity = textStyle.border?.opacity || 1;
+              const borderColor = textStyle.borderColor || '#000000';
+              const borderWidth = textStyle.borderWidth || 1;
+              const borderOpacity = textStyle.borderOpacity ?? 1;
+              const cornerRadius = textStyle.cornerRadius || 0;
+              const theme = textStyle.borderTheme || 'default';
               
-              if (theme === 'rough') {
-                const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-                const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-                const rc = rough.svg(svg);
-                
-                try {
-                  const roughRect = rc.rectangle(0, 0, element.width, element.height, {
-                    roughness: 2,
-                    strokeWidth: borderWidth,
-                    stroke: borderColor,
-                    fill: 'none',
-                    seed: seed
-                  });
-                  
-                  const paths = roughRect.querySelectorAll('path');
-                  let combinedPath = '';
-                  paths.forEach(path => {
-                    const d = path.getAttribute('d');
-                    if (d) combinedPath += d + ' ';
-                  });
-                  
-                  if (combinedPath) {
-                    elements.push(
-                      <Path
-                        key="border"
-                        data={combinedPath.trim()}
-                        stroke={borderColor}
-                        strokeWidth={borderWidth}
-                        opacity={borderOpacity}
-                        fill="none"
-                        listening={false}
-                      />
-                    );
-                  }
-                } catch (error) {
-                  // Fallback to regular rect
-                  elements.push(
-                    <Rect
-                      key="border"
-                      width={element.width}
-                      height={element.height}
-                      fill="transparent"
-                      stroke={borderColor}
-                      strokeWidth={borderWidth}
-                      opacity={borderOpacity}
-                      cornerRadius={cornerRadius}
-                      listening={false}
-                    />
-                  );
-                }
-              } else {
-                elements.push(
-                  <Rect
-                    key="border"
-                    width={element.width}
-                    height={element.height}
-                    fill="transparent"
-                    stroke={borderColor}
-                    strokeWidth={borderWidth}
-                    opacity={borderOpacity}
-                    cornerRadius={cornerRadius}
-                    listening={false}
-                  />
-                );
+              const themeRenderer = getThemeRenderer(theme);
+              if (themeRenderer && theme !== 'default') {
+                return themeRenderer.renderBorder({
+                  width: element.width,
+                  height: element.height,
+                  borderWidth,
+                  borderColor,
+                  borderOpacity,
+                  cornerRadius,
+                  elementId: element.id
+                });
               }
+              
+              return (
+                <Rect
+                  width={element.width}
+                  height={element.height}
+                  fill="transparent"
+                  stroke={borderColor}
+                  strokeWidth={borderWidth}
+                  opacity={borderOpacity}
+                  cornerRadius={cornerRadius}
+                  listening={false}
+                />
+              );
             }
-            
-            return elements;
+            return null;
           })()}
           
           {/* Ruled lines */}
@@ -506,7 +480,7 @@ export default function TextboxFreeText(props: CanvasItemProps) {
                   y={padding}
                   width={textWidth}
                   text="Double-click to add text..."
-                  fontSize={Math.max(fontSize * 1, 54)}
+                  fontSize={Math.max(fontSize * 0.8, 16)}
                   fontFamily={fontFamily}
                   fill="#9ca3af"
                   opacity={0.7}
@@ -521,11 +495,11 @@ export default function TextboxFreeText(props: CanvasItemProps) {
 
             const elements = [];
             const textFontSize = textStyle.fontSize || fontSize;
-            const textFontFamily = textStyle.fontFamily || element.font?.fontFamily || element.fontFamily || fontFamily;
-            const textFontColor = textStyle.fontColor || fontColor;
-            const textFontBold = textStyle.fontBold || toolDefaults.textSettings?.fontBold || false;
-            const textFontItalic = textStyle.fontItalic || toolDefaults.textSettings?.fontItalic || false;
-            const textFontOpacity = textStyle.fontOpacity ?? toolDefaults.textSettings?.fontOpacity ?? 1;
+            const textFontFamily = textStyle.fontFamily || fontFamily;
+            const textFontColor = textStyle.fontColor || '#1f2937';
+            const textFontBold = textStyle.fontBold || false;
+            const textFontItalic = textStyle.fontItalic || false;
+            const textFontOpacity = textStyle.fontOpacity ?? 1;
             
             const spacing = textStyle.paragraphSpacing || 'medium';
             const getLineHeightMultiplier = (spacing: string) => {
@@ -538,7 +512,6 @@ export default function TextboxFreeText(props: CanvasItemProps) {
             };
             const lineHeight = textFontSize * getLineHeightMultiplier(spacing);
             
-            // Text baseline offset
             const factor = textFontSize >= 50 ? textFontSize >= 96 ? textFontSize >= 145 ? -0.07 : 0.01 : 0.07 : 0.1;
             const textBaselineOffset = -(textFontSize * getLineHeightMultiplier(spacing) * 0.15) + (textFontSize * factor);
             
@@ -612,7 +585,6 @@ export default function TextboxFreeText(props: CanvasItemProps) {
               }
             });
             
-            // Add invisible overlay for double-click detection
             elements.push(
               <Rect
                 key="overlay"

@@ -271,7 +271,7 @@ export function QnAInlineSettingsForm({
           const bgSettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
           return bgSettings?.backgroundColor || '#ffffff';
         case 'element-ruled-lines-color':
-          const ruledSettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
+          const ruledSettings = element.answerSettings;
           return ruledSettings?.ruledLinesColor || '#1f2937';
         default:
           return '#1f2937';
@@ -292,7 +292,7 @@ export function QnAInlineSettingsForm({
           return bgOpacitySettings?.backgroundOpacity ?? 1;
         }
         case 'element-ruled-lines-color': {
-          const ruledOpacitySettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
+          const ruledOpacitySettings = element.answerSettings;
           return ruledOpacitySettings?.ruledLinesOpacity ?? 1;
         }
         default:
@@ -317,7 +317,18 @@ export function QnAInlineSettingsForm({
           updateFn('backgroundOpacity', opacity);
           break;
         case 'element-ruled-lines-color':
-          updateFn('ruledLinesOpacity', opacity);
+          dispatch({
+            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+            payload: {
+              id: element.id,
+              updates: {
+                answerSettings: {
+                  ...element.answerSettings,
+                  ruledLinesOpacity: opacity
+                }
+              }
+            }
+          });
           break;
       }
     };
@@ -339,7 +350,18 @@ export function QnAInlineSettingsForm({
           updateFn('backgroundColor', color);
           break;
         case 'element-ruled-lines-color':
-          updateFn('ruledLinesColor', color);
+          dispatch({
+            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+            payload: {
+              id: element.id,
+              updates: {
+                answerSettings: {
+                  ...element.answerSettings,
+                  ruledLinesColor: color
+                }
+              }
+            }
+          });
           break;
       }
     };
@@ -726,34 +748,9 @@ export function QnAInlineSettingsForm({
               className="w-full"
             >
               <Palette className="w-4 mr-2" />
-              Line Color
+              Line Color & Opacity
             </Button>
           </div>
-          
-          <Slider
-            label="Line Opacity"
-            value={(() => {
-              const aSettings = element.answerSettings || {};
-              return (aSettings.ruledLinesOpacity ?? 1) * 100;
-            })()}
-            onChange={(value) => {
-              dispatch({
-                type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                payload: {
-                  id: element.id,
-                  updates: {
-                    answerSettings: {
-                      ...element.answerSettings,
-                      ruledLinesOpacity: value / 100
-                    }
-                  }
-                }
-              });
-            }}
-            min={0}
-            max={100}
-            step={5}
-          />
         </IndentedSection>
       )}
       
