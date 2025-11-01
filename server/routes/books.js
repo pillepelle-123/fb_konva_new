@@ -242,7 +242,10 @@ router.get('/:id', authenticateToken, async (req, res) => {
       pageSize: book.page_size,
       orientation: book.orientation,
       owner_id: book.owner_id,
-      bookTheme: book.book_theme,
+      bookTheme: book.book_theme || book.theme_id, // Backward compatibility: use theme_id if book_theme doesn't exist
+      layoutTemplateId: book.layout_template_id,
+      themeId: book.theme_id || book.book_theme, // Backward compatibility: use book_theme if theme_id doesn't exist
+      colorPaletteId: book.color_palette_id,
       questions: questions.rows,
       answers: allAnswers.rows,
       pageAssignments: pageAssignments.rows,
@@ -296,8 +299,11 @@ router.get('/:id', authenticateToken, async (req, res) => {
           elements: updatedElements,
           background: {
             ...pageData.background,
-            pageTheme: page.page_theme
-          }
+            pageTheme: page.page_theme || page.theme_id // Backward compatibility
+          },
+          layoutTemplateId: page.layout_template_id,
+          themeId: page.theme_id || page.page_theme, // Backward compatibility: use page_theme if theme_id doesn't exist
+          colorPaletteId: page.color_palette_id
         };
       })
     });
@@ -353,9 +359,17 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
             database_id: pageId
           };
           
+          const pageTheme = page.themeId || page.background?.pageTheme || null;
           await pool.query(
-            'UPDATE public.pages SET elements = $1, page_theme = $2 WHERE id = $3',
-            [JSON.stringify(completePageData), page.background?.pageTheme, pageId]
+            'UPDATE public.pages SET elements = $1, page_theme = $2, layout_template_id = $3, theme_id = $4, color_palette_id = $5 WHERE id = $6',
+            [
+              JSON.stringify(completePageData), 
+              pageTheme,
+              page.layoutTemplateId || null,
+              page.themeId || pageTheme,
+              page.colorPaletteId || null,
+              pageId
+            ]
           );
 
           // Remove existing question associations for this page
@@ -501,9 +515,19 @@ router.put('/:id', authenticateToken, async (req, res) => {
     // Full book update with pages
     if (pageSize && orientation && pages) {
       // Update book metadata
+      const bookTheme = req.body.bookTheme || req.body.themeId || 'default';
       await pool.query(
-        'UPDATE public.books SET name = $1, page_size = $2, orientation = $3, book_theme = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5',
-        [name, pageSize, orientation, req.body.bookTheme || 'default', bookId]
+        'UPDATE public.books SET name = $1, page_size = $2, orientation = $3, book_theme = $4, layout_template_id = $5, theme_id = $6, color_palette_id = $7, updated_at = CURRENT_TIMESTAMP WHERE id = $8',
+        [
+          name, 
+          pageSize, 
+          orientation, 
+          bookTheme,
+          req.body.layoutTemplateId || null,
+          req.body.themeId || bookTheme,
+          req.body.colorPaletteId || null,
+          bookId
+        ]
       );
 
       // First, temporarily set all existing page numbers to negative values to avoid conflicts
@@ -533,9 +557,19 @@ router.put('/:id', authenticateToken, async (req, res) => {
             database_id: page.id
           };
           
+          const pageTheme = page.themeId || page.background?.pageTheme || null;
           await pool.query(
-            'UPDATE public.pages SET page_number = $1, elements = $2, page_theme = $3 WHERE id = $4 AND book_id = $5',
-            [page.pageNumber, JSON.stringify(completePageData), page.background?.pageTheme, page.id, bookId]
+            'UPDATE public.pages SET page_number = $1, elements = $2, page_theme = $3, layout_template_id = $4, theme_id = $5, color_palette_id = $6 WHERE id = $7 AND book_id = $8',
+            [
+              page.pageNumber, 
+              JSON.stringify(completePageData), 
+              pageTheme,
+              page.layoutTemplateId || null,
+              page.themeId || pageTheme,
+              page.colorPaletteId || null,
+              page.id, 
+              bookId
+            ]
           );
           pageId = page.id;
           processedPageIds.add(page.id);
@@ -547,9 +581,18 @@ router.put('/:id', authenticateToken, async (req, res) => {
             pageNumber: page.pageNumber
           };
           
+          const pageTheme = page.themeId || page.background?.pageTheme || null;
           const pageResult = await pool.query(
-            'INSERT INTO public.pages (book_id, page_number, elements, page_theme) VALUES ($1, $2, $3, $4) RETURNING id',
-            [bookId, page.pageNumber, JSON.stringify(completePageData), page.background?.pageTheme]
+            'INSERT INTO public.pages (book_id, page_number, elements, page_theme, layout_template_id, theme_id, color_palette_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+            [
+              bookId, 
+              page.pageNumber, 
+              JSON.stringify(completePageData), 
+              pageTheme,
+              page.layoutTemplateId || null,
+              page.themeId || pageTheme,
+              page.colorPaletteId || null
+            ]
           );
           pageId = pageResult.rows[0].id;
           
@@ -802,12 +845,13 @@ router.put('/:id', authenticateToken, async (req, res) => {
 // Create new book
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { name, pageSize, orientation, bookTheme } = req.body;
+    const { name, pageSize, orientation, bookTheme, layoutTemplateId, themeId, colorPaletteId } = req.body;
     const userId = req.user.id;
+    const finalTheme = themeId || bookTheme || 'default';
 
     const result = await pool.query(
-      'INSERT INTO public.books (name, owner_id, page_size, orientation, book_theme) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [name, userId, pageSize, orientation, bookTheme || 'default']
+      'INSERT INTO public.books (name, owner_id, page_size, orientation, book_theme, layout_template_id, theme_id, color_palette_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+      [name, userId, pageSize, orientation, finalTheme, layoutTemplateId || null, finalTheme, colorPaletteId || null]
     );
 
     const bookId = result.rows[0].id;

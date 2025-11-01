@@ -56,6 +56,7 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
   const [showFontSelector, setShowFontSelector] = useState(false);
   const [showTemplateOverlay, setShowTemplateOverlay] = useState(false);
   const [showLayoutOverlay, setShowLayoutOverlay] = useState(false);
+  const [showBookLayoutOverlay, setShowBookLayoutOverlay] = useState(false);
   const [showThemeOverlay, setShowThemeOverlay] = useState(false);
   const [showPaletteOverlay, setShowPaletteOverlay] = useState(false);
 
@@ -266,6 +267,7 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
             setShowFontSelector={setShowFontSelector}
             onOpenTemplates={() => setShowTemplateOverlay(true)}
             onOpenLayouts={() => setShowLayoutOverlay(true)}
+            onOpenBookLayouts={() => setShowBookLayoutOverlay(true)}
             onOpenThemes={() => setShowThemeOverlay(true)}
             onOpenPalettes={() => setShowPaletteOverlay(true)}
           />
@@ -475,18 +477,28 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
         isOpen={showLayoutOverlay}
         onClose={() => setShowLayoutOverlay(false)}
         content="layouts"
+        isBookLevel={false}
+      />
+      
+      <PagePreviewOverlay
+        isOpen={showBookLayoutOverlay}
+        onClose={() => setShowBookLayoutOverlay(false)}
+        content="layouts"
+        isBookLevel={true}
       />
       
       <PagePreviewOverlay
         isOpen={showThemeOverlay}
         onClose={() => setShowThemeOverlay(false)}
         content="themes"
+        isBookLevel={false}
       />
       
       <PagePreviewOverlay
         isOpen={showPaletteOverlay}
         onClose={() => setShowPaletteOverlay(false)}
         content="palettes"
+        isBookLevel={false}
       />
 
     </>

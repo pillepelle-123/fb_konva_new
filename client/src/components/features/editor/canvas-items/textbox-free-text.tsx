@@ -57,11 +57,15 @@ export default function TextboxFreeText(props: CanvasItemProps) {
 
   // Get current theme context
   const currentPage = state.currentBook?.pages[state.activePageIndex];
-  const pageTheme = currentPage?.background?.pageTheme;
-  const bookTheme = state.currentBook?.bookTheme;
+  const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+  const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+  const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+  const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+  const pageColorPaletteId = currentPage?.colorPaletteId;
+  const bookColorPaletteId = state.currentBook?.colorPaletteId;
   
   // Get tool defaults with theme applied
-  const toolDefaults = getToolDefaults('free_text', pageTheme, bookTheme);
+  const toolDefaults = getToolDefaults('free_text', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
   
   const fontSize = element.font?.fontSize || element.fontSize || toolDefaults.fontSize || 50;
   const fontFamily = element.font?.fontFamily || element.fontFamily || toolDefaults.fontFamily || 'Arial, sans-serif';
@@ -84,9 +88,13 @@ export default function TextboxFreeText(props: CanvasItemProps) {
   const generateRuledLines = () => {
     const lines = [];
     const currentPage = state.currentBook?.pages[state.activePageIndex];
-    const pageTheme = currentPage?.background?.pageTheme;
-    const bookTheme = state.currentBook?.bookTheme;
-    const freeTextDefaults = getToolDefaults('free_text', pageTheme, bookTheme);
+    const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+    const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+    const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+    const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+    const pageColorPaletteId = currentPage?.colorPaletteId;
+    const bookColorPaletteId = state.currentBook?.colorPaletteId;
+    const freeTextDefaults = getToolDefaults('free_text', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
     
     const textStyle = {
       ...freeTextDefaults.textSettings,

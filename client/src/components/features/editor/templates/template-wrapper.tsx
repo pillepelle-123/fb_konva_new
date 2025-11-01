@@ -10,9 +10,10 @@ interface TemplateWrapperProps {
   type: 'layouts' | 'themes' | 'palettes';
   onApply: (applyToAll: boolean, selectedLayout?: PageTemplate | null, selectedTheme?: string, selectedPalette?: ColorPalette | null) => void;
   onCancel: () => void;
+  isBookLevel?: boolean;
 }
 
-export function TemplateWrapper({ type, onApply, onCancel }: TemplateWrapperProps) {
+export function TemplateWrapper({ type, onApply, onCancel, isBookLevel = false }: TemplateWrapperProps) {
   const [applyToAll, setApplyToAll] = useState(false);
   const [selectedLayout, setSelectedLayout] = useState<PageTemplate | null>(null);
   const [selectedTheme, setSelectedTheme] = useState<string>('default');
@@ -65,15 +66,24 @@ export function TemplateWrapper({ type, onApply, onCancel }: TemplateWrapperProp
       {/* Controls */}
       <div className="border-t bg-gray-50 p-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Switch
-              checked={applyToAll}
-              onCheckedChange={setApplyToAll}
-            />
-            <span className="text-sm">
-              {applyToAll ? 'Apply to all pages of the book' : 'Apply only for current page'}
-            </span>
-          </div>
+          {!isBookLevel && (
+            <div className="flex items-center gap-3">
+              <Switch
+                checked={applyToAll}
+                onCheckedChange={setApplyToAll}
+              />
+              <span className="text-sm">
+                {applyToAll ? 'Apply to all pages of the book' : 'Apply only for current page'}
+              </span>
+            </div>
+          )}
+          {isBookLevel && (
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium">
+                Apply to entire book
+              </span>
+            </div>
+          )}
           
           <div className="flex gap-2">
             <Button

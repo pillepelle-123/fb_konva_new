@@ -21,7 +21,6 @@ function EditorContent() {
   const [showPreview, setShowPreview] = useState(false);
   const [previewContent, setPreviewContent] = useState<'preview' | 'questions' | 'manager'>('preview');
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
-  const [showNewPageDialog, setShowNewPageDialog] = useState(false);
 
   // Load templates and palettes on mount
   useEffect(() => {
@@ -216,7 +215,13 @@ function EditorContent() {
     };
     
     const handleAddPage = () => {
-      setShowNewPageDialog(true);
+      if (!state.currentBook) return;
+      const currentPageCount = state.currentBook.pages.length;
+      dispatch({ type: 'ADD_PAGE' });
+      // Navigate to the newly added page
+      setTimeout(() => {
+        dispatch({ type: 'SET_ACTIVE_PAGE', payload: currentPageCount });
+      }, 0);
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -322,46 +327,6 @@ function EditorContent() {
           isOpen={showTemplateGallery}
           onClose={() => setShowTemplateGallery(false)}
         />
-        
-        {/* New Page Dialog */}
-        {showNewPageDialog && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setShowNewPageDialog(false)} />
-            <div className="relative bg-white rounded-lg p-6 shadow-xl max-w-md w-full mx-4">
-              <h3 className="text-lg font-semibold mb-4">Create New Page</h3>
-              <div className="space-y-3">
-                <button
-                  onClick={() => {
-                    setShowNewPageDialog(false);
-                    setShowTemplateGallery(true);
-                  }}
-                  className="w-full p-4 text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <div className="font-medium">Start from Template</div>
-                  <div className="text-sm text-gray-600">Choose from pre-designed layouts</div>
-                </button>
-                <button
-                  onClick={() => {
-                    dispatch({ type: 'ADD_PAGE' });
-                    setShowNewPageDialog(false);
-                  }}
-                  className="w-full p-4 text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <div className="font-medium">Blank Page</div>
-                  <div className="text-sm text-gray-600">Start with an empty canvas</div>
-                </button>
-              </div>
-              <div className="mt-4 flex justify-end">
-                <button
-                  onClick={() => setShowNewPageDialog(false)}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
       
     </div>

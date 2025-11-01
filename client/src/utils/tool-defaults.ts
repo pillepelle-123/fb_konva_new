@@ -1,5 +1,9 @@
 // Centralized default values for all drawing tools
 import { getGlobalThemeDefaults } from './global-themes';
+import { applyPaletteToElement } from './global-palettes';
+import { colorPalettes } from '../data/templates/color-palettes';
+import type { ColorPalette } from '../types/template-types';
+
 export const TOOL_DEFAULTS = {
   line: {
     theme: 'default',
@@ -285,7 +289,17 @@ export const TOOL_DEFAULTS = {
 
 export type ToolType = keyof typeof TOOL_DEFAULTS;
 
-export function getToolDefaults(tool: ToolType, pageTheme?: string, bookTheme?: string, existingElement?: any, toolSettings?: any) {
+export function getToolDefaults(
+  tool: ToolType, 
+  pageTheme?: string, 
+  bookTheme?: string, 
+  existingElement?: any, 
+  toolSettings?: any,
+  pageLayoutTemplateId?: string | null,
+  bookLayoutTemplateId?: string | null,
+  pageColorPaletteId?: string | null,
+  bookColorPaletteId?: string | null
+) {
   const baseDefaults = TOOL_DEFAULTS[tool] || {};
   // Page theme takes precedence over book theme
   const activeTheme = pageTheme || bookTheme || 'default';
@@ -293,6 +307,20 @@ export function getToolDefaults(tool: ToolType, pageTheme?: string, bookTheme?: 
   
   // Deep merge theme defaults with base defaults, with theme taking precedence
   let mergedDefaults = deepMerge(baseDefaults, themeDefaults);
+  
+  // Apply color palette (Page > Book hierarchy)
+  const activePaletteId = pageColorPaletteId || bookColorPaletteId;
+  if (activePaletteId) {
+    const activePalette = colorPalettes.find(p => p.id === activePaletteId);
+    if (activePalette) {
+      // Determine element type for palette application
+      const elementType = existingElement?.textType || existingElement?.type || tool;
+      const paletteUpdates = applyPaletteToElement(activePalette, elementType);
+      
+      // Deep merge palette colors into merged defaults (palette takes precedence over theme colors)
+      mergedDefaults = deepMerge(mergedDefaults, paletteUpdates);
+    }
+  }
   
   // Apply current tool settings (including palette colors) if available
   if (toolSettings && toolSettings[tool]) {

@@ -49,6 +49,23 @@ export function PaletteSelector({ onBack, title, isBookLevel = false }: PaletteS
   };
   
   const handlePaletteSelect = (palette: ColorPalette) => {
+    // Set Book/Page-Level Color Palette (for new elements)
+    if (isBookLevel) {
+      dispatch({
+        type: 'SET_BOOK_COLOR_PALETTE',
+        payload: palette.id
+      });
+    } else {
+      dispatch({
+        type: 'SET_PAGE_COLOR_PALETTE',
+        payload: { 
+          pageIndex: state.activePageIndex, 
+          colorPaletteId: palette.id 
+        }
+      });
+    }
+    
+    // Optionally apply to existing elements (existing behavior)
     if (isBookLevel && state.currentBook) {
       // Apply to all pages
       state.currentBook.pages.forEach((page, pageIndex) => {

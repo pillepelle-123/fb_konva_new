@@ -1,7 +1,7 @@
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import { Button } from '../../../ui/primitives/button';
-import { ChevronLeft, Settings, Palette, Image, PaintBucket, CircleHelp, LayoutPanelLeft, Paintbrush2, SwatchBook } from 'lucide-react';
+import { ChevronLeft, Settings, Palette, Image, PaintBucket, CircleHelp, LayoutPanelLeft, Paintbrush2, SwatchBook, ArrowDown } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '../../../ui/composites/tabs';
 import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
 import type { PageBackground } from '../../../../context/editor-context';
@@ -33,6 +33,7 @@ interface GeneralSettingsProps {
   setShowBackgroundImageModal: (value: boolean) => void;
   onOpenTemplates: () => void;
   onOpenLayouts: () => void;
+  onOpenBookLayouts: () => void;
   onOpenThemes: () => void;
   onOpenPalettes: () => void;
 }
@@ -51,6 +52,7 @@ export function GeneralSettings({
   setShowBackgroundImageModal,
   onOpenTemplates,
   onOpenLayouts,
+  onOpenBookLayouts,
   onOpenThemes,
   onOpenPalettes
 }: GeneralSettingsProps) {
@@ -97,6 +99,56 @@ export function GeneralSettings({
           </Button>
         </div>
         
+        {/* Button to apply Book Theme to current page */}
+        {state.currentBook?.bookTheme && state.currentBook.bookTheme !== 'default' && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const bookThemeId = state.currentBook?.bookTheme || 'default';
+              // Set page theme to book theme
+              dispatch({ type: 'SET_PAGE_THEME', payload: { pageIndex: state.activePageIndex, themeId: bookThemeId } });
+              
+              // Apply theme to all elements on current page
+              dispatch({
+                type: 'APPLY_THEME_TO_ELEMENTS',
+                payload: { pageIndex: state.activePageIndex, themeId: bookThemeId }
+              });
+              
+              const theme = getGlobalTheme(bookThemeId);
+              if (theme) {
+                // Apply page background settings
+                const newBackground = {
+                  type: theme.pageSettings.backgroundPattern?.enabled ? 'pattern' : 'color',
+                  value: theme.pageSettings.backgroundPattern?.enabled ? theme.pageSettings.backgroundPattern.style : theme.pageSettings.backgroundColor,
+                  opacity: theme.pageSettings.backgroundOpacity || 1,
+                  pageTheme: bookThemeId,
+                  ruledLines: theme.ruledLines,
+                  ...(theme.pageSettings.backgroundPattern?.enabled && {
+                    patternSize: theme.pageSettings.backgroundPattern.size,
+                    patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
+                    patternForegroundColor: theme.pageSettings.backgroundColor,
+                    patternBackgroundColor: theme.pageSettings.backgroundPattern.patternBackgroundColor,
+                    patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity
+                  })
+                };
+                
+                dispatch({
+                  type: 'UPDATE_PAGE_BACKGROUND',
+                  payload: { 
+                    pageIndex: state.activePageIndex, 
+                    background: newBackground
+                  }
+                });
+              }
+            }}
+            className="w-full mb-4"
+          >
+            <ArrowDown className="h-4 w-4 mr-2" />
+            Book Theme übernehmen
+          </Button>
+        )}
+        
         <GlobalThemeSelector
           currentTheme={state.currentBook?.pages[state.activePageIndex]?.background?.pageTheme || state.currentBook?.bookTheme || 'default'}
           onThemeSelect={(themeId) => {
@@ -139,6 +191,7 @@ export function GeneralSettings({
             }
           }
           onBack={() => {}}
+          title="Page Theme"
         />
         
         <Separator />
@@ -183,6 +236,7 @@ export function GeneralSettings({
         
         <GlobalThemeSelector
           currentTheme={state.currentBook?.bookTheme || 'default'}
+          title="Book Theme"
           onThemeSelect={(themeId) => {
             // Set book theme
             dispatch({ type: 'SET_BOOK_THEME', payload: themeId });
@@ -590,8 +644,26 @@ export function GeneralSettings({
                   onClick={() => setShowBookTheme(true)}
                   className="w-full justify-start"
                 >
-                  <Palette className="h-4 w-4 mr-2" />
+                  <Paintbrush2 className="h-4 w-4 mr-2" />
                   Book Theme
+                </Button>
+                <Button
+                  variant="ghost_hover"
+                  size="sm"
+                  onClick={() => onOpenBookLayouts()}
+                  className="w-full justify-start"
+                >
+                  <LayoutPanelLeft className="h-4 w-4 mr-2" />
+                  Book Layout
+                </Button>
+                <Button
+                  variant="ghost_hover"
+                  size="sm"
+                  onClick={() => setShowBookPalette(true)}
+                  className="w-full justify-start"
+                >
+                  <SwatchBook className="h-4 w-4 mr-2" />
+                  Book Color Palette
                 </Button>
               </div>
             </div>
@@ -626,7 +698,7 @@ export function GeneralSettings({
             <Button
               variant="ghost_hover"
               size="sm"
-              onClick={() => canAccessPageSettings && onOpenThemes()}
+              onClick={() => canAccessPageSettings && setShowPageTheme(true)}
               className={`w-full justify-start ${!canAccessPageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
               disabled={!canAccessPageSettings}
             >

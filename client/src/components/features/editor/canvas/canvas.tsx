@@ -675,15 +675,19 @@ export default function Canvas() {
       
       // Capture current tool settings for this stroke
       const currentPage = state.currentBook?.pages[state.activePageIndex];
-      const pageTheme = currentPage?.background?.pageTheme;
-      const bookTheme = state.currentBook?.bookTheme;
-      const brushDefaults = getToolDefaults('brush', pageTheme, bookTheme);
+      const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+      const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+      const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+      const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+      const pageColorPaletteId = currentPage?.colorPaletteId;
+      const bookColorPaletteId = state.currentBook?.colorPaletteId;
+      const brushDefaults = getToolDefaults('brush', pageTheme, bookTheme, undefined, state.toolSettings?.brush, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
       const toolSettings = state.toolSettings?.brush || {};
       
       const strokeData = {
         points: smoothedPath,
-        strokeColor: toolSettings.strokeColor || brushDefaults.stroke,
-        strokeWidth: toolSettings.strokeWidth || brushDefaults.strokeWidth
+        strokeColor: brushDefaults.stroke || toolSettings.strokeColor || '#1f2937',
+        strokeWidth: brushDefaults.strokeWidth || toolSettings.strokeWidth || 3
       };
       
       // Add stroke to collection with its settings
@@ -697,9 +701,13 @@ export default function Canvas() {
       
       if (Math.abs(width) > 5 || Math.abs(height) > 5) {
         const currentPage = state.currentBook?.pages[state.activePageIndex];
-        const pageTheme = currentPage?.background?.pageTheme;
-        const bookTheme = state.currentBook?.bookTheme;
-        const lineDefaults = getToolDefaults('line', pageTheme, bookTheme);
+        const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+        const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+        const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+        const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+        const pageColorPaletteId = currentPage?.colorPaletteId;
+        const bookColorPaletteId = state.currentBook?.colorPaletteId;
+        const lineDefaults = getToolDefaults('line', pageTheme, bookTheme, undefined, state.toolSettings?.line, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
         const toolSettings = state.toolSettings?.line || {};
         const newElement: CanvasElement = {
           id: uuidv4(),
@@ -708,10 +716,10 @@ export default function Canvas() {
           y: previewLine.y1,
           width: width,
           height: height,
-          stroke: toolSettings.strokeColor || lineDefaults.stroke,
+          stroke: lineDefaults.stroke || toolSettings.strokeColor || '#1f2937',
           roughness: 3,
-          strokeWidth: toolSettings.strokeWidth || lineDefaults.strokeWidth,
-          theme: lineDefaults.theme
+          strokeWidth: lineDefaults.strokeWidth || toolSettings.strokeWidth || 2,
+          theme: lineDefaults.theme || 'default'
         };
         dispatch({ type: 'ADD_ELEMENT', payload: newElement });
         dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
@@ -722,9 +730,13 @@ export default function Canvas() {
     } else if (isDrawingShape && shapeStart && previewShape) {
       if (previewShape.width > 5 || previewShape.height > 5) {
         const currentPage = state.currentBook?.pages[state.activePageIndex];
-        const pageTheme = currentPage?.background?.pageTheme;
-        const bookTheme = state.currentBook?.bookTheme;
-        const shapeDefaults = getToolDefaults(previewShape.type as any, pageTheme, bookTheme);
+        const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+        const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+        const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+        const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+        const pageColorPaletteId = currentPage?.colorPaletteId;
+        const bookColorPaletteId = state.currentBook?.colorPaletteId;
+        const shapeDefaults = getToolDefaults(previewShape.type as any, pageTheme, bookTheme, undefined, state.toolSettings?.[previewShape.type], pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
         const toolSettings = state.toolSettings?.[previewShape.type] || {};
         const newElement: CanvasElement = {
           id: uuidv4(),
@@ -733,12 +745,14 @@ export default function Canvas() {
           y: previewShape.y,
           width: previewShape.width,
           height: previewShape.height,
-          fill: toolSettings.fillColor !== undefined ? toolSettings.fillColor : (shapeDefaults.fill || 'transparent'),
-          stroke: toolSettings.strokeColor || shapeDefaults.stroke,
+          fill: shapeDefaults.fill !== undefined && shapeDefaults.fill !== 'transparent'
+            ? shapeDefaults.fill
+            : (toolSettings.fillColor !== undefined ? toolSettings.fillColor : 'transparent'),
+          stroke: shapeDefaults.stroke || toolSettings.strokeColor || '#1f2937',
           roughness: 3,
-          strokeWidth: toolSettings.strokeWidth || shapeDefaults.strokeWidth,
+          strokeWidth: shapeDefaults.strokeWidth || toolSettings.strokeWidth || 2,
           cornerRadius: shapeDefaults.cornerRadius || 0,
-          theme: shapeDefaults.theme,
+          theme: shapeDefaults.theme || 'default',
           polygonSides: previewShape.type === 'polygon' ? (state.toolSettings?.polygon?.polygonSides || 5) : undefined
         };
         dispatch({ type: 'ADD_ELEMENT', payload: newElement });
@@ -753,9 +767,13 @@ export default function Canvas() {
         
         if (previewTextbox.type === 'text') {
           const currentPage = state.currentBook?.pages[state.activePageIndex];
-          const pageTheme = currentPage?.background?.pageTheme;
-          const bookTheme = state.currentBook?.bookTheme;
-          const textDefaults = getToolDefaults('text', pageTheme, bookTheme);
+          const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+          const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+          const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+          const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+          const pageColorPaletteId = currentPage?.colorPaletteId;
+          const bookColorPaletteId = state.currentBook?.colorPaletteId;
+          const textDefaults = getToolDefaults('text', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
           newElement = {
             id: uuidv4(),
             type: 'text',
@@ -774,10 +792,14 @@ export default function Canvas() {
           };
         } else if (previewTextbox.type === 'question') {
           const currentPage = state.currentBook?.pages[state.activePageIndex];
-          const pageTheme = currentPage?.background?.pageTheme;
-          const bookTheme = state.currentBook?.bookTheme;
-          const questionDefaults = getToolDefaults('question', pageTheme, bookTheme);
-          const answerDefaults = getToolDefaults('answer', pageTheme, bookTheme);
+          const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+          const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+          const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+          const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+          const pageColorPaletteId = currentPage?.colorPaletteId;
+          const bookColorPaletteId = state.currentBook?.colorPaletteId;
+          const questionDefaults = getToolDefaults('question', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
+          const answerDefaults = getToolDefaults('answer', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
           const questionHeight = Math.max(40, previewTextbox.height * 0.3);
           const answerHeight = previewTextbox.height - questionHeight - 10;
           
@@ -824,9 +846,13 @@ export default function Canvas() {
           dispatch({ type: 'ADD_ELEMENT', payload: questionElement });
         } else if (previewTextbox.type === 'qna') {
           const currentPage = state.currentBook?.pages[state.activePageIndex];
-          const pageTheme = currentPage?.background?.pageTheme;
-          const bookTheme = state.currentBook?.bookTheme;
-          const qnaDefaults = getToolDefaults('qna', pageTheme, bookTheme);
+          const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+          const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+          const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+          const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+          const pageColorPaletteId = currentPage?.colorPaletteId;
+          const bookColorPaletteId = state.currentBook?.colorPaletteId;
+          const qnaDefaults = getToolDefaults('qna', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
           newElement = {
             id: uuidv4(),
             type: 'text',
@@ -844,9 +870,13 @@ export default function Canvas() {
           };
         } else if (previewTextbox.type === 'qna2') {
           const currentPage = state.currentBook?.pages[state.activePageIndex];
-          const pageTheme = currentPage?.background?.pageTheme;
-          const bookTheme = state.currentBook?.bookTheme;
-          const qna2Defaults = getToolDefaults('qna2', pageTheme, bookTheme);
+          const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+          const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+          const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+          const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+          const pageColorPaletteId = currentPage?.colorPaletteId;
+          const bookColorPaletteId = state.currentBook?.colorPaletteId;
+          const qna2Defaults = getToolDefaults('qna2', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
           newElement = {
             id: uuidv4(),
             type: 'text',
@@ -866,9 +896,13 @@ export default function Canvas() {
           };
         } else if (previewTextbox.type === 'qna_inline') {
           const currentPage = state.currentBook?.pages[state.activePageIndex];
-          const pageTheme = currentPage?.background?.pageTheme;
-          const bookTheme = state.currentBook?.bookTheme;
-          const qnaInlineDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme);
+          const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+          const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+          const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+          const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+          const pageColorPaletteId = currentPage?.colorPaletteId;
+          const bookColorPaletteId = state.currentBook?.colorPaletteId;
+          const qnaInlineDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
           newElement = {
             id: uuidv4(),
             type: 'text',
@@ -888,9 +922,13 @@ export default function Canvas() {
           };
         } else if (previewTextbox.type === 'free_text') {
           const currentPage = state.currentBook?.pages[state.activePageIndex];
-          const pageTheme = currentPage?.background?.pageTheme;
-          const bookTheme = state.currentBook?.bookTheme;
-          const freeTextDefaults = getToolDefaults('free_text', pageTheme, bookTheme);
+          const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+          const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+          const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+          const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+          const pageColorPaletteId = currentPage?.colorPaletteId;
+          const bookColorPaletteId = state.currentBook?.colorPaletteId;
+          const freeTextDefaults = getToolDefaults('free_text', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
           newElement = {
             id: uuidv4(),
             type: 'text',
@@ -909,9 +947,13 @@ export default function Canvas() {
           };
         } else {
           const currentPage = state.currentBook?.pages[state.activePageIndex];
-          const pageTheme = currentPage?.background?.pageTheme;
-          const bookTheme = state.currentBook?.bookTheme;
-          const answerDefaults = getToolDefaults('answer', pageTheme, bookTheme);
+          const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+          const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+          const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+          const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+          const pageColorPaletteId = currentPage?.colorPaletteId;
+          const bookColorPaletteId = state.currentBook?.colorPaletteId;
+          const answerDefaults = getToolDefaults('answer', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
           
           // Generate UUID for answer immediately
           const answerUUID = uuidv4();
@@ -1647,9 +1689,13 @@ export default function Canvas() {
     const handleBrushDone = () => {
       if (brushStrokes.length > 0) {
         const currentPage = state.currentBook?.pages[state.activePageIndex];
-        const pageTheme = currentPage?.background?.pageTheme;
-        const bookTheme = state.currentBook?.bookTheme;
-        const brushDefaults = getToolDefaults('brush', pageTheme, bookTheme);
+        const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+        const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+        const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+        const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+        const pageColorPaletteId = currentPage?.colorPaletteId;
+        const bookColorPaletteId = state.currentBook?.colorPaletteId;
+        const brushDefaults = getToolDefaults('brush', pageTheme, bookTheme, undefined, state.toolSettings?.brush, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
         
         // Convert each stroke to individual brush elements for grouping
         const groupedBrushElements: CanvasElement[] = brushStrokes.map(strokeData => ({

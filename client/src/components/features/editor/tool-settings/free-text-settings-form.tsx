@@ -57,9 +57,13 @@ export function FreeTextSettingsForm({
   const getTextStyle = () => {
     const tStyle = element.textSettings || {};
     const currentPage = state.currentBook?.pages[state.activePageIndex];
-    const pageTheme = currentPage?.background?.pageTheme;
-    const bookTheme = state.currentBook?.bookTheme;
-    const freeTextDefaults = getToolDefaults('free_text', pageTheme, bookTheme);
+    const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+    const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+    const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+    const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+    const pageColorPaletteId = currentPage?.colorPaletteId;
+    const bookColorPaletteId = state.currentBook?.colorPaletteId;
+    const freeTextDefaults = getToolDefaults('free_text', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
     
     return {
       fontSize: tStyle.fontSize || freeTextDefaults?.fontSize || 16,

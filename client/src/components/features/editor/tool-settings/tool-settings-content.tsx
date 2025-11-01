@@ -86,6 +86,7 @@ interface ToolSettingsContentProps {
   activeLinkedElement: string | null;
   onOpenTemplates: () => void;
   onOpenLayouts: () => void;
+  onOpenBookLayouts: () => void;
   onOpenThemes: () => void;
   onOpenPalettes: () => void;
 }
@@ -116,6 +117,7 @@ export function ToolSettingsContent({
   activeLinkedElement,
   onOpenTemplates,
   onOpenLayouts,
+  onOpenBookLayouts,
   onOpenThemes,
   onOpenPalettes
 }: ToolSettingsContentProps) {
@@ -782,6 +784,7 @@ export function ToolSettingsContent({
           setShowBackgroundImageModal={setShowBackgroundImageModal}
           onOpenTemplates={onOpenTemplates}
           onOpenLayouts={onOpenLayouts}
+          onOpenBookLayouts={onOpenBookLayouts}
           onOpenThemes={onOpenThemes}
           onOpenPalettes={onOpenPalettes}
         />

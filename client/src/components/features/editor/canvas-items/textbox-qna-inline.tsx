@@ -1269,9 +1269,13 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
           {(() => {
             // Get default settings from tool defaults if not present
             const currentPage = state.currentBook?.pages[state.activePageIndex];
-            const pageTheme = currentPage?.background?.pageTheme;
-            const bookTheme = state.currentBook?.bookTheme;
-            const qnaInlineDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme);
+            const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+            const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+            const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+            const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+            const pageColorPaletteId = currentPage?.colorPaletteId;
+            const bookColorPaletteId = state.currentBook?.colorPaletteId;
+            const qnaInlineDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
             
             const questionStyle = {
               ...qnaInlineDefaults.questionSettings,
@@ -1308,9 +1312,13 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
           {(() => {
             // Get default settings from tool defaults if not present
             const currentPage = state.currentBook?.pages[state.activePageIndex];
-            const pageTheme = currentPage?.background?.pageTheme;
-            const bookTheme = state.currentBook?.bookTheme;
-            const qnaInlineDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme);
+            const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+            const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+            const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+            const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+            const pageColorPaletteId = currentPage?.colorPaletteId;
+            const bookColorPaletteId = state.currentBook?.colorPaletteId;
+            const qnaInlineDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
             
             const questionStyle = {
               ...qnaInlineDefaults.questionSettings,
@@ -1377,9 +1385,13 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
           ) : (() => {
             // Get default settings from tool defaults if not present
             const currentPage = state.currentBook?.pages[state.activePageIndex];
-            const pageTheme = currentPage?.background?.pageTheme;
-            const bookTheme = state.currentBook?.bookTheme;
-            const qnaInlineDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme);
+            const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+            const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+            const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+            const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+            const pageColorPaletteId = currentPage?.colorPaletteId;
+            const bookColorPaletteId = state.currentBook?.colorPaletteId;
+            const qnaInlineDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
             
             const questionStyle = {
               ...qnaInlineDefaults.questionSettings,

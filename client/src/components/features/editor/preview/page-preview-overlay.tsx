@@ -4,24 +4,22 @@ import QuestionsManager from '../../questions/questions-manager';
 import BookManagerContent from '../../books/book-manager-content';
 import { TemplateSelector } from '../template-selector';
 import { TemplateWrapper } from '../templates/template-wrapper';
-import { useState } from 'react';
-import { Button } from '../../../ui/primitives/button';
-import type { PageTemplate, ColorPalette } from '../../../../types/template-types';
 
 interface PagePreviewOverlayProps {
   isOpen: boolean;
   onClose: () => void;
   content?: 'preview' | 'questions' | 'manager' | 'templates' | 'layouts' | 'themes' | 'palettes';
+  isBookLevel?: boolean;
 }
 
-export default function PagePreviewOverlay({ isOpen, onClose, content = 'preview' }: PagePreviewOverlayProps) {
-  const { state, applyCompleteTemplate } = useEditor();
+export default function PagePreviewOverlay({ isOpen, onClose, content = 'preview', isBookLevel = false }: PagePreviewOverlayProps) {
+  const { state, dispatch } = useEditor();
 
   if (!isOpen) return null;
 
   const currentPage = state.currentBook?.pages[state.activePageIndex];
 
-  const renderElement = (element: any) => {
+  const renderElement = (element: { x: number; y: number; width: number; height: number; type: string; textType?: string; questionId?: number; text?: string; fontSize?: number; fontFamily?: string; fontColor?: string; backgroundColor?: string }) => {
     const style: React.CSSProperties = {
       position: 'absolute',
       left: `${(element.x / 2480) * 100}%`,
@@ -104,14 +102,60 @@ export default function PagePreviewOverlay({ isOpen, onClose, content = 'preview
         ) : (content === 'layouts' || content === 'themes' || content === 'palettes') ? (
           <TemplateWrapper
             type={content}
+            isBookLevel={isBookLevel}
             onApply={(applyToAll, selectedLayout, selectedTheme, selectedPalette) => {
-              const scope = applyToAll ? 'entire-book' : 'current-page';
-              applyCompleteTemplate(
-                selectedLayout?.id,
-                selectedTheme !== 'default' ? selectedTheme : undefined,
-                selectedPalette?.id,
-                scope
-              );
+              // If isBookLevel is true, always apply to book level, ignoring applyToAll toggle
+              const shouldApplyToBook = isBookLevel || applyToAll;
+              
+              if (content === 'layouts' && selectedLayout) {
+                if (shouldApplyToBook) {
+                  // Set book-level layout template
+                  dispatch({
+                    type: 'SET_BOOK_LAYOUT_TEMPLATE',
+                    payload: selectedLayout.id
+                  });
+                } else {
+                  // Set page-level layout template
+                  dispatch({
+                    type: 'SET_PAGE_LAYOUT_TEMPLATE',
+                    payload: {
+                      pageIndex: state.activePageIndex,
+                      layoutTemplateId: selectedLayout.id
+                    }
+                  });
+                }
+              } else if (content === 'themes' && selectedTheme !== 'default') {
+                if (shouldApplyToBook) {
+                  dispatch({
+                    type: 'SET_BOOK_THEME',
+                    payload: selectedTheme
+                  });
+                } else {
+                  dispatch({
+                    type: 'SET_PAGE_THEME',
+                    payload: {
+                      pageIndex: state.activePageIndex,
+                      themeId: selectedTheme as string
+                    }
+                  });
+                }
+              } else if (content === 'palettes' && selectedPalette) {
+                if (shouldApplyToBook) {
+                  dispatch({
+                    type: 'SET_BOOK_COLOR_PALETTE',
+                    payload: selectedPalette.id
+                  });
+                } else {
+                  dispatch({
+                    type: 'SET_PAGE_COLOR_PALETTE',
+                    payload: {
+                      pageIndex: state.activePageIndex,
+                      colorPaletteId: selectedPalette.id as string
+                    }
+                  });
+                }
+              }
+              
               onClose();
             }}
             onCancel={onClose}

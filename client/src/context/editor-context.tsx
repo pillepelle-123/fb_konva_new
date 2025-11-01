@@ -379,6 +379,9 @@ export interface Page {
   elements: CanvasElement[];
   background?: PageBackground;
   database_id?: number; // Database pages.id
+  layoutTemplateId?: string; // page-level layout template ID
+  themeId?: string; // page-level theme ID (in addition to background.pageTheme for compatibility)
+  colorPaletteId?: string; // page-level color palette ID
 }
 
 export interface Book {
@@ -387,7 +390,10 @@ export interface Book {
   pageSize: string;
   orientation: string;
   pages: Page[];
-  bookTheme?: string; // book-level theme ID
+  bookTheme?: string; // book-level theme ID (kept for backward compatibility)
+  layoutTemplateId?: string; // book-level layout template ID
+  themeId?: string; // book-level theme ID
+  colorPaletteId?: string; // book-level color palette ID
   owner_id?: number; // book owner ID
   isTemporary?: boolean; // temporary book flag
 }
@@ -484,6 +490,10 @@ type EditorAction =
   | { type: 'UPDATE_PAGE_BACKGROUND'; payload: { pageIndex: number; background: PageBackground } }
   | { type: 'SET_BOOK_THEME'; payload: string }
   | { type: 'SET_PAGE_THEME'; payload: { pageIndex: number; themeId: string } }
+  | { type: 'SET_BOOK_LAYOUT_TEMPLATE'; payload: string | null }
+  | { type: 'SET_BOOK_COLOR_PALETTE'; payload: string | null }
+  | { type: 'SET_PAGE_LAYOUT_TEMPLATE'; payload: { pageIndex: number; layoutTemplateId: string | null } }
+  | { type: 'SET_PAGE_COLOR_PALETTE'; payload: { pageIndex: number; colorPaletteId: string | null } }
   | { type: 'APPLY_THEME_TO_ELEMENTS'; payload: { pageIndex: number; themeId: string; elementType?: string; applyToAllPages?: boolean } }
   | { type: 'REORDER_PAGES'; payload: { fromIndex: number; toIndex: number } }
   | { type: 'TOGGLE_MAGNETIC_SNAPPING' }
@@ -804,26 +814,165 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (!state.currentBook || state.userRole === 'author') return state;
       const savedAddPageState = saveToHistory(state, 'Add Page');
       const newPageNumber = savedAddPageState.currentBook!.pages.length + 1;
+      const book = savedAddPageState.currentBook!;
+      
+      // Get book-level settings
+      const bookThemeId = book.themeId || book.bookTheme || 'default';
+      const bookLayoutTemplateId = book.layoutTemplateId || null;
+      const bookColorPaletteId = book.colorPaletteId || null;
+      
+      // Initialize page background with book theme if available
+      let initialBackground: PageBackground = {
+        type: 'color',
+        value: '#ffffff',
+        opacity: 1
+      };
+      
+      // Apply book theme to background if set
+      if (bookThemeId && bookThemeId !== 'default') {
+        const theme = getGlobalTheme(bookThemeId);
+        if (theme) {
+          initialBackground = {
+            type: theme.pageSettings.backgroundPattern?.enabled ? 'pattern' : 'color',
+            value: theme.pageSettings.backgroundPattern?.enabled 
+              ? theme.pageSettings.backgroundPattern.style 
+              : theme.pageSettings.backgroundColor,
+            opacity: theme.pageSettings.backgroundOpacity || 1,
+            pageTheme: bookThemeId,
+            ...(theme.pageSettings.backgroundPattern?.enabled && {
+              patternSize: theme.pageSettings.backgroundPattern.size,
+              patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
+              patternForegroundColor: theme.pageSettings.backgroundColor,
+              patternBackgroundColor: theme.pageSettings.backgroundPattern.patternBackgroundColor,
+              patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity
+            })
+          };
+        }
+      }
+      
+      // Create new page with book-level settings
       const newPage: Page = {
         id: Date.now(),
         pageNumber: newPageNumber,
         elements: [],
-        database_id: undefined // New page, no database ID yet
+        database_id: undefined,
+        background: initialBackground,
+        layoutTemplateId: bookLayoutTemplateId || undefined,
+        themeId: bookThemeId !== 'default' ? bookThemeId : undefined,
+        colorPaletteId: bookColorPaletteId || undefined
       };
+      
+      // Apply layout template if book has one set
+      let pageElements: CanvasElement[] = [];
+      if (bookLayoutTemplateId) {
+        const layoutTemplate = pageTemplates.find(t => t.id === bookLayoutTemplateId);
+        if (layoutTemplate) {
+          // Convert template to elements
+          pageElements = convertTemplateToElements(layoutTemplate);
+          
+          // Apply book theme styles to elements if available
+          if (bookThemeId && bookThemeId !== 'default') {
+            pageElements = pageElements.map(element => {
+              const toolType = element.textType || element.type;
+              const themeDefaults = getToolDefaults(toolType as any, bookThemeId, undefined);
+              return {
+                ...element,
+                ...themeDefaults,
+                theme: bookThemeId,
+                // Preserve essential properties
+                id: element.id,
+                type: element.type,
+                x: element.x,
+                y: element.y,
+                width: element.width,
+                height: element.height,
+                text: element.text,
+                textType: element.textType
+              };
+            });
+          }
+          
+          // Apply book color palette to elements if available (after theme to override theme colors)
+          if (bookColorPaletteId) {
+            const bookPalette = colorPalettes.find(p => p.id === bookColorPaletteId);
+            if (bookPalette) {
+              // Apply palette colors to all elements
+              pageElements = pageElements.map(element => {
+                const updates: Partial<CanvasElement> = {};
+                
+                if (element.type === 'text' || element.textType) {
+                  updates.fontColor = bookPalette.colors.primary;
+                  updates.borderColor = bookPalette.colors.secondary;
+                  updates.backgroundColor = bookPalette.colors.background;
+                }
+                if (element.type === 'line' || element.type === 'brush' || 
+                    element.type === 'circle' || element.type === 'rect' || 
+                    element.type === 'triangle' || element.type === 'polygon') {
+                  updates.stroke = bookPalette.colors.primary;
+                  if (element.type !== 'line' && element.type !== 'brush') {
+                    updates.fill = bookPalette.colors.surface || bookPalette.colors.accent;
+                  }
+                }
+                
+                return { ...element, ...updates };
+              });
+            }
+          }
+        }
+      }
+      
+      // Update new page with elements from layout template
+      const newPageWithLayout: Page = {
+        ...newPage,
+        elements: pageElements
+      };
+      
+      // Get color palette for tool settings
+      let paletteToUse: ColorPalette | null = null;
+      if (bookColorPaletteId) {
+        paletteToUse = colorPalettes.find(p => p.id === bookColorPaletteId) || null;
+      }
       
       // Apply default palette to new page if no tool settings exist
       const hasToolSettings = savedAddPageState.toolSettings && Object.keys(savedAddPageState.toolSettings).length > 0;
       let addPageState = {
         ...savedAddPageState,
         currentBook: {
-          ...savedAddPageState.currentBook!,
-          pages: [...savedAddPageState.currentBook!.pages, newPage]
+          ...book,
+          pages: [...book.pages, newPageWithLayout]
         },
         hasUnsavedChanges: true
       };
       
-      if (!hasToolSettings) {
-        // Apply default palette
+      // Update tool settings with palette colors if available
+      if (paletteToUse && (!hasToolSettings || true)) { // Always apply palette if book has one
+        const toolUpdates = {
+          brush: { strokeColor: paletteToUse.colors.primary },
+          line: { strokeColor: paletteToUse.colors.primary },
+          rect: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          circle: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          triangle: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          polygon: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          heart: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          star: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          'speech-bubble': { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          dog: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          cat: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          smiley: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          text: { fontColor: paletteToUse.colors.primary, borderColor: paletteToUse.colors.secondary, backgroundColor: paletteToUse.colors.background },
+          question: { fontColor: paletteToUse.colors.primary, borderColor: paletteToUse.colors.secondary, backgroundColor: paletteToUse.colors.surface || paletteToUse.colors.background },
+          answer: { fontColor: paletteToUse.colors.accent, borderColor: paletteToUse.colors.secondary, backgroundColor: paletteToUse.colors.background },
+          qna_inline: { fontColor: paletteToUse.colors.primary, borderColor: paletteToUse.colors.secondary, backgroundColor: paletteToUse.colors.background }
+        };
+        
+        const updatedToolSettings = { ...addPageState.toolSettings };
+        Object.entries(toolUpdates).forEach(([tool, settings]) => {
+          updatedToolSettings[tool] = { ...updatedToolSettings[tool], ...settings };
+        });
+        
+        addPageState = { ...addPageState, toolSettings: updatedToolSettings };
+      } else if (!hasToolSettings) {
+        // Fallback to default palette if no book palette
         const defaultPalette = { colors: { background: '#FFFFFF', primary: '#424242', secondary: '#757575', accent: '#BDBDBD', text: '#212121' } };
         const toolUpdates = {
           brush: { strokeColor: defaultPalette.colors.primary },
@@ -1115,7 +1264,32 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         ...savedBookThemeState,
         currentBook: {
           ...savedBookThemeState.currentBook!,
-          bookTheme: action.payload
+          bookTheme: action.payload,
+          themeId: action.payload // Also set themeId for consistency
+        },
+        hasUnsavedChanges: true
+      };
+    
+    case 'SET_BOOK_LAYOUT_TEMPLATE':
+      if (!state.currentBook) return state;
+      const savedBookLayoutState = saveToHistory(state, 'Set Book Layout Template');
+      return {
+        ...savedBookLayoutState,
+        currentBook: {
+          ...savedBookLayoutState.currentBook!,
+          layoutTemplateId: action.payload
+        },
+        hasUnsavedChanges: true
+      };
+    
+    case 'SET_BOOK_COLOR_PALETTE':
+      if (!state.currentBook) return state;
+      const savedBookPaletteState = saveToHistory(state, 'Set Book Color Palette');
+      return {
+        ...savedBookPaletteState,
+        currentBook: {
+          ...savedBookPaletteState.currentBook!,
+          colorPaletteId: action.payload
         },
         hasUnsavedChanges: true
       };
@@ -1130,8 +1304,29 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           targetPageTheme.background = { type: 'color', value: '#ffffff', opacity: 1 };
         }
         targetPageTheme.background.pageTheme = action.payload.themeId;
+        targetPageTheme.themeId = action.payload.themeId; // Also set themeId for consistency
       }
       return { ...savedPageThemeState, currentBook: updatedBookPageTheme, hasUnsavedChanges: true };
+    
+    case 'SET_PAGE_LAYOUT_TEMPLATE':
+      if (!state.currentBook) return state;
+      const savedPageLayoutState = saveToHistory(state, 'Set Page Layout Template');
+      const updatedBookPageLayout = { ...savedPageLayoutState.currentBook! };
+      const targetPageLayout = updatedBookPageLayout.pages[action.payload.pageIndex];
+      if (targetPageLayout) {
+        targetPageLayout.layoutTemplateId = action.payload.layoutTemplateId;
+      }
+      return { ...savedPageLayoutState, currentBook: updatedBookPageLayout, hasUnsavedChanges: true };
+    
+    case 'SET_PAGE_COLOR_PALETTE':
+      if (!state.currentBook) return state;
+      const savedPagePaletteState = saveToHistory(state, 'Set Page Color Palette');
+      const updatedBookPagePalette = { ...savedPagePaletteState.currentBook! };
+      const targetPagePalette = updatedBookPagePalette.pages[action.payload.pageIndex];
+      if (targetPagePalette) {
+        targetPagePalette.colorPaletteId = action.payload.colorPaletteId;
+      }
+      return { ...savedPagePaletteState, currentBook: updatedBookPagePalette, hasUnsavedChanges: true };
     
     case 'APPLY_THEME_TO_ELEMENTS':
       if (!state.currentBook) return state;
