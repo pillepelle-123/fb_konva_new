@@ -1,11 +1,15 @@
 import type { CanvasElement } from '../context/editor-context';
-import { getPalette } from './global-palettes';
+import { colorPalettes } from '../data/templates/color-palettes';
+import type { ColorPalette } from '../types/template-types';
 import { commonToActual } from './font-size-converter';
-import { commonToActualStrokeWidth, themeJsonToActualStrokeWidth } from './stroke-width-converter';
+import { themeJsonToActualStrokeWidth } from './stroke-width-converter';
 import { commonToActualRadius } from './corner-radius-converter';
-import { getRuledLinesOpacity } from './ruled-lines-utils';
-import { getBorderTheme } from './theme-utils';
 import themesData from '../data/themes.json';
+
+// Get palette from color-palettes.ts (single source of truth)
+function getPalette(paletteId: string): ColorPalette | undefined {
+  return colorPalettes.find(p => p.id === paletteId);
+}
 
 export interface GlobalTheme {
   id: string;
@@ -53,21 +57,28 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
   const palette = getPalette(config.palette);
   
   const buildElement = (elementType: string, defaults: any) => {
+    // Convert strokeWidth if it exists directly in defaults (for shapes/brushes)
+    const convertedDefaults = { ...defaults };
+    if (convertedDefaults.strokeWidth !== undefined && typeof convertedDefaults.strokeWidth === 'number') {
+      const strokeTheme = convertedDefaults.inheritTheme || id;
+      convertedDefaults.strokeWidth = themeJsonToActualStrokeWidth(convertedDefaults.strokeWidth, strokeTheme);
+    }
+    
     const base = {
       theme: id,
       scaleX: 1,
       scaleY: 1,
       rotation: 0,
-      ...defaults
+      ...convertedDefaults
     };
 
     // Map nested font properties to flat canvas element properties
+    // NOTE: Colors are NOT read from themes.json - they come from color-palettes.ts via palette
     if (base.font) {
-      if (base.font.fontColor) {
-        base.stroke = base.font.fontColor;
-        base.fontColor = base.font.fontColor;
+      // Convert font size from common scale to actual size
+      if (base.font.fontSize !== undefined) {
+        base.fontSize = commonToActual(base.font.fontSize);
       }
-      if (base.font.fontSize) base.fontSize = base.font.fontSize;
       if (base.font.fontFamily) base.fontFamily = base.font.fontFamily;
       if (base.font.fontBold !== undefined) {
         base.fontWeight = base.font.fontBold ? 'bold' : 'normal';
@@ -81,18 +92,25 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
         base.strokeOpacity = base.font.fontOpacity;
         base.fontOpacity = base.font.fontOpacity;
       }
+      // fontColor is set from palette below, not from themes.json
     }
 
     // Map nested border properties to flat canvas element properties
+    // NOTE: Colors are NOT read from themes.json - they come from color-palettes.ts via palette
     if (base.border) {
-      if (base.border.borderWidth !== undefined) base.borderWidth = base.border.borderWidth;
-      if (base.border.borderColor) base.borderColor = base.border.borderColor;
+      // Convert border width from common scale to actual size
+      if (base.border.borderWidth !== undefined) {
+        const borderTheme = base.border.borderTheme || id;
+        base.borderWidth = themeJsonToActualStrokeWidth(base.border.borderWidth, borderTheme);
+      }
+      // borderColor is set from palette below, not from themes.json
       if (base.border.borderOpacity !== undefined) base.borderOpacity = base.border.borderOpacity;
     }
 
     // Map nested background properties to flat canvas element properties
+    // NOTE: Colors are NOT read from themes.json - they come from color-palettes.ts via palette
     if (base.background) {
-      if (base.background.backgroundColor) base.backgroundColor = base.background.backgroundColor;
+      // backgroundColor is set from palette below, not from themes.json
       if (base.background.backgroundOpacity !== undefined) base.backgroundOpacity = base.background.backgroundOpacity;
     }
 
@@ -104,35 +122,59 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
     }
 
     // Map nested ruledLines properties to flat canvas element properties
+    // NOTE: Colors are NOT read from themes.json - they come from color-palettes.ts via palette
     if (base.ruledLines) {
-      if (base.ruledLines.lineWidth !== undefined) base.ruledLinesWidth = base.ruledLines.lineWidth;
-      if (base.ruledLines.lineColor) base.ruledLinesColor = base.ruledLines.lineColor;
+      // Convert line width from common scale to actual size
+      if (base.ruledLines.lineWidth !== undefined) {
+        const ruledLinesTheme = base.ruledLines.ruledLinesTheme || id;
+        base.ruledLinesWidth = themeJsonToActualStrokeWidth(base.ruledLines.lineWidth, ruledLinesTheme);
+      }
+      // lineColor is set from palette below, not from themes.json
       if (base.ruledLines.lineOpacity !== undefined) base.ruledLinesOpacity = base.ruledLines.lineOpacity;
       if (base.ruledLines.ruledLinesTheme) base.ruledLinesTheme = base.ruledLines.ruledLinesTheme;
     }
+    
+    // Convert corner radius from common scale to actual size
+    if (base.cornerRadius !== undefined) {
+      base.cornerRadius = commonToActualRadius(base.cornerRadius);
+    }
 
-    // Add palette colors
+    // Apply palette colors automatically (overriding hardcoded colors)
     if (palette) {
-      base.stroke = base.stroke || palette.colors.primary;
-      base.fill = base.fill || palette.colors.primary;
+      // Always use palette colors for stroke/fill (shapes, brushes, lines)
+      base.stroke = palette.colors.primary;
+      base.fill = elementType === 'shape' ? (base.fill && base.fill !== 'transparent' ? base.fill : palette.colors.surface || palette.colors.accent) : (base.fill || palette.colors.primary);
       
+      // Apply palette colors to font
       if (base.font) {
-        base.font.fontColor = base.font.fontColor || palette.colors.primary;
-        base.font.fontOpacity = base.font.fontOpacity || 1;
+        base.font.fontColor = palette.colors.text || palette.colors.primary;
+        base.fontColor = palette.colors.text || palette.colors.primary;
+        base.stroke = palette.colors.text || palette.colors.primary; // For text stroke
+      } else {
+        // Set fontColor even if font object doesn't exist
+        base.fontColor = palette.colors.text || palette.colors.primary;
       }
       
+      // Apply palette colors to border
       if (base.border) {
-        base.border.borderColor = base.border.borderColor || palette.colors.secondary;
+        base.border.borderColor = palette.colors.secondary;
+        base.borderColor = palette.colors.secondary;
         base.border.borderTheme = base.border.borderTheme || id;
+      } else {
+        base.borderColor = palette.colors.secondary;
       }
       
+      // Apply palette colors to background
       if (base.background) {
-        base.background.backgroundColor = base.background.backgroundColor || palette.colors.background;
+        base.background.backgroundColor = palette.colors.surface || palette.colors.background;
+        base.backgroundColor = palette.colors.surface || palette.colors.background;
       }
       
+      // Apply palette colors to ruled lines
       if (base.ruledLines) {
-        base.ruledLines.ruledLinesTheme = base.ruledLines.ruledLinesTheme || 'notebook';
-        base.ruledLines.lineColor = base.ruledLines.lineColor || '#e0e0e0';
+        base.ruledLines.lineColor = palette.colors.accent || palette.colors.primary;
+        base.ruledLinesColor = palette.colors.accent || palette.colors.primary;
+        base.ruledLines.ruledLinesTheme = base.ruledLines.ruledLinesTheme || id;
       }
     }
 
@@ -181,6 +223,7 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
 }
 
 function processTheme(theme: GlobalTheme): GlobalTheme {
+  // Note: Conversions are now done in buildElement, so we only need to convert pageSettings here
   return {
     ...theme,
     pageSettings: {
@@ -189,39 +232,8 @@ function processTheme(theme: GlobalTheme): GlobalTheme {
         ...theme.pageSettings.backgroundPattern,
         strokeWidth: themeJsonToActualStrokeWidth(theme.pageSettings.backgroundPattern.strokeWidth, theme.id)
       } : undefined
-    },
-    elementDefaults: Object.fromEntries(
-      Object.entries(theme.elementDefaults).map(([key, element]) => [
-        key,
-        {
-          ...element,
-          strokeWidth: typeof element.strokeWidth === 'number' 
-            ? themeJsonToActualStrokeWidth(element.strokeWidth, element.inheritTheme || theme.id) 
-            : element.strokeWidth,
-          font: element.font ? {
-            ...element.font,
-            fontSize: typeof element.font.fontSize === 'number'
-              ? commonToActual(element.font.fontSize)
-              : element.font.fontSize
-          } : undefined,
-          border: element.border ? {
-            ...element.border,
-            borderWidth: typeof element.border.borderWidth === 'number'
-              ? themeJsonToActualStrokeWidth(element.border.borderWidth, getBorderTheme(element) || theme.id)
-              : element.border.borderWidth
-          } : undefined,
-          format: element.format,
-          background: element.background,
-          cornerRadius: typeof element.cornerRadius === 'number'
-            ? commonToActualRadius(element.cornerRadius)
-            : element.cornerRadius,
-          ruledLines: element.ruledLines ? {
-            ...element.ruledLines,
-            lineWidth: themeJsonToActualStrokeWidth(element.ruledLines.lineWidth, element.ruledLines.ruledLinesTheme || theme.id)
-          } : undefined
-        }
-      ])
-    ) as GlobalTheme['elementDefaults']
+    }
+    // elementDefaults are already converted in buildElement, no need to convert again
   };
 }
 
@@ -277,16 +289,60 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string): Pa
   const theme = getGlobalTheme(themeId);
   if (!theme) return {};
   
+  // Get theme palette first (needed for all element types)
+  const themeConfig = (themesData as Record<string, any>)[themeId];
+  const palette = themeConfig?.palette ? getPalette(themeConfig.palette) : undefined;
+  
+  // For QnA inline elements, use specialized function that already applies palette colors
+  if (elementType === 'qna_inline') {
+    const qnaDefaults = getQnAInlineThemeDefaults(themeId);
+    // Add top-level palette colors for consistency
+    return {
+      ...qnaDefaults,
+      fontColor: palette ? (palette.colors.text || palette.colors.primary) : undefined,
+      borderColor: palette ? palette.colors.secondary : undefined,
+      backgroundColor: palette ? (palette.colors.surface || palette.colors.background) : undefined,
+      ruledLinesColor: palette ? (palette.colors.accent || palette.colors.primary) : undefined
+    };
+  }
+  
   const category = getThemeCategory(elementType);
   const baseDefaults = theme.elementDefaults[category] || {};
   
-  // For QnA inline elements, add questionSettings and answerSettings
-  if (elementType === 'qna_inline') {
-    const qnaDefaults = getQnAInlineThemeDefaults(themeId);
-    return {
-      ...baseDefaults,
-      ...qnaDefaults
-    };
+  // Apply palette colors automatically if palette exists
+  if (palette) {
+    const paletteDefaults: any = {};
+    
+    // Apply palette colors based on element type
+    if (['text', 'question', 'answer'].includes(elementType)) {
+      paletteDefaults.fontColor = palette.colors.text || palette.colors.primary;
+      paletteDefaults.stroke = palette.colors.text || palette.colors.primary;
+      paletteDefaults.borderColor = palette.colors.secondary;
+      paletteDefaults.backgroundColor = palette.colors.surface || palette.colors.background;
+      paletteDefaults.ruledLinesColor = palette.colors.accent || palette.colors.primary;
+      
+      // Also apply to nested font object if it exists
+      if (baseDefaults.font) {
+        paletteDefaults.font = { ...baseDefaults.font, fontColor: palette.colors.text || palette.colors.primary };
+      }
+      if (baseDefaults.border) {
+        paletteDefaults.border = { ...baseDefaults.border, borderColor: palette.colors.secondary };
+      }
+      if (baseDefaults.background) {
+        paletteDefaults.background = { ...baseDefaults.background, backgroundColor: palette.colors.surface || palette.colors.background };
+      }
+      if (baseDefaults.ruledLines) {
+        paletteDefaults.ruledLines = { ...baseDefaults.ruledLines, lineColor: palette.colors.accent || palette.colors.primary };
+      }
+    } else if (['brush', 'line'].includes(elementType)) {
+      paletteDefaults.stroke = palette.colors.primary;
+    } else if (['rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'shape'].includes(elementType)) {
+      paletteDefaults.stroke = palette.colors.primary;
+      paletteDefaults.fill = palette.colors.surface || palette.colors.accent;
+    }
+    
+    // Merge palette colors into base defaults
+    return { ...baseDefaults, ...paletteDefaults };
   }
   
   return baseDefaults;
@@ -307,28 +363,90 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
   
   const textDefaults = theme.elementDefaults.text;
   
-  // Extract questionSettings and answerSettings from the theme if available
+  // Get theme palette and apply colors automatically
   const themeConfig = (themesData as Record<string, any>)[themeId];
+  const palette = themeConfig?.palette ? getPalette(themeConfig.palette) : undefined;
+  
+  // Extract questionSettings and answerSettings from the theme if available
   const qnaConfig = themeConfig?.elementDefaults?.qna;
+  
+  // Build questionSettings and answerSettings with palette colors
+  const buildSettings = (base: any, qnaSpecific: any = {}, isAnswer: boolean = false) => {
+    // Convert fontSize if it comes from base (already processed) or qnaSpecific (needs conversion)
+    let convertedFontSize = base.fontSize || 50;
+    if (qnaSpecific.fontSize !== undefined) {
+      // qnaSpecific.fontSize is from themes.json, so it needs conversion
+      convertedFontSize = commonToActual(qnaSpecific.fontSize);
+    }
+    
+    const settings = {
+      ...base,
+      ...qnaSpecific,
+      fontSize: convertedFontSize
+    };
+    
+    // Apply palette colors if available
+    if (palette) {
+      if (isAnswer) {
+        // Answer uses accent or text color
+        settings.fontColor = palette.colors.accent || palette.colors.text || palette.colors.primary;
+        settings.backgroundColor = palette.colors.background;
+        settings.borderColor = palette.colors.secondary;
+        settings.ruledLinesColor = palette.colors.primary;
+        if (settings.font) {
+          settings.font = { ...settings.font, fontColor: palette.colors.accent || palette.colors.text || palette.colors.primary };
+        }
+        if (settings.ruledLines) {
+          settings.ruledLines = { ...settings.ruledLines, lineColor: palette.colors.primary };
+        }
+      } else {
+        // Question uses text or primary color
+        settings.fontColor = palette.colors.text || palette.colors.primary;
+        settings.backgroundColor = palette.colors.surface || palette.colors.background;
+        settings.borderColor = palette.colors.secondary;
+        settings.ruledLinesColor = palette.colors.accent || palette.colors.primary;
+        if (settings.font) {
+          settings.font = { ...settings.font, fontColor: palette.colors.text || palette.colors.primary };
+        }
+        if (settings.background) {
+          settings.background = { ...settings.background, backgroundColor: palette.colors.surface || palette.colors.background };
+        }
+        if (settings.border) {
+          settings.border = { ...settings.border, borderColor: palette.colors.secondary };
+        }
+        if (settings.ruledLines) {
+          settings.ruledLines = { ...settings.ruledLines, lineColor: palette.colors.accent || palette.colors.primary };
+        }
+      }
+      
+      // Ensure border and background objects exist if they're enabled
+      if (settings.border) {
+        settings.border = {
+          ...settings.border,
+          borderColor: settings.border.borderColor || palette.colors.secondary
+        };
+      }
+      if (settings.background) {
+        settings.background = {
+          ...settings.background,
+          backgroundColor: settings.background.backgroundColor || (isAnswer ? palette.colors.background : palette.colors.surface || palette.colors.background)
+        };
+      }
+    }
+    
+    return settings;
+  };
   
   if (qnaConfig?.questionSettings && qnaConfig?.answerSettings) {
     return {
-      questionSettings: {
-        ...textDefaults,
-        ...qnaConfig.questionSettings,
-        fontSize: qnaConfig.questionSettings.fontSize ? commonToActual(qnaConfig.questionSettings.fontSize) : textDefaults.fontSize
-      },
-      answerSettings: {
-        ...textDefaults,
-        ...qnaConfig.answerSettings,
-        fontSize: qnaConfig.answerSettings.fontSize ? commonToActual(qnaConfig.answerSettings.fontSize) : textDefaults.fontSize
-      }
+      questionSettings: buildSettings(textDefaults, qnaConfig.questionSettings, false),
+      answerSettings: buildSettings(textDefaults, qnaConfig.answerSettings, true)
     };
   }
   
   return {
-    questionSettings: textDefaults,
-    answerSettings: textDefaults
+    questionSettings: buildSettings(textDefaults, {}, false),
+    answerSettings: buildSettings(textDefaults, {}, true)
   };
 }
 
@@ -391,21 +509,49 @@ export function applyThemeToAllElements(theme: any, elements: any[]): any[] {
   });
 }
 
+// Get page background colors from palette (not from themes.json)
+export function getThemePageBackgroundColors(themeId: string): { backgroundColor: string; patternBackgroundColor: string } {
+  const themeConfig = (themesData as Record<string, any>)[themeId];
+  const palette = themeConfig?.palette ? getPalette(themeConfig.palette) : undefined;
+  
+  if (palette) {
+    return {
+      backgroundColor: palette.colors.background,
+      patternBackgroundColor: palette.colors.surface || palette.colors.background
+    };
+  }
+  
+  // Fallback to default if no palette
+  return {
+    backgroundColor: '#ffffff',
+    patternBackgroundColor: '#f0f0f0'
+  };
+}
+
 export function applyThemeToPage(pageSettings: any, themeId: string): any {
   const theme = getGlobalTheme(themeId);
   if (!theme) return pageSettings;
   
-  // Apply only non-color page settings
-  const { backgroundColor, patternBackgroundColor, ...nonColorPageSettings } = theme.pageSettings;
+  // Get colors from palette, not from themes.json
+  const pageColors = getThemePageBackgroundColors(themeId);
+  
+  // Apply only non-color page settings (remove backgroundColor, keep structure)
+  const { backgroundColor: _, ...nonColorPageSettings } = theme.pageSettings;
+  const backgroundPattern = theme.pageSettings.backgroundPattern ? {
+    ...theme.pageSettings.backgroundPattern,
+    // Remove patternBackgroundColor and use palette color instead
+    patternBackgroundColor: pageColors.patternBackgroundColor
+  } : undefined;
   
   return {
     ...pageSettings,
     ...nonColorPageSettings,
-    backgroundPattern: {
+    // Use palette colors for page background
+    backgroundColor: pageColors.backgroundColor,
+    backgroundPattern: backgroundPattern ? {
       ...pageSettings.backgroundPattern,
-      ...theme.pageSettings.backgroundPattern,
-      patternBackgroundColor: pageSettings.backgroundPattern?.patternBackgroundColor // Preserve existing color
-    }
+      ...backgroundPattern
+    } : pageSettings.backgroundPattern
   };
 }
 
@@ -429,3 +575,8 @@ export function logThemeStructure(themeData: any): void {
   const output = '"custom": \n' + indentedLines.join('\n');
   console.log(output);
 }
+
+// Re-export getToolDefaults functionality from tool-defaults.ts
+// This will be removed once tool-defaults.ts is fully migrated
+export { getToolDefaults, TOOL_DEFAULTS } from './tool-defaults';
+export type { ToolType } from './tool-defaults';

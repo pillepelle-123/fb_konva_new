@@ -87,7 +87,7 @@ import { convertTemplateToElements } from '../utils/template-to-elements';
 import { applyLayoutTemplateWithPreservation, validateTemplateCompatibility } from '../utils/content-preservation';
 import { pageTemplates } from '../data/templates/page-templates';
 import { colorPalettes } from '../data/templates/color-palettes';
-import { getGlobalTheme } from '../utils/global-themes';
+import { getGlobalTheme, getThemePageBackgroundColors } from '../utils/global-themes';
 import type { PageTemplate, ColorPalette } from '../types/template-types';
 
 // Function to extract theme structure from current book state
@@ -832,18 +832,21 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (bookThemeId && bookThemeId !== 'default') {
         const theme = getGlobalTheme(bookThemeId);
         if (theme) {
+          // Get page background colors from palette, not from themes.json
+          const pageColors = getThemePageBackgroundColors(bookThemeId);
+          
           initialBackground = {
             type: theme.pageSettings.backgroundPattern?.enabled ? 'pattern' : 'color',
             value: theme.pageSettings.backgroundPattern?.enabled 
               ? theme.pageSettings.backgroundPattern.style 
-              : theme.pageSettings.backgroundColor,
+              : pageColors.backgroundColor,
             opacity: theme.pageSettings.backgroundOpacity || 1,
             pageTheme: bookThemeId,
             ...(theme.pageSettings.backgroundPattern?.enabled && {
               patternSize: theme.pageSettings.backgroundPattern.size,
               patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
-              patternForegroundColor: theme.pageSettings.backgroundColor,
-              patternBackgroundColor: theme.pageSettings.backgroundPattern.patternBackgroundColor,
+              patternForegroundColor: pageColors.backgroundColor,
+              patternBackgroundColor: pageColors.patternBackgroundColor,
               patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity
             })
           };
@@ -1859,6 +1862,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         const theme = getGlobalTheme(themeOnlyId);
         if (!theme) return page;
         
+        // Get page background colors from palette, not from themes.json
+        const pageColors = getThemePageBackgroundColors(themeOnlyId);
+        
         return {
           ...page,
           background: {
@@ -1866,14 +1872,14 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             type: theme.pageSettings.backgroundPattern?.enabled ? 'pattern' : 'color',
             value: theme.pageSettings.backgroundPattern?.enabled 
               ? theme.pageSettings.backgroundPattern.style 
-              : theme.pageSettings.backgroundColor,
+              : pageColors.backgroundColor,
             opacity: theme.pageSettings.backgroundOpacity || 1,
             pageTheme: themeOnlyId,
             ...(theme.pageSettings.backgroundPattern?.enabled && {
               patternSize: theme.pageSettings.backgroundPattern.size,
               patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
-              patternForegroundColor: theme.pageSettings.backgroundColor,
-              patternBackgroundColor: theme.pageSettings.backgroundPattern.patternBackgroundColor,
+              patternForegroundColor: pageColors.backgroundColor,
+              patternBackgroundColor: pageColors.patternBackgroundColor,
               patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity
             })
           },

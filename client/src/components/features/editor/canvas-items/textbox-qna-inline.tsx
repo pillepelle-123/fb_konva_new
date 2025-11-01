@@ -269,26 +269,28 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
   const pageColorPaletteId = currentPage?.colorPaletteId;
   const bookColorPaletteId = state.currentBook?.colorPaletteId;
   
-  // Get theme-based defaults
+  // Get theme-based defaults (includes palette colors automatically applied)
   const qnaInlineThemeDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme, undefined, state.toolSettings?.qna_inline, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
   
-  // Use theme defaults with tool settings fallback
+  // Use theme defaults with tool settings fallback (prioritize: toolSettings > themeDefaults)
   const toolDefaults = {
     fontSize: qnaInlineThemeDefaults.fontSize || 50,
     fontFamily: qnaInlineThemeDefaults.fontFamily || 'Arial, sans-serif',
     questionSettings: {
       fontSize: qnaInlineThemeDefaults.questionSettings?.fontSize || 45,
-      fontColor: state.toolSettings?.qna_inline?.fontColor || qnaInlineThemeDefaults.questionSettings?.fontColor || qnaInlineThemeDefaults.fontColor || '#1f2937',
-      borderColor: state.toolSettings?.qna_inline?.borderColor || qnaInlineThemeDefaults.questionSettings?.borderColor || qnaInlineThemeDefaults.borderColor || '#9ca3af',
-      backgroundColor: state.toolSettings?.qna_inline?.backgroundColor || qnaInlineThemeDefaults.questionSettings?.backgroundColor || qnaInlineThemeDefaults.backgroundColor || '#FFFFFF'
+      // Priority: toolSettings > themeDefaults.questionSettings > themeDefaults (top level)
+      fontColor: state.toolSettings?.qna_inline?.fontColor || qnaInlineThemeDefaults.questionSettings?.fontColor || qnaInlineThemeDefaults.questionSettings?.font?.fontColor || qnaInlineThemeDefaults.fontColor,
+      borderColor: state.toolSettings?.qna_inline?.borderColor || qnaInlineThemeDefaults.questionSettings?.borderColor || qnaInlineThemeDefaults.questionSettings?.border?.borderColor || qnaInlineThemeDefaults.borderColor,
+      backgroundColor: state.toolSettings?.qna_inline?.backgroundColor || qnaInlineThemeDefaults.questionSettings?.backgroundColor || qnaInlineThemeDefaults.questionSettings?.background?.backgroundColor || qnaInlineThemeDefaults.backgroundColor
     },
     answerSettings: {
       fontSize: qnaInlineThemeDefaults.answerSettings?.fontSize || 50,
-      fontColor: state.toolSettings?.qna_inline?.fontColor || qnaInlineThemeDefaults.answerSettings?.fontColor || qnaInlineThemeDefaults.fontColor || '#1f2937',
-      borderColor: state.toolSettings?.qna_inline?.borderColor || qnaInlineThemeDefaults.answerSettings?.borderColor || qnaInlineThemeDefaults.borderColor || '#9ca3af',
-      backgroundColor: state.toolSettings?.qna_inline?.backgroundColor || qnaInlineThemeDefaults.answerSettings?.backgroundColor || qnaInlineThemeDefaults.backgroundColor || '#FFFFFF',
+      // Priority: toolSettings > themeDefaults.answerSettings > themeDefaults (top level)
+      fontColor: state.toolSettings?.qna_inline?.fontColor || qnaInlineThemeDefaults.answerSettings?.fontColor || qnaInlineThemeDefaults.answerSettings?.font?.fontColor || qnaInlineThemeDefaults.fontColor,
+      borderColor: state.toolSettings?.qna_inline?.borderColor || qnaInlineThemeDefaults.answerSettings?.borderColor || qnaInlineThemeDefaults.answerSettings?.border?.borderColor || qnaInlineThemeDefaults.borderColor,
+      backgroundColor: state.toolSettings?.qna_inline?.backgroundColor || qnaInlineThemeDefaults.answerSettings?.backgroundColor || qnaInlineThemeDefaults.answerSettings?.background?.backgroundColor || qnaInlineThemeDefaults.backgroundColor,
       ruledLines: { 
-        lineColor: state.toolSettings?.qna_inline?.borderColor || qnaInlineThemeDefaults.answerSettings?.ruledLines?.lineColor || qnaInlineThemeDefaults.answerSettings?.ruledLinesColor || qnaInlineThemeDefaults.borderColor || '#9ca3af' 
+        lineColor: state.toolSettings?.qna_inline?.borderColor || qnaInlineThemeDefaults.answerSettings?.ruledLines?.lineColor || qnaInlineThemeDefaults.answerSettings?.ruledLinesColor || qnaInlineThemeDefaults.ruledLinesColor || qnaInlineThemeDefaults.borderColor
       }
     }
   };
@@ -427,17 +429,19 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
     const qnaInlineDefaults = {
       questionSettings: {
         fontSize: qnaInlineDefaultsFromTheme.questionSettings?.fontSize || 45,
-        fontColor: state.toolSettings?.qna_inline?.fontColor || qnaInlineDefaultsFromTheme.questionSettings?.fontColor || qnaInlineDefaultsFromTheme.fontColor || '#1f2937',
-        borderColor: state.toolSettings?.qna_inline?.borderColor || qnaInlineDefaultsFromTheme.questionSettings?.borderColor || qnaInlineDefaultsFromTheme.borderColor || '#9ca3af',
-        backgroundColor: state.toolSettings?.qna_inline?.backgroundColor || qnaInlineDefaultsFromTheme.questionSettings?.backgroundColor || qnaInlineDefaultsFromTheme.backgroundColor || '#FFFFFF'
+        // Priority: toolSettings > themeDefaults.questionSettings > themeDefaults (top level)
+        fontColor: state.toolSettings?.qna_inline?.fontColor || qnaInlineDefaultsFromTheme.questionSettings?.fontColor || qnaInlineDefaultsFromTheme.questionSettings?.font?.fontColor || qnaInlineDefaultsFromTheme.fontColor,
+        borderColor: state.toolSettings?.qna_inline?.borderColor || qnaInlineDefaultsFromTheme.questionSettings?.borderColor || qnaInlineDefaultsFromTheme.questionSettings?.border?.borderColor || qnaInlineDefaultsFromTheme.borderColor,
+        backgroundColor: state.toolSettings?.qna_inline?.backgroundColor || qnaInlineDefaultsFromTheme.questionSettings?.backgroundColor || qnaInlineDefaultsFromTheme.questionSettings?.background?.backgroundColor || qnaInlineDefaultsFromTheme.backgroundColor
       },
       answerSettings: {
         fontSize: qnaInlineDefaultsFromTheme.answerSettings?.fontSize || 50,
-        fontColor: state.toolSettings?.qna_inline?.fontColor || qnaInlineDefaultsFromTheme.answerSettings?.fontColor || qnaInlineDefaultsFromTheme.fontColor || '#1f2937',
-        borderColor: state.toolSettings?.qna_inline?.borderColor || qnaInlineDefaultsFromTheme.answerSettings?.borderColor || qnaInlineDefaultsFromTheme.borderColor || '#9ca3af',
-        backgroundColor: state.toolSettings?.qna_inline?.backgroundColor || qnaInlineDefaultsFromTheme.answerSettings?.backgroundColor || qnaInlineDefaultsFromTheme.backgroundColor || '#FFFFFF',
+        // Priority: toolSettings > themeDefaults.answerSettings > themeDefaults (top level)
+        fontColor: state.toolSettings?.qna_inline?.fontColor || qnaInlineDefaultsFromTheme.answerSettings?.fontColor || qnaInlineDefaultsFromTheme.answerSettings?.font?.fontColor || qnaInlineDefaultsFromTheme.fontColor,
+        borderColor: state.toolSettings?.qna_inline?.borderColor || qnaInlineDefaultsFromTheme.answerSettings?.borderColor || qnaInlineDefaultsFromTheme.answerSettings?.border?.borderColor || qnaInlineDefaultsFromTheme.borderColor,
+        backgroundColor: state.toolSettings?.qna_inline?.backgroundColor || qnaInlineDefaultsFromTheme.answerSettings?.backgroundColor || qnaInlineDefaultsFromTheme.answerSettings?.background?.backgroundColor || qnaInlineDefaultsFromTheme.backgroundColor,
         ruledLines: { 
-          lineColor: state.toolSettings?.qna_inline?.borderColor || qnaInlineDefaultsFromTheme.answerSettings?.ruledLines?.lineColor || qnaInlineDefaultsFromTheme.answerSettings?.ruledLinesColor || qnaInlineDefaultsFromTheme.borderColor || '#9ca3af' 
+          lineColor: state.toolSettings?.qna_inline?.borderColor || qnaInlineDefaultsFromTheme.answerSettings?.ruledLines?.lineColor || qnaInlineDefaultsFromTheme.answerSettings?.ruledLinesColor || qnaInlineDefaultsFromTheme.ruledLinesColor || qnaInlineDefaultsFromTheme.borderColor
         }
       }
     };
@@ -678,17 +682,19 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
     const qnaInlineDefaults = {
       questionSettings: {
         fontSize: qnaInlineDefaultsFromTheme.questionSettings?.fontSize || 45,
-        fontColor: state.toolSettings?.qna_inline?.fontColor || qnaInlineDefaultsFromTheme.questionSettings?.fontColor || qnaInlineDefaultsFromTheme.fontColor || '#1f2937',
-        borderColor: state.toolSettings?.qna_inline?.borderColor || qnaInlineDefaultsFromTheme.questionSettings?.borderColor || qnaInlineDefaultsFromTheme.borderColor || '#9ca3af',
-        backgroundColor: state.toolSettings?.qna_inline?.backgroundColor || qnaInlineDefaultsFromTheme.questionSettings?.backgroundColor || qnaInlineDefaultsFromTheme.backgroundColor || '#FFFFFF'
+        // Priority: toolSettings > themeDefaults.questionSettings > themeDefaults (top level)
+        fontColor: state.toolSettings?.qna_inline?.fontColor || qnaInlineDefaultsFromTheme.questionSettings?.fontColor || qnaInlineDefaultsFromTheme.questionSettings?.font?.fontColor || qnaInlineDefaultsFromTheme.fontColor,
+        borderColor: state.toolSettings?.qna_inline?.borderColor || qnaInlineDefaultsFromTheme.questionSettings?.borderColor || qnaInlineDefaultsFromTheme.questionSettings?.border?.borderColor || qnaInlineDefaultsFromTheme.borderColor,
+        backgroundColor: state.toolSettings?.qna_inline?.backgroundColor || qnaInlineDefaultsFromTheme.questionSettings?.backgroundColor || qnaInlineDefaultsFromTheme.questionSettings?.background?.backgroundColor || qnaInlineDefaultsFromTheme.backgroundColor
       },
       answerSettings: {
         fontSize: qnaInlineDefaultsFromTheme.answerSettings?.fontSize || 50,
-        fontColor: state.toolSettings?.qna_inline?.fontColor || qnaInlineDefaultsFromTheme.answerSettings?.fontColor || qnaInlineDefaultsFromTheme.fontColor || '#1f2937',
-        borderColor: state.toolSettings?.qna_inline?.borderColor || qnaInlineDefaultsFromTheme.answerSettings?.borderColor || qnaInlineDefaultsFromTheme.borderColor || '#9ca3af',
-        backgroundColor: state.toolSettings?.qna_inline?.backgroundColor || qnaInlineDefaultsFromTheme.answerSettings?.backgroundColor || qnaInlineDefaultsFromTheme.backgroundColor || '#FFFFFF',
+        // Priority: toolSettings > themeDefaults.answerSettings > themeDefaults (top level)
+        fontColor: state.toolSettings?.qna_inline?.fontColor || qnaInlineDefaultsFromTheme.answerSettings?.fontColor || qnaInlineDefaultsFromTheme.answerSettings?.font?.fontColor || qnaInlineDefaultsFromTheme.fontColor,
+        borderColor: state.toolSettings?.qna_inline?.borderColor || qnaInlineDefaultsFromTheme.answerSettings?.borderColor || qnaInlineDefaultsFromTheme.answerSettings?.border?.borderColor || qnaInlineDefaultsFromTheme.borderColor,
+        backgroundColor: state.toolSettings?.qna_inline?.backgroundColor || qnaInlineDefaultsFromTheme.answerSettings?.backgroundColor || qnaInlineDefaultsFromTheme.answerSettings?.background?.backgroundColor || qnaInlineDefaultsFromTheme.backgroundColor,
         ruledLines: { 
-          lineColor: state.toolSettings?.qna_inline?.borderColor || qnaInlineDefaultsFromTheme.answerSettings?.ruledLines?.lineColor || qnaInlineDefaultsFromTheme.answerSettings?.ruledLinesColor || qnaInlineDefaultsFromTheme.borderColor || '#9ca3af' 
+          lineColor: state.toolSettings?.qna_inline?.borderColor || qnaInlineDefaultsFromTheme.answerSettings?.ruledLines?.lineColor || qnaInlineDefaultsFromTheme.answerSettings?.ruledLinesColor || qnaInlineDefaultsFromTheme.ruledLinesColor || qnaInlineDefaultsFromTheme.borderColor
         }
       }
     };

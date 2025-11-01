@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button } from '../../ui/primitives/button';
 import { ChevronLeft, RotateCcw } from 'lucide-react';
 import { Label } from '../../ui/primitives/label';
-import { GLOBAL_PALETTES, getAllCategories, getPalettesByCategory, applyPaletteToElement, type ColorPalette } from '../../../utils/global-palettes';
+import { colorPalettes as GLOBAL_PALETTES, getAllCategories, getPalettesByCategory, applyPaletteToElement, type ColorPalette } from '../../../data/templates/color-palettes';
 import { useEditor } from '../../../context/editor-context';
 
 interface PaletteSelectorProps {

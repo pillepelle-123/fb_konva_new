@@ -4,14 +4,12 @@
     "description": "Clean and simple",
     "palette": "neutral-harmony",
     "pageSettings": {
-      "backgroundColor": "#ffffff",
       "backgroundOpacity": 1,
       "backgroundPattern": {
         "enabled": false,
         "style": "dots",
         "size": 20,
         "strokeWidth": 1,
-        "patternBackgroundColor": "#f0f0f0",
         "patternBackgroundOpacity": 0.3
       }
     },
@@ -23,13 +21,11 @@
           "fontFamily": "Century Gothic, sans-serif",
           "fontBold": false,
           "fontItalic": false,
-          "fontColor": "#1f2937",
           "fontOpacity": 1
         },
         "border": {
           "enabled": false,
           "borderWidth": 0,
-          "borderColor": "#000000",
           "borderOpacity": 1,
           "borderTheme": "default"
         },
@@ -40,13 +36,11 @@
         },
         "background": {
           "enabled": false,
-          "backgroundColor": "transparent",
           "backgroundOpacity": 0.3
         },
         "ruledLines": {
           "enabled": false,
           "lineWidth": 0.8,
-          "lineColor": "#1f2937",
           "lineOpacity": 0.5,
           "ruledLinesTheme": "default"
         }
@@ -58,13 +52,11 @@
           "fontFamily": "Century Gothic, sans-serif",
           "fontBold": false,
           "fontItalic": false,
-          "fontColor": "#1f2937",
           "fontOpacity": 1
         },
         "border": {
           "enabled": false,
           "borderWidth": 1,
-          "borderColor": "#000000",
           "borderOpacity": 1,
           "borderTheme": "default"
         },
@@ -75,13 +67,11 @@
         },
         "background": {
           "enabled": false,
-          "backgroundColor": "transparent",
           "backgroundOpacity": 0.4
         },
         "ruledLines": {
           "enabled": false,
           "lineWidth": 0.8,
-          "lineColor": "#1f2937",
           "lineOpacity": 0.5,
           "ruledLinesTheme": "default"
         }
@@ -93,13 +83,11 @@
           "fontFamily": "Century Gothic, sans-serif",
           "fontBold": false,
           "fontItalic": false,
-          "fontColor": "#1f2937",
           "fontOpacity": 1
         },
         "border": {
           "enabled": false,
           "borderWidth": 1,
-          "borderColor": "#000000",
           "borderOpacity": 1,
           "borderTheme": "default"
         },
@@ -110,13 +98,11 @@
         },
         "background": {
           "enabled": false,
-          "backgroundColor": "transparent",
           "backgroundOpacity": 0.3
         },
         "ruledLines": {
           "enabled": false,
           "lineWidth": 0.8,
-          "lineColor": "#1f2937",
           "lineOpacity": 0.5,
           "ruledLinesTheme": "default"
         }
@@ -128,7 +114,6 @@
           "fontFamily": "Century Gothic, sans-serif",
           "fontBold": true,
           "fontItalic": false,
-          "fontColor": "#374151",
           "align": "left",
           "ruledLines": false
         },
@@ -137,7 +122,6 @@
           "fontFamily": "Century Gothic, sans-serif",
           "fontBold": false,
           "fontItalic": false,
-          "fontColor": "#1f2937",
           "align": "left",
           "ruledLines": true
         }
@@ -145,8 +129,6 @@
       "shape": {
         "strokeWidth": 2,
         "cornerRadius": 0,
-        "stroke": "#1f2937",
-        "fill": "transparent",
         "opacity": 1,
         "inheritTheme": "default",
         "borderEnabled": true,
@@ -154,7 +136,6 @@
       },
       "brush": {
         "strokeWidth": 2,
-        "stroke": "#1f2937",
         "strokeOpacity": 1,
         "inheritTheme": "default"
       }
@@ -167,14 +148,12 @@
     "description": "Hand-drawn style with rough edges",
     "palette": "warm-earth",
     "pageSettings": {
-      "backgroundColor": "#faf9f7",
       "backgroundOpacity": 1,
       "backgroundPattern": {
         "enabled": true,
         "style": "cross",
         "size": 11,
         "strokeWidth": 12,
-        "patternBackgroundColor": "#C0C0C0",
         "patternBackgroundOpacity": 0.4
       }
     },
@@ -186,13 +165,11 @@
           "fontFamily": "Comic Sans MS, cursive",
           "fontBold": false,
           "fontItalic": false,
-          "fontColor": "#654321",
           "fontOpacity": 1
         },
         "border": {
           "enabled": true,
           "borderWidth": 10,
-          "borderColor": "#8b4513",
           "borderOpacity": 1,
           "borderTheme": "wobbly"
         },
@@ -203,13 +180,11 @@
         },
         "background": {
           "enabled": true,
-          "backgroundColor": "#f5deb3",
           "backgroundOpacity": 0.3
         },
         "ruledLines": {
           "enabled": false,
           "lineWidth": 4,
-          "lineColor": "#8b4513",
           "lineOpacity": 0.5,
           "ruledLinesTheme": "wobbly"
         }
@@ -221,13 +196,11 @@
           "fontFamily": "Comic Sans MS, cursive",
           "fontBold": false,
           "fontItalic": false,
-          "fontColor": "#654321",
           "fontOpacity": 1
         },
         "border": {
           "enabled": true,
           "borderWidth": 2,
-          "borderColor": "#8b4513",
           "borderOpacity": 1,
           "borderTheme": "wobbly"
         },
@@ -238,13 +211,11 @@
         },
         "background": {
           "enabled": true,
-          "backgroundColor": "#f5deb3",
           "backgroundOpacity": 0.4
         },
         "ruledLines": {
           "enabled": false,
           "lineWidth": 0.8,
-          "lineColor": "#8b4513",
           "lineOpacity": 0.5,
           "ruledLinesTheme": "wobbly"
         }
@@ -256,13 +227,11 @@
           "fontFamily": "Comic Sans MS, cursive",
           "fontBold": false,
           "fontItalic": false,
-          "fontColor": "#654321",
           "fontOpacity": 1
         },
         "border": {
           "enabled": true,
           "borderWidth": 1,
-          "borderColor": "#8b4513",
           "borderOpacity": 1,
           "borderTheme": "wobbly"
         },
@@ -273,13 +242,11 @@
         },
         "background": {
           "enabled": true,
-          "backgroundColor": "#f5deb3",
           "backgroundOpacity": 0.3
         },
         "ruledLines": {
           "enabled": false,
           "lineWidth": 0.8,
-          "lineColor": "#8b4513",
           "lineOpacity": 0.5,
           "ruledLinesTheme": "wobbly"
         }
@@ -287,8 +254,6 @@
       "shape": {
         "strokeWidth": 3,
         "cornerRadius": 8,
-        "stroke": "#8b4513",
-        "fill": "#f5deb3",
         "opacity": 1,
         "inheritTheme": "rough",
         "borderEnabled": true,
@@ -296,7 +261,6 @@
       },
       "brush": {
         "strokeWidth": 3,
-        "stroke": "#8b4513",
         "strokeOpacity": 1,
         "inheritTheme": "rough"
       }
@@ -309,14 +273,12 @@
     "description": "Clean lines and subtle colors",
     "palette": "monochrome",
     "pageSettings": {
-      "backgroundColor": "#ffffff",
       "backgroundOpacity": 1,
       "backgroundPattern": {
         "enabled": false,
         "style": "grid",
         "size": 30,
         "strokeWidth": 0.5,
-        "patternBackgroundColor": "#f8f9fa",
         "patternBackgroundOpacity": 0.2
       }
     },
@@ -328,13 +290,11 @@
           "fontFamily": "Helvetica, Arial, sans-serif",
           "fontBold": false,
           "fontItalic": false,
-          "fontColor": "#6c757d",
           "fontOpacity": 1
         },
         "border": {
           "enabled": false,
           "borderWidth": 0,
-          "borderColor": "#6c757d",
           "borderOpacity": 1,
           "borderTheme": "default"
         },
@@ -345,13 +305,11 @@
         },
         "background": {
           "enabled": false,
-          "backgroundColor": "transparent",
           "backgroundOpacity": 0
         },
         "ruledLines": {
           "enabled": false,
           "lineWidth": 0.8,
-          "lineColor": "#6c757d",
           "lineOpacity": 0.5,
           "ruledLinesTheme": "default"
         }
@@ -363,13 +321,11 @@
           "fontFamily": "Helvetica, Arial, sans-serif",
           "fontBold": false,
           "fontItalic": false,
-          "fontColor": "#6c757d",
           "fontOpacity": 1
         },
         "border": {
           "enabled": false,
           "borderWidth": 0,
-          "borderColor": "#6c757d",
           "borderOpacity": 1,
           "borderTheme": "default"
         },
@@ -380,13 +336,11 @@
         },
         "background": {
           "enabled": false,
-          "backgroundColor": "#f8f9fa",
           "backgroundOpacity": 0.5
         },
         "ruledLines": {
           "enabled": false,
           "lineWidth": 0.8,
-          "lineColor": "#6c757d",
           "lineOpacity": 0.5,
           "ruledLinesTheme": "default"
         }
@@ -398,13 +352,11 @@
           "fontFamily": "Helvetica, Arial, sans-serif",
           "fontBold": false,
           "fontItalic": false,
-          "fontColor": "#6c757d",
           "fontOpacity": 1
         },
         "border": {
           "enabled": false,
           "borderWidth": 0,
-          "borderColor": "#6c757d",
           "borderOpacity": 1,
           "borderTheme": "default"
         },
@@ -415,13 +367,11 @@
         },
         "background": {
           "enabled": false,
-          "backgroundColor": "transparent",
           "backgroundOpacity": 0
         },
         "ruledLines": {
           "enabled": false,
           "lineWidth": 0.8,
-          "lineColor": "#6c757d",
           "lineOpacity": 0.5,
           "ruledLinesTheme": "default"
         }
@@ -429,8 +379,6 @@
       "shape": {
         "strokeWidth": 1,
         "cornerRadius": 0,
-        "stroke": "#6c757d",
-        "fill": "transparent",
         "opacity": 1,
         "inheritTheme": "default",
         "borderEnabled": true,
@@ -438,7 +386,6 @@
       },
       "brush": {
         "strokeWidth": 1,
-        "stroke": "#6c757d",
         "strokeOpacity": 1,
         "inheritTheme": "default"
       }
@@ -451,14 +398,12 @@
     "description": "Bright and vibrant colors",
     "palette": "vibrant-rainbow",
     "pageSettings": {
-      "backgroundColor": "#fff8e1",
       "backgroundOpacity": 1,
       "backgroundPattern": {
         "enabled": true,
         "style": "dots",
         "size": 15,
         "strokeWidth": 1,
-        "patternBackgroundColor": "#ffecb3",
         "patternBackgroundOpacity": 0.3
       }
     },
@@ -470,13 +415,11 @@
           "fontFamily": "'Knewave', cursive",
           "fontBold": true,
           "fontItalic": false,
-          "fontColor": "#ff6b35",
           "fontOpacity": 1
         },
         "border": {
           "enabled": true,
           "borderWidth": 2,
-          "borderColor": "#ff1744",
           "borderOpacity": 1,
           "borderTheme": "glow"
         },
@@ -487,13 +430,11 @@
         },
         "background": {
           "enabled": true,
-          "backgroundColor": "#fff3e0",
           "backgroundOpacity": 0.6
         },
         "ruledLines": {
           "enabled": false,
           "lineWidth": 0.8,
-          "lineColor": "#ff6b35",
           "lineOpacity": 0.5,
           "ruledLinesTheme": "glow"
         }
@@ -505,13 +446,11 @@
           "fontFamily": "'Knewave', cursive",
           "fontBold": true,
           "fontItalic": false,
-          "fontColor": "#ff6b35",
           "fontOpacity": 1
         },
         "border": {
           "enabled": true,
           "borderWidth": 3,
-          "borderColor": "#ff1744",
           "borderOpacity": 1,
           "borderTheme": "glow"
         },
@@ -522,13 +461,11 @@
         },
         "background": {
           "enabled": true,
-          "backgroundColor": "#fff3e0",
           "backgroundOpacity": 0.7
         },
         "ruledLines": {
           "enabled": false,
           "lineWidth": 0.8,
-          "lineColor": "#ff6b35",
           "lineOpacity": 0.5,
           "ruledLinesTheme": "glow"
         }
@@ -540,13 +477,11 @@
           "fontFamily": "'Knewave', cursive",
           "fontBold": true,
           "fontItalic": false,
-          "fontColor": "#ff6b35",
           "fontOpacity": 1
         },
         "border": {
           "enabled": true,
           "borderWidth": 2,
-          "borderColor": "#ff1744",
           "borderOpacity": 1,
           "borderTheme": "glow"
         },
@@ -557,13 +492,11 @@
         },
         "background": {
           "enabled": true,
-          "backgroundColor": "#fff3e0",
           "backgroundOpacity": 0.5
         },
         "ruledLines": {
           "enabled": false,
           "lineWidth": 0.8,
-          "lineColor": "#ff6b35",
           "lineOpacity": 0.5,
           "ruledLinesTheme": "glow"
         }
@@ -571,8 +504,6 @@
       "shape": {
         "strokeWidth": 3,
         "cornerRadius": 12,
-        "stroke": "#ff1744",
-        "fill": "#fff3e0",
         "opacity": 1,
         "inheritTheme": "glow",
         "borderEnabled": true,
@@ -580,7 +511,6 @@
       },
       "brush": {
         "strokeWidth": 4,
-        "stroke": "#ff1744",
         "strokeOpacity": 1,
         "inheritTheme": "glow"
       }
@@ -593,14 +523,12 @@
     "description": "Retro style with muted tones",
     "palette": "vintage-sepia",
     "pageSettings": {
-      "backgroundColor": "#f7f3e9",
       "backgroundOpacity": 1,
       "backgroundPattern": {
         "enabled": true,
         "style": "lines",
         "size": 24,
         "strokeWidth": 1,
-        "patternBackgroundColor": "#e8dcc6",
         "patternBackgroundOpacity": 0.4
       }
     },
@@ -612,13 +540,11 @@
           "fontFamily": "'Times New Roman', serif",
           "fontBold": false,
           "fontItalic": true,
-          "fontColor": "#8b4513",
           "fontOpacity": 1
         },
         "border": {
           "enabled": true,
           "borderWidth": 10,
-          "borderColor": "#654321",
           "borderOpacity": 1,
           "borderTheme": "wobbly"
         },
@@ -629,13 +555,11 @@
         },
         "background": {
           "enabled": true,
-          "backgroundColor": "#f5deb3",
           "backgroundOpacity": 0.4
         },
         "ruledLines": {
           "enabled": true,
           "lineWidth": 10,
-          "lineColor": "#8b4513",
           "lineOpacity": 0.6,
           "ruledLinesTheme": "wobbly"
         }
@@ -647,13 +571,11 @@
           "fontFamily": "'Times New Roman', serif",
           "fontBold": false,
           "fontItalic": true,
-          "fontColor": "#8b4513",
           "fontOpacity": 1
         },
         "border": {
           "enabled": true,
           "borderWidth": 1,
-          "borderColor": "#654321",
           "borderOpacity": 1,
           "borderTheme": "wobbly"
         },
@@ -664,13 +586,11 @@
         },
         "background": {
           "enabled": true,
-          "backgroundColor": "#f5deb3",
           "backgroundOpacity": 0.5
         },
         "ruledLines": {
           "enabled": true,
           "lineWidth": 1,
-          "lineColor": "#8b4513",
           "lineOpacity": 0.6,
           "ruledLinesTheme": "wobbly"
         }
@@ -682,13 +602,11 @@
           "fontFamily": "'Times New Roman', serif",
           "fontBold": false,
           "fontItalic": true,
-          "fontColor": "#8b4513",
           "fontOpacity": 1
         },
         "border": {
           "enabled": true,
           "borderWidth": 1,
-          "borderColor": "#654321",
           "borderOpacity": 1,
           "borderTheme": "wobbly"
         },
@@ -699,13 +617,11 @@
         },
         "background": {
           "enabled": true,
-          "backgroundColor": "#f5deb3",
           "backgroundOpacity": 0.3
         },
         "ruledLines": {
           "enabled": true,
           "lineWidth": 1,
-          "lineColor": "#8b4513",
           "lineOpacity": 0.6,
           "ruledLinesTheme": "wobbly"
         }
@@ -713,8 +629,6 @@
       "shape": {
         "strokeWidth": 2,
         "cornerRadius": 4,
-        "stroke": "#654321",
-        "fill": "#f5deb3",
         "opacity": 1,
         "inheritTheme": "wobbly",
         "borderEnabled": true,
@@ -722,7 +636,6 @@
       },
       "brush": {
         "strokeWidth": 2,
-        "stroke": "#654321",
         "strokeOpacity": 1,
         "inheritTheme": "wobbly"
       }
@@ -735,14 +648,12 @@
     "description": "Dark theme with light elements",
     "palette": "dark-neon",
     "pageSettings": {
-      "backgroundColor": "#000000",
       "backgroundOpacity": 1,
       "backgroundPattern": {
         "enabled": false,
         "style": "grid",
         "size": 20,
         "strokeWidth": 1,
-        "patternBackgroundColor": "#000000",
         "patternBackgroundOpacity": 0.3
       }
     },
@@ -754,13 +665,11 @@
           "fontFamily": "Consolas, monospace",
           "fontBold": true,
           "fontItalic": false,
-          "fontColor": "#00ffff",
           "fontOpacity": 0.5
         },
         "border": {
           "enabled": true,
           "borderWidth": 15,
-          "borderColor": "#C0C0C0",
           "borderOpacity": 1,
           "borderTheme": "candy"
         },
@@ -771,13 +680,11 @@
         },
         "background": {
           "enabled": false,
-          "backgroundColor": "#FFFFFF",
           "backgroundOpacity": 1
         },
         "ruledLines": {
           "enabled": true,
           "lineWidth": 12,
-          "lineColor": "#00ffff",
           "lineOpacity": 0.3,
           "ruledLinesTheme": "zigzag"
         }
@@ -789,13 +696,11 @@
           "fontFamily": "Audiowide, non-serif",
           "fontBold": false,
           "fontItalic": false,
-          "fontColor": "#00ffff",
           "fontOpacity": 0.5
         },
         "border": {
           "enabled": true,
           "borderWidth": 1,
-          "borderColor": "#ff00ff",
           "borderOpacity": 1,
           "borderTheme": "glow"
         },
@@ -806,13 +711,11 @@
         },
         "background": {
           "enabled": false,
-          "backgroundColor": "#1a1a1a",
           "backgroundOpacity": 0.3
         },
         "ruledLines": {
           "enabled": true,
           "lineWidth": 4,
-          "lineColor": "yellow",
           "lineOpacity": 0.5,
           "ruledLinesTheme": "candy"
         }
@@ -824,13 +727,11 @@
           "fontFamily": "Consolas, monospace",
           "fontBold": false,
           "fontItalic": false,
-          "fontColor": "#00ffff",
           "fontOpacity": 0.5
         },
         "border": {
           "enabled": true,
           "borderWidth": 1,
-          "borderColor": "#ff00ff",
           "borderOpacity": 1,
           "borderTheme": "glow"
         },
@@ -841,13 +742,11 @@
         },
         "background": {
           "enabled": false,
-          "backgroundColor": "#1a1a1a",
           "backgroundOpacity": 0.3
         },
         "ruledLines": {
           "enabled": true,
           "lineWidth": 10,
-          "lineColor": "#00ffff",
           "lineOpacity": 0.6,
           "ruledLinesTheme": "zigzag"
         }
@@ -855,8 +754,6 @@
       "shape": {
         "strokeWidth": 10,
         "cornerRadius": 20,
-        "stroke": "#ff00ff",
-        "fill": "#1a1a1a",
         "opacity": 0.1,
         "inheritTheme": "zigzag",
         "borderEnabled": true,
@@ -864,7 +761,6 @@
       },
       "brush": {
         "strokeWidth": 2,
-        "stroke": "#ff00ff",
         "strokeOpacity": 1,
         "inheritTheme": "zigzag"
       }
@@ -877,16 +773,14 @@
  {
   "name": "Custom Theme",
   "description": "Theme created from canvas elements",
-  "palette": "custom-palette",
+  "palette": "vibrant-rainbow",
   "pageSettings": {
-    "backgroundColor": "green",
       "backgroundOpacity": 0.7,
     "backgroundPattern": {
       "enabled": true,
       "style": "waves",
       "size": 11,
       "strokeWidth": 12,
-      "patternBackgroundColor": "red",
       "patternBackgroundOpacity": 0.2
     }
   },
@@ -894,9 +788,8 @@
     "text": {
       "cornerRadius": 66,
       "font": {
-        "fontSize": 43,
+        "fontSize": 22,
         "fontFamily": "Comic Sans MS, cursive",
-        "fontColor": "#654321",
         "fontOpacity": 1,
         "fontBold": false,
         "fontItalic": false
@@ -904,7 +797,6 @@
       "border": {
         "enabled": true,
         "borderWidth": 25,
-        "borderColor": "#8b4513",
         "borderOpacity": 1,
         "borderTheme": "wobbly"
       },
@@ -915,13 +807,11 @@
       },
       "background": {
         "enabled": true,
-        "backgroundColor": "#ff595e",
         "backgroundOpacity": 0.6
       },
       "ruledLines": {
         "enabled": false,
         "lineWidth": 4,
-        "lineColor": "#654321",
         "lineOpacity": 0.5,
         "ruledLinesTheme": "wobbly"
       }
@@ -931,7 +821,6 @@
       "font": {
         "fontSize": 21,
         "fontFamily": "Comic Sans MS, cursive",
-        "fontColor": "#ffffff",
         "fontOpacity": 1,
         "fontBold": false,
         "fontItalic": false
@@ -939,7 +828,6 @@
       "border": {
         "enabled": true,
         "borderWidth": 2,
-        "borderColor": "#8b4513",
         "borderOpacity": 1,
         "borderTheme": "wobbly"
       },
@@ -950,13 +838,11 @@
       },
       "background": {
         "enabled": true,
-        "backgroundColor": "#f5deb3",
         "backgroundOpacity": 0.4
       },
       "ruledLines": {
         "enabled": false,
         "lineWidth": 0.8,
-        "lineColor": "#654321",
         "lineOpacity": 0.5,
         "ruledLinesTheme": "wobbly"
       }
@@ -966,7 +852,6 @@
       "font": {
         "fontSize": 19,
         "fontFamily": "Comic Sans MS, cursive",
-        "fontColor": "#654321",
         "fontOpacity": 1,
         "fontBold": false,
         "fontItalic": false
@@ -974,7 +859,6 @@
       "border": {
         "enabled": true,
         "borderWidth": 35,
-        "borderColor": "#8b4513",
         "borderOpacity": 1,
         "borderTheme": "wobbly"
       },
@@ -985,13 +869,11 @@
       },
       "background": {
         "enabled": true,
-        "backgroundColor": "#f5deb3",
         "backgroundOpacity": 0.3
       },
       "ruledLines": {
         "enabled": true,
         "lineWidth": 10,
-        "lineColor": "#6a4c93",
         "lineOpacity": 0.8,
         "ruledLinesTheme": "default"
       }
@@ -999,22 +881,18 @@
     "shape": {
       "cornerRadius": 38,
       "strokeWidth": 45,
-      "stroke": "#8b4513",
-      "fill": "#f5deb3",
       "opacity": 1,
-      "inheritTheme": "candy",
+      "inheritTheme": "default",
       "borderEnabled": true,
       "backgroundEnabled": true
     },
     "brush": {
       "strokeWidth": 66,
-      "stroke": "#C0C0C0",
       "strokeOpacity": 0.4,
       "inheritTheme": "candy"
     },
     "line": {
       "strokeWidth": 45,
-      "stroke": "#8b4513",
       "inheritTheme": "candy"
     }
   }

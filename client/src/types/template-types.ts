@@ -10,6 +10,7 @@ export interface ColorPalette {
     secondary: string;
     accent: string;
     text: string;
+    surface: string; // Added for compatibility with global-palettes usage
   };
   contrast: 'AA' | 'AAA';
 }

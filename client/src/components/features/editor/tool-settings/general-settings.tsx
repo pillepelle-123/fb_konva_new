@@ -11,7 +11,7 @@ import { Slider } from '../../../ui/primitives/slider';
 import { Separator } from '../../../ui/primitives/separator';
 import { Label } from '../../../ui/primitives/label';
 import { GlobalThemeSelector } from '../global-theme-selector';
-import { getGlobalThemeDefaults, getGlobalTheme } from '../../../../utils/global-themes';
+import { getGlobalThemeDefaults, getGlobalTheme, getThemePageBackgroundColors } from '../../../../utils/global-themes';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { PaletteSelector } from '../palette-selector';
 import { commonToActual } from '../../../../utils/font-size-converter';
@@ -117,18 +117,21 @@ export function GeneralSettings({
               
               const theme = getGlobalTheme(bookThemeId);
               if (theme) {
+                // Get page background colors from palette, not from themes.json
+                const pageColors = getThemePageBackgroundColors(bookThemeId);
+                
                 // Apply page background settings
                 const newBackground = {
                   type: theme.pageSettings.backgroundPattern?.enabled ? 'pattern' : 'color',
-                  value: theme.pageSettings.backgroundPattern?.enabled ? theme.pageSettings.backgroundPattern.style : theme.pageSettings.backgroundColor,
+                  value: theme.pageSettings.backgroundPattern?.enabled ? theme.pageSettings.backgroundPattern.style : pageColors.backgroundColor,
                   opacity: theme.pageSettings.backgroundOpacity || 1,
                   pageTheme: bookThemeId,
                   ruledLines: theme.ruledLines,
                   ...(theme.pageSettings.backgroundPattern?.enabled && {
                     patternSize: theme.pageSettings.backgroundPattern.size,
                     patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
-                    patternForegroundColor: theme.pageSettings.backgroundColor,
-                    patternBackgroundColor: theme.pageSettings.backgroundPattern.patternBackgroundColor,
+                    patternForegroundColor: pageColors.backgroundColor,
+                    patternBackgroundColor: pageColors.patternBackgroundColor,
                     patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity
                   })
                 };
@@ -163,19 +166,21 @@ export function GeneralSettings({
             
             const theme = getGlobalTheme(themeId);
             if (theme) {
+                // Get page background colors from palette, not from themes.json
+                const pageColors = getThemePageBackgroundColors(themeId);
                 
                 // Apply page background settings
                 const newBackground = {
                   type: theme.pageSettings.backgroundPattern?.enabled ? 'pattern' : 'color',
-                  value: theme.pageSettings.backgroundPattern?.enabled ? theme.pageSettings.backgroundPattern.style : theme.pageSettings.backgroundColor,
+                  value: theme.pageSettings.backgroundPattern?.enabled ? theme.pageSettings.backgroundPattern.style : pageColors.backgroundColor,
                   opacity: theme.pageSettings.backgroundOpacity || 1,
                   pageTheme: themeId,
                   ruledLines: theme.ruledLines,
                   ...(theme.pageSettings.backgroundPattern?.enabled && {
                     patternSize: theme.pageSettings.backgroundPattern.size,
                     patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
-                    patternForegroundColor: theme.pageSettings.backgroundColor,
-                    patternBackgroundColor: theme.pageSettings.backgroundPattern.patternBackgroundColor,
+                    patternForegroundColor: pageColors.backgroundColor,
+                    patternBackgroundColor: pageColors.patternBackgroundColor,
                     patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity
                   })
                 };
@@ -254,19 +259,21 @@ export function GeneralSettings({
               if (theme) {
                 // Apply page background settings to ALL pages
                 state.currentBook.pages.forEach((_, pageIndex) => {
+                  // Get page background colors from palette, not from themes.json
+                  const pageColors = getThemePageBackgroundColors(themeId);
                   
                   // Apply page background settings to ALL pages (overriding page themes)
                   const newBackground = {
                     type: theme.pageSettings.backgroundPattern?.enabled ? 'pattern' : 'color',
-                    value: theme.pageSettings.backgroundPattern?.enabled ? theme.pageSettings.backgroundPattern.style : theme.pageSettings.backgroundColor,
+                    value: theme.pageSettings.backgroundPattern?.enabled ? theme.pageSettings.backgroundPattern.style : pageColors.backgroundColor,
                     opacity: theme.pageSettings.backgroundOpacity || 1,
                     pageTheme: undefined, // Clear page theme override
                     ruledLines: theme.ruledLines,
                     ...(theme.pageSettings.backgroundPattern?.enabled && {
                       patternSize: theme.pageSettings.backgroundPattern.size,
                       patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
-                      patternForegroundColor: theme.pageSettings.backgroundColor,
-                      patternBackgroundColor: theme.pageSettings.backgroundPattern.patternBackgroundColor,
+                      patternForegroundColor: pageColors.backgroundColor,
+                      patternBackgroundColor: pageColors.patternBackgroundColor,
                       patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity
                     })
                   };

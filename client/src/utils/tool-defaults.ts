@@ -1,7 +1,6 @@
 // Centralized default values for all drawing tools
 import { getGlobalThemeDefaults } from './global-themes';
-import { applyPaletteToElement } from './global-palettes';
-import { colorPalettes } from '../data/templates/color-palettes';
+import { colorPalettes, applyPaletteToElement } from '../data/templates/color-palettes';
 import type { ColorPalette } from '../types/template-types';
 
 export const TOOL_DEFAULTS = {
