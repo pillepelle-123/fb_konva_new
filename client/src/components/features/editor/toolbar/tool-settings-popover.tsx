@@ -7,6 +7,7 @@ import { Input } from '../../../ui/primitives/input';
 import { Slider } from '../../../ui/primitives/slider';
 import { useEditor } from '../../../../context/editor-context';
 import { ColorSelector } from '../tool-settings/color-selector';
+import { getToolDefaults } from '../../../../utils/tool-defaults';
 
 interface ToolSettingsPopoverProps {
   activeTool: string;
@@ -110,10 +111,36 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
   const needsSettings = ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'pipette'].includes(activeTool);
   const needsFill = ['rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(activeTool);
   
+  // Get theme context for defaults
+  const currentPage = state.currentBook?.pages[state.activePageIndex];
+  const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+  const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+  const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+  const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+  const pageColorPaletteId = currentPage?.colorPaletteId;
+  const bookColorPaletteId = state.currentBook?.colorPaletteId;
+  
+  // Get theme-based defaults
+  const toolDefaults = getToolDefaults(
+    activeTool as any,
+    pageTheme,
+    bookTheme,
+    undefined,
+    state.toolSettings?.[activeTool],
+    pageLayoutTemplateId,
+    bookLayoutTemplateId,
+    pageColorPaletteId,
+    bookColorPaletteId
+  );
+  
   const settings = state.toolSettings?.[activeTool] || {};
-  const strokeWidth = settings.strokeWidth || 2;
-  const strokeColor = settings.strokeColor || '#424242';
-  const fillColor = settings.fillColor || '#BDBDBD';
+  const strokeWidth = settings.strokeWidth || toolDefaults.strokeWidth || 2;
+  const strokeColor = settings.strokeColor || toolDefaults.stroke || '#1f2937';
+  const fillColor = settings.fillColor !== undefined 
+    ? settings.fillColor 
+    : (toolDefaults.fill !== undefined && toolDefaults.fill !== 'transparent' 
+        ? toolDefaults.fill 
+        : 'transparent');
   const polygonSides = settings.polygonSides || 5;
 
   const updatePosition = () => {

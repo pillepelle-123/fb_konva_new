@@ -972,26 +972,44 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         
         addPageState = { ...addPageState, toolSettings: updatedToolSettings };
       } else if (!hasToolSettings) {
-        // Fallback to default palette if no book palette
-        const defaultPalette = { colors: { background: '#FFFFFF', primary: '#424242', secondary: '#757575', accent: '#BDBDBD', text: '#212121' } };
-        const toolUpdates = {
-          brush: { strokeColor: defaultPalette.colors.primary },
-          line: { strokeColor: defaultPalette.colors.primary },
-          rect: { strokeColor: defaultPalette.colors.primary, fillColor: defaultPalette.colors.accent },
-          circle: { strokeColor: defaultPalette.colors.primary, fillColor: defaultPalette.colors.accent },
-          triangle: { strokeColor: defaultPalette.colors.primary, fillColor: defaultPalette.colors.accent },
-          polygon: { strokeColor: defaultPalette.colors.primary, fillColor: defaultPalette.colors.accent },
-          heart: { strokeColor: defaultPalette.colors.primary, fillColor: defaultPalette.colors.accent },
-          star: { strokeColor: defaultPalette.colors.primary, fillColor: defaultPalette.colors.accent },
-          'speech-bubble': { strokeColor: defaultPalette.colors.primary, fillColor: defaultPalette.colors.accent },
-          dog: { strokeColor: defaultPalette.colors.primary, fillColor: defaultPalette.colors.accent },
-          cat: { strokeColor: defaultPalette.colors.primary, fillColor: defaultPalette.colors.accent },
-          smiley: { strokeColor: defaultPalette.colors.primary, fillColor: defaultPalette.colors.accent },
-          text: { fontColor: defaultPalette.colors.text, borderColor: defaultPalette.colors.secondary, backgroundColor: defaultPalette.colors.background },
-          question: { fontColor: defaultPalette.colors.text, borderColor: defaultPalette.colors.secondary, backgroundColor: defaultPalette.colors.background },
-          answer: { fontColor: defaultPalette.colors.text, borderColor: defaultPalette.colors.secondary, backgroundColor: defaultPalette.colors.background },
-          qna_inline: { fontColor: defaultPalette.colors.text, borderColor: defaultPalette.colors.secondary, backgroundColor: defaultPalette.colors.background }
-        };
+        // Fallback to theme-based defaults if no book palette
+        const toolUpdates: Record<string, any> = {};
+        
+        // Get theme defaults for each tool type
+        const toolTypes = ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna_inline'];
+        toolTypes.forEach(toolType => {
+          const themeDefaults = getToolDefaults(
+            toolType as any,
+            bookThemeId !== 'default' ? bookThemeId : undefined,
+            bookThemeId !== 'default' ? bookThemeId : undefined,
+            undefined,
+            undefined,
+            bookLayoutTemplateId,
+            bookLayoutTemplateId,
+            null,
+            null
+          );
+          
+          if (toolType === 'brush' || toolType === 'line') {
+            toolUpdates[toolType] = { 
+              strokeColor: themeDefaults.stroke || '#1f2937',
+              strokeWidth: themeDefaults.strokeWidth || 2
+            };
+          } else if (['rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(toolType)) {
+            toolUpdates[toolType] = {
+              strokeColor: themeDefaults.stroke || '#1f2937',
+              fillColor: themeDefaults.fill && themeDefaults.fill !== 'transparent' ? themeDefaults.fill : undefined,
+              strokeWidth: themeDefaults.strokeWidth || 2
+            };
+          } else {
+            // Text elements
+            toolUpdates[toolType] = {
+              fontColor: themeDefaults.fontColor || themeDefaults.font?.fontColor || '#1f2937',
+              borderColor: themeDefaults.borderColor || themeDefaults.border?.borderColor || '#9ca3af',
+              backgroundColor: themeDefaults.backgroundColor || themeDefaults.background?.backgroundColor || '#FFFFFF'
+            };
+          }
+        });
         
         const updatedToolSettings = { ...addPageState.toolSettings };
         Object.entries(toolUpdates).forEach(([tool, settings]) => {

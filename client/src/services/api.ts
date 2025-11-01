@@ -156,3 +156,45 @@ class ApiService {
 }
 
 export const apiService = new ApiService();
+
+// Template API functions (exported for direct use)
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+export const fetchTemplates = async (category?: string) => {
+  const url = category ? `${API_URL}/templates?category=${category}` : `${API_URL}/templates`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('Failed to fetch templates');
+  return response.json();
+};
+
+export const fetchTemplate = async (id: string) => {
+  const response = await fetch(`${API_URL}/templates/${id}`);
+  if (!response.ok) throw new Error('Failed to fetch template');
+  return response.json();
+};
+
+export const fetchColorPalettes = async () => {
+  const response = await fetch(`${API_URL}/color-palettes`);
+  if (!response.ok) throw new Error('Failed to fetch color palettes');
+  return response.json();
+};
+
+export const createPageFromTemplate = async (templateId: string, paletteId: string, pageIndex: number, customizations: any) => {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_URL}/pages/from-template`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      templateId,
+      paletteId,
+      pageIndex,
+      customizations
+    })
+  });
+  
+  if (!response.ok) throw new Error('Failed to create page from template');
+  return response.json();
+};
