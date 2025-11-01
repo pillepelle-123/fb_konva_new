@@ -1,7 +1,7 @@
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import { Button } from '../../../ui/primitives/button';
-import { ChevronLeft, Settings, Palette, Image, PaintBucket, CircleHelp, LayoutPanelLeft } from 'lucide-react';
+import { ChevronLeft, Settings, Palette, Image, PaintBucket, CircleHelp, LayoutPanelLeft, Paintbrush2, SwatchBook } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '../../../ui/composites/tabs';
 import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
 import type { PageBackground } from '../../../../context/editor-context';
@@ -32,6 +32,9 @@ interface GeneralSettingsProps {
   setShowBookTheme: (value: boolean) => void;
   setShowBackgroundImageModal: (value: boolean) => void;
   onOpenTemplates: () => void;
+  onOpenLayouts: () => void;
+  onOpenThemes: () => void;
+  onOpenPalettes: () => void;
 }
 
 export function GeneralSettings({
@@ -46,7 +49,10 @@ export function GeneralSettings({
   showBookTheme,
   setShowBookTheme,
   setShowBackgroundImageModal,
-  onOpenTemplates
+  onOpenTemplates,
+  onOpenLayouts,
+  onOpenThemes,
+  onOpenPalettes
 }: GeneralSettingsProps) {
   const { state, dispatch, canEditSettings } = useEditor();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
@@ -610,23 +616,32 @@ export function GeneralSettings({
             <Button
               variant="ghost_hover"
               size="sm"
-              onClick={() => canAccessPageSettings && setShowPageTheme(true)}
+              onClick={() => canAccessPageSettings && onOpenLayouts()}
               className={`w-full justify-start ${!canAccessPageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
               disabled={!canAccessPageSettings}
             >
-              <Palette className="h-4 w-4 mr-2" />
-              Page Theme
+              <LayoutPanelLeft className="h-4 w-4 mr-2" />
+              Layout
             </Button>
             <Button
               variant="ghost_hover"
               size="sm"
-              onClick={() => canAccessPageSettings && onOpenTemplates()}
+              onClick={() => canAccessPageSettings && onOpenThemes()}
               className={`w-full justify-start ${!canAccessPageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
               disabled={!canAccessPageSettings}
-              title="Choose Template"
             >
-              <LayoutPanelLeft className="h-4 w-4 mr-2" />
-              Templates
+              <Paintbrush2 className="h-4 w-4 mr-2" />
+              Theme
+            </Button>
+            <Button
+              variant="ghost_hover"
+              size="sm"
+              onClick={() => canAccessPageSettings && onOpenPalettes()}
+              className={`w-full justify-start ${!canAccessPageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={!canAccessPageSettings}
+            >
+              <SwatchBook className="h-4 w-4 mr-2" />
+              Color Palette
             </Button>
           </div>
         </div>

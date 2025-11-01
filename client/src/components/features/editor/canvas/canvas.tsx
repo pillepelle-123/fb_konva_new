@@ -1798,6 +1798,17 @@ export default function Canvas() {
         } else if (e.key === 'd' && state.selectedElementIds.length > 0) {
           e.preventDefault();
           handleDuplicateItems();
+        } else if (e.key === 'a' && state.selectedElementIds.length > 0) {
+          e.preventDefault();
+          // Trigger auto-size for selected textbox elements
+          state.selectedElementIds.forEach(elementId => {
+            const element = currentPage?.elements.find(el => el.id === elementId);
+            if (element?.type === 'text' && element?.textType === 'qna_inline') {
+              window.dispatchEvent(new CustomEvent('triggerAutoSize', {
+                detail: { elementId }
+              }));
+            }
+          });
         }
       }
     };

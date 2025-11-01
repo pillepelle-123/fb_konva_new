@@ -2,6 +2,18 @@ import type { ColorPalette } from '../../types/template-types';
 
 export const colorPalettes: ColorPalette[] = [
   {
+    id: 'default',
+    name: 'Default',
+    colors: {
+      background: '#FFFFFF',
+      primary: '#424242',
+      secondary: '#757575',
+      accent: '#BDBDBD',
+      text: '#212121'
+    },
+    contrast: 'AAA'
+  },
+  {
     id: 'sunset',
     name: 'Sunset',
     colors: {

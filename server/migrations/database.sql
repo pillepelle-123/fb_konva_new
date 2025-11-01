@@ -26,10 +26,18 @@ CREATE TABLE books (
   owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
   page_size VARCHAR(50) NOT NULL DEFAULT 'A4',
   orientation VARCHAR(50) NOT NULL DEFAULT 'portrait',
+  layout_template_id VARCHAR(255),
+  theme_id VARCHAR(255),
+  color_palette_id VARCHAR(255),
   archived BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Create indexes for book's styling columns
+CREATE INDEX idx_books_layout_template_id ON books(layout_template_id);
+CREATE INDEX idx_books_theme_id ON books(theme_id);
+CREATE INDEX idx_books_color_palette_id ON books(color_palette_id);
 
 -- Pages Table
 CREATE TABLE pages (
@@ -37,6 +45,9 @@ CREATE TABLE pages (
   book_id INTEGER REFERENCES books(id) ON DELETE CASCADE,
   page_number INTEGER NOT NULL,
   elements JSONB DEFAULT '[]'::jsonb,
+  layout_template_id VARCHAR(255),
+  theme_id VARCHAR(255),
+  color_palette_id VARCHAR(255),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(book_id, page_number)
 );

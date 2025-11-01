@@ -202,7 +202,18 @@ export const TOOL_DEFAULTS = {
       align: 'left',
       paragraphSpacing: 'small',
       ruledLines: false,
-      padding: 4
+      padding: 4,
+      font: {
+        fontColor: '#666666'
+      },
+      border: {
+        borderColor: '#000000',
+        enabled: false
+      },
+      background: {
+        backgroundColor: 'transparent',
+        enabled: false
+      }
     },
     answerSettings: {
       fontSize: 50, // Font size for answer text in canvas
@@ -214,7 +225,21 @@ export const TOOL_DEFAULTS = {
       align: 'left',
       paragraphSpacing: 'medium',
       ruledLines: false,
-      padding: 4
+      padding: 4,
+      font: {
+        fontColor: '#1f2937'
+      },
+      border: {
+        borderColor: '#000000',
+        enabled: false
+      },
+      background: {
+        backgroundColor: 'transparent',
+        enabled: false
+      },
+      ruledLines: {
+        lineColor: '#1f2937'
+      }
     }
   },
   free_text: {
@@ -260,14 +285,65 @@ export const TOOL_DEFAULTS = {
 
 export type ToolType = keyof typeof TOOL_DEFAULTS;
 
-export function getToolDefaults(tool: ToolType, pageTheme?: string, bookTheme?: string, existingElement?: any) {
+export function getToolDefaults(tool: ToolType, pageTheme?: string, bookTheme?: string, existingElement?: any, toolSettings?: any) {
   const baseDefaults = TOOL_DEFAULTS[tool] || {};
   // Page theme takes precedence over book theme
   const activeTheme = pageTheme || bookTheme || 'default';
   const themeDefaults = getGlobalThemeDefaults(activeTheme, tool);
   
   // Deep merge theme defaults with base defaults, with theme taking precedence
-  const mergedDefaults = deepMerge(baseDefaults, themeDefaults);
+  let mergedDefaults = deepMerge(baseDefaults, themeDefaults);
+  
+  // Apply current tool settings (including palette colors) if available
+  if (toolSettings && toolSettings[tool]) {
+    const currentToolSettings = toolSettings[tool];
+    // Only apply color-related settings from tool settings
+    const colorSettings = {
+      ...(currentToolSettings.strokeColor && { stroke: currentToolSettings.strokeColor }),
+      ...(currentToolSettings.fillColor && { fill: currentToolSettings.fillColor }),
+      ...(currentToolSettings.fontColor && { fontColor: currentToolSettings.fontColor }),
+      ...(currentToolSettings.borderColor && { borderColor: currentToolSettings.borderColor }),
+      ...(currentToolSettings.backgroundColor && { backgroundColor: currentToolSettings.backgroundColor })
+    };
+    
+    // For qna_inline, also update nested settings
+    if (tool === 'qna_inline') {
+      if (currentToolSettings.fontColor) {
+        colorSettings.questionSettings = {
+          ...mergedDefaults.questionSettings,
+          fontColor: currentToolSettings.fontColor,
+          font: { ...mergedDefaults.questionSettings?.font, fontColor: currentToolSettings.fontColor }
+        };
+        colorSettings.answerSettings = {
+          ...mergedDefaults.answerSettings,
+          fontColor: currentToolSettings.fontColor,
+          font: { ...mergedDefaults.answerSettings?.font, fontColor: currentToolSettings.fontColor }
+        };
+      }
+      if (currentToolSettings.borderColor) {
+        colorSettings.questionSettings = {
+          ...colorSettings.questionSettings || mergedDefaults.questionSettings,
+          border: { ...mergedDefaults.questionSettings?.border, borderColor: currentToolSettings.borderColor }
+        };
+        colorSettings.answerSettings = {
+          ...colorSettings.answerSettings || mergedDefaults.answerSettings,
+          border: { ...mergedDefaults.answerSettings?.border, borderColor: currentToolSettings.borderColor }
+        };
+      }
+      if (currentToolSettings.backgroundColor) {
+        colorSettings.questionSettings = {
+          ...colorSettings.questionSettings || mergedDefaults.questionSettings,
+          background: { ...mergedDefaults.questionSettings?.background, backgroundColor: currentToolSettings.backgroundColor }
+        };
+        colorSettings.answerSettings = {
+          ...colorSettings.answerSettings || mergedDefaults.answerSettings,
+          background: { ...mergedDefaults.answerSettings?.background, backgroundColor: currentToolSettings.backgroundColor }
+        };
+      }
+    }
+    
+    mergedDefaults = { ...mergedDefaults, ...colorSettings };
+  }
   
   // If we have an existing element, apply theme defaults but preserve essential properties
   if (existingElement) {

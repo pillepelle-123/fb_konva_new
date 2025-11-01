@@ -3,15 +3,19 @@ import { useEditor } from '../../../../context/editor-context';
 import QuestionsManager from '../../questions/questions-manager';
 import BookManagerContent from '../../books/book-manager-content';
 import { TemplateSelector } from '../template-selector';
+import { TemplateWrapper } from '../templates/template-wrapper';
+import { useState } from 'react';
+import { Button } from '../../../ui/primitives/button';
+import type { PageTemplate, ColorPalette } from '../../../../types/template-types';
 
 interface PagePreviewOverlayProps {
   isOpen: boolean;
   onClose: () => void;
-  content?: 'preview' | 'questions' | 'manager' | 'templates';
+  content?: 'preview' | 'questions' | 'manager' | 'templates' | 'layouts' | 'themes' | 'palettes';
 }
 
 export default function PagePreviewOverlay({ isOpen, onClose, content = 'preview' }: PagePreviewOverlayProps) {
-  const { state } = useEditor();
+  const { state, applyCompleteTemplate } = useEditor();
 
   if (!isOpen) return null;
 
@@ -67,7 +71,10 @@ export default function PagePreviewOverlay({ isOpen, onClose, content = 'preview
         <h2 className="text-lg font-semibold">
           {content === 'questions' ? 'Questions' : 
            content === 'manager' ? 'Book Manager' : 
-           content === 'templates' ? 'Templates' : 'Page Preview'}
+           content === 'templates' ? 'Templates' :
+           content === 'layouts' ? 'Layout Templates' :
+           content === 'themes' ? 'Themes' :
+           content === 'palettes' ? 'Color Palettes' : 'Page Preview'}
         </h2>
         <button
           onClick={onClose}
@@ -94,6 +101,21 @@ export default function PagePreviewOverlay({ isOpen, onClose, content = 'preview
           <div className="p-6">
             <TemplateSelector onBack={onClose} />
           </div>
+        ) : (content === 'layouts' || content === 'themes' || content === 'palettes') ? (
+          <TemplateWrapper
+            type={content}
+            onApply={(applyToAll, selectedLayout, selectedTheme, selectedPalette) => {
+              const scope = applyToAll ? 'entire-book' : 'current-page';
+              applyCompleteTemplate(
+                selectedLayout?.id,
+                selectedTheme !== 'default' ? selectedTheme : undefined,
+                selectedPalette?.id,
+                scope
+              );
+              onClose();
+            }}
+            onCancel={onClose}
+          />
         ) : (
           <div className="p-6">
             <div

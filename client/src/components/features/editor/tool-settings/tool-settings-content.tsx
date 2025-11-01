@@ -85,6 +85,9 @@ interface ToolSettingsContentProps {
   setSelectedQuestionElementId: (value: string | null) => void;
   activeLinkedElement: string | null;
   onOpenTemplates: () => void;
+  onOpenLayouts: () => void;
+  onOpenThemes: () => void;
+  onOpenPalettes: () => void;
 }
 
 export function ToolSettingsContent({
@@ -111,7 +114,10 @@ export function ToolSettingsContent({
   selectedQuestionElementId,
   setSelectedQuestionElementId,
   activeLinkedElement,
-  onOpenTemplates
+  onOpenTemplates,
+  onOpenLayouts,
+  onOpenThemes,
+  onOpenPalettes
 }: ToolSettingsContentProps) {
   const { state, dispatch } = useEditor();
   const { user } = useAuth();
@@ -295,6 +301,21 @@ export function ToolSettingsContent({
   };
 
   const updateElementSetting = (elementId: string, updates: Partial<any>) => {
+    // Check if this is a color update and mark as override
+    const colorProperties = ['stroke', 'fill', 'fontColor', 'borderColor', 'backgroundColor'];
+    const hasColorUpdate = colorProperties.some(prop => updates[prop] !== undefined);
+    
+    if (hasColorUpdate) {
+      // Mark the color properties as manually overridden
+      const colorOverrides = {};
+      colorProperties.forEach(prop => {
+        if (updates[prop] !== undefined) {
+          colorOverrides[prop] = true;
+        }
+      });
+      updates.colorOverrides = { ...updates.colorOverrides, ...colorOverrides };
+    }
+    
     if (state.selectedGroupedElement) {
       dispatch({
         type: 'UPDATE_GROUPED_ELEMENT',
@@ -311,10 +332,112 @@ export function ToolSettingsContent({
       });
     }
   };
+  
+  const renderElementColorSelector = (element: any, colorType: string) => {
+    const getColorValue = () => {
+      switch (colorType) {
+        case 'element-shape-stroke':
+          return element.stroke || '#1f2937';
+        case 'element-shape-fill':
+          return element.fill || 'transparent';
+        default:
+          return '#1f2937';
+      }
+    };
+    
+    const getOpacityValue = () => {
+      switch (colorType) {
+        case 'element-shape-stroke':
+          return element.opacity || element.strokeOpacity || 1;
+        case 'element-shape-fill':
+          return element.fillOpacity || element.opacity || 1;
+        default:
+          return 1;
+      }
+    };
+    
+    const getIsOverridden = () => {
+      const overrides = element.colorOverrides || {};
+      switch (colorType) {
+        case 'element-shape-stroke':
+          return overrides.stroke === true;
+        case 'element-shape-fill':
+          return overrides.fill === true;
+        default:
+          return false;
+      }
+    };
+    
+    const handleColorChange = (color: string) => {
+      switch (colorType) {
+        case 'element-shape-stroke':
+          updateElementSetting(element.id, { stroke: color });
+          // Mark stroke as manually overridden
+          dispatch({
+            type: 'MARK_COLOR_OVERRIDE',
+            payload: { elementIds: [element.id], colorProperty: 'stroke' }
+          });
+          break;
+        case 'element-shape-fill':
+          updateElementSetting(element.id, { fill: color });
+          // Mark fill as manually overridden
+          dispatch({
+            type: 'MARK_COLOR_OVERRIDE',
+            payload: { elementIds: [element.id], colorProperty: 'fill' }
+          });
+          break;
+      }
+    };
+    
+    const handleOpacityChange = (opacity: number) => {
+      switch (colorType) {
+        case 'element-shape-stroke':
+          updateElementSetting(element.id, { opacity });
+          break;
+        case 'element-shape-fill':
+          updateElementSetting(element.id, { fillOpacity: opacity });
+          break;
+      }
+    };
+    
+    const handleResetOverride = () => {
+      const colorProperty = colorType === 'element-shape-stroke' ? 'stroke' : 'fill';
+      dispatch({
+        type: 'RESET_COLOR_OVERRIDES',
+        payload: { elementIds: [element.id], colorProperties: [colorProperty] }
+      });
+    };
+    
+    return (
+      <ColorSelector
+        value={getColorValue()}
+        onChange={handleColorChange}
+        opacity={getOpacityValue()}
+        onOpacityChange={handleOpacityChange}
+        favoriteColors={favoriteStrokeColors}
+        onAddFavorite={addFavoriteStrokeColor}
+        onRemoveFavorite={removeFavoriteStrokeColor}
+        onBack={() => setShowColorSelector(null)}
+        isOverridden={getIsOverridden()}
+        onResetOverride={handleResetOverride}
+      />
+    );
+  };
 
   const renderToolSettings = () => {
     if (showColorSelector && !showColorSelector.startsWith('element-')) {
       return renderColorSelectorForTool(showColorSelector);
+    }
+    
+    // Handle element-specific color selectors
+    if (showColorSelector && showColorSelector.startsWith('element-') && state.selectedElementIds.length === 1 && state.currentBook) {
+      const selectedElement = state.currentBook.pages[state.activePageIndex]?.elements.find(
+        el => el.id === state.selectedElementIds[0]
+      );
+      
+      if (selectedElement) {
+        return renderElementColorSelector(selectedElement, showColorSelector);
+      }
     }
     
 
@@ -658,6 +781,9 @@ export function ToolSettingsContent({
           setShowBookTheme={setShowBookTheme}
           setShowBackgroundImageModal={setShowBackgroundImageModal}
           onOpenTemplates={onOpenTemplates}
+          onOpenLayouts={onOpenLayouts}
+          onOpenThemes={onOpenThemes}
+          onOpenPalettes={onOpenPalettes}
         />
       );
     }

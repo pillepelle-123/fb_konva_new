@@ -112,8 +112,8 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
   
   const settings = state.toolSettings?.[activeTool] || {};
   const strokeWidth = settings.strokeWidth || 2;
-  const strokeColor = settings.strokeColor || '#1f2937';
-  const fillColor = settings.fillColor || 'transparent';
+  const strokeColor = settings.strokeColor || '#424242';
+  const fillColor = settings.fillColor || '#BDBDBD';
   const polygonSides = settings.polygonSides || 5;
 
   const updatePosition = () => {

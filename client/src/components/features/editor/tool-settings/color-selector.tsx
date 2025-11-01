@@ -1,5 +1,5 @@
 import { Button } from '../../../ui/primitives/button';
-import { ChevronLeft, X, Heart, HeartOff } from 'lucide-react';
+import { ChevronLeft, X, Heart, HeartOff, Lock } from 'lucide-react';
 import { SketchPicker } from 'react-color';
 import { Label } from '../../../ui/primitives/label';
 import { Slider } from '../../../ui/primitives/slider';
@@ -20,6 +20,8 @@ interface ColorSelectorProps {
   onAddFavorite: (color: string) => void;
   onRemoveFavorite: (color: string) => void;
   onBack?: () => void;
+  isOverridden?: boolean;
+  onResetOverride?: () => void;
 }
 
 export function ColorSelector({
@@ -30,7 +32,9 @@ export function ColorSelector({
   favoriteColors,
   onAddFavorite,
   onRemoveFavorite,
-  onBack
+  onBack,
+  isOverridden = false,
+  onResetOverride
 }: ColorSelectorProps) {
   return (
     <div className="space-y-4">
@@ -49,10 +53,18 @@ export function ColorSelector({
       )}
       
       <div>
-        <Label variant="xs">Selected Color</Label>
+        <div className="flex items-center justify-between mb-2">
+          <Label variant="xs">Selected Color</Label>
+          {isOverridden && (
+            <div className="flex items-center gap-1">
+              <Lock className="h-3 w-3 text-orange-500" />
+              <span className="text-xs text-orange-600">Override</span>
+            </div>
+          )}
+        </div>
         <div className="mb-2">
           <div
-            className="w-full h-10 rounded border-2 border-gray-300 mb-2"
+            className={`w-full h-10 rounded border-2 mb-2 ${isOverridden ? 'border-orange-300' : 'border-gray-300'}`}
             style={{ backgroundColor: value === 'transparent' ? '#ffffff' : (value || '#000000') }}
           />
           <div className="flex items-center gap-2">
@@ -85,6 +97,18 @@ export function ColorSelector({
               </Button>
             </Tooltip>
           </div>
+          {isOverridden && onResetOverride && (
+            <div className="mt-2">
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={onResetOverride}
+                className="w-full text-xs"
+              >
+                Reset to Palette Color
+              </Button>
+            </div>
+          )}
         </div>
         {/* <div className="[&_.sketch-picker]:!rounded-none [&_.sketch-picker]:!shadow-none"> */}
           <SketchPicker

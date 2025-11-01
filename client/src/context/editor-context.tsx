@@ -342,6 +342,15 @@ export interface CanvasElement {
   groupedElements?: CanvasElement[];
   // Brush-multicolor properties
   brushStrokes?: Array<{ points: number[]; strokeColor: string; strokeWidth: number }>;
+  // Color override tracking
+  colorOverrides?: {
+    stroke?: boolean;
+    fill?: boolean;
+    fontColor?: boolean;
+    borderColor?: boolean;
+    backgroundColor?: boolean;
+    [key: string]: boolean | undefined;
+  };
 }
 
 export interface PageBackground {
@@ -492,7 +501,9 @@ type EditorAction =
   | { type: 'APPLY_THEME_ONLY'; payload: { themeId: string; pageIndex?: number; applyToAllPages?: boolean } }
   | { type: 'APPLY_COLOR_PALETTE'; payload: { palette: ColorPalette; pageIndex?: number; applyToAllPages?: boolean } }
   | { type: 'APPLY_COMPLETE_TEMPLATE'; payload: { layoutId?: string; themeId?: string; paletteId?: string; scope: 'current-page' | 'entire-book' } }
-  | { type: 'SET_WIZARD_TEMPLATE_SELECTION'; payload: WizardTemplateSelection };
+  | { type: 'SET_WIZARD_TEMPLATE_SELECTION'; payload: WizardTemplateSelection }
+  | { type: 'MARK_COLOR_OVERRIDE'; payload: { elementIds: string[]; colorProperty: string } }
+  | { type: 'RESET_COLOR_OVERRIDES'; payload: { elementIds: string[]; colorProperties?: string[] } };
 
 const initialState: EditorState = {
   currentBook: null,
@@ -635,13 +646,10 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (state.userRole === 'author' && !state.assignedPages.includes(state.activePageIndex + 1)) return state;
       const savedState = saveToHistory(state, `Add ${action.payload.type}`);
       
-      // Apply tool defaults to the new element
+      // Apply current tool settings as defaults (which include palette colors)
       const toolType = action.payload.textType || action.payload.type;
-      const currentPage = savedState.currentBook!.pages[savedState.activePageIndex];
-      const pageTheme = currentPage?.background?.pageTheme;
-      const bookTheme = savedState.currentBook!.bookTheme;
-      const defaults = getToolDefaults(toolType as any, pageTheme, bookTheme);
-      let elementWithDefaults = { ...defaults, ...action.payload };
+      const toolSettings = savedState.toolSettings?.[toolType] || {};
+      let elementWithDefaults = { ...toolSettings, ...action.payload };
       
       // Assign UUID to question elements
       if (elementWithDefaults.textType === 'question' && !elementWithDefaults.questionId) {
@@ -700,10 +708,21 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             if (elementIndex !== -1) {
               const oldElement = page.elements[elementIndex];
               const enforcedUpdates = enforceThemeBoundaries(action.payload.updates, oldElement);
+              
+              // Check if this is a color update and mark as override
+              const colorProperties = ['stroke', 'fill', 'fontColor', 'borderColor', 'backgroundColor'];
+              const colorOverrides = { ...oldElement.colorOverrides };
+              
+              colorProperties.forEach(prop => {
+                if (enforcedUpdates[prop] !== undefined && enforcedUpdates[prop] !== oldElement[prop]) {
+                  colorOverrides[prop] = true;
+                }
+              });
+              
               return {
                 ...page,
                 elements: page.elements.map((el, elIndex) => 
-                  elIndex === elementIndex ? { ...oldElement, ...enforcedUpdates } : el
+                  elIndex === elementIndex ? { ...oldElement, ...enforcedUpdates, colorOverrides } : el
                 )
               };
             }
@@ -791,7 +810,10 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         elements: [],
         database_id: undefined // New page, no database ID yet
       };
-      return {
+      
+      // Apply default palette to new page if no tool settings exist
+      const hasToolSettings = savedAddPageState.toolSettings && Object.keys(savedAddPageState.toolSettings).length > 0;
+      let addPageState = {
         ...savedAddPageState,
         currentBook: {
           ...savedAddPageState.currentBook!,
@@ -799,6 +821,38 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         },
         hasUnsavedChanges: true
       };
+      
+      if (!hasToolSettings) {
+        // Apply default palette
+        const defaultPalette = { colors: { background: '#FFFFFF', primary: '#424242', secondary: '#757575', accent: '#BDBDBD', text: '#212121' } };
+        const toolUpdates = {
+          brush: { strokeColor: defaultPalette.colors.primary },
+          line: { strokeColor: defaultPalette.colors.primary },
+          rect: { strokeColor: defaultPalette.colors.primary, fillColor: defaultPalette.colors.accent },
+          circle: { strokeColor: defaultPalette.colors.primary, fillColor: defaultPalette.colors.accent },
+          triangle: { strokeColor: defaultPalette.colors.primary, fillColor: defaultPalette.colors.accent },
+          polygon: { strokeColor: defaultPalette.colors.primary, fillColor: defaultPalette.colors.accent },
+          heart: { strokeColor: defaultPalette.colors.primary, fillColor: defaultPalette.colors.accent },
+          star: { strokeColor: defaultPalette.colors.primary, fillColor: defaultPalette.colors.accent },
+          'speech-bubble': { strokeColor: defaultPalette.colors.primary, fillColor: defaultPalette.colors.accent },
+          dog: { strokeColor: defaultPalette.colors.primary, fillColor: defaultPalette.colors.accent },
+          cat: { strokeColor: defaultPalette.colors.primary, fillColor: defaultPalette.colors.accent },
+          smiley: { strokeColor: defaultPalette.colors.primary, fillColor: defaultPalette.colors.accent },
+          text: { fontColor: defaultPalette.colors.text, borderColor: defaultPalette.colors.secondary, backgroundColor: defaultPalette.colors.background },
+          question: { fontColor: defaultPalette.colors.text, borderColor: defaultPalette.colors.secondary, backgroundColor: defaultPalette.colors.background },
+          answer: { fontColor: defaultPalette.colors.text, borderColor: defaultPalette.colors.secondary, backgroundColor: defaultPalette.colors.background },
+          qna_inline: { fontColor: defaultPalette.colors.text, borderColor: defaultPalette.colors.secondary, backgroundColor: defaultPalette.colors.background }
+        };
+        
+        const updatedToolSettings = { ...addPageState.toolSettings };
+        Object.entries(toolUpdates).forEach(([tool, settings]) => {
+          updatedToolSettings[tool] = { ...updatedToolSettings[tool], ...settings };
+        });
+        
+        addPageState = { ...addPageState, toolSettings: updatedToolSettings };
+      }
+      
+      return addPageState;
     
     case 'DELETE_PAGE':
       if (!state.currentBook || state.currentBook.pages.length <= 1 || state.userRole === 'author') return state;
@@ -1451,25 +1505,80 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           ...page,
           background: {
             ...page.background,
+            type: 'color',
             value: palette.colors.background
           },
           elements: page.elements.map(element => {
             const updates: Partial<CanvasElement> = {};
             
-            // Apply palette colors based on element type
+            // Apply palette colors based on element type - always override manual colors
             if (element.type === 'text' || element.textType) {
+              // Update font color in nested font object if it exists
               if (element.font) {
                 updates.font = { ...element.font, fontColor: palette.colors.text };
               }
+              // Update QnA specific nested settings
+              if (element.questionSettings) {
+                updates.questionSettings = {
+                  ...element.questionSettings,
+                  font: element.questionSettings.font ? 
+                    { ...element.questionSettings.font, fontColor: palette.colors.text } : 
+                    { fontColor: palette.colors.text },
+                  fontColor: palette.colors.text
+                };
+              }
+              if (element.answerSettings) {
+                updates.answerSettings = {
+                  ...element.answerSettings,
+                  font: element.answerSettings.font ? 
+                    { ...element.answerSettings.font, fontColor: palette.colors.text } : 
+                    { fontColor: palette.colors.text },
+                  fontColor: palette.colors.text
+                };
+              }
+              // Update border colors - create nested objects if they don't exist
+              updates.border = { ...element.border, borderColor: palette.colors.primary, enabled: true };
+              if (element.textType === 'qna_inline') {
+                updates.questionSettings = {
+                  ...element.questionSettings,
+                  fontColor: palette.colors.text,
+                  font: { ...element.questionSettings?.font, fontColor: palette.colors.text },
+                  border: { enabled: true, borderColor: palette.colors.primary, borderWidth: 2, borderOpacity: 1 },
+                  background: { enabled: true, backgroundColor: palette.colors.accent, backgroundOpacity: 0.3 }
+                };
+                updates.answerSettings = {
+                  ...element.answerSettings,
+                  fontColor: palette.colors.text,
+                  font: { ...element.answerSettings?.font, fontColor: palette.colors.text },
+                  border: { enabled: true, borderColor: palette.colors.primary, borderWidth: 2, borderOpacity: 1 },
+                  background: { enabled: true, backgroundColor: palette.colors.accent, backgroundOpacity: 0.3 },
+                  ruledLines: { ...element.answerSettings?.ruledLines, lineColor: palette.colors.primary }
+                };
+              }
+              // Update background colors - create nested objects if they don't exist
+              updates.background = { ...element.background, backgroundColor: palette.colors.accent, enabled: true };
+
+              // Update direct font color properties
               updates.fontColor = palette.colors.text;
               updates.fill = palette.colors.text;
+              updates.borderColor = palette.colors.primary;
+              updates.backgroundColor = palette.colors.accent;
             }
             
-            if (element.stroke) {
+            // Apply stroke color to shapes and lines
+            if (element.type === 'line' || element.type === 'circle' || element.type === 'rect' || 
+                element.type === 'heart' || element.type === 'star' || element.type === 'triangle' ||
+                element.type === 'polygon' || element.type === 'speech-bubble' || element.type === 'dog' ||
+                element.type === 'cat' || element.type === 'smiley' || element.type === 'brush') {
               updates.stroke = palette.colors.primary;
             }
             
-            if (element.fill && element.fill !== 'transparent') {
+            // Apply fill color to filled shapes
+            if ((element.type === 'circle' || element.type === 'rect' || element.type === 'heart' || 
+                 element.type === 'star' || element.type === 'triangle' || element.type === 'polygon' ||
+                 element.type === 'speech-bubble' || element.type === 'dog' || element.type === 'cat' ||
+                 element.type === 'smiley') && 
+                element.fill && element.fill !== 'transparent') {
               updates.fill = palette.colors.accent;
             }
             
@@ -1670,6 +1779,61 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'SET_WIZARD_TEMPLATE_SELECTION':
       return { ...state, wizardTemplateSelection: action.payload };
+    
+    case 'MARK_COLOR_OVERRIDE':
+      if (!state.currentBook) return state;
+      const updatedBookOverride = {
+        ...state.currentBook,
+        pages: state.currentBook.pages.map((page, index) => {
+          if (index === state.activePageIndex) {
+            return {
+              ...page,
+              elements: page.elements.map(element => {
+                if (action.payload.elementIds.includes(element.id)) {
+                  const colorOverrides = { ...element.colorOverrides };
+                  colorOverrides[action.payload.colorProperty] = true;
+                  return { ...element, colorOverrides };
+                }
+                return element;
+              })
+            };
+          }
+          return page;
+        })
+      };
+      return { ...state, currentBook: updatedBookOverride, hasUnsavedChanges: true };
+    
+    case 'RESET_COLOR_OVERRIDES':
+      if (!state.currentBook) return state;
+      const updatedBookReset = {
+        ...state.currentBook,
+        pages: state.currentBook.pages.map((page, index) => {
+          if (index === state.activePageIndex) {
+            return {
+              ...page,
+              elements: page.elements.map(element => {
+                if (action.payload.elementIds.includes(element.id)) {
+                  const colorOverrides = { ...element.colorOverrides };
+                  if (action.payload.colorProperties) {
+                    action.payload.colorProperties.forEach(prop => {
+                      delete colorOverrides[prop];
+                    });
+                  } else {
+                    // Reset all overrides
+                    Object.keys(colorOverrides).forEach(key => {
+                      delete colorOverrides[key];
+                    });
+                  }
+                  return { ...element, colorOverrides };
+                }
+                return element;
+              })
+            };
+          }
+          return page;
+        })
+      };
+      return { ...state, currentBook: updatedBookReset, hasUnsavedChanges: true };
     
     default:
       return state;

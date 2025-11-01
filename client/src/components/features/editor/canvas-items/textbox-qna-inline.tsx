@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useMemo } from 'react';
+import { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import { Text, Rect, Group, Path } from 'react-konva';
 import Konva from 'konva';
 import { v4 as uuidv4 } from 'uuid';
@@ -18,7 +18,7 @@ import { KonvaSkeleton } from '../../../ui/primitives/skeleton';
 
 
 // Rich text formatting function for Quill HTML output
-function formatRichText(text: string, fontSize: number, fontFamily: string, maxWidth: number, hasRuledLines: boolean = false, paragraphSpacing: string = 'medium', element?: CanvasElement) {
+function formatRichText(text: string, fontSize: number, fontFamily: string, maxWidth: number, hasRuledLines: boolean = false, paragraphSpacing: string = 'medium', element?: CanvasElement, defaultColor?: string) {
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d')!;
   
@@ -173,7 +173,7 @@ function formatRichText(text: string, fontSize: number, fontFamily: string, maxW
         fontFamily: styles.fontFamily || fontFamily,
         fontStyle: `${styles.bold ? 'bold' : ''}${styles.italic ? ' italic' : ''}`.trim() || 'normal',
         textDecoration: styles.underline ? 'underline' : '',
-        fill: styles.color || '#000000'
+        fill: styles.color || defaultColor || '#000000'
       });
       
       currentX += wordWidth;
@@ -200,10 +200,15 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
   const { state, dispatch } = useEditor();
   const { user } = useAuth();
   const textRef = useRef<Konva.Text>(null);
+  const groupRef = useRef<Konva.Group>(null);
   
   const [isHovered, setIsHovered] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  
+  // Get active section from editor state for visual indication
+  const activeSection = state.qnaActiveSection;
+  const individualSettings = element.qnaIndividualSettings ?? false;
   
   // Listen for transformer events from the canvas
   useEffect(() => {
@@ -228,6 +233,8 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
     };
   }, [element.id]);
 
+
+
   // Force refresh when element properties change (e.g., from Style Painter)
   useEffect(() => {
     // Simulate the resize process to force proper re-calculation of ruled lines
@@ -243,6 +250,13 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
     setRefreshKey(prev => prev + 1);
   }, [element.answerSettings?.ruledLinesColor, element.answerSettings?.ruledLinesOpacity, element.answerSettings?.ruledLinesTheme, element.answerSettings?.ruledLinesWidth, element.questionSettings?.fontSize]);
 
+  // Force refresh when active section or individual settings change
+  useEffect(() => {
+    setRefreshKey(prev => prev + 1);
+  }, [activeSection, individualSettings, state.selectedElementIds]);
+
+
+
 
   
   // Get current theme context
@@ -252,8 +266,25 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
   const elementTheme = element.theme;
   const activeTheme = pageTheme || bookTheme || elementTheme;
   
-  // Get tool defaults with theme applied
-  const toolDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme);
+  // Use current tool settings or default palette colors
+  const defaultColors = { primary: '#424242', secondary: '#757575', accent: '#BDBDBD', background: '#FFFFFF', text: '#212121' };
+  const toolDefaults = {
+    fontSize: 50,
+    fontFamily: 'Arial, sans-serif',
+    questionSettings: {
+      fontSize: 45,
+      fontColor: state.toolSettings?.qna_inline?.fontColor || defaultColors.text,
+      borderColor: state.toolSettings?.qna_inline?.borderColor || defaultColors.secondary,
+      backgroundColor: state.toolSettings?.qna_inline?.backgroundColor || defaultColors.background
+    },
+    answerSettings: {
+      fontSize: 50,
+      fontColor: state.toolSettings?.qna_inline?.fontColor || defaultColors.text,
+      borderColor: state.toolSettings?.qna_inline?.borderColor || defaultColors.secondary,
+      backgroundColor: state.toolSettings?.qna_inline?.backgroundColor || defaultColors.background,
+      ruledLines: { lineColor: state.toolSettings?.qna_inline?.borderColor || defaultColors.secondary }
+    }
+  };
   
   const fontSize = element.font?.fontSize || element.fontSize || toolDefaults.fontSize || 50;
   const fontFamily = element.font?.fontFamily || element.fontFamily || toolDefaults.fontFamily || 'Arial, sans-serif';
@@ -299,6 +330,65 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
     return '';
   };
 
+  // Calculate dynamic height based on text content
+  const calculateDynamicHeight = () => {
+    const questionText = getQuestionText();
+    const userText = getUserText();
+    
+    if (!questionText && !userText) return element.height;
+    
+    const padding = 4;
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d')!;
+    let totalLines = 0;
+    const textWidth = element.width - padding * 2;
+    
+    if (questionText) {
+      context.font = '45px Arial';
+      const words = questionText.split(' ');
+      let lines = 1;
+      let currentWidth = 0;
+      
+      for (const word of words) {
+        const wordWidth = context.measureText(word + ' ').width;
+        if (currentWidth + wordWidth > textWidth && currentWidth > 0) {
+          lines++;
+          currentWidth = wordWidth;
+        } else {
+          currentWidth += wordWidth;
+        }
+      }
+      totalLines += lines;
+    }
+    
+    if (userText) {
+      context.font = '50px Arial';
+      const lines = userText.split('\n');
+      for (const line of lines) {
+        if (!line.trim()) {
+          totalLines++;
+          continue;
+        }
+        const words = line.split(' ');
+        let lineCount = 1;
+        let currentWidth = 0;
+        
+        for (const word of words) {
+          const wordWidth = context.measureText(word + ' ').width;
+          if (currentWidth + wordWidth > textWidth && currentWidth > 0) {
+            lineCount++;
+            currentWidth = wordWidth;
+          } else {
+            currentWidth += wordWidth;
+          }
+        }
+        totalLines += lineCount;
+      }
+    }
+    
+    return Math.max(totalLines * 70 + padding * 4, element.height);
+  };
+
 
   
   // Update element text when assigned user changes to show their answer
@@ -321,13 +411,27 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
     }
   }, [element.questionId, state.pageAssignments, state.activePageIndex, state.tempAnswers, element.id, dispatch]);
 
-  // Generate ruled lines
+
+
+  // Generate ruled lines with separate logic for Block and Inline layouts
   const generateRuledLines = () => {
     const lines = [];
-    const currentPage = state.currentBook?.pages[state.activePageIndex];
-    const pageTheme = currentPage?.background?.pageTheme;
-    const bookTheme = state.currentBook?.bookTheme;
-    const qnaInlineDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme);
+    const defaultColors = { primary: '#424242', secondary: '#757575', accent: '#BDBDBD', background: '#FFFFFF', text: '#212121' };
+    const qnaInlineDefaults = {
+      questionSettings: {
+        fontSize: 45,
+        fontColor: state.toolSettings?.qna_inline?.fontColor || defaultColors.text,
+        borderColor: state.toolSettings?.qna_inline?.borderColor || defaultColors.secondary,
+        backgroundColor: state.toolSettings?.qna_inline?.backgroundColor || defaultColors.background
+      },
+      answerSettings: {
+        fontSize: 50,
+        fontColor: state.toolSettings?.qna_inline?.fontColor || defaultColors.text,
+        borderColor: state.toolSettings?.qna_inline?.borderColor || defaultColors.secondary,
+        backgroundColor: state.toolSettings?.qna_inline?.backgroundColor || defaultColors.background,
+        ruledLines: { lineColor: state.toolSettings?.qna_inline?.borderColor || defaultColors.secondary }
+      }
+    };
     
     const questionStyle = {
       ...qnaInlineDefaults.questionSettings,
@@ -354,135 +458,136 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
         default: return 1.0;
       }
     };
+    
+    const aTheme = element.answerSettings?.ruledLinesTheme || answerStyle.ruledLinesTheme || 'rough';
+    const aColor = element.answerSettings?.ruledLines?.lineColor || element.answerSettings?.ruledLinesColor || answerStyle.ruledLines?.lineColor || answerStyle.ruledLinesColor || '#1f2937';
+    const aWidth = element.answerSettings?.ruledLinesWidth || answerStyle.ruledLinesWidth || 0.8;
+    const aOpacity = element.answerSettings?.ruledLinesOpacity ?? answerStyle.ruledLinesOpacity ?? 1;
+    
+    if (layoutVariant === 'block') {
+      return generateBlockLayoutRuledLines(questionPosition, padding, answerFontSize, aSpacing, getLineHeightMultiplier, aTheme, aColor, aWidth, aOpacity);
+    } else {
+      return generateInlineLayoutRuledLines(questionStyle, answerStyle, padding, answerFontSize, aSpacing, getLineHeightMultiplier, aTheme, aColor, aWidth, aOpacity);
+    }
+  };
+  
+  // Block layout ruled lines generation
+  const generateBlockLayoutRuledLines = (questionPosition: string, padding: number, answerFontSize: number, aSpacing: string, getLineHeightMultiplier: (spacing: string) => number, aTheme: string, aColor: string, aWidth: number, aOpacity: number) => {
+    const lines = [];
+    let answerArea = { x: padding, y: padding, width: element.width - padding * 2, height: element.height - padding * 2 };
+    
+    // Calculate answer area based on question position
+    if (questionPosition === 'left' || questionPosition === 'right') {
+      const questionWidthPercent = element.questionWidth || 40;
+      const questionWidth = (element.width * questionWidthPercent) / 100;
+      const answerWidth = element.width - questionWidth - padding * 3;
+      
+      if (questionPosition === 'left') {
+        answerArea = { x: questionWidth + padding * 2, y: padding, width: answerWidth, height: element.height - padding * 2 };
+      } else {
+        answerArea = { x: padding, y: padding, width: answerWidth, height: element.height - padding * 2 };
+      }
+    } else {
+      const questionHeight = answerFontSize + padding * 2;
+      const answerHeight = element.height - questionHeight - padding * 3;
+      
+      if (questionPosition === 'top') {
+        answerArea = { x: padding, y: questionHeight + padding * 2, width: element.width - padding * 2, height: answerHeight };
+      } else {
+        answerArea = { x: padding, y: padding, width: element.width - padding * 2, height: answerHeight };
+      }
+    }
+    
+    // Generate lines aligned with text baselines in answer area
+    const aLineHeight = answerFontSize * getLineHeightMultiplier(aSpacing);
+    const textBaselineY = answerArea.y + answerFontSize * 0.8; // Text baseline position
+    let lineY = textBaselineY + answerFontSize * 0.2; // Position lines slightly below text baseline
+    const endY = answerArea.y + answerArea.height;
+    
+    while (lineY < endY) {
+      lines.push(...generateLineElement(lineY, aTheme, answerArea.x, aColor, aWidth, aOpacity, answerArea.x + answerArea.width));
+      lineY += aLineHeight;
+    }
+    
+    return lines;
+  };
+  
+  // Inline layout ruled lines generation
+  const generateInlineLayoutRuledLines = (questionStyle: any, answerStyle: any, padding: number, answerFontSize: number, aSpacing: string, getLineHeightMultiplier: (spacing: string) => number, aTheme: string, aColor: string, aWidth: number, aOpacity: number) => {
+    const lines = [];
+    const questionText = getQuestionText();
+    const userText = getUserText();
+    const qFontSize = questionStyle.fontSize || fontSize;
+    const qSpacing = questionStyle.paragraphSpacing || 'small';
+    const qLineHeight = qFontSize * getLineHeightMultiplier(qSpacing);
     const aLineHeight = answerFontSize * getLineHeightMultiplier(aSpacing);
     
     // Calculate text baseline offset to match text positioning
-    const qFontSize = questionStyle.fontSize || fontSize;
     const maxFontSizeUsed = Math.max(qFontSize, answerFontSize);
-    const maxLineHeightMultiplier = Math.max(getLineHeightMultiplier(questionStyle.paragraphSpacing || 'small'), getLineHeightMultiplier(aSpacing));
+    const maxLineHeightMultiplier = Math.max(getLineHeightMultiplier(qSpacing), getLineHeightMultiplier(aSpacing));
     const factor = answerFontSize >= 50 ? answerFontSize >= 96 ? answerFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1;
     const textBaselineOffset = -(maxFontSizeUsed * maxLineHeightMultiplier * 0.15) + (maxFontSizeUsed * factor);
     
-    // For block layout, only show ruled lines in answer area
-    if (layoutVariant === 'block') {
-      const aTheme = element.answerSettings?.ruledLinesTheme || answerStyle.ruledLinesTheme || 'rough';
-      const aColor = element.answerSettings?.ruledLinesColor || answerStyle.ruledLinesColor || '#1f2937';
-      const aWidth = element.answerSettings?.ruledLinesWidth || answerStyle.ruledLinesWidth || 0.8;
-      const aOpacity = element.answerSettings?.ruledLinesOpacity ?? answerStyle.ruledLinesOpacity ?? 1;
+    if (questionText && userText) {
+      // Calculate question line count to determine spacing
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d')!;
+      context.font = `${qFontSize}px ${questionStyle.fontFamily || fontFamily}`;
       
-      let answerArea = { x: padding, y: padding, width: element.width - padding * 2, height: element.height - padding * 2 };
+      const textWidth = element.width - (padding * 2);
+      const questionWords = questionText.split(' ');
+      let questionLineCount = 1;
+      let currentLineWidth = 0;
       
-      // Calculate answer area based on question position
-      if (questionPosition === 'left' || questionPosition === 'right') {
-        const questionWidthPercent = element.questionWidth || 40;
-        const questionWidth = (element.width * questionWidthPercent) / 100;
-        const answerWidth = element.width - questionWidth - padding * 3;
-        
-        if (questionPosition === 'left') {
-          answerArea = { x: questionWidth + padding * 2, y: padding, width: answerWidth, height: element.height - padding * 2 };
+      for (const word of questionWords) {
+        const wordWidth = context.measureText(word + ' ').width;
+        if (currentLineWidth + wordWidth > textWidth && currentLineWidth > 0) {
+          questionLineCount++;
+          currentLineWidth = wordWidth;
         } else {
-          answerArea = { x: padding, y: padding, width: answerWidth, height: element.height - padding * 2 };
-        }
-      } else {
-        const questionHeight = answerFontSize + padding * 2;
-        const answerHeight = element.height - questionHeight - padding * 3;
-        
-        if (questionPosition === 'top') {
-          answerArea = { x: padding, y: questionHeight + padding * 2, width: element.width - padding * 2, height: answerHeight };
-        } else {
-          answerArea = { x: padding, y: padding, width: element.width - padding * 2, height: answerHeight };
+          currentLineWidth += wordWidth;
         }
       }
       
-      // Generate lines in answer area using paragraph spacing - align with text baselines
-      const aLineHeight = answerFontSize * getLineHeightMultiplier(aSpacing);
-      let lineY = answerArea.y + answerFontSize * 0.2 + answerFontSize + 4;
-      const endY = answerArea.y + answerArea.height;
-      const lineSpacing = aLineHeight;
+      // Calculate consistent line positions that match text baselines
+      const maxFontSizeUsed = Math.max(qFontSize, answerFontSize);
+      const effectivePadding = padding + (maxFontSizeUsed * 0.2);
+      const combinedLineHeight = maxFontSizeUsed * Math.max(getLineHeightMultiplier(qSpacing), getLineHeightMultiplier(aSpacing));
       
-      while (lineY < endY) {
-        lines.push(...generateLineElement(lineY, aTheme, answerArea.x, aColor, aWidth, aOpacity, answerArea.x + answerArea.width));
-        lineY += lineSpacing;
+      // Generate lines for each text line position - align with shared baseline
+      for (let i = 0; i < questionLineCount; i++) {
+        const sharedBaseline = effectivePadding + (i * combinedLineHeight) + textBaselineOffset + (maxFontSizeUsed * 0.8);
+        const lineY = sharedBaseline + 4;
+        lines.push(...generateLineElement(lineY, aTheme, padding, aColor, aWidth, aOpacity));
+      }
+      
+      // Answer lines continue with same spacing - align with shared baseline
+      let answerLineIndex = 0;
+      let sharedBaseline = effectivePadding + (questionLineCount * combinedLineHeight) + (answerLineIndex * combinedLineHeight) + textBaselineOffset + (maxFontSizeUsed * 0.8);
+      let lineY = sharedBaseline + 4;
+      const dynamicHeight = calculateDynamicHeight();
+      while (lineY < dynamicHeight - padding - 10) {
+        lines.push(...generateLineElement(lineY, aTheme, padding, aColor, aWidth, aOpacity));
+        answerLineIndex++;
+        sharedBaseline = effectivePadding + (questionLineCount * combinedLineHeight) + (answerLineIndex * combinedLineHeight) + textBaselineOffset + (maxFontSizeUsed * 0.8);
+        lineY = sharedBaseline + 4;
       }
     } else {
-      // Inline layout: adjust line positioning to account for text baseline offset
-      const aTheme = element.answerSettings?.ruledLinesTheme || answerStyle.ruledLinesTheme || 'rough';
-      const aColor = element.answerSettings?.ruledLinesColor || answerStyle.ruledLinesColor || '#1f2937';
-      const aWidth = element.answerSettings?.ruledLinesWidth || answerStyle.ruledLinesWidth || 0.8;
-      const aOpacity = element.answerSettings?.ruledLinesOpacity ?? answerStyle.ruledLinesOpacity ?? 1;
+      // Single text - use appropriate font size + gap, adjust for baseline offset
+      const activeFontSize = userText ? answerFontSize : (questionStyle.fontSize || fontSize);
+      const maxFontSizeUsed = Math.max(qFontSize, answerFontSize);
+      const effectivePadding = padding + (maxFontSizeUsed * 0.2);
+      const combinedLineHeight = maxFontSizeUsed * Math.max(getLineHeightMultiplier(qSpacing), getLineHeightMultiplier(aSpacing));
       
-      const questionText = getQuestionText();
-      const userText = getUserText();
-      
-      // Get computed question style to match text rendering
-      const computedQuestionStyle = {
-        ...qnaInlineDefaults.questionSettings,
-        ...element.questionSettings
-      };
-      
-      if (questionText && userText) {
-        // Use the same font size calculation as the actual text rendering
-        const qFontSize = element.questionSettings?.font?.fontSize || element.questionSettings?.fontSize || questionStyle.fontSize || fontSize;
-        const qSpacing = questionStyle.paragraphSpacing || 'small';
-        const qLineHeight = qFontSize * getLineHeightMultiplier(qSpacing);
-        
-        // Calculate how many lines the question takes
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d')!;
-        context.font = `${qFontSize}px ${questionStyle.fontFamily || fontFamily}`;
-        
-        const textWidth = element.width - (padding * 2);
-        const questionWords = questionText.split(' ');
-        let questionLineCount = 1;
-        let currentLineWidth = 0;
-        
-        for (const word of questionWords) {
-          const wordWidth = context.measureText(word + ' ').width;
-          if (currentLineWidth + wordWidth > textWidth && currentLineWidth > 0) {
-            questionLineCount++;
-            currentLineWidth = wordWidth;
-          } else {
-            currentLineWidth += wordWidth;
-          }
-        }
-        
-        // Use consistent line height if font sizes are the same
-        const useConsistentSpacing = qFontSize === answerFontSize;
-        const consistentLineHeight = useConsistentSpacing ? Math.max(qLineHeight, aLineHeight) : qLineHeight;
-        
-        // Add extra spacing for small question fonts to prevent overlap
-        const extraSpacing = qFontSize < 11 ? (qFontSize < 9 ? 8 : 4) : 0;
-        
-        // Use the larger font size for baseline calculation to ensure lines are below all text
-        const largerFontSize = Math.max(qFontSize, answerFontSize);
-        const adjustedBaselineOffset = -(largerFontSize * maxLineHeightMultiplier * 0.15) + (largerFontSize * (largerFontSize >= 50 ? largerFontSize >= 96 ? largerFontSize >= 145 ? -0.07 : 0.01 : 0.07 : 0.1));
-        
-        // First line uses larger font size for proper clearance + question height
-        const questionTextHeight = questionLineCount * qLineHeight;
-        let lineY = padding + largerFontSize + adjustedBaselineOffset + 4 + extraSpacing + questionTextHeight;
+      let lineIndex = 0;
+      let sharedBaseline = effectivePadding + (lineIndex * combinedLineHeight) + textBaselineOffset + (maxFontSizeUsed * 0.8);
+      let lineY = sharedBaseline + 4;
+      const dynamicHeight = calculateDynamicHeight();
+      while (lineY < dynamicHeight - padding - 10) {
         lines.push(...generateLineElement(lineY, aTheme, padding, aColor, aWidth, aOpacity));
-        
-        // Additional question lines use consistent or question line height
-        for (let i = 1; i < questionLineCount; i++) {
-          lineY += useConsistentSpacing ? consistentLineHeight : qLineHeight;
-          lines.push(...generateLineElement(lineY, aTheme, padding, aColor, aWidth, aOpacity));
-        }
-        
-        // Answer lines use consistent or answer line height
-        lineY += (useConsistentSpacing ? consistentLineHeight : aLineHeight) + (largerFontSize * 0.2);
-        while (lineY < element.height - padding - 10) {
-          lines.push(...generateLineElement(lineY, aTheme, padding, aColor, aWidth, aOpacity));
-          lineY += useConsistentSpacing ? consistentLineHeight : aLineHeight;
-        }
-      } else {
-        // Single text - use appropriate font size + gap, adjust for baseline offset
-        const activeFontSize = userText ? answerFontSize : (questionStyle.fontSize || fontSize);
-        const activeLineHeight = userText ? aLineHeight : (questionStyle.fontSize || fontSize) * getLineHeightMultiplier(questionStyle.paragraphSpacing || 'small');
-        let lineY = padding + activeFontSize + textBaselineOffset + 4;
-        while (lineY < element.height - padding - 10) {
-          lines.push(...generateLineElement(lineY, aTheme, padding, aColor, aWidth, aOpacity));
-          lineY += activeLineHeight;
-        }
+        lineIndex++;
+        sharedBaseline = effectivePadding + (lineIndex * combinedLineHeight) + textBaselineOffset + (maxFontSizeUsed * 0.8);
+        lineY = sharedBaseline + 4;
       }
     }
     
@@ -553,11 +658,261 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
     return lineElements;
   };
 
+  // Generate visual indication border for active section
+  const generateSectionIndicator = () => {
+    // Only show indicator if element is selected and individual settings are enabled
+    if (!state.selectedElementIds.includes(element.id) || !individualSettings) {
+      return null;
+    }
+
+    const defaultColors = { primary: '#424242', secondary: '#757575', accent: '#BDBDBD', background: '#FFFFFF', text: '#212121' };
+    const qnaInlineDefaults = {
+      questionSettings: {
+        fontSize: 45,
+        fontColor: state.toolSettings?.qna_inline?.fontColor || defaultColors.text,
+        borderColor: state.toolSettings?.qna_inline?.borderColor || defaultColors.secondary,
+        backgroundColor: state.toolSettings?.qna_inline?.backgroundColor || defaultColors.background
+      },
+      answerSettings: {
+        fontSize: 50,
+        fontColor: state.toolSettings?.qna_inline?.fontColor || defaultColors.text,
+        borderColor: state.toolSettings?.qna_inline?.borderColor || defaultColors.secondary,
+        backgroundColor: state.toolSettings?.qna_inline?.backgroundColor || defaultColors.background,
+        ruledLines: { lineColor: state.toolSettings?.qna_inline?.borderColor || defaultColors.secondary }
+      }
+    };
+    
+    const questionStyle = {
+      ...qnaInlineDefaults.questionSettings,
+      ...element.questionSettings
+    };
+    const answerStyle = {
+      ...qnaInlineDefaults.answerSettings,
+      ...element.answerSettings
+    };
+    const padding = questionStyle.padding || answerStyle.padding || element.format?.padding || element.padding || 4;
+    
+    const layoutVariant = element.layoutVariant || 'inline';
+    const questionPosition = element.questionPosition || 'left';
+    const questionText = getQuestionText();
+    const userText = getUserText();
+    
+    if (layoutVariant === 'block') {
+      // Block layout: highlight question or answer area
+      let targetArea = { x: padding, y: padding, width: element.width - padding * 2, height: element.height - padding * 2 };
+      
+      if (questionPosition === 'left' || questionPosition === 'right') {
+        const questionWidthPercent = element.questionWidth || 40;
+        const questionWidth = (element.width * questionWidthPercent) / 100;
+        const answerWidth = element.width - questionWidth - padding * 3;
+        
+        if (activeSection === 'question') {
+          if (questionPosition === 'left') {
+            targetArea = { x: padding, y: padding, width: questionWidth, height: element.height - padding * 2 };
+          } else {
+            targetArea = { x: answerWidth + padding * 2, y: padding, width: questionWidth, height: element.height - padding * 2 };
+          }
+        } else {
+          if (questionPosition === 'left') {
+            targetArea = { x: questionWidth + padding * 2, y: padding, width: answerWidth, height: element.height - padding * 2 };
+          } else {
+            targetArea = { x: padding, y: padding, width: answerWidth, height: element.height - padding * 2 };
+          }
+        }
+      } else {
+        const qFontSize = questionStyle.fontSize || fontSize;
+        const questionHeight = qFontSize + padding * 2;
+        const answerHeight = element.height - questionHeight - padding * 3;
+        
+        if (activeSection === 'question') {
+          if (questionPosition === 'top') {
+            targetArea = { x: padding, y: padding, width: element.width - padding * 2, height: questionHeight };
+          } else {
+            targetArea = { x: padding, y: answerHeight + padding * 2, width: element.width - padding * 2, height: questionHeight };
+          }
+        } else {
+          if (questionPosition === 'top') {
+            targetArea = { x: padding, y: questionHeight + padding * 2, width: element.width - padding * 2, height: answerHeight };
+          } else {
+            targetArea = { x: padding, y: padding, width: element.width - padding * 2, height: answerHeight };
+          }
+        }
+      }
+      
+      return (
+        <Rect
+          x={targetArea.x}
+          y={targetArea.y}
+          width={targetArea.width}
+          height={targetArea.height}
+          fill="transparent"
+          stroke="#d0d7e0ff"
+          strokeWidth={2}
+          dash={[6, 6]}
+          cornerRadius={8}
+          strokeScaleEnabled={false}
+          listening={false}
+          name="no-print"
+        />
+      );
+    } else {
+      // Inline layout: highlight based on text content and active section
+      if (questionText && userText) {
+        // Both question and answer present
+        const qFontSize = questionStyle.fontSize || fontSize;
+        const aFontSize = answerStyle.fontSize || fontSize;
+        
+        // Calculate question lines
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d')!;
+        context.font = `${qFontSize}px ${questionStyle.fontFamily || fontFamily}`;
+        
+        const textWidth = element.width - (padding * 2);
+        const questionWords = questionText.split(' ');
+        let questionLineCount = 1;
+        let currentLineWidth = 0;
+        
+        for (const word of questionWords) {
+          const wordWidth = context.measureText(word + ' ').width;
+          if (currentLineWidth + wordWidth > textWidth && currentLineWidth > 0) {
+            questionLineCount++;
+            currentLineWidth = wordWidth;
+          } else {
+            currentLineWidth += wordWidth;
+          }
+        }
+        
+        const qSpacing = questionStyle.paragraphSpacing || 'small';
+        const aSpacing = answerStyle.paragraphSpacing || 'small';
+        const getLineHeightMultiplier = (spacing: string) => {
+          switch (spacing) {
+            case 'small': return 1.0;
+            case 'medium': return 1.2;
+            case 'large': return 1.5;
+            default: return 1.0;
+          }
+        };
+        
+        const qLineHeight = qFontSize * getLineHeightMultiplier(qSpacing);
+        const aLineHeight = aFontSize * getLineHeightMultiplier(aSpacing);
+        
+        if (activeSection === 'question') {
+          // Highlight question area
+          const questionHeight = questionLineCount * qLineHeight;
+          return (
+            <Rect
+              x={padding}
+              y={padding}
+              width={element.width - padding * 2}
+              height={questionHeight + padding}
+              fill="transparent"
+              stroke="#d0d7e0ff"
+              strokeWidth={2}
+              dash={[6, 6]}
+              cornerRadius={8}
+              strokeScaleEnabled={false}
+              listening={false}
+              name="no-print"
+            />
+          );
+        } else {
+          // Highlight answer area (rest of the textbox)
+          const questionHeight = questionLineCount * qLineHeight;
+          const answerY = padding + questionHeight + padding;
+          const answerHeight = element.height - answerY - padding;
+          
+          return (
+            <Rect
+              x={padding}
+              y={answerY}
+              width={element.width - padding * 2}
+              height={answerHeight}
+              fill="transparent"
+              stroke="#d0d7e0ff"
+              strokeWidth={2}
+              dash={[6, 6]}
+              cornerRadius={8}
+              strokeScaleEnabled={false}
+              listening={false}
+              name="no-print"
+            />
+          );
+        }
+      } else {
+        // Only one type of text - highlight entire textbox
+        return (
+          <Rect
+            x={padding}
+            y={padding}
+            width={element.width - padding * 2}
+            height={element.height - padding * 2}
+            fill="transparent"
+            stroke="#d0d7e0ff"
+            strokeWidth={2}
+            dash={[6, 6]}
+            cornerRadius={8}
+            strokeScaleEnabled={false}
+            listening={false}
+            name="no-print"
+          />
+        );
+      }
+    }
+  };
+
   const handleDoubleClick = (e: any) => {
     if (state.activeTool !== 'select') return;
     if (e.evt.button !== 0) return; // Only left button (0)
     enableQuillEditing();
   };
+
+  // Auto-size functionality using actual rendered bounds
+  const handleAutoSize = useCallback(() => {
+    if (!groupRef.current) return;
+    
+    // Get all child nodes (text, borders, backgrounds, etc.)
+    const group = groupRef.current;
+    const children = group.getChildren();
+    
+    let minX = Infinity, maxX = -Infinity;
+    let minY = Infinity, maxY = -Infinity;
+    
+    // Calculate bounds of all visible children
+    children.forEach(child => {
+      if (child.visible() && child.getClassName() !== 'Rect' || child.attrs.stroke || child.attrs.fill !== 'transparent') {
+        const box = child.getClientRect();
+        minX = Math.min(minX, box.x);
+        maxX = Math.max(maxX, box.x + box.width);
+        minY = Math.min(minY, box.y);
+        maxY = Math.max(maxY, box.y + box.height);
+      }
+    });
+    
+    if (minX === Infinity) return;
+    
+    const newWidth = Math.max(50, maxX - minX + 8); // Add small margin
+    const newHeight = Math.max(20, maxY - minY + 8);
+    
+    dispatch({
+      type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+      payload: {
+        id: element.id,
+        updates: { width: newWidth, height: newHeight }
+      }
+    });
+  }, [element.id, dispatch]);
+
+  // Listen for auto-size trigger
+  useEffect(() => {
+    const handleAutoSizeTrigger = (event: CustomEvent) => {
+      if (event.detail.elementId === element.id) {
+        handleAutoSize();
+      }
+    };
+    
+    window.addEventListener('triggerAutoSize', handleAutoSizeTrigger as EventListener);
+    return () => window.removeEventListener('triggerAutoSize', handleAutoSizeTrigger as EventListener);
+  }, [handleAutoSize, element.id]);
 
   const enableQuillEditing = () => {
     const stage = textRef.current?.getStage();
@@ -900,6 +1255,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
         onTransformEnd={() => setIsResizing(false)}
       >
         <Group 
+          ref={groupRef}
           key={refreshKey}
           onContextMenu={(e) => {
             if (state.stylePainterActive) {
@@ -925,17 +1281,19 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               ...qnaInlineDefaults.answerSettings,
               ...element.answerSettings
             };
-            const showBackground = questionStyle.backgroundEnabled || answerStyle.backgroundEnabled;
+            const showBackground = questionStyle.background?.enabled || answerStyle.background?.enabled;
             
             if (showBackground) {
-              const backgroundColor = questionStyle.backgroundColor || answerStyle.backgroundColor || 'transparent';
+              const backgroundColor = questionStyle.background?.backgroundColor || answerStyle.background?.backgroundColor || 'transparent';
               const backgroundOpacity = questionStyle.backgroundOpacity ?? answerStyle.backgroundOpacity ?? 1;
               const cornerRadius = questionStyle.cornerRadius || answerStyle.cornerRadius || 0;
+              
+              const dynamicHeight = calculateDynamicHeight();
               
               return (
                 <Rect
                   width={element.width}
-                  height={element.height}
+                  height={dynamicHeight}
                   fill={backgroundColor}
                   opacity={backgroundOpacity}
                   cornerRadius={cornerRadius}
@@ -962,10 +1320,10 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               ...qnaInlineDefaults.answerSettings,
               ...element.answerSettings
             };
-            const showBorder = questionStyle.borderEnabled || answerStyle.borderEnabled;
+            const showBorder = questionStyle.border?.enabled || answerStyle.border?.enabled;
             
             if (showBorder) {
-              const borderColor = questionStyle.borderColor || answerStyle.borderColor || '#000000';
+              const borderColor = questionStyle.border?.borderColor || answerStyle.border?.borderColor || '#000000';
               const borderWidth = questionStyle.borderWidth || answerStyle.borderWidth || 1;
               const borderOpacity = questionStyle.borderOpacity ?? answerStyle.borderOpacity ?? 1;
               const cornerRadius = questionStyle.cornerRadius || answerStyle.cornerRadius || 0;
@@ -985,10 +1343,12 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                 });
               }
               
+              const dynamicHeight = calculateDynamicHeight();
+              
               return (
                 <Rect
                   width={element.width}
-                  height={element.height}
+                  height={dynamicHeight}
                   fill="transparent"
                   stroke={borderColor}
                   strokeWidth={borderWidth}
@@ -1007,6 +1367,9 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               {generateRuledLines()}
             </Group>
           )}
+          
+          {/* Visual indication for active section */}
+          {generateSectionIndicator()}
           
           {/* Show skeleton during resize, otherwise show text content */}
           {isResizing ? (
@@ -1028,6 +1391,14 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               ...element.answerSettings,
               fontFamily: element.answerSettings?.fontFamily || element.font?.fontFamily || element.fontFamily || qnaInlineDefaults.answerSettings?.fontFamily || fontFamily
             };
+            
+            // Ensure font colors from palette are properly applied
+            if (element.questionSettings?.fontColor) {
+              questionStyle.fontColor = element.questionSettings.fontColor;
+            }
+            if (element.answerSettings?.fontColor) {
+              answerStyle.fontColor = element.answerSettings.fontColor;
+            }
             const padding = questionStyle.padding || answerStyle.padding || element.format?.padding || element.padding || 4;
             const textWidth = element.width - (padding * 2);
             const questionText = getQuestionText();
@@ -1047,7 +1418,6 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                   ref={textRef}
                   x={padding}
                   y={padding}
-                  width={textWidth}
                   text="Double-click to add text..."
                   fontSize={Math.max(fontSize * 1, 54)}
                   fontFamily={fontFamily}
@@ -1055,8 +1425,6 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                   opacity={0.7}
                   align="left"
                   verticalAlign="top"
-                  wrap="word"
-                  lineHeight={1.2}
                   listening={true}
                 />
               );
@@ -1070,7 +1438,9 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
             const qFontSize = questionStyle.fontSize || fontSize;
             const aFontSize = answerStyle.fontSize || fontSize;
             const maxFontSize = Math.max(qFontSize, aFontSize);
-            const baselineY = currentY + maxFontSize * 0.8; // Baseline position
+            // Ensure sufficient top padding to prevent overlap with textbox edge
+            const effectivePadding = layoutVariant === 'inline' ? padding + (maxFontSize * 0.2) : padding;
+            const baselineY = effectivePadding + maxFontSize * 0.8; // Baseline position
             
             // Get paragraph spacing settings
             const qParagraphSpacing = questionStyle.paragraphSpacing || 'small';
@@ -1086,8 +1456,12 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               }
             };
             
-            const qLineHeight = qFontSize * getLineHeightMultiplier(qParagraphSpacing);
-            const aLineHeight = aFontSize * getLineHeightMultiplier(aParagraphSpacing);
+            // For inline layout, use combined line height based on largest font
+            const combinedLineHeight = layoutVariant === 'inline' ? 
+              maxFontSize * Math.max(getLineHeightMultiplier(qParagraphSpacing), getLineHeightMultiplier(aParagraphSpacing)) :
+              qFontSize * getLineHeightMultiplier(qParagraphSpacing);
+            const qLineHeight = layoutVariant === 'inline' ? combinedLineHeight : qFontSize * getLineHeightMultiplier(qParagraphSpacing);
+            const aLineHeight = layoutVariant === 'inline' ? combinedLineHeight : aFontSize * getLineHeightMultiplier(aParagraphSpacing);
             
             // Text baseline offset to float above ruled lines - accounts for font size and paragraph spacing
             const maxFontSizeUsed = Math.max(qFontSize, aFontSize);
@@ -1099,13 +1473,13 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
             if (layoutVariant === 'block') {
               // Block layout: question and answer in separate areas
               const qFontFamily = questionStyle.fontFamily || element.font?.fontFamily || element.fontFamily || toolDefaults.questionSettings?.fontFamily || fontFamily;
-              const qFontColor = questionStyle.fontColor || toolDefaults.questionSettings?.fontColor || '#666666';
+              const qFontColor = questionStyle.fontColor || questionStyle.font?.fontColor || element.font?.fontColor || element.fontColor || toolDefaults.questionSettings?.fontColor || '#666666';
               const qFontBold = questionStyle.fontBold || toolDefaults.questionSettings?.fontBold || false;
               const qFontItalic = questionStyle.fontItalic || toolDefaults.questionSettings?.fontItalic || false;
               const qFontOpacity = questionStyle.fontOpacity ?? toolDefaults.questionSettings?.fontOpacity ?? 1;
               
               const aFontFamily = answerStyle.fontFamily || element.font?.fontFamily || element.fontFamily || toolDefaults.answerSettings?.fontFamily || fontFamily;
-              const aFontColor = answerStyle.fontColor || toolDefaults.answerSettings?.fontColor || '#1f2937';
+              const aFontColor = answerStyle.fontColor || answerStyle.font?.fontColor || element.font?.fontColor || element.fontColor || toolDefaults.answerSettings?.fontColor || '#1f2937';
               const aFontBold = answerStyle.fontBold || toolDefaults.answerSettings?.fontBold || false;
               const aFontItalic = answerStyle.fontItalic || toolDefaults.answerSettings?.fontItalic || false;
               const aFontOpacity = answerStyle.fontOpacity ?? toolDefaults.answerSettings?.fontOpacity ?? 1;
@@ -1235,7 +1609,8 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                 context.font = `${aFontBold ? 'bold ' : ''}${aFontItalic ? 'italic ' : ''}${aFontSize}px ${aFontFamily}`;
                 
                 const lines = userText.split('\n');
-                let currentY = answerArea.y + aFontSize * 0.2;
+                // PST: Layout = Block: Adjust Y position for subsequent ruled lines, before it was >> let currentY = answerArea.y + aFontSize * 0.2;
+                let currentY = answerArea.y ; 
                 
                 lines.forEach((line) => {
                   if (!line.trim()) {
@@ -1300,7 +1675,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               // Render question text first
               if (questionText) {
               const qFontFamily = questionStyle.fontFamily || element.font?.fontFamily || element.fontFamily || toolDefaults.questionSettings?.fontFamily || fontFamily;
-              const qFontColor = questionStyle.fontColor || toolDefaults.questionSettings?.fontColor || '#666666';
+              const qFontColor = questionStyle.fontColor || questionStyle.font?.fontColor || element.font?.fontColor || element.fontColor || toolDefaults.questionSettings?.fontColor || '#666666';
               const qFontBold = questionStyle.fontBold || toolDefaults.questionSettings?.fontBold || false;
               const qFontItalic = questionStyle.fontItalic || toolDefaults.questionSettings?.fontItalic || false;
               const qFontOpacity = questionStyle.fontOpacity ?? toolDefaults.questionSettings?.fontOpacity ?? 1;
@@ -1331,13 +1706,17 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               }
               if (currentLine) questionLines.push(currentLine);
               
-              // Render all question lines except the last one (which will be combined with answer)
-              questionLines.slice(0, -1).forEach((line, index) => {
+              // Render all question lines with shared baseline alignment
+              // PST: Layout = Inline: Adjust Y position for question text in both combined question-answer line and question-only lines
+              questionLines.forEach((line, index) => {
+                const sharedBaseline = effectivePadding + (index * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6);
+                const questionY = sharedBaseline - (qFontSize * 0.8);
+                
                 elements.push(
                   <Text
                     key={`question-${index}`}
                     x={padding}
-                    y={baselineY - qFontSize * 0.8 + (index * qLineHeight) + textBaselineOffset + qFontSize * 0.1}
+                    y={questionY}
                     text={line}
                     fontSize={qFontSize}
                     fontFamily={qFontFamily}
@@ -1354,12 +1733,12 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               // Calculate where question ends for user text positioning
               const lastQuestionLine = questionLines[questionLines.length - 1] || '';
               const questionTextWidth = context.measureText(lastQuestionLine).width;
-              const questionEndY = baselineY - qFontSize * 0.8 + ((questionLines.length - 1) * qLineHeight);
+              const questionEndY = effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset;
               
               // Render user text with custom wrapping logic
               if (userText) {
                 const aFontFamily = answerStyle.fontFamily || element.font?.fontFamily || element.fontFamily || toolDefaults.answerSettings?.fontFamily || fontFamily;
-                const aFontColor = answerStyle.fontColor || toolDefaults.answerSettings?.fontColor || '#1f2937';
+                const aFontColor = answerStyle.fontColor || answerStyle.font?.fontColor || element.font?.fontColor || element.fontColor || toolDefaults.answerSettings?.fontColor || '#1f2937';
                 const aFontBold = answerStyle.fontBold || toolDefaults.answerSettings?.fontBold || false;
                 const aFontItalic = answerStyle.fontItalic || toolDefaults.answerSettings?.fontItalic || false;
                 const aFontOpacity = answerStyle.fontOpacity ?? toolDefaults.answerSettings?.fontOpacity ?? 1;
@@ -1419,7 +1798,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                         qContext.font = `${qFontBold ? 'bold ' : ''}${qFontItalic ? 'italic ' : ''}${qFontSize}px ${qFontFamily}`;
                         const qWidth = qContext.measureText(lastQuestionLine).width;
                         
-                        const gap = Math.max(10, qFontSize * 0.3); // Dynamic gap based on font size
+                        const gap = Math.max(10, qFontSize * .5); // Dynamic gap based on font size
                         const aWidth = context.measureText(lineText).width;
                         const combinedWidth = qWidth + gap + aWidth;
                         
@@ -1430,29 +1809,19 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                           startX = element.width - padding - combinedWidth;
                         }
                         
-                        // Render question with calculated position
-                        elements.push(
-                          <Text
-                            key={`question-${questionLines.length - 1}`}
-                            x={startX}
-                            y={questionEndY + textBaselineOffset + qFontSize * 0.1}
-                            text={lastQuestionLine}
-                            fontSize={qFontSize}
-                            fontFamily={qFontFamily}
-                            fontStyle={`${qFontBold ? 'bold' : ''} ${qFontItalic ? 'italic' : ''}`.trim() || 'normal'}
-                            fill={qFontColor}
-                            opacity={qFontOpacity}
-                            align="left"
-                            listening={false}
-                          />
-                        );
+                        // Question already rendered above, no need to render again
                         
-                        // Render answer after question with proper spacing
+                        // Calculate shared baseline for both question and answer text
+                        // PST: Layout = Inline: Adjust Y position for answer text in combined question-answer line
+                        const sharedBaseline = effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6);
+                        const answerY = sharedBaseline - (aFontSize * 0.8);
+                        
+                        // Render answer after question with shared baseline alignment
                         elements.push(
                           <Text
                             key={`user-line-${currentLineY}-${currentX}`}
-                            x={startX + qWidth + gap}
-                            y={currentLineY + (qFontSize - aFontSize) * 0.8 + textBaselineOffset + qFontSize * 0.05}
+                            x={padding + qWidth + gap}
+                            y={answerY}
                             text={lineText}
                             fontSize={aFontSize}
                             fontFamily={aFontFamily}
@@ -1464,11 +1833,17 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                           />
                         );
                       } else {
+                        // Calculate consistent Y position for subsequent lines with shared baseline
+                        const lineIndex = Math.round((currentLineY - questionEndY - combinedLineHeight) / combinedLineHeight);
+                        // PST: Layout = Inline: Adjust Y position answer text in answer-only lines
+                        const sharedBaseline = effectivePadding + (questionLines.length * combinedLineHeight) + (lineIndex * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6);
+                        const answerY = sharedBaseline - (aFontSize * 0.8);
+                        
                         elements.push(
                           <Text
                             key={`user-line-${currentLineY}-${currentX}`}
                             x={padding}
-                            y={currentLineY + (qFontSize - aFontSize) * 0.8 + textBaselineOffset + qFontSize * 0.2}
+                            y={answerY}
                             text={lineText}
                             fontSize={aFontSize}
                             fontFamily={aFontFamily}
@@ -1484,7 +1859,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                     }
                     
                     // Move to next line
-                    currentLineY += aLineHeight;
+                    currentLineY += combinedLineHeight;
                     isFirstLine = false;
                   }
                 });
@@ -1492,7 +1867,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
             } else if (userText) {
               // Only user text, no question - handle line breaks manually
               const aFontFamily = answerStyle.fontFamily || element.font?.fontFamily || element.fontFamily || toolDefaults.answerSettings?.fontFamily || fontFamily;
-              const aFontColor = answerStyle.fontColor || toolDefaults.answerSettings?.fontColor || '#1f2937';
+              const aFontColor = answerStyle.fontColor || answerStyle.font?.fontColor || element.font?.fontColor || element.fontColor || toolDefaults.answerSettings?.fontColor || '#1f2937';
               const aFontBold = answerStyle.fontBold || toolDefaults.answerSettings?.fontBold || false;
               const aFontItalic = answerStyle.fontItalic || toolDefaults.answerSettings?.fontItalic || false;
               const aFontOpacity = answerStyle.fontOpacity ?? toolDefaults.answerSettings?.fontOpacity ?? 1;
@@ -1531,11 +1906,14 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                         xPos = element.width - padding;
                       }
                       
+                      const sharedBaseline = effectivePadding + (currentLineIndex * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.8);
+                      const answerY = sharedBaseline - (aFontSize * 0.8);
+                      
                       elements.push(
                         <Text
                           key={`user-line-${currentLineIndex}`}
                           x={padding}
-                          y={baselineY - aFontSize * 0.8 + (currentLineIndex * aLineHeight) + textBaselineOffset + aFontSize * 0.2}
+                          y={answerY}
                           text={currentLine}
                           fontSize={aFontSize}
                           fontFamily={aFontFamily}
@@ -1562,11 +1940,14 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                     xPos = element.width - padding;
                   }
                   
+                  const sharedBaseline = effectivePadding + (currentLineIndex * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.8);
+                  const answerY = sharedBaseline - (aFontSize * 0.8);
+                  
                   elements.push(
                     <Text
                       key={`user-line-${currentLineIndex}`}
                       x={padding}
-                      y={baselineY - aFontSize * 0.8 + (currentLineIndex * aLineHeight) + textBaselineOffset + aFontSize * 0.2}
+                      y={answerY}
                       text={currentLine}
                       fontSize={aFontSize}
                       fontFamily={aFontFamily}
