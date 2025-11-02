@@ -569,28 +569,44 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
       const effectivePadding = padding + (maxFontSizeUsed * 0.2);
       const combinedLineHeight = maxFontSizeUsed * Math.max(getLineHeightMultiplier(qSpacing), getLineHeightMultiplier(aSpacing));
       
-      // Generate lines for each text line position - align with shared baseline
-      for (let i = 0; i < questionLineCount; i++) {
-        const sharedBaseline = effectivePadding + (i * combinedLineHeight) + textBaselineOffset + (maxFontSizeUsed * 0.8);
-        const lineY = sharedBaseline + 4;
-        lines.push(...generateLineElement(lineY, aTheme, padding, aColor, aWidth, aOpacity));
-      }
-      
-      // Answer-only lines use independent answer line height (aLineHeight) to be unaffected by question font size
-      // Calculate the starting Y position after all question lines
-      const questionLinesHeight = questionLineCount * combinedLineHeight;
-      const answerEffectivePadding = padding + (answerFontSize * 0.2);
+      // Ruled lines should ONLY appear under answer text, not under question-only lines
+      // The combined line (last question line with answer text) should have a ruled line
+      // Start from the combined line's baseline (same as text positioning) for consistent alignment
+      // This matches the calculation used in text rendering: effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6)
+      const combinedLineBaseline = effectivePadding + ((questionLineCount - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSizeUsed * 0.6);
       const answerBaselineOffset = -(answerFontSize * getLineHeightMultiplier(aSpacing) * 0.15) + (answerFontSize * (answerFontSize >= 50 ? answerFontSize >= 96 ? answerFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1));
       
-      let answerLineIndex = 0;
-      let answerBaseline = answerEffectivePadding + questionLinesHeight + (answerLineIndex * aLineHeight) + answerBaselineOffset + (answerFontSize * 0.8);
-      let lineY = answerBaseline + 4;
-      const dynamicHeight = calculateDynamicHeight();
-      while (lineY < dynamicHeight - padding - 10) {
-        lines.push(...generateLineElement(lineY, aTheme, padding, aColor, aWidth, aOpacity));
-        answerLineIndex++;
-        answerBaseline = answerEffectivePadding + questionLinesHeight + (answerLineIndex * aLineHeight) + answerBaselineOffset + (answerFontSize * 0.8);
-        lineY = answerBaseline + 4;
+      // Generate lines for answer text only, starting from combined line baseline
+      // This must match exactly the text positioning logic:
+      // - Combined line answer text: answerY = sharedBaseline - (aFontSize * 0.8)
+      //   where sharedBaseline = combinedLineBaseline = effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6)
+      // - Subsequent answer lines (wrapped segments): answerY = answerBaseline - (aFontSize * 0.8)
+      //   where answerBaseline = combinedLineBaseline + (lineIndex * aLineHeight) + answerBaselineOffset + (aFontSize * 0.6)
+      // Ruled lines are positioned 4px below the text baseline
+      if (userText && userText.trim()) {
+        // Generate lines starting from the combined line baseline
+        // answerLineIndex = 0: combined line (question + first part of answer)
+        // answerLineIndex = 1: first wrapped segment (if answer text wraps)
+        // answerLineIndex = 2+: subsequent answer-only lines
+        let answerLineIndex = 0;
+        const dynamicHeight = calculateDynamicHeight();
+        
+        while (true) {
+          // Calculate answer baseline (same formula as text rendering)
+          // The answerBaseline represents the actual text baseline position
+          // Text Y position is: answerBaseline - (aFontSize * 0.8)
+          let answerBaseline = combinedLineBaseline + (answerLineIndex * aLineHeight) + answerBaselineOffset + (answerFontSize * 0.6);
+          
+          // Position ruled line slightly below the baseline so it sits under the text
+          // Text sits on the baseline (at answerBaseline), so the line should be: baseline + offset
+          // Using fontSize * 0.15 ensures the line is positioned so descenders (g, j, p, q, y) extend slightly above it
+          // This creates the "flex-end" effect where text floats slightly above the line
+          let lineY = answerBaseline + (answerFontSize * 0.15);
+          
+          if (lineY >= dynamicHeight - padding - 10) break;
+          lines.push(...generateLineElement(lineY, aTheme, padding, aColor, aWidth, aOpacity));
+          answerLineIndex++;
+        }
       }
     } else {
       // Single text - use appropriate font size + gap, adjust for baseline offset
@@ -1748,7 +1764,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               // Render all question lines with shared baseline alignment
               // PST: Layout = Inline: Adjust Y position for question text in both combined question-answer line and question-only lines
               questionLines.forEach((line, index) => {
-                const sharedBaseline = effectivePadding + (index * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6);
+                const sharedBaseline = effectivePadding + (index * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.8);
                 const questionY = sharedBaseline - (qFontSize * 0.8);
                 
                 elements.push(
@@ -1788,6 +1804,8 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                 const userLines = userText.split('\n');
                 let currentLineY = questionEndY;
                 let isFirstLine = true;
+                let wrappedSegmentsCount = 0; // Track how many wrapped segments from first line
+                let totalAnswerLineCount = 0; // Track total answer lines (including wrapped segments and subsequent lines)
                 
                 userLines.forEach((line) => {
                   if (!line.trim() && !isFirstLine) {
@@ -1798,6 +1816,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                   
                   const words = line.split(' ');
                   let wordIndex = 0;
+                  let firstLineSegmentCount = 0;
                   
                   while (wordIndex < words.length) {
                     let lineText = '';
@@ -1830,59 +1849,97 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                     // Store answer line for combined alignment
                     if (lineText) {
                       if (isFirstLine) {
-                        // Calculate combined positioning for first line
-                        const lastQuestionLine = questionLines[questionLines.length - 1] || '';
-                        
-                        // Use question font context for accurate measurement
-                        const qContext = document.createElement('canvas').getContext('2d')!;
-                        qContext.font = `${qFontBold ? 'bold ' : ''}${qFontItalic ? 'italic ' : ''}${qFontSize}px ${qFontFamily}`;
-                        const qWidth = qContext.measureText(lastQuestionLine).width;
-                        
-                        const gap = Math.max(10, qFontSize * .5); // Dynamic gap based on font size
-                        const aWidth = context.measureText(lineText).width;
-                        const combinedWidth = qWidth + gap + aWidth;
-                        
-                        let startX = padding;
-                        if (answerAlign === 'center') {
-                          startX = (element.width - combinedWidth) / 2;
-                        } else if (answerAlign === 'right') {
-                          startX = element.width - padding - combinedWidth;
+                        firstLineSegmentCount++;
+                        // Only the first segment of the first line uses combined positioning
+                        // Subsequent segments (wrapped parts) should use answer-only line height
+                        if (firstLineSegmentCount === 1) {
+                          // Calculate combined positioning for first segment
+                          const lastQuestionLine = questionLines[questionLines.length - 1] || '';
+                          
+                          // Use question font context for accurate measurement
+                          const qContext = document.createElement('canvas').getContext('2d')!;
+                          qContext.font = `${qFontBold ? 'bold ' : ''}${qFontItalic ? 'italic ' : ''}${qFontSize}px ${qFontFamily}`;
+                          const qWidth = qContext.measureText(lastQuestionLine).width;
+                          
+                          const gap = Math.max(10, qFontSize * .5); // Dynamic gap based on font size
+                          const aWidth = context.measureText(lineText).width;
+                          const combinedWidth = qWidth + gap + aWidth;
+                          
+                          let startX = padding;
+                          if (answerAlign === 'center') {
+                            startX = (element.width - combinedWidth) / 2;
+                          } else if (answerAlign === 'right') {
+                            startX = element.width - padding - combinedWidth;
+                          }
+                          
+                          // Question already rendered above, no need to render again
+                          
+                          // Calculate shared baseline for both question and answer text
+                          // PST: Layout = Inline: Adjust Y position for answer text in combined question-answer line
+                          const sharedBaseline = effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.8);
+                          const answerY = sharedBaseline - (aFontSize * 0.8);
+                          
+                          // Render answer after question with shared baseline alignment
+                          elements.push(
+                            <Text
+                              key={`user-line-${currentLineY}-${currentX}`}
+                              x={padding + qWidth + gap}
+                              y={answerY}
+                              text={lineText}
+                              fontSize={aFontSize}
+                              fontFamily={aFontFamily}
+                              fontStyle={`${aFontBold ? 'bold' : ''} ${aFontItalic ? 'italic' : ''}`.trim() || 'normal'}
+                              fill={aFontColor}
+                              opacity={aFontOpacity}
+                              align="left"
+                              listening={false}
+                            />
+                          );
+                        } else {
+                          // Wrapped segments of first line should use answer-only line height
+                          // These segments appear on separate lines without question text
+                          wrappedSegmentsCount++;
+                          
+                          // Calculate Y position starting from the combined line's baseline
+                          // The combined line's baseline is at: effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6)
+                          // The wrapped segments should follow with aLineHeight spacing
+                          const combinedLineBaseline = effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6);
+                          const answerBaselineOffset = -(aFontSize * getLineHeightMultiplier(aParagraphSpacing) * 0.15) + (aFontSize * (aFontSize >= 50 ? aFontSize >= 96 ? aFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1));
+                          // Calculate line index: wrappedSegmentsCount - 1 (first wrapped segment is at index 0)
+                          totalAnswerLineCount = wrappedSegmentsCount;
+                          const answerLineIndex = totalAnswerLineCount - 1;
+                          // Start from combined line baseline and add aLineHeight for each wrapped segment
+                          const answerBaseline = combinedLineBaseline + (answerLineIndex * aLineHeight) + answerBaselineOffset + (aFontSize * 0.6);
+                          const answerY = answerBaseline - (aFontSize * 0.8);
+                          
+                          elements.push(
+                            <Text
+                              key={`user-line-wrapped-${wrappedSegmentsCount}-${currentX}`}
+                              x={padding}
+                              y={answerY}
+                              text={lineText}
+                              fontSize={aFontSize}
+                              fontFamily={aFontFamily}
+                              fontStyle={`${aFontBold ? 'bold' : ''} ${aFontItalic ? 'italic' : ''}`.trim() || 'normal'}
+                              fill={aFontColor}
+                              opacity={aFontOpacity}
+                              align={answerAlign}
+                              width={textWidth}
+                              listening={false}
+                            />
+                          );
                         }
-                        
-                        // Question already rendered above, no need to render again
-                        
-                        // Calculate shared baseline for both question and answer text
-                        // PST: Layout = Inline: Adjust Y position for answer text in combined question-answer line
-                        const sharedBaseline = effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6);
-                        const answerY = sharedBaseline - (aFontSize * 0.8);
-                        
-                        // Render answer after question with shared baseline alignment
-                        elements.push(
-                          <Text
-                            key={`user-line-${currentLineY}-${currentX}`}
-                            x={padding + qWidth + gap}
-                            y={answerY}
-                            text={lineText}
-                            fontSize={aFontSize}
-                            fontFamily={aFontFamily}
-                            fontStyle={`${aFontBold ? 'bold' : ''} ${aFontItalic ? 'italic' : ''}`.trim() || 'normal'}
-                            fill={aFontColor}
-                            opacity={aFontOpacity}
-                            align="left"
-                            listening={false}
-                          />
-                        );
                       } else {
                         // Calculate consistent Y position for answer-only lines using independent answer line height
                         // Answer-only lines should be independent of question font size
-                        const questionLinesHeight = questionLines.length * combinedLineHeight;
+                        // Start from the combined line's baseline for consistent spacing
+                        const combinedLineBaseline = effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6);
                         // Calculate answer-specific baseline offset based only on answer font size
                         const answerBaselineOffset = -(aFontSize * getLineHeightMultiplier(aParagraphSpacing) * 0.15) + (aFontSize * (aFontSize >= 50 ? aFontSize >= 96 ? aFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1));
-                        const answerEffectivePadding = padding + (aFontSize * 0.2);
-                        // Use answerLineIndex to calculate position based on aLineHeight (not combinedLineHeight)
-                        const answerLineIndex = Math.round((currentLineY - questionEndY - combinedLineHeight) / aLineHeight);
-                        // PST: Layout = Inline: Adjust Y position answer text in answer-only lines using independent answer line height
-                        const answerBaseline = answerEffectivePadding + questionLinesHeight + (answerLineIndex * aLineHeight) + answerBaselineOffset + (aFontSize * 0.6);
+                        // Increment total answer line count for subsequent lines
+                        totalAnswerLineCount++;
+                        // Start from combined line baseline and add aLineHeight for each answer line
+                        const answerBaseline = combinedLineBaseline + (totalAnswerLineCount * aLineHeight) + answerBaselineOffset + (aFontSize * 0.6);
                         const answerY = answerBaseline - (aFontSize * 0.8);
                         
                         elements.push(
@@ -1906,12 +1963,19 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                     
                     // Move to next line
                     // For answer-only lines (after first line), use independent answer line height
-                    if (isFirstLine) {
-                      // First line is on same line as question - it's a combined line
+                    if (isFirstLine && firstLineSegmentCount === 1) {
+                      // First segment of first line is on same line as question - it's a combined line
                       currentLineY += combinedLineHeight;
+                      // After first segment, wrapped parts use answer-only line height
                       isFirstLine = false;
+                      // totalAnswerLineCount remains 0 here since first segment is on combined line
+                    } else if (isFirstLine && firstLineSegmentCount > 1) {
+                      // Wrapped segments of first line use answer-only line height
+                      // totalAnswerLineCount is already updated in the wrapped segment rendering above
+                      // Don't update currentLineY here as positioning is handled by combinedLineBaseline calculation
                     } else {
-                      // Subsequent answer-only lines use independent answer line height
+                      // Subsequent answer-only lines (after first line is complete) use independent answer line height
+                      // totalAnswerLineCount is already incremented in the rendering above
                       currentLineY += aLineHeight;
                     }
                   }
