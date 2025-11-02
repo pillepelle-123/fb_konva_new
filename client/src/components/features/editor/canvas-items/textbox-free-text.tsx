@@ -41,14 +41,31 @@ export default function TextboxFreeText(props: CanvasItemProps) {
     };
   }, [element.id]);
 
-  // Force refresh when element properties change
+  // Force refresh when element properties change (e.g., from Style Painter)
+  // Extract primitive values to prevent infinite re-renders from object references
+  const textSettingsFontSize = element.textSettings?.fontSize;
+  const textSettingsFontColor = element.textSettings?.fontColor;
+  const textSettingsFontOpacity = element.textSettings?.fontOpacity;
+  const textSettingsBorderEnabled = element.textSettings?.border?.enabled;
+  const textSettingsBackgroundEnabled = element.textSettings?.background?.enabled;
+  const elementFontSize = element.fontSize;
+  const elementFontFamily = element.fontFamily;
+  const elementFontColor = element.fontColor;
+  const elementWidth = element.width;
+  const elementHeight = element.height;
+  
   useEffect(() => {
+    // Simulate the resize process to force proper re-calculation of ruled lines
     setIsResizing(true);
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       setIsResizing(false);
       setRefreshKey(prev => prev + 1);
     }, 10);
-  }, [element.textSettings, element.fontSize, element.fontFamily, element.fontColor, element.font, element.width, element.height]);
+    
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [textSettingsFontSize, textSettingsFontColor, textSettingsFontOpacity, textSettingsBorderEnabled, textSettingsBackgroundEnabled, elementFontSize, elementFontFamily, elementFontColor, elementWidth, elementHeight]);
 
   // Force refresh when ruled lines settings change
   useEffect(() => {
@@ -59,13 +76,28 @@ export default function TextboxFreeText(props: CanvasItemProps) {
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
   const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+  const elementTheme = element.theme;
   const pageLayoutTemplateId = currentPage?.layoutTemplateId;
   const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
   const pageColorPaletteId = currentPage?.colorPaletteId;
   const bookColorPaletteId = state.currentBook?.colorPaletteId;
   
-  // Get tool defaults with theme applied
-  const toolDefaults = getToolDefaults('free_text', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
+  // Get theme-based defaults (includes palette colors automatically applied)
+  const freeTextThemeDefaults = getToolDefaults('free_text', pageTheme, bookTheme, element, state.toolSettings?.free_text, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
+  
+  // Use theme defaults with tool settings fallback (prioritize: toolSettings > themeDefaults)
+  const toolDefaults = {
+    fontSize: freeTextThemeDefaults.fontSize || 50,
+    fontFamily: freeTextThemeDefaults.fontFamily || 'Arial, sans-serif',
+    textSettings: {
+      fontSize: freeTextThemeDefaults.textSettings?.fontSize || 50,
+      // Priority: toolSettings > themeDefaults.textSettings > themeDefaults (top level)
+      fontColor: state.toolSettings?.free_text?.fontColor || freeTextThemeDefaults.textSettings?.fontColor || freeTextThemeDefaults.textSettings?.font?.fontColor || freeTextThemeDefaults.fontColor,
+      fontOpacity: state.toolSettings?.free_text?.fontOpacity ?? freeTextThemeDefaults.textSettings?.fontOpacity ?? freeTextThemeDefaults.textSettings?.font?.fontOpacity ?? 1,
+      borderColor: state.toolSettings?.free_text?.borderColor || freeTextThemeDefaults.textSettings?.borderColor || freeTextThemeDefaults.textSettings?.border?.borderColor || freeTextThemeDefaults.borderColor,
+      backgroundColor: state.toolSettings?.free_text?.backgroundColor || freeTextThemeDefaults.textSettings?.backgroundColor || freeTextThemeDefaults.textSettings?.background?.backgroundColor || freeTextThemeDefaults.backgroundColor
+    }
+  };
   
   const fontSize = element.font?.fontSize || element.fontSize || toolDefaults.fontSize || 50;
   const fontFamily = element.font?.fontFamily || element.fontFamily || toolDefaults.fontFamily || 'Arial, sans-serif';
@@ -94,7 +126,7 @@ export default function TextboxFreeText(props: CanvasItemProps) {
     const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
     const pageColorPaletteId = currentPage?.colorPaletteId;
     const bookColorPaletteId = state.currentBook?.colorPaletteId;
-    const freeTextDefaults = getToolDefaults('free_text', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
+    const freeTextDefaults = getToolDefaults('free_text', pageTheme, bookTheme, element, state.toolSettings?.free_text, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
     
     const textStyle = {
       ...freeTextDefaults.textSettings,
@@ -117,10 +149,13 @@ export default function TextboxFreeText(props: CanvasItemProps) {
     };
     const lineHeight = textFontSize * getLineHeightMultiplier(spacing);
     
-    const theme = element.textSettings?.ruledLinesTheme || textStyle.ruledLinesTheme || 'rough';
-    const color = element.textSettings?.ruledLinesColor || textStyle.ruledLinesColor || '#1f2937';
-    const width = element.textSettings?.ruledLinesWidth || textStyle.ruledLinesWidth || 0.8;
-    const opacity = element.textSettings?.ruledLinesOpacity ?? textStyle.ruledLinesOpacity ?? 1;
+    // Priority: element.textSettings > toolSettings > themeDefaults
+    const theme = element.textSettings?.ruledLinesTheme || freeTextDefaults.textSettings?.ruledLinesTheme || 'rough';
+    const color = element.textSettings?.ruledLinesColor || 
+                  freeTextDefaults.textSettings?.ruledLinesColor || 
+                  (state.toolSettings?.free_text?.borderColor || '#1f2937');
+    const width = element.textSettings?.ruledLinesWidth || freeTextDefaults.textSettings?.ruledLinesWidth || 0.8;
+    const opacity = element.textSettings?.ruledLinesOpacity ?? freeTextDefaults.textSettings?.ruledLinesOpacity ?? 1;
     
     // Calculate text baseline offset
     const factor = textFontSize >= 50 ? textFontSize >= 96 ? textFontSize >= 145 ? -0.07 : 0.01 : 0.07 : 0.1;
@@ -375,21 +410,26 @@ export default function TextboxFreeText(props: CanvasItemProps) {
         >
           {/* Background */}
           {(() => {
+            // Get default settings from tool defaults if not present
             const currentPage = state.currentBook?.pages[state.activePageIndex];
-            const pageTheme = currentPage?.background?.pageTheme;
-            const bookTheme = state.currentBook?.bookTheme;
-            const freeTextDefaults = getToolDefaults('free_text', pageTheme, bookTheme);
+            const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+            const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+            const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+            const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+            const pageColorPaletteId = currentPage?.colorPaletteId;
+            const bookColorPaletteId = state.currentBook?.colorPaletteId;
+            const freeTextDefaults = getToolDefaults('free_text', pageTheme, bookTheme, element, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
             
             const textStyle = {
               ...freeTextDefaults.textSettings,
               ...element.textSettings
             };
-            const showBackground = textStyle.backgroundEnabled;
+            const showBackground = textStyle.background?.enabled || textStyle.backgroundEnabled;
             
             if (showBackground) {
-              const backgroundColor = textStyle.backgroundColor || 'transparent';
-              const backgroundOpacity = textStyle.backgroundOpacity ?? 1;
-              const cornerRadius = textStyle.cornerRadius || 0;
+              const backgroundColor = textStyle.background?.backgroundColor || textStyle.backgroundColor || 'transparent';
+              const backgroundOpacity = textStyle.backgroundOpacity ?? textStyle.background?.backgroundOpacity ?? 1;
+              const cornerRadius = element.cornerRadius ?? freeTextDefaults.cornerRadius ?? 0;
               
               return (
                 <Rect
@@ -407,35 +447,62 @@ export default function TextboxFreeText(props: CanvasItemProps) {
           
           {/* Border */}
           {(() => {
+            // Get default settings from tool defaults if not present
             const currentPage = state.currentBook?.pages[state.activePageIndex];
-            const pageTheme = currentPage?.background?.pageTheme;
-            const bookTheme = state.currentBook?.bookTheme;
-            const freeTextDefaults = getToolDefaults('free_text', pageTheme, bookTheme);
+            const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+            const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+            const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+            const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+            const pageColorPaletteId = currentPage?.colorPaletteId;
+            const bookColorPaletteId = state.currentBook?.colorPaletteId;
+            const freeTextDefaults = getToolDefaults('free_text', pageTheme, bookTheme, element, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
             
             const textStyle = {
               ...freeTextDefaults.textSettings,
               ...element.textSettings
             };
-            const showBorder = textStyle.borderEnabled;
+            const showBorder = textStyle.border?.enabled || textStyle.borderEnabled;
             
             if (showBorder) {
-              const borderColor = textStyle.borderColor || '#000000';
-              const borderWidth = textStyle.borderWidth || 1;
-              const borderOpacity = textStyle.borderOpacity ?? 1;
-              const cornerRadius = textStyle.cornerRadius || 0;
-              const theme = textStyle.borderTheme || 'default';
+              const borderColor = textStyle.border?.borderColor || textStyle.borderColor || '#000000';
+              const borderWidth = textStyle.borderWidth || textStyle.border?.borderWidth || 1;
+              const borderOpacity = textStyle.borderOpacity ?? textStyle.border?.borderOpacity ?? 1;
+              const cornerRadius = element.cornerRadius ?? freeTextDefaults.cornerRadius ?? 0;
+              const theme = textStyle.borderTheme || textStyle.border?.borderTheme || 'default';
               
               const themeRenderer = getThemeRenderer(theme);
               if (themeRenderer && theme !== 'default') {
-                return themeRenderer.renderBorder({
+                // Create a temporary element-like object for generatePath
+                const borderElement = {
+                  type: 'rect' as const,
+                  id: element.id + '-border',
+                  x: 0,
+                  y: 0,
                   width: element.width,
                   height: element.height,
-                  borderWidth,
-                  borderColor,
-                  borderOpacity,
-                  cornerRadius,
-                  elementId: element.id
-                });
+                  cornerRadius: cornerRadius,
+                  stroke: borderColor,
+                  strokeWidth: borderWidth,
+                  fill: 'transparent'
+                } as any;
+                
+                const pathData = themeRenderer.generatePath(borderElement);
+                
+                if (pathData) {
+                  return (
+                    <Path
+                      data={pathData}
+                      stroke={borderColor}
+                      strokeWidth={borderWidth}
+                      opacity={borderOpacity}
+                      fill="transparent"
+                      strokeScaleEnabled={false}
+                      listening={false}
+                      lineCap="round"
+                      lineJoin="round"
+                    />
+                  );
+                }
               }
               
               return (
@@ -465,15 +532,27 @@ export default function TextboxFreeText(props: CanvasItemProps) {
           {isResizing ? (
             <KonvaSkeleton width={element.width} height={element.height} />
           ) : (() => {
+            // Get default settings from tool defaults if not present
             const currentPage = state.currentBook?.pages[state.activePageIndex];
-            const pageTheme = currentPage?.background?.pageTheme;
-            const bookTheme = state.currentBook?.bookTheme;
-            const freeTextDefaults = getToolDefaults('free_text', pageTheme, bookTheme);
+            const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+            const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+            const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+            const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+            const pageColorPaletteId = currentPage?.colorPaletteId;
+            const bookColorPaletteId = state.currentBook?.colorPaletteId;
+            const freeTextDefaults = getToolDefaults('free_text', pageTheme, bookTheme, element, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
             
             const textStyle = {
               ...freeTextDefaults.textSettings,
-              ...element.textSettings
+              ...element.textSettings,
+              fontFamily: element.textSettings?.fontFamily || element.font?.fontFamily || element.fontFamily || freeTextDefaults.textSettings?.fontFamily || fontFamily
             };
+            
+            // Direct color override - element settings have absolute priority
+            if (element.textSettings?.fontColor) {
+              textStyle.fontColor = element.textSettings.fontColor;
+            }
+            
             const padding = textStyle.padding || element.format?.padding || element.padding || 4;
             const textWidth = element.width - (padding * 2);
             const userText = getUserText();
@@ -505,10 +584,10 @@ export default function TextboxFreeText(props: CanvasItemProps) {
             const elements = [];
             const textFontSize = textStyle.fontSize || fontSize;
             const textFontFamily = textStyle.fontFamily || fontFamily;
-            const textFontColor = textStyle.fontColor || '#1f2937';
-            const textFontBold = textStyle.fontBold || false;
-            const textFontItalic = textStyle.fontItalic || false;
-            const textFontOpacity = textStyle.fontOpacity ?? 1;
+            const textFontColor = textStyle.fontColor || textStyle.font?.fontColor || element.font?.fontColor || element.fontColor || toolDefaults.textSettings?.fontColor || '#1f2937';
+            const textFontBold = textStyle.fontBold ?? toolDefaults.textSettings?.fontBold ?? false;
+            const textFontItalic = textStyle.fontItalic ?? toolDefaults.textSettings?.fontItalic ?? false;
+            const textFontOpacity = textStyle.fontOpacity ?? toolDefaults.textSettings?.fontOpacity ?? 1;
             
             const spacing = textStyle.paragraphSpacing || 'medium';
             const getLineHeightMultiplier = (spacing: string) => {

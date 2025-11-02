@@ -1,15 +1,7 @@
-export interface ColorPalette {
-  id: string;
-  name: string;
-  colors: {
-    primary: string;
-    secondary: string;
-    accent: string;
-    background: string;
-    surface: string;
-  };
-  category: string;
-}
+import type { ColorPalette } from '../types/template-types';
+
+// Note: GLOBAL_PALETTES is legacy and may not include 'text' field.
+// The actual ColorPalette interface is in template-types.ts
 
 export const GLOBAL_PALETTES: ColorPalette[] = [
   // Light Palettes
@@ -173,17 +165,41 @@ export function applyPaletteToElement(palette: ColorPalette, elementType: string
       
     case 'qna_inline':
       updates.questionSettings = {
-        fontColor: palette.colors.primary,
-        borderColor: palette.colors.secondary,
-        backgroundColor: palette.colors.surface,
-        ruledLinesColor: palette.colors.accent
-      };
-      updates.answerSettings = {
-        fontColor: palette.colors.accent,
-        borderColor: palette.colors.secondary,
-        backgroundColor: palette.colors.background,
+        fontColor: palette.colors.text,
+        font: { fontColor: palette.colors.text },
+        borderColor: palette.colors.primary,
+        border: { borderColor: palette.colors.primary },
+        backgroundColor: palette.colors.accent,
+        background: { backgroundColor: palette.colors.accent },
         ruledLinesColor: palette.colors.primary
       };
+      updates.answerSettings = {
+        fontColor: palette.colors.text,
+        font: { fontColor: palette.colors.text },
+        borderColor: palette.colors.primary,
+        border: { borderColor: palette.colors.primary },
+        backgroundColor: palette.colors.accent,
+        background: { backgroundColor: palette.colors.accent },
+        ruledLinesColor: palette.colors.primary,
+        ruledLines: { lineColor: palette.colors.primary }
+      };
+      break;
+      
+    case 'free_text':
+      updates.textSettings = {
+        fontColor: palette.colors.text,
+        font: { fontColor: palette.colors.text },
+        borderColor: palette.colors.primary,
+        border: { borderColor: palette.colors.primary },
+        backgroundColor: palette.colors.accent,
+        background: { backgroundColor: palette.colors.accent },
+        ruledLinesColor: palette.colors.primary,
+        ruledLines: { lineColor: palette.colors.primary }
+      };
+      // Also set top-level properties for backward compatibility
+      updates.fontColor = palette.colors.text;
+      updates.borderColor = palette.colors.primary;
+      updates.backgroundColor = palette.colors.accent;
       break;
       
     case 'brush':
@@ -226,7 +242,7 @@ export function applyPaletteToAllElements(palette: ColorPalette, elements: any[]
     
     // Apply flat color properties
     Object.keys(colorUpdates).forEach(key => {
-      if (key === 'font' || key === 'border' || key === 'background' || key === 'ruledLines' || key === 'questionSettings' || key === 'answerSettings') {
+      if (key === 'font' || key === 'border' || key === 'background' || key === 'ruledLines' || key === 'questionSettings' || key === 'answerSettings' || key === 'textSettings') {
         // Merge nested objects
         updatedElement[key] = { ...updatedElement[key], ...colorUpdates[key] };
       } else {

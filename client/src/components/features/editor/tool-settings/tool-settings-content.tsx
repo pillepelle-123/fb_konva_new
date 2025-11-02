@@ -77,6 +77,8 @@ interface ToolSettingsContentProps {
   setShowImageModal: (value: boolean) => void;
   showBackgroundImageModal: boolean;
   setShowBackgroundImageModal: (value: boolean) => void;
+  showBackgroundImageTemplateSelector: boolean;
+  setShowBackgroundImageTemplateSelector: (value: boolean) => void;
   selectedImageElementId: string | null;
   setSelectedImageElementId: (value: string | null) => void;
   showQuestionDialog: boolean;
@@ -108,6 +110,8 @@ export function ToolSettingsContent({
   setShowImageModal,
   showBackgroundImageModal,
   setShowBackgroundImageModal,
+  showBackgroundImageTemplateSelector,
+  setShowBackgroundImageTemplateSelector,
   selectedImageElementId,
   setSelectedImageElementId,
   showQuestionDialog,
@@ -782,6 +786,8 @@ export function ToolSettingsContent({
           showBookTheme={showBookTheme}
           setShowBookTheme={setShowBookTheme}
           setShowBackgroundImageModal={setShowBackgroundImageModal}
+          showBackgroundImageTemplateSelector={showBackgroundImageTemplateSelector}
+          setShowBackgroundImageTemplateSelector={setShowBackgroundImageTemplateSelector}
           onOpenTemplates={onOpenTemplates}
           onOpenLayouts={onOpenLayouts}
           onOpenBookLayouts={onOpenBookLayouts}

@@ -24,6 +24,7 @@ import { snapPosition, type SnapGuideline } from '../../../../utils/snapping';
 
 import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
 import type { PageBackground } from '../../../../context/editor-context';
+import { resolveBackgroundImageUrl } from '../../../../utils/background-image-utils';
 
 function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
   return (
@@ -1620,9 +1621,16 @@ export default function Canvas() {
       }
     }
     
-    if (background.type === 'image' && background.value) {
+    if (background.type === 'image') {
+      // Resolve image URL (handles both template and direct URLs)
+      const imageUrl = resolveBackgroundImageUrl(background) || background.value;
+      if (!imageUrl) return null;
+      
+      // Check if this is a template background that needs background color
+      const hasBackgroundColor = (background as any).backgroundColorEnabled && (background as any).backgroundColor;
+      
       const bgImage = new window.Image();
-      bgImage.src = background.value;
+      bgImage.src = imageUrl;
       bgImage.crossOrigin = 'anonymous';
       
       let fillPatternScaleX = 1;
@@ -1647,6 +1655,39 @@ export default function Canvas() {
       } else if (background.imageSize === 'stretch') {
         fillPatternScaleX = canvasWidth / (bgImage.width || 1);
         fillPatternScaleY = canvasHeight / (bgImage.height || 1);
+      }
+      
+      // If background color is enabled, render it behind the image
+      if (hasBackgroundColor) {
+        return (
+          <Group>
+            {/* Background color layer */}
+            <Rect
+              x={pageOffsetX}
+              y={pageOffsetY}
+              width={canvasWidth}
+              height={canvasHeight}
+              fill={(background as any).backgroundColor || '#ffffff'}
+              opacity={opacity}
+              listening={false}
+            />
+            {/* Image layer */}
+            <Rect
+              x={pageOffsetX}
+              y={pageOffsetY}
+              width={canvasWidth}
+              height={canvasHeight}
+              fillPatternImage={bgImage}
+              fillPatternScaleX={fillPatternScaleX}
+              fillPatternScaleY={fillPatternScaleY}
+              fillPatternOffsetX={fillPatternOffsetX}
+              fillPatternOffsetY={fillPatternOffsetY}
+              fillPatternRepeat={fillPatternRepeat}
+              opacity={opacity}
+              listening={false}
+            />
+          </Group>
+        );
       }
       
       return (

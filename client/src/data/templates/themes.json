@@ -407,7 +407,7 @@
     },
     "elementDefaults": {
       "text": {
-        "cornerRadius": 14,
+        "cornerRadius": 4,
         "font": {
           "fontSize": 15,
           "fontFamily": "'Times New Roman', serif",
@@ -417,9 +417,9 @@
         },
         "border": {
           "enabled": true,
-          "borderWidth": 10,
+          "borderWidth": 2,
           "borderOpacity": 1,
-          "borderTheme": "wobbly"
+          "borderTheme": "rough"
         },
         "format": {
           "textAlign": "left",
@@ -434,7 +434,7 @@
           "enabled": true,
           "lineWidth": 10,
           "lineOpacity": 0.6,
-          "ruledLinesTheme": "wobbly"
+          "ruledLinesTheme": "rough"
         }
       },
       "qna": {
@@ -585,6 +585,101 @@
       }
     }
   },
+
+  "leather": {
+    "name": "Leather",
+    "description": "Custom theme exported from canvas",
+    "palette": "leather",
+    "pageSettings": {
+      "backgroundOpacity": 1,
+      "backgroundPattern": {
+        "enabled": false,
+        "style": "dots",
+        "size": 20,
+        "strokeWidth": 1,
+        "patternBackgroundOpacity": 0.3
+      }
+    },
+    "elementDefaults": {
+      "text": {
+        "cornerRadius": 14,
+        "font": {
+          "fontSize": 12,
+          "fontFamily": "'Mynerve', cursive",
+          "fontBold": false,
+          "fontItalic": false,
+          "fontOpacity": 1
+        },
+        "border": {
+          "enabled": false,
+          "borderWidth": 1,
+          "borderOpacity": 1,
+          "borderTheme": "wobbly"
+        },
+        "background": {
+          "enabled": false,
+          "backgroundOpacity": 1
+        },
+        "ruledLines": {
+          "enabled": true,
+          "lineWidth": 2,
+          "lineOpacity": 0.7,
+          "ruledLinesTheme": "rough"
+        }
+      },
+      "qna": {
+        "layoutVariant": "block",
+        "questionPosition": "left",
+        "questionWidth": 35,
+        "cornerRadius": 47,
+        "paragraphSpacing": "medium",
+        "align": "left",
+        "borderEnabled": false,
+        "borderWidth": 10,
+        "borderTheme": "wobbly",
+        "borderOpacity": 1,
+        "backgroundEnabled": false,
+        "backgroundOpacity": 0.05,
+        "ruledLines": {
+          "enabled": true,
+          "lineColor": "#332217",
+          "lineWidth": 10,
+          "lineOpacity": 0.6,
+          "ruledLinesTheme": "wobbly"
+        },
+        "ruledLinesWidth": 2,
+        "ruledLinesTheme": "rough",
+        "ruledLinesOpacity": 0.7,
+        "questionSettings": {
+          "fontSize": 24,
+          "fontFamily": "'Mynerve', cursive",
+          "fontBold": true,
+          "fontItalic": false,
+          "fontOpacity": 0.9
+        },
+        "answerSettings": {
+          "fontSize": 24,
+          "fontFamily": "'Mynerve', cursive",
+          "fontBold": false,
+          "fontItalic": false,
+          "fontOpacity": 0.9
+        }
+      },
+      "shape": {
+        "strokeWidth": 7,
+        "cornerRadius": 4,
+        "opacity": 0.85,
+        "inheritTheme": "rough",
+        "borderEnabled": true,
+        "backgroundEnabled": true
+      },
+      "line": {
+        "strokeWidth": 7,
+        "inheritTheme": "rough"
+      }
+    }
+  },
+  
   
   
 

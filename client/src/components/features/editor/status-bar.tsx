@@ -1,9 +1,55 @@
 import { useEditor } from '../../../context/editor-context';
+import { Button } from '../../../components/ui/primitives';
+import { Download } from 'lucide-react';
+import { exportThemeAndPalette } from '../../../utils/theme-palette-exporter';
 
 export function StatusBar() {
   const { state } = useEditor();
 
   if (!state.currentBook) return null;
+
+  const handleExportThemeAndPalette = () => {
+    const currentPage = state.currentBook?.pages[state.activePageIndex];
+    if (!currentPage) {
+      console.warn('No current page found');
+      return;
+    }
+
+    const elements = currentPage.elements || [];
+    
+    // Check if we have the required elements
+    const hasQna = elements.some(el => el.textType === 'qna_inline' || el.type === 'qna_inline');
+    const hasFreeText = elements.some(el => el.textType === 'free_text' || el.type === 'free_text');
+    const hasShape = elements.some(el => 
+      el.type === 'rect' || el.type === 'circle' || el.type === 'triangle' || 
+      el.type === 'polygon' || el.type === 'heart' || el.type === 'star' ||
+      el.type === 'speech-bubble' || el.type === 'dog' || el.type === 'cat' || el.type === 'smiley'
+    );
+
+    if (!hasQna && !hasFreeText && !hasShape) {
+      alert('Bitte fügen Sie mindestens ein Element hinzu:\n- QnA Inline Textbox\n- Free Text Textbox\n- Shape (Rect, Circle, etc.)');
+      return;
+    }
+
+    // Prompt for theme and palette names
+    const themeName = prompt('Geben Sie einen Namen für das Theme ein:');
+    if (!themeName || themeName.trim() === '') {
+      return;
+    }
+
+    const paletteName = prompt('Geben Sie einen Namen für die Color Palette ein:', themeName);
+    if (!paletteName || paletteName.trim() === '') {
+      return;
+    }
+
+    exportThemeAndPalette(
+      themeName.trim(),
+      paletteName.trim(),
+      elements,
+      currentPage.background,
+      currentPage.themeId || currentPage.background?.pageTheme
+    );
+  };
 
   return (
     <div className="px-6 py-2 bg-card border-t border-border text-sm text-muted-foreground flex justify-between items-center shrink-0 gap-4">
@@ -16,9 +62,20 @@ export function StatusBar() {
           <> | User: <span className="text-foreground">{state.pageAssignments[state.activePageIndex + 1].id}</span></>
         )}
       </span>
-      <span className="font-medium">
-        Selected: <span className="text-foreground">{state.selectedElementIds.length}</span> element{state.selectedElementIds.length !== 1 ? 's' : ''}
-      </span>
+      <div className="flex items-center gap-4">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleExportThemeAndPalette}
+          className="h-7 text-xs"
+        >
+          <Download className="h-3 w-3 mr-1" />
+          Export Theme + Palette
+        </Button>
+        <span className="font-medium">
+          Selected: <span className="text-foreground">{state.selectedElementIds.length}</span> element{state.selectedElementIds.length !== 1 ? 's' : ''}
+        </span>
+      </div>
     </div>
   );
 }

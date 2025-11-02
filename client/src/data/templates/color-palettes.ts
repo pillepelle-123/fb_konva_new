@@ -426,16 +426,40 @@ export function applyPaletteToElement(palette: ColorPalette, elementType: string
     case 'qna_inline':
       updates.questionSettings = {
         fontColor: palette.colors.text || palette.colors.primary,
-        borderColor: palette.colors.secondary,
-        backgroundColor: palette.colors.surface || palette.colors.background,
-        ruledLinesColor: palette.colors.accent || palette.colors.primary
-      };
-      updates.answerSettings = {
-        fontColor: palette.colors.accent || palette.colors.text || palette.colors.primary,
-        borderColor: palette.colors.secondary,
-        backgroundColor: palette.colors.background,
+        font: { fontColor: palette.colors.text || palette.colors.primary },
+        borderColor: palette.colors.primary,
+        border: { borderColor: palette.colors.primary },
+        backgroundColor: palette.colors.accent,
+        background: { backgroundColor: palette.colors.accent },
         ruledLinesColor: palette.colors.primary
       };
+      updates.answerSettings = {
+        fontColor: palette.colors.text || palette.colors.primary,
+        font: { fontColor: palette.colors.text || palette.colors.primary },
+        borderColor: palette.colors.primary,
+        border: { borderColor: palette.colors.primary },
+        backgroundColor: palette.colors.accent,
+        background: { backgroundColor: palette.colors.accent },
+        ruledLinesColor: palette.colors.primary,
+        ruledLines: { lineColor: palette.colors.primary }
+      };
+      break;
+      
+    case 'free_text':
+      updates.textSettings = {
+        fontColor: palette.colors.text || palette.colors.primary,
+        font: { fontColor: palette.colors.text || palette.colors.primary },
+        borderColor: palette.colors.primary,
+        border: { borderColor: palette.colors.primary },
+        backgroundColor: palette.colors.accent,
+        background: { backgroundColor: palette.colors.accent },
+        ruledLinesColor: palette.colors.primary,
+        ruledLines: { lineColor: palette.colors.primary }
+      };
+      // Also set top-level properties for backward compatibility
+      updates.fontColor = palette.colors.text || palette.colors.primary;
+      updates.borderColor = palette.colors.primary;
+      updates.backgroundColor = palette.colors.accent;
       break;
       
     case 'brush':

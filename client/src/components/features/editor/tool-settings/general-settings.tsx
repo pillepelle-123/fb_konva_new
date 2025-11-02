@@ -18,6 +18,7 @@ import { PaletteSelector } from '../palette-selector';
 import { commonToActual } from '../../../../utils/font-size-converter';
 import { useState } from 'react';
 import ConfirmationDialog from '../../../ui/overlays/confirmation-dialog';
+import { BackgroundImageSelector } from './background-image-selector';
 
 
 interface GeneralSettingsProps {
@@ -32,6 +33,8 @@ interface GeneralSettingsProps {
   showBookTheme: boolean;
   setShowBookTheme: (value: boolean) => void;
   setShowBackgroundImageModal: (value: boolean) => void;
+  showBackgroundImageTemplateSelector: boolean;
+  setShowBackgroundImageTemplateSelector: (value: boolean) => void;
   onOpenTemplates: () => void;
   onOpenLayouts: () => void;
   onOpenBookLayouts: () => void;
@@ -51,6 +54,8 @@ export function GeneralSettings({
   showBookTheme,
   setShowBookTheme,
   setShowBackgroundImageModal,
+  showBackgroundImageTemplateSelector,
+  setShowBackgroundImageTemplateSelector,
   onOpenTemplates,
   onOpenLayouts,
   onOpenBookLayouts,
@@ -486,6 +491,15 @@ export function GeneralSettings({
       );
     }
 
+    if (showBackgroundImageTemplateSelector) {
+      return (
+        <BackgroundImageSelector
+          onBack={() => setShowBackgroundImageTemplateSelector(false)}
+          onSelect={() => setShowBackgroundImageTemplateSelector(false)}
+        />
+      );
+    }
+
     if (showPatternSettings && isPattern) {
       return (
         <div className="space-y-4">
@@ -633,15 +647,26 @@ export function GeneralSettings({
 
         {background.type === 'image' && (
           <div className="space-y-2">
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={() => setShowBackgroundImageModal(true)}
-              className="w-full"
-            >
-              <Image className="h-4 w-4 mr-2" />
-              {background.value ? 'Change Image' : 'Select Image'}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={() => setShowBackgroundImageTemplateSelector(true)}
+                className="flex-1"
+              >
+                <Image className="h-4 w-4 mr-2" />
+                Templates
+              </Button>
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={() => setShowBackgroundImageModal(true)}
+                className="flex-1"
+              >
+                <Image className="h-4 w-4 mr-2" />
+                Upload
+              </Button>
+            </div>
             
             {background.value && (
               <div className="space-y-2">
@@ -842,8 +867,6 @@ export function GeneralSettings({
           </div>
         </div>
       </div>
-      
-
     </>
   );
 }

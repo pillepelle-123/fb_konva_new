@@ -377,6 +377,19 @@
         "surface": "#1a1a1a"
       },
       "contrast": "AAA"
+    },
+    {
+      "id": "leather",
+      "name": "leather",
+      "colors": {
+        "background": "#f7f3e9",
+        "primary": "#654321",
+        "secondary": "#f5deb3",
+        "accent": "#f5deb3",
+        "text": "#332217",
+        "surface": "#f5deb3"
+      },
+      "contrast": "AA"
     }
   ]
 }

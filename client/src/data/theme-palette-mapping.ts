@@ -12,7 +12,9 @@ export const THEME_PALETTE_MAP: Record<string, string> = {
   'colorful': 'vibrant-rainbow',
   'vintage': 'vintage-sepia',
   'dark': 'dark-neon',
-  'custom': 'vibrant-rainbow' // Fallback for custom theme
+  'custom': 'vibrant-rainbow', // Fallback for custom theme
+  'leather': 'leather',
+
 };
 
 /**

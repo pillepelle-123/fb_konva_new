@@ -364,6 +364,7 @@ export interface PageBackground {
   patternBackgroundColor?: string; // pattern background color
   patternBackgroundOpacity?: number;
   pageTheme?: string; // page-specific theme ID
+  backgroundImageTemplateId?: string; // Reference to background image template
   ruledLines?: {
     enabled: boolean;
     theme: 'notebook' | 'college' | 'graph' | 'dotted';
@@ -1415,10 +1416,28 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             }
             
             const toolType = element.textType || element.type;
-            const themeDefaults = getToolDefaults(toolType as any, action.payload.themeId, undefined);
+            const currentPage = updatedBookApplyTheme.pages.find((_: any, idx: number) => 
+              action.payload.applyToAllPages || idx === action.payload.pageIndex
+            );
+            const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+            const bookLayoutTemplateId = updatedBookApplyTheme.layoutTemplateId;
+            const pageColorPaletteId = currentPage?.colorPaletteId;
+            const bookColorPaletteId = updatedBookApplyTheme.colorPaletteId;
+            
+            const themeDefaults = getToolDefaults(
+              toolType as any, 
+              action.payload.themeId, 
+              updatedBookApplyTheme.bookTheme,
+              element,
+              undefined,
+              pageLayoutTemplateId,
+              bookLayoutTemplateId,
+              pageColorPaletteId,
+              bookColorPaletteId
+            );
             
             // Apply ALL theme properties including colors and fonts
-            const updatedElement = {
+            const updatedElement: any = {
               ...element,
               ...themeDefaults,
               theme: action.payload.themeId,
@@ -1438,6 +1457,14 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
               src: element.src,
               points: element.points
             };
+            
+            // For free_text elements, ensure textSettings is properly structured
+            if (element.textType === 'free_text' && themeDefaults.textSettings) {
+              updatedElement.textSettings = {
+                ...(element.textSettings || {}),
+                ...themeDefaults.textSettings
+              };
+            }
             
             return updatedElement;
           })
@@ -1623,7 +1650,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           // QnA specific styles
           questionSettings: selectedElement.questionSettings ? { ...selectedElement.questionSettings } : undefined,
           answerSettings: selectedElement.answerSettings ? { ...selectedElement.answerSettings } : undefined,
-          qnaIndividualSettings: selectedElement.qnaIndividualSettings
+          qnaIndividualSettings: selectedElement.qnaIndividualSettings,
+          // Free text specific styles
+          textSettings: selectedElement.textSettings ? { ...selectedElement.textSettings } : undefined
         };
         
         console.log('Activating style painter with copied style:', copiedStyle);
@@ -1661,6 +1690,88 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         const styleToApply = Object.fromEntries(
           Object.entries(savedStyleState.copiedStyle!).filter(([_, value]) => value !== undefined)
         );
+        
+        // Convert questionSettings/answerSettings to textSettings for free_text elements
+        const targetElementType = targetElement.textType || targetElement.type;
+        if (targetElementType === 'free_text' && (styleToApply.questionSettings || styleToApply.answerSettings)) {
+          // Convert QnA settings to free text settings
+          const qnaSettings = styleToApply.questionSettings || styleToApply.answerSettings;
+          if (qnaSettings) {
+            styleToApply.textSettings = {
+              ...(targetElement.textSettings || {}),
+              fontSize: qnaSettings.fontSize || targetElement.textSettings?.fontSize,
+              fontFamily: qnaSettings.fontFamily || targetElement.textSettings?.fontFamily,
+              fontColor: qnaSettings.fontColor || targetElement.textSettings?.fontColor,
+              fontOpacity: qnaSettings.fontOpacity ?? targetElement.textSettings?.fontOpacity,
+              fontBold: qnaSettings.fontBold ?? targetElement.textSettings?.fontBold,
+              fontItalic: qnaSettings.fontItalic ?? targetElement.textSettings?.fontItalic,
+              border: qnaSettings.border || targetElement.textSettings?.border,
+              borderWidth: qnaSettings.borderWidth || targetElement.textSettings?.borderWidth,
+              borderColor: qnaSettings.borderColor || targetElement.textSettings?.borderColor,
+              borderOpacity: qnaSettings.borderOpacity ?? targetElement.textSettings?.borderOpacity,
+              borderTheme: qnaSettings.borderTheme || targetElement.textSettings?.borderTheme,
+              background: qnaSettings.background || targetElement.textSettings?.background,
+              backgroundColor: qnaSettings.backgroundColor || targetElement.textSettings?.backgroundColor,
+              backgroundOpacity: qnaSettings.backgroundOpacity ?? targetElement.textSettings?.backgroundOpacity,
+              align: qnaSettings.align || targetElement.textSettings?.align,
+              paragraphSpacing: qnaSettings.paragraphSpacing || targetElement.textSettings?.paragraphSpacing,
+              padding: qnaSettings.padding || targetElement.textSettings?.padding
+            };
+            // Remove questionSettings/answerSettings as they don't apply to free_text
+            delete styleToApply.questionSettings;
+            delete styleToApply.answerSettings;
+          }
+        }
+        
+        // Convert textSettings to questionSettings/answerSettings for qna_inline elements
+        if (targetElementType === 'qna_inline' && styleToApply.textSettings) {
+          const textSettings = styleToApply.textSettings;
+          if (!styleToApply.questionSettings) {
+            styleToApply.questionSettings = {
+              ...(targetElement.questionSettings || {}),
+              fontSize: textSettings.fontSize || targetElement.questionSettings?.fontSize,
+              fontFamily: textSettings.fontFamily || targetElement.questionSettings?.fontFamily,
+              fontColor: textSettings.fontColor || targetElement.questionSettings?.fontColor,
+              fontOpacity: textSettings.fontOpacity ?? targetElement.questionSettings?.fontOpacity,
+              fontBold: textSettings.fontBold ?? targetElement.questionSettings?.fontBold,
+              fontItalic: textSettings.fontItalic ?? targetElement.questionSettings?.fontItalic,
+              border: textSettings.border || targetElement.questionSettings?.border,
+              borderWidth: textSettings.borderWidth || targetElement.questionSettings?.borderWidth,
+              borderColor: textSettings.borderColor || targetElement.questionSettings?.borderColor,
+              borderOpacity: textSettings.borderOpacity ?? targetElement.questionSettings?.borderOpacity,
+              borderTheme: textSettings.borderTheme || targetElement.questionSettings?.borderTheme,
+              background: textSettings.background || targetElement.questionSettings?.background,
+              backgroundColor: textSettings.backgroundColor || targetElement.questionSettings?.backgroundColor,
+              backgroundOpacity: textSettings.backgroundOpacity ?? targetElement.questionSettings?.backgroundOpacity
+            };
+          }
+          if (!styleToApply.answerSettings) {
+            styleToApply.answerSettings = {
+              ...(targetElement.answerSettings || {}),
+              fontSize: textSettings.fontSize || targetElement.answerSettings?.fontSize,
+              fontFamily: textSettings.fontFamily || targetElement.answerSettings?.fontFamily,
+              fontColor: textSettings.fontColor || targetElement.answerSettings?.fontColor,
+              fontOpacity: textSettings.fontOpacity ?? targetElement.answerSettings?.fontOpacity,
+              fontBold: textSettings.fontBold ?? targetElement.answerSettings?.fontBold,
+              fontItalic: textSettings.fontItalic ?? targetElement.answerSettings?.fontItalic,
+              border: textSettings.border || targetElement.answerSettings?.border,
+              borderWidth: textSettings.borderWidth || targetElement.answerSettings?.borderWidth,
+              borderColor: textSettings.borderColor || targetElement.answerSettings?.borderColor,
+              borderOpacity: textSettings.borderOpacity ?? targetElement.answerSettings?.borderOpacity,
+              borderTheme: textSettings.borderTheme || targetElement.answerSettings?.borderTheme,
+              background: textSettings.background || targetElement.answerSettings?.background,
+              backgroundColor: textSettings.backgroundColor || targetElement.answerSettings?.backgroundColor,
+              backgroundOpacity: textSettings.backgroundOpacity ?? targetElement.answerSettings?.backgroundOpacity,
+              ruledLines: textSettings.ruledLines || targetElement.answerSettings?.ruledLines,
+              ruledLinesWidth: textSettings.ruledLinesWidth || targetElement.answerSettings?.ruledLinesWidth,
+              ruledLinesColor: textSettings.ruledLinesColor || targetElement.answerSettings?.ruledLinesColor,
+              ruledLinesOpacity: textSettings.ruledLinesOpacity ?? targetElement.answerSettings?.ruledLinesOpacity,
+              ruledLinesTheme: textSettings.ruledLinesTheme || targetElement.answerSettings?.ruledLinesTheme
+            };
+          }
+          // Remove textSettings as it doesn't apply to qna_inline
+          delete styleToApply.textSettings;
+        }
         
         pageStyle.elements[targetElementIndex] = {
           ...pageStyle.elements[targetElementIndex],
@@ -1803,6 +1914,37 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                   fontColor: palette.colors.text
                 };
               }
+              
+              // Handle free_text elements with textSettings
+              if (element.textType === 'free_text') {
+                const currentBorder = element.textSettings?.border || {};
+                const currentBackground = element.textSettings?.background || {};
+                updates.textSettings = {
+                  ...element.textSettings,
+                  fontColor: palette.colors.text,
+                  font: element.textSettings?.font ? 
+                    { ...element.textSettings.font, fontColor: palette.colors.text } : 
+                    { fontColor: palette.colors.text },
+                  border: {
+                    ...currentBorder,
+                    borderColor: palette.colors.primary,
+                    enabled: currentBorder.enabled !== undefined ? currentBorder.enabled : true
+                  },
+                  borderColor: palette.colors.primary,
+                  background: {
+                    ...currentBackground,
+                    backgroundColor: palette.colors.accent,
+                    enabled: currentBackground.enabled !== undefined ? currentBackground.enabled : true
+                  },
+                  backgroundColor: palette.colors.accent,
+                  ruledLines: element.textSettings?.ruledLines ? {
+                    ...element.textSettings.ruledLines,
+                    lineColor: palette.colors.primary
+                  } : undefined,
+                  ruledLinesColor: palette.colors.primary
+                };
+              }
+              
               // Update border colors - create nested objects if they don't exist
               updates.border = { ...element.border, borderColor: palette.colors.primary, enabled: true };
               if (element.textType === 'qna_inline') {

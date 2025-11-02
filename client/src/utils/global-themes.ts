@@ -306,6 +306,82 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string): Pa
     };
   }
   
+  // For free_text elements, build textSettings structure
+  if (elementType === 'free_text') {
+    const category = getThemeCategory(elementType);
+    const baseDefaults = theme.elementDefaults[category] || {};
+    
+    // Convert fontSize from common scale to actual size if it exists
+    let fontSize = 50;
+    if (baseDefaults.font?.fontSize !== undefined) {
+      fontSize = commonToActual(baseDefaults.font.fontSize);
+    }
+    
+    // Convert cornerRadius from common scale to actual size if it exists
+    let cornerRadius = 0;
+    if (baseDefaults.cornerRadius !== undefined) {
+      cornerRadius = commonToActualRadius(baseDefaults.cornerRadius);
+    }
+    
+    // Build textSettings from base defaults
+    const textSettings: any = {
+      fontSize: fontSize,
+      fontFamily: baseDefaults.font?.fontFamily || 'Arial, sans-serif',
+      fontBold: baseDefaults.font?.fontBold ?? false,
+      fontItalic: baseDefaults.font?.fontItalic ?? false,
+      fontOpacity: baseDefaults.font?.fontOpacity ?? 1,
+      align: baseDefaults.format?.textAlign || 'left',
+      paragraphSpacing: baseDefaults.format?.paragraphSpacing || 'medium',
+      padding: baseDefaults.format?.padding || 4,
+      cornerRadius: cornerRadius,
+      border: baseDefaults.border ? {
+        enabled: baseDefaults.border.enabled ?? false,
+        borderWidth: baseDefaults.border.borderWidth || 0,
+        borderColor: baseDefaults.border.borderColor,
+        borderOpacity: baseDefaults.border.borderOpacity ?? 1,
+        borderTheme: baseDefaults.border.borderTheme || 'default'
+      } : { enabled: false, borderWidth: 0, borderColor: '#000000', borderOpacity: 1, borderTheme: 'default' },
+      background: baseDefaults.background ? {
+        enabled: baseDefaults.background.enabled ?? false,
+        backgroundColor: baseDefaults.background.backgroundColor,
+        backgroundOpacity: baseDefaults.background.backgroundOpacity ?? 1
+      } : { enabled: false, backgroundColor: 'transparent', backgroundOpacity: 1 },
+      ruledLines: baseDefaults.ruledLines ? {
+        enabled: baseDefaults.ruledLines.enabled ?? false,
+        lineWidth: baseDefaults.ruledLines.lineWidth || 0.8,
+        lineOpacity: baseDefaults.ruledLines.lineOpacity ?? 0.5,
+        ruledLinesTheme: baseDefaults.ruledLines.ruledLinesTheme || 'default',
+        lineColor: baseDefaults.ruledLines.lineColor
+      } : { enabled: false, lineWidth: 0.8, lineOpacity: 0.5, ruledLinesTheme: 'default', lineColor: '#1f2937' }
+    };
+    
+    // Initialize font object if it doesn't exist
+    if (!textSettings.font) {
+      textSettings.font = {};
+    }
+    
+    // Apply palette colors if available
+    if (palette) {
+      textSettings.fontColor = palette.colors.text || palette.colors.primary;
+      textSettings.font.fontColor = palette.colors.text || palette.colors.primary;
+      textSettings.borderColor = palette.colors.primary;
+      textSettings.border.borderColor = palette.colors.primary;
+      textSettings.backgroundColor = palette.colors.accent;
+      textSettings.background.backgroundColor = palette.colors.accent;
+      textSettings.ruledLinesColor = palette.colors.primary;
+      textSettings.ruledLines.lineColor = palette.colors.primary;
+    }
+    
+    return {
+      ...baseDefaults,
+      textSettings,
+      // Top-level properties for backward compatibility
+      fontColor: palette ? (palette.colors.text || palette.colors.primary) : undefined,
+      borderColor: palette ? palette.colors.primary : undefined,
+      backgroundColor: palette ? palette.colors.accent : undefined
+    };
+  }
+  
   const category = getThemeCategory(elementType);
   const baseDefaults = theme.elementDefaults[category] || {};
   

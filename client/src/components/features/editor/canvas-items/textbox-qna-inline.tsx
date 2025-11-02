@@ -1426,21 +1426,43 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               const cornerRadius = element.cornerRadius ?? qnaInlineDefaults.cornerRadius ?? 0;
               const theme = questionStyle.borderTheme || answerStyle.borderTheme || 'default';
               
+              const dynamicHeight = calculateDynamicHeight();
+              
               // Use theme renderer for consistent border rendering
               const themeRenderer = getThemeRenderer(theme);
               if (themeRenderer && theme !== 'default') {
-                return themeRenderer.renderBorder({
+                // Create a temporary element-like object for generatePath
+                const borderElement = {
+                  type: 'rect' as const,
+                  id: element.id + '-border',
+                  x: 0,
+                  y: 0,
                   width: element.width,
-                  height: element.height,
-                  borderWidth,
-                  borderColor,
-                  borderOpacity,
-                  cornerRadius,
-                  elementId: element.id
-                });
+                  height: dynamicHeight,
+                  cornerRadius: cornerRadius,
+                  stroke: borderColor,
+                  strokeWidth: borderWidth,
+                  fill: 'transparent'
+                } as CanvasElement;
+                
+                const pathData = themeRenderer.generatePath(borderElement);
+                
+                if (pathData) {
+                  return (
+                    <Path
+                      data={pathData}
+                      stroke={borderColor}
+                      strokeWidth={borderWidth}
+                      opacity={borderOpacity}
+                      fill="transparent"
+                      strokeScaleEnabled={false}
+                      listening={false}
+                      lineCap="round"
+                      lineJoin="round"
+                    />
+                  );
+                }
               }
-              
-              const dynamicHeight = calculateDynamicHeight();
               
               return (
                 <Rect

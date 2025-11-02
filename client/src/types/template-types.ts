@@ -1,5 +1,13 @@
 export type TemplateCategory = 'structured' | 'playful' | 'minimal' | 'creative';
 export type ThemeVariant = 'default' | 'sketchy' | 'minimal' | 'colorful' | 'vintage' | 'dark';
+export type BackgroundImageCategory = 
+  | 'geometric'
+  | 'nature'
+  | 'abstract'
+  | 'decorative'
+  | 'texture'
+  | 'minimal'
+  | 'pattern';
 
 export interface ColorPalette {
   id: string;
@@ -91,8 +99,8 @@ export interface PageTemplate {
     position: { x: number; y: number };
     size: { width: number; height: number };
     style?: TextboxStyle;
-    questionSettings?: Record<string, any>;
-    answerSettings?: Record<string, any>;
+    questionSettings?: Record<string, unknown>;
+    answerSettings?: Record<string, unknown>;
     layoutVariant?: string;
   }>;
   elements: Array<{
@@ -108,4 +116,25 @@ export interface PageTemplate {
     imageSlots: number;
     stickerSlots: number;
   };
+}
+
+export interface BackgroundImage {
+  id: string;
+  name: string;
+  category: BackgroundImageCategory;
+  format: 'vector' | 'pixel';
+  filePath: string;
+  thumbnail: string;
+  defaultSize: 'cover' | 'contain' | 'contain-repeat' | 'stretch';
+  backgroundColor?: {
+    enabled: boolean;
+    defaultValue?: string;
+  };
+  description?: string;
+  tags?: string[];
+}
+
+export interface BackgroundImageWithUrl extends BackgroundImage {
+  url: string;
+  thumbnailUrl: string;
 }
