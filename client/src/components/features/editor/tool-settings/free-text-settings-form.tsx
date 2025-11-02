@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Button } from '../../../ui/primitives/button';
 import { Palette, Type, AlignLeft, AlignCenter, AlignRight, AlignJustify, ALargeSmall, Rows4, Rows3, Rows2, SquareRoundCorner, PanelTopBottomDashed } from 'lucide-react';
 import { ButtonGroup } from '../../../ui/composites/button-group';
@@ -53,6 +54,9 @@ export function FreeTextSettingsForm({
 }: FreeTextSettingsFormProps) {
   const { dispatch } = useEditor();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
+  
+  // Local state for color selector
+  const [localShowColorSelector, setLocalShowColorSelector] = useState<string | null>(null);
   
   const getTextStyle = () => {
     const tStyle = element.textSettings || {};
@@ -141,9 +145,9 @@ export function FreeTextSettingsForm({
     );
   }
   
-  if (showColorSelector && showColorSelector.startsWith('element-')) {
+  if (localShowColorSelector) {
     const getColorValue = () => {
-      switch (showColorSelector) {
+      switch (localShowColorSelector) {
         case 'element-text-color':
           return computedCurrentStyle.fontColor;
         case 'element-border-color':
@@ -158,7 +162,7 @@ export function FreeTextSettingsForm({
     };
     
     const getElementOpacityValue = () => {
-      switch (showColorSelector) {
+      switch (localShowColorSelector) {
         case 'element-text-color':
           return computedCurrentStyle.fontOpacity;
         case 'element-border-color':
@@ -173,7 +177,7 @@ export function FreeTextSettingsForm({
     };
     
     const handleElementOpacityChange = (opacity: number) => {
-      switch (showColorSelector) {
+      switch (localShowColorSelector) {
         case 'element-text-color':
           updateTextSetting('fontOpacity', opacity);
           break;
@@ -190,7 +194,7 @@ export function FreeTextSettingsForm({
     };
     
     const handleElementColorChange = (color: string) => {
-      switch (showColorSelector) {
+      switch (localShowColorSelector) {
         case 'element-text-color':
           updateTextSetting('fontColor', color);
           break;
@@ -215,7 +219,7 @@ export function FreeTextSettingsForm({
         favoriteColors={favoriteStrokeColors}
         onAddFavorite={addFavoriteStrokeColor}
         onRemoveFavorite={removeFavoriteStrokeColor}
-        onBack={() => setShowColorSelector(null)}
+        onBack={() => setLocalShowColorSelector(null)}
       />
     );
   }
@@ -276,7 +280,7 @@ export function FreeTextSettingsForm({
         <Button
           variant="outline"
           size="xs"
-          onClick={() => setShowColorSelector('element-text-color')}
+          onClick={() => setLocalShowColorSelector('element-text-color')}
           className="w-full"
         >
           <Palette className="w-4 mr-2" />
@@ -355,7 +359,7 @@ export function FreeTextSettingsForm({
             <Button
               variant="outline"
               size="xs"
-              onClick={() => setShowColorSelector('element-ruled-lines-color')}
+              onClick={() => setLocalShowColorSelector('element-ruled-lines-color')}
               className="w-full"
             >
               <Palette className="w-4 mr-2" />
@@ -401,7 +405,7 @@ export function FreeTextSettingsForm({
             <Button
               variant="outline"
               size="xs"
-              onClick={() => setShowColorSelector('element-border-color')}
+              onClick={() => setLocalShowColorSelector('element-border-color')}
               className="w-full"
             >
               <Palette className="w-4 mr-2" />
@@ -437,7 +441,7 @@ export function FreeTextSettingsForm({
             <Button
               variant="outline"
               size="xs"
-              onClick={() => setShowColorSelector('element-background-color')}
+              onClick={() => setLocalShowColorSelector('element-background-color')}
               className="w-full"
             >
               <Palette className="w-4 mr-2" />

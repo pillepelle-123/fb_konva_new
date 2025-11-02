@@ -12,6 +12,7 @@ import { Separator } from '../../../ui/primitives/separator';
 import { Label } from '../../../ui/primitives/label';
 import { GlobalThemeSelector } from '../global-theme-selector';
 import { getGlobalThemeDefaults, getGlobalTheme, getThemePageBackgroundColors } from '../../../../utils/global-themes';
+import { getToolDefaults } from '../../../../utils/tool-defaults';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { PaletteSelector } from '../palette-selector';
 import { commonToActual } from '../../../../utils/font-size-converter';
@@ -75,16 +76,6 @@ export function GeneralSettings({
 
 
   const renderPageThemeSettings = () => {
-    if (showPagePalette) {
-      return (
-        <PaletteSelector
-          onBack={() => setShowPagePalette(false)}
-          title="Page Theme Settings"
-          isBookLevel={false}
-        />
-      );
-    }
-
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-2 mb-4">
@@ -158,6 +149,12 @@ export function GeneralSettings({
             // Set page theme
             dispatch({ type: 'SET_PAGE_THEME', payload: { pageIndex: state.activePageIndex, themeId } });
             
+            // Remove page color palette override so theme palette is used instead
+            dispatch({
+              type: 'SET_PAGE_COLOR_PALETTE',
+              payload: { pageIndex: state.activePageIndex, colorPaletteId: null }
+            });
+            
             // Apply theme to all elements on current page
             dispatch({
               type: 'APPLY_THEME_TO_ELEMENTS',
@@ -192,6 +189,70 @@ export function GeneralSettings({
                     background: newBackground
                   }
                 });
+                
+                // Reset tool settings to theme defaults (not palette defaults)
+                // This ensures tool colors reflect the theme, not any previously applied palette
+                const currentPage = state.currentBook?.pages[state.activePageIndex];
+                const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+                const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+                
+                // Don't use palette IDs - we want pure theme colors
+                const toolTypes = ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna_inline', 'free_text'];
+                const toolUpdates: Record<string, any> = {};
+                
+                toolTypes.forEach(toolType => {
+                  // Get theme defaults WITHOUT palette - just pure theme colors
+                  const themeDefaults = getToolDefaults(
+                    toolType as any,
+                    themeId, // pageTheme - use selected theme
+                    state.currentBook?.bookTheme || 'default', // bookTheme
+                    undefined,
+                    undefined, // Don't pass toolSettings - we want pure theme defaults
+                    pageLayoutTemplateId,
+                    bookLayoutTemplateId,
+                    null, // Don't use page palette - reset to theme colors
+                    null  // Don't use book palette - reset to theme colors
+                  );
+                  
+                  // Build tool settings from theme defaults (theme palette, not manually selected palette)
+                  if (toolType === 'brush' || toolType === 'line') {
+                    const updates: Record<string, any> = {
+                      strokeColor: themeDefaults.stroke || '#1f2937',
+                      strokeWidth: themeDefaults.strokeWidth || 2
+                    };
+                    toolUpdates[toolType] = updates;
+                  } else if (['rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(toolType)) {
+                    const updates: Record<string, any> = {
+                      strokeColor: themeDefaults.stroke || '#1f2937',
+                      strokeWidth: themeDefaults.strokeWidth || 2
+                    };
+                    if (themeDefaults.fill && themeDefaults.fill !== 'transparent') {
+                      updates.fillColor = themeDefaults.fill;
+                    } else {
+                      updates.fillColor = 'transparent';
+                    }
+                    toolUpdates[toolType] = updates;
+                  } else {
+                    // Text elements
+                    toolUpdates[toolType] = {
+                      fontColor: themeDefaults.fontColor || themeDefaults.font?.fontColor || '#1f2937',
+                      borderColor: themeDefaults.borderColor || themeDefaults.border?.borderColor || '#9ca3af',
+                      backgroundColor: themeDefaults.backgroundColor || themeDefaults.background?.backgroundColor || '#FFFFFF'
+                    };
+                  }
+                });
+                
+                // Update tool settings with theme defaults (not palette defaults)
+                Object.entries(toolUpdates).forEach(([tool, settings]) => {
+                  const cleanSettings = Object.fromEntries(
+                    Object.entries(settings).filter(([, value]) => value !== undefined)
+                  );
+                  
+                  dispatch({
+                    type: 'UPDATE_TOOL_SETTINGS',
+                    payload: { tool, settings: cleanSettings }
+                  });
+                });
               }
             }
           }
@@ -199,32 +260,11 @@ export function GeneralSettings({
           title="Page Theme"
         />
         
-        <Separator />
-        
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setShowPagePalette(true)}
-          className="w-full"
-        >
-          <Palette className="h-4 w-4 mr-2" />
-          Palette
-        </Button>
       </div>
     );
   };
 
   const renderBookThemeSettings = () => {
-    if (showBookPalette) {
-      return (
-        <PaletteSelector
-          onBack={() => setShowBookPalette(false)}
-          title="Book Theme Settings"
-          isBookLevel={true}
-        />
-      );
-    }
-
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-2 mb-4">
@@ -245,6 +285,9 @@ export function GeneralSettings({
           onThemeSelect={(themeId) => {
             // Set book theme
             dispatch({ type: 'SET_BOOK_THEME', payload: themeId });
+            
+            // Remove book color palette override so theme palette is used instead
+            dispatch({ type: 'SET_BOOK_COLOR_PALETTE', payload: null });
             
             if (state.currentBook) {
               // Apply theme to all elements on all pages
@@ -286,23 +329,73 @@ export function GeneralSettings({
                     }
                   });
                 });
+                
+                // Reset tool settings to theme defaults (not palette defaults) for all tools
+                // This ensures tool colors reflect the theme, not any previously applied palette
+                const bookLayoutTemplateId = state.currentBook.layoutTemplateId;
+                
+                // Don't use palette IDs - we want pure theme colors
+                const toolTypes = ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna_inline', 'free_text'];
+                const toolUpdates: Record<string, any> = {};
+                
+                toolTypes.forEach(toolType => {
+                  // Get theme defaults WITHOUT palette - just pure theme colors
+                  const themeDefaults = getToolDefaults(
+                    toolType as any,
+                    themeId, // pageTheme - use selected theme
+                    themeId, // bookTheme - use selected theme
+                    undefined,
+                    undefined, // Don't pass toolSettings - we want pure theme defaults
+                    undefined, // pageLayoutTemplateId
+                    bookLayoutTemplateId,
+                    null, // Don't use page palette - reset to theme colors
+                    null  // Don't use book palette - reset to theme colors
+                  );
+                  
+                  // Build tool settings from theme defaults (theme palette, not manually selected palette)
+                  if (toolType === 'brush' || toolType === 'line') {
+                    const updates: Record<string, any> = {
+                      strokeColor: themeDefaults.stroke || '#1f2937',
+                      strokeWidth: themeDefaults.strokeWidth || 2
+                    };
+                    toolUpdates[toolType] = updates;
+                  } else if (['rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(toolType)) {
+                    const updates: Record<string, any> = {
+                      strokeColor: themeDefaults.stroke || '#1f2937',
+                      strokeWidth: themeDefaults.strokeWidth || 2
+                    };
+                    if (themeDefaults.fill && themeDefaults.fill !== 'transparent') {
+                      updates.fillColor = themeDefaults.fill;
+                    } else {
+                      updates.fillColor = 'transparent';
+                    }
+                    toolUpdates[toolType] = updates;
+                  } else {
+                    // Text elements
+                    toolUpdates[toolType] = {
+                      fontColor: themeDefaults.fontColor || themeDefaults.font?.fontColor || '#1f2937',
+                      borderColor: themeDefaults.borderColor || themeDefaults.border?.borderColor || '#9ca3af',
+                      backgroundColor: themeDefaults.backgroundColor || themeDefaults.background?.backgroundColor || '#FFFFFF'
+                    };
+                  }
+                });
+                
+                // Update tool settings with theme defaults (not palette defaults)
+                Object.entries(toolUpdates).forEach(([tool, settings]) => {
+                  const cleanSettings = Object.fromEntries(
+                    Object.entries(settings).filter(([, value]) => value !== undefined)
+                  );
+                  
+                  dispatch({
+                    type: 'UPDATE_TOOL_SETTINGS',
+                    payload: { tool, settings: cleanSettings }
+                  });
+                });
               }
             }
           }}
           onBack={() => {}}
         />
-        
-        <Separator />
-        
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setShowBookPalette(true)}
-          className="w-full"
-        >
-          <Palette className="h-4 w-4 mr-2" />
-          Palette
-        </Button>
       </div>
     );
   };
@@ -607,6 +700,26 @@ export function GeneralSettings({
     return renderBackgroundSettings();
   }
   
+  if (showPagePalette) {
+    return (
+      <PaletteSelector
+        onBack={() => setShowPagePalette(false)}
+        title="Page Color Palette"
+        isBookLevel={false}
+      />
+    );
+  }
+  
+  if (showBookPalette) {
+    return (
+      <PaletteSelector
+        onBack={() => setShowBookPalette(false)}
+        title="Book Color Palette"
+        isBookLevel={true}
+      />
+    );
+  }
+  
   if (showPageTheme) {
     return renderPageThemeSettings();
   }
@@ -663,15 +776,15 @@ export function GeneralSettings({
                   <LayoutPanelLeft className="h-4 w-4 mr-2" />
                   Book Layout
                 </Button>
-                <Button
-                  variant="ghost_hover"
-                  size="sm"
-                  onClick={() => setShowBookPalette(true)}
-                  className="w-full justify-start"
-                >
-                  <SwatchBook className="h-4 w-4 mr-2" />
-                  Book Color Palette
-                </Button>
+            <Button
+              variant="ghost_hover"
+              size="sm"
+              onClick={() => setShowBookPalette(true)}
+              className="w-full justify-start"
+            >
+              <SwatchBook className="h-4 w-4 mr-2" />
+              Book Color Palette
+            </Button>
               </div>
             </div>
             
@@ -715,7 +828,11 @@ export function GeneralSettings({
             <Button
               variant="ghost_hover"
               size="sm"
-              onClick={() => canAccessPageSettings && onOpenPalettes()}
+              onClick={() => {
+                if (canAccessPageSettings) {
+                  setShowPagePalette(true);
+                }
+              }}
               className={`w-full justify-start ${!canAccessPageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
               disabled={!canAccessPageSettings}
             >

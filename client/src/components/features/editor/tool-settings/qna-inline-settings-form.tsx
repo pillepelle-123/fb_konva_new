@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Button } from '../../../ui/primitives/button';
 import { Palette, Type, AlignLeft, AlignCenter, AlignRight, AlignJustify, ALargeSmall, Rows4, Rows3, Rows2, SquareRoundCorner, PanelTopBottomDashed, ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from 'lucide-react';
 import { ButtonGroup } from '../../../ui/composites/button-group';
@@ -75,6 +76,15 @@ export function QnAInlineSettingsForm({
 }: QnAInlineSettingsFormProps) {
   const { dispatch } = useEditor();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
+  
+  // Local state for QnA color selector
+  const [localShowColorSelector, setLocalShowColorSelector] = useState<string | null>(null);
+  
+  // Close color selector when activeSection changes
+  useEffect(() => {
+    setLocalShowColorSelector(null);
+    setShowColorSelector(null);
+  }, [activeSection, setShowColorSelector]);
   
   const getQuestionStyle = () => {
     const qStyle = element.questionSettings || {};
@@ -209,7 +219,7 @@ export function QnAInlineSettingsForm({
           <Button
             variant="outline"
             size="xs"
-            onClick={() => setShowColorSelector('element-text-color')}
+            onClick={() => setLocalShowColorSelector('element-text-color')}
             className="w-full"
           >
             <Palette className="w-4 mr-2" />
@@ -220,7 +230,7 @@ export function QnAInlineSettingsForm({
     );
   };
   
-  // Handle font selector
+  // Handle font selector or color selector at top level
   if (showFontSelector) {
     return (
       <FontSelector
@@ -258,30 +268,44 @@ export function QnAInlineSettingsForm({
     );
   }
   
-  // Handle color selector
-  if (showColorSelector && showColorSelector.startsWith('element-')) {
+  if (localShowColorSelector) {
     const getColorValue = () => {
-      switch (showColorSelector) {
+      switch (localShowColorSelector) {
         case 'element-text-color':
-          return computedCurrentStyle.fontColor;
+          // In shared mode without individual settings, use the question color as primary
+          // In individual mode, use the active section's color
+          if (!individualSettings && sectionType === 'shared') {
+            // Shared mode: prefer question settings, but check both
+            return element.questionSettings?.fontColor || 
+                   element.answerSettings?.fontColor || 
+                   computedCurrentStyle.fontColor || 
+                   '#666666';
+          } else if (activeSection === 'question') {
+            return element.questionSettings?.fontColor || computedCurrentStyle.fontColor || '#666666';
+          } else {
+            return element.answerSettings?.fontColor || computedCurrentStyle.fontColor || '#1f2937';
+          }
         case 'element-border-color':
-          const borderSettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
-          return borderSettings?.borderColor || '#000000';
+          return element.questionSettings?.border?.borderColor || element.answerSettings?.border?.borderColor || element.questionSettings?.borderColor || element.answerSettings?.borderColor || '#000000';
         case 'element-background-color':
-          const bgSettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
-          return bgSettings?.backgroundColor || '#ffffff';
+          return element.questionSettings?.background?.backgroundColor || element.answerSettings?.background?.backgroundColor || element.questionSettings?.backgroundColor || element.answerSettings?.backgroundColor || '#ffffff';
         case 'element-ruled-lines-color':
-          const ruledSettings = element.answerSettings;
-          return ruledSettings?.ruledLinesColor || '#1f2937';
+          return element.answerSettings?.ruledLines?.lineColor || element.answerSettings?.ruledLinesColor || '#1f2937';
         default:
           return '#1f2937';
       }
     };
     
     const getElementOpacityValue = () => {
-      switch (showColorSelector) {
+      switch (localShowColorSelector) {
         case 'element-text-color':
-          return (computedCurrentStyle as any).fontOpacity ?? 1;
+          if (!individualSettings && sectionType === 'shared') {
+            return element.questionSettings?.fontOpacity ?? element.answerSettings?.fontOpacity ?? 1;
+          } else if (activeSection === 'question') {
+            return element.questionSettings?.fontOpacity ?? 1;
+          } else {
+            return element.answerSettings?.fontOpacity ?? 1;
+          }
         case 'element-border-color': {
           const qSettings = element.questionSettings || {};
           const aSettings = element.answerSettings || {};
@@ -301,20 +325,67 @@ export function QnAInlineSettingsForm({
     };
     
     const handleElementOpacityChange = (opacity: number) => {
-      const updateFn = computedUpdateSetting || updateSetting;
-      switch (showColorSelector) {
+      switch (localShowColorSelector) {
         case 'element-text-color':
           if (!individualSettings && sectionType === 'shared') {
             updateSharedSetting('fontOpacity', opacity);
+          } else if (individualSettings && (sectionType === 'question' || activeSection === 'question')) {
+            dispatch({
+              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+              payload: {
+                id: element.id,
+                updates: {
+                  questionSettings: {
+                    ...element.questionSettings,
+                    fontOpacity: opacity
+                  }
+                }
+              }
+            });
           } else {
-            updateFn('fontOpacity', opacity);
+            dispatch({
+              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+              payload: {
+                id: element.id,
+                updates: {
+                  answerSettings: {
+                    ...element.answerSettings,
+                    fontOpacity: opacity
+                  }
+                }
+              }
+            });
           }
           break;
         case 'element-border-color':
-          updateFn('borderOpacity', opacity);
+          if (individualSettings && computedUpdateSetting) {
+            computedUpdateSetting('borderOpacity', opacity);
+          } else if (updateQuestionSetting && updateAnswerSetting) {
+            updateQuestionSetting('borderOpacity', opacity);
+            updateAnswerSetting('borderOpacity', opacity);
+          } else if (computedUpdateSetting) {
+            computedUpdateSetting('borderOpacity', opacity);
+          } else {
+            updateSetting('borderOpacity', opacity);
+          }
           break;
         case 'element-background-color':
-          updateFn('backgroundOpacity', opacity);
+          dispatch({
+            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+            payload: {
+              id: element.id,
+              updates: {
+                questionSettings: {
+                  ...element.questionSettings,
+                  backgroundOpacity: opacity
+                },
+                answerSettings: {
+                  ...element.answerSettings,
+                  backgroundOpacity: opacity
+                }
+              }
+            }
+          });
           break;
         case 'element-ruled-lines-color':
           dispatch({
@@ -334,20 +405,109 @@ export function QnAInlineSettingsForm({
     };
     
     const handleElementColorChange = (color: string) => {
-      const updateFn = computedUpdateSetting || updateSetting;
-      switch (showColorSelector) {
+      const colorValue = color || '#000000';
+      
+      switch (localShowColorSelector) {
         case 'element-text-color':
           if (!individualSettings && sectionType === 'shared') {
-            updateSharedSetting('fontColor', color);
+            // Shared mode: update both question and answer
+            dispatch({
+              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+              payload: {
+                id: element.id,
+                updates: {
+                  questionSettings: {
+                    ...element.questionSettings,
+                    fontColor: colorValue
+                  },
+                  answerSettings: {
+                    ...element.answerSettings,
+                    fontColor: colorValue
+                  }
+                }
+              }
+            });
+          } else if (individualSettings && (sectionType === 'question' || activeSection === 'question')) {
+            // Individual mode: update only question
+            dispatch({
+              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+              payload: {
+                id: element.id,
+                updates: {
+                  questionSettings: {
+                    ...element.questionSettings,
+                    fontColor: colorValue
+                  }
+                }
+              }
+            });
           } else {
-            updateFn('fontColor', color);
+            // Individual mode: update only answer
+            dispatch({
+              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+              payload: {
+                id: element.id,
+                updates: {
+                  answerSettings: {
+                    ...element.answerSettings,
+                    fontColor: colorValue
+                  }
+                }
+              }
+            });
           }
           break;
         case 'element-border-color':
-          updateFn('borderColor', color);
+          dispatch({
+            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+            payload: {
+              id: element.id,
+              updates: {
+                questionSettings: {
+                  ...element.questionSettings,
+                  border: {
+                    ...element.questionSettings?.border,
+                    borderColor: colorValue
+                  },
+                  borderColor: colorValue
+                },
+                answerSettings: {
+                  ...element.answerSettings,
+                  border: {
+                    ...element.answerSettings?.border,
+                    borderColor: colorValue
+                  },
+                  borderColor: colorValue
+                }
+              }
+            }
+          });
           break;
         case 'element-background-color':
-          updateFn('backgroundColor', color);
+          dispatch({
+            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+            payload: {
+              id: element.id,
+              updates: {
+                questionSettings: {
+                  ...element.questionSettings,
+                  background: {
+                    ...element.questionSettings?.background,
+                    backgroundColor: colorValue
+                  },
+                  backgroundColor: colorValue
+                },
+                answerSettings: {
+                  ...element.answerSettings,
+                  background: {
+                    ...element.answerSettings?.background,
+                    backgroundColor: colorValue
+                  },
+                  backgroundColor: colorValue
+                }
+              }
+            }
+          });
           break;
         case 'element-ruled-lines-color':
           dispatch({
@@ -357,7 +517,11 @@ export function QnAInlineSettingsForm({
               updates: {
                 answerSettings: {
                   ...element.answerSettings,
-                  ruledLinesColor: color
+                  ruledLines: {
+                    ...element.answerSettings?.ruledLines,
+                    lineColor: colorValue
+                  },
+                  ruledLinesColor: colorValue
                 }
               }
             }
@@ -366,17 +530,32 @@ export function QnAInlineSettingsForm({
       }
     };
     
+
+    
+    const getCurrentColorValue = () => {
+      const shouldUpdateBoth = !individualSettings && sectionType === 'shared';
+      const targetSection = individualSettings ? (activeSection || state.qnaActiveSection || 'question') : null;
+      
+      if (!individualSettings && sectionType === 'shared') {
+        return element.questionSettings?.fontColor || element.answerSettings?.fontColor || '#1f2937';
+      } else if (targetSection === 'question') {
+        return element.questionSettings?.fontColor || '#666666';
+      } else {
+        return element.answerSettings?.fontColor || '#1f2937';
+      }
+    };
+    
     return (
       <ColorSelector
-        value={getColorValue()}
-        onChange={handleElementColorChange}
-        opacity={getElementOpacityValue()}
-        onOpacityChange={handleElementOpacityChange}
-        favoriteColors={favoriteStrokeColors}
-        onAddFavorite={addFavoriteStrokeColor}
-        onRemoveFavorite={removeFavoriteStrokeColor}
-        onBack={() => setShowColorSelector(null)}
-      />
+          value={getColorValue()}
+          onChange={handleElementColorChange}
+          opacity={getElementOpacityValue()}
+          onOpacityChange={handleElementOpacityChange}
+          favoriteColors={favoriteStrokeColors}
+          onAddFavorite={addFavoriteStrokeColor}
+          onRemoveFavorite={removeFavoriteStrokeColor}
+          onBack={() => setLocalShowColorSelector(null)}
+        />
     );
   }
   
@@ -562,7 +741,12 @@ export function QnAInlineSettingsForm({
           {/* Tabs - only show when individual settings are enabled */}
           {individualSettings && onActiveSectionChange && (
             <>
-              <Tabs value={activeSection} onValueChange={onActiveSectionChange}>
+              <Tabs value={activeSection} onValueChange={(section) => {
+                if (localShowColorSelector) {
+                  setLocalShowColorSelector(null);
+                }
+                onActiveSectionChange?.(section);
+              }}>
                 <TabsList variant="bootstrap" className="w-full h-5">
                   <TabsTrigger variant="bootstrap" value="question" className=' h-5'>Question</TabsTrigger>
                   <TabsTrigger variant="bootstrap" value="answer" className=' h-5'>Answer</TabsTrigger>
@@ -582,6 +766,7 @@ export function QnAInlineSettingsForm({
                       setShowColorSelector={setShowColorSelector}
                       showLayoutControls={false}
                       individualSettings={true}
+                      activeSection="question"
                     />
                   </div>
                   <div className="w-1/2 flex-1 flex-shrink-0">
@@ -595,6 +780,7 @@ export function QnAInlineSettingsForm({
                       setShowColorSelector={setShowColorSelector}
                       showLayoutControls={false}
                       individualSettings={true}
+                      activeSection="answer"
                     />
                   </div>
                 </div>
@@ -744,7 +930,7 @@ export function QnAInlineSettingsForm({
             <Button
               variant="outline"
               size="xs"
-              onClick={() => setShowColorSelector('element-ruled-lines-color')}
+              onClick={() => setLocalShowColorSelector('element-ruled-lines-color')}
               className="w-full"
             >
               <Palette className="w-4 mr-2" />
@@ -806,7 +992,7 @@ export function QnAInlineSettingsForm({
             <Button
               variant="outline"
               size="xs"
-              onClick={() => setShowColorSelector('element-border-color')}
+              onClick={() => setLocalShowColorSelector('element-border-color')}
               className="w-full"
             >
               <Palette className="w-4 mr-2" />
@@ -853,7 +1039,7 @@ export function QnAInlineSettingsForm({
             <Button
               variant="outline"
               size="xs"
-              onClick={() => setShowColorSelector('element-background-color')}
+              onClick={() => setLocalShowColorSelector('element-background-color')}
               className="w-full"
             >
               <Palette className="w-4 mr-2" />

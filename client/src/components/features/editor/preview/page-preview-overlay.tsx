@@ -4,6 +4,7 @@ import QuestionsManager from '../../questions/questions-manager';
 import BookManagerContent from '../../books/book-manager-content';
 import { TemplateSelector } from '../template-selector';
 import { TemplateWrapper } from '../templates/template-wrapper';
+import { getPalette } from '../../../../data/templates/color-palettes';
 
 interface PagePreviewOverlayProps {
   isOpen: boolean;
@@ -140,17 +141,29 @@ export default function PagePreviewOverlay({ isOpen, onClose, content = 'preview
                   });
                 }
               } else if (content === 'palettes' && selectedPalette) {
-                if (shouldApplyToBook) {
+                const palette = getPalette(selectedPalette.id as string);
+                if (palette) {
+                  if (shouldApplyToBook) {
+                    dispatch({
+                      type: 'SET_BOOK_COLOR_PALETTE',
+                      payload: selectedPalette.id
+                    });
+                  } else {
+                    dispatch({
+                      type: 'SET_PAGE_COLOR_PALETTE',
+                      payload: {
+                        pageIndex: state.activePageIndex,
+                        colorPaletteId: selectedPalette.id as string
+                      }
+                    });
+                  }
+                  // Apply palette colors to existing elements
                   dispatch({
-                    type: 'SET_BOOK_COLOR_PALETTE',
-                    payload: selectedPalette.id
-                  });
-                } else {
-                  dispatch({
-                    type: 'SET_PAGE_COLOR_PALETTE',
+                    type: 'APPLY_COLOR_PALETTE',
                     payload: {
-                      pageIndex: state.activePageIndex,
-                      colorPaletteId: selectedPalette.id as string
+                      palette,
+                      pageIndex: shouldApplyToBook ? undefined : state.activePageIndex,
+                      applyToAllPages: shouldApplyToBook
                     }
                   });
                 }

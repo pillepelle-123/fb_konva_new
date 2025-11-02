@@ -59,6 +59,7 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
   const [showBookLayoutOverlay, setShowBookLayoutOverlay] = useState(false);
   const [showThemeOverlay, setShowThemeOverlay] = useState(false);
   const [showPaletteOverlay, setShowPaletteOverlay] = useState(false);
+  const [showBookPaletteOverlay, setShowBookPaletteOverlay] = useState(false);
 
   const activeTool = state.activeTool;
 

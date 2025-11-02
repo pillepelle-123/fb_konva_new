@@ -36,6 +36,7 @@ export function ColorSelector({
   isOverridden = false,
   onResetOverride
 }: ColorSelectorProps) {
+
   return (
     <div className="space-y-4">
       {onBack && (
@@ -110,25 +111,25 @@ export function ColorSelector({
             </div>
           )}
         </div>
-        {/* <div className="[&_.sketch-picker]:!rounded-none [&_.sketch-picker]:!shadow-none"> */}
           <SketchPicker
             color={value === 'transparent' ? '#ffffff' : (value || '#000000')}
             onChange={(color) => onChange(color.hex)}
             presetColors={favoriteColors}
             disableAlpha={true}
-            className='!rounden-none !shadow-none !border-none !w-[260px] !p-0'
+            width="260px"
           />
-        {/* </div> */}
       </div>
       
       <div>
         <Label variant="xs">Standard Colors</Label>
         <div className="grid grid-cols-8 gap-1">
           <button
-            className="w-8 h-8 rounded border-2 border-gray-300 hover:border-gray-400 relative"
+            type="button"
+            className="w-8 h-8 rounded border-2 border-gray-300 hover:border-gray-400 relative cursor-pointer"
             style={{ 
               backgroundColor: '#ffffff',
-              backgroundImage: 'linear-gradient(to top right, transparent 0%, transparent calc(50% - 1px), #ff0000 calc(50% - 1px), #ff0000 calc(50% + 1px), transparent calc(50% + 1px), transparent 100%)'
+              backgroundImage: 'linear-gradient(to top right, transparent 0%, transparent calc(50% - 1px), #ff0000 calc(50% - 1px), #ff0000 calc(50% + 1px), transparent calc(50% + 1px), transparent 100%)',
+              pointerEvents: 'auto'
             }}
             onClick={() => onChange('transparent')}
             title="transparent"
@@ -136,8 +137,9 @@ export function ColorSelector({
           {STANDARD_COLORS.map((color, index) => (
             <button
               key={index}
-              className="w-8 h-8 rounded border-2 border-gray-300 hover:border-gray-400"
-              style={{ backgroundColor: color }}
+              type="button"
+              className="w-8 h-8 rounded border-2 border-gray-300 hover:border-gray-400 cursor-pointer"
+              style={{ backgroundColor: color, pointerEvents: 'auto' }}
               onClick={() => onChange(color)}
               title={color}
             />
@@ -146,17 +148,20 @@ export function ColorSelector({
       </div>
       
       {onOpacityChange && (
-        <Slider
-          label="Opacity"
-          value={Math.round((opacity ?? 1) * 100)}
-          displayValue={Math.round((opacity ?? 1) * 100)}
-          onChange={(value) => onOpacityChange(value / 100)}
-          min={0}
-          max={100}
-          step={5}
-          unit="%"
-          hasLabel={false}
-        />
+        <div>
+          <Label variant="xs">Opacity</Label>
+          <Slider
+            label="Opacity"
+            value={Math.round((opacity ?? 1) * 100)}
+            displayValue={Math.round((opacity ?? 1) * 100)}
+            onChange={(value) => onOpacityChange(value / 100)}
+            min={0}
+            max={100}
+            step={5}
+            unit="%"
+            hasLabel={false}
+          />
+        </div>
       )}
       
       <div>
@@ -166,8 +171,9 @@ export function ColorSelector({
             {favoriteColors.map((color, index) => (
               <div key={index} className="relative group">
                 <button
-                  className="w-8 h-8 rounded border-2 border-gray-300 hover:border-gray-400"
-                  style={{ backgroundColor: color }}
+                  type="button"
+                  className="w-8 h-8 rounded border-2 border-gray-300 hover:border-gray-400 cursor-pointer"
+                  style={{ backgroundColor: color, pointerEvents: 'auto' }}
                   onClick={() => onChange(color)}
                   title={color}
                 />

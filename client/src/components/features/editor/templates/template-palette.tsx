@@ -119,7 +119,7 @@ export function TemplatePalette({ selectedPalette, onPaletteSelect }: TemplatePa
             title="Reset all manual color overrides to allow palette colors to be applied"
           >
             <RotateCcw className="h-3 w-3 mr-1" />
-            Reset Overrides
+            Reset Theme default
           </Button>
         </div>
         {selectedPalette ? (
@@ -143,7 +143,7 @@ export function TemplatePalette({ selectedPalette, onPaletteSelect }: TemplatePa
               {selectedPalette.contrast} contrast
             </div>
             <div className="text-xs text-gray-500 mt-2">
-              Tip: Use "Reset Overrides" to allow palette colors to override manual color changes
+              Tip: Use "Reset Theme default" to reset the color palette to the theme's default
             </div>
           </div>
         ) : (

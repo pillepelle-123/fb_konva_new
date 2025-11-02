@@ -41,7 +41,8 @@ export function ColorPicker({
     <div className="relative" ref={containerRef}>
       <div className="flex items-center gap-2">
         <button
-          className="w-8 h-8 rounded border-2 border-gray-300"
+          type="button"
+          className="w-8 h-8 rounded border-2 border-gray-300 hover:border-gray-400"
           style={{ backgroundColor: value === 'transparent' ? '#ffffff' : (value || '#000000') }}
           onClick={() => setIsOpen(!isOpen)}
         />
@@ -79,14 +80,14 @@ export function ColorPicker({
           <div className="bg-white rounded shadow-lg">
             <SketchPicker
               color={value === 'transparent' ? '#ffffff' : (value || '#000000')}
-              onChange={(color) => {
-                onChange(color.hex);
-              }}
-              // presetColors={favoriteColors}
+              onChange={(color) => onChange(color.hex)}
+              presetColors={favoriteColors}
               disableAlpha={true}
+              width="200px"
             />
             <div className="p-2 border-t">
               <Button
+                type="button"
                 variant="default"
                 size="xs"
                 onClick={() => setIsOpen(false)}

@@ -120,8 +120,21 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
   const pageColorPaletteId = currentPage?.colorPaletteId;
   const bookColorPaletteId = state.currentBook?.colorPaletteId;
   
-  // Get theme-based defaults
-  const toolDefaults = getToolDefaults(
+  // Get theme-based defaults WITHOUT toolSettings first, to get pure theme/palette colors
+  const toolDefaultsWithoutSettings = getToolDefaults(
+    activeTool as any,
+    pageTheme,
+    bookTheme,
+    undefined,
+    undefined, // Don't pass toolSettings - we want pure theme/palette defaults
+    pageLayoutTemplateId,
+    bookLayoutTemplateId,
+    pageColorPaletteId,
+    bookColorPaletteId
+  );
+  
+  // Get theme-based defaults WITH toolSettings to respect manual overrides
+  const toolDefaultsWithSettings = getToolDefaults(
     activeTool as any,
     pageTheme,
     bookTheme,
@@ -134,13 +147,19 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
   );
   
   const settings = state.toolSettings?.[activeTool] || {};
-  const strokeWidth = settings.strokeWidth || toolDefaults.strokeWidth || 2;
-  const strokeColor = settings.strokeColor || toolDefaults.stroke || '#1f2937';
-  const fillColor = settings.fillColor !== undefined 
-    ? settings.fillColor 
-    : (toolDefaults.fill !== undefined && toolDefaults.fill !== 'transparent' 
-        ? toolDefaults.fill 
-        : 'transparent');
+  const strokeWidth = settings.strokeWidth || toolDefaultsWithSettings.strokeWidth || 2;
+  
+  // Priority: Use theme/palette defaults from toolDefaultsWithoutSettings for display
+  // But respect manual overrides from toolSettings if they exist
+  // This ensures palette colors are shown when a palette is applied
+  const strokeColor = toolDefaultsWithoutSettings.stroke || toolDefaultsWithSettings.stroke || '#1f2937';
+  const fillColor = (toolDefaultsWithoutSettings.fill !== undefined && toolDefaultsWithoutSettings.fill !== 'transparent')
+    ? toolDefaultsWithoutSettings.fill
+    : (toolDefaultsWithSettings.fill !== undefined && toolDefaultsWithSettings.fill !== 'transparent')
+        ? toolDefaultsWithSettings.fill
+        : (settings.fillColor !== undefined 
+            ? settings.fillColor 
+            : 'transparent');
   const polygonSides = settings.polygonSides || 5;
 
   const updatePosition = () => {

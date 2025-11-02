@@ -513,7 +513,7 @@ type EditorAction =
   | { type: 'APPLY_COMPLETE_TEMPLATE'; payload: { layoutId?: string; themeId?: string; paletteId?: string; scope: 'current-page' | 'entire-book' } }
   | { type: 'SET_WIZARD_TEMPLATE_SELECTION'; payload: WizardTemplateSelection }
   | { type: 'MARK_COLOR_OVERRIDE'; payload: { elementIds: string[]; colorProperty: string } }
-  | { type: 'RESET_COLOR_OVERRIDES'; payload: { elementIds: string[]; colorProperties?: string[] } };
+  | { type: 'RESET_COLOR_OVERRIDES'; payload: { elementIds: string[]; colorProperties?: string[]; pageIndex?: number } };
 
 const initialState: EditorState = {
   currentBook: null,
@@ -719,12 +719,63 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
               const oldElement = page.elements[elementIndex];
               const enforcedUpdates = enforceThemeBoundaries(action.payload.updates, oldElement);
               
+              // Deep merge nested objects like questionSettings and answerSettings
+              const mergedUpdates = { ...enforcedUpdates };
+              if (enforcedUpdates.questionSettings) {
+                mergedUpdates.questionSettings = {
+                  ...oldElement.questionSettings,
+                  ...enforcedUpdates.questionSettings
+                };
+              }
+              if (enforcedUpdates.answerSettings) {
+                mergedUpdates.answerSettings = {
+                  ...oldElement.answerSettings,
+                  ...enforcedUpdates.answerSettings
+                };
+              }
+              if (enforcedUpdates.textSettings) {
+                mergedUpdates.textSettings = {
+                  ...oldElement.textSettings,
+                  ...enforcedUpdates.textSettings
+                };
+              }
+              
               // Check if this is a color update and mark as override
               const colorProperties = ['stroke', 'fill', 'fontColor', 'borderColor', 'backgroundColor'];
               const colorOverrides = { ...oldElement.colorOverrides };
               
+              // Also check nested color properties in questionSettings and answerSettings
+              if (mergedUpdates.questionSettings) {
+                if (mergedUpdates.questionSettings.fontColor !== undefined && 
+                    mergedUpdates.questionSettings.fontColor !== oldElement.questionSettings?.fontColor) {
+                  colorOverrides['questionSettings.fontColor'] = true;
+                }
+                if (mergedUpdates.questionSettings.borderColor !== undefined && 
+                    mergedUpdates.questionSettings.borderColor !== oldElement.questionSettings?.borderColor) {
+                  colorOverrides['questionSettings.borderColor'] = true;
+                }
+                if (mergedUpdates.questionSettings.backgroundColor !== undefined && 
+                    mergedUpdates.questionSettings.backgroundColor !== oldElement.questionSettings?.backgroundColor) {
+                  colorOverrides['questionSettings.backgroundColor'] = true;
+                }
+              }
+              if (mergedUpdates.answerSettings) {
+                if (mergedUpdates.answerSettings.fontColor !== undefined && 
+                    mergedUpdates.answerSettings.fontColor !== oldElement.answerSettings?.fontColor) {
+                  colorOverrides['answerSettings.fontColor'] = true;
+                }
+                if (mergedUpdates.answerSettings.borderColor !== undefined && 
+                    mergedUpdates.answerSettings.borderColor !== oldElement.answerSettings?.borderColor) {
+                  colorOverrides['answerSettings.borderColor'] = true;
+                }
+                if (mergedUpdates.answerSettings.backgroundColor !== undefined && 
+                    mergedUpdates.answerSettings.backgroundColor !== oldElement.answerSettings?.backgroundColor) {
+                  colorOverrides['answerSettings.backgroundColor'] = true;
+                }
+              }
+              
               colorProperties.forEach(prop => {
-                if (enforcedUpdates[prop] !== undefined && enforcedUpdates[prop] !== oldElement[prop]) {
+                if (mergedUpdates[prop] !== undefined && mergedUpdates[prop] !== oldElement[prop]) {
                   colorOverrides[prop] = true;
                 }
               });
@@ -732,7 +783,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
               return {
                 ...page,
                 elements: page.elements.map((el, elIndex) => 
-                  elIndex === elementIndex ? { ...oldElement, ...enforcedUpdates, colorOverrides } : el
+                  elIndex === elementIndex ? { ...oldElement, ...mergedUpdates, colorOverrides } : el
                 )
               };
             }
@@ -1789,13 +1840,19 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
               updates.stroke = palette.colors.primary;
             }
             
-            // Apply fill color to filled shapes
-            if ((element.type === 'circle' || element.type === 'rect' || element.type === 'heart' || 
-                 element.type === 'star' || element.type === 'triangle' || element.type === 'polygon' ||
-                 element.type === 'speech-bubble' || element.type === 'dog' || element.type === 'cat' ||
-                 element.type === 'smiley') && 
-                element.fill && element.fill !== 'transparent') {
-              updates.fill = palette.colors.accent;
+            // Apply fill color to filled shapes - apply even if fill is missing or transparent
+            // This ensures palette colors are applied during reset
+            if (element.type === 'circle' || element.type === 'rect' || element.type === 'heart' || 
+                element.type === 'star' || element.type === 'triangle' || element.type === 'polygon' ||
+                element.type === 'speech-bubble' || element.type === 'dog' || element.type === 'cat' ||
+                element.type === 'smiley') {
+              // Only apply fill if element had a fill (not transparent) before
+              // But during reset, we want to apply palette colors
+              if (element.fill && element.fill !== 'transparent') {
+                updates.fill = palette.colors.accent;
+              }
+              // If element doesn't have fill or has transparent, don't change it
+              // (respects the element's original fill state)
             }
             
             return { ...element, ...updates };
@@ -2027,7 +2084,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const updatedBookReset = {
         ...state.currentBook,
         pages: state.currentBook.pages.map((page, index) => {
-          if (index === state.activePageIndex) {
+          // If pageIndex is specified in payload, only process that page; otherwise use activePageIndex
+          const targetPageIndex = action.payload.pageIndex !== undefined ? action.payload.pageIndex : state.activePageIndex;
+          if (index === targetPageIndex) {
             return {
               ...page,
               elements: page.elements.map(element => {

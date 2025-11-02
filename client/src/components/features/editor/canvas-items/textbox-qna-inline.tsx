@@ -243,7 +243,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
       setIsResizing(false);
       setRefreshKey(prev => prev + 1);
     }, 10);
-  }, [element.questionSettings?.font?.fontSize, element.answerSettings?.font?.fontSize, element.questionSettings?.fontSize, element.answerSettings?.fontSize, element.questionSettings, element.answerSettings, element.fontSize, element.fontFamily, element.fontColor, element.font, element.width, element.height, element.questionWidth]);
+  }, [element.questionSettings?.font?.fontSize, element.answerSettings?.font?.fontSize, element.questionSettings?.fontSize, element.answerSettings?.fontSize, element.questionSettings?.fontColor, element.answerSettings?.fontColor, element.questionSettings?.fontOpacity, element.answerSettings?.fontOpacity, element.questionSettings, element.answerSettings, element.fontSize, element.fontFamily, element.fontColor, element.font, element.width, element.height, element.questionWidth]);
 
   // Force refresh when ruled lines settings change
   useEffect(() => {
@@ -280,6 +280,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
       fontSize: qnaInlineThemeDefaults.questionSettings?.fontSize || 45,
       // Priority: toolSettings > themeDefaults.questionSettings > themeDefaults (top level)
       fontColor: state.toolSettings?.qna_inline?.fontColor || qnaInlineThemeDefaults.questionSettings?.fontColor || qnaInlineThemeDefaults.questionSettings?.font?.fontColor || qnaInlineThemeDefaults.fontColor,
+      fontOpacity: state.toolSettings?.qna_inline?.fontOpacity ?? qnaInlineThemeDefaults.questionSettings?.fontOpacity ?? qnaInlineThemeDefaults.questionSettings?.font?.fontOpacity ?? 1,
       borderColor: state.toolSettings?.qna_inline?.borderColor || qnaInlineThemeDefaults.questionSettings?.borderColor || qnaInlineThemeDefaults.questionSettings?.border?.borderColor || qnaInlineThemeDefaults.borderColor,
       backgroundColor: state.toolSettings?.qna_inline?.backgroundColor || qnaInlineThemeDefaults.questionSettings?.backgroundColor || qnaInlineThemeDefaults.questionSettings?.background?.backgroundColor || qnaInlineThemeDefaults.backgroundColor
     },
@@ -287,6 +288,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
       fontSize: qnaInlineThemeDefaults.answerSettings?.fontSize || 50,
       // Priority: toolSettings > themeDefaults.answerSettings > themeDefaults (top level)
       fontColor: state.toolSettings?.qna_inline?.fontColor || qnaInlineThemeDefaults.answerSettings?.fontColor || qnaInlineThemeDefaults.answerSettings?.font?.fontColor || qnaInlineThemeDefaults.fontColor,
+      fontOpacity: state.toolSettings?.qna_inline?.fontOpacity ?? qnaInlineThemeDefaults.answerSettings?.fontOpacity ?? qnaInlineThemeDefaults.answerSettings?.font?.fontOpacity ?? 1,
       borderColor: state.toolSettings?.qna_inline?.borderColor || qnaInlineThemeDefaults.answerSettings?.borderColor || qnaInlineThemeDefaults.answerSettings?.border?.borderColor || qnaInlineThemeDefaults.borderColor,
       backgroundColor: state.toolSettings?.qna_inline?.backgroundColor || qnaInlineThemeDefaults.answerSettings?.backgroundColor || qnaInlineThemeDefaults.answerSettings?.background?.backgroundColor || qnaInlineThemeDefaults.backgroundColor,
       ruledLines: { 
@@ -1421,7 +1423,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               fontFamily: element.answerSettings?.fontFamily || element.font?.fontFamily || element.fontFamily || qnaInlineDefaults.answerSettings?.fontFamily || fontFamily
             };
             
-            // Ensure font colors from palette are properly applied
+            // Direct color override - element settings have absolute priority
             if (element.questionSettings?.fontColor) {
               questionStyle.fontColor = element.questionSettings.fontColor;
             }
