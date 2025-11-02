@@ -1763,8 +1763,9 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               
               // Render all question lines with shared baseline alignment
               // PST: Layout = Inline: Adjust Y position for question text in both combined question-answer line and question-only lines
+              const number = qFontSize - aFontSize;
               questionLines.forEach((line, index) => {
-                const sharedBaseline = effectivePadding + (index * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.8);
+                const sharedBaseline = effectivePadding + (index * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.8) - (number / 7);
                 const questionY = sharedBaseline - (qFontSize * 0.8);
                 
                 elements.push(
@@ -1876,7 +1877,9 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                           
                           // Calculate shared baseline for both question and answer text
                           // PST: Layout = Inline: Adjust Y position for answer text in combined question-answer line
-                          const sharedBaseline = effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.8);
+                          const number = qFontSize - aFontSize;
+                          console.log('q: ' + qFontSize + ' a: ' + aFontSize + ' q - a: ' + number);
+                          const sharedBaseline = effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.8) - (number / 7);
                           const answerY = sharedBaseline - (aFontSize * 0.8);
                           
                           // Render answer after question with shared baseline alignment
