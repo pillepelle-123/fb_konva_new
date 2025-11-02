@@ -236,14 +236,34 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
 
 
   // Force refresh when element properties change (e.g., from Style Painter)
+  // Extract primitive values to prevent infinite re-renders from object references
+  const questionSettingsFontSize = element.questionSettings?.font?.fontSize;
+  const answerSettingsFontSize = element.answerSettings?.font?.fontSize;
+  const questionSettingsFontSizeDirect = element.questionSettings?.fontSize;
+  const answerSettingsFontSizeDirect = element.answerSettings?.fontSize;
+  const questionSettingsFontColor = element.questionSettings?.fontColor;
+  const answerSettingsFontColor = element.answerSettings?.fontColor;
+  const questionSettingsFontOpacity = element.questionSettings?.fontOpacity;
+  const answerSettingsFontOpacity = element.answerSettings?.fontOpacity;
+  const elementFontSize = element.fontSize;
+  const elementFontFamily = element.fontFamily;
+  const elementFontColor = element.fontColor;
+  const elementWidth = element.width;
+  const elementHeight = element.height;
+  const elementQuestionWidth = element.questionWidth;
+  
   useEffect(() => {
     // Simulate the resize process to force proper re-calculation of ruled lines
     setIsResizing(true);
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       setIsResizing(false);
       setRefreshKey(prev => prev + 1);
     }, 10);
-  }, [element.questionSettings?.font?.fontSize, element.answerSettings?.font?.fontSize, element.questionSettings?.fontSize, element.answerSettings?.fontSize, element.questionSettings?.fontColor, element.answerSettings?.fontColor, element.questionSettings?.fontOpacity, element.answerSettings?.fontOpacity, element.questionSettings, element.answerSettings, element.fontSize, element.fontFamily, element.fontColor, element.font, element.width, element.height, element.questionWidth]);
+    
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [questionSettingsFontSize, answerSettingsFontSize, questionSettingsFontSizeDirect, answerSettingsFontSizeDirect, questionSettingsFontColor, answerSettingsFontColor, questionSettingsFontOpacity, answerSettingsFontOpacity, elementFontSize, elementFontFamily, elementFontColor, elementWidth, elementHeight, elementQuestionWidth]);
 
   // Force refresh when ruled lines settings change
   useEffect(() => {
@@ -590,22 +610,38 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
         // answerLineIndex = 2+: subsequent answer-only lines
         let answerLineIndex = 0;
         const dynamicHeight = calculateDynamicHeight();
+        const maxLines = 1000; // Safety limit to prevent infinite loops
+        let iterationCount = 0;
         
-        while (true) {
-          // Calculate answer baseline (same formula as text rendering)
-          // The answerBaseline represents the actual text baseline position
-          // Text Y position is: answerBaseline - (aFontSize * 0.8)
-          let answerBaseline = combinedLineBaseline + (answerLineIndex * aLineHeight) + answerBaselineOffset + (answerFontSize * 0.6);
-          
-          // Position ruled line slightly below the baseline so it sits under the text
-          // Text sits on the baseline (at answerBaseline), so the line should be: baseline + offset
-          // Using fontSize * 0.15 ensures the line is positioned so descenders (g, j, p, q, y) extend slightly above it
-          // This creates the "flex-end" effect where text floats slightly above the line
-          let lineY = answerBaseline + (answerFontSize * 0.15);
-          
-          if (lineY >= dynamicHeight - padding - 10) break;
-          lines.push(...generateLineElement(lineY, aTheme, padding, aColor, aWidth, aOpacity));
-          answerLineIndex++;
+        // Additional safety checks before entering loop
+        if (aLineHeight <= 0 || !isFinite(aLineHeight) || isNaN(aLineHeight)) {
+          // If aLineHeight is invalid, generate just one line at the starting position
+          const answerBaseline = combinedLineBaseline + answerBaselineOffset + (answerFontSize * 0.6);
+          const lineY = answerBaseline + (answerFontSize * 0.15);
+          if (isFinite(lineY) && !isNaN(lineY)) {
+            lines.push(...generateLineElement(lineY, aTheme, padding, aColor, aWidth, aOpacity));
+          }
+        } else {
+          while (iterationCount < maxLines) {
+            // Calculate answer baseline (same formula as text rendering)
+            // The answerBaseline represents the actual text baseline position
+            // Text Y position is: answerBaseline - (aFontSize * 0.8)
+            const answerBaseline = combinedLineBaseline + (answerLineIndex * aLineHeight) + answerBaselineOffset + (answerFontSize * 0.6);
+            
+            // Position ruled line slightly below the baseline so it sits under the text
+            // Text sits on the baseline (at answerBaseline), so the line should be: baseline + offset
+            // Using fontSize * 0.15 ensures the line is positioned so descenders (g, j, p, q, y) extend slightly above it
+            // This creates the "flex-end" effect where text floats slightly above the line
+            const lineY = answerBaseline + (answerFontSize * 0.15);
+            
+            // Safety check: ensure lineY is a valid number
+            if (!isFinite(lineY) || lineY === Infinity || isNaN(lineY)) break;
+            
+            if (lineY >= dynamicHeight - padding - 10) break;
+            lines.push(...generateLineElement(lineY, aTheme, padding, aColor, aWidth, aOpacity));
+            answerLineIndex++;
+            iterationCount++;
+          }
         }
       }
     } else {
@@ -619,11 +655,24 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
       let sharedBaseline = effectivePadding + (lineIndex * combinedLineHeight) + textBaselineOffset + (maxFontSizeUsed * 0.8);
       let lineY = sharedBaseline + 4;
       const dynamicHeight = calculateDynamicHeight();
-      while (lineY < dynamicHeight - padding - 10) {
-        lines.push(...generateLineElement(lineY, aTheme, padding, aColor, aWidth, aOpacity));
-        lineIndex++;
-        sharedBaseline = effectivePadding + (lineIndex * combinedLineHeight) + textBaselineOffset + (maxFontSizeUsed * 0.8);
-        lineY = sharedBaseline + 4;
+      const maxLines = 1000; // Safety limit to prevent infinite loops
+      let iterationCount = 0;
+      
+      // Additional safety check: if combinedLineHeight is 0 or negative, don't loop
+      if (combinedLineHeight <= 0) {
+        // Fallback: generate just one line at the starting position
+        lines.push(...generateLineElement(sharedBaseline + 4, aTheme, padding, aColor, aWidth, aOpacity));
+      } else {
+        while (lineY < dynamicHeight - padding - 10 && iterationCount < maxLines) {
+          lines.push(...generateLineElement(lineY, aTheme, padding, aColor, aWidth, aOpacity));
+          lineIndex++;
+          iterationCount++;
+          sharedBaseline = effectivePadding + (lineIndex * combinedLineHeight) + textBaselineOffset + (maxFontSizeUsed * 0.8);
+          lineY = sharedBaseline + 4;
+          
+          // Safety check: if lineY is not increasing (NaN or stuck), break
+          if (!isFinite(lineY) || lineY === Infinity || isNaN(lineY)) break;
+        }
       }
     }
     
@@ -1819,7 +1868,11 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                   let wordIndex = 0;
                   let firstLineSegmentCount = 0;
                   
-                  while (wordIndex < words.length) {
+                  // Safety limit to prevent infinite loops with malformed data
+                  const maxWords = Math.min(words.length, 10000);
+                  let outerIterationCount = 0;
+                  
+                  while (wordIndex < words.length && outerIterationCount < maxWords) {
                     let lineText = '';
                     let lineWidth = 0;
                     let currentX = padding;
@@ -1832,20 +1885,50 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                       availableWidth = textWidth - questionTextWidth - gap;
                     }
                     
+                    // Safety check: ensure availableWidth is valid
+                    if (availableWidth <= 0 || !isFinite(availableWidth)) {
+                      availableWidth = Math.max(textWidth, 100); // Fallback to reasonable width
+                    }
+                    
                     // Build line with as many words as fit
-                    while (wordIndex < words.length) {
+                    let innerIterationCount = 0;
+                    const maxInnerIterations = 1000;
+                    while (wordIndex < words.length && innerIterationCount < maxInnerIterations) {
                       const word = words[wordIndex];
+                      if (!word || word.length === 0) {
+                        wordIndex++;
+                        continue;
+                      }
                       const wordWithSpace = lineText ? ' ' + word : word;
                       const wordWidth = context.measureText(wordWithSpace).width;
+                      
+                      // Safety check: ensure wordWidth is valid
+                      if (!isFinite(wordWidth) || wordWidth === Infinity || isNaN(wordWidth)) {
+                        wordIndex++;
+                        innerIterationCount++;
+                        continue;
+                      }
                       
                       if (lineWidth + wordWidth <= availableWidth) {
                         lineText += wordWithSpace;
                         lineWidth += wordWidth;
                         wordIndex++;
+                        innerIterationCount++;
                       } else {
                         break;
                       }
                     }
+                    
+                    // Safety: break if we're stuck
+                    if (innerIterationCount >= maxInnerIterations) {
+                      break;
+                    }
+                    
+                    // Safety: prevent infinite loops
+                    if (outerIterationCount >= maxWords) {
+                      break;
+                    }
+                    outerIterationCount++;
                     
                     // Store answer line for combined alignment
                     if (lineText) {
@@ -1878,7 +1961,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                           // Calculate shared baseline for both question and answer text
                           // PST: Layout = Inline: Adjust Y position for answer text in combined question-answer line
                           const number = qFontSize - aFontSize;
-                          console.log('q: ' + qFontSize + ' a: ' + aFontSize + ' q - a: ' + number);
+                          // console.log('q: ' + qFontSize + ' a: ' + aFontSize + ' q - a: ' + number);
                           const sharedBaseline = effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.8) - (number / 7);
                           const answerY = sharedBaseline - (aFontSize * 0.8);
                           
