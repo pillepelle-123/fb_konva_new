@@ -497,6 +497,7 @@ export default function TextboxFreeText(props: CanvasItemProps) {
                   wrap="word"
                   lineHeight={1.2}
                   listening={true}
+                  name="no-print"
                 />
               );
             }

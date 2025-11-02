@@ -1457,6 +1457,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                   align="left"
                   verticalAlign="top"
                   listening={true}
+                  name="no-print"
                 />
               );
             }
