@@ -576,16 +576,21 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
         lines.push(...generateLineElement(lineY, aTheme, padding, aColor, aWidth, aOpacity));
       }
       
-      // Answer lines continue with same spacing - align with shared baseline
+      // Answer-only lines use independent answer line height (aLineHeight) to be unaffected by question font size
+      // Calculate the starting Y position after all question lines
+      const questionLinesHeight = questionLineCount * combinedLineHeight;
+      const answerEffectivePadding = padding + (answerFontSize * 0.2);
+      const answerBaselineOffset = -(answerFontSize * getLineHeightMultiplier(aSpacing) * 0.15) + (answerFontSize * (answerFontSize >= 50 ? answerFontSize >= 96 ? answerFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1));
+      
       let answerLineIndex = 0;
-      let sharedBaseline = effectivePadding + (questionLineCount * combinedLineHeight) + (answerLineIndex * combinedLineHeight) + textBaselineOffset + (maxFontSizeUsed * 0.8);
-      let lineY = sharedBaseline + 4;
+      let answerBaseline = answerEffectivePadding + questionLinesHeight + (answerLineIndex * aLineHeight) + answerBaselineOffset + (answerFontSize * 0.8);
+      let lineY = answerBaseline + 4;
       const dynamicHeight = calculateDynamicHeight();
       while (lineY < dynamicHeight - padding - 10) {
         lines.push(...generateLineElement(lineY, aTheme, padding, aColor, aWidth, aOpacity));
         answerLineIndex++;
-        sharedBaseline = effectivePadding + (questionLineCount * combinedLineHeight) + (answerLineIndex * combinedLineHeight) + textBaselineOffset + (maxFontSizeUsed * 0.8);
-        lineY = sharedBaseline + 4;
+        answerBaseline = answerEffectivePadding + questionLinesHeight + (answerLineIndex * aLineHeight) + answerBaselineOffset + (answerFontSize * 0.8);
+        lineY = answerBaseline + 4;
       }
     } else {
       // Single text - use appropriate font size + gap, adjust for baseline offset
@@ -1309,7 +1314,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
             if (showBackground) {
               const backgroundColor = questionStyle.background?.backgroundColor || answerStyle.background?.backgroundColor || 'transparent';
               const backgroundOpacity = questionStyle.backgroundOpacity ?? answerStyle.backgroundOpacity ?? 1;
-              const cornerRadius = questionStyle.cornerRadius || answerStyle.cornerRadius || 0;
+              const cornerRadius = element.cornerRadius ?? qnaInlineDefaults.cornerRadius ?? 0;
               
               const dynamicHeight = calculateDynamicHeight();
               
@@ -1353,7 +1358,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               const borderColor = questionStyle.border?.borderColor || answerStyle.border?.borderColor || '#000000';
               const borderWidth = questionStyle.borderWidth || answerStyle.borderWidth || 1;
               const borderOpacity = questionStyle.borderOpacity ?? answerStyle.borderOpacity ?? 1;
-              const cornerRadius = questionStyle.cornerRadius || answerStyle.cornerRadius || 0;
+              const cornerRadius = element.cornerRadius ?? qnaInlineDefaults.cornerRadius ?? 0;
               const theme = questionStyle.borderTheme || answerStyle.borderTheme || 'default';
               
               // Use theme renderer for consistent border rendering
@@ -1488,12 +1493,14 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               }
             };
             
-            // For inline layout, use combined line height based on largest font
+            // For inline layout, use combined line height based on largest font for question lines (and combined lines)
+            // Answer-only lines use independent line height (aLineHeight) to be unaffected by question font size
             const combinedLineHeight = layoutVariant === 'inline' ? 
               maxFontSize * Math.max(getLineHeightMultiplier(qParagraphSpacing), getLineHeightMultiplier(aParagraphSpacing)) :
               qFontSize * getLineHeightMultiplier(qParagraphSpacing);
             const qLineHeight = layoutVariant === 'inline' ? combinedLineHeight : qFontSize * getLineHeightMultiplier(qParagraphSpacing);
-            const aLineHeight = layoutVariant === 'inline' ? combinedLineHeight : aFontSize * getLineHeightMultiplier(aParagraphSpacing);
+            // Answer line height is always independent of question font size, even for inline layout
+            const aLineHeight = aFontSize * getLineHeightMultiplier(aParagraphSpacing);
             
             // Text baseline offset to float above ruled lines - accounts for font size and paragraph spacing
             const maxFontSizeUsed = Math.max(qFontSize, aFontSize);
@@ -1784,6 +1791,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                 
                 userLines.forEach((line) => {
                   if (!line.trim() && !isFirstLine) {
+                    // Empty lines in answer-only section use independent answer line height
                     currentLineY += aLineHeight;
                     return;
                   }
@@ -1865,11 +1873,17 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                           />
                         );
                       } else {
-                        // Calculate consistent Y position for subsequent lines with shared baseline
-                        const lineIndex = Math.round((currentLineY - questionEndY - combinedLineHeight) / combinedLineHeight);
-                        // PST: Layout = Inline: Adjust Y position answer text in answer-only lines
-                        const sharedBaseline = effectivePadding + (questionLines.length * combinedLineHeight) + (lineIndex * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6);
-                        const answerY = sharedBaseline - (aFontSize * 0.8);
+                        // Calculate consistent Y position for answer-only lines using independent answer line height
+                        // Answer-only lines should be independent of question font size
+                        const questionLinesHeight = questionLines.length * combinedLineHeight;
+                        // Calculate answer-specific baseline offset based only on answer font size
+                        const answerBaselineOffset = -(aFontSize * getLineHeightMultiplier(aParagraphSpacing) * 0.15) + (aFontSize * (aFontSize >= 50 ? aFontSize >= 96 ? aFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1));
+                        const answerEffectivePadding = padding + (aFontSize * 0.2);
+                        // Use answerLineIndex to calculate position based on aLineHeight (not combinedLineHeight)
+                        const answerLineIndex = Math.round((currentLineY - questionEndY - combinedLineHeight) / aLineHeight);
+                        // PST: Layout = Inline: Adjust Y position answer text in answer-only lines using independent answer line height
+                        const answerBaseline = answerEffectivePadding + questionLinesHeight + (answerLineIndex * aLineHeight) + answerBaselineOffset + (aFontSize * 0.6);
+                        const answerY = answerBaseline - (aFontSize * 0.8);
                         
                         elements.push(
                           <Text
@@ -1891,8 +1905,15 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                     }
                     
                     // Move to next line
-                    currentLineY += combinedLineHeight;
-                    isFirstLine = false;
+                    // For answer-only lines (after first line), use independent answer line height
+                    if (isFirstLine) {
+                      // First line is on same line as question - it's a combined line
+                      currentLineY += combinedLineHeight;
+                      isFirstLine = false;
+                    } else {
+                      // Subsequent answer-only lines use independent answer line height
+                      currentLineY += aLineHeight;
+                    }
                   }
                 });
               }

@@ -4,7 +4,7 @@ import type { ColorPalette } from '../types/template-types';
 import { commonToActual } from './font-size-converter';
 import { themeJsonToActualStrokeWidth } from './stroke-width-converter';
 import { commonToActualRadius } from './corner-radius-converter';
-import themesData from '../data/themes.json';
+import themesData from '../data/templates/themes.json';
 
 // Get palette from color-palettes.ts (single source of truth)
 function getPalette(paletteId: string): ColorPalette | undefined {
@@ -437,14 +437,32 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
     return settings;
   };
   
+  // Extract top-level properties from qnaConfig (like cornerRadius, padding, etc.)
+  const topLevelProperties: any = {};
+  if (qnaConfig) {
+    // Include all top-level properties except questionSettings and answerSettings
+    Object.keys(qnaConfig).forEach(key => {
+      if (key !== 'questionSettings' && key !== 'answerSettings') {
+        // Convert cornerRadius from common value (in themes.json) to actual value
+        if (key === 'cornerRadius') {
+          topLevelProperties[key] = commonToActualRadius(qnaConfig[key]);
+        } else {
+          topLevelProperties[key] = qnaConfig[key];
+        }
+      }
+    });
+  }
+  
   if (qnaConfig?.questionSettings && qnaConfig?.answerSettings) {
     return {
+      ...topLevelProperties,
       questionSettings: buildSettings(textDefaults, qnaConfig.questionSettings, false),
       answerSettings: buildSettings(textDefaults, qnaConfig.answerSettings, true)
     };
   }
   
   return {
+    ...topLevelProperties,
     questionSettings: buildSettings(textDefaults, {}, false),
     answerSettings: buildSettings(textDefaults, {}, true)
   };

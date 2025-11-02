@@ -19,7 +19,8 @@ import { Tabs, TabsList, TabsTrigger } from '../../../ui/composites';
 import { FontSelector } from './font-selector';
 import { ColorSelector } from './color-selector';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
-import { getQnAThemeDefaults } from '../../../../utils/global-themes';
+import { getQnAThemeDefaults, getQnAInlineThemeDefaults } from '../../../../utils/global-themes';
+import { getToolDefaults } from '../../../../utils/tool-defaults';
 
 const getCurrentFontName = (fontFamily: string) => {
   for (const group of FONT_GROUPS) {
@@ -131,17 +132,243 @@ export function QnAInlineSettingsForm({
   const computedCurrentStyle = activeSection === 'question' ? computedQuestionStyle : computedAnswerStyle;
   const computedUpdateSetting = activeSection === 'question' ? updateQuestionSetting : updateAnswerSetting;
   
+  // Get theme defaults for checking border/background enabled state
+  const getThemeDefaults = () => {
+    const currentPage = state.currentBook?.pages[state.activePageIndex];
+    const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+    const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+    const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+    const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+    const pageColorPaletteId = currentPage?.colorPaletteId;
+    const bookColorPaletteId = state.currentBook?.colorPaletteId;
+    return getToolDefaults('qna_inline', pageTheme, bookTheme, element, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
+  };
+
   const updateSharedSetting = (key: string, value: any) => {
-    const updates = {
-      questionSettings: {
+    const updates: any = {};
+    const themeDefaults = getThemeDefaults();
+
+    // Handle border/background properties - need to set in both questionSettings and answerSettings
+    // since textbox-qna-inline.tsx checks questionStyle.border?.enabled || answerStyle.border?.enabled
+    if (key === 'borderEnabled') {
+      const borderColor = element.questionSettings?.border?.borderColor || element.answerSettings?.border?.borderColor || themeDefaults.borderColor || '#000000';
+      const borderWidth = element.questionSettings?.borderWidth || element.answerSettings?.borderWidth || (themeDefaults.borderWidth ?? 1);
+      const borderOpacity = element.questionSettings?.borderOpacity ?? element.answerSettings?.borderOpacity ?? themeDefaults.borderOpacity ?? 1;
+      const borderTheme = element.questionSettings?.borderTheme || element.answerSettings?.borderTheme || themeDefaults.borderTheme || 'default';
+      
+      updates.questionSettings = {
         ...element.questionSettings,
-        [key]: value
-      },
-      answerSettings: {
+        border: {
+          enabled: value,
+          borderColor: borderColor,
+          borderWidth: borderWidth,
+          borderOpacity: borderOpacity,
+          borderTheme: borderTheme
+        },
+        borderEnabled: value,
+        borderWidth: borderWidth,
+        borderOpacity: borderOpacity,
+        borderTheme: borderTheme
+      };
+      updates.answerSettings = {
         ...element.answerSettings,
-        [key]: value
-      }
-    };
+        border: {
+          enabled: value,
+          borderColor: borderColor,
+          borderWidth: borderWidth,
+          borderOpacity: borderOpacity,
+          borderTheme: borderTheme
+        },
+        borderEnabled: value,
+        borderWidth: borderWidth,
+        borderOpacity: borderOpacity,
+        borderTheme: borderTheme
+      };
+      // Also set on top-level for backward compatibility
+      updates.border = {
+        enabled: value,
+        borderColor: borderColor,
+        borderWidth: borderWidth,
+        borderOpacity: borderOpacity,
+        borderTheme: borderTheme
+      };
+    } else if (key === 'backgroundEnabled') {
+      const backgroundColor = element.questionSettings?.background?.backgroundColor || element.answerSettings?.background?.backgroundColor || themeDefaults.backgroundColor || '#ffffff';
+      const backgroundOpacity = element.questionSettings?.backgroundOpacity ?? element.answerSettings?.backgroundOpacity ?? themeDefaults.backgroundOpacity ?? 1;
+      
+      updates.questionSettings = {
+        ...element.questionSettings,
+        background: {
+          enabled: value,
+          backgroundColor: backgroundColor,
+          backgroundOpacity: backgroundOpacity
+        },
+        backgroundEnabled: value,
+        backgroundOpacity: backgroundOpacity
+      };
+      updates.answerSettings = {
+        ...element.answerSettings,
+        background: {
+          enabled: value,
+          backgroundColor: backgroundColor,
+          backgroundOpacity: backgroundOpacity
+        },
+        backgroundEnabled: value,
+        backgroundOpacity: backgroundOpacity
+      };
+      // Also set on top-level for backward compatibility
+      updates.background = {
+        enabled: value,
+        backgroundColor: backgroundColor,
+        backgroundOpacity: backgroundOpacity
+      };
+    } else if (key === 'borderWidth') {
+      const currentEnabled = element.questionSettings?.border?.enabled ?? element.answerSettings?.border?.enabled ?? themeDefaults.borderEnabled ?? false;
+      const borderColor = element.questionSettings?.border?.borderColor || element.answerSettings?.border?.borderColor || themeDefaults.borderColor || '#000000';
+      const borderOpacity = element.questionSettings?.borderOpacity ?? element.answerSettings?.borderOpacity ?? themeDefaults.borderOpacity ?? 1;
+      const borderTheme = element.questionSettings?.borderTheme || element.answerSettings?.borderTheme || themeDefaults.borderTheme || 'default';
+      
+      updates.questionSettings = {
+        ...element.questionSettings,
+        border: {
+          enabled: currentEnabled,
+          borderColor: borderColor,
+          borderWidth: value,
+          borderOpacity: borderOpacity,
+          borderTheme: borderTheme
+        },
+        borderWidth: value
+      };
+      updates.answerSettings = {
+        ...element.answerSettings,
+        border: {
+          enabled: currentEnabled,
+          borderColor: borderColor,
+          borderWidth: value,
+          borderOpacity: borderOpacity,
+          borderTheme: borderTheme
+        },
+        borderWidth: value
+      };
+      updates.border = {
+        enabled: currentEnabled,
+        borderColor: borderColor,
+        borderWidth: value,
+        borderOpacity: borderOpacity,
+        borderTheme: borderTheme
+      };
+    } else if (key === 'borderTheme') {
+      const currentEnabled = element.questionSettings?.border?.enabled ?? element.answerSettings?.border?.enabled ?? (themeDefaults.borderEnabled ?? false);
+      const borderColor = element.questionSettings?.border?.borderColor || element.answerSettings?.border?.borderColor || themeDefaults.borderColor || '#000000';
+      const borderWidth = element.questionSettings?.borderWidth || element.answerSettings?.borderWidth || (themeDefaults.borderWidth ?? 1);
+      const borderOpacity = element.questionSettings?.borderOpacity ?? element.answerSettings?.borderOpacity ?? (themeDefaults.borderOpacity ?? 1);
+      
+      updates.questionSettings = {
+        ...element.questionSettings,
+        border: {
+          enabled: currentEnabled,
+          borderColor: borderColor,
+          borderWidth: borderWidth,
+          borderOpacity: borderOpacity,
+          borderTheme: value
+        },
+        borderTheme: value
+      };
+      updates.answerSettings = {
+        ...element.answerSettings,
+        border: {
+          enabled: currentEnabled,
+          borderColor: borderColor,
+          borderWidth: borderWidth,
+          borderOpacity: borderOpacity,
+          borderTheme: value
+        },
+        borderTheme: value
+      };
+      updates.border = {
+        enabled: currentEnabled,
+        borderColor: borderColor,
+        borderWidth: borderWidth,
+        borderOpacity: borderOpacity,
+        borderTheme: value
+      };
+    } else if (key === 'borderOpacity') {
+      const currentEnabled = element.questionSettings?.border?.enabled ?? element.answerSettings?.border?.enabled ?? themeDefaults.borderEnabled ?? false;
+      const borderColor = element.questionSettings?.border?.borderColor || element.answerSettings?.border?.borderColor || themeDefaults.borderColor || '#000000';
+      const borderWidth = element.questionSettings?.borderWidth || element.answerSettings?.borderWidth || (themeDefaults.borderWidth ?? 1);
+      const borderTheme = element.questionSettings?.borderTheme || element.answerSettings?.borderTheme || themeDefaults.borderTheme || 'default';
+      
+      updates.questionSettings = {
+        ...element.questionSettings,
+        border: {
+          enabled: currentEnabled,
+          borderColor: borderColor,
+          borderWidth: borderWidth,
+          borderOpacity: value,
+          borderTheme: borderTheme
+        },
+        borderOpacity: value
+      };
+      updates.answerSettings = {
+        ...element.answerSettings,
+        border: {
+          enabled: currentEnabled,
+          borderColor: borderColor,
+          borderWidth: borderWidth,
+          borderOpacity: value,
+          borderTheme: borderTheme
+        },
+        borderOpacity: value
+      };
+      updates.border = {
+        enabled: currentEnabled,
+        borderColor: borderColor,
+        borderWidth: borderWidth,
+        borderOpacity: value,
+        borderTheme: borderTheme
+      };
+    } else if (key === 'backgroundOpacity') {
+      const currentEnabled = element.questionSettings?.background?.enabled ?? element.answerSettings?.background?.enabled ?? themeDefaults.backgroundEnabled ?? false;
+      const backgroundColor = element.questionSettings?.background?.backgroundColor || element.answerSettings?.background?.backgroundColor || themeDefaults.backgroundColor || '#ffffff';
+      
+      updates.questionSettings = {
+        ...element.questionSettings,
+        background: {
+          enabled: currentEnabled,
+          backgroundColor: backgroundColor,
+          backgroundOpacity: value
+        },
+        backgroundOpacity: value
+      };
+      updates.answerSettings = {
+        ...element.answerSettings,
+        background: {
+          enabled: currentEnabled,
+          backgroundColor: backgroundColor,
+          backgroundOpacity: value
+        },
+        backgroundOpacity: value
+      };
+      updates.background = {
+        enabled: currentEnabled,
+        backgroundColor: backgroundColor,
+        backgroundOpacity: value
+      };
+    } else if (key === 'cornerRadius') {
+      updates.cornerRadius = value;
+    } else {
+      // For other shared properties, update both questionSettings and answerSettings
+      const questionSettingsUpdate: any = {
+        ...element.questionSettings
+      };
+      const answerSettingsUpdate: any = {
+        ...element.answerSettings
+      };
+      questionSettingsUpdate[key] = value;
+      answerSettingsUpdate[key] = value;
+      updates.questionSettings = questionSettingsUpdate;
+      updates.answerSettings = answerSettingsUpdate;
+    }
     
     if (state.selectedGroupedElement) {
       dispatch({
@@ -286,9 +513,9 @@ export function QnAInlineSettingsForm({
             return element.answerSettings?.fontColor || computedCurrentStyle.fontColor || '#1f2937';
           }
         case 'element-border-color':
-          return element.questionSettings?.border?.borderColor || element.answerSettings?.border?.borderColor || element.questionSettings?.borderColor || element.answerSettings?.borderColor || '#000000';
+          return element.border?.borderColor || '#000000';
         case 'element-background-color':
-          return element.questionSettings?.background?.backgroundColor || element.answerSettings?.background?.backgroundColor || element.questionSettings?.backgroundColor || element.answerSettings?.backgroundColor || '#ffffff';
+          return element.background?.backgroundColor || '#ffffff';
         case 'element-ruled-lines-color':
           return element.answerSettings?.ruledLines?.lineColor || element.answerSettings?.ruledLinesColor || '#1f2937';
         default:
@@ -307,13 +534,18 @@ export function QnAInlineSettingsForm({
             return element.answerSettings?.fontOpacity ?? 1;
           }
         case 'element-border-color': {
-          const qSettings = element.questionSettings || {};
-          const aSettings = element.answerSettings || {};
-          return qSettings.borderOpacity ?? aSettings.borderOpacity ?? 1;
+          const themeDefaults = getThemeDefaults();
+              return element.questionSettings?.borderOpacity ?? 
+                     element.answerSettings?.borderOpacity ?? 
+                     element.border?.borderOpacity ?? 
+                     (themeDefaults.borderOpacity ?? 1);
         }
         case 'element-background-color': {
-          const bgOpacitySettings = activeSection === 'question' ? element.questionSettings : element.answerSettings;
-          return bgOpacitySettings?.backgroundOpacity ?? 1;
+          const themeDefaults = getThemeDefaults();
+              return element.questionSettings?.backgroundOpacity ?? 
+                     element.answerSettings?.backgroundOpacity ?? 
+                     element.background?.backgroundOpacity ?? 
+                     (themeDefaults.backgroundOpacity ?? 1);
         }
         case 'element-ruled-lines-color': {
           const ruledOpacitySettings = element.answerSettings;
@@ -358,34 +590,10 @@ export function QnAInlineSettingsForm({
           }
           break;
         case 'element-border-color':
-          if (individualSettings && computedUpdateSetting) {
-            computedUpdateSetting('borderOpacity', opacity);
-          } else if (updateQuestionSetting && updateAnswerSetting) {
-            updateQuestionSetting('borderOpacity', opacity);
-            updateAnswerSetting('borderOpacity', opacity);
-          } else if (computedUpdateSetting) {
-            computedUpdateSetting('borderOpacity', opacity);
-          } else {
-            updateSetting('borderOpacity', opacity);
-          }
+          updateSharedSetting('borderOpacity', opacity);
           break;
         case 'element-background-color':
-          dispatch({
-            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-            payload: {
-              id: element.id,
-              updates: {
-                questionSettings: {
-                  ...element.questionSettings,
-                  backgroundOpacity: opacity
-                },
-                answerSettings: {
-                  ...element.answerSettings,
-                  backgroundOpacity: opacity
-                }
-              }
-            }
-          });
+          updateSharedSetting('backgroundOpacity', opacity);
           break;
         case 'element-ruled-lines-color':
           dispatch({
@@ -457,7 +665,13 @@ export function QnAInlineSettingsForm({
             });
           }
           break;
-        case 'element-border-color':
+        case 'element-border-color': {
+          const themeDefaults = getThemeDefaults();
+          const currentEnabled = element.questionSettings?.border?.enabled ?? element.answerSettings?.border?.enabled ?? (themeDefaults.borderEnabled ?? false);
+          const borderWidth = element.questionSettings?.borderWidth || element.answerSettings?.borderWidth || (themeDefaults.borderWidth ?? 1);
+          const borderOpacity = element.questionSettings?.borderOpacity ?? element.answerSettings?.borderOpacity ?? (themeDefaults.borderOpacity ?? 1);
+          const borderTheme = element.questionSettings?.borderTheme || element.answerSettings?.borderTheme || themeDefaults.borderTheme || 'default';
+          
           dispatch({
             type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
             payload: {
@@ -466,24 +680,42 @@ export function QnAInlineSettingsForm({
                 questionSettings: {
                   ...element.questionSettings,
                   border: {
-                    ...element.questionSettings?.border,
-                    borderColor: colorValue
+                    enabled: currentEnabled,
+                    borderColor: colorValue,
+                    borderWidth: borderWidth,
+                    borderOpacity: borderOpacity,
+                    borderTheme: borderTheme
                   },
                   borderColor: colorValue
                 },
                 answerSettings: {
                   ...element.answerSettings,
                   border: {
-                    ...element.answerSettings?.border,
-                    borderColor: colorValue
+                    enabled: currentEnabled,
+                    borderColor: colorValue,
+                    borderWidth: borderWidth,
+                    borderOpacity: borderOpacity,
+                    borderTheme: borderTheme
                   },
                   borderColor: colorValue
+                },
+                border: {
+                  enabled: currentEnabled,
+                  borderColor: colorValue,
+                  borderWidth: borderWidth,
+                  borderOpacity: borderOpacity,
+                  borderTheme: borderTheme
                 }
               }
             }
           });
           break;
-        case 'element-background-color':
+        }
+        case 'element-background-color': {
+          const themeDefaults = getThemeDefaults();
+          const currentEnabled = element.questionSettings?.background?.enabled ?? element.answerSettings?.background?.enabled ?? (themeDefaults.backgroundEnabled ?? false);
+          const backgroundOpacity = element.questionSettings?.backgroundOpacity ?? element.answerSettings?.backgroundOpacity ?? (themeDefaults.backgroundOpacity ?? 1);
+          
           dispatch({
             type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
             payload: {
@@ -492,23 +724,31 @@ export function QnAInlineSettingsForm({
                 questionSettings: {
                   ...element.questionSettings,
                   background: {
-                    ...element.questionSettings?.background,
-                    backgroundColor: colorValue
+                    enabled: currentEnabled,
+                    backgroundColor: colorValue,
+                    backgroundOpacity: backgroundOpacity
                   },
                   backgroundColor: colorValue
                 },
                 answerSettings: {
                   ...element.answerSettings,
                   background: {
-                    ...element.answerSettings?.background,
-                    backgroundColor: colorValue
+                    enabled: currentEnabled,
+                    backgroundColor: colorValue,
+                    backgroundOpacity: backgroundOpacity
                   },
                   backgroundColor: colorValue
+                },
+                background: {
+                  enabled: currentEnabled,
+                  backgroundColor: colorValue,
+                  backgroundOpacity: backgroundOpacity
                 }
               }
             }
           });
           break;
+        }
         case 'element-ruled-lines-color':
           dispatch({
             type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
@@ -947,9 +1187,12 @@ export function QnAInlineSettingsForm({
         <Label className="flex items-center gap-1" variant="xs">
           <Checkbox
             checked={(() => {
-              const qSettings = element.questionSettings || {};
-              const aSettings = element.answerSettings || {};
-              return qSettings.borderEnabled || aSettings.borderEnabled || false;
+              const themeDefaults = getThemeDefaults();
+              // Check element settings first, then theme defaults (same logic as textbox-qna-inline.tsx)
+              return element.questionSettings?.border?.enabled ?? 
+                     element.answerSettings?.border?.enabled ?? 
+                     element.border?.enabled ??
+                     (themeDefaults.borderEnabled ?? false);
             })()}
             onCheckedChange={(checked) => updateSharedSetting('borderEnabled', checked)}
           />
@@ -958,17 +1201,22 @@ export function QnAInlineSettingsForm({
       </div>
       
       {(() => {
-        const qSettings = element.questionSettings || {};
-        const aSettings = element.answerSettings || {};
-        return qSettings.borderEnabled || aSettings.borderEnabled;
+        const themeDefaults = getThemeDefaults();
+        const borderEnabled = element.questionSettings?.border?.enabled ?? 
+                             element.answerSettings?.border?.enabled ?? 
+                             element.border?.enabled ??
+                             themeDefaults.borderEnabled ?? 
+                             false;
+        return borderEnabled;
       })() && (
         <IndentedSection>
           <Slider
             label="Border Width"
             value={(() => {
-              const qSettings = element.questionSettings || {};
-              const aSettings = element.answerSettings || {};
-              return qSettings.borderWidth || aSettings.borderWidth || 1;
+              const themeDefaults = getThemeDefaults();
+              return element.questionSettings?.borderWidth || 
+                     element.answerSettings?.borderWidth || 
+                     (element.border?.borderWidth ?? (themeDefaults.borderWidth ?? 1));
             })()}
             onChange={(value) => updateSharedSetting('borderWidth', value)}
             min={0.1}
@@ -980,9 +1228,12 @@ export function QnAInlineSettingsForm({
             <Label variant="xs">Border Theme</Label>
             <ThemeSelect 
               value={(() => {
-                const qSettings = element.questionSettings || {};
-                const aSettings = element.answerSettings || {};
-                return qSettings.borderTheme || aSettings.borderTheme || 'rough';
+                const themeDefaults = getThemeDefaults();
+                return element.questionSettings?.borderTheme || 
+                       element.answerSettings?.borderTheme || 
+                       element.border?.borderTheme || 
+                       themeDefaults.borderTheme || 
+                       'default';
               })()}
               onChange={(value) => updateSharedSetting('borderTheme', value)}
             />
@@ -996,22 +1247,9 @@ export function QnAInlineSettingsForm({
               className="w-full"
             >
               <Palette className="w-4 mr-2" />
-              Border Color
+              Border Color & Opacity
             </Button>
           </div>
-          
-          <Slider
-            label="Border Opacity"
-            value={(() => {
-              const qSettings = element.questionSettings || {};
-              const aSettings = element.answerSettings || {};
-              return (qSettings.borderOpacity || aSettings.borderOpacity || 1) * 100;
-            })()}
-            onChange={(value) => updateSharedSetting('borderOpacity', value / 100)}
-            min={0}
-            max={100}
-            step={5}
-          />
         </IndentedSection>
       )}
       
@@ -1019,9 +1257,12 @@ export function QnAInlineSettingsForm({
         <Label className="flex items-center gap-1" variant="xs">
           <Checkbox
             checked={(() => {
-              const qSettings = element.questionSettings || {};
-              const aSettings = element.answerSettings || {};
-              return qSettings.backgroundEnabled || aSettings.backgroundEnabled || false;
+              const themeDefaults = getThemeDefaults();
+              // Check element settings first, then theme defaults (same logic as textbox-qna-inline.tsx)
+              return element.questionSettings?.background?.enabled ?? 
+                     element.answerSettings?.background?.enabled ?? 
+                     element.background?.enabled ??
+                     (themeDefaults.backgroundEnabled ?? false);
             })()}
             onCheckedChange={(checked) => updateSharedSetting('backgroundEnabled', checked)}
           />
@@ -1030,9 +1271,13 @@ export function QnAInlineSettingsForm({
       </div>
       
       {(() => {
-        const qSettings = element.questionSettings || {};
-        const aSettings = element.answerSettings || {};
-        return qSettings.backgroundEnabled || aSettings.backgroundEnabled;
+        const themeDefaults = getThemeDefaults();
+        const backgroundEnabled = element.questionSettings?.background?.enabled ?? 
+                                  element.answerSettings?.background?.enabled ?? 
+                                  element.background?.enabled ??
+                                  themeDefaults.backgroundEnabled ?? 
+                                  false;
+        return backgroundEnabled;
       })() && (
         <IndentedSection>
           <div>
@@ -1055,11 +1300,11 @@ export function QnAInlineSettingsForm({
             <SquareRoundCorner className='w-5 h-5'/>
             <Slider
               label="Corner Radius"
-              value={actualToCommonRadius((() => {
-                const qSettings = element.questionSettings || {};
-                const aSettings = element.answerSettings || {};
-                return qSettings.cornerRadius || aSettings.cornerRadius || 0;
-              })())}              
+              value={(() => {
+                const themeDefaults = getThemeDefaults();
+                const actualRadius = element.cornerRadius ?? themeDefaults.cornerRadius ?? 0;
+                return actualToCommonRadius(actualRadius);
+              })()}              
               onChange={(value) => updateSharedSetting('cornerRadius', commonToActualRadius(value))}
               min={COMMON_CORNER_RADIUS_RANGE.min}
               max={COMMON_CORNER_RADIUS_RANGE.max}

@@ -12,7 +12,8 @@ async function loadTemplates() {
 }
 
 async function loadColorPalettes() {
-  const data = await fs.readFile(path.join(__dirname, '../data/color-palettes.json'), 'utf8');
+  // Load from client-side JSON file (single source of truth)
+  const data = await fs.readFile(path.join(__dirname, '../../client/src/data/templates/color-palettes.json'), 'utf8');
   return JSON.parse(data);
 }
 
