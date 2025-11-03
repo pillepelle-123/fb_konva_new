@@ -91,6 +91,8 @@ interface ToolSettingsContentProps {
   onOpenBookLayouts: () => void;
   onOpenThemes: () => void;
   onOpenPalettes: () => void;
+  selectedBackgroundImageId?: string | null;
+  onBackgroundImageSelect?: (imageId: string | null) => void;
 }
 
 export function ToolSettingsContent({
@@ -123,7 +125,9 @@ export function ToolSettingsContent({
   onOpenLayouts,
   onOpenBookLayouts,
   onOpenThemes,
-  onOpenPalettes
+  onOpenPalettes,
+  selectedBackgroundImageId,
+  onBackgroundImageSelect
 }: ToolSettingsContentProps) {
   const { state, dispatch } = useEditor();
   const { user } = useAuth();
@@ -793,6 +797,8 @@ export function ToolSettingsContent({
           onOpenBookLayouts={onOpenBookLayouts}
           onOpenThemes={onOpenThemes}
           onOpenPalettes={onOpenPalettes}
+          selectedBackgroundImageId={selectedBackgroundImageId}
+          onBackgroundImageSelect={onBackgroundImageSelect}
         />
       );
     }
@@ -902,7 +908,7 @@ export function ToolSettingsContent({
   };
 
   return (
-    <div className="flex-1 overflow-y-auto scrollbar-hide p-2 border">
+    <div className="flex-1 overflow-y-auto scrollbar-hide p-2 border min-h-0">
       {shouldShowPanel ? renderToolSettings() : (
         <div className="text-xs text-muted-foreground">
           Select a tool or element to view settings.

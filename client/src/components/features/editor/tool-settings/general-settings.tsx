@@ -1,8 +1,10 @@
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import { Button } from '../../../ui/primitives/button';
-import { ChevronLeft, Settings, Palette, Image, PaintBucket, CircleHelp, LayoutPanelLeft, Paintbrush2, SwatchBook, ArrowDown } from 'lucide-react';
-import { Tabs, TabsList, TabsTrigger } from '../../../ui/composites/tabs';
+import { ChevronLeft, Settings, Palette, Image, PaintBucket, CircleHelp, LayoutPanelLeft, Paintbrush2, SwatchBook, ArrowDown, ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight } from 'lucide-react';
+import { RadioGroup } from '../../../ui/primitives/radio-group';
+import { getPalette } from '../../../../utils/global-palettes';
+import { ButtonGroup } from '../../../ui/composites/button-group';
 import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
 import type { PageBackground } from '../../../../context/editor-context';
 import { Checkbox } from '../../../ui/primitives/checkbox';
@@ -19,6 +21,7 @@ import { commonToActual } from '../../../../utils/font-size-converter';
 import { useState } from 'react';
 import ConfirmationDialog from '../../../ui/overlays/confirmation-dialog';
 import { BackgroundImageSelector } from './background-image-selector';
+import { applyBackgroundImageTemplate } from '../../../../utils/background-image-utils';
 
 
 interface GeneralSettingsProps {
@@ -40,6 +43,8 @@ interface GeneralSettingsProps {
   onOpenBookLayouts: () => void;
   onOpenThemes: () => void;
   onOpenPalettes: () => void;
+  selectedBackgroundImageId?: string | null;
+  onBackgroundImageSelect?: (imageId: string | null) => void;
 }
 
 export function GeneralSettings({
@@ -60,12 +65,15 @@ export function GeneralSettings({
   onOpenLayouts,
   onOpenBookLayouts,
   onOpenThemes,
-  onOpenPalettes
+  onOpenPalettes,
+  selectedBackgroundImageId,
+  onBackgroundImageSelect
 }: GeneralSettingsProps) {
   const { state, dispatch, canEditSettings } = useEditor();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
   const [showPagePalette, setShowPagePalette] = useState(false);
   const [showBookPalette, setShowBookPalette] = useState(false);
+  const [forceImageMode, setForceImageMode] = useState(false);
 
 
   const updateBackground = (updates: Partial<PageBackground>) => {
@@ -407,24 +415,155 @@ export function GeneralSettings({
 
   const renderBackgroundSettings = () => {
     const currentPage = state.currentBook?.pages[state.activePageIndex];
-    const background = currentPage?.background || { type: 'color', value: '#ffffff', opacity: 1 };
+    let background = currentPage?.background;
+    
+    // Get default background color from theme or palette
+    const getDefaultBackgroundColor = (): string => {
+      const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme || state.currentBook?.themeId || state.currentBook?.bookTheme || 'default';
+      const pageColors = getThemePageBackgroundColors(pageTheme);
+      return pageColors.backgroundColor;
+    };
+    
+    // Initialize background if not set, with default color and opacity 15 (0.15)
+    if (!background) {
+      const defaultColor = getDefaultBackgroundColor();
+      background = { type: 'color', value: defaultColor, opacity: 0.15 };
+      updateBackground(background);
+    }
+    
+    // Ensure opacity is always set (default to 0.15 if not set)
+    if (background.opacity === undefined) {
+      background.opacity = 0.15;
+      updateBackground({ opacity: 0.15 });
+    }
+    
     const isPattern = background.type === 'pattern';
-    const currentColor = isPattern ? (background.patternForegroundColor || '#666666') : background.value;
-
-    const togglePattern = (checked: boolean) => {
-      if (checked) {
-        updateBackground({
+    const isImage = background.type === 'image';
+    // backgroundMode is primarily based on background.type, but use forceImageMode if user just selected "image" 
+    // and background hasn't been updated yet
+    const backgroundMode = isImage ? 'image' : (isPattern ? 'pattern' : (forceImageMode ? 'image' : 'color'));
+    
+    // Get primary color from current palette or theme
+    const getPrimaryColor = (): string => {
+      const pageColorPaletteId = currentPage?.colorPaletteId;
+      const bookColorPaletteId = state.currentBook?.colorPaletteId;
+      const activePaletteId = pageColorPaletteId || bookColorPaletteId;
+      
+      if (activePaletteId) {
+        const palette = getPalette(activePaletteId);
+        if (palette) {
+          return palette.colors.primary;
+        }
+      }
+      
+      // Fallback to theme primary color
+      const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme || state.currentBook?.themeId || state.currentBook?.bookTheme || 'default';
+      const themeDefaults = getGlobalThemeDefaults(pageTheme, 'shape');
+      return themeDefaults.stroke || '#000000';
+    };
+    
+    const handleBackgroundModeChange = (mode: 'color' | 'pattern' | 'image') => {
+      // Preserve current opacity value when switching background types
+      const currentOpacity = background?.opacity ?? 0.15;
+      // Preserve backgroundImageTemplateId and image settings to restore them when switching back to image
+      const savedImageTemplateId = background?.backgroundImageTemplateId;
+      // Save the image value (URL) when current type is 'image' and no template ID is set (direct upload)
+      const savedImageValue = background?.type === 'image' && !background?.backgroundImageTemplateId 
+        ? background.value 
+        : (background as any)?._savedImageValue; // Use hidden property to preserve direct upload image URL
+      const savedImageSize = background?.imageSize;
+      const savedImageRepeat = background?.imageRepeat;
+      const savedImagePosition = background?.imagePosition;
+      
+      if (mode === 'color') {
+        setForceImageMode(false);
+        const defaultColor = getDefaultBackgroundColor();
+        // Preserve backgroundImageTemplateId and image settings when switching to color (for restoration later)
+        // Also preserve image value in a hidden property if it's a direct upload (no template ID)
+        const updateData: any = {
+          type: 'color',
+          value: defaultColor,
+          opacity: currentOpacity,
+          backgroundImageTemplateId: savedImageTemplateId,
+          imageSize: savedImageSize,
+          imageRepeat: savedImageRepeat,
+          imagePosition: savedImagePosition
+        };
+        // Preserve direct upload image URL in hidden property
+        if (background?.type === 'image' && !background?.backgroundImageTemplateId && background?.value) {
+          updateData._savedImageValue = background.value;
+        } else if ((background as any)?._savedImageValue) {
+          updateData._savedImageValue = (background as any)._savedImageValue;
+        }
+        updateBackground(updateData as Partial<PageBackground>);
+        setShowPatternSettings(false);
+        setShowBackgroundImageTemplateSelector(false);
+      } else if (mode === 'pattern') {
+        setForceImageMode(false);
+        const primaryColor = getPrimaryColor();
+        // Preserve backgroundImageTemplateId and image settings when switching to pattern (for restoration later)
+        const updateData: any = {
           type: 'pattern',
           value: 'dots',
-          patternForegroundColor: currentColor,
-          patternBackgroundColor: 'transparent'
-        });
-      } else {
-        updateBackground({
-          type: 'color',
-          value: currentColor
-        });
-        setShowPatternSettings(false);
+          patternSize: 6,
+          patternStrokeWidth: 10,
+          patternForegroundColor: primaryColor,
+          patternBackgroundColor: 'transparent',
+          opacity: currentOpacity,
+          backgroundImageTemplateId: savedImageTemplateId,
+          imageSize: savedImageSize,
+          imageRepeat: savedImageRepeat,
+          imagePosition: savedImagePosition
+        };
+        // Preserve direct upload image URL in hidden property
+        if (background?.type === 'image' && !background?.backgroundImageTemplateId && background?.value) {
+          updateData._savedImageValue = background.value;
+        } else if ((background as any)?._savedImageValue) {
+          updateData._savedImageValue = (background as any)._savedImageValue;
+        }
+        updateBackground(updateData as Partial<PageBackground>);
+        setShowBackgroundImageTemplateSelector(false);
+      } else if (mode === 'image') {
+        setForceImageMode(true);
+        // If background already has a backgroundImageTemplateId, apply it immediately
+        if (background && (background as any).backgroundImageTemplateId) {
+          const templateId = (background as any).backgroundImageTemplateId;
+          const imageBackground = applyBackgroundImageTemplate(templateId, {
+            imageSize: savedImageSize || background.imageSize || 'cover',
+            imageRepeat: savedImageRepeat !== undefined ? savedImageRepeat : (background.imageRepeat || false),
+            opacity: currentOpacity,
+          });
+          if (imageBackground) {
+            // Preserve imagePosition if it was set
+            if (savedImagePosition || background.imagePosition) {
+              imageBackground.imagePosition = savedImagePosition || background.imagePosition || 'top-left';
+            }
+            updateBackground(imageBackground);
+          }
+          setShowBackgroundImageTemplateSelector(false);
+        } else if (savedImageValue || (background as any)?._savedImageValue) {
+          // Restore saved image URL value (direct image, not template)
+          const imageUrl = savedImageValue || (background as any)?._savedImageValue;
+          updateBackground({
+            type: 'image',
+            value: imageUrl,
+            opacity: currentOpacity,
+            imageSize: savedImageSize || 'cover',
+            imageRepeat: savedImageRepeat || false,
+            imagePosition: savedImagePosition || 'top-left'
+          });
+          setShowBackgroundImageTemplateSelector(false);
+        } else {
+          // No image template ID yet - keep current color/background but set type to image
+          // Preserve opacity when switching to image mode
+          updateBackground({
+            ...background,
+            type: 'image',
+            value: background.type === 'color' ? background.value : '#ffffff',
+            opacity: currentOpacity,
+          });
+          setShowBackgroundImageTemplateSelector(false);
+        }
       }
     };
 
@@ -437,28 +576,6 @@ export function GeneralSettings({
             return background.patternBackgroundColor || 'transparent';
           default:
             return '#ffffff';
-        }
-      };
-      
-      const getOpacityValue = () => {
-        switch (showColorSelector) {
-          case 'background-color':
-            return background.opacity || 1;
-          case 'pattern-background':
-            return background.patternBackgroundOpacity || 1;
-          default:
-            return 1;
-        }
-      };
-      
-      const handleOpacityChange = (opacity: number) => {
-        switch (showColorSelector) {
-          case 'background-color':
-            updateBackground({ opacity });
-            break;
-          case 'pattern-background':
-            updateBackground({ patternBackgroundOpacity: opacity });
-            break;
         }
       };
       
@@ -481,12 +598,13 @@ export function GeneralSettings({
         <ColorSelector
           value={getColorValue()}
           onChange={handleColorChange}
-          opacity={getOpacityValue()}
-          onOpacityChange={handleOpacityChange}
+          opacity={background.opacity ?? 1}
+          onOpacityChange={undefined}
           favoriteColors={favoriteStrokeColors}
           onAddFavorite={addFavoriteStrokeColor}
           onRemoveFavorite={removeFavoriteStrokeColor}
           onBack={() => setShowColorSelector(null)}
+          showOpacitySlider={showColorSelector !== 'background-color'}
         />
       );
     }
@@ -494,8 +612,17 @@ export function GeneralSettings({
     if (showBackgroundImageTemplateSelector) {
       return (
         <BackgroundImageSelector
-          onBack={() => setShowBackgroundImageTemplateSelector(false)}
-          onSelect={() => setShowBackgroundImageTemplateSelector(false)}
+          onBack={() => {
+            setShowBackgroundImageTemplateSelector(false);
+            // If no image was selected, revert to previous mode
+            if (!background || background.type !== 'image') {
+              handleBackgroundModeChange('color');
+            }
+          }}
+          onSelect={() => {}}
+          onUpload={() => setShowBackgroundImageModal(true)}
+          selectedImageId={selectedBackgroundImageId}
+          onImageSelect={onBackgroundImageSelect}
         />
       );
     }
@@ -586,137 +713,190 @@ export function GeneralSettings({
             Back
           </Button>
         </div>
+
+        {/* Color Button */}
         <div>
-          <Tabs 
-            value={background.type === 'image' ? 'image' : 'color'} 
-            onValueChange={(value) => {
-              if (value === 'color') {
-                updateBackground({ type: 'color', value: '#ffffff' });
-              } else {
-                updateBackground({ type: 'image', value: '', imageSize: 'cover' });
-              }
-            }}
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={() => setShowColorSelector('background-color')}
+            className="w-full"
           >
-            <TabsList variant="bootstrap" className='w-full'>
-              <TabsTrigger variant="bootstrap" value="color">Color</TabsTrigger>
-              <TabsTrigger variant="bootstrap" value="image">Image</TabsTrigger>
-            </TabsList>
-          </Tabs>
+            <Palette className="h-4 w-4 mr-2" />
+            Color
+          </Button>
         </div>
 
-        {background.type !== 'image' && (
+        {/* Radio Group for Color/Pattern/Image */}
+        <RadioGroup
+          value={backgroundMode}
+          onChange={(value) => handleBackgroundModeChange(value as 'color' | 'pattern' | 'image')}
+          options={[
+            { value: 'color', label: 'Color' },
+            { value: 'pattern', label: 'Pattern' },
+            { value: 'image', label: 'Image' }
+          ]}
+        />
+
+        {/* Pattern Settings Button */}
+        {backgroundMode === 'pattern' && (
           <div className="space-y-2">
-            <div>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => setShowColorSelector('background-color')}
-                className="w-full"
-              >
-                <Palette className="h-4 w-4 mr-2" />
-                Color
-              </Button>
-            </div>
-            
-            <div className="space-y-2">
-              <div className="flex flex-row gap-5 items-center h-12 space-x-2">
-                <span className="flex items-center gap-1 text-xs font-medium">
-                <Checkbox
-                  id="pattern"
-                  checked={isPattern}
-                  onCheckedChange={togglePattern}
-                />
-                <Label htmlFor="pattern" className="text-sm font-medium cursor-pointer">
-                  Pattern
-                </Label>
-                </span>
-                {isPattern && (
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    onClick={() => setShowPatternSettings(true)}
-                    className="ml-4 w-full"
-                  >
-                    Pattern Settings
-                  </Button>
-                )}
-              </div>
-            </div>
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => setShowPatternSettings(true)}
+              className="w-full"
+            >
+              Pattern Settings
+            </Button>
           </div>
         )}
 
-        {background.type === 'image' && (
+        {/* Select Image Button */}
+        {backgroundMode === 'image' && (
           <div className="space-y-2">
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => setShowBackgroundImageTemplateSelector(true)}
-                className="flex-1"
-              >
-                <Image className="h-4 w-4 mr-2" />
-                Templates
-              </Button>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => setShowBackgroundImageModal(true)}
-                className="flex-1"
-              >
-                <Image className="h-4 w-4 mr-2" />
-                Upload
-              </Button>
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => {
+                // Set selected image ID to current background image if it exists
+                if (background && background.type === 'image' && background.backgroundImageTemplateId) {
+                  onBackgroundImageSelect?.(background.backgroundImageTemplateId);
+                }
+                setShowBackgroundImageTemplateSelector(true);
+              }}
+              className="w-full"
+            >
+              <Image className="h-4 w-4 mr-2" />
+              Select Image
+            </Button>
+          </div>
+        )}
+
+        {/* Image Size, Position, and Repeat Controls - only visible when image background is active */}
+        {backgroundMode === 'image' && background && background.type === 'image' && (
+          <div className="space-y-3">
+            {/* Image Size Buttons */}
+            <div>
+              <Label variant="xs" className="mb-1 block">Image Size</Label>
+              <div className="grid grid-cols-3 gap-1">
+                <Button
+                  variant={background.imageSize === 'cover' ? 'default' : 'outline'}
+                  size="xs"
+                  onClick={() => {
+                    updateBackground({ imageSize: 'cover' });
+                  }}
+                  className="text-xs"
+                >
+                  Cover
+                </Button>
+                <Button
+                  variant={background.imageSize === 'contain' ? 'default' : 'outline'}
+                  size="xs"
+                  onClick={() => {
+                    updateBackground({ imageSize: 'contain' });
+                  }}
+                  className="text-xs"
+                >
+                  Contain
+                </Button>
+                <Button
+                  variant={background.imageSize === 'stretch' ? 'default' : 'outline'}
+                  size="xs"
+                  onClick={() => {
+                    updateBackground({ imageSize: 'stretch' });
+                  }}
+                  className="text-xs"
+                >
+                  Stretch
+                </Button>
+              </div>
             </div>
-            
-            {background.value && (
-              <div className="space-y-2">
-                <div>
-                  <Label variant="xs">Size</Label>
-                  <div className="grid grid-cols-3 gap-1">
-                    <Button
-                      variant={background.imageSize === 'cover' ? 'default' : 'outline'}
-                      size="xs"
-                      onClick={() => updateBackground({ imageSize: 'cover' })}
-                      className="text-xs"
-                    >
-                      Cover
-                    </Button>
-                    <Button
-                      variant={background.imageSize === 'contain' ? 'default' : 'outline'}
-                      size="xs"
-                      onClick={() => updateBackground({ imageSize: 'contain' })}
-                      className="text-xs"
-                    >
-                      Contain
-                    </Button>
-                    <Button
-                      variant={background.imageSize === 'stretch' ? 'default' : 'outline'}
-                      size="xs"
-                      onClick={() => updateBackground({ imageSize: 'stretch' })}
-                      className="text-xs"
-                    >
-                      Stretch
-                    </Button>
-                  </div>
-                </div>
-                
-                {background.imageSize === 'contain' && (
-                  <div>
-                    <Label className="flex items-center gap-1" variant="xs">
-                      <input
-                        type="checkbox"
-                        checked={background.imageRepeat || false}
-                        onChange={(e) => updateBackground({ imageRepeat: e.target.checked })}
-                        className="rounded w-3 h-3"
-                      />
-                      Repeat
-                    </Label>
-                  </div>
-                )}
+
+            {/* Position Buttons for Contain mode */}
+            {background.imageSize === 'contain' && !background.imageRepeat && (
+              <div>
+                <Label variant="xs" className="mb-1 block">Position</Label>
+                <ButtonGroup>
+                  <Button
+                    variant={background.imagePosition === 'top-left' ? 'default' : 'outline'}
+                    size="xs"
+                    onClick={() => {
+                      updateBackground({ imagePosition: 'top-left' });
+                    }}
+                    className="px-2"
+                  >
+                    <ArrowUpLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant={background.imagePosition === 'top-right' ? 'default' : 'outline'}
+                    size="xs"
+                    onClick={() => {
+                      updateBackground({ imagePosition: 'top-right' });
+                    }}
+                    className="px-2"
+                  >
+                    <ArrowUpRight className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant={background.imagePosition === 'bottom-left' ? 'default' : 'outline'}
+                    size="xs"
+                    onClick={() => {
+                      updateBackground({ imagePosition: 'bottom-left' });
+                    }}
+                    className="px-2"
+                  >
+                    <ArrowDownLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant={background.imagePosition === 'bottom-right' ? 'default' : 'outline'}
+                    size="xs"
+                    onClick={() => {
+                      updateBackground({ imagePosition: 'bottom-right' });
+                    }}
+                    className="px-2"
+                  >
+                    <ArrowDownRight className="h-4 w-4" />
+                  </Button>
+                </ButtonGroup>
+              </div>
+            )}
+
+            {/* Repeat Checkbox for Contain mode */}
+            {background.imageSize === 'contain' && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={background.imageRepeat || false}
+                  onChange={(e) => {
+                    updateBackground({ imageRepeat: e.target.checked });
+                  }}
+                  className="rounded w-3 h-3"
+                />
+                <Label variant="xs" className="cursor-pointer">Repeat</Label>
               </div>
             )}
           </div>
         )}
+
+        {/* Opacity Slider - always visible, preserves value across background type changes */}
+        <div>
+          <Label variant="xs">Opacity</Label>
+          <Slider
+            label="Opacity"
+            value={Math.round((background.opacity ?? 1) * 100)}
+            displayValue={Math.round((background.opacity ?? 1) * 100)}
+            onChange={(value) => {
+              const opacityValue = value / 100;
+              updateBackground({ opacity: opacityValue });
+            }}
+            min={0}
+            max={100}
+            step={5}
+            unit="%"
+            hasLabel={false}
+          />
+        </div>
       </div>
     );
   };

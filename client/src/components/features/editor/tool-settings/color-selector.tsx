@@ -22,6 +22,7 @@ interface ColorSelectorProps {
   onBack?: () => void;
   isOverridden?: boolean;
   onResetOverride?: () => void;
+  showOpacitySlider?: boolean;
 }
 
 export function ColorSelector({
@@ -34,7 +35,8 @@ export function ColorSelector({
   onRemoveFavorite,
   onBack,
   isOverridden = false,
-  onResetOverride
+  onResetOverride,
+  showOpacitySlider = true
 }: ColorSelectorProps) {
 
   return (
@@ -147,7 +149,7 @@ export function ColorSelector({
         </div>
       </div>
       
-      {onOpacityChange && (
+      {onOpacityChange && showOpacitySlider && (
         <div>
           <Label variant="xs">Opacity</Label>
           <Slider

@@ -143,7 +143,7 @@ export function QnAInlineSettingsForm({
     const bookColorPaletteId = state.currentBook?.colorPaletteId;
     return getToolDefaults('qna_inline', pageTheme, bookTheme, element, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
   };
-
+  
   const updateSharedSetting = (key: string, value: any) => {
     const updates: any = {};
     const themeDefaults = getThemeDefaults();
@@ -679,9 +679,9 @@ export function QnAInlineSettingsForm({
               updates: {
                 questionSettings: {
                   ...element.questionSettings,
-                  border: {
+                border: {
                     enabled: currentEnabled,
-                    borderColor: colorValue,
+                  borderColor: colorValue,
                     borderWidth: borderWidth,
                     borderOpacity: borderOpacity,
                     borderTheme: borderTheme
@@ -723,9 +723,9 @@ export function QnAInlineSettingsForm({
               updates: {
                 questionSettings: {
                   ...element.questionSettings,
-                  background: {
+                background: {
                     enabled: currentEnabled,
-                    backgroundColor: colorValue,
+                  backgroundColor: colorValue,
                     backgroundOpacity: backgroundOpacity
                   },
                   backgroundColor: colorValue

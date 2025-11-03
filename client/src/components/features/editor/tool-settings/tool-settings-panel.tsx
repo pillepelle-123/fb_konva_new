@@ -10,6 +10,9 @@ import QuestionsManagerDialog from '../questions-manager-dialog';
 import ImagesContent from '../../images/images-content';
 import PagePreviewOverlay from '../preview/page-preview-overlay';
 import { SquareMousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile } from 'lucide-react';
+import { Button } from '../../../ui/primitives/button';
+import { getBackgroundImagesWithUrl } from '../../../../data/templates/background-images';
+import { applyBackgroundImageTemplate } from '../../../../utils/background-image-utils';
 
 
 const TOOL_ICONS = {
@@ -61,6 +64,10 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
   const [showThemeOverlay, setShowThemeOverlay] = useState(false);
   const [showPaletteOverlay, setShowPaletteOverlay] = useState(false);
   const [showBookPaletteOverlay, setShowBookPaletteOverlay] = useState(false);
+  
+  // State for background image selection
+  const [selectedBackgroundImageId, setSelectedBackgroundImageId] = useState<string | null>(null);
+  const [backgroundImageBackgroundColor, setBackgroundImageBackgroundColor] = useState<string>('');
 
   const activeTool = state.activeTool;
 
@@ -123,7 +130,21 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
     }
     // Reset color selector when element selection changes
     setShowColorSelector(null);
-  }, [activeTool, state.selectedElementIds]);
+  }, [activeTool, state.selectedElementIds.length]);
+  
+  // Initialize background image state when selector opens
+  useEffect(() => {
+    if (showBackgroundImageTemplateSelector) {
+      const currentPage = state.currentBook?.pages[state.activePageIndex];
+      const currentBackground = currentPage?.background;
+      if (currentBackground?.type === 'image') {
+        setSelectedBackgroundImageId(currentBackground.backgroundImageTemplateId || null);
+      }
+    } else {
+      // Reset when selector closes
+      setSelectedBackgroundImageId(null);
+    }
+  }, [showBackgroundImageTemplateSelector, state.activePageIndex, state.currentBook?.pages]);
 
   const getColorSelectorTitle = (colorType: string) => {
     switch (colorType) {
@@ -261,6 +282,8 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
             showBackgroundImageTemplateSelector={showBackgroundImageTemplateSelector}
             setShowBackgroundImageTemplateSelector={setShowBackgroundImageTemplateSelector}
             selectedImageElementId={selectedImageElementId}
+            selectedBackgroundImageId={selectedBackgroundImageId}
+            onBackgroundImageSelect={setSelectedBackgroundImageId}
             setSelectedImageElementId={setSelectedImageElementId}
             showQuestionDialog={showQuestionDialog}
             setShowQuestionDialog={setShowQuestionDialog}
@@ -275,6 +298,64 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
             onOpenThemes={() => setShowThemeOverlay(true)}
             onOpenPalettes={() => setShowPaletteOverlay(true)}
           />
+        )}
+        
+        {/* Fixed Bottom Controls for Background Image Selection - Apply Button only */}
+        {!isCollapsed && showBackgroundImageTemplateSelector && (
+          <div className="border-t border-gray-200 bg-white p-2 space-y-2 flex-shrink-0">
+            {(() => {
+              const currentPage = state.currentBook?.pages[state.activePageIndex];
+              const currentBackgroundImageId = currentPage?.background?.backgroundImageTemplateId;
+              const isApplyDisabled = !selectedBackgroundImageId || selectedBackgroundImageId === currentBackgroundImageId;
+              
+              return (
+                <>
+                  {/* Apply Button - Always visible */}
+                  <Button
+                    onClick={() => {
+                      if (!selectedBackgroundImageId) return;
+                      
+                      const allImages = getBackgroundImagesWithUrl();
+                      const selectedImageData = selectedBackgroundImageId ? allImages.find(img => img.id === selectedBackgroundImageId) : null;
+                      
+                      const background = applyBackgroundImageTemplate(selectedBackgroundImageId, {
+                        imageSize: currentPage?.background?.imageSize || 'cover',
+                        imageRepeat: currentPage?.background?.imageRepeat || false,
+                        backgroundColor: selectedImageData?.backgroundColor?.enabled && backgroundImageBackgroundColor
+                          ? backgroundImageBackgroundColor
+                          : selectedImageData?.backgroundColor?.defaultValue || undefined,
+                      });
+                      
+                      if (background) {
+                        // Preserve current imageSize, imagePosition, imageRepeat, and opacity
+                        if (currentPage?.background) {
+                          background.imageSize = currentPage.background.imageSize || 'cover';
+                          background.imageRepeat = currentPage.background.imageRepeat || false;
+                          background.imagePosition = currentPage.background.imagePosition || 'top-left';
+                          background.opacity = currentPage.background.opacity ?? 0.15;
+                        }
+                        
+                        dispatch({
+                          type: 'UPDATE_PAGE_BACKGROUND',
+                          payload: {
+                            pageIndex: state.activePageIndex,
+                            background
+                          }
+                        });
+                        
+                        setShowBackgroundImageTemplateSelector(false);
+                      }
+                    }}
+                    className="w-full"
+                    disabled={isApplyDisabled}
+                    size="xs"
+                  >
+                    Apply Background Image
+                  </Button>
+                </>
+              );
+            })()}
+          </div>
         )}
       </ToolSettingsContainer>
       

@@ -7,7 +7,8 @@ export type BackgroundImageCategory =
   | 'decorative'
   | 'texture'
   | 'minimal'
-  | 'pattern';
+  | 'pattern'
+  | 'floral';
 
 export interface ColorPalette {
   id: string;

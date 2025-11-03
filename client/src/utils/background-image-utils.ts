@@ -79,7 +79,15 @@ export function applyBackgroundImageTemplate(
  */
 export function getBackgroundImageUrl(templateId: string): string | undefined {
   const template = getBackgroundImageWithUrl(templateId);
-  return template?.url;
+  if (!template) {
+    console.warn(`Background image template not found: ${templateId}`);
+    return undefined;
+  }
+  if (!template.url) {
+    console.warn(`Background image URL not resolved for template: ${templateId}, filePath: ${template.filePath}`);
+    return undefined;
+  }
+  return template.url;
 }
 
 /**

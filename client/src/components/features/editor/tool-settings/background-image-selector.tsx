@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Button } from '../../../ui/primitives/button';
 import { ChevronLeft, Search, Grid3x3, Image as ImageIcon } from 'lucide-react';
 import { Label } from '../../../ui/primitives/label';
@@ -6,27 +6,33 @@ import { Separator } from '../../../ui/primitives/separator';
 import { 
   getBackgroundImageCategories,
   searchBackgroundImages,
-  getBackgroundImagesWithUrl,
-  type BackgroundImageWithUrl
+  getBackgroundImagesWithUrl
 } from '../../../../data/templates/background-images';
-import type { BackgroundImageCategory } from '../../../../types/template-types';
+import type { BackgroundImageCategory, BackgroundImageWithUrl } from '../../../../types/template-types';
 import { applyBackgroundImageTemplate } from '../../../../utils/background-image-utils';
 import { useEditor } from '../../../../context/editor-context';
 
 interface BackgroundImageSelectorProps {
   onBack: () => void;
   onSelect?: (templateId: string) => void;
+  onUpload?: () => void;
+  selectedImageId?: string | null;
+  onImageSelect?: (imageId: string | null) => void;
 }
 
-export function BackgroundImageSelector({ onBack, onSelect }: BackgroundImageSelectorProps) {
+export function BackgroundImageSelector({ onBack, onSelect, onUpload, selectedImageId, onImageSelect }: BackgroundImageSelectorProps) {
   const { state, dispatch } = useEditor();
   const [selectedCategory, setSelectedCategory] = useState<BackgroundImageCategory | 'all'>('all');
   const [selectedFormat, setSelectedFormat] = useState<'vector' | 'pixel' | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [customImageSize, setCustomImageSize] = useState<'cover' | 'contain' | 'stretch' | null>(null);
-  const [customBackgroundColor, setCustomBackgroundColor] = useState<string>('');
-  const [showBackgroundColorPicker, setShowBackgroundColorPicker] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(selectedImageId || null);
+  
+  // Sync with external selectedImageId
+  useEffect(() => {
+    if (selectedImageId !== undefined && selectedImageId !== selectedImage) {
+      setSelectedImage(selectedImageId);
+    }
+  }, [selectedImageId]);
 
   const categories = getBackgroundImageCategories();
   const allImages = getBackgroundImagesWithUrl();
@@ -60,42 +66,7 @@ export function BackgroundImageSelector({ onBack, onSelect }: BackgroundImageSel
 
   const handleImageSelect = (image: BackgroundImageWithUrl) => {
     setSelectedImage(image.id);
-  };
-
-  const handleApply = () => {
-    if (!selectedImage) return;
-
-    const image = allImages.find(img => img.id === selectedImage);
-    if (!image) return;
-
-    // Determine image size to use
-    let imageSize: 'cover' | 'contain' | 'stretch' = image.defaultSize === 'stretch' ? 'stretch' : image.defaultSize === 'contain' || image.defaultSize === 'contain-repeat' ? 'contain' : 'cover';
-    if (customImageSize) {
-      imageSize = customImageSize;
-    }
-
-    // Determine if image should repeat
-    const imageRepeat = image.defaultSize === 'contain-repeat' || (imageSize === 'contain' && image.defaultSize === 'contain-repeat');
-
-    // Apply template
-    const background = applyBackgroundImageTemplate(selectedImage, {
-      imageSize,
-      imageRepeat,
-      backgroundColor: image.backgroundColor?.enabled && customBackgroundColor ? customBackgroundColor : undefined,
-    });
-
-    if (background) {
-      dispatch({
-        type: 'UPDATE_PAGE_BACKGROUND',
-        payload: { 
-          pageIndex: state.activePageIndex, 
-          background 
-        }
-      });
-
-      // Call optional callback
-      onSelect?.(selectedImage);
-    }
+    onImageSelect?.(image.id);
   };
 
   const selectedImageData = selectedImage ? allImages.find(img => img.id === selectedImage) : null;
@@ -114,6 +85,21 @@ export function BackgroundImageSelector({ onBack, onSelect }: BackgroundImageSel
         </Button>
         <h2 className="text-lg font-semibold">Background Images</h2>
       </div>
+
+      {/* Upload Button */}
+      {onUpload && (
+        <div>
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={onUpload}
+            className="w-full"
+          >
+            <ImageIcon className="h-4 w-4 mr-2" />
+            Upload
+          </Button>
+        </div>
+      )}
 
       {/* Search */}
       <div className="relative">
@@ -162,7 +148,7 @@ export function BackgroundImageSelector({ onBack, onSelect }: BackgroundImageSel
       <Separator />
 
       {/* Image Grid */}
-      <div className="grid grid-cols-3 gap-3 max-h-[400px] overflow-y-auto">
+      <div className="grid grid-cols-3 gap-3  overflow-y-auto">
         {filteredImages.map((image) => (
           <button
             key={image.id}
@@ -225,58 +211,7 @@ export function BackgroundImageSelector({ onBack, onSelect }: BackgroundImageSel
               )}
             </div>
 
-            {/* Image Size Override */}
-            <div>
-              <Label variant="xs" className="mb-1 block">Image Size</Label>
-              <div className="flex gap-2">
-                {(['cover', 'contain', 'stretch'] as const).map(size => (
-                  <Button
-                    key={size}
-                    variant={customImageSize === size || (!customImageSize && selectedImageData.defaultSize === size) ? 'default' : 'outline'}
-                    size="xs"
-                    onClick={() => setCustomImageSize(customImageSize === size ? null : size)}
-                    className="flex-1 capitalize"
-                  >
-                    {size}
-                  </Button>
-                ))}
-              </div>
-              {selectedImageData.defaultSize === 'contain-repeat' && (
-                <p className="text-xs text-gray-500 mt-1">Default: Contain with Repeat</p>
-              )}
-            </div>
-
-            {/* Background Color (if enabled) */}
-            {selectedImageData.backgroundColor?.enabled && (
-              <div>
-                <Label variant="xs" className="mb-1 block">Background Color</Label>
-                <div className="flex gap-2">
-                  <input
-                    type="color"
-                    value={customBackgroundColor || selectedImageData.backgroundColor.defaultValue || '#ffffff'}
-                    onChange={(e) => setCustomBackgroundColor(e.target.value)}
-                    className="h-8 w-16 border border-gray-300 rounded cursor-pointer"
-                  />
-                  <input
-                    type="text"
-                    value={customBackgroundColor || selectedImageData.backgroundColor.defaultValue || '#ffffff'}
-                    onChange={(e) => setCustomBackgroundColor(e.target.value)}
-                    placeholder="#ffffff"
-                    className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
-                  />
-                </div>
-                <p className="text-xs text-gray-500 mt-1">Recommended for transparent images</p>
-              </div>
-            )}
-
-            {/* Apply Button */}
-            <Button
-              onClick={handleApply}
-              className="w-full"
-              disabled={!selectedImage}
-            >
-              Apply Background Image
-            </Button>
+            {/* Image Size and Apply Button are moved to tool-settings-panel.tsx */}
           </div>
         </>
       )}

@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { Layer, Rect, Group, Text } from 'react-konva';
+import { Layer, Rect, Group, Text, Image as KonvaImage } from 'react-konva';
 import Konva from 'konva';
 import { v4 as uuidv4 } from 'uuid';
 import { useEditor } from '../../../../context/editor-context';
@@ -214,6 +214,11 @@ export default function Canvas() {
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [alertPosition, setAlertPosition] = useState<{ x: number; y: number } | null>(null);
   const [snapGuidelines, setSnapGuidelines] = useState<SnapGuideline[]>([]);
+  
+  // Background image cache for preloading
+  const [backgroundImageCache, setBackgroundImageCache] = useState<Map<string, HTMLImageElement>>(new Map());
+  const backgroundImageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
+  const loadingImagesRef = useRef<Set<string>>(new Set());
   
   // Snapping functionality
   const GUIDELINE_OFFSET = 15; // Increased for better snapping detection
@@ -1624,37 +1629,169 @@ export default function Canvas() {
     if (background.type === 'image') {
       // Resolve image URL (handles both template and direct URLs)
       const imageUrl = resolveBackgroundImageUrl(background) || background.value;
-      if (!imageUrl) return null;
+      if (!imageUrl) {
+        console.warn('Background image URL is undefined', {
+          backgroundType: background.type,
+          templateId: (background as any).backgroundImageTemplateId,
+          value: background.value
+        });
+        return null;
+      }
       
       // Check if this is a template background that needs background color
       const hasBackgroundColor = (background as any).backgroundColorEnabled && (background as any).backgroundColor;
+      const fallbackColor = hasBackgroundColor ? ((background as any).backgroundColor || '#ffffff') : '#ffffff';
       
-      const bgImage = new window.Image();
-      bgImage.src = imageUrl;
-      bgImage.crossOrigin = 'anonymous';
+      // Get image from cache (check both state and ref for immediate access)
+      let bgImage = backgroundImageCache.get(imageUrl) || backgroundImageCacheRef.current.get(imageUrl);
       
+      // If image not in cache but URL is available, trigger immediate preload
+      if (!bgImage && imageUrl) {
+        const cache = backgroundImageCacheRef.current;
+        const loadingImages = loadingImagesRef.current;
+        
+        if (!cache.has(imageUrl) && !loadingImages.has(imageUrl)) {
+          loadingImages.add(imageUrl);
+          const img = new window.Image();
+          img.crossOrigin = 'anonymous';
+          
+          img.onload = () => {
+            cache.set(imageUrl, img);
+            loadingImages.delete(imageUrl);
+            setBackgroundImageCache(new Map(cache));
+          };
+          
+          img.onerror = () => {
+            loadingImages.delete(imageUrl);
+            console.error(`Failed to load background image in render: ${imageUrl}`);
+          };
+          
+          img.src = imageUrl;
+        }
+      }
+      
+      // Re-check cache after potential immediate load attempt
+      bgImage = backgroundImageCache.get(imageUrl) || backgroundImageCacheRef.current.get(imageUrl);
+      
+      // If image not loaded yet, show fallback background
+      if (!bgImage || !bgImage.complete) {
+        return (
+          <Rect
+            x={pageOffsetX}
+            y={pageOffsetY}
+            width={canvasWidth}
+            height={canvasHeight}
+            fill={fallbackColor}
+            opacity={opacity}
+            listening={false}
+          />
+        );
+      }
+      
+      // Calculate scaling based on actual image dimensions
       let fillPatternScaleX = 1;
       let fillPatternScaleY = 1;
       let fillPatternOffsetX = 0;
       let fillPatternOffsetY = 0;
       let fillPatternRepeat = 'no-repeat';
       
+      const imageWidth = bgImage.width || 1;
+      const imageHeight = bgImage.height || 1;
+      
       if (background.imageSize === 'cover') {
-        const scaleX = canvasWidth / (bgImage.width || 1);
-        const scaleY = canvasHeight / (bgImage.height || 1);
+        const scaleX = canvasWidth / imageWidth;
+        const scaleY = canvasHeight / imageHeight;
         const scale = Math.max(scaleX, scaleY);
         fillPatternScaleX = fillPatternScaleY = scale;
       } else if (background.imageSize === 'contain') {
-        const scaleX = canvasWidth / (bgImage.width || 1);
-        const scaleY = canvasHeight / (bgImage.height || 1);
+        const scaleX = canvasWidth / imageWidth;
+        const scaleY = canvasHeight / imageHeight;
         const scale = Math.min(scaleX, scaleY);
-        fillPatternScaleX = fillPatternScaleY = scale;
+        
         if (background.imageRepeat) {
+          // Use pattern fill for repeat mode
+          fillPatternScaleX = fillPatternScaleY = scale;
           fillPatternRepeat = 'repeat';
+        } else {
+          // For contain mode without repeat, use direct Image element for precise positioning
+          // Note: In Konva, coordinates are in Stage space (which matches canvas coordinates when zoom=1)
+          // pageOffsetX/pageOffsetY are in Stage pixels, canvasWidth/canvasHeight are in canvas pixels
+          // Since the Stage is scaled by zoom, but coordinates are in unscaled space, we use canvasWidth directly
+          const scaledImageWidth = imageWidth * scale;
+          const scaledImageHeight = imageHeight * scale;
+          const position = background.imagePosition || 'top-left';
+          
+          // Calculate absolute position based on corner
+          // For right-side positions, the right edge of the image should align with the right edge of the page
+          // Right edge of page in Stage coordinates: pageOffsetX + canvasWidth
+          // Right edge of image in Stage coordinates: imageX + scaledImageWidth
+          // For right alignment: imageX + scaledImageWidth = pageOffsetX + canvasWidth
+          // Therefore: imageX = pageOffsetX + canvasWidth - scaledImageWidth
+          let imageX: number;
+          let imageY: number;
+          
+          switch (position) {
+            case 'top-left':
+              imageX = pageOffsetX;
+              imageY = pageOffsetY;
+              break;
+            case 'top-right':
+              // Position so that right edge of image aligns with right edge of page
+              imageX = pageOffsetX + canvasWidth - scaledImageWidth;
+              imageY = pageOffsetY;
+              break;
+            case 'bottom-left':
+              imageX = pageOffsetX;
+              imageY = pageOffsetY + canvasHeight - scaledImageHeight;
+              break;
+            case 'bottom-right':
+              // Position so that right edge of image aligns with right edge of page
+              imageX = pageOffsetX + canvasWidth - scaledImageWidth;
+              imageY = pageOffsetY + canvasHeight - scaledImageHeight;
+              break;
+            default:
+              imageX = pageOffsetX;
+              imageY = pageOffsetY;
+          }
+          
+          
+          
+          // Render as Image element instead of pattern fill for precise positioning
+          const imageElement = (
+            <KonvaImage
+              image={bgImage}
+              x={imageX}
+              y={imageY}
+              width={scaledImageWidth}
+              height={scaledImageHeight}
+              opacity={opacity}
+              listening={false}
+            />
+          );
+          
+          // If background color is enabled, wrap in Group with background color
+          if (hasBackgroundColor) {
+            return (
+              <Group>
+                <Rect
+                  x={pageOffsetX}
+                  y={pageOffsetY}
+                  width={canvasWidth}
+                  height={canvasHeight}
+                  fill={fallbackColor}
+                  opacity={opacity}
+                  listening={false}
+                />
+                {imageElement}
+              </Group>
+            );
+          }
+          
+          return imageElement;
         }
       } else if (background.imageSize === 'stretch') {
-        fillPatternScaleX = canvasWidth / (bgImage.width || 1);
-        fillPatternScaleY = canvasHeight / (bgImage.height || 1);
+        fillPatternScaleX = canvasWidth / imageWidth;
+        fillPatternScaleY = canvasHeight / imageHeight;
       }
       
       // If background color is enabled, render it behind the image
@@ -1667,7 +1804,7 @@ export default function Canvas() {
               y={pageOffsetY}
               width={canvasWidth}
               height={canvasHeight}
-              fill={(background as any).backgroundColor || '#ffffff'}
+              fill={fallbackColor}
               opacity={opacity}
               listening={false}
             />
@@ -1710,6 +1847,74 @@ export default function Canvas() {
     
     return null;
   };
+
+  // Preload background images when page changes or background is updated
+  useEffect(() => {
+    const currentPage = state.currentBook?.pages[state.activePageIndex];
+    const background = currentPage?.background;
+    const cache = backgroundImageCacheRef.current;
+    
+    // Function to preload a single image
+    const preloadImage = (imageUrl: string, isCurrentPage: boolean = false) => {
+      if (!imageUrl || cache.has(imageUrl)) return;
+      
+      const loadingImages = loadingImagesRef.current;
+      if (loadingImages.has(imageUrl)) return; // Already loading
+      
+      loadingImages.add(imageUrl);
+      // Image not in cache, preload it
+      const img = new window.Image();
+      img.crossOrigin = 'anonymous';
+      
+      img.onload = () => {
+        cache.set(imageUrl, img);
+        loadingImages.delete(imageUrl);
+        // Update state to trigger re-render
+        setBackgroundImageCache(new Map(cache));
+      };
+      
+      img.onerror = () => {
+        loadingImages.delete(imageUrl);
+        console.error(`Failed to load background image: ${imageUrl}`, {
+          src: img.src,
+          complete: img.complete,
+          naturalWidth: img.naturalWidth,
+          naturalHeight: img.naturalHeight
+        });
+      };
+      
+      img.src = imageUrl;
+    };
+    
+    // Preload current page background immediately
+    if (background?.type === 'image') {
+      const imageUrl = resolveBackgroundImageUrl(background) || background.value;
+      if (imageUrl) {
+        preloadImage(imageUrl, true);
+      }
+    }
+    
+    // Also preload images from all other pages for smooth transitions
+    if (state.currentBook?.pages) {
+      state.currentBook.pages.forEach((page, index) => {
+        const pageBackground = page.background;
+        if (pageBackground?.type === 'image') {
+          const imageUrl = resolveBackgroundImageUrl(pageBackground) || pageBackground.value;
+          if (imageUrl) {
+            preloadImage(imageUrl, index === state.activePageIndex);
+          }
+        }
+      });
+    }
+    // Use a serialized version of the background to detect changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    state.activePageIndex, 
+    state.currentBook?.pages, 
+    currentPage?.background?.type, 
+    currentPage?.background?.value, 
+    JSON.stringify({ templateId: (currentPage?.background as any)?.backgroundImageTemplateId })
+  ]);
 
   useEffect(() => {
     const updateSize = () => {

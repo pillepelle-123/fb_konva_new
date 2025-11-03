@@ -120,6 +120,201 @@
       },
       "description": "Colorful geometric pattern",
       "tags": ["colorful", "geometric", "repeat", "tile"]
+    },
+    {
+      "id": "abstract-floral-aesthetic-01",
+      "name": "Abstract Floral Aesthetic 01",
+      "category": "floral",
+      "format": "vector",
+      "filePath": "floral/abstract-floral-aesthetic-01.svg",
+      "thumbnail": "floral/abstract-floral-aesthetic-01.svg",
+      "defaultSize": "cover",
+      "backgroundColor": {
+        "enabled": false,
+        "defaultValue": "#ffffff"
+      },
+      "description": "Abstract floral aesthetic pattern",
+      "tags": ["floral", "abstract", "aesthetic", "decorative"]
+    },
+    {
+      "id": "abstract-floral-aesthetic-02",
+      "name": "Abstract Floral Aesthetic 02",
+      "category": "floral",
+      "format": "vector",
+      "filePath": "floral/abstract-floral-aesthetic-02.svg",
+      "thumbnail": "floral/abstract-floral-aesthetic-02.svg",
+      "defaultSize": "cover",
+      "backgroundColor": {
+        "enabled": false,
+        "defaultValue": "#ffffff"
+      },
+      "description": "Abstract floral aesthetic pattern variant",
+      "tags": ["floral", "abstract", "aesthetic", "decorative"]
+    },
+    {
+      "id": "abstract-floral-aesthetic-03",
+      "name": "Abstract Floral Aesthetic 03",
+      "category": "floral",
+      "format": "vector",
+      "filePath": "floral/abstract-floral-aesthetic-03.svg",
+      "thumbnail": "floral/abstract-floral-aesthetic-03.svg",
+      "defaultSize": "cover",
+      "backgroundColor": {
+        "enabled": false,
+        "defaultValue": "#ffffff"
+      },
+      "description": "Abstract floral aesthetic pattern variant",
+      "tags": ["floral", "abstract", "aesthetic", "decorative"]
+    },
+    {
+      "id": "abstract-floral-aesthetic-var-01",
+      "name": "Abstract Floral Aesthetic Variant",
+      "category": "floral",
+      "format": "vector",
+      "filePath": "floral/abstract-floral-aesthetic-var-01.svg",
+      "thumbnail": "floral/abstract-floral-aesthetic-var-01.svg",
+      "defaultSize": "cover",
+      "backgroundColor": {
+        "enabled": false,
+        "defaultValue": "#ffffff"
+      },
+      "description": "Abstract floral aesthetic pattern variant",
+      "tags": ["floral", "abstract", "aesthetic", "decorative"]
+    },
+    {
+      "id": "abstract-floral-organic-pastel-01",
+      "name": "Abstract Floral Organic Pastel 01",
+      "category": "floral",
+      "format": "vector",
+      "filePath": "floral/abstract-floral-organic-pastel-01.svg",
+      "thumbnail": "floral/abstract-floral-organic-pastel-01.svg",
+      "defaultSize": "cover",
+      "backgroundColor": {
+        "enabled": true,
+        "defaultValue": "#faf5ff"
+      },
+      "description": "Soft pastel abstract floral organic pattern",
+      "tags": ["floral", "abstract", "organic", "pastel", "soft"]
+    },
+    {
+      "id": "abstract-floral-organic-pastel-02",
+      "name": "Abstract Floral Organic Pastel 02",
+      "category": "floral",
+      "format": "vector",
+      "filePath": "floral/abstract-floral-organic-pastel-02.svg",
+      "thumbnail": "floral/abstract-floral-organic-pastel-02.svg",
+      "defaultSize": "cover",
+      "backgroundColor": {
+        "enabled": true,
+        "defaultValue": "#faf5ff"
+      },
+      "description": "Soft pastel abstract floral organic pattern variant",
+      "tags": ["floral", "abstract", "organic", "pastel", "soft"]
+    },
+    {
+      "id": "aesthetic-minimalist-background-01",
+      "name": "Aesthetic Minimalist Background",
+      "category": "floral",
+      "format": "vector",
+      "filePath": "floral/aesthetic-minimalist-background_01.svg",
+      "thumbnail": "floral/aesthetic-minimalist-background_01.svg",
+      "defaultSize": "cover",
+      "backgroundColor": {
+        "enabled": false,
+        "defaultValue": "#ffffff"
+      },
+      "description": "Minimalist aesthetic floral background",
+      "tags": ["floral", "minimalist", "aesthetic", "clean", "simple"]
+    },
+    {
+      "id": "black-color-simple-natural-leaf-01",
+      "name": "Simple Natural Leaf",
+      "category": "floral",
+      "format": "vector",
+      "filePath": "floral/black-color-simple-natural-leaf-01.svg",
+      "thumbnail": "floral/black-color-simple-natural-leaf-01.svg",
+      "defaultSize": "cover",
+      "backgroundColor": {
+        "enabled": true,
+        "defaultValue": "#ffffff"
+      },
+      "description": "Simple black natural leaf pattern",
+      "tags": ["floral", "leaf", "natural", "simple", "black"]
+    },
+    {
+      "id": "botanical-floral-element-hand-drawn-01",
+      "name": "Hand Drawn Botanical Floral",
+      "category": "floral",
+      "format": "vector",
+      "filePath": "floral/botanical-floral-element-hand-drawn-01.svg",
+      "thumbnail": "floral/botanical-floral-element-hand-drawn-01.svg",
+      "defaultSize": "cover",
+      "backgroundColor": {
+        "enabled": false,
+        "defaultValue": "#ffffff"
+      },
+      "description": "Hand-drawn botanical floral element",
+      "tags": ["floral", "botanical", "hand-drawn", "organic", "artistic"]
+    },
+    {
+      "id": "leopard-pattern-01",
+      "name": "Leopard Pattern",
+      "category": "floral",
+      "format": "vector",
+      "filePath": "floral/leopard-pattern-01.svg",
+      "thumbnail": "floral/leopard-pattern-01.svg",
+      "defaultSize": "contain-repeat",
+      "backgroundColor": {
+        "enabled": false,
+        "defaultValue": "#ffffff"
+      },
+      "description": "Leopard pattern design",
+      "tags": ["pattern", "leopard", "animal", "texture"]
+    },
+    {
+      "id": "simple-clean-green-floral-01",
+      "name": "Simple Clean Green Floral 01",
+      "category": "floral",
+      "format": "vector",
+      "filePath": "floral/simple-clean-green-floral-01.svg",
+      "thumbnail": "floral/simple-clean-green-floral-01.svg",
+      "defaultSize": "cover",
+      "backgroundColor": {
+        "enabled": true,
+        "defaultValue": "#f0fdf4"
+      },
+      "description": "Simple clean green floral pattern",
+      "tags": ["floral", "green", "simple", "clean", "nature"]
+    },
+    {
+      "id": "simple-clean-green-floral-02",
+      "name": "Simple Clean Green Floral 02",
+      "category": "floral",
+      "format": "vector",
+      "filePath": "floral/simple-clean-green-floral-02.svg",
+      "thumbnail": "floral/simple-clean-green-floral-02.svg",
+      "defaultSize": "cover",
+      "backgroundColor": {
+        "enabled": true,
+        "defaultValue": "#f0fdf4"
+      },
+      "description": "Simple clean green floral pattern variant",
+      "tags": ["floral", "green", "simple", "clean", "nature"]
+    },
+    {
+      "id": "simple-clean-green-floral-03",
+      "name": "Simple Clean Green Floral 03",
+      "category": "floral",
+      "format": "vector",
+      "filePath": "floral/simple-clean-green-floral-03.svg",
+      "thumbnail": "floral/simple-clean-green-floral-03.svg",
+      "defaultSize": "cover",
+      "backgroundColor": {
+        "enabled": true,
+        "defaultValue": "#f0fdf4"
+      },
+      "description": "Simple clean green floral pattern variant",
+      "tags": ["floral", "green", "simple", "clean", "nature"]
     }
   ]
 }

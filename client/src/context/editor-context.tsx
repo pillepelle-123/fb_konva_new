@@ -359,7 +359,9 @@ export interface PageBackground {
   opacity?: number;
   imageSize?: 'cover' | 'contain' | 'stretch';
   imageRepeat?: boolean; // for contain mode
+  imagePosition?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'; // for contain mode without repeat
   patternSize?: number; // 1-10 scale for pattern size
+  patternStrokeWidth?: number; // stroke width for pattern
   patternForegroundColor?: string; // pattern drawing color
   patternBackgroundColor?: string; // pattern background color
   patternBackgroundOpacity?: number;
