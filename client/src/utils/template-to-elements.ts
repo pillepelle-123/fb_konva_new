@@ -1,20 +1,22 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { PageTemplate, ColorPalette } from '../types/template-types';
+import type { PageTemplate, ColorPalette, TextboxStyle, ShapeStyle } from '../types/template-types';
 import type { CanvasElement } from '../context/editor-context';
 import { applyTextboxStyle, applyShapeStyle } from './template-style-applier';
+import { TOOL_DEFAULTS } from './tool-defaults';
 
 interface TemplateTextbox {
-  type: 'question' | 'answer' | 'text';
+  type: 'question' | 'answer' | 'text' | 'qna_inline';
   position: { x: number; y: number };
   size: { width: number; height: number };
-  style?: any;
+  style?: TextboxStyle;
+  layoutVariant?: string; // 'inline' | 'block' | undefined
 }
 
 interface TemplateElement {
   type: 'image' | 'shape' | 'sticker';
   position: { x: number; y: number };
   size: { width: number; height: number };
-  style?: any;
+  style?: ShapeStyle;
   shapeType?: string;
 }
 
@@ -22,22 +24,42 @@ export function convertTemplateTextboxToElement(
   textbox: TemplateTextbox, 
   palette: ColorPalette
 ): CanvasElement {
-  const baseElement = {
+  // Determine textType: only qna_inline or free_text are supported
+  // - qna_inline: for Q&A layouts (layoutVariant === 'inline' or type === 'qna_inline')
+  // - free_text: for all other text boxes
+  const isQnaInline = textbox.layoutVariant === 'inline' || textbox.type === 'qna_inline';
+  const textType: CanvasElement['textType'] = isQnaInline ? 'qna_inline' : 'free_text';
+  
+  // Use appropriate defaults with type guards
+  const qnaInlineDefaults = TOOL_DEFAULTS.qna_inline;
+  const freeTextDefaults = TOOL_DEFAULTS.free_text;
+  const defaults = isQnaInline ? qnaInlineDefaults : freeTextDefaults;
+  
+  const baseElement: CanvasElement = {
     id: uuidv4(),
     type: 'text',
-    textType: textbox.type === 'question' ? 'question' : textbox.type === 'answer' ? 'answer' : 'text',
+    textType: textType,
     x: textbox.position.x,
     y: textbox.position.y,
     width: textbox.size.width,
     height: textbox.size.height,
     text: '',
-    fontColor: palette.colors.text,
-    backgroundColor: palette.colors.background,
-    fontSize: 14,
-    fontFamily: 'Century Gothic, sans-serif',
-    align: 'left',
-    padding: 12,
-    cornerRadius: 8
+    fontColor: palette.colors.text || defaults.fontColor,
+    backgroundColor: palette.colors.background || defaults.backgroundColor || 'transparent',
+    fontSize: defaults.fontSize || 50,
+    fontFamily: defaults.fontFamily || 'Arial, sans-serif',
+    align: (defaults.align as 'left' | 'center' | 'right') || 'left',
+    padding: defaults.padding || 4,
+    // Add type-specific settings
+    ...(isQnaInline ? {
+      // qna_inline specific settings
+      layoutVariant: 'inline',
+      questionSettings: qnaInlineDefaults.questionSettings ? { ...qnaInlineDefaults.questionSettings } : undefined,
+      answerSettings: qnaInlineDefaults.answerSettings ? { ...qnaInlineDefaults.answerSettings } : undefined
+    } : {
+      // free_text specific settings
+      textSettings: freeTextDefaults.textSettings ? { ...freeTextDefaults.textSettings } : undefined
+    })
   };
 
   // Apply template styling if available
@@ -54,8 +76,7 @@ export function convertTemplateImageSlotToElement(imageSlot: TemplateElement): C
     height: imageSlot.size.height,
     fill: '#e5e7eb',
     stroke: '#9ca3af',
-    strokeWidth: 2,
-    cornerRadius: 8
+    strokeWidth: 2
   };
 }
 
@@ -108,10 +129,22 @@ export function convertTemplateToElements(template: PageTemplate): CanvasElement
   
   // Convert textboxes (highest z-index)
   template.textboxes.forEach(textbox => {
-    elements.push(convertTemplateTextboxToElement(textbox, {
+    // Pass layoutVariant to the conversion function
+    const textboxWithVariant: TemplateTextbox = {
+      type: textbox.type,
+      position: textbox.position,
+      size: textbox.size,
+      style: textbox.style,
+      layoutVariant: textbox.layoutVariant
+    };
+    
+    elements.push(convertTemplateTextboxToElement(textboxWithVariant, {
       id: 'template',
       name: 'Template',
-      colors: template.colorPalette,
+      colors: {
+        ...template.colorPalette,
+        surface: template.colorPalette.background || '#ffffff'
+      },
       contrast: 'AA'
     }));
   });

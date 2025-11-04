@@ -12,16 +12,18 @@ import { ColorSelector } from './color-selector';
 import { Slider } from '../../../ui/primitives/slider';
 import { Separator } from '../../../ui/primitives/separator';
 import { Label } from '../../../ui/primitives/label';
-import { GlobalThemeSelector } from '../global-theme-selector';
+import { GlobalThemeSelector } from '../templates/global-theme-selector';
 import { getGlobalThemeDefaults, getGlobalTheme, getThemePageBackgroundColors } from '../../../../utils/global-themes';
 import { getToolDefaults } from '../../../../utils/tool-defaults';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
-import { PaletteSelector } from '../palette-selector';
+import { PaletteSelector } from '../templates/palette-selector';
 import { commonToActual } from '../../../../utils/font-size-converter';
 import { useState } from 'react';
 import ConfirmationDialog from '../../../ui/overlays/confirmation-dialog';
 import { BackgroundImageSelector } from './background-image-selector';
 import { applyBackgroundImageTemplate } from '../../../../utils/background-image-utils';
+import { LayoutSelectorWrapper } from '../layout-selector-wrapper';
+import { ThemeSelectorWrapper } from '../theme-selector-wrapper';
 
 
 interface GeneralSettingsProps {
@@ -70,10 +72,23 @@ export function GeneralSettings({
   onBackgroundImageSelect
 }: GeneralSettingsProps) {
   const { state, dispatch, canEditSettings } = useEditor();
+  const { user } = useAuth();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
   const [showPagePalette, setShowPagePalette] = useState(false);
   const [showBookPalette, setShowBookPalette] = useState(false);
+  const [showPageLayout, setShowPageLayout] = useState(false);
+  const [showBookLayout, setShowBookLayout] = useState(false);
+  const [showPageThemeSelector, setShowPageThemeSelector] = useState(false);
+  const [showBookThemeSelector, setShowBookThemeSelector] = useState(false);
   const [forceImageMode, setForceImageMode] = useState(false);
+  
+  // Keys to force remount when dialogs are opened
+  const [pageLayoutKey, setPageLayoutKey] = useState(0);
+  const [bookLayoutKey, setBookLayoutKey] = useState(0);
+  const [pageThemeKey, setPageThemeKey] = useState(0);
+  const [bookThemeKey, setBookThemeKey] = useState(0);
+  const [pagePaletteKey, setPagePaletteKey] = useState(0);
+  const [bookPaletteKey, setBookPaletteKey] = useState(0);
 
 
   const updateBackground = (updates: Partial<PageBackground>) => {
@@ -158,20 +173,21 @@ export function GeneralSettings({
         
         <GlobalThemeSelector
           currentTheme={state.currentBook?.pages[state.activePageIndex]?.background?.pageTheme || state.currentBook?.bookTheme || 'default'}
+          title="Page Theme"
           onThemeSelect={(themeId) => {
-            // Set page theme
+            // Set page theme (saves history)
             dispatch({ type: 'SET_PAGE_THEME', payload: { pageIndex: state.activePageIndex, themeId } });
             
-            // Remove page color palette override so theme palette is used instead
+            // Remove page color palette override so theme palette is used instead (no history, part of theme application)
             dispatch({
               type: 'SET_PAGE_COLOR_PALETTE',
-              payload: { pageIndex: state.activePageIndex, colorPaletteId: null }
+              payload: { pageIndex: state.activePageIndex, colorPaletteId: null, skipHistory: true }
             });
             
-            // Apply theme to all elements on current page
+            // Apply theme to all elements on current page (no history, part of theme application)
             dispatch({
               type: 'APPLY_THEME_TO_ELEMENTS',
-              payload: { pageIndex: state.activePageIndex, themeId }
+              payload: { pageIndex: state.activePageIndex, themeId, skipHistory: true }
             });
             
             const theme = getGlobalTheme(themeId);
@@ -179,7 +195,7 @@ export function GeneralSettings({
                 // Get page background colors from palette, not from themes.json
                 const pageColors = getThemePageBackgroundColors(themeId);
                 
-                // Apply page background settings
+                // Apply page background settings (no history, part of theme application)
                 const newBackground = {
                   type: theme.pageSettings.backgroundPattern?.enabled ? 'pattern' : 'color',
                   value: theme.pageSettings.backgroundPattern?.enabled ? theme.pageSettings.backgroundPattern.style : pageColors.backgroundColor,
@@ -199,7 +215,8 @@ export function GeneralSettings({
                   type: 'UPDATE_PAGE_BACKGROUND',
                   payload: { 
                     pageIndex: state.activePageIndex, 
-                    background: newBackground
+                    background: newBackground,
+                    skipHistory: true
                   }
                 });
                 
@@ -269,8 +286,6 @@ export function GeneralSettings({
               }
             }
           }
-          onBack={() => {}}
-          title="Page Theme"
         />
         
       </div>
@@ -296,24 +311,24 @@ export function GeneralSettings({
           currentTheme={state.currentBook?.bookTheme || 'default'}
           title="Book Theme"
           onThemeSelect={(themeId) => {
-            // Set book theme
+            // Set book theme (saves history)
             dispatch({ type: 'SET_BOOK_THEME', payload: themeId });
             
-            // Remove book color palette override so theme palette is used instead
-            dispatch({ type: 'SET_BOOK_COLOR_PALETTE', payload: null });
+            // Remove book color palette override so theme palette is used instead (no history, part of theme application)
+            dispatch({ type: 'SET_BOOK_COLOR_PALETTE', payload: null, skipHistory: true });
             
             if (state.currentBook) {
-              // Apply theme to all elements on all pages
+              // Apply theme to all elements on all pages (no history, part of theme application)
               state.currentBook.pages.forEach((_, pageIndex) => {
                 dispatch({
                   type: 'APPLY_THEME_TO_ELEMENTS',
-                  payload: { pageIndex, themeId }
+                  payload: { pageIndex, themeId, skipHistory: true }
                 });
               });
               
               const theme = getGlobalTheme(themeId);
               if (theme) {
-                // Apply page background settings to ALL pages
+                // Apply page background settings to ALL pages (no history, part of theme application)
                 state.currentBook.pages.forEach((_, pageIndex) => {
                   // Get page background colors from palette, not from themes.json
                   const pageColors = getThemePageBackgroundColors(themeId);
@@ -338,7 +353,8 @@ export function GeneralSettings({
                     type: 'UPDATE_PAGE_BACKGROUND',
                     payload: { 
                       pageIndex, 
-                      background: newBackground
+                      background: newBackground,
+                      skipHistory: true
                     }
                   });
                 });
@@ -908,7 +924,11 @@ export function GeneralSettings({
   if (showPagePalette) {
     return (
       <PaletteSelector
-        onBack={() => setShowPagePalette(false)}
+        key={`page-palette-${pagePaletteKey}`}
+        onBack={() => {
+          setShowPagePalette(false);
+          setPagePaletteKey(prev => prev + 1); // Force remount on next open
+        }}
         title="Page Color Palette"
         isBookLevel={false}
       />
@@ -918,13 +938,73 @@ export function GeneralSettings({
   if (showBookPalette) {
     return (
       <PaletteSelector
-        onBack={() => setShowBookPalette(false)}
+        key={`book-palette-${bookPaletteKey}`}
+        onBack={() => {
+          setShowBookPalette(false);
+          setBookPaletteKey(prev => prev + 1); // Force remount on next open
+        }}
         title="Book Color Palette"
         isBookLevel={true}
       />
     );
   }
   
+  if (showPageLayout) {
+    return (
+      <LayoutSelectorWrapper
+        key={`page-layout-${pageLayoutKey}`}
+        onBack={() => {
+          setShowPageLayout(false);
+          setPageLayoutKey(prev => prev + 1); // Force remount on next open
+        }}
+        title="Page Layout"
+        isBookLevel={false}
+      />
+    );
+  }
+  
+  if (showBookLayout) {
+    return (
+      <LayoutSelectorWrapper
+        key={`book-layout-${bookLayoutKey}`}
+        onBack={() => {
+          setShowBookLayout(false);
+          setBookLayoutKey(prev => prev + 1); // Force remount on next open
+        }}
+        title="Book Layout"
+        isBookLevel={true}
+      />
+    );
+  }
+  
+  if (showPageThemeSelector) {
+    return (
+      <ThemeSelectorWrapper
+        key={`page-theme-${pageThemeKey}`}
+        onBack={() => {
+          setShowPageThemeSelector(false);
+          setPageThemeKey(prev => prev + 1); // Force remount on next open
+        }}
+        title="Page Theme"
+        isBookLevel={false}
+      />
+    );
+  }
+
+  if (showBookThemeSelector) {
+    return (
+      <ThemeSelectorWrapper
+        key={`book-theme-${bookThemeKey}`}
+        onBack={() => {
+          setShowBookThemeSelector(false);
+          setBookThemeKey(prev => prev + 1); // Force remount on next open
+        }}
+        title="Book Theme"
+        isBookLevel={true}
+      />
+    );
+  }
+
   if (showPageTheme) {
     return renderPageThemeSettings();
   }
@@ -933,10 +1013,6 @@ export function GeneralSettings({
     return renderBookThemeSettings();
   }
 
-
-
-  const { user } = useAuth();
-  
   // Check if user can access any settings at all
   const canAccessAnySettings = state.editorInteractionLevel === 'full_edit_with_settings';
   
@@ -966,25 +1042,34 @@ export function GeneralSettings({
                 <Button
                   variant="ghost_hover"
                   size="sm"
-                  onClick={() => setShowBookTheme(true)}
+                  onClick={() => {
+                    setBookThemeKey(prev => prev + 1); // Force remount
+                    setShowBookThemeSelector(true);
+                  }}
                   className="w-full justify-start"
                 >
                   <Paintbrush2 className="h-4 w-4 mr-2" />
                   Book Theme
                 </Button>
-                <Button
-                  variant="ghost_hover"
-                  size="sm"
-                  onClick={() => onOpenBookLayouts()}
-                  className="w-full justify-start"
-                >
-                  <LayoutPanelLeft className="h-4 w-4 mr-2" />
-                  Book Layout
-                </Button>
+                  <Button
+                    variant="ghost_hover"
+                    size="sm"
+                    onClick={() => {
+                      setBookLayoutKey(prev => prev + 1); // Force remount
+                      setShowBookLayout(true);
+                    }}
+                    className="w-full justify-start"
+                  >
+                    <LayoutPanelLeft className="h-4 w-4 mr-2" />
+                    Book Layout
+                  </Button>
             <Button
               variant="ghost_hover"
               size="sm"
-              onClick={() => setShowBookPalette(true)}
+              onClick={() => {
+                setBookPaletteKey(prev => prev + 1); // Force remount
+                setShowBookPalette(true);
+              }}
               className="w-full justify-start"
             >
               <SwatchBook className="h-4 w-4 mr-2" />
@@ -1010,40 +1095,51 @@ export function GeneralSettings({
               <PaintBucket className="h-4 w-4 mr-2" />
               Background
             </Button>
-            <Button
-              variant="ghost_hover"
-              size="sm"
-              onClick={() => canAccessPageSettings && onOpenLayouts()}
-              className={`w-full justify-start ${!canAccessPageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
-              disabled={!canAccessPageSettings}
-            >
-              <LayoutPanelLeft className="h-4 w-4 mr-2" />
-              Layout
-            </Button>
-            <Button
-              variant="ghost_hover"
-              size="sm"
-              onClick={() => canAccessPageSettings && setShowPageTheme(true)}
-              className={`w-full justify-start ${!canAccessPageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
-              disabled={!canAccessPageSettings}
-            >
-              <Paintbrush2 className="h-4 w-4 mr-2" />
-              Theme
-            </Button>
-            <Button
-              variant="ghost_hover"
-              size="sm"
-              onClick={() => {
-                if (canAccessPageSettings) {
-                  setShowPagePalette(true);
-                }
-              }}
-              className={`w-full justify-start ${!canAccessPageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
-              disabled={!canAccessPageSettings}
-            >
-              <SwatchBook className="h-4 w-4 mr-2" />
-              Color Palette
-            </Button>
+                  <Button
+                    variant="ghost_hover"
+                    size="sm"
+                    onClick={() => {
+                      if (canAccessPageSettings) {
+                        setPageLayoutKey(prev => prev + 1); // Force remount
+                        setShowPageLayout(true);
+                      }
+                    }}
+                    className={`w-full justify-start ${!canAccessPageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    disabled={!canAccessPageSettings}
+                  >
+                    <LayoutPanelLeft className="h-4 w-4 mr-2" />
+                    Layout
+                  </Button>
+                  <Button
+                    variant="ghost_hover"
+                    size="sm"
+                    onClick={() => {
+                      if (canAccessPageSettings) {
+                        setPageThemeKey(prev => prev + 1); // Force remount
+                        setShowPageThemeSelector(true);
+                      }
+                    }}
+                    className={`w-full justify-start ${!canAccessPageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    disabled={!canAccessPageSettings}
+                  >
+                    <Paintbrush2 className="h-4 w-4 mr-2" />
+                    Theme
+                  </Button>
+                  <Button
+                    variant="ghost_hover"
+                    size="sm"
+                    onClick={() => {
+                      if (canAccessPageSettings) {
+                        setPagePaletteKey(prev => prev + 1); // Force remount
+                        setShowPagePalette(true);
+                      }
+                    }}
+                    className={`w-full justify-start ${!canAccessPageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    disabled={!canAccessPageSettings}
+                  >
+                    <SwatchBook className="h-4 w-4 mr-2" />
+                    Color Palette
+                  </Button>
           </div>
         </div>
       </div>

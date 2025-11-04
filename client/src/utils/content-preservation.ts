@@ -56,16 +56,16 @@ export function applyLayoutTemplateWithPreservation(
   });
   
   // Handle unmapped existing textboxes (more content than template slots)
+  // Keep them at their original positions as requested by user
   const mappedExistingIds = new Set(mappings.map(m => m.existingElement.id));
   const unmappedExisting = existingTextboxes.filter(el => !mappedExistingIds.has(el.id));
   
   if (unmappedExisting.length > 0) {
-    // Position unmapped elements below template elements
-    const maxY = Math.max(...resultElements.map(el => el.y + el.height), 0);
-    unmappedExisting.forEach((element, index) => {
+    // Keep surplus textboxes at their original positions (don't move them)
+    unmappedExisting.forEach((element) => {
       resultElements.push({
-        ...element,
-        y: maxY + 50 + (index * 150) // Stack vertically with spacing
+        ...element
+        // x, y, width, height remain unchanged
       });
     });
   }
@@ -114,8 +114,12 @@ function createSmartMappings(
   const usedExisting = new Set<string>();
   const usedTemplate = new Set<string>();
   
-  // First pass: exact type matches
-  existingElements.forEach(existing => {
+  // Priority: qna_inline elements should be mapped first to ensure they get layout positions
+  const qnaInlineElements = existingElements.filter(el => el.textType === 'qna_inline');
+  const otherTextElements = existingElements.filter(el => el.textType !== 'qna_inline');
+  
+  // First pass: exact type matches, prioritizing qna_inline
+  [...qnaInlineElements, ...otherTextElements].forEach(existing => {
     if (usedExisting.has(existing.id)) return;
     
     const matchingSlot = templateSlots.find(slot => 
@@ -134,8 +138,46 @@ function createSmartMappings(
     }
   });
   
-  // Second pass: compatible type matches
-  existingElements.forEach(existing => {
+  // Second pass: compatible type matches, prioritizing qna_inline to qna_inline slots
+  qnaInlineElements.forEach(existing => {
+    if (usedExisting.has(existing.id)) return;
+    
+    // Try to find qna_inline slots first
+    const qnaSlot = templateSlots.find(slot => 
+      !usedTemplate.has(slot.id) && 
+      slot.textType === 'qna_inline'
+    );
+    
+    if (qnaSlot) {
+      mappings.push({
+        existingElement: existing,
+        templateSlot: qnaSlot,
+        confidence: 0.9
+      });
+      usedExisting.add(existing.id);
+      usedTemplate.add(qnaSlot.id);
+      return;
+    }
+    
+    // Fallback to other compatible slots
+    const compatibleSlot = templateSlots.find(slot => 
+      !usedTemplate.has(slot.id) && 
+      isTypeCompatible(existing.textType, slot.textType)
+    );
+    
+    if (compatibleSlot) {
+      mappings.push({
+        existingElement: existing,
+        templateSlot: compatibleSlot,
+        confidence: 0.7
+      });
+      usedExisting.add(existing.id);
+      usedTemplate.add(compatibleSlot.id);
+    }
+  });
+  
+  // Third pass: compatible type matches for other text elements
+  otherTextElements.forEach(existing => {
     if (usedExisting.has(existing.id)) return;
     
     const compatibleSlot = templateSlots.find(slot => 
@@ -154,7 +196,7 @@ function createSmartMappings(
     }
   });
   
-  // Third pass: any remaining matches
+  // Fourth pass: any remaining matches
   existingElements.forEach(existing => {
     if (usedExisting.has(existing.id)) return;
     

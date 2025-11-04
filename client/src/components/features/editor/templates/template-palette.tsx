@@ -62,14 +62,26 @@ export function TemplatePalette({ selectedPalette, onPaletteSelect }: TemplatePa
   };
   
   return (
-    <div className="flex h-full">
-      {/* Left side - List */}
-      <div className="w-1/2 border-r border-gray-200 p-4">
-        <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
-          <Palette className="h-4 w-4" />
-          Color Palettes
-        </h3>
-        <div className="space-y-2 max-h-96 overflow-y-auto">
+    <div className="flex flex-col h-full">
+      {/* List section - flex-1 with scroll */}
+      <div className="p-2 flex-1 min-h-0 flex flex-col border-b border-gray-200">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium flex items-center gap-2">
+            <Palette className="h-4 w-4" />
+            Color Palettes
+          </h3>
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={resetColorOverrides}
+            className="text-xs"
+            title="Reset all manual color overrides to allow palette colors to be applied"
+          >
+            <RotateCcw className="h-3 w-3 mr-1" />
+            Reset
+          </Button>
+        </div>
+        <div className="space-y-2 flex-1 overflow-y-auto">
           {colorPalettes.map((palette) => (
             <button
               key={palette.id}
@@ -107,21 +119,9 @@ export function TemplatePalette({ selectedPalette, onPaletteSelect }: TemplatePa
         </div>
       </div>
       
-      {/* Right side - Preview */}
-      <div className="w-1/2 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium">Preview</h3>
-          <Button
-            variant="outline"
-            size="xs"
-            onClick={resetColorOverrides}
-            className="text-xs"
-            title="Reset all manual color overrides to allow palette colors to be applied"
-          >
-            <RotateCcw className="h-3 w-3 mr-1" />
-            Reset Theme default
-          </Button>
-        </div>
+      {/* Preview section - shrink-0 at bottom */}
+      <div className="p-4 border-t border-gray-200 shrink-0">
+        <h3 className="text-sm font-medium mb-3">Preview</h3>
         {selectedPalette ? (
           <div className="bg-white border rounded-lg p-4">
             <div className="text-sm font-medium mb-2">{selectedPalette.name}</div>
@@ -141,9 +141,6 @@ export function TemplatePalette({ selectedPalette, onPaletteSelect }: TemplatePa
             </div>
             <div className="text-xs text-gray-600 mt-2">
               {selectedPalette.contrast} contrast
-            </div>
-            <div className="text-xs text-gray-500 mt-2">
-              Tip: Use "Reset Theme default" to reset the color palette to the theme's default
             </div>
           </div>
         ) : (

@@ -206,6 +206,8 @@ export default function Canvas() {
       setSelectedQuestionElementId(null);
     }
   }, [showQuestionDialog, user]);
+
+  // Alte Preview-Export-Logik entfernt - wird jetzt über Preview-Seiten gelöst
   const [selectedQuestionElementId, setSelectedQuestionElementId] = useState<string | null>(null);
   const [selectionModeState, setSelectionModeState] = useState<Map<string, number>>(new Map());
   const editingTimeoutRef = useRef<NodeJS.Timeout | null>(null);

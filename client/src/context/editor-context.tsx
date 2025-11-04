@@ -385,6 +385,7 @@ export interface Page {
   layoutTemplateId?: string; // page-level layout template ID
   themeId?: string; // page-level theme ID (in addition to background.pageTheme for compatibility)
   colorPaletteId?: string; // page-level color palette ID
+  isPreview?: boolean; // Flag für temporäre Preview-Seiten (werden nicht in UI angezeigt)
 }
 
 export interface Book {
@@ -472,6 +473,8 @@ type EditorAction =
   | { type: 'ADD_PAGE' }
   | { type: 'DELETE_PAGE'; payload: number }
   | { type: 'DUPLICATE_PAGE'; payload: number }
+  | { type: 'CREATE_PREVIEW_PAGE'; payload: number } // pageIndex to duplicate
+  | { type: 'DELETE_PREVIEW_PAGE' } // Deletes all preview pages
   | { type: 'TOGGLE_EDITOR_BAR' }
   | { type: 'TOGGLE_TOOLBAR' }
   | { type: 'TOGGLE_SETTINGS_PANEL' }
@@ -490,14 +493,14 @@ type EditorAction =
   | { type: 'UPDATE_PAGE_NUMBERS'; payload: { pageId: number; newPageNumber: number }[] }
   | { type: 'SET_PAGE_ASSIGNMENTS'; payload: Record<number, any> }
   | { type: 'SET_BOOK_FRIENDS'; payload: any[] }
-  | { type: 'UPDATE_PAGE_BACKGROUND'; payload: { pageIndex: number; background: PageBackground } }
-  | { type: 'SET_BOOK_THEME'; payload: string }
-  | { type: 'SET_PAGE_THEME'; payload: { pageIndex: number; themeId: string } }
+  | { type: 'UPDATE_PAGE_BACKGROUND'; payload: { pageIndex: number; background: PageBackground; skipHistory?: boolean } }
+  | { type: 'SET_BOOK_THEME'; payload: string; skipHistory?: boolean }
+  | { type: 'SET_PAGE_THEME'; payload: { pageIndex: number; themeId: string; skipHistory?: boolean } }
   | { type: 'SET_BOOK_LAYOUT_TEMPLATE'; payload: string | null }
-  | { type: 'SET_BOOK_COLOR_PALETTE'; payload: string | null }
+  | { type: 'SET_BOOK_COLOR_PALETTE'; payload: string | null; skipHistory?: boolean }
   | { type: 'SET_PAGE_LAYOUT_TEMPLATE'; payload: { pageIndex: number; layoutTemplateId: string | null } }
-  | { type: 'SET_PAGE_COLOR_PALETTE'; payload: { pageIndex: number; colorPaletteId: string | null } }
-  | { type: 'APPLY_THEME_TO_ELEMENTS'; payload: { pageIndex: number; themeId: string; elementType?: string; applyToAllPages?: boolean } }
+  | { type: 'SET_PAGE_COLOR_PALETTE'; payload: { pageIndex: number; colorPaletteId: string | null; skipHistory?: boolean } }
+  | { type: 'APPLY_THEME_TO_ELEMENTS'; payload: { pageIndex: number; themeId: string; elementType?: string; applyToAllPages?: boolean; skipHistory?: boolean } }
   | { type: 'REORDER_PAGES'; payload: { fromIndex: number; toIndex: number } }
   | { type: 'TOGGLE_MAGNETIC_SNAPPING' }
   | { type: 'SET_QNA_ACTIVE_SECTION'; payload: 'question' | 'answer' }
@@ -510,7 +513,7 @@ type EditorAction =
   | { type: 'LOAD_COLOR_PALETTES'; payload: ColorPalette[] }
   | { type: 'APPLY_TEMPLATE_TO_PAGE'; payload: { pageIndex: number; template: PageTemplate } }
   | { type: 'APPLY_TEMPLATE'; payload: { template: PageTemplate; pageIndex?: number; applyToAllPages?: boolean } }
-  | { type: 'APPLY_LAYOUT_TEMPLATE'; payload: { template: PageTemplate; pageIndex?: number; applyToAllPages?: boolean } }
+  | { type: 'APPLY_LAYOUT_TEMPLATE'; payload: { template: PageTemplate; pageIndex?: number; applyToAllPages?: boolean; skipHistory?: boolean } }
   | { type: 'APPLY_THEME_ONLY'; payload: { themeId: string; pageIndex?: number; applyToAllPages?: boolean } }
   | { type: 'APPLY_COLOR_PALETTE'; payload: { palette: ColorPalette; pageIndex?: number; applyToAllPages?: boolean } }
   | { type: 'APPLY_COMPLETE_TEMPLATE'; payload: { layoutId?: string; themeId?: string; paletteId?: string; scope: 'current-page' | 'entire-book' } }
@@ -1138,6 +1141,58 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         hasUnsavedChanges: true
       };
     
+    case 'CREATE_PREVIEW_PAGE':
+      if (!state.currentBook) return state;
+      // Don't save to history for preview pages
+      const pageToPreview = state.currentBook.pages[action.payload];
+      if (!pageToPreview) return state;
+      
+      // Remove any existing preview pages first
+      const pagesWithoutPreview = state.currentBook.pages.filter(p => !p.isPreview);
+      
+      // Create preview page as duplicate
+      const previewPage: Page = {
+        id: Date.now() + 1000000, // High ID to avoid conflicts
+        pageNumber: 9999, // High page number so it's at the end
+        elements: pageToPreview.elements.map(el => ({ ...el, id: uuidv4() })),
+        background: pageToPreview.background ? { ...pageToPreview.background } : undefined,
+        database_id: undefined,
+        layoutTemplateId: pageToPreview.layoutTemplateId,
+        themeId: pageToPreview.themeId,
+        colorPaletteId: pageToPreview.colorPaletteId,
+        isPreview: true
+      };
+      
+      return {
+        ...state,
+        currentBook: {
+          ...state.currentBook,
+          pages: [...pagesWithoutPreview, previewPage]
+        },
+        hasUnsavedChanges: false // Preview pages don't mark as unsaved
+      };
+    
+    case 'DELETE_PREVIEW_PAGE':
+      if (!state.currentBook) return state;
+      // Remove all preview pages
+      const pagesWithoutPreview2 = state.currentBook.pages.filter(p => !p.isPreview);
+      
+      // If we're currently on a preview page, go back to first page
+      const currentPage = state.currentBook.pages[state.activePageIndex];
+      const newActivePageIndex = currentPage?.isPreview 
+        ? Math.min(state.activePageIndex, pagesWithoutPreview2.length - 1)
+        : state.activePageIndex;
+      
+      return {
+        ...state,
+        currentBook: {
+          ...state.currentBook,
+          pages: pagesWithoutPreview2
+        },
+        activePageIndex: Math.max(0, newActivePageIndex),
+        hasUnsavedChanges: false // Preview deletion doesn't mark as unsaved
+      };
+    
     case 'TOGGLE_EDITOR_BAR':
       return { ...state, editorBarVisible: !state.editorBarVisible };
     
@@ -1324,7 +1379,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'UPDATE_PAGE_BACKGROUND':
       if (!state.currentBook) return state;
-      const savedBgState = saveToHistory(state, 'Update Page Background');
+      // Don't save to history if this is part of a theme/palette application sequence
+      // History is already saved by SET_BOOK_THEME/SET_PAGE_THEME/APPLY_COLOR_PALETTE
+      const savedBgState = action.payload.skipHistory ? state : saveToHistory(state, 'Update Page Background');
       const updatedBookBg = { ...savedBgState.currentBook! };
       const targetPage = updatedBookBg.pages[action.payload.pageIndex];
       if (targetPage) {
@@ -1334,7 +1391,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'SET_BOOK_THEME':
       if (!state.currentBook) return state;
-      const savedBookThemeState = saveToHistory(state, 'Set Book Theme');
+      const theme = getGlobalTheme(action.payload);
+      const themeName = theme?.name || action.payload;
+      const savedBookThemeState = action.skipHistory ? state : saveToHistory(state, `Apply Theme "${themeName}" to Book`);
       return {
         ...savedBookThemeState,
         currentBook: {
@@ -1359,7 +1418,14 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'SET_BOOK_COLOR_PALETTE':
       if (!state.currentBook) return state;
-      const savedBookPaletteState = saveToHistory(state, 'Set Book Color Palette');
+      // Don't save to history if this is part of a theme application sequence
+      // History is already saved by SET_BOOK_THEME/SET_PAGE_THEME
+      const palette = action.payload ? colorPalettes.find(p => p.id === action.payload) : null;
+      const paletteName = palette?.name || action.payload || 'Default';
+      const actionName = action.payload ? `Apply Color Palette "${paletteName}" to Book` : 'Reset Book Color Palette';
+      const savedBookPaletteState = action.skipHistory 
+        ? state 
+        : saveToHistory(state, actionName);
       return {
         ...savedBookPaletteState,
         currentBook: {
@@ -1371,7 +1437,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'SET_PAGE_THEME':
       if (!state.currentBook) return state;
-      const savedPageThemeState = saveToHistory(state, 'Set Page Theme');
+      const pageTheme = getGlobalTheme(action.payload.themeId);
+      const pageThemeName = pageTheme?.name || action.payload.themeId;
+      const savedPageThemeState = action.payload.skipHistory ? state : saveToHistory(state, `Apply Theme "${pageThemeName}" to Page`);
       const updatedBookPageTheme = { ...savedPageThemeState.currentBook! };
       const targetPageTheme = updatedBookPageTheme.pages[action.payload.pageIndex];
       if (targetPageTheme) {
@@ -1395,7 +1463,14 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'SET_PAGE_COLOR_PALETTE':
       if (!state.currentBook) return state;
-      const savedPagePaletteState = saveToHistory(state, 'Set Page Color Palette');
+      // Don't save to history if this is part of a theme application sequence
+      // History is already saved by SET_BOOK_THEME/SET_PAGE_THEME
+      const pagePalette = action.payload.colorPaletteId ? colorPalettes.find(p => p.id === action.payload.colorPaletteId) : null;
+      const pagePaletteName = pagePalette?.name || action.payload.colorPaletteId || 'Default';
+      const pageActionName = action.payload.colorPaletteId ? `Apply Color Palette "${pagePaletteName}" to Page` : 'Reset Page Color Palette';
+      const savedPagePaletteState = action.payload.skipHistory 
+        ? state 
+        : saveToHistory(state, pageActionName);
       const updatedBookPagePalette = { ...savedPagePaletteState.currentBook! };
       const targetPagePalette = updatedBookPagePalette.pages[action.payload.pageIndex];
       if (targetPagePalette) {
@@ -1405,7 +1480,14 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'APPLY_THEME_TO_ELEMENTS':
       if (!state.currentBook) return state;
-      const savedApplyThemeState = saveToHistory(state, 'Apply Theme to Elements');
+      // Don't save to history if this is part of a theme application sequence
+      // History is already saved by SET_BOOK_THEME/SET_PAGE_THEME
+      const applyTheme = getGlobalTheme(action.payload.themeId);
+      const applyThemeName = applyTheme?.name || action.payload.themeId;
+      const themeScope = action.payload.applyToAllPages ? 'Book' : 'Page';
+      const savedApplyThemeState = action.payload.skipHistory 
+        ? state 
+        : saveToHistory(state, `Apply Theme "${applyThemeName}" to ${themeScope} Elements`);
       const updatedBookApplyTheme = { ...savedApplyThemeState.currentBook! };
       
       const applyThemeToPage = (page: any) => {
@@ -1876,8 +1958,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'APPLY_COLOR_PALETTE':
       if (!state.currentBook) return state;
-      const savedApplyPaletteState = saveToHistory(state, 'Apply Color Palette');
-      const { palette, pageIndex: palettePageIndex, applyToAllPages: paletteApplyToAll } = action.payload;
+      const { palette: appliedPalette, pageIndex: palettePageIndex, applyToAllPages: paletteApplyToAll } = action.payload;
+      const paletteScope = paletteApplyToAll ? 'Book' : 'Page';
+      const savedApplyPaletteState = saveToHistory(state, `Apply Color Palette "${appliedPalette.name}" to ${paletteScope}`);
       const updatedBookApplyPalette = { ...savedApplyPaletteState.currentBook! };
       
       const applyPaletteToPage = (page: Page) => {
@@ -1886,7 +1969,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           background: {
             ...page.background,
             type: 'color',
-            value: palette.colors.background
+            value: appliedPalette.colors.background
           },
           elements: page.elements.map(element => {
             const updates: Partial<CanvasElement> = {};
@@ -1895,25 +1978,25 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             if (element.type === 'text' || element.textType) {
               // Update font color in nested font object if it exists
               if (element.font) {
-                updates.font = { ...element.font, fontColor: palette.colors.text };
+                updates.font = { ...element.font, fontColor: appliedPalette.colors.text };
               }
               // Update QnA specific nested settings
               if (element.questionSettings) {
                 updates.questionSettings = {
                   ...element.questionSettings,
                   font: element.questionSettings.font ? 
-                    { ...element.questionSettings.font, fontColor: palette.colors.text } : 
-                    { fontColor: palette.colors.text },
-                  fontColor: palette.colors.text
+                    { ...element.questionSettings.font, fontColor: appliedPalette.colors.text } : 
+                    { fontColor: appliedPalette.colors.text },
+                  fontColor: appliedPalette.colors.text
                 };
               }
               if (element.answerSettings) {
                 updates.answerSettings = {
                   ...element.answerSettings,
                   font: element.answerSettings.font ? 
-                    { ...element.answerSettings.font, fontColor: palette.colors.text } : 
-                    { fontColor: palette.colors.text },
-                  fontColor: palette.colors.text
+                    { ...element.answerSettings.font, fontColor: appliedPalette.colors.text } : 
+                    { fontColor: appliedPalette.colors.text },
+                  fontColor: appliedPalette.colors.text
                 };
               }
               
@@ -1923,57 +2006,57 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                 const currentBackground = element.textSettings?.background || {};
                 updates.textSettings = {
                   ...element.textSettings,
-                  fontColor: palette.colors.text,
+                  fontColor: appliedPalette.colors.text,
                   font: element.textSettings?.font ? 
-                    { ...element.textSettings.font, fontColor: palette.colors.text } : 
-                    { fontColor: palette.colors.text },
+                    { ...element.textSettings.font, fontColor: appliedPalette.colors.text } : 
+                    { fontColor: appliedPalette.colors.text },
                   border: {
                     ...currentBorder,
-                    borderColor: palette.colors.primary,
+                    borderColor: appliedPalette.colors.primary,
                     enabled: currentBorder.enabled !== undefined ? currentBorder.enabled : true
                   },
-                  borderColor: palette.colors.primary,
+                  borderColor: appliedPalette.colors.primary,
                   background: {
                     ...currentBackground,
-                    backgroundColor: palette.colors.accent,
+                    backgroundColor: appliedPalette.colors.accent,
                     enabled: currentBackground.enabled !== undefined ? currentBackground.enabled : true
                   },
-                  backgroundColor: palette.colors.accent,
+                  backgroundColor: appliedPalette.colors.accent,
                   ruledLines: element.textSettings?.ruledLines ? {
                     ...element.textSettings.ruledLines,
-                    lineColor: palette.colors.primary
+                    lineColor: appliedPalette.colors.primary
                   } : undefined,
-                  ruledLinesColor: palette.colors.primary
+                  ruledLinesColor: appliedPalette.colors.primary
                 };
               }
               
               // Update border colors - create nested objects if they don't exist
-              updates.border = { ...element.border, borderColor: palette.colors.primary, enabled: true };
+              updates.border = { ...element.border, borderColor: appliedPalette.colors.primary, enabled: true };
               if (element.textType === 'qna_inline') {
                 updates.questionSettings = {
                   ...element.questionSettings,
-                  fontColor: palette.colors.text,
-                  font: { ...element.questionSettings?.font, fontColor: palette.colors.text },
-                  border: { enabled: true, borderColor: palette.colors.primary, borderWidth: 2, borderOpacity: 1 },
-                  background: { enabled: true, backgroundColor: palette.colors.accent, backgroundOpacity: 0.3 }
+                  fontColor: appliedPalette.colors.text,
+                  font: { ...element.questionSettings?.font, fontColor: appliedPalette.colors.text },
+                  border: { enabled: true, borderColor: appliedPalette.colors.primary, borderWidth: 2, borderOpacity: 1 },
+                  background: { enabled: true, backgroundColor: appliedPalette.colors.accent, backgroundOpacity: 0.3 }
                 };
                 updates.answerSettings = {
                   ...element.answerSettings,
-                  fontColor: palette.colors.text,
-                  font: { ...element.answerSettings?.font, fontColor: palette.colors.text },
-                  border: { enabled: true, borderColor: palette.colors.primary, borderWidth: 2, borderOpacity: 1 },
-                  background: { enabled: true, backgroundColor: palette.colors.accent, backgroundOpacity: 0.3 },
-                  ruledLines: { ...element.answerSettings?.ruledLines, lineColor: palette.colors.primary }
+                  fontColor: appliedPalette.colors.text,
+                  font: { ...element.answerSettings?.font, fontColor: appliedPalette.colors.text },
+                  border: { enabled: true, borderColor: appliedPalette.colors.primary, borderWidth: 2, borderOpacity: 1 },
+                  background: { enabled: true, backgroundColor: appliedPalette.colors.accent, backgroundOpacity: 0.3 },
+                  ruledLines: { ...element.answerSettings?.ruledLines, lineColor: appliedPalette.colors.primary }
                 };
               }
               // Update background colors - create nested objects if they don't exist
-              updates.background = { ...element.background, backgroundColor: palette.colors.accent, enabled: true };
+              updates.background = { ...element.background, backgroundColor: appliedPalette.colors.accent, enabled: true };
 
               // Update direct font color properties
-              updates.fontColor = palette.colors.text;
-              updates.fill = palette.colors.text;
-              updates.borderColor = palette.colors.primary;
-              updates.backgroundColor = palette.colors.accent;
+              updates.fontColor = appliedPalette.colors.text;
+              updates.fill = appliedPalette.colors.text;
+              updates.borderColor = appliedPalette.colors.primary;
+              updates.backgroundColor = appliedPalette.colors.accent;
             }
             
             // Apply stroke color to shapes and lines
@@ -1981,7 +2064,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                 element.type === 'heart' || element.type === 'star' || element.type === 'triangle' ||
                 element.type === 'polygon' || element.type === 'speech-bubble' || element.type === 'dog' ||
                 element.type === 'cat' || element.type === 'smiley' || element.type === 'brush') {
-              updates.stroke = palette.colors.primary;
+              updates.stroke = appliedPalette.colors.primary;
             }
             
             // Apply fill color to filled shapes - apply even if fill is missing or transparent
@@ -1993,7 +2076,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
               // Only apply fill if element had a fill (not transparent) before
               // But during reset, we want to apply palette colors
               if (element.fill && element.fill !== 'transparent') {
-                updates.fill = palette.colors.accent;
+                updates.fill = appliedPalette.colors.accent;
               }
               // If element doesn't have fill or has transparent, don't change it
               // (respects the element's original fill state)
@@ -2019,8 +2102,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'APPLY_LAYOUT_TEMPLATE':
       if (!state.currentBook) return state;
-      const savedLayoutState = saveToHistory(state, 'Apply Layout Template');
-      const { template: layoutTemplate, pageIndex: layoutPageIndex, applyToAllPages: layoutApplyToAll } = action.payload;
+      const { template: layoutTemplate, pageIndex: layoutPageIndex, applyToAllPages: layoutApplyToAll, skipHistory: layoutSkipHistory } = action.payload;
+      const savedLayoutState = layoutSkipHistory ? state : saveToHistory(state, 'Apply Layout Template');
       const updatedBookLayout = { ...savedLayoutState.currentBook! };
       
       const applyLayoutToPage = (page: Page, pageIdx: number) => {
@@ -2823,27 +2906,33 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
   const getVisiblePages = () => {
     if (!state.currentBook) return [];
     
+    // Filter out preview pages
+    const nonPreviewPages = state.currentBook.pages.filter(p => !p.isPreview);
+    
     if (state.pageAccessLevel === 'own_page' && state.assignedPages.length > 0) {
       // Show only assigned pages in correct order
-      return state.currentBook.pages
+      return nonPreviewPages
         .filter((_, index) => state.assignedPages.includes(index + 1))
         .sort((a, b) => a.pageNumber - b.pageNumber);
     }
     
     // Show all pages for 'all_pages' or when no restrictions
-    return state.currentBook.pages;
+    return nonPreviewPages;
   };
   
   const getVisiblePageNumbers = () => {
     if (!state.currentBook) return [];
+    
+    // Filter out preview pages
+    const nonPreviewPages = state.currentBook.pages.filter(p => !p.isPreview);
     
     if (state.pageAccessLevel === 'own_page' && state.assignedPages.length > 0) {
       // Return only assigned page numbers in sorted order
       return [...state.assignedPages].sort((a, b) => a - b);
     }
     
-    // Return all page numbers
-    return state.currentBook.pages.map((_, index) => index + 1);
+    // Return all page numbers (excluding preview pages)
+    return nonPreviewPages.map((_, index) => index + 1);
   };
   
   const applyTemplateToPage = (template: PageTemplate, pageIndex?: number) => {

@@ -1,9 +1,5 @@
 import type { PageTemplate } from '../../types/template-types';
 
-// Canvas dimensions from canvas.tsx: A4 portrait = 2480x3508
-const CANVAS_WIDTH = 2480;
-const CANVAS_HEIGHT = 3508;
-
 export const pageTemplates: PageTemplate[] = [
   // STRUCTURED CATEGORY (4 templates)
   {
@@ -1524,6 +1520,258 @@ export const pageTemplates: PageTemplate[] = [
       maxQuestions: 10,
       imageSlots: 1,
       stickerSlots: 6
+    }
+  },
+  
+  // SIMPLE LAYOUTS (migrated from layout-templates.ts)
+  {
+    id: 'simple-single-question',
+    name: 'Single Question',
+    category: 'structured',
+    thumbnail: '/templates/simple-single-question.png',
+    theme: 'default',
+    colorPalette: {
+      primary: '#1f2937',
+      secondary: '#3d405b',
+      accent: '#81b29a',
+      background: '#ffffff',
+      text: '#1f2937'
+    },
+    background: {
+      type: 'color',
+      value: '#ffffff',
+      enabled: true
+    },
+    textboxes: [
+      { 
+        type: 'qna_inline', 
+        position: { x: 840, y: 1400 }, 
+        size: { width: 800, height: 150 },
+        layoutVariant: 'inline'
+      }
+    ],
+    elements: [],
+    constraints: {
+      minQuestions: 1,
+      maxQuestions: 1,
+      imageSlots: 0,
+      stickerSlots: 0
+    }
+  },
+  {
+    id: 'simple-two-column',
+    name: 'Two Column',
+    category: 'structured',
+    thumbnail: '/templates/simple-two-column.png',
+    theme: 'default',
+    colorPalette: {
+      primary: '#1f2937',
+      secondary: '#3d405b',
+      accent: '#81b29a',
+      background: '#ffffff',
+      text: '#1f2937'
+    },
+    background: {
+      type: 'color',
+      value: '#ffffff',
+      enabled: true
+    },
+    textboxes: [
+      { 
+        type: 'qna_inline', 
+        position: { x: 340, y: 1200 }, 
+        size: { width: 800, height: 150 },
+        layoutVariant: 'inline'
+      },
+      { 
+        type: 'qna_inline', 
+        position: { x: 1340, y: 1200 }, 
+        size: { width: 800, height: 150 },
+        layoutVariant: 'inline'
+      }
+    ],
+    elements: [],
+    constraints: {
+      minQuestions: 2,
+      maxQuestions: 2,
+      imageSlots: 0,
+      stickerSlots: 0
+    }
+  },
+  {
+    id: 'simple-grid-layout',
+    name: 'Grid Layout',
+    category: 'structured',
+    thumbnail: '/templates/simple-grid-layout.png',
+    theme: 'default',
+    colorPalette: {
+      primary: '#1f2937',
+      secondary: '#3d405b',
+      accent: '#81b29a',
+      background: '#ffffff',
+      text: '#1f2937'
+    },
+    background: {
+      type: 'color',
+      value: '#ffffff',
+      enabled: true
+    },
+    textboxes: [
+      { 
+        type: 'qna_inline', 
+        position: { x: 340, y: 800 }, 
+        size: { width: 800, height: 120 },
+        layoutVariant: 'inline'
+      },
+      { 
+        type: 'qna_inline', 
+        position: { x: 1340, y: 800 }, 
+        size: { width: 800, height: 120 },
+        layoutVariant: 'inline'
+      },
+      { 
+        type: 'qna_inline', 
+        position: { x: 340, y: 1100 }, 
+        size: { width: 800, height: 120 },
+        layoutVariant: 'inline'
+      },
+      { 
+        type: 'qna_inline', 
+        position: { x: 1340, y: 1100 }, 
+        size: { width: 800, height: 120 },
+        layoutVariant: 'inline'
+      }
+    ],
+    elements: [],
+    constraints: {
+      minQuestions: 4,
+      maxQuestions: 4,
+      imageSlots: 0,
+      stickerSlots: 0
+    }
+  },
+  {
+    id: 'simple-interview-style',
+    name: 'Interview Style',
+    category: 'structured',
+    thumbnail: '/templates/simple-interview-style.png',
+    theme: 'default',
+    colorPalette: {
+      primary: '#1f2937',
+      secondary: '#3d405b',
+      accent: '#81b29a',
+      background: '#ffffff',
+      text: '#1f2937'
+    },
+    background: {
+      type: 'color',
+      value: '#ffffff',
+      enabled: true
+    },
+    textboxes: [
+      { 
+        type: 'qna_inline', 
+        position: { x: 440, y: 600 }, 
+        size: { width: 1600, height: 120 },
+        layoutVariant: 'inline'
+      },
+      { 
+        type: 'qna_inline', 
+        position: { x: 440, y: 900 }, 
+        size: { width: 1600, height: 120 },
+        layoutVariant: 'inline'
+      },
+      { 
+        type: 'qna_inline', 
+        position: { x: 440, y: 1200 }, 
+        size: { width: 1600, height: 120 },
+        layoutVariant: 'inline'
+      },
+      { 
+        type: 'qna_inline', 
+        position: { x: 440, y: 1500 }, 
+        size: { width: 1600, height: 120 },
+        layoutVariant: 'inline'
+      },
+      { 
+        type: 'qna_inline', 
+        position: { x: 440, y: 1800 }, 
+        size: { width: 1600, height: 120 },
+        layoutVariant: 'inline'
+      },
+      { 
+        type: 'qna_inline', 
+        position: { x: 440, y: 2100 }, 
+        size: { width: 1600, height: 120 },
+        layoutVariant: 'inline'
+      }
+    ],
+    elements: [],
+    constraints: {
+      minQuestions: 6,
+      maxQuestions: 6,
+      imageSlots: 0,
+      stickerSlots: 0
+    }
+  },
+  {
+    id: 'simple-mixed-content',
+    name: 'Mixed Content',
+    category: 'structured',
+    thumbnail: '/templates/simple-mixed-content.png',
+    theme: 'default',
+    colorPalette: {
+      primary: '#1f2937',
+      secondary: '#3d405b',
+      accent: '#81b29a',
+      background: '#ffffff',
+      text: '#1f2937'
+    },
+    background: {
+      type: 'color',
+      value: '#ffffff',
+      enabled: true
+    },
+    textboxes: [
+      { 
+        type: 'qna_inline', 
+        position: { x: 340, y: 400 }, 
+        size: { width: 800, height: 140 },
+        layoutVariant: 'inline'
+      },
+      { 
+        type: 'qna_inline', 
+        position: { x: 340, y: 700 }, 
+        size: { width: 800, height: 140 },
+        layoutVariant: 'inline'
+      },
+      { 
+        type: 'qna_inline', 
+        position: { x: 340, y: 1200 }, 
+        size: { width: 800, height: 140 },
+        layoutVariant: 'inline'
+      }
+    ],
+    elements: [
+      { type: 'image', position: { x: 1380, y: 400 }, size: { width: 600, height: 450 } },
+      { 
+        type: 'shape', 
+        position: { x: 1380, y: 900 }, 
+        size: { width: 300, height: 300 },
+        shapeType: 'heart',
+        style: {
+          strokeWidth: 2,
+          stroke: '#1f2937',
+          fill: 'transparent',
+          inheritTheme: 'default'
+        }
+      }
+    ],
+    constraints: {
+      minQuestions: 3,
+      maxQuestions: 3,
+      imageSlots: 1,
+      stickerSlots: 1
     }
   }
 ];

@@ -4,11 +4,15 @@ import { useAuth } from '../../../context/auth-context';
 import { Button } from '../../ui/primitives/button';
 import { Input } from '../../ui/primitives/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/overlays/dialog';
-import { ChevronLeft, ChevronRight, Check, Layout, Palette, Paintbrush2 } from 'lucide-react';
-import { pageTemplates } from '../../../data/templates/page-templates';
+import { ChevronLeft, ChevronRight, Check } from 'lucide-react';
 import { colorPalettes } from '../../../data/templates/color-palettes';
 import { getGlobalTheme } from '../../../utils/global-themes';
-import type { PageTemplate, ColorPalette } from '../../../types/template-types';
+import type { PageTemplate, ColorPalette, QuickTemplate } from '../../../types/template-types';
+import { convertTemplateToElements } from '../../../utils/template-to-elements';
+import { getBackgroundImagesWithUrl } from '../../../data/templates/background-images';
+import { LayoutSelector } from '../editor/templates/layout-selector';
+import { GlobalThemeSelector } from '../editor/templates/global-theme-selector';
+import { WizardPaletteSelector } from '../editor/templates/wizard-palette-selector';
 
 const tempBooks = new Map();
 
@@ -22,12 +26,12 @@ interface WizardState {
   name: string;
   pageSize: string;
   orientation: string;
+  mode: 'quick' | 'advanced' | null;
   selectedTemplate: PageTemplate | null;
   selectedTheme: string;
   selectedPalette: ColorPalette | null;
 }
 
-const themes = ['default', 'sketchy', 'minimal'];
 
 export default function BookCreationWizard({ open, onOpenChange, onSuccess }: BookCreationWizardProps) {
   const { user } = useAuth();
@@ -37,12 +41,14 @@ export default function BookCreationWizard({ open, onOpenChange, onSuccess }: Bo
     name: '',
     pageSize: 'A4',
     orientation: 'portrait',
+    mode: null,
     selectedTemplate: null,
     selectedTheme: 'default',
     selectedPalette: colorPalettes[0]
   });
 
-  const totalSteps = 5;
+  // Steps abhängig vom Modus
+  const totalSteps = wizardState.mode === 'quick' ? 4 : wizardState.mode === 'advanced' ? 6 : 6;
 
   const updateState = (updates: Partial<WizardState>) => {
     setWizardState(prev => ({ ...prev, ...updates }));
@@ -61,18 +67,89 @@ export default function BookCreationWizard({ open, onOpenChange, onSuccess }: Bo
   };
 
   const canProceed = () => {
-    switch (currentStep) {
-      case 1: return wizardState.name.trim().length > 0;
-      case 2: return true; // Template is optional
-      case 3: return true; // Theme has default
-      case 4: return true; // Palette has default
-      case 5: return true; // Confirmation
-      default: return false;
-    }
+    if (currentStep === 1) return wizardState.name.trim().length > 0;
+    if (currentStep === 2) return wizardState.mode !== null;
+    return true;
   };
 
   const handleFinish = async () => {
     const tempId = `temp_${Date.now()}`;
+    
+    // Bestimme finale Werte basierend auf Modus
+    const finalTheme = wizardState.selectedTheme || 'default';
+    const finalPalette = wizardState.selectedPalette || colorPalettes[0];
+    const template = wizardState.selectedTemplate;
+    
+    // Quick Mode: Nutze Template-Metadaten wenn vorhanden
+    // Advanced Mode: Nutze manuell ausgewähltes Theme/Palette, Template-Metadaten nur als Fallback
+    const quickTemplate = template as QuickTemplate;
+    
+    let paletteToUse: ColorPalette;
+    let themeToUse: string;
+    
+    if (wizardState.mode === 'quick') {
+      // Quick Mode: Template-Metadaten haben Priorität
+      paletteToUse = quickTemplate?.paletteId 
+        ? colorPalettes.find(p => p.id === quickTemplate.paletteId) || finalPalette
+        : finalPalette;
+      themeToUse = template?.theme || finalTheme;
+    } else {
+      // Advanced Mode: Manuell ausgewähltes Theme/Palette hat Priorität
+      // Verwende finalTheme direkt (nicht template?.theme), da der Benutzer explizit ein Theme ausgewählt hat
+      themeToUse = finalTheme;
+      paletteToUse = finalPalette;
+    }
+    
+    // Debug logging (kann später entfernt werden)
+    console.log('Wizard finish:', {
+      mode: wizardState.mode,
+      selectedTheme: wizardState.selectedTheme,
+      finalTheme,
+      themeToUse,
+      templateTheme: template?.theme
+    });
+    
+    // Erstelle Elemente aus Template (falls Template gewählt)
+    const elements = template ? convertTemplateToElements(template) : [];
+    
+    // Bereite Background vor
+    let background: {
+      type: 'color' | 'pattern' | 'image';
+      value: string;
+      opacity: number;
+      pageTheme?: string;
+      backgroundImageTemplateId?: string;
+      imageSize?: string;
+    } = {
+      type: 'color' as const,
+      value: paletteToUse.colors.background,
+      opacity: 1,
+      pageTheme: themeToUse
+    };
+    
+    // Quick Mode: Prüfe auf Background Image
+    if (quickTemplate?.backgroundImageId) {
+      const allBackgroundImages = getBackgroundImagesWithUrl();
+      const bgImage = allBackgroundImages.find(img => img.id === quickTemplate.backgroundImageId);
+      if (bgImage) {
+        background = {
+          type: 'image' as const,
+          value: bgImage.url,
+          opacity: 1,
+          pageTheme: themeToUse,
+          backgroundImageTemplateId: bgImage.id,
+          imageSize: bgImage.defaultSize || 'cover'
+        };
+      }
+    } else if (template?.background?.enabled) {
+      // Nutze Template Background wenn definiert
+      background = {
+        type: template.background.type,
+        value: template.background.value,
+        opacity: 1,
+        pageTheme: themeToUse
+      };
+    }
     
     const newBook = {
       id: tempId,
@@ -80,29 +157,30 @@ export default function BookCreationWizard({ open, onOpenChange, onSuccess }: Bo
       pageSize: wizardState.pageSize,
       orientation: wizardState.orientation,
       owner_id: user?.id,
-      bookTheme: wizardState.selectedTheme,
+      bookTheme: themeToUse,
+      themeId: themeToUse, // Also set themeId for consistency
+      colorPaletteId: paletteToUse.id, // Use colorPaletteId (not bookColorPaletteId) to match Book interface
+      layoutTemplateId: template?.id || null,
       pages: [{
         id: Date.now(),
         pageNumber: 1,
-        elements: [],
-        background: {
-          type: 'color' as const,
-          value: wizardState.selectedPalette?.colors.background || '#ffffff',
-          opacity: 1,
-          pageTheme: wizardState.selectedTheme
-        },
+        elements: elements,
+        background: background,
+        colorPaletteId: paletteToUse.id,
+        layoutTemplateId: template?.id || null,
         database_id: undefined
       }],
       isTemporary: true,
       wizardSelections: {
-        template: wizardState.selectedTemplate,
-        theme: wizardState.selectedTheme,
-        palette: wizardState.selectedPalette
+        template: template,
+        theme: themeToUse,
+        palette: paletteToUse
       }
     };
     
     tempBooks.set(tempId, newBook);
-    (window as any).tempBooks = tempBooks;
+    // @ts-expect-error - temporary storage for wizard
+    window.tempBooks = tempBooks;
     
     onSuccess();
     onOpenChange(false);
@@ -189,140 +267,95 @@ export default function BookCreationWizard({ open, onOpenChange, onSuccess }: Bo
 
   const renderStep2 = () => (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Layout className="h-5 w-5" />
-        <h3 className="text-lg font-semibold">Layout Template</h3>
-      </div>
-      <p className="text-sm text-gray-600">Choose a layout template or skip to use a simple single textbox.</p>
-      
-      <div className="grid grid-cols-2 gap-3 max-h-80 overflow-y-auto">
+      <h3 className="text-lg font-semibold">Start Mode</h3>
+      <p className="text-sm text-gray-600">Wähle zwischen Quick Templates (alles in einem) oder Advanced Mode (Einzelauswahl).</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <button
-          onClick={() => updateState({ selectedTemplate: null })}
-          className={`p-3 border rounded-lg text-left transition-colors ${
-            !wizardState.selectedTemplate ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-          }`}
+          onClick={() => setWizardState(prev => ({ ...prev, mode: 'quick' }))}
+          className={`p-4 border rounded-lg text-left transition-colors ${wizardState.mode === 'quick' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}
         >
-          <div className="font-medium text-sm">Simple Layout</div>
-          <div className="text-xs text-gray-600 mt-1">Single textbox</div>
-          <div className="mt-2 h-16 bg-gray-100 rounded border relative">
-            <div className="absolute inset-2 bg-blue-200 rounded-sm opacity-60" />
-          </div>
+          <div className="font-medium">Quick Templates</div>
+          <div className="text-sm text-gray-600 mt-1">Fertige Kombinationen: Layout, Theme, Farben. Später anpassbar.</div>
         </button>
-        
-        {pageTemplates.slice(0, 7).map((template) => (
-          <button
-            key={template.id}
-            onClick={() => updateState({ selectedTemplate: template })}
-            className={`p-3 border rounded-lg text-left transition-colors ${
-              wizardState.selectedTemplate?.id === template.id
-                ? 'border-blue-500 bg-blue-50'
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
-          >
-            <div className="font-medium text-sm">{template.name}</div>
-            <div className="text-xs text-gray-600 mt-1 capitalize">{template.category}</div>
-            <div className="mt-2 h-16 bg-gray-100 rounded border relative overflow-hidden">
-              <div className="absolute inset-1 grid grid-cols-2 gap-1">
-                {template.textboxes.slice(0, 4).map((_, i) => (
-                  <div key={i} className="bg-blue-200 rounded-sm opacity-60" />
-                ))}
-              </div>
-            </div>
-          </button>
-        ))}
+        <button
+          onClick={() => setWizardState(prev => ({ ...prev, mode: 'advanced' }))}
+          className={`p-4 border rounded-lg text-left transition-colors ${wizardState.mode === 'advanced' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}
+        >
+          <div className="font-medium">Advanced Mode</div>
+          <div className="text-sm text-gray-600 mt-1">Layout, Theme und Palette separat auswählen.</div>
+        </button>
       </div>
     </div>
   );
 
   const renderStep3 = () => (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Paintbrush2 className="h-5 w-5" />
-        <h3 className="text-lg font-semibold">Theme Selection</h3>
+    wizardState.mode === 'quick' ? (
+      <div className="space-y-4 h-full flex flex-col">
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold mb-2">Quick Templates</h3>
+          <p className="text-sm text-gray-600">Wähle eine komplette Vorlage. Theme und Palette werden automatisch übernommen (später änderbar).</p>
+        </div>
+        <div className="flex-1 overflow-hidden">
+          <LayoutSelector
+            selectedLayout={wizardState.selectedTemplate}
+            onLayoutSelect={(template) => {
+              const adoptedTheme = template.theme || 'default';
+              updateState({ selectedTemplate: template, selectedTheme: adoptedTheme });
+            }}
+            previewPosition="right"
+          />
+        </div>
       </div>
-      <p className="text-sm text-gray-600">Choose the visual style for your book.</p>
-      
-      <div className="grid grid-cols-1 gap-3">
-        {themes.map((themeId) => {
-          const theme = getGlobalTheme(themeId);
-          return (
-            <button
-              key={themeId}
-              onClick={() => updateState({ selectedTheme: themeId })}
-              className={`p-4 border rounded-lg text-left transition-colors ${
-                wizardState.selectedTheme === themeId
-                  ? 'border-blue-500 bg-blue-50'
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium capitalize">{theme?.name || themeId}</div>
-                  <div className="text-sm text-gray-600 mt-1">{theme?.description || 'Theme styling'}</div>
-                </div>
-                <div className="flex gap-1">
-                  <div className={`w-6 h-6 rounded-sm ${
-                    themeId === 'sketchy' ? 'bg-orange-200 border-2 border-orange-400' :
-                    themeId === 'minimal' ? 'bg-gray-100 border border-gray-300' :
-                    'bg-white border border-gray-400'
-                  }`} />
-                  <div className={`w-6 h-6 rounded-sm ${
-                    themeId === 'sketchy' ? 'bg-yellow-200 border-2 border-yellow-400' :
-                    themeId === 'minimal' ? 'bg-gray-50 border border-gray-200' :
-                    'bg-gray-50 border border-gray-300'
-                  }`} />
-                </div>
-              </div>
-            </button>
-          );
-        })}
+    ) : (
+      <div className="space-y-4 h-full flex flex-col">
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold mb-2">Theme Selection</h3>
+          <p className="text-sm text-gray-600">Choose the visual style for your book.</p>
+        </div>
+        <div className="flex-1 overflow-hidden">
+          <GlobalThemeSelector
+            selectedTheme={wizardState.selectedTheme}
+            onThemeSelect={(themeId) => updateState({ selectedTheme: themeId })}
+            title="Book Theme"
+            previewPosition="right"
+          />
+        </div>
+      </div>
+    )
+  );
+
+  const renderAdvancedLayout = () => (
+    <div className="space-y-4 h-full flex flex-col">
+      <div className="mb-4">
+        <h3 className="text-lg font-semibold mb-2">Layout Template</h3>
+        <p className="text-sm text-gray-600">Choose a layout template for your book.</p>
+      </div>
+      <div className="flex-1 overflow-hidden">
+        <LayoutSelector
+          selectedLayout={wizardState.selectedTemplate}
+          onLayoutSelect={(template) => updateState({ selectedTemplate: template })}
+          previewPosition="right"
+        />
       </div>
     </div>
   );
 
   const renderStep4 = () => (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Palette className="h-5 w-5" />
-        <h3 className="text-lg font-semibold">Color Palette</h3>
+    wizardState.mode === 'quick' ? renderStep5() : (
+      <div className="space-y-4 h-full flex flex-col">
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold mb-2">Color Palette</h3>
+          <p className="text-sm text-gray-600">Choose the color scheme for your book.</p>
+        </div>
+        <div className="flex-1 overflow-hidden">
+          <WizardPaletteSelector
+            selectedPalette={wizardState.selectedPalette}
+            onPaletteSelect={(palette) => updateState({ selectedPalette: palette })}
+            previewPosition="right"
+          />
+        </div>
       </div>
-      <p className="text-sm text-gray-600">Choose the color scheme for your book.</p>
-      
-      <div className="grid grid-cols-2 gap-3 max-h-80 overflow-y-auto">
-        {colorPalettes.slice(0, 12).map((palette) => (
-          <button
-            key={palette.id}
-            onClick={() => updateState({ selectedPalette: palette })}
-            className={`p-3 border rounded-lg text-left transition-colors ${
-              wizardState.selectedPalette?.id === palette.id
-                ? 'border-blue-500 bg-blue-50'
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
-          >
-            <div className="font-medium text-sm">{palette.name}</div>
-            <div className="mt-2 flex gap-1">
-              <div 
-                className="w-4 h-4 rounded-sm border border-gray-300"
-                style={{ backgroundColor: palette.colors.primary }}
-              />
-              <div 
-                className="w-4 h-4 rounded-sm border border-gray-300"
-                style={{ backgroundColor: palette.colors.secondary }}
-              />
-              <div 
-                className="w-4 h-4 rounded-sm border border-gray-300"
-                style={{ backgroundColor: palette.colors.accent }}
-              />
-              <div 
-                className="w-4 h-4 rounded-sm border border-gray-300"
-                style={{ backgroundColor: palette.colors.background }}
-              />
-            </div>
-            <div className="text-xs text-gray-600 mt-1">{palette.contrast} contrast</div>
-          </button>
-        ))}
-      </div>
-    </div>
+    )
   );
 
   const renderStep5 = () => (
@@ -351,27 +384,37 @@ export default function BookCreationWizard({ open, onOpenChange, onSuccess }: Bo
   );
 
   const renderCurrentStep = () => {
+    if (wizardState.mode === 'quick') {
+      switch (currentStep) {
+        case 1: return renderStep1();
+        case 2: return renderStep2();
+        case 3: return renderStep3();
+        case 4: return renderStep5();
+        default: return null;
+      }
+    }
     switch (currentStep) {
       case 1: return renderStep1();
       case 2: return renderStep2();
-      case 3: return renderStep3();
-      case 4: return renderStep4();
-      case 5: return renderStep5();
+      case 3: return renderAdvancedLayout();
+      case 4: return renderStep3();
+      case 5: return renderStep4();
+      case 6: return renderStep5();
       default: return null;
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-hidden">
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Create New Book</DialogTitle>
         </DialogHeader>
         
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col flex-1 min-h-0">
           {renderProgressBar()}
           
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-hidden min-h-0">
             {renderCurrentStep()}
           </div>
           

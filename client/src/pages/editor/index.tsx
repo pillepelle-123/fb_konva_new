@@ -119,6 +119,14 @@ function EditorContent() {
             const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
             const token = localStorage.getItem('token');
             
+            // Debug logging (kann später entfernt werden)
+            console.log('Creating book with:', {
+              bookTheme: tempBook?.bookTheme,
+              themeId: tempBook?.themeId,
+              layoutTemplateId: tempBook?.layoutTemplateId,
+              colorPaletteId: tempBook?.colorPaletteId
+            });
+            
             const response = await fetch(`${apiUrl}/books`, {
               method: 'POST',
               headers: {
@@ -129,7 +137,10 @@ function EditorContent() {
                 name: tempBook?.name || 'New Book',
                 pageSize: tempBook?.pageSize || 'A4',
                 orientation: tempBook?.orientation || 'portrait',
-                bookTheme: tempBook?.bookTheme || 'default'
+                bookTheme: tempBook?.bookTheme || tempBook?.themeId || 'default',
+                themeId: tempBook?.themeId || tempBook?.bookTheme || 'default',
+                layoutTemplateId: tempBook?.layoutTemplateId || null,
+                colorPaletteId: tempBook?.colorPaletteId || null
               })
             });
             

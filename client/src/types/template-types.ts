@@ -96,7 +96,7 @@ export interface PageTemplate {
     enabled: boolean;
   };
   textboxes: Array<{
-    type: 'question' | 'answer' | 'text';
+    type: 'question' | 'answer' | 'text' | 'qna_inline';
     position: { x: number; y: number };
     size: { width: number; height: number };
     style?: TextboxStyle;
@@ -138,4 +138,15 @@ export interface BackgroundImage {
 export interface BackgroundImageWithUrl extends BackgroundImage {
   url: string;
   thumbnailUrl: string;
+}
+
+/**
+ * Quick Template - vollständiges Komplettpaket für schnellen Einstieg
+ * Erweitert PageTemplate um explizite Palette- und Background-Image-Referenzen
+ */
+export interface QuickTemplate extends PageTemplate {
+  // Quick Template spezifische Felder (optional, für Kompatibilität)
+  paletteId?: string;              // Explizite Color Palette ID (wenn vorhanden, überschreibt colorPalette)
+  backgroundImageId?: string;      // Optional: Background Image ID für Template
+  quickTemplateDescription?: string; // Beschreibung für Quick Template
 }

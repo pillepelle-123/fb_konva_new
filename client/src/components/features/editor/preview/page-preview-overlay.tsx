@@ -109,14 +109,23 @@ export default function PagePreviewOverlay({ isOpen, onClose, content = 'preview
               const shouldApplyToBook = isBookLevel || applyToAll;
               
               if (content === 'layouts' && selectedLayout) {
+                // Apply layout template to existing pages with element integration
+                dispatch({
+                  type: 'APPLY_LAYOUT_TEMPLATE',
+                  payload: {
+                    template: selectedLayout,
+                    pageIndex: shouldApplyToBook ? undefined : state.activePageIndex,
+                    applyToAllPages: shouldApplyToBook
+                  }
+                });
+                
+                // Also set the layout template ID for reference
                 if (shouldApplyToBook) {
-                  // Set book-level layout template
                   dispatch({
                     type: 'SET_BOOK_LAYOUT_TEMPLATE',
                     payload: selectedLayout.id
                   });
                 } else {
-                  // Set page-level layout template
                   dispatch({
                     type: 'SET_PAGE_LAYOUT_TEMPLATE',
                     payload: {

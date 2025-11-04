@@ -68,9 +68,9 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
     }
     return {
       currentVisiblePage: currentPage,
-      totalVisiblePages: pages.length,
+      totalVisiblePages: visiblePages.length, // Use visiblePages instead of pages
       canGoPrev: state.activePageIndex > 0,
-      canGoNext: state.activePageIndex < pages.length - 1
+      canGoNext: state.activePageIndex < visiblePages.length - 1 // Use visiblePages instead of pages
     };
   };
   
@@ -115,8 +115,18 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
         dispatch({ type: 'SET_ACTIVE_PAGE', payload: prevPageNumber - 1 });
       }
     } else {
-      if (state.activePageIndex > 0) {
-        dispatch({ type: 'SET_ACTIVE_PAGE', payload: state.activePageIndex - 1 });
+      // Find previous visible page (skip preview pages)
+      const currentVisibleIndex = visiblePages.findIndex((p) => {
+        const pageIndex = state.currentBook.pages.findIndex(pp => pp.id === p.id);
+        return pageIndex === state.activePageIndex;
+      });
+      
+      if (currentVisibleIndex > 0) {
+        const prevVisiblePage = visiblePages[currentVisibleIndex - 1];
+        const prevPageIndex = state.currentBook.pages.findIndex(p => p.id === prevVisiblePage.id);
+        if (prevPageIndex !== -1) {
+          dispatch({ type: 'SET_ACTIVE_PAGE', payload: prevPageIndex });
+        }
       }
     }
   };
@@ -129,20 +139,37 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
         dispatch({ type: 'SET_ACTIVE_PAGE', payload: nextPageNumber - 1 });
       }
     } else {
-      if (state.activePageIndex < pages.length - 1) {
-        dispatch({ type: 'SET_ACTIVE_PAGE', payload: state.activePageIndex + 1 });
+      // Find next visible page (skip preview pages)
+      const currentVisibleIndex = visiblePages.findIndex((p) => {
+        const pageIndex = state.currentBook.pages.findIndex(pp => pp.id === p.id);
+        return pageIndex === state.activePageIndex;
+      });
+      
+      if (currentVisibleIndex >= 0 && currentVisibleIndex < visiblePages.length - 1) {
+        const nextVisiblePage = visiblePages[currentVisibleIndex + 1];
+        const nextPageIndex = state.currentBook.pages.findIndex(p => p.id === nextVisiblePage.id);
+        if (nextPageIndex !== -1) {
+          dispatch({ type: 'SET_ACTIVE_PAGE', payload: nextPageIndex });
+        }
       }
     }
   };
 
   const handleAddPage = () => {
     dispatch({ type: 'ADD_PAGE' });
-    // Jump to the newly added page
-    dispatch({ type: 'SET_ACTIVE_PAGE', payload: pages.length });
+    // Jump to the newly added page (use visiblePages to get correct count)
+    const newVisiblePages = getVisiblePages();
+    if (newVisiblePages.length > 0) {
+      const lastPage = newVisiblePages[newVisiblePages.length - 1];
+      const lastPageIndex = state.currentBook.pages.findIndex(p => p.id === lastPage.id);
+      if (lastPageIndex !== -1) {
+        dispatch({ type: 'SET_ACTIVE_PAGE', payload: lastPageIndex });
+      }
+    }
   };
 
   const handleDeletePage = () => {
-    if (pages.length > 1) {
+    if (visiblePages.length > 1) {
       setShowDeleteConfirm(true);
     }
   };
@@ -154,8 +181,17 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
 
   const handleDuplicatePage = () => {
     dispatch({ type: 'DUPLICATE_PAGE', payload: state.activePageIndex });
-    // Navigate to the newly created page (current index + 1)
-    dispatch({ type: 'SET_ACTIVE_PAGE', payload: state.activePageIndex + 1 });
+    // Navigate to the newly created page (find it in visible pages)
+    setTimeout(() => {
+      const newVisiblePages = getVisiblePages();
+      if (newVisiblePages.length > 0) {
+        const lastPage = newVisiblePages[newVisiblePages.length - 1];
+        const lastPageIndex = state.currentBook.pages.findIndex(p => p.id === lastPage.id);
+        if (lastPageIndex !== -1) {
+          dispatch({ type: 'SET_ACTIVE_PAGE', payload: lastPageIndex });
+        }
+      }
+    }, 100);
   };
 
   const handleGoToPage = (page: number) => {
@@ -189,8 +225,8 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
       <EditorBarContainer isVisible={state.editorBarVisible}>
         {showPagesSubmenu ? (
           <PagesSubmenu 
-            pages={state.pageAccessLevel === 'own_page' ? visiblePages : pages}
-            activePageIndex={state.pageAccessLevel === 'own_page' ? visiblePageNumbers.indexOf(currentPage) : state.activePageIndex}
+            pages={visiblePages} // Always use visiblePages to exclude preview pages
+            activePageIndex={state.pageAccessLevel === 'own_page' ? visiblePageNumbers.indexOf(currentPage) : visiblePages.findIndex((p, idx) => idx === state.activePageIndex)}
             onClose={() => setShowPagesSubmenu(false)}
             onPageSelect={handleGoToPage}
             onReorderPages={handleReorderPages}
@@ -217,7 +253,7 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
                   onAddPage={handleAddPage}
                   onDuplicatePage={handleDuplicatePage}
                   onDeletePage={handleDeletePage}
-                  canDelete={pages.length > 1}
+                  canDelete={visiblePages.length > 1}
                   showAssignFriends={false}
                 />
               )}
