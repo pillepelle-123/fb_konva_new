@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Switch } from '../../../ui/primitives/switch';
 import { Button } from '../../../ui/primitives/button';
 import { LayoutSelector } from './layout-selector';
-import { GlobalThemeSelector } from './global-theme-selector';
+import { ThemeSelector } from './theme-selector';
 import { TemplatePalette } from './template-palette';
 import type { PageTemplate, ColorPalette } from '../../../../types/template-types';
 
@@ -39,7 +39,7 @@ export function TemplateWrapper({ type, onApply, onCancel, isBookLevel = false }
         );
       case 'themes':
         return (
-          <GlobalThemeSelector
+          <ThemeSelector
             selectedTheme={selectedTheme}
             onThemeSelect={setSelectedTheme}
           />

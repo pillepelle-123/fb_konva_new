@@ -758,7 +758,7 @@ export function PaletteSelector({ onBack, title, isBookLevel = false, previewPos
                 e.preventDefault();
               }}
               className="p-1.5 rounded hover:bg-gray-200 transition-colors flex-shrink-0 mt-1"
-              title="Preview"
+              title="Preview Page with this Color Palette"
               type="button"
             >
               <Eye className="h-4 w-4 text-gray-600" />

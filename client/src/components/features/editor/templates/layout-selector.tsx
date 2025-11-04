@@ -63,14 +63,35 @@ export function LayoutSelector({ selectedLayout, onLayoutSelect, onPreviewClick,
         {mergedPageTemplates.map((template) => (
           <div
             key={template.id}
-            className={`w-full p-3 border rounded-lg transition-colors flex items-start gap-2 ${
+            className={`w-full p-3 border rounded-lg transition-colors flex items-start gap-2 select-none ${
               selectedLayout?.id === template.id
                 ? 'border-blue-500 bg-blue-50'
                 : 'border-gray-200 hover:border-gray-300'
             }`}
+            onMouseDown={(e) => {
+              // Prevent selection when clicking on the preview button area
+              const target = e.target as HTMLElement;
+              if (target.closest('button[type="button"]')) {
+                e.preventDefault();
+              }
+            }}
+            onClick={(e) => {
+              // Prevent selection when clicking on the preview button
+              const target = e.target as HTMLElement;
+              if (target.closest('button[type="button"]')) {
+                e.preventDefault();
+                e.stopPropagation();
+              }
+            }}
           >
             <button
-              onClick={() => onLayoutSelect(template)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onLayoutSelect(template);
+              }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+              }}
               className="flex-1 text-left"
             >
               <div className="flex items-center justify-between mb-2">
@@ -100,8 +121,12 @@ export function LayoutSelector({ selectedLayout, onLayoutSelect, onPreviewClick,
                   e.preventDefault();
                   e.stopPropagation();
                 }}
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
                 className="p-1.5 rounded hover:bg-gray-200 transition-colors flex-shrink-0 mt-1"
-                title="Preview"
+                title="Preview Page with this Layout"
               >
                 <Eye className="h-4 w-4 text-gray-600" />
               </button>

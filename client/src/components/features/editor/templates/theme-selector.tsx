@@ -1,7 +1,8 @@
-import { Paintbrush2, Eye } from 'lucide-react';
-import { getGlobalTheme, GLOBAL_THEMES } from '../../../../utils/global-themes';
+import { Eye, Paintbrush2 } from 'lucide-react';
 
-interface GlobalThemeSelectorProps {
+import { GLOBAL_THEMES, getGlobalTheme } from '../../../../utils/global-themes';
+
+interface ThemeSelectorProps {
   currentTheme?: string;
   selectedTheme?: string; // For template-selector/template-wrapper compatibility
   onThemeSelect: (themeId: string) => void;
@@ -11,14 +12,14 @@ interface GlobalThemeSelectorProps {
   previewPosition?: 'top' | 'bottom' | 'right'; // 'bottom' = Preview below list (default), 'top' = Preview above list, 'right' = Preview to the right
 }
 
-export function GlobalThemeSelector({ 
+export function ThemeSelector({ 
   currentTheme, 
   selectedTheme, 
   onThemeSelect,
   onPreviewClick,
   title,
   previewPosition = 'bottom'
-}: GlobalThemeSelectorProps) {
+}: ThemeSelectorProps) {
   // Use selectedTheme if provided (template-selector), otherwise use currentTheme (general-settings)
   const activeTheme = selectedTheme || currentTheme || 'default';
   const themes = GLOBAL_THEMES.map(theme => theme.id);
@@ -112,7 +113,7 @@ export function GlobalThemeSelector({
                     e.stopPropagation();
                   }}
                   className="p-1.5 rounded hover:bg-gray-200 transition-colors flex-shrink-0"
-                  title="Preview"
+                  title="Preview Page with this Theme"
                 >
                   <Eye className="h-4 w-4 text-gray-600" />
                 </button>

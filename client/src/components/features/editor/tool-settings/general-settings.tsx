@@ -12,7 +12,7 @@ import { ColorSelector } from './color-selector';
 import { Slider } from '../../../ui/primitives/slider';
 import { Separator } from '../../../ui/primitives/separator';
 import { Label } from '../../../ui/primitives/label';
-import { GlobalThemeSelector } from '../templates/global-theme-selector';
+import { ThemeSelector } from '../templates/theme-selector';
 import { getGlobalThemeDefaults, getGlobalTheme, getThemePageBackgroundColors } from '../../../../utils/global-themes';
 import { getToolDefaults } from '../../../../utils/tool-defaults';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
@@ -171,7 +171,7 @@ export function GeneralSettings({
           </Button>
         )}
         
-        <GlobalThemeSelector
+        <ThemeSelector
           currentTheme={state.currentBook?.pages[state.activePageIndex]?.background?.pageTheme || state.currentBook?.bookTheme || 'default'}
           title="Page Theme"
           onThemeSelect={(themeId) => {
@@ -307,7 +307,7 @@ export function GeneralSettings({
           </Button>
         </div>
         
-        <GlobalThemeSelector
+        <ThemeSelector
           currentTheme={state.currentBook?.bookTheme || 'default'}
           title="Book Theme"
           onThemeSelect={(themeId) => {

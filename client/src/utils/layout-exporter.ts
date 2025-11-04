@@ -1,0 +1,289 @@
+import type { CanvasElement } from '../context/editor-context';
+import type { PageTemplate } from '../types/template-types';
+import { displayJSONInNewWindow } from './json-display';
+import { actualToCommon } from './font-size-converter';
+import { actualToCommonRadius } from './corner-radius-converter';
+import { actualToThemeJsonStrokeWidth } from './stroke-width-converter';
+
+/**
+ * Extracts layout information (position and size) from qna_inline textboxes and images
+ * and converts them to PageTemplate format for layout.json
+ */
+export function extractLayoutTemplate(
+  elements: CanvasElement[],
+  pageBackground: any,
+  pageTheme?: string,
+  colorPaletteId?: string
+): Partial<PageTemplate> {
+  const textboxes: any[] = [];
+  const layoutElements: any[] = [];
+
+  // Filter and process qna_inline elements
+  const qnaElements = elements.filter(
+    el => el.textType === 'qna_inline' || el.type === 'qna_inline'
+  );
+
+  // Filter and process image elements
+  const imageElements = elements.filter(el => el.type === 'image');
+
+  // Process qna_inline textboxes
+  qnaElements.forEach(element => {
+    const textbox: any = {
+      type: 'qna_inline',
+      position: {
+        x: element.x || 0,
+        y: element.y || 0
+      },
+      size: {
+        width: element.width || 0,
+        height: element.height || 0
+      }
+    };
+
+    // Add style information if available
+    const style: any = {};
+
+    // Font settings
+    if (element.fontSize || element.font?.fontSize) {
+      style.font = {
+        fontSize: actualToCommon(element.fontSize || element.font?.fontSize || 50),
+        fontFamily: element.fontFamily || element.font?.fontFamily || 'Arial, sans-serif',
+        fontColor: element.fontColor || element.font?.fontColor || '#1f2937',
+        fontBold: element.fontBold ?? element.font?.fontBold ?? false,
+        fontItalic: element.fontItalic ?? element.font?.fontItalic ?? false,
+        fontOpacity: element.fontOpacity ?? element.font?.fontOpacity ?? 1
+      };
+    }
+
+    // Border settings
+    const borderEnabled = element.questionSettings?.border?.enabled ?? 
+                         element.answerSettings?.border?.enabled ?? 
+                         element.border?.enabled ?? false;
+    if (borderEnabled) {
+      const borderWidth = element.questionSettings?.borderWidth ?? 
+                         element.answerSettings?.borderWidth ?? 
+                         element.borderWidth ?? 1;
+      const borderTheme = element.questionSettings?.borderTheme ?? 
+                        element.answerSettings?.borderTheme ?? 
+                        element.border?.borderTheme ?? 
+                        element.theme ?? pageTheme ?? 'default';
+      const borderColor = element.questionSettings?.borderColor ?? 
+                         element.answerSettings?.borderColor ?? 
+                         element.borderColor ?? '#000000';
+      const borderOpacity = element.questionSettings?.borderOpacity ?? 
+                           element.answerSettings?.borderOpacity ?? 
+                           element.borderOpacity ?? 1;
+
+      style.border = {
+        enabled: true,
+        borderWidth: borderWidth ? actualToThemeJsonStrokeWidth(borderWidth, borderTheme) : 1,
+        borderColor: borderColor,
+        borderOpacity: borderOpacity,
+        borderTheme: borderTheme
+      };
+    } else {
+      style.border = {
+        enabled: false
+      };
+    }
+
+    // Background settings
+    const backgroundEnabled = element.questionSettings?.background?.enabled ?? 
+                              element.answerSettings?.background?.enabled ?? 
+                              element.background?.enabled ?? false;
+    if (backgroundEnabled) {
+      const backgroundColor = element.questionSettings?.backgroundColor ?? 
+                            element.answerSettings?.backgroundColor ?? 
+                            element.backgroundColor ?? '#ffffff';
+      const backgroundOpacity = element.questionSettings?.backgroundOpacity ?? 
+                               element.answerSettings?.backgroundOpacity ?? 
+                               element.backgroundOpacity ?? 1;
+
+      style.background = {
+        enabled: true,
+        backgroundColor: backgroundColor,
+        backgroundOpacity: backgroundOpacity
+      };
+    } else {
+      style.background = {
+        enabled: false
+      };
+    }
+
+    // Format settings
+    style.format = {
+      textAlign: element.align || element.questionSettings?.align || element.answerSettings?.align || 'left',
+      paragraphSpacing: element.paragraphSpacing || element.questionSettings?.paragraphSpacing || element.answerSettings?.paragraphSpacing || 'medium',
+      padding: element.padding || element.format?.padding || 8
+    };
+
+    // Corner radius
+    if (element.cornerRadius !== undefined) {
+      style.cornerRadius = actualToCommonRadius(element.cornerRadius);
+    }
+
+    // Question and answer settings
+    if (element.questionSettings) {
+      textbox.questionSettings = {
+        fontSize: element.questionSettings.fontSize || element.questionSettings.font?.fontSize 
+          ? actualToCommon(element.questionSettings.fontSize || element.questionSettings.font?.fontSize || 45)
+          : undefined,
+        fontFamily: element.questionSettings.fontFamily || element.fontFamily || undefined,
+        fontColor: element.questionSettings.fontColor || undefined,
+        fontBold: element.questionSettings.fontBold ?? undefined,
+        fontItalic: element.questionSettings.fontItalic ?? undefined,
+        fontOpacity: element.questionSettings.fontOpacity ?? undefined
+      };
+    }
+
+    if (element.answerSettings) {
+      textbox.answerSettings = {
+        fontSize: element.answerSettings.fontSize || element.answerSettings.font?.fontSize 
+          ? actualToCommon(element.answerSettings.fontSize || element.answerSettings.font?.fontSize || 50)
+          : undefined,
+        fontFamily: element.answerSettings.fontFamily || element.fontFamily || undefined,
+        fontColor: element.answerSettings.fontColor || undefined,
+        fontBold: element.answerSettings.fontBold ?? undefined,
+        fontItalic: element.answerSettings.fontItalic ?? undefined,
+        fontOpacity: element.answerSettings.fontOpacity ?? undefined
+      };
+    }
+
+    // Layout variant
+    if (element.layoutVariant) {
+      textbox.layoutVariant = element.layoutVariant;
+    }
+
+    // Only add style if it has content
+    if (Object.keys(style).length > 0) {
+      textbox.style = style;
+    }
+
+    textboxes.push(textbox);
+  });
+
+  // Process image elements
+  imageElements.forEach(element => {
+    const layoutElement: any = {
+      type: 'image',
+      position: {
+        x: element.x || 0,
+        y: element.y || 0
+      },
+      size: {
+        width: element.width || 0,
+        height: element.height || 0
+      }
+    };
+
+    // Add style if available (for images, mainly corner radius and opacity)
+    const style: any = {};
+    
+    if (element.cornerRadius !== undefined) {
+      style.cornerRadius = actualToCommonRadius(element.cornerRadius);
+    }
+
+    if (element.opacity !== undefined) {
+      style.opacity = element.opacity;
+    }
+
+    if (Object.keys(style).length > 0) {
+      layoutElement.style = style;
+    }
+
+    layoutElements.push(layoutElement);
+  });
+
+  // Build the template structure
+  const template: Partial<PageTemplate> = {
+    textboxes: textboxes,
+    elements: layoutElements,
+    constraints: {
+      minQuestions: Math.max(0, qnaElements.length - 2),
+      maxQuestions: qnaElements.length + 5,
+      imageSlots: imageElements.length,
+      stickerSlots: 0
+    }
+  };
+
+  return template;
+}
+
+/**
+ * Generates a complete PageTemplate JSON entry from current page elements
+ */
+export function generateLayoutJSON(
+  templateId: string,
+  templateName: string,
+  templateCategory: 'structured' | 'freeform' | 'mixed' = 'freeform',
+  elements: CanvasElement[],
+  pageBackground: any,
+  pageTheme?: string,
+  colorPaletteId?: string,
+  thumbnail?: string
+): string {
+  const layoutTemplate = extractLayoutTemplate(elements, pageBackground, pageTheme, colorPaletteId);
+
+  // Extract color palette from page background or use defaults
+  const colorPalette = {
+    primary: '#1976D2',
+    secondary: '#42A5F5',
+    accent: '#81C784',
+    background: pageBackground?.value || '#FFFFFF',
+    text: '#1A1A1A'
+  };
+
+  // Build complete template
+  const template: PageTemplate = {
+    id: templateId,
+    name: templateName,
+    category: templateCategory,
+    thumbnail: thumbnail || '/templates/default.png',
+    theme: pageTheme || 'default',
+    colorPalette: colorPalette,
+    background: {
+      type: pageBackground?.type || 'color',
+      value: pageBackground?.value || '#FFFFFF',
+      enabled: true
+    },
+    textboxes: layoutTemplate.textboxes || [],
+    elements: layoutTemplate.elements || [],
+    constraints: layoutTemplate.constraints || {
+      minQuestions: 0,
+      maxQuestions: 10,
+      imageSlots: 0,
+      stickerSlots: 0
+    }
+  };
+
+  // Return as JSON array entry (since layout.json is an array)
+  return JSON.stringify([template], null, 2);
+}
+
+/**
+ * Main export function that extracts layout and displays JSON in new window
+ */
+export function exportLayout(
+  templateId: string,
+  templateName: string,
+  templateCategory: 'structured' | 'freeform' | 'mixed' = 'freeform',
+  elements: CanvasElement[],
+  pageBackground: any,
+  pageTheme?: string,
+  colorPaletteId?: string,
+  thumbnail?: string
+): void {
+  const layoutJSON = generateLayoutJSON(
+    templateId,
+    templateName,
+    templateCategory,
+    elements,
+    pageBackground,
+    pageTheme,
+    colorPaletteId,
+    thumbnail
+  );
+
+  displayJSONInNewWindow('Layout Export', layoutJSON);
+}
+

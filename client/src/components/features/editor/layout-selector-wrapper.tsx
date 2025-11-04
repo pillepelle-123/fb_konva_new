@@ -28,6 +28,7 @@ export function LayoutSelectorWrapper({ onBack, title, isBookLevel = false }: La
     : null;
   
   const [selectedLayout, setSelectedLayout] = useState<PageTemplate | null>(currentLayout);
+  const [previewLayout, setPreviewLayout] = useState<PageTemplate | null>(null); // Separate state for preview
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -53,7 +54,7 @@ export function LayoutSelectorWrapper({ onBack, title, isBookLevel = false }: La
   
   // Erstelle Preview-Seite wenn Dialog öffnet
   useEffect(() => {
-    if (!showPreviewDialog || !selectedLayout || !state.currentBook) {
+    if (!showPreviewDialog || !previewLayout || !state.currentBook) {
       return;
     }
     
@@ -68,11 +69,11 @@ export function LayoutSelectorWrapper({ onBack, title, isBookLevel = false }: La
       dispatch({ type: 'CREATE_PREVIEW_PAGE', payload: originalPageIndexRef.current });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showPreviewDialog, selectedLayout, state.currentBook, dispatch]);
+  }, [showPreviewDialog, previewLayout, state.currentBook, dispatch]);
   
   // Wenn Preview-Seite erstellt wurde, navigiere dorthin und wende Layout an
   useEffect(() => {
-    if (!showPreviewDialog || !selectedLayout || !state.currentBook) {
+    if (!showPreviewDialog || !previewLayout || !state.currentBook) {
       return;
     }
     
@@ -106,7 +107,7 @@ export function LayoutSelectorWrapper({ onBack, title, isBookLevel = false }: La
         dispatch({
           type: 'APPLY_LAYOUT_TEMPLATE',
           payload: {
-            template: selectedLayout,
+            template: previewLayout,
             pageIndex: previewPageIndex,
             applyToAllPages: false,
             skipHistory: true
@@ -129,7 +130,7 @@ export function LayoutSelectorWrapper({ onBack, title, isBookLevel = false }: La
     
     applyLayoutAndExport();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showPreviewDialog, selectedLayout, state.currentBook?.pages, dispatch]);
+  }, [showPreviewDialog, previewLayout, state.currentBook?.pages, dispatch]);
   
   const handleApply = () => {
     if (!selectedLayout) return;
@@ -175,8 +176,12 @@ export function LayoutSelectorWrapper({ onBack, title, isBookLevel = false }: La
     onBack();
   };
   
-  const handlePreview = () => {
-    if (!selectedLayout) return;
+  const handlePreview = (template?: PageTemplate) => {
+    const layoutToPreview = template || selectedLayout;
+    if (!layoutToPreview) return;
+    // Set preview layout (without changing selectedLayout to avoid blue border)
+    setPreviewLayout(layoutToPreview);
+    // Open dialog immediately
     setShowPreviewDialog(true);
   };
   
@@ -191,7 +196,7 @@ export function LayoutSelectorWrapper({ onBack, title, isBookLevel = false }: La
   };
   
   const handleApplyToPage = () => {
-    if (!selectedLayout) return;
+    if (!previewLayout) return;
     
     dispatch({ type: 'DELETE_PREVIEW_PAGE' });
     dispatch({ type: 'SET_ACTIVE_PAGE', payload: originalPageIndexRef.current });
@@ -200,7 +205,7 @@ export function LayoutSelectorWrapper({ onBack, title, isBookLevel = false }: La
       dispatch({
         type: 'APPLY_LAYOUT_TEMPLATE',
         payload: {
-          template: selectedLayout,
+          template: previewLayout,
           pageIndex: state.activePageIndex,
           applyToAllPages: false
         }
@@ -210,19 +215,22 @@ export function LayoutSelectorWrapper({ onBack, title, isBookLevel = false }: La
         type: 'SET_PAGE_LAYOUT_TEMPLATE',
         payload: {
           pageIndex: state.activePageIndex,
-          layoutTemplateId: selectedLayout.id
+          layoutTemplateId: previewLayout.id
         }
       });
       
+      // Update selectedLayout after applying
+      setSelectedLayout(previewLayout);
+      
       dispatch({
         type: 'SAVE_TO_HISTORY',
-        payload: `Apply Page Layout: ${selectedLayout.name}`
+        payload: `Apply Page Layout: ${previewLayout.name}`
       });
     }, 100);
   };
   
   const handleApplyToBook = () => {
-    if (!selectedLayout) return;
+    if (!previewLayout) return;
     
     dispatch({ type: 'DELETE_PREVIEW_PAGE' });
     dispatch({ type: 'SET_ACTIVE_PAGE', payload: originalPageIndexRef.current });
@@ -231,7 +239,7 @@ export function LayoutSelectorWrapper({ onBack, title, isBookLevel = false }: La
       dispatch({
         type: 'APPLY_LAYOUT_TEMPLATE',
         payload: {
-          template: selectedLayout,
+          template: previewLayout,
           pageIndex: undefined,
           applyToAllPages: true
         }
@@ -239,12 +247,15 @@ export function LayoutSelectorWrapper({ onBack, title, isBookLevel = false }: La
       
       dispatch({
         type: 'SET_BOOK_LAYOUT_TEMPLATE',
-        payload: selectedLayout.id
+        payload: previewLayout.id
       });
+      
+      // Update selectedLayout after applying
+      setSelectedLayout(previewLayout);
       
       dispatch({
         type: 'SAVE_TO_HISTORY',
-        payload: `Apply Book Layout: ${selectedLayout.name}`
+        payload: `Apply Book Layout: ${previewLayout.name}`
       });
     }, 100);
   };
@@ -254,6 +265,7 @@ export function LayoutSelectorWrapper({ onBack, title, isBookLevel = false }: La
     dispatch({ type: 'SET_ACTIVE_PAGE', payload: originalPageIndexRef.current });
     setShowPreviewDialog(false);
     setPreviewImage(null);
+    setPreviewLayout(null);
   };
 
   return (
@@ -286,50 +298,14 @@ export function LayoutSelectorWrapper({ onBack, title, isBookLevel = false }: La
         </div>
       </div>
 
-      {/* <div className="flex items-center justify-between p-4 border-b border-gray-200 shrink-0">
-        <div className="font-medium text-sm">{title}</div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handlePreview}
-            disabled={!selectedLayout}
-            className="px-3 h-8"
-            title="Preview auf aktueller Seite anzeigen"
-          >
-            <Eye className="h-4 w-4 mr-1" />
-            Preview
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleCancel}
-            className="px-3 h-8"
-          >
-            <X className="h-4 w-4 mr-1" />
-            Cancel
-          </Button>
-          <Button
-            variant="default"
-            size="sm"
-            onClick={handleApply}
-            disabled={!selectedLayout}
-            className="px-3 h-8"
-          >
-            <Check className="h-4 w-4 mr-1" />
-            Apply
-          </Button>
-        </div>
-      </div> */}
-
       {/* Content area - flex-1 to take remaining space */}
       <div className="flex-1 min-h-0 flex flex-col">
         <TemplateLayoutSelector
           selectedLayout={selectedLayout}
           onLayoutSelect={setSelectedLayout}
           onPreviewClick={(template) => {
-            setSelectedLayout(template);
-            handlePreview();
+            // Open preview dialog immediately with the template
+            handlePreview(template);
           }}
           previewPosition="bottom"
         />

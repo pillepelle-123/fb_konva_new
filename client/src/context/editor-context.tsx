@@ -2377,6 +2377,63 @@ const EditorContext = createContext<{
 export const useEditor = () => {
   const context = useContext(EditorContext);
   if (!context) {
+    // Check if we're in a React Fast Refresh scenario
+    // During hot reload, components may render before providers are ready
+    if (import.meta.env.DEV) {
+      // In development, return a safe fallback instead of crashing
+      // This prevents the app from breaking during hot reload
+      console.warn(
+        'useEditor called outside EditorProvider. This may happen during hot reload. ' +
+        'Returning fallback values. If this persists, check component hierarchy.'
+      );
+      
+      // Return a minimal safe fallback that matches the context interface
+      return {
+        state: initialState,
+        dispatch: () => {
+          if (import.meta.env.DEV) {
+            console.warn('dispatch called outside EditorProvider');
+          }
+        },
+        saveBook: async () => {
+          if (import.meta.env.DEV) {
+            console.warn('saveBook called outside EditorProvider');
+          }
+        },
+        loadBook: async () => {
+          if (import.meta.env.DEV) {
+            console.warn('loadBook called outside EditorProvider');
+          }
+        },
+        applyTemplateToPage: () => {},
+        applyCompleteTemplate: () => {},
+        getWizardTemplateSelection: () => ({
+          selectedTemplateId: null,
+          selectedPaletteId: null,
+          templateCustomizations: undefined
+        }),
+        setWizardTemplateSelection: () => {},
+        getQuestionText: () => '',
+        getAnswerText: () => '',
+        updateTempQuestion: () => {},
+        updateTempAnswer: () => {},
+        undo: () => {},
+        redo: () => {},
+        goToHistoryStep: () => {},
+        getHistoryActions: () => [],
+        refreshPageAssignments: async () => {},
+        getQuestionAssignmentsForUser: () => new Set<string>(),
+        isQuestionAvailableForUser: () => true,
+        checkUserQuestionConflicts: () => [],
+        validateQuestionSelection: () => ({ valid: true }),
+        canAccessEditor: () => false,
+        canEditCanvas: () => false,
+        canEditSettings: () => false,
+        getVisiblePages: () => [],
+        getVisiblePageNumbers: () => [],
+      };
+    }
+    // In production, still throw to catch actual bugs
     throw new Error('useEditor must be used within an EditorProvider');
   }
   return context;

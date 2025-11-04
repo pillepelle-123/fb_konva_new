@@ -1,7 +1,8 @@
 import { useEditor } from '../../../context/editor-context';
 import { Button } from '../../../components/ui/primitives';
-import { Download } from 'lucide-react';
+import { Download, Layout } from 'lucide-react';
 import { exportThemeAndPalette } from '../../../utils/theme-palette-exporter';
+import { exportLayout } from '../../../utils/layout-exporter';
 
 export function StatusBar() {
   const { state } = useEditor();
@@ -51,6 +52,52 @@ export function StatusBar() {
     );
   };
 
+  const handleExportLayout = () => {
+    const currentPage = state.currentBook?.pages[state.activePageIndex];
+    if (!currentPage) {
+      console.warn('No current page found');
+      return;
+    }
+
+    const elements = currentPage.elements || [];
+    
+    // Check if we have qna_inline or image elements
+    const hasQna = elements.some(el => el.textType === 'qna_inline' || el.type === 'qna_inline');
+    const hasImage = elements.some(el => el.type === 'image');
+
+    if (!hasQna && !hasImage) {
+      alert('Bitte fügen Sie mindestens ein Element hinzu:\n- QnA Inline Textbox\n- Image');
+      return;
+    }
+
+    // Prompt for template details
+    const templateName = prompt('Geben Sie einen Namen für das Layout ein:');
+    if (!templateName || templateName.trim() === '') {
+      return;
+    }
+
+    const templateId = prompt('Geben Sie eine ID für das Layout ein (z.B. "my-layout-1"):', 
+      templateName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''));
+    if (!templateId || templateId.trim() === '') {
+      return;
+    }
+
+    const categoryInput = prompt('Geben Sie die Kategorie ein (structured/freeform/mixed):', 'freeform');
+    const category = (categoryInput === 'structured' || categoryInput === 'freeform' || categoryInput === 'mixed') 
+      ? categoryInput 
+      : 'freeform';
+
+    exportLayout(
+      templateId.trim(),
+      templateName.trim(),
+      category,
+      elements,
+      currentPage.background,
+      currentPage.themeId || currentPage.background?.pageTheme,
+      currentPage.colorPaletteId
+    );
+  };
+
   return (
     <div className="px-6 py-2 bg-card border-t border-border text-sm text-muted-foreground flex justify-between items-center shrink-0 gap-4">
       <span className="font-medium">Tool: <span className="text-foreground">{state.activeTool}</span></span>
@@ -63,6 +110,15 @@ export function StatusBar() {
         )}
       </span>
       <div className="flex items-center gap-4">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleExportLayout}
+          className="h-7 text-xs"
+        >
+          <Layout className="h-3 w-3 mr-1" />
+          Export Layout
+        </Button>
         <Button
           variant="outline"
           size="sm"

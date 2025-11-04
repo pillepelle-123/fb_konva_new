@@ -11,7 +11,7 @@ import type { PageTemplate, ColorPalette, QuickTemplate } from '../../../types/t
 import { convertTemplateToElements } from '../../../utils/template-to-elements';
 import { getBackgroundImagesWithUrl } from '../../../data/templates/background-images';
 import { LayoutSelector } from '../editor/templates/layout-selector';
-import { GlobalThemeSelector } from '../editor/templates/global-theme-selector';
+import { ThemeSelector } from '../editor/templates/theme-selector';
 import { WizardPaletteSelector } from '../editor/templates/wizard-palette-selector';
 
 const tempBooks = new Map();
@@ -313,7 +313,7 @@ export default function BookCreationWizard({ open, onOpenChange, onSuccess }: Bo
           <p className="text-sm text-gray-600">Choose the visual style for your book.</p>
         </div>
         <div className="flex-1 overflow-hidden">
-          <GlobalThemeSelector
+          <ThemeSelector
             selectedTheme={wizardState.selectedTheme}
             onThemeSelect={(themeId) => updateState({ selectedTheme: themeId })}
             title="Book Theme"

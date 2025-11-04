@@ -240,9 +240,7 @@ export const TOOL_DEFAULTS = {
         backgroundColor: 'transparent',
         enabled: false
       },
-      ruledLines: {
-        lineColor: '#1f2937'
-      }
+      ruledLinesColor: '#1f2937'
     }
   },
   free_text: {

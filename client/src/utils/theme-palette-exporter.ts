@@ -2,6 +2,7 @@ import type { CanvasElement } from '../context/editor-context';
 import { actualToCommon } from './font-size-converter';
 import { actualToCommonStrokeWidth, actualToThemeJsonStrokeWidth } from './stroke-width-converter';
 import { actualToCommonRadius } from './corner-radius-converter';
+import { displayJSONInNewWindow } from './json-display';
 
 /**
  * Analyzes all elements on the current page and extracts colors to create a color palette.
@@ -533,9 +534,10 @@ function rgbToHex(r: number, g: number, b: number): string {
   }).join('');
 }
 
+
 /**
  * Main export function that analyzes elements and generates JSON for theme and palette.
- * Prints the JSON to the browser console.
+ * Displays JSON in a new browser window and also prints to console.
  */
 export function exportThemeAndPalette(
   themeName: string,
@@ -593,28 +595,34 @@ export function exportThemeAndPalette(
   // Generate mapping entry
   const mappingEntry = generateThemePaletteMapping(themeId, paletteId);
   
-  // Print to console
-  console.log('========================================');
-  console.log('THEME JSON (für themes.json):');
-  console.log('========================================');
-  console.log(themeJSON);
-  console.log('\n');
-  console.log('========================================');
-  console.log('PALETTE JSON (für color-palettes.json):');
-  console.log('========================================');
-  console.log(paletteJSON);
-  console.log('\n');
-  console.log('========================================');
-  console.log('THEME-PALETTE MAPPING (für theme-palette-mapping.ts):');
-  console.log('========================================');
-  console.log(mappingEntry);
-  console.log('\n');
-  console.log('========================================');
-  console.log('ANLEITUNG:');
-  console.log('========================================');
-  console.log(`1. Kopieren Sie das THEME JSON und fügen Sie es in client/src/data/templates/themes.json ein`);
-  console.log(`2. Kopieren Sie das PALETTE JSON und fügen Sie es in das "palettes" Array in client/src/data/templates/color-palettes.json ein`);
-  console.log(`3. Kopieren Sie die MAPPING ENTRY und fügen Sie sie in THEME_PALETTE_MAP in client/src/data/theme-palette-mapping.ts ein`);
-  console.log('========================================');
+  // Combine all JSON into a formatted output
+  const combinedOutput = `========================================
+THEME JSON (für themes.json):
+========================================
+${themeJSON}
+
+========================================
+PALETTE JSON (für color-palettes.json):
+========================================
+${paletteJSON}
+
+========================================
+THEME-PALETTE MAPPING (für theme-palette-mapping.ts):
+========================================
+${mappingEntry}
+
+========================================
+ANLEITUNG:
+========================================
+1. Kopieren Sie das THEME JSON und fügen Sie es in client/src/data/templates/themes.json ein
+2. Kopieren Sie das PALETTE JSON und fügen Sie es in das "palettes" Array in client/src/data/templates/color-palettes.json ein
+3. Kopieren Sie die MAPPING ENTRY und fügen Sie sie in THEME_PALETTE_MAP in client/src/data/theme-palette-mapping.ts ein
+========================================`;
+
+  // Display in new window
+  displayJSONInNewWindow('Theme & Palette Export', combinedOutput);
+  
+  // Also print to console for backward compatibility
+  console.log(combinedOutput);
 }
 

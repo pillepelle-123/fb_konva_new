@@ -5,7 +5,7 @@ import { AlertTriangle, Check, X } from 'lucide-react';
 import { validateTemplateCompatibility } from '../../../utils/content-preservation';
 import ConfirmationDialog from '../../ui/overlays/confirmation-dialog';
 import { LayoutSelector } from './templates/layout-selector';
-import { GlobalThemeSelector } from './templates/global-theme-selector';
+import { ThemeSelector } from './templates/theme-selector';
 import { TemplatePalette } from './templates/template-palette';
 import type { PageTemplate, ColorPalette } from '../../../types/template-types';
 
@@ -230,7 +230,7 @@ export function TemplateSelector({ onBack }: TemplateSelectorProps) {
               />
             </div>
             <div className="flex-1 min-h-0 flex flex-col border-l border-gray-200">
-              <GlobalThemeSelector 
+              <ThemeSelector 
                 selectedTheme={selectedTheme}
                 onThemeSelect={setSelectedTheme}
                 previewPosition="bottom"
