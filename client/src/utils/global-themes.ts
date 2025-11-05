@@ -455,8 +455,12 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
       convertedFontSize = commonToActual(qnaSpecific.fontSize);
     }
     
+    // Exclude layout properties from base (textDefaults) - they come from layout.json or qnaConfig
+    // Padding, align, and paragraphSpacing are layout properties and should NOT be copied from textDefaults
+    const { padding, format, align, paragraphSpacing, ...baseWithoutLayoutProps } = base;
+    
     const settings = {
-      ...base,
+      ...baseWithoutLayoutProps,
       ...qnaSpecific,
       fontSize: convertedFontSize
     };
@@ -523,6 +527,9 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
   let topLevelBorderWidth: number | undefined;
   let topLevelBorderOpacity: number | undefined;
   let topLevelBackgroundOpacity: number | undefined;
+  let topLevelPadding: number | undefined;
+  let topLevelAlign: string | undefined;
+  let topLevelParagraphSpacing: string | undefined;
   
   if (qnaConfig) {
     // Include all top-level properties except questionSettings and answerSettings
@@ -556,6 +563,15 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
         }
         if (key === 'backgroundOpacity') {
           topLevelBackgroundOpacity = qnaConfig[key];
+        }
+        if (key === 'padding') {
+          topLevelPadding = qnaConfig[key];
+        }
+        if (key === 'align') {
+          topLevelAlign = qnaConfig[key];
+        }
+        if (key === 'paragraphSpacing') {
+          topLevelParagraphSpacing = qnaConfig[key];
         }
       }
     });
@@ -650,6 +666,27 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
       };
       // Also set on top-level of settings for backward compatibility
       settings.ruledLinesTheme = settings.ruledLines.ruledLinesTheme;
+    }
+    
+    // Apply padding from qnaConfig if it exists and is not already set in settings
+    // Padding is a layout property - it should come from layout.json primarily, but if not set there,
+    // use qnaConfig.padding as fallback (not textDefaults.padding)
+    if (topLevelPadding !== undefined && settings.padding === undefined) {
+      settings.padding = topLevelPadding;
+    }
+    
+    // Apply align from qnaConfig if it exists and is not already set in settings
+    // Align is a layout property - it should come from layout.json primarily, but if not set there,
+    // use qnaConfig.align as fallback (not textDefaults.align)
+    if (topLevelAlign !== undefined && settings.align === undefined) {
+      settings.align = topLevelAlign;
+    }
+    
+    // Apply paragraphSpacing from qnaConfig if it exists and is not already set in settings
+    // ParagraphSpacing is a layout property - it should come from layout.json primarily, but if not set there,
+    // use qnaConfig.paragraphSpacing as fallback (not textDefaults.paragraphSpacing)
+    if (topLevelParagraphSpacing !== undefined && settings.paragraphSpacing === undefined) {
+      settings.paragraphSpacing = topLevelParagraphSpacing;
     }
     
     return settings;

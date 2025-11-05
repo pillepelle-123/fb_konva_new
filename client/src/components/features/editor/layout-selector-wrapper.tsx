@@ -8,6 +8,7 @@ import { pageTemplates } from '../../../data/templates/page-templates';
 import { PreviewImageDialog } from './preview/preview-image-dialog';
 import { exportCanvasAsImage } from '../../../utils/canvas-export';
 import Konva from 'konva';
+import { getActiveTemplateIds } from '../../../utils/template-inheritance';
 
 interface LayoutSelectorWrapperProps {
   onBack: () => void;
@@ -19,10 +20,11 @@ interface LayoutSelectorWrapperProps {
 export function LayoutSelectorWrapper({ onBack, title, isBookLevel = false }: LayoutSelectorWrapperProps) {
   const { state, dispatch } = useEditor();
   
-  // Initialize with current book/page layout if available
-  const currentLayoutId = isBookLevel 
-    ? state.currentBook?.layoutTemplateId 
-    : state.currentBook?.pages[state.activePageIndex]?.layoutTemplateId;
+  // Get active layout template ID with inheritance fallback
+  const currentPage = isBookLevel ? undefined : state.currentBook?.pages[state.activePageIndex];
+  const activeTemplateIds = getActiveTemplateIds(currentPage, state.currentBook);
+  const currentLayoutId = activeTemplateIds.layoutTemplateId;
+  
   const currentLayout = currentLayoutId 
     ? pageTemplates.find((t: PageTemplate) => t.id === currentLayoutId) || null 
     : null;
@@ -43,7 +45,7 @@ export function LayoutSelectorWrapper({ onBack, title, isBookLevel = false }: La
   }, [dispatch]);
   
   
-  // Update selectedLayout when currentLayoutId changes
+  // Update selectedLayout when currentLayoutId changes (with inheritance fallback)
   useEffect(() => {
     if (currentLayoutId && currentLayout) {
       setSelectedLayout(currentLayout);

@@ -48,8 +48,10 @@ export function convertTemplateTextboxToElement(
     width: textbox.size.width,
     height: textbox.size.height,
     text: '',
-    fontColor: palette.colors.text || defaults.fontColor,
-    backgroundColor: palette.colors.background || defaults.backgroundColor || 'transparent',
+    // fontColor and backgroundColor are not layout properties - they come from themes and color palettes
+    // Using defaults for initial creation, will be overridden by theme/palette when template is applied
+    fontColor: (defaults as any).fontColor || '#000000',
+    backgroundColor: (defaults as any).backgroundColor || 'transparent',
     fontSize: defaults.fontSize || 50,
     fontFamily: defaults.fontFamily || 'Arial, sans-serif',
     align: (defaults.align as 'left' | 'center' | 'right') || 'left',
@@ -69,55 +71,69 @@ export function convertTemplateTextboxToElement(
     })
   };
 
-  // Apply template styling if available
+  // Apply template styling if available (only primary layout properties)
   const styledElement = applyTextboxStyle(baseElement, textbox.style);
   
-  // WICHTIG: Frage- und Antwort-Settings aus Template haben Vorrang
-  // (falls sie im Template definiert sind, überschreiben sie die Defaults)
-  // Font-Sizes aus Templates sind in "common" Format und müssen zu "actual" konvertiert werden
-  if (isQnaInline && textbox.questionSettings) {
-    const convertedQuestionSettings = { ...textbox.questionSettings };
-    // Konvertiere fontSize von common zu actual
-    if (typeof convertedQuestionSettings.fontSize === 'number') {
-      convertedQuestionSettings.fontSize = commonToActual(convertedQuestionSettings.fontSize);
+  // Apply layout variant if specified
+  if (textbox.layoutVariant) {
+    styledElement.layoutVariant = textbox.layoutVariant;
+  }
+  
+  // Apply questionPosition and questionWidth for qna_inline (layout properties)
+  if (isQnaInline) {
+    if ((textbox as any).questionPosition) {
+      styledElement.questionPosition = (textbox as any).questionPosition;
     }
-    // Konvertiere fontSize in font-Objekt
-    if (convertedQuestionSettings.font && typeof convertedQuestionSettings.font === 'object') {
-      const font = convertedQuestionSettings.font as Record<string, unknown>;
+    if ((textbox as any).questionWidth !== undefined) {
+      styledElement.questionWidth = (textbox as any).questionWidth;
+    }
+  }
+  
+  // Apply only primary layout properties from questionSettings/answerSettings
+  // Only fontSize is a layout property; all other properties (fontFamily, fontColor, etc.) come from themes
+  if (isQnaInline && textbox.questionSettings) {
+    const questionLayoutSettings: any = {};
+    // Only extract fontSize from questionSettings (layout property)
+    if (typeof textbox.questionSettings.fontSize === 'number') {
+      questionLayoutSettings.fontSize = commonToActual(textbox.questionSettings.fontSize);
+    }
+    // fontSize might also be in a nested font object
+    if (textbox.questionSettings.font && typeof textbox.questionSettings.font === 'object') {
+      const font = textbox.questionSettings.font as Record<string, unknown>;
       if (typeof font.fontSize === 'number') {
-        convertedQuestionSettings.font = {
-          ...font,
-          fontSize: commonToActual(font.fontSize)
-        };
+        questionLayoutSettings.fontSize = commonToActual(font.fontSize);
       }
     }
     
-    styledElement.questionSettings = {
-      ...styledElement.questionSettings,
-      ...convertedQuestionSettings
-    };
+    // Merge only fontSize into questionSettings
+    if (Object.keys(questionLayoutSettings).length > 0) {
+      styledElement.questionSettings = {
+        ...styledElement.questionSettings,
+        ...questionLayoutSettings
+      };
+    }
   }
   if (isQnaInline && textbox.answerSettings) {
-    const convertedAnswerSettings = { ...textbox.answerSettings };
-    // Konvertiere fontSize von common zu actual
-    if (typeof convertedAnswerSettings.fontSize === 'number') {
-      convertedAnswerSettings.fontSize = commonToActual(convertedAnswerSettings.fontSize);
+    const answerLayoutSettings: any = {};
+    // Only extract fontSize from answerSettings (layout property)
+    if (typeof textbox.answerSettings.fontSize === 'number') {
+      answerLayoutSettings.fontSize = commonToActual(textbox.answerSettings.fontSize);
     }
-    // Konvertiere fontSize in font-Objekt
-    if (convertedAnswerSettings.font && typeof convertedAnswerSettings.font === 'object') {
-      const font = convertedAnswerSettings.font as Record<string, unknown>;
+    // fontSize might also be in a nested font object
+    if (textbox.answerSettings.font && typeof textbox.answerSettings.font === 'object') {
+      const font = textbox.answerSettings.font as Record<string, unknown>;
       if (typeof font.fontSize === 'number') {
-        convertedAnswerSettings.font = {
-          ...font,
-          fontSize: commonToActual(font.fontSize)
-        };
+        answerLayoutSettings.fontSize = commonToActual(font.fontSize);
       }
     }
     
-    styledElement.answerSettings = {
-      ...styledElement.answerSettings,
-      ...convertedAnswerSettings
-    };
+    // Merge only fontSize into answerSettings
+    if (Object.keys(answerLayoutSettings).length > 0) {
+      styledElement.answerSettings = {
+        ...styledElement.answerSettings,
+        ...answerLayoutSettings
+      };
+    }
   }
   
   return styledElement;
@@ -195,26 +211,36 @@ export function convertTemplateToElements(template: PageTemplate, canvasSize?: {
   
   // Convert textboxes (highest z-index)
   templateToUse.textboxes.forEach(textbox => {
-    // Pass layoutVariant, questionSettings und answerSettings to the conversion function
-    const textboxWithVariant: TemplateTextbox = {
+    // Pass layoutVariant, questionSettings, answerSettings, questionPosition, questionWidth to the conversion function
+    const textboxWithVariant: TemplateTextbox & { questionPosition?: string; questionWidth?: number } = {
       type: textbox.type,
       position: textbox.position,
       size: textbox.size,
       style: textbox.style,
       layoutVariant: textbox.layoutVariant,
       questionSettings: textbox.questionSettings,
-      answerSettings: textbox.answerSettings
+      answerSettings: textbox.answerSettings,
+      questionPosition: (textbox as any).questionPosition,
+      questionWidth: (textbox as any).questionWidth
     };
     
-    elements.push(convertTemplateTextboxToElement(textboxWithVariant, {
-      id: 'template',
-      name: 'Template',
+    // Layout templates no longer have colorPalette - use default palette for initial element creation
+    // Colors will be applied later from themes and color palettes
+    const defaultPalette: ColorPalette = {
+      id: 'default',
+      name: 'Default',
       colors: {
-        ...template.colorPalette,
-        surface: template.colorPalette.background || '#ffffff'
+        background: '#FFFFFF',
+        primary: '#424242',
+        secondary: '#757575',
+        accent: '#BDBDBD',
+        text: '#212121',
+        surface: '#F5F5F5'
       },
-      contrast: 'AA'
-    }));
+      contrast: 'AAA'
+    };
+    
+    elements.push(convertTemplateTextboxToElement(textboxWithVariant, defaultPalette));
   });
   
   // Convert image slots (medium z-index)

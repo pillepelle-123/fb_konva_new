@@ -3,6 +3,7 @@ import { commonToActual } from './font-size-converter';
 
 /**
  * Applies template styling to textbox elements
+ * Only applies primary layout properties: fontSize, textAlign, padding, paragraphSpacing
  * Font-Sizes in Templates sind in "common" Format und müssen zu "actual" konvertiert werden
  */
 export function applyTextboxStyle(element: any, style?: TextboxStyle): any {
@@ -10,53 +11,18 @@ export function applyTextboxStyle(element: any, style?: TextboxStyle): any {
 
   const styledElement = { ...element };
 
-  // Apply font styling
-  if (style.font) {
-    // Konvertiere fontSize von common zu actual
-    if (style.font.fontSize) {
-      styledElement.fontSize = commonToActual(style.font.fontSize);
-    }
-    if (style.font.fontFamily) styledElement.fontFamily = style.font.fontFamily;
-    if (style.font.fontBold !== undefined) styledElement.fontWeight = style.font.fontBold ? 'bold' : 'normal';
-    if (style.font.fontItalic !== undefined) styledElement.fontStyle = style.font.fontItalic ? 'italic' : 'normal';
-    if (style.font.fontColor) styledElement.fontColor = style.font.fontColor;
-    if (style.font.fontOpacity !== undefined) styledElement.fontOpacity = style.font.fontOpacity;
-  }
-
-  // Apply border styling
-  if (style.border) {
-    if (style.border.enabled !== undefined) styledElement.borderEnabled = style.border.enabled;
-    if (style.border.borderWidth) styledElement.borderWidth = style.border.borderWidth;
-    if (style.border.borderColor) styledElement.borderColor = style.border.borderColor;
-    if (style.border.borderOpacity !== undefined) styledElement.borderOpacity = style.border.borderOpacity;
-    if (style.border.borderTheme) styledElement.borderTheme = style.border.borderTheme;
-  }
-
-  // Apply format styling
+  // Apply only primary layout properties from format section
   if (style.format) {
     if (style.format.textAlign) styledElement.align = style.format.textAlign;
     if (style.format.paragraphSpacing) styledElement.paragraphSpacing = style.format.paragraphSpacing;
     if (style.format.padding) styledElement.padding = style.format.padding;
   }
 
-  // Apply background styling
-  if (style.background) {
-    if (style.background.enabled !== undefined) styledElement.backgroundEnabled = style.background.enabled;
-    if (style.background.backgroundColor) styledElement.backgroundColor = style.background.backgroundColor;
-    if (style.background.backgroundOpacity !== undefined) styledElement.backgroundOpacity = style.background.backgroundOpacity;
-  }
+  // Note: fontSize is handled separately in questionSettings/answerSettings for qna_inline
+  // or directly on element for free_text, not from style.font.fontSize
 
-  // Apply ruled lines styling
-  if (style.ruledLines) {
-    if (style.ruledLines.enabled !== undefined) styledElement.ruledLines = style.ruledLines.enabled;
-    if (style.ruledLines.lineWidth) styledElement.ruledLinesWidth = style.ruledLines.lineWidth;
-    if (style.ruledLines.lineColor) styledElement.ruledLinesColor = style.ruledLines.lineColor;
-    if (style.ruledLines.lineOpacity !== undefined) styledElement.ruledLinesOpacity = style.ruledLines.lineOpacity;
-    if (style.ruledLines.ruledLinesTheme) styledElement.ruledLinesTheme = style.ruledLines.ruledLinesTheme;
-  }
-
-  // Apply corner radius
-  if (style.cornerRadius !== undefined) styledElement.cornerRadius = style.cornerRadius;
+  // All other styling properties (fontFamily, fontBold, fontItalic, fontOpacity, 
+  // border, background, ruledLines, cornerRadius) are handled by themes, not layouts
 
   return styledElement;
 }

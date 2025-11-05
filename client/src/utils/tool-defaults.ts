@@ -389,6 +389,65 @@ export function getToolDefaults(
       points: existingElement.points
     };
     
+    // For qna_inline, preserve layout properties from layout (element.padding, element.align, element.paragraphSpacing)
+    // and apply to questionSettings/answerSettings if not explicitly set there.
+    // These are layout properties and should come from layout.json primarily.
+    if (tool === 'qna_inline') {
+      // Handle padding
+      if (existingElement.padding !== undefined) {
+        preservedProperties.padding = existingElement.padding;
+        
+        if (mergedDefaults.questionSettings && mergedDefaults.questionSettings.padding === undefined) {
+          mergedDefaults.questionSettings = {
+            ...mergedDefaults.questionSettings,
+            padding: existingElement.padding
+          };
+        }
+        if (mergedDefaults.answerSettings && mergedDefaults.answerSettings.padding === undefined) {
+          mergedDefaults.answerSettings = {
+            ...mergedDefaults.answerSettings,
+            padding: existingElement.padding
+          };
+        }
+      }
+      
+      // Handle align
+      if (existingElement.align !== undefined) {
+        preservedProperties.align = existingElement.align;
+        
+        if (mergedDefaults.questionSettings && mergedDefaults.questionSettings.align === undefined) {
+          mergedDefaults.questionSettings = {
+            ...mergedDefaults.questionSettings,
+            align: existingElement.align
+          };
+        }
+        if (mergedDefaults.answerSettings && mergedDefaults.answerSettings.align === undefined) {
+          mergedDefaults.answerSettings = {
+            ...mergedDefaults.answerSettings,
+            align: existingElement.align
+          };
+        }
+      }
+      
+      // Handle paragraphSpacing
+      if (existingElement.paragraphSpacing !== undefined) {
+        preservedProperties.paragraphSpacing = existingElement.paragraphSpacing;
+        
+        if (mergedDefaults.questionSettings && mergedDefaults.questionSettings.paragraphSpacing === undefined) {
+          mergedDefaults.questionSettings = {
+            ...mergedDefaults.questionSettings,
+            paragraphSpacing: existingElement.paragraphSpacing
+          };
+        }
+        if (mergedDefaults.answerSettings && mergedDefaults.answerSettings.paragraphSpacing === undefined) {
+          mergedDefaults.answerSettings = {
+            ...mergedDefaults.answerSettings,
+            paragraphSpacing: existingElement.paragraphSpacing
+          };
+        }
+      }
+    }
+    
     // Apply merged defaults and then preserve essential properties
     return { ...mergedDefaults, ...preservedProperties };
   }

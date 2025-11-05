@@ -39,9 +39,8 @@ export function applyTemplateToPage(
       y: textbox.position.y,
       width: textbox.size.width,
       height: textbox.size.height,
-      text: '',
-      fontColor: template.colorPalette.text,
-      backgroundColor: template.colorPalette.background
+      text: ''
+      // fontColor and backgroundColor are not layout properties - they come from themes and color palettes
     };
     
     // Übernehme questionSettings und answerSettings wenn vorhanden
@@ -83,32 +82,22 @@ export function applyTemplateToPage(
       element.answerSettings = convertedAnswerSettings as any;
     }
     
-    // Übernehme style-Eigenschaften
-    // Font-Sizes in Templates sind in "common" Format und müssen zu "actual" konvertiert werden
-    if (textbox.style) {
-      if (textbox.style.font) {
-        element.fontSize = textbox.style.font.fontSize ? commonToActual(textbox.style.font.fontSize) : undefined;
-        element.fontFamily = textbox.style.font.fontFamily;
-        element.fontColor = textbox.style.font.fontColor || element.fontColor;
-        element.fontStyle = textbox.style.font.fontItalic ? 'italic' : 'normal';
-      }
-      if (textbox.style.format) {
+    // Apply only primary layout properties from style.format
+    // All other styling properties (fontFamily, fontColor, border, background, cornerRadius) come from themes/palettes
+    if (textbox.style && textbox.style.format) {
+      if (textbox.style.format.textAlign) {
         element.align = textbox.style.format.textAlign;
+      }
+      if (textbox.style.format.padding !== undefined) {
         element.padding = textbox.style.format.padding;
+      }
+      if (textbox.style.format.paragraphSpacing) {
         element.paragraphSpacing = textbox.style.format.paragraphSpacing;
       }
-      if (textbox.style.border) {
-        element.borderWidth = textbox.style.border.borderWidth;
-        element.borderColor = textbox.style.border.borderColor;
-      }
-      if (textbox.style.background) {
-        element.backgroundColor = textbox.style.background.backgroundColor || element.backgroundColor;
-        element.backgroundOpacity = textbox.style.background.backgroundOpacity;
-      }
-      if (textbox.cornerRadius !== undefined) {
-        element.cornerRadius = textbox.style.cornerRadius;
-      }
     }
+    
+    // Note: fontSize is handled separately in questionSettings/answerSettings for qna_inline
+    // or directly on element for free_text, not from style.font.fontSize
     
     if (textbox.type === 'question' || textbox.type === 'qna_inline') {
       element.questionId = uuidv4();
@@ -153,21 +142,11 @@ export function applyTemplateToPage(
   return elements;
 }
 
+// DEPRECATED: Layout templates no longer have colorPalette or background properties
+// Colors and backgrounds are managed by themes.json and color-palettes.json
 export function mergeTemplateWithPalette(template: PageTemplate, palette: ColorPalette): PageTemplate {
-  return {
-    ...template,
-    colorPalette: {
-      primary: palette.colors.primary,
-      secondary: palette.colors.secondary,
-      accent: palette.colors.accent,
-      background: palette.colors.background,
-      text: palette.colors.text
-    },
-    background: {
-      ...template.background,
-      value: template.background.type === 'color' ? palette.colors.background : template.background.value
-    }
-  };
+  // Simply return the template as-is, since layout templates don't contain color/background info
+  return template;
 }
 
 export function validateTemplateConstraints(
@@ -257,15 +236,24 @@ export function validateTemplateConstraints(
 
 export function generateTemplatePreview(template: PageTemplate): string {
   // Generate SVG preview data
+  // Note: Layout templates no longer have colorPalette, so we use default colors for preview
   const width = 200;
   const height = 280;
   const scaleX = width / 2480;
   const scaleY = height / 3508;
   
+  // Default colors for preview (since layout templates don't contain color info)
+  const defaultColors = {
+    background: '#ffffff',
+    primary: '#1976D2',
+    secondary: '#42A5F5',
+    accent: '#81C784'
+  };
+  
   let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">`;
   
   // Background
-  svg += `<rect width="${width}" height="${height}" fill="${template.colorPalette.background}"/>`;
+  svg += `<rect width="${width}" height="${height}" fill="${defaultColors.background}"/>`;
   
   // Textboxes
   template.textboxes.forEach(textbox => {
@@ -275,7 +263,7 @@ export function generateTemplatePreview(template: PageTemplate): string {
     const h = textbox.size.height * scaleY;
     
     svg += `<rect x="${x}" y="${y}" width="${w}" height="${h}" 
-            fill="${template.colorPalette.primary}" opacity="0.3" rx="2"/>`;
+            fill="${defaultColors.primary}" opacity="0.3" rx="2"/>`;
   });
   
   // Elements
@@ -285,7 +273,7 @@ export function generateTemplatePreview(template: PageTemplate): string {
     const w = elem.size.width * scaleX;
     const h = elem.size.height * scaleY;
     
-    const color = elem.type === 'image' ? template.colorPalette.secondary : template.colorPalette.accent;
+    const color = elem.type === 'image' ? defaultColors.secondary : defaultColors.accent;
     svg += `<rect x="${x}" y="${y}" width="${w}" height="${h}" 
             fill="${color}" opacity="0.5" rx="1"/>`;
   });

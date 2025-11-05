@@ -112,123 +112,52 @@ export function extractLayoutTemplate(
       }
     };
 
-    // Add style information if available
+    // Add style information - only primary layout properties
     const style: any = {};
 
-    // Font settings
-    if (element.fontSize || element.font?.fontSize) {
-      style.font = {
-        fontSize: actualToCommon(element.fontSize || element.font?.fontSize || 50),
-        fontFamily: element.fontFamily || element.font?.fontFamily || 'Arial, sans-serif',
-        fontColor: element.fontColor || element.font?.fontColor || '#1f2937',
-        fontBold: element.fontBold ?? element.font?.fontBold ?? false,
-        fontItalic: element.fontItalic ?? element.font?.fontItalic ?? false,
-        fontOpacity: element.fontOpacity ?? element.font?.fontOpacity ?? 1
-      };
-    }
-
-    // Border settings
-    const borderEnabled = element.questionSettings?.border?.enabled ?? 
-                         element.answerSettings?.border?.enabled ?? 
-                         element.border?.enabled ?? false;
-    if (borderEnabled) {
-      const borderWidth = element.questionSettings?.borderWidth ?? 
-                         element.answerSettings?.borderWidth ?? 
-                         element.borderWidth ?? 1;
-      const borderTheme = element.questionSettings?.borderTheme ?? 
-                        element.answerSettings?.borderTheme ?? 
-                        element.border?.borderTheme ?? 
-                        element.theme ?? pageTheme ?? 'default';
-      const borderColor = element.questionSettings?.borderColor ?? 
-                         element.answerSettings?.borderColor ?? 
-                         element.borderColor ?? '#000000';
-      const borderOpacity = element.questionSettings?.borderOpacity ?? 
-                           element.answerSettings?.borderOpacity ?? 
-                           element.borderOpacity ?? 1;
-
-      style.border = {
-        enabled: true,
-        borderWidth: borderWidth ? actualToThemeJsonStrokeWidth(borderWidth, borderTheme) : 1,
-        borderColor: borderColor,
-        borderOpacity: borderOpacity,
-        borderTheme: borderTheme
-      };
-    } else {
-      style.border = {
-        enabled: false
-      };
-    }
-
-    // Background settings
-    const backgroundEnabled = element.questionSettings?.background?.enabled ?? 
-                              element.answerSettings?.background?.enabled ?? 
-                              element.background?.enabled ?? false;
-    if (backgroundEnabled) {
-      const backgroundColor = element.questionSettings?.backgroundColor ?? 
-                            element.answerSettings?.backgroundColor ?? 
-                            element.backgroundColor ?? '#ffffff';
-      const backgroundOpacity = element.questionSettings?.backgroundOpacity ?? 
-                               element.answerSettings?.backgroundOpacity ?? 
-                               element.backgroundOpacity ?? 1;
-
-      style.background = {
-        enabled: true,
-        backgroundColor: backgroundColor,
-        backgroundOpacity: backgroundOpacity
-      };
-    } else {
-      style.background = {
-        enabled: false
-      };
-    }
-
-    // Format settings
+    // Format settings (primary layout properties)
     style.format = {
       textAlign: element.align || element.questionSettings?.align || element.answerSettings?.align || 'left',
       paragraphSpacing: element.paragraphSpacing || element.questionSettings?.paragraphSpacing || element.answerSettings?.paragraphSpacing || 'medium',
       padding: element.padding || element.format?.padding || 8
     };
 
-    // Corner radius
-    if (element.cornerRadius !== undefined) {
-      style.cornerRadius = actualToCommonRadius(element.cornerRadius);
+    // Only add style if format has content
+    if (Object.keys(style.format).length > 0) {
+      textbox.style = style;
     }
 
-    // Question and answer settings
+    // Question and answer settings - only fontSize (layout property)
+    // All other properties (fontFamily, fontColor, etc.) come from themes, not layouts
     if (element.questionSettings) {
-      textbox.questionSettings = {
-        fontSize: element.questionSettings.fontSize || element.questionSettings.font?.fontSize 
-          ? actualToCommon(element.questionSettings.fontSize || element.questionSettings.font?.fontSize || 45)
-          : undefined,
-        fontFamily: element.questionSettings.fontFamily || element.fontFamily || undefined,
-        fontColor: element.questionSettings.fontColor || undefined,
-        fontBold: element.questionSettings.fontBold ?? undefined,
-        fontItalic: element.questionSettings.fontItalic ?? undefined,
-        fontOpacity: element.questionSettings.fontOpacity ?? undefined
-      };
+      const questionFontSize = element.questionSettings.fontSize || element.questionSettings.font?.fontSize;
+      if (questionFontSize) {
+        textbox.questionSettings = {
+          fontSize: actualToCommon(questionFontSize)
+        };
+      }
     }
 
     if (element.answerSettings) {
-      textbox.answerSettings = {
-        fontSize: element.answerSettings.fontSize || element.answerSettings.font?.fontSize 
-          ? actualToCommon(element.answerSettings.fontSize || element.answerSettings.font?.fontSize || 50)
-          : undefined,
-        fontFamily: element.answerSettings.fontFamily || element.fontFamily || undefined,
-        fontColor: element.answerSettings.fontColor || undefined,
-        fontBold: element.answerSettings.fontBold ?? undefined,
-        fontItalic: element.answerSettings.fontItalic ?? undefined,
-        fontOpacity: element.answerSettings.fontOpacity ?? undefined
-      };
+      const answerFontSize = element.answerSettings.fontSize || element.answerSettings.font?.fontSize;
+      if (answerFontSize) {
+        textbox.answerSettings = {
+          fontSize: actualToCommon(answerFontSize)
+        };
+      }
     }
 
-    // Layout variant
+    // Layout variant (layout property)
     if (element.layoutVariant) {
       textbox.layoutVariant = element.layoutVariant;
     }
 
-    // Only add style if it has content
-    if (Object.keys(style).length > 0) {
-      textbox.style = style;
+    // questionPosition and questionWidth (layout properties)
+    if (element.questionPosition) {
+      textbox.questionPosition = element.questionPosition;
+    }
+    if (element.questionWidth !== undefined) {
+      textbox.questionWidth = element.questionWidth;
     }
 
     textboxes.push(textbox);
@@ -319,28 +248,19 @@ export function generateLayoutJSON(
 ): string {
   const layoutTemplate = extractLayoutTemplate(elements, pageBackground, pageTheme, colorPaletteId, canvasSize);
 
-  // Extract color palette from page background or use defaults
-  const colorPalette = {
-    primary: '#1976D2',
-    secondary: '#42A5F5',
-    accent: '#81C784',
-    background: pageBackground?.value || '#FFFFFF',
-    text: '#1A1A1A'
+  // Extract columns from templateId (e.g., "qna-1col-..." or "qna-2col-...")
+  const extractColumns = (id: string): number => {
+    const match = id.match(/qna-(\d)col/);
+    return match ? parseInt(match[1], 10) : 1; // Default to 1 if not found
   };
 
-  // Build complete template
-  const template: PageTemplate = {
+  // Build complete template (without theme, colorPalette, or background - these are not layout properties)
+  const template: PageTemplate & { columns?: number } = {
     id: templateId,
     name: templateName,
     category: templateCategory,
     thumbnail: thumbnail || '/templates/default.png',
-    theme: pageTheme || 'default',
-    colorPalette: colorPalette,
-    background: {
-      type: pageBackground?.type || 'color',
-      value: pageBackground?.value || '#FFFFFF',
-      enabled: true
-    },
+    columns: extractColumns(templateId), // Extract columns from ID
     textboxes: layoutTemplate.textboxes || [],
     elements: layoutTemplate.elements || [],
     constraints: layoutTemplate.constraints || {

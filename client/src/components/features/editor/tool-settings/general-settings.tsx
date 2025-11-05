@@ -24,6 +24,9 @@ import { BackgroundImageSelector } from './background-image-selector';
 import { applyBackgroundImageTemplate } from '../../../../utils/background-image-utils';
 import { LayoutSelectorWrapper } from '../layout-selector-wrapper';
 import { ThemeSelectorWrapper } from '../theme-selector-wrapper';
+import { pageTemplates } from '../../../../data/templates/page-templates';
+import { colorPalettes } from '../../../../data/templates/color-palettes';
+import { getActiveTemplateIds } from '../../../../utils/template-inheritance';
 
 
 interface GeneralSettingsProps {
@@ -587,9 +590,12 @@ export function GeneralSettings({
       const getColorValue = () => {
         switch (showColorSelector) {
           case 'background-color':
-            return background.type === 'pattern' ? (background.patternForegroundColor || '#666666') : background.value;
+            // For pattern: this is the space between patterns (patternForegroundColor)
+            // For color: this is the background color
+            return background.type === 'pattern' ? (background.patternForegroundColor || 'transparent') : background.value;
           case 'pattern-background':
-            return background.patternBackgroundColor || 'transparent';
+            // This is the color of the pattern itself (dots, lines)
+            return background.patternBackgroundColor || '#666666';
           default:
             return '#ffffff';
         }
@@ -599,12 +605,14 @@ export function GeneralSettings({
         switch (showColorSelector) {
           case 'background-color':
             if (background.type === 'pattern') {
+              // Update space color between patterns
               updateBackground({ patternForegroundColor: color });
             } else {
               updateBackground({ value: color });
             }
             break;
           case 'pattern-background':
+            // Update pattern color (dots, lines)
             updateBackground({ patternBackgroundColor: color });
             break;
         }
@@ -896,7 +904,7 @@ export function GeneralSettings({
         )}
 
         {/* Opacity Slider - always visible, preserves value across background type changes */}
-        <div>
+        {/* <div>
           <Label variant="xs">Opacity</Label>
           <Slider
             label="Opacity"
@@ -912,7 +920,7 @@ export function GeneralSettings({
             unit="%"
             hasLabel={false}
           />
-        </div>
+        </div> */}
       </div>
     );
   };
@@ -1022,6 +1030,27 @@ export function GeneralSettings({
   // Check if user can access page-related settings (Background and Page Theme for full_edit and full_edit_with_settings)
   const canAccessPageSettings = state.editorInteractionLevel === 'full_edit' || state.editorInteractionLevel === 'full_edit_with_settings';
 
+  // Get active templates for Book Settings (no page = book level)
+  const bookActiveTemplates = getActiveTemplateIds(undefined, state.currentBook);
+  const bookLayout = bookActiveTemplates.layoutTemplateId 
+    ? pageTemplates.find(t => t.id === bookActiveTemplates.layoutTemplateId) || null
+    : null;
+  const bookTheme = getGlobalTheme(bookActiveTemplates.themeId);
+  const bookPalette = bookActiveTemplates.colorPaletteId
+    ? colorPalettes.find(p => p.id === bookActiveTemplates.colorPaletteId) || null
+    : null;
+
+  // Get active templates for Page Settings (with inheritance)
+  const currentPage = state.currentBook?.pages[state.activePageIndex];
+  const pageActiveTemplates = getActiveTemplateIds(currentPage, state.currentBook);
+  const pageLayout = pageActiveTemplates.layoutTemplateId
+    ? pageTemplates.find(t => t.id === pageActiveTemplates.layoutTemplateId) || null
+    : null;
+  const pageTheme = getGlobalTheme(pageActiveTemplates.themeId);
+  const pagePalette = pageActiveTemplates.colorPaletteId
+    ? colorPalettes.find(p => p.id === pageActiveTemplates.colorPaletteId) || null
+    : null;
+
   return (
     <>
       <div className="space-y-3">
@@ -1040,18 +1069,6 @@ export function GeneralSettings({
                   Questions
                 </Button>
                 <Button
-                  variant="ghost_hover"
-                  size="sm"
-                  onClick={() => {
-                    setBookThemeKey(prev => prev + 1); // Force remount
-                    setShowBookThemeSelector(true);
-                  }}
-                  className="w-full justify-start"
-                >
-                  <Paintbrush2 className="h-4 w-4 mr-2" />
-                  Book Theme
-                </Button>
-                  <Button
                     variant="ghost_hover"
                     size="sm"
                     onClick={() => {
@@ -1061,8 +1078,35 @@ export function GeneralSettings({
                     className="w-full justify-start"
                   >
                     <LayoutPanelLeft className="h-4 w-4 mr-2" />
-                    Book Layout
+                    <span className="flex-1 text-left">Book Layout</span>
+                    {bookLayout && (
+                      <div className="ml-2 h-6 w-12 bg-gray-100 rounded border relative overflow-hidden shrink-0">
+                        <div className="absolute inset-1 grid grid-cols-2 gap-1">
+                          {bookLayout.textboxes.slice(0, 4).map((_, i) => (
+                            <div key={i} className="bg-blue-200 rounded-sm opacity-60" />
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </Button>
+                <Button
+                  variant="ghost_hover"
+                  size="sm"
+                  onClick={() => {
+                    setBookThemeKey(prev => prev + 1); // Force remount
+                    setShowBookThemeSelector(true);
+                  }}
+                  className="w-full justify-start"
+                >
+                  <Paintbrush2 className="h-4 w-4 mr-2" />
+                  <span className="flex-1 text-left">Book Theme</span>
+                  {bookTheme && (
+                    <span className="text-xs text-muted-foreground ml-2">
+                      {bookTheme.name}
+                    </span>
+                  )}
+                </Button>
+
             <Button
               variant="ghost_hover"
               size="sm"
@@ -1073,7 +1117,18 @@ export function GeneralSettings({
               className="w-full justify-start"
             >
               <SwatchBook className="h-4 w-4 mr-2" />
-              Book Color Palette
+              <span className="flex-1 text-left">Book Color Palette</span>
+              {bookPalette && (
+                <div className="ml-2 flex h-4 w-16 rounded overflow-hidden shrink-0 border border-gray-200">
+                  {Object.values(bookPalette.colors).map((color, index) => (
+                    <div
+                      key={index}
+                      className="flex-1"
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              )}
             </Button>
               </div>
             </div>
@@ -1108,7 +1163,16 @@ export function GeneralSettings({
                     disabled={!canAccessPageSettings}
                   >
                     <LayoutPanelLeft className="h-4 w-4 mr-2" />
-                    Layout
+                    <span className="flex-1 text-left">Layout</span>
+                    {pageLayout && (
+                      <div className="ml-2 h-6 w-12 bg-gray-100 rounded border relative overflow-hidden shrink-0">
+                        <div className="absolute inset-1 grid grid-cols-2 gap-1">
+                          {pageLayout.textboxes.slice(0, 4).map((_, i) => (
+                            <div key={i} className="bg-blue-200 rounded-sm opacity-60" />
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </Button>
                   <Button
                     variant="ghost_hover"
@@ -1123,7 +1187,12 @@ export function GeneralSettings({
                     disabled={!canAccessPageSettings}
                   >
                     <Paintbrush2 className="h-4 w-4 mr-2" />
-                    Theme
+                    <span className="flex-1 text-left">Theme</span>
+                    {pageTheme && (
+                      <span className="text-xs text-muted-foreground ml-2">
+                        {pageTheme.name}
+                      </span>
+                    )}
                   </Button>
                   <Button
                     variant="ghost_hover"
@@ -1138,7 +1207,18 @@ export function GeneralSettings({
                     disabled={!canAccessPageSettings}
                   >
                     <SwatchBook className="h-4 w-4 mr-2" />
-                    Color Palette
+                    <span className="flex-1 text-left">Color Palette</span>
+                    {pagePalette && (
+                      <div className="ml-2 flex h-4 w-16 rounded overflow-hidden shrink-0 border border-gray-200">
+                        {Object.values(pagePalette.colors).map((color, index) => (
+                          <div
+                            key={index}
+                            className="flex-1"
+                            style={{ backgroundColor: color }}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </Button>
           </div>
         </div>

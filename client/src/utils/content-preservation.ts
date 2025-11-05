@@ -62,13 +62,32 @@ export function applyLayoutTemplateWithPreservation(
   });
   
   // Handle unmapped existing textboxes (more content than template slots)
-  // Keep them at their original positions as requested by user
+  // Only keep surplus elements that have content (not placeholders)
   const mappedExistingIds = new Set(mappings.map(m => m.existingElement.id));
   const unmappedExisting = existingTextboxes.filter(el => !mappedExistingIds.has(el.id));
   
   if (unmappedExisting.length > 0) {
-    // Keep surplus textboxes at their original positions (don't move them)
-    unmappedExisting.forEach((element) => {
+    // Filter to only keep elements with content
+    const elementsWithContent = unmappedExisting.filter(element => {
+      // For qna_inline textboxes: has content if questionId is set OR text/formattedText has content
+      if (element.textType === 'qna_inline') {
+        const hasQuestionId = !!element.questionId;
+        const hasText = !!(element.text && element.text.trim() && element.text !== 'Double-click to add text...');
+        const hasFormattedText = !!(element.formattedText && element.formattedText.trim() && !element.formattedText.includes('Double-click to add text'));
+        return hasQuestionId || hasText || hasFormattedText;
+      }
+      // For other text types: has content if text/formattedText is not empty
+      if (element.type === 'text') {
+        const hasText = !!(element.text && element.text.trim());
+        const hasFormattedText = !!(element.formattedText && element.formattedText.trim());
+        return hasText || hasFormattedText;
+      }
+      // Default: keep if unsure (safety measure)
+      return true;
+    });
+    
+    // Keep surplus textboxes with content at their original positions
+    elementsWithContent.forEach((element) => {
       resultElements.push({
         ...element
         // x, y, width, height remain unchanged
@@ -97,15 +116,30 @@ export function applyLayoutTemplateWithPreservation(
     });
   });
   
-  // Preserve existing non-textbox elements that don't conflict with template
+  // Preserve existing non-textbox elements
+  // For images/placeholders: only keep if they have content (not placeholders)
+  // For images with content: always keep them (even if they conflict with template) to preserve user content
   existingNonTextboxes.forEach(element => {
-    // Check for spatial conflicts with template non-textboxes
-    const hasConflict = templateNonTextboxes.some(templateEl => 
-      isElementOverlapping(element, templateEl)
-    );
-    
-    if (!hasConflict) {
-      resultElements.push(element);
+    // For image/placeholder elements: only keep if they have content
+    if (element.type === 'image' || element.type === 'placeholder') {
+      // Has content if type is 'image' (uploaded) OR src exists
+      const hasContent = element.type === 'image' || !!element.src;
+      if (hasContent) {
+        // Always keep images with content, even if they conflict with template positions
+        // This ensures user content is never lost
+        resultElements.push(element);
+      }
+      // If it's a placeholder without content, don't add it (will be removed)
+    } else {
+      // For other non-textbox elements (shapes, etc.): check for conflicts
+      // Only keep if they don't conflict with template positions
+      const hasConflict = templateNonTextboxes.some(templateEl => 
+        isElementOverlapping(element, templateEl)
+      );
+      
+      if (!hasConflict) {
+        resultElements.push(element);
+      }
     }
   });
   

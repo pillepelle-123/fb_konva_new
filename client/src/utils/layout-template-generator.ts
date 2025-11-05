@@ -426,50 +426,22 @@ export function generateLayoutTemplate(config: LayoutConfig): PageTemplate {
       type: 'qna_inline' as const,
       position: { x: rect.x, y: rect.y },
       size: { width: rect.width, height: rect.height },
+      // Only fontSize is a layout property; all other font properties come from themes/palettes
       questionSettings: {
-        fontSize: fontSettings.fontSize + 6, // Fragen etwas größer
-        fontFamily: fontSettings.fontFamily,
-        fontColor: fontSettings.fontColor,
-        fontBold: false,
-        fontItalic: false,
-        fontOpacity: 1
+        fontSize: fontSettings.fontSize + 6 // Fragen etwas größer
       },
       answerSettings: {
-        fontSize: fontSettings.fontSize,
-        fontFamily: fontSettings.fontFamily,
-        fontColor: fontSettings.fontColor,
-        fontBold: false,
-        fontItalic: false,
-        fontOpacity: 1
+        fontSize: fontSettings.fontSize
       },
       layoutVariant: 'inline' as const,
       style: {
-        font: {
-          fontSize: fontSettings.fontSize,
-          fontFamily: fontSettings.fontFamily,
-          fontColor: fontSettings.fontColor,
-          fontBold: false,
-          fontItalic: false,
-          fontOpacity: 1
-        },
-        border: {
-          enabled: config.category === 'playful' || config.category === 'sketchy',
-          borderWidth: config.category === 'playful' ? 5 : 2,
-          borderColor: '#424242',
-          borderOpacity: 1,
-          borderTheme: config.category === 'playful' ? 'sketchy' : 'default'
-        },
-        background: {
-          enabled: config.category === 'playful' || config.category === 'creative',
-          backgroundColor: '#BDBDBD',
-          backgroundOpacity: config.category === 'playful' ? 0.3 : 0.2
-        },
+        // Only primary layout properties in style
+        // All styling properties (fontFamily, fontColor, border, background, cornerRadius) come from themes/palettes
         format: {
           textAlign: 'left' as const,
           paragraphSpacing: 'medium' as const,
           padding: 15
-        },
-        cornerRadius: config.category === 'playful' ? 18 : 0
+        }
       }
     };
   });

@@ -340,7 +340,7 @@ export function FreeTextSettingsForm({
         <IndentedSection>
           <Slider
             label="Line Width"
-            value={computedCurrentStyle.ruledLinesWidth}
+            value={Math.round((computedCurrentStyle.ruledLinesWidth ?? 1) * 100)  }
             onChange={(value) => updateTextSetting('ruledLinesWidth', value)}
             min={0.01}
             max={30}

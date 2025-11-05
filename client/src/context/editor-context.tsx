@@ -363,9 +363,9 @@ export interface PageBackground {
   imagePosition?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'; // for contain mode without repeat
   patternSize?: number; // 1-10 scale for pattern size
   patternStrokeWidth?: number; // stroke width for pattern
-  patternForegroundColor?: string; // pattern drawing color
-  patternBackgroundColor?: string; // pattern background color
-  patternBackgroundOpacity?: number;
+  patternForegroundColor?: string; // color of the space between patterns
+  patternBackgroundColor?: string; // color of the pattern itself (dots, lines)
+  patternBackgroundOpacity?: number; // opacity of the pattern itself (dots, lines)
   pageTheme?: string; // page-specific theme ID
   backgroundImageTemplateId?: string; // Reference to background image template
   ruledLines?: {
@@ -1900,13 +1900,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         const orientation = updatedBookTemplate.orientation || 'portrait';
         const canvasSize = calculatePageDimensions(pageSize, orientation);
         
-        // Set page background
-        targetPageTemplate.background = {
-          type: template.background.type,
-          value: template.background.value,
-          opacity: 1,
-          pageTheme: template.theme
-        };
+        // Layout templates no longer have background or theme - these are managed by themes.json and color-palettes.json
+        // Page background will be set from the active theme/palette when the template is applied
         
         // Convert template to canvas elements (mit Canvas-Größe für Skalierung)
         const newElements = convertTemplateToElements(template, canvasSize);
@@ -1975,13 +1970,32 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const updatedBookApplyPalette = { ...savedApplyPaletteState.currentBook! };
       
       const applyPaletteToPage = (page: Page) => {
+        // Preserve background type and update only color values
+        const currentBackground = page.background || { type: 'color' as const, value: '#ffffff' };
+        let updatedBackground: typeof currentBackground;
+        
+        if (currentBackground.type === 'color') {
+          updatedBackground = {
+            ...currentBackground,
+            value: appliedPalette.colors.background
+          };
+        } else if (currentBackground.type === 'pattern') {
+          // For pattern backgrounds:
+          // patternBackgroundColor = color of the pattern itself (dots, lines) - update from palette
+          // patternForegroundColor = color of the space between patterns - update from palette
+          updatedBackground = {
+            ...currentBackground,
+            patternBackgroundColor: appliedPalette.colors.primary,
+            patternForegroundColor: appliedPalette.colors.background
+          };
+        } else {
+          // For 'image' type, preserve everything - color palette doesn't affect image backgrounds
+          updatedBackground = currentBackground;
+        }
+        
         return {
           ...page,
-          background: {
-            ...page.background,
-            type: 'color',
-            value: appliedPalette.colors.background
-          },
+          background: updatedBackground,
           elements: page.elements.map(element => {
             const updates: Partial<CanvasElement> = {};
             

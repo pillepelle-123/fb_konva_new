@@ -331,7 +331,7 @@ export const colorPalettes: ColorPalette[] = [
     id: 'warm-earth',
     name: 'Warm Earth',
     colors: {
-      background: '#faf9f7',
+      background: '#8b4513',
       primary: '#8b4513',
       secondary: '#654321',
       accent: '#f5deb3',

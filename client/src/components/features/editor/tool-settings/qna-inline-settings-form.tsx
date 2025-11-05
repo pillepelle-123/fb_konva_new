@@ -102,7 +102,7 @@ export function QnAInlineSettingsForm({
       fontItalic: qStyle.fontItalic ?? qnaDefaults?.fontItalic ?? false,
       fontColor: qStyle.fontColor || qnaDefaults?.fontColor || '#666666',
       fontOpacity: qStyle.fontOpacity ?? 1,
-      align: qStyle.align || qnaDefaults?.align || 'left',
+      align: qStyle.align || element.align || qnaDefaults?.align || 'left',
       ruledLines: qStyle.ruledLines ?? qnaDefaults?.ruledLines ?? false
     };
   };
@@ -122,7 +122,7 @@ export function QnAInlineSettingsForm({
       fontItalic: aStyle.fontItalic ?? qnaDefaults?.fontItalic ?? false,
       fontColor: aStyle.fontColor || qnaDefaults?.fontColor || '#1f2937',
       fontOpacity: aStyle.fontOpacity ?? 1,
-      align: aStyle.align || qnaDefaults?.align || 'left',
+      align: aStyle.align || element.align || qnaDefaults?.align || 'left',
       ruledLines: aStyle.ruledLines ?? qnaDefaults?.ruledLines ?? false
     };
   };
@@ -1044,7 +1044,7 @@ export function QnAInlineSettingsForm({
               variant={(() => {
                 const qSettings = element.questionSettings || {};
                 const aSettings = element.answerSettings || {};
-                const spacing = qSettings.paragraphSpacing || aSettings.paragraphSpacing || 'medium';
+                const spacing = qSettings.paragraphSpacing || aSettings.paragraphSpacing || element.paragraphSpacing || 'medium';
                 return spacing === 'small' ? 'default' : 'outline';
               })()}
               size="xs"
@@ -1057,7 +1057,7 @@ export function QnAInlineSettingsForm({
               variant={(() => {
                 const qSettings = element.questionSettings || {};
                 const aSettings = element.answerSettings || {};
-                const spacing = qSettings.paragraphSpacing || aSettings.paragraphSpacing || 'medium';
+                const spacing = qSettings.paragraphSpacing || aSettings.paragraphSpacing || element.paragraphSpacing || 'medium';
                 return spacing === 'medium' ? 'default' : 'outline';
               })()}
               size="xs"
@@ -1070,7 +1070,7 @@ export function QnAInlineSettingsForm({
               variant={(() => {
                 const qSettings = element.questionSettings || {};
                 const aSettings = element.answerSettings || {};
-                const spacing = qSettings.paragraphSpacing || aSettings.paragraphSpacing || 'medium';
+                const spacing = qSettings.paragraphSpacing || aSettings.paragraphSpacing || element.paragraphSpacing || 'medium';
                 return spacing === 'large' ? 'default' : 'outline';
               })()}
               size="xs"
@@ -1121,7 +1121,7 @@ export function QnAInlineSettingsForm({
             label="Line Width"
             value={(() => {
               const aSettings = element.answerSettings || {};
-              return aSettings.ruledLinesWidth ?? 0.8;
+              return Math.round(aSettings.ruledLinesWidth) ?? 0.8;  
             })()}
             onChange={(value) => {
               dispatch({
@@ -1322,9 +1322,10 @@ export function QnAInlineSettingsForm({
             <Slider
               label="Padding"
               value={(() => {
+                // Priority: questionSettings.padding > answerSettings.padding > element.padding (from layout) > default
                 const qSettings = element.questionSettings || {};
                 const aSettings = element.answerSettings || {};
-                return qSettings.padding || aSettings.padding || 4;
+                return qSettings.padding || aSettings.padding || element.padding || element.format?.padding || 4;
               })()}              
               onChange={(value) => updateSharedSetting('padding', value)}
               min={0}

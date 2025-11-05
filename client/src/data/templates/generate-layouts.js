@@ -85,3 +85,4 @@ fs.writeFileSync(layoutPath, JSON.stringify([existingTemplate], null, 2));
 console.log('Bestehendes Template behalten. Neue Templates werden manuell generiert.');
 
 
+

@@ -68,7 +68,6 @@
           "fontFamily": "Century Gothic, sans-serif",
           "fontBold": true,
           "fontItalic": false,
-          "fontColor": "#666666",
           "fontOpacity": 1
         },
         "answerSettings": {
@@ -76,7 +75,6 @@
           "fontFamily": "Century Gothic, sans-serif",
           "fontBold": false,
           "fontItalic": false,
-          "fontColor": "#1f2937",
           "fontOpacity": 1
         }
       },
@@ -95,8 +93,6 @@
       }
     }
   },
-
-
   "sketchy": {
     "name": "Sketchy",
     "description": "Hand-drawn style with rough edges",
@@ -166,7 +162,6 @@
           "fontFamily": "Comic Sans MS, cursive",
           "fontBold": false,
           "fontItalic": false,
-          "fontColor": "#8B4513",
           "fontOpacity": 1
         },
         "answerSettings": {
@@ -174,7 +169,6 @@
           "fontFamily": "Comic Sans MS, cursive",
           "fontBold": false,
           "fontItalic": false,
-          "fontColor": "#654321",
           "fontOpacity": 1
         }
       },
@@ -193,8 +187,6 @@
       }
     }
   },
-
-
   "minimal": {
     "name": "Minimal",
     "description": "Clean lines and subtle colors",
@@ -264,7 +256,6 @@
           "fontFamily": "Helvetica, Arial, sans-serif",
           "fontBold": false,
           "fontItalic": false,
-          "fontColor": "#1f2937",
           "fontOpacity": 1
         },
         "answerSettings": {
@@ -272,7 +263,6 @@
           "fontFamily": "Helvetica, Arial, sans-serif",
           "fontBold": false,
           "fontItalic": false,
-          "fontColor": "#1f2937",
           "fontOpacity": 1
         }
       },
@@ -291,8 +281,6 @@
       }
     }
   },
-
-
   "colorful": {
     "name": "Colorful",
     "description": "Bright and vibrant colors",
@@ -362,7 +350,6 @@
           "fontFamily": "'Knewave', cursive",
           "fontBold": true,
           "fontItalic": false,
-          "fontColor": "#FF6B6B",
           "fontOpacity": 1
         },
         "answerSettings": {
@@ -370,7 +357,6 @@
           "fontFamily": "'Knewave', cursive",
           "fontBold": true,
           "fontItalic": false,
-          "fontColor": "#4ECDC4",
           "fontOpacity": 1
         }
       },
@@ -389,8 +375,6 @@
       }
     }
   },
-
-
   "vintage": {
     "name": "Vintage",
     "description": "Retro style with muted tones",
@@ -460,7 +444,6 @@
           "fontFamily": "'Times New Roman', serif",
           "fontBold": false,
           "fontItalic": true,
-          "fontColor": "#6B4423",
           "fontOpacity": 1
         },
         "answerSettings": {
@@ -468,7 +451,6 @@
           "fontFamily": "'Times New Roman', serif",
           "fontBold": false,
           "fontItalic": true,
-          "fontColor": "#8B4513",
           "fontOpacity": 1
         }
       },
@@ -487,8 +469,6 @@
       }
     }
   },
-
-
   "dark": {
     "name": "Dark",
     "description": "Dark theme with light elements",
@@ -558,7 +538,6 @@
           "fontFamily": "Audiowide, non-serif",
           "fontBold": false,
           "fontItalic": false,
-          "fontColor": "#00FFFF",
           "fontOpacity": 0.5
         },
         "answerSettings": {
@@ -566,7 +545,6 @@
           "fontFamily": "Consolas, monospace",
           "fontBold": false,
           "fontItalic": false,
-          "fontColor": "#00FF00",
           "fontOpacity": 0.5
         }
       },
@@ -585,7 +563,6 @@
       }
     }
   },
-
   "leather": {
     "name": "Leather",
     "description": "Custom theme exported from canvas",
@@ -642,7 +619,6 @@
         "backgroundOpacity": 0.05,
         "ruledLines": {
           "enabled": true,
-          "lineColor": "#332217",
           "lineWidth": 10,
           "lineOpacity": 0.6,
           "ruledLinesTheme": "wobbly"
@@ -679,58 +655,53 @@
       }
     }
   },
-  
-  
-  
-
- "custom": 
- {
-  "name": "Custom Theme",
-  "description": "Theme created from canvas elements",
-  "palette": "vibrant-rainbow",
-  "pageSettings": {
+  "custom": {
+    "name": "Custom Theme",
+    "description": "Theme created from canvas elements",
+    "palette": "vibrant-rainbow",
+    "pageSettings": {
       "backgroundOpacity": 0.7,
-    "backgroundPattern": {
-      "enabled": true,
-      "style": "waves",
-      "size": 11,
-      "strokeWidth": 12,
-      "patternBackgroundOpacity": 0.2
-    }
-  },
-  "elementDefaults": {
-    "text": {
-      "cornerRadius": 66,
-      "font": {
-        "fontSize": 22,
-        "fontFamily": "Comic Sans MS, cursive",
-        "fontOpacity": 1,
-        "fontBold": false,
-        "fontItalic": false
-      },
-      "border": {
+      "backgroundPattern": {
         "enabled": true,
-        "borderWidth": 25,
-        "borderOpacity": 1,
-        "borderTheme": "wobbly"
-      },
-      "format": {
-        "textAlign": "left",
-        "paragraphSpacing": "small",
-        "padding": 100
-      },
-      "background": {
-        "enabled": true,
-        "backgroundOpacity": 0.6
-      },
-      "ruledLines": {
-        "enabled": false,
-        "lineWidth": 4,
-        "lineOpacity": 0.5,
-        "ruledLinesTheme": "wobbly"
+        "style": "waves",
+        "size": 11,
+        "strokeWidth": 12,
+        "patternBackgroundOpacity": 0.2
       }
     },
-    "qna": {
+    "elementDefaults": {
+      "text": {
+        "cornerRadius": 66,
+        "font": {
+          "fontSize": 22,
+          "fontFamily": "Comic Sans MS, cursive",
+          "fontOpacity": 1,
+          "fontBold": false,
+          "fontItalic": false
+        },
+        "border": {
+          "enabled": true,
+          "borderWidth": 25,
+          "borderOpacity": 1,
+          "borderTheme": "wobbly"
+        },
+        "format": {
+          "textAlign": "left",
+          "paragraphSpacing": "small",
+          "padding": 100
+        },
+        "background": {
+          "enabled": true,
+          "backgroundOpacity": 0.6
+        },
+        "ruledLines": {
+          "enabled": false,
+          "lineWidth": 4,
+          "lineOpacity": 0.5,
+          "ruledLinesTheme": "wobbly"
+        }
+      },
+      "qna": {
         "layoutVariant": "inline",
         "questionPosition": "left",
         "questionWidth": 40,
@@ -753,7 +724,6 @@
           "fontFamily": "Comic Sans MS, cursive",
           "fontBold": false,
           "fontItalic": false,
-          "fontColor": "#FF1493",
           "fontOpacity": 1
         },
         "answerSettings": {
@@ -761,31 +731,28 @@
           "fontFamily": "Comic Sans MS, cursive",
           "fontBold": false,
           "fontItalic": false,
-          "fontColor": "#FF69B4",
           "fontOpacity": 1
         }
-    },
-    "shape": {
-      "cornerRadius": 38,
-      "strokeWidth": 45,
-      "opacity": 1,
-      "inheritTheme": "default",
-      "borderEnabled": true,
-      "backgroundEnabled": true
-    },
-    "brush": {
-      "strokeWidth": 66,
-      "strokeOpacity": 0.4,
-      "inheritTheme": "candy"
-    },
-    "line": {
-      "strokeWidth": 45,
-      "inheritTheme": "candy"
+      },
+      "shape": {
+        "cornerRadius": 38,
+        "strokeWidth": 45,
+        "opacity": 1,
+        "inheritTheme": "default",
+        "borderEnabled": true,
+        "backgroundEnabled": true
+      },
+      "brush": {
+        "strokeWidth": 66,
+        "strokeOpacity": 0.4,
+        "inheritTheme": "candy"
+      },
+      "line": {
+        "strokeWidth": 45,
+        "inheritTheme": "candy"
+      }
     }
-  }
   },
-
-
   "rustic-journal": {
     "name": "Rustic Journal",
     "description": "Handmade journal style with wobbly lines and warm earth tones",
@@ -855,7 +822,6 @@
           "fontFamily": "Arial, Helvetica, sans-serif",
           "fontBold": false,
           "fontItalic": false,
-          "fontColor": "#654321",
           "fontOpacity": 1
         },
         "answerSettings": {
@@ -863,7 +829,6 @@
           "fontFamily": "Arial, Helvetica, sans-serif",
           "fontBold": false,
           "fontItalic": false,
-          "fontColor": "#654321",
           "fontOpacity": 1
         }
       },
@@ -882,8 +847,6 @@
       }
     }
   },
-
-
   "greenery-journal": {
     "name": "Greenery Journal",
     "description": "Fresh journal style with green accents and wobbly lines",
@@ -953,7 +916,6 @@
           "fontFamily": "Arial, Helvetica, sans-serif",
           "fontBold": false,
           "fontItalic": false,
-          "fontColor": "#2E2E2E",
           "fontOpacity": 1
         },
         "answerSettings": {
@@ -961,7 +923,6 @@
           "fontFamily": "Arial, Helvetica, sans-serif",
           "fontBold": false,
           "fontItalic": false,
-          "fontColor": "#2E2E2E",
           "fontOpacity": 1
         }
       },
@@ -980,6 +941,4 @@
       }
     }
   }
-
 }
-

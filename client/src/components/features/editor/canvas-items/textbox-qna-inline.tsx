@@ -484,7 +484,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
     const layoutVariant = element.layoutVariant || 'inline';
     const questionPosition = element.questionPosition || 'left';
     const answerFontSize = answerStyle.fontSize || fontSize;
-    const aSpacing = answerStyle.paragraphSpacing || 'small';
+    const aSpacing = answerStyle.paragraphSpacing || element.paragraphSpacing || 'small';
     const getLineHeightMultiplier = (spacing: string) => {
       switch (spacing) {
         case 'small': return 1.0;
@@ -553,7 +553,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
     const questionText = getQuestionText();
     const userText = getUserText();
     const qFontSize = questionStyle.fontSize || fontSize;
-    const qSpacing = questionStyle.paragraphSpacing || 'small';
+    const qSpacing = questionStyle.paragraphSpacing || element.paragraphSpacing || 'small';
     const qLineHeight = qFontSize * getLineHeightMultiplier(qSpacing);
     const aLineHeight = answerFontSize * getLineHeightMultiplier(aSpacing);
     
@@ -871,8 +871,8 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
           }
         }
         
-        const qSpacing = questionStyle.paragraphSpacing || 'small';
-        const aSpacing = answerStyle.paragraphSpacing || 'small';
+        const qSpacing = questionStyle.paragraphSpacing || element.paragraphSpacing || 'small';
+        const aSpacing = answerStyle.paragraphSpacing || element.paragraphSpacing || 'small';
         const getLineHeightMultiplier = (spacing: string) => {
           switch (spacing) {
             case 'small': return 1.0;
@@ -1527,25 +1527,34 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
             const questionText = getQuestionText();
             const userText = getUserText();
             
-            // Get alignment settings
-            const questionAlign = questionStyle.align || 'left';
-            const answerAlign = answerStyle.align || 'left';
+            // Get alignment settings - Priority: questionSettings/answerSettings > element.align (from layout) > default
+            const questionAlign = questionStyle.align || element.align || 'left';
+            const answerAlign = answerStyle.align || element.align || 'left';
             
             // Get layout variant
             const layoutVariant = element.layoutVariant || 'inline';
             const questionPosition = element.questionPosition || 'left';
             
             if (!questionText && !userText) {
+              // Use question font properties for placeholder text
+              const qFontFamily = questionStyle.fontFamily || element.font?.fontFamily || element.fontFamily || toolDefaults.questionSettings?.fontFamily || fontFamily;
+              const qFontSize = questionStyle.fontSize || fontSize;
+              const qFontColor = questionStyle.fontColor || questionStyle.font?.fontColor || element.font?.fontColor || element.fontColor || toolDefaults.questionSettings?.fontColor || '#666666';
+              const qFontOpacity = questionStyle.fontOpacity ?? toolDefaults.questionSettings?.fontOpacity ?? 1;
+              const qFontBold = questionStyle.fontBold || toolDefaults.questionSettings?.fontBold || false;
+              const qFontItalic = questionStyle.fontItalic || toolDefaults.questionSettings?.fontItalic || false;
+              
               return (
                 <Text
                   ref={textRef}
                   x={padding}
                   y={padding}
-                  text="Double-click to add text..."
-                  fontSize={Math.max(fontSize * 1, 54)}
-                  fontFamily={fontFamily}
-                  fill="#9ca3af"
-                  opacity={0.7}
+                  text="[Double-click to add a question...]"
+                  fontSize={qFontSize}
+                  fontFamily={qFontFamily}
+                  fontStyle={`${qFontBold ? 'bold' : ''} ${qFontItalic ? 'italic' : ''}`.trim() || 'normal'}
+                  fill={qFontColor}
+                  opacity={qFontOpacity}
                   align="left"
                   verticalAlign="top"
                   listening={true}
@@ -1566,9 +1575,9 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
             const effectivePadding = layoutVariant === 'inline' ? padding + (maxFontSize * 0.2) : padding;
             const baselineY = effectivePadding + maxFontSize * 0.8; // Baseline position
             
-            // Get paragraph spacing settings
-            const qParagraphSpacing = questionStyle.paragraphSpacing || 'small';
-            const aParagraphSpacing = answerStyle.paragraphSpacing || 'small';
+            // Get paragraph spacing settings - Priority: questionSettings/answerSettings > element.paragraphSpacing (from layout) > default
+            const qParagraphSpacing = questionStyle.paragraphSpacing || element.paragraphSpacing || 'small';
+            const aParagraphSpacing = answerStyle.paragraphSpacing || element.paragraphSpacing || 'small';
             
             // Calculate line heights based on paragraph spacing
             const getLineHeightMultiplier = (spacing: string) => {

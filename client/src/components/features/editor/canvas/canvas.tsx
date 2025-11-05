@@ -1594,22 +1594,24 @@ export default function Canvas() {
     if (background.type === 'pattern') {
       const pattern = PATTERNS.find(p => p.id === background.value);
       if (pattern) {
-        const foregroundColor = background.patternForegroundColor || '#666';
-        const backgroundColor = background.patternBackgroundColor || 'transparent';
+        // patternBackgroundColor = color of the pattern itself (dots, lines)
+        // patternForegroundColor = color of the space between patterns
+        const patternColor = background.patternBackgroundColor || '#666';
+        const spaceColor = background.patternForegroundColor || 'transparent';
         const patternScale = Math.pow(1.5, (background.patternSize || 1) - 1);
         
-        const patternTile = createPatternTile(pattern, foregroundColor, patternScale, background.patternStrokeWidth || 1);
+        const patternTile = createPatternTile(pattern, patternColor, patternScale, background.patternStrokeWidth || 1);
         
         return (
           <Group>
-            {backgroundColor !== 'transparent' && (
+            {spaceColor !== 'transparent' && (
               <Rect
                 x={pageOffsetX}
                 y={pageOffsetY}
                 width={canvasWidth}
                 height={canvasHeight}
-                fill={backgroundColor}
-                opacity={(background.patternBackgroundOpacity || 1) * opacity}
+                fill={spaceColor}
+                opacity={opacity}
                 listening={false}
               />
             )}
@@ -1620,7 +1622,7 @@ export default function Canvas() {
               height={canvasHeight}
               fillPatternImage={patternTile}
               fillPatternRepeat="repeat"
-              opacity={opacity}
+              opacity={background.patternBackgroundOpacity || 1}
               listening={false}
             />
           </Group>

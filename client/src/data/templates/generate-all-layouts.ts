@@ -75,3 +75,4 @@ fs.writeFileSync(layoutPath, JSON.stringify(generatedTemplates, null, 2));
 console.log(`\n${generatedTemplates.length} Templates erfolgreich in layout.json geschrieben!`);
 
 
+

@@ -10,6 +10,7 @@ import { getToolDefaults } from '../../../../utils/tool-defaults';
 import { PreviewImageDialog } from '../preview/preview-image-dialog';
 import { exportCanvasAsImage } from '../../../../utils/canvas-export';
 import Konva from 'konva';
+import { getActiveTemplateIds } from '../../../../utils/template-inheritance';
 
 interface PaletteSelectorProps {
   onBack: () => void;
@@ -22,10 +23,10 @@ export function PaletteSelector({ onBack, title, isBookLevel = false, previewPos
   const { state, dispatch } = useEditor();
   const [selectedCategory, setSelectedCategory] = useState<string>('Default');
   
-  // Initialize with current book/page palette if available
-  const currentPaletteId = isBookLevel
-    ? state.currentBook?.colorPaletteId
-    : state.currentBook?.pages[state.activePageIndex]?.colorPaletteId;
+  // Get active color palette ID with inheritance fallback
+  const currentPage = isBookLevel ? undefined : state.currentBook?.pages[state.activePageIndex];
+  const activeTemplateIds = getActiveTemplateIds(currentPage, state.currentBook);
+  const currentPaletteId = activeTemplateIds.colorPaletteId;
   const currentPalette = currentPaletteId
     ? colorPalettes.find(p => p.id === currentPaletteId) || null
     : null;
@@ -44,7 +45,7 @@ export function PaletteSelector({ onBack, title, isBookLevel = false, previewPos
     };
   }, [dispatch]);
   
-  // Update selectedPalette when currentPaletteId changes
+  // Update selectedPalette when currentPaletteId changes (with inheritance fallback)
   useEffect(() => {
     if (currentPaletteId && currentPalette) {
       setSelectedPalette(currentPalette);

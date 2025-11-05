@@ -90,10 +90,11 @@ export default function BookCreationWizard({ open, onOpenChange, onSuccess }: Bo
     
     if (wizardState.mode === 'quick') {
       // Quick Mode: Template-Metadaten haben Priorität
+      // Note: Layout templates no longer have theme property - use selected theme
       paletteToUse = quickTemplate?.paletteId 
         ? colorPalettes.find(p => p.id === quickTemplate.paletteId) || finalPalette
         : finalPalette;
-      themeToUse = template?.theme || finalTheme;
+      themeToUse = finalTheme; // Layout templates don't have theme - use selected theme
     } else {
       // Advanced Mode: Manuell ausgewähltes Theme/Palette hat Priorität
       // Verwende finalTheme direkt (nicht template?.theme), da der Benutzer explizit ein Theme ausgewählt hat
@@ -106,8 +107,7 @@ export default function BookCreationWizard({ open, onOpenChange, onSuccess }: Bo
       mode: wizardState.mode,
       selectedTheme: wizardState.selectedTheme,
       finalTheme,
-      themeToUse,
-      templateTheme: template?.theme
+      themeToUse
     });
     
     // Berechne Canvas-Größe basierend auf Seitengröße und Ausrichtung
@@ -146,15 +146,9 @@ export default function BookCreationWizard({ open, onOpenChange, onSuccess }: Bo
           imageSize: bgImage.defaultSize || 'cover'
         };
       }
-    } else if (template?.background?.enabled) {
-      // Nutze Template Background wenn definiert
-      background = {
-        type: template.background.type,
-        value: template.background.value,
-        opacity: 1,
-        pageTheme: themeToUse
-      };
     }
+    // Layout templates no longer have background property - background is managed by themes.json and color-palettes.json
+    // If no background image is set, background will be set from the active theme/palette
     
     const newBook = {
       id: tempId,
@@ -304,8 +298,8 @@ export default function BookCreationWizard({ open, onOpenChange, onSuccess }: Bo
           <LayoutSelector
             selectedLayout={wizardState.selectedTemplate}
             onLayoutSelect={(template) => {
-              const adoptedTheme = template.theme || 'default';
-              updateState({ selectedTemplate: template, selectedTheme: adoptedTheme });
+              // Layout templates no longer have theme property - theme is managed separately
+              updateState({ selectedTemplate: template });
             }}
             previewPosition="right"
           />

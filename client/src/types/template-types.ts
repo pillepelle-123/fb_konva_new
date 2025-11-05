@@ -102,19 +102,8 @@ export interface PageTemplate {
   name: string;
   category: TemplateCategory;
   thumbnail: string;
-  theme: string;
-  colorPalette: {
-    primary: string;
-    secondary: string;
-    accent: string;
-    background: string;
-    text: string;
-  };
-  background: {
-    type: 'color' | 'pattern' | 'image';
-    value: string;
-    enabled: boolean;
-  };
+  // theme, colorPalette, and background are NOT layout properties - they are managed by themes.json and color-palettes.json
+  columns?: number; // 1 or 2, extracted from layout ID (e.g., "qna-1col-..." or "qna-2col-...")
   textboxes: Array<{
     type: 'question' | 'answer' | 'text' | 'qna_inline';
     position: { x: number; y: number };
@@ -123,6 +112,8 @@ export interface PageTemplate {
     questionSettings?: Record<string, unknown>;
     answerSettings?: Record<string, unknown>;
     layoutVariant?: string;
+    questionPosition?: string; // 'left' | 'right' | 'top' (layout property)
+    questionWidth?: number; // Percentage (layout property)
   }>;
   elements: Array<{
     type: 'image' | 'shape' | 'sticker';

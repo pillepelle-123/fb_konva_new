@@ -262,8 +262,10 @@ export function applyPaletteToPage(palette: ColorPalette, pageBackground: any): 
   if (updates.type === 'color') {
     updates.value = palette.colors.background;
   } else if (updates.type === 'pattern') {
-    updates.patternForegroundColor = palette.colors.primary;
-    updates.patternBackgroundColor = palette.colors.background;
+    // patternBackgroundColor = color of the pattern itself (dots, lines)
+    // patternForegroundColor = color of the space between patterns
+    updates.patternBackgroundColor = palette.colors.primary;
+    updates.patternForegroundColor = palette.colors.background;
   }
   
   return updates;

@@ -9,6 +9,7 @@ import { PreviewImageDialog } from './preview/preview-image-dialog';
 import { exportCanvasAsImage } from '../../../utils/canvas-export';
 import Konva from 'konva';
 import { ButtonGroup } from '../../ui';
+import { getActiveTemplateIds } from '../../../utils/template-inheritance';
 
 interface ThemeSelectorWrapperProps {
   onBack: () => void;
@@ -19,13 +20,10 @@ interface ThemeSelectorWrapperProps {
 export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: ThemeSelectorWrapperProps) {
   const { state, dispatch } = useEditor();
   
-  // Initialize with current book/page theme if available
-  const currentTheme = isBookLevel
-    ? state.currentBook?.bookTheme || 'default'
-    : state.currentBook?.pages[state.activePageIndex]?.background?.pageTheme || 
-      state.currentBook?.pages[state.activePageIndex]?.themeId ||
-      state.currentBook?.bookTheme || 
-      'default';
+  // Get active theme ID with inheritance fallback
+  const currentPage = isBookLevel ? undefined : state.currentBook?.pages[state.activePageIndex];
+  const activeTemplateIds = getActiveTemplateIds(currentPage, state.currentBook);
+  const currentTheme = activeTemplateIds.themeId;
   
   const [selectedTheme, setSelectedTheme] = useState<string>(currentTheme);
   const [previewTheme, setPreviewTheme] = useState<string | null>(null); // Separate state for preview
