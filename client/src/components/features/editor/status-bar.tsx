@@ -3,6 +3,7 @@ import { Button } from '../../../components/ui/primitives';
 import { Download, Layout } from 'lucide-react';
 import { exportThemeAndPalette } from '../../../utils/theme-palette-exporter';
 import { exportLayout } from '../../../utils/layout-exporter';
+import { calculatePageDimensions } from '../../../utils/template-utils';
 
 export function StatusBar() {
   const { state } = useEditor();
@@ -87,6 +88,11 @@ export function StatusBar() {
       ? categoryInput 
       : 'freeform';
 
+    // Berechne Canvas-Größe aus pageSize und orientation
+    const pageSize = state.currentBook?.pageSize || 'A4';
+    const orientation = state.currentBook?.orientation || 'portrait';
+    const canvasSize = calculatePageDimensions(pageSize, orientation);
+
     exportLayout(
       templateId.trim(),
       templateName.trim(),
@@ -94,7 +100,9 @@ export function StatusBar() {
       elements,
       currentPage.background,
       currentPage.themeId || currentPage.background?.pageTheme,
-      currentPage.colorPaletteId
+      currentPage.colorPaletteId,
+      undefined, // thumbnail
+      canvasSize
     );
   };
 

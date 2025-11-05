@@ -302,7 +302,7 @@
       "backgroundPattern": {
         "enabled": true,
         "style": "dots",
-        "size": 15,
+        "size": 11,
         "strokeWidth": 1,
         "patternBackgroundOpacity": 0.3
       }
@@ -728,9 +728,9 @@
         "lineWidth": 4,
         "lineOpacity": 0.5,
         "ruledLinesTheme": "wobbly"
-        }
-      },
-      "qna": {
+      }
+    },
+    "qna": {
         "layoutVariant": "inline",
         "questionPosition": "left",
         "questionWidth": 40,
@@ -764,7 +764,7 @@
           "fontColor": "#FF69B4",
           "fontOpacity": 1
         }
-      },
+    },
     "shape": {
       "cornerRadius": 38,
       "strokeWidth": 45,
@@ -783,7 +783,203 @@
       "inheritTheme": "candy"
     }
   }
-}
+  },
+
+
+  "rustic-journal": {
+    "name": "Rustic Journal",
+    "description": "Handmade journal style with wobbly lines and warm earth tones",
+    "palette": "warm-earth",
+    "pageSettings": {
+      "backgroundOpacity": 1,
+      "backgroundPattern": {
+        "enabled": false,
+        "style": "dots",
+        "size": 20,
+        "strokeWidth": 1,
+        "patternBackgroundOpacity": 0.3
+      }
+    },
+    "elementDefaults": {
+      "text": {
+        "cornerRadius": 0,
+        "font": {
+          "fontSize": 12,
+          "fontFamily": "Arial, Helvetica, sans-serif",
+          "fontBold": false,
+          "fontItalic": false,
+          "fontOpacity": 1
+        },
+        "border": {
+          "enabled": false,
+          "borderWidth": 0,
+          "borderOpacity": 1,
+          "borderTheme": "wobbly"
+        },
+        "format": {
+          "textAlign": "left",
+          "paragraphSpacing": "medium",
+          "padding": 8
+        },
+        "background": {
+          "enabled": false,
+          "backgroundOpacity": 1
+        },
+        "ruledLines": {
+          "enabled": true,
+          "lineWidth": 1,
+          "lineOpacity": 1,
+          "ruledLinesTheme": "wobbly"
+        }
+      },
+      "qna": {
+        "layoutVariant": "inline",
+        "questionPosition": "left",
+        "questionWidth": 40,
+        "cornerRadius": 0,
+        "padding": 8,
+        "paragraphSpacing": "medium",
+        "align": "left",
+        "borderEnabled": false,
+        "borderWidth": 0,
+        "borderTheme": "wobbly",
+        "borderOpacity": 1,
+        "backgroundEnabled": false,
+        "backgroundOpacity": 1,
+        "ruledLines": true,
+        "ruledLinesWidth": 1,
+        "ruledLinesTheme": "wobbly",
+        "ruledLinesOpacity": 1,
+        "questionSettings": {
+          "fontSize": 12,
+          "fontFamily": "Arial, Helvetica, sans-serif",
+          "fontBold": false,
+          "fontItalic": false,
+          "fontColor": "#654321",
+          "fontOpacity": 1
+        },
+        "answerSettings": {
+          "fontSize": 12,
+          "fontFamily": "Arial, Helvetica, sans-serif",
+          "fontBold": false,
+          "fontItalic": false,
+          "fontColor": "#654321",
+          "fontOpacity": 1
+        }
+      },
+      "shape": {
+        "strokeWidth": 2,
+        "cornerRadius": 10,
+        "opacity": 1,
+        "inheritTheme": "wobbly",
+        "borderEnabled": false,
+        "backgroundEnabled": true
+      },
+      "brush": {
+        "strokeWidth": 2,
+        "strokeOpacity": 1,
+        "inheritTheme": "wobbly"
+      }
+    }
+  },
+
+
+  "greenery-journal": {
+    "name": "Greenery Journal",
+    "description": "Fresh journal style with green accents and wobbly lines",
+    "palette": "sage",
+    "pageSettings": {
+      "backgroundOpacity": 1,
+      "backgroundPattern": {
+        "enabled": false,
+        "style": "dots",
+        "size": 20,
+        "strokeWidth": 1,
+        "patternBackgroundOpacity": 0.3
+      }
+    },
+    "elementDefaults": {
+      "text": {
+        "cornerRadius": 0,
+        "font": {
+          "fontSize": 12,
+          "fontFamily": "Arial, Helvetica, sans-serif",
+          "fontBold": false,
+          "fontItalic": false,
+          "fontOpacity": 1
+        },
+        "border": {
+          "enabled": false,
+          "borderWidth": 0,
+          "borderOpacity": 1,
+          "borderTheme": "wobbly"
+        },
+        "format": {
+          "textAlign": "left",
+          "paragraphSpacing": "medium",
+          "padding": 8
+        },
+        "background": {
+          "enabled": false,
+          "backgroundOpacity": 1
+        },
+        "ruledLines": {
+          "enabled": true,
+          "lineWidth": 1,
+          "lineOpacity": 1,
+          "ruledLinesTheme": "wobbly"
+        }
+      },
+      "qna": {
+        "layoutVariant": "inline",
+        "questionPosition": "left",
+        "questionWidth": 40,
+        "cornerRadius": 0,
+        "padding": 8,
+        "paragraphSpacing": "medium",
+        "align": "left",
+        "borderEnabled": false,
+        "borderWidth": 0,
+        "borderTheme": "wobbly",
+        "borderOpacity": 1,
+        "backgroundEnabled": false,
+        "backgroundOpacity": 1,
+        "ruledLines": true,
+        "ruledLinesWidth": 1,
+        "ruledLinesTheme": "wobbly",
+        "ruledLinesOpacity": 1,
+        "questionSettings": {
+          "fontSize": 12,
+          "fontFamily": "Arial, Helvetica, sans-serif",
+          "fontBold": false,
+          "fontItalic": false,
+          "fontColor": "#2E2E2E",
+          "fontOpacity": 1
+        },
+        "answerSettings": {
+          "fontSize": 12,
+          "fontFamily": "Arial, Helvetica, sans-serif",
+          "fontBold": false,
+          "fontItalic": false,
+          "fontColor": "#2E2E2E",
+          "fontOpacity": 1
+        }
+      },
+      "shape": {
+        "strokeWidth": 2,
+        "cornerRadius": 10,
+        "opacity": 1,
+        "inheritTheme": "wobbly",
+        "borderEnabled": false,
+        "backgroundEnabled": true
+      },
+      "brush": {
+        "strokeWidth": 2,
+        "strokeOpacity": 1,
+        "inheritTheme": "wobbly"
+      }
+    }
+  }
 
 }
 

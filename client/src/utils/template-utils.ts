@@ -1,17 +1,33 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { PageTemplate, ColorPalette, TemplateCategory } from '../types/template-types';
+import type { PageTemplate, ColorPalette, TemplateCategory, TemplateMargins } from '../types/template-types';
 import type { CanvasElement } from '../context/editor-context';
 import { pageTemplates } from '../data/templates/page-templates';
+import { commonToActual, actualToCommon } from './font-size-converter';
+
+// Pixel-Dimensionen für verschiedene Seitengrößen (in Pixel bei 300 DPI)
+const PAGE_DIMENSIONS = {
+  A4: { width: 2480, height: 3508 },
+  A5: { width: 1748, height: 2480 },
+  A6: { width: 1240, height: 1748 },
+  A3: { width: 3508, height: 4961 },
+  Letter: { width: 2550, height: 3300 },
+  Square: { width: 2480, height: 2480 }
+};
+
+// Konvertierung mm zu Pixel (bei 300 DPI: 1mm = 11.81px)
+const MM_TO_PX = 11.811;
 
 export function applyTemplateToPage(
   template: PageTemplate, 
   pageIndex: number, 
-  canvasSize: { width: number; height: number }
+  canvasSize: { width: number; height: number },
+  pageSize?: string,
+  orientation?: string
 ): CanvasElement[] {
   const elements: CanvasElement[] = [];
   
-  // Scale template to canvas size
-  const scaledTemplate = scaleTemplateToCanvas(template, canvasSize);
+  // Scale template to canvas size (mit neuen Parametern für Margins und Font-Scaling)
+  const scaledTemplate = scaleTemplateToCanvas(template, canvasSize, pageSize, orientation);
   
   // Create textbox elements
   scaledTemplate.textboxes.forEach(textbox => {
@@ -28,8 +44,78 @@ export function applyTemplateToPage(
       backgroundColor: template.colorPalette.background
     };
     
-    if (textbox.type === 'question') {
+    // Übernehme questionSettings und answerSettings wenn vorhanden
+    // Font-Sizes in Templates sind in "common" Format und müssen zu "actual" konvertiert werden
+    if (textbox.questionSettings) {
+      const convertedQuestionSettings = { ...textbox.questionSettings };
+      // Konvertiere fontSize von common zu actual
+      if (typeof convertedQuestionSettings.fontSize === 'number') {
+        convertedQuestionSettings.fontSize = commonToActual(convertedQuestionSettings.fontSize);
+      }
+      // Konvertiere fontSize in font-Objekt
+      if (convertedQuestionSettings.font && typeof convertedQuestionSettings.font === 'object') {
+        const font = convertedQuestionSettings.font as Record<string, unknown>;
+        if (typeof font.fontSize === 'number') {
+          convertedQuestionSettings.font = {
+            ...font,
+            fontSize: commonToActual(font.fontSize)
+          };
+        }
+      }
+      element.questionSettings = convertedQuestionSettings as any;
+    }
+    if (textbox.answerSettings) {
+      const convertedAnswerSettings = { ...textbox.answerSettings };
+      // Konvertiere fontSize von common zu actual
+      if (typeof convertedAnswerSettings.fontSize === 'number') {
+        convertedAnswerSettings.fontSize = commonToActual(convertedAnswerSettings.fontSize);
+      }
+      // Konvertiere fontSize in font-Objekt
+      if (convertedAnswerSettings.font && typeof convertedAnswerSettings.font === 'object') {
+        const font = convertedAnswerSettings.font as Record<string, unknown>;
+        if (typeof font.fontSize === 'number') {
+          convertedAnswerSettings.font = {
+            ...font,
+            fontSize: commonToActual(font.fontSize)
+          };
+        }
+      }
+      element.answerSettings = convertedAnswerSettings as any;
+    }
+    
+    // Übernehme style-Eigenschaften
+    // Font-Sizes in Templates sind in "common" Format und müssen zu "actual" konvertiert werden
+    if (textbox.style) {
+      if (textbox.style.font) {
+        element.fontSize = textbox.style.font.fontSize ? commonToActual(textbox.style.font.fontSize) : undefined;
+        element.fontFamily = textbox.style.font.fontFamily;
+        element.fontColor = textbox.style.font.fontColor || element.fontColor;
+        element.fontStyle = textbox.style.font.fontItalic ? 'italic' : 'normal';
+      }
+      if (textbox.style.format) {
+        element.align = textbox.style.format.textAlign;
+        element.padding = textbox.style.format.padding;
+        element.paragraphSpacing = textbox.style.format.paragraphSpacing;
+      }
+      if (textbox.style.border) {
+        element.borderWidth = textbox.style.border.borderWidth;
+        element.borderColor = textbox.style.border.borderColor;
+      }
+      if (textbox.style.background) {
+        element.backgroundColor = textbox.style.background.backgroundColor || element.backgroundColor;
+        element.backgroundOpacity = textbox.style.background.backgroundOpacity;
+      }
+      if (textbox.cornerRadius !== undefined) {
+        element.cornerRadius = textbox.style.cornerRadius;
+      }
+    }
+    
+    if (textbox.type === 'question' || textbox.type === 'qna_inline') {
       element.questionId = uuidv4();
+    }
+    
+    if (textbox.layoutVariant) {
+      element.layoutVariant = textbox.layoutVariant as any;
     }
     
     elements.push(element);
@@ -45,6 +131,22 @@ export function applyTemplateToPage(
       width: elem.size.width,
       height: elem.size.height
     };
+    
+    // Übernehme style-Eigenschaften für Shapes
+    if (elem.style) {
+      element.strokeWidth = elem.style.strokeWidth;
+      element.stroke = elem.style.stroke;
+      element.fill = elem.style.fill;
+      element.opacity = elem.style.opacity;
+      if (elem.style.cornerRadius !== undefined) {
+        element.cornerRadius = elem.style.cornerRadius;
+      }
+    }
+    
+    if (elem.shapeType) {
+      element.type = elem.shapeType as any;
+    }
+    
     elements.push(element);
   });
   
@@ -68,35 +170,88 @@ export function mergeTemplateWithPalette(template: PageTemplate, palette: ColorP
   };
 }
 
-export function validateTemplateConstraints(template: PageTemplate): { valid: boolean; errors: string[] } {
+export function validateTemplateConstraints(
+  template: PageTemplate,
+  pageSize?: string
+): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
   
-  const questionCount = template.textboxes.filter(t => t.type === 'question').length;
-  if (questionCount < 1 || questionCount > 15) {
-    errors.push(`Question count (${questionCount}) must be between 1-15`);
+  // Verwende getConstraintsForPageSize für dynamische Constraints
+  const constraints = getConstraintsForPageSize(template, pageSize || 'A4');
+  
+  const questionCount = template.textboxes.filter(t => 
+    t.type === 'question' || t.type === 'qna_inline'
+  ).length;
+  
+  if (questionCount < constraints.minQuestions) {
+    errors.push(`Question count (${questionCount}) is below minimum (${constraints.minQuestions})`);
+  }
+  if (questionCount > constraints.maxQuestions) {
+    errors.push(`Question count (${questionCount}) exceeds maximum (${constraints.maxQuestions})`);
   }
   
   const imageCount = template.elements.filter(e => e.type === 'image').length;
-  if (imageCount > 3) {
-    errors.push(`Too many images (${imageCount}), maximum is 3`);
+  if (imageCount > constraints.imageSlots) {
+    errors.push(`Too many images (${imageCount}), maximum is ${constraints.imageSlots}`);
   }
   
   const stickerCount = template.elements.filter(e => e.type === 'sticker').length;
-  if (stickerCount > 10) {
-    errors.push(`Too many stickers (${stickerCount}), maximum is 10`);
+  if (stickerCount > constraints.stickerSlots) {
+    errors.push(`Too many stickers (${stickerCount}), maximum is ${constraints.stickerSlots}`);
   }
   
-  // Check if elements fit within canvas bounds
-  const CANVAS_WIDTH = 2480;
-  const CANVAS_HEIGHT = 3508;
+  // Validiere Margins (falls vorhanden)
+  if (template.margins) {
+    const margins = template.margins;
+    const unit = margins.unit || 'px';
+    
+    // Validiere, dass Margins nicht zu groß sind (max 50% der Dimension)
+    const maxMarginPercent = 50;
+    if (unit === 'percent') {
+      if (margins.top > maxMarginPercent || margins.right > maxMarginPercent ||
+          margins.bottom > maxMarginPercent || margins.left > maxMarginPercent) {
+        errors.push(`Margins are too large (max ${maxMarginPercent}%)`);
+      }
+    } else {
+      // Für mm/px: Validiere gegen Basis-Größe
+      const baseSize = template.baseSize || { width: 2480, height: 3508 };
+      const topPx = convertMarginToPixels(margins.top, unit, baseSize.height);
+      const rightPx = convertMarginToPixels(margins.right, unit, baseSize.width);
+      const bottomPx = convertMarginToPixels(margins.bottom, unit, baseSize.height);
+      const leftPx = convertMarginToPixels(margins.left, unit, baseSize.width);
+      
+      if (topPx + bottomPx >= baseSize.height || leftPx + rightPx >= baseSize.width) {
+        errors.push(`Margins are too large, leaving no space for content`);
+      }
+    }
+  }
   
-  [...template.textboxes, ...template.elements].forEach(elem => {
-    if (elem.position.x + elem.size.width > CANVAS_WIDTH || 
-        elem.position.y + elem.size.height > CANVAS_HEIGHT) {
-      errors.push(`Element extends beyond canvas bounds`);
+  // Validiere Font-Sizes (falls fontScaling vorhanden)
+  if (template.fontScaling) {
+    const baseFontSize = template.fontScaling.baseFontSize || 12;
+    const minFontSize = 8;
+    const maxFontSize = 200;
+    
+    if (baseFontSize < minFontSize || baseFontSize > maxFontSize) {
+      errors.push(`Base font size (${baseFontSize}) is out of valid range (${minFontSize}-${maxFontSize})`);
+    }
+  }
+  
+  // Validiere, dass Elemente innerhalb der verfügbaren Fläche bleiben
+  const baseSize = template.baseSize || { width: 2480, height: 3508 };
+  const { contentArea } = applyMargins(template, baseSize);
+  
+  [...template.textboxes, ...template.elements].forEach((elem, index) => {
+    const elemRight = elem.position.x + elem.size.width;
+    const elemBottom = elem.position.y + elem.size.height;
+    
+    if (elem.position.x < contentArea.x || elem.position.y < contentArea.y ||
+        elemRight > contentArea.x + contentArea.width || 
+        elemBottom > contentArea.y + contentArea.height) {
+      errors.push(`Element at index ${index} extends beyond content area (considering margins)`);
     }
   });
-  
+
   return { valid: errors.length === 0, errors };
 }
 
@@ -144,39 +299,284 @@ export function getTemplatesByCategory(category: TemplateCategory): PageTemplate
   return pageTemplates.filter(template => template.category === category);
 }
 
+/**
+ * Berechnet Pixel-Dimensionen für gegebene Seitengröße und Orientierung
+ */
+export function calculatePageDimensions(
+  pageSize: string, 
+  orientation: string
+): { width: number; height: number } {
+  const dimensions = PAGE_DIMENSIONS[pageSize as keyof typeof PAGE_DIMENSIONS] || PAGE_DIMENSIONS.A4;
+  const width = orientation === 'landscape' ? dimensions.height : dimensions.width;
+  const height = orientation === 'landscape' ? dimensions.width : dimensions.height;
+  return { width, height };
+}
+
+/**
+ * Skaliert Font-Size proportional zur Seitengröße (flächen-basiert)
+ */
+export function scaleFontSize(
+  fontSize: number,
+  baseSize: { width: number; height: number },
+  targetSize: { width: number; height: number }
+): number {
+  const baseArea = baseSize.width * baseSize.height;
+  const targetArea = targetSize.width * targetSize.height;
+  const scaleFactor = Math.sqrt(targetArea / baseArea);
+  return Math.round(fontSize * scaleFactor);
+}
+
+/**
+ * Konvertiert Margins von verschiedenen Einheiten zu Pixel
+ */
+export function convertMarginToPixels(
+  margin: number,
+  unit: 'percent' | 'mm' | 'px',
+  pageDimension: number
+): number {
+  switch (unit) {
+    case 'percent':
+      return (pageDimension * margin) / 100;
+    case 'mm':
+      return margin * MM_TO_PX;
+    case 'px':
+    default:
+      return margin;
+  }
+}
+
+/**
+ * Wendet Margins auf ein Template an und gibt die verfügbare Content-Fläche zurück
+ */
+export function applyMargins(
+  template: PageTemplate,
+  targetSize: { width: number; height: number }
+): { 
+  contentArea: { x: number; y: number; width: number; height: number };
+  margins: { top: number; right: number; bottom: number; left: number };
+} {
+  // Wenn keine Margins definiert sind, verwende Standard-Margins (5mm)
+  const defaultMargin = 5 * MM_TO_PX;
+  
+  if (!template.margins) {
+    return {
+      contentArea: {
+        x: defaultMargin,
+        y: defaultMargin,
+        width: targetSize.width - (defaultMargin * 2),
+        height: targetSize.height - (defaultMargin * 2)
+      },
+      margins: {
+        top: defaultMargin,
+        right: defaultMargin,
+        bottom: defaultMargin,
+        left: defaultMargin
+      }
+    };
+  }
+
+  const margins = template.margins;
+  const unit = margins.unit || 'px';
+  
+  const top = convertMarginToPixels(margins.top, unit, targetSize.height);
+  const right = convertMarginToPixels(margins.right, unit, targetSize.width);
+  const bottom = convertMarginToPixels(margins.bottom, unit, targetSize.height);
+  const left = convertMarginToPixels(margins.left, unit, targetSize.width);
+
+  return {
+    contentArea: {
+      x: left,
+      y: top,
+      width: targetSize.width - left - right,
+      height: targetSize.height - top - bottom
+    },
+    margins: { top, right, bottom, left }
+  };
+}
+
+/**
+ * Berechnet Constraints für eine spezifische Seitengröße
+ */
+export function getConstraintsForPageSize(
+  template: PageTemplate,
+  pageSize: string
+): {
+  minQuestions: number;
+  maxQuestions: number;
+  imageSlots: number;
+  stickerSlots: number;
+} {
+  // Wenn dynamicConstraints vorhanden sind, verwende diese
+  if (template.dynamicConstraints) {
+    const dc = template.dynamicConstraints;
+    return {
+      minQuestions: typeof dc.minQuestions === 'function' 
+        ? dc.minQuestions(pageSize) 
+        : (dc.minQuestions ?? template.constraints.minQuestions),
+      maxQuestions: typeof dc.maxQuestions === 'function' 
+        ? dc.maxQuestions(pageSize) 
+        : (dc.maxQuestions ?? template.constraints.maxQuestions),
+      imageSlots: typeof dc.imageSlots === 'function' 
+        ? dc.imageSlots(pageSize) 
+        : (dc.imageSlots ?? template.constraints.imageSlots),
+      stickerSlots: typeof dc.stickerSlots === 'function' 
+        ? dc.stickerSlots(pageSize) 
+        : (dc.stickerSlots ?? template.constraints.stickerSlots)
+    };
+  }
+
+  // Fallback: Verwende Standard-Constraints
+  return template.constraints;
+}
+
+/**
+ * Skaliert ein Template auf die Ziel-Canvas-Größe
+ * Unterstützt sowohl Legacy-Templates (absolute Werte) als auch neue Templates (relative Werte)
+ */
 export function scaleTemplateToCanvas(
   template: PageTemplate, 
-  targetSize: { width: number; height: number }
+  targetSize: { width: number; height: number },
+  pageSize?: string,
+  orientation?: string
 ): PageTemplate {
-  const ORIGINAL_WIDTH = 2480;
-  const ORIGINAL_HEIGHT = 3508;
+  // Bestimme Basis-Größe für Skalierung
+  const baseSize = template.baseSize || { width: 2480, height: 3508 };
   
-  const scaleX = targetSize.width / ORIGINAL_WIDTH;
-  const scaleY = targetSize.height / ORIGINAL_HEIGHT;
+  // Berechne Skalierungsfaktoren
+  const scaleX = targetSize.width / baseSize.width;
+  const scaleY = targetSize.height / baseSize.height;
+  
+  // Wende Margins an (falls vorhanden)
+  const { contentArea, margins } = applyMargins(template, targetSize);
+  
+  // Berechne Offset für Margins (nur wenn Margins explizit definiert sind)
+  // Für Legacy-Templates ohne Margins: Positionen sind bereits relativ zur Seite
+  const hasExplicitMargins = template.margins !== undefined;
+  const marginOffsetX = hasExplicitMargins ? margins.left : 0;
+  const marginOffsetY = hasExplicitMargins ? margins.top : 0;
+  
+  // Skaliere Font-Sizes (flächen-basiert)
+  const fontScaleFactor = Math.sqrt((targetSize.width * targetSize.height) / (baseSize.width * baseSize.height));
+  
+  // Skaliere Textboxes
+  const scaledTextboxes = template.textboxes.map(textbox => {
+    // Skaliere Position und Größe
+    const scaledX = textbox.position.x * scaleX + marginOffsetX;
+    const scaledY = textbox.position.y * scaleY + marginOffsetY;
+    const scaledWidth = textbox.size.width * scaleX;
+    const scaledHeight = textbox.size.height * scaleY;
+    
+    // Skaliere Font-Sizes in questionSettings und answerSettings
+    const scaledQuestionSettings = textbox.questionSettings ? 
+      scaleFontSizesInSettings(textbox.questionSettings, fontScaleFactor) : 
+      textbox.questionSettings;
+    
+    const scaledAnswerSettings = textbox.answerSettings ? 
+      scaleFontSizesInSettings(textbox.answerSettings, fontScaleFactor) : 
+      textbox.answerSettings;
+    
+    // Skaliere Font-Size in style.font
+    // Font-Sizes in Templates sind in "common" Format, müssen konvertiert werden
+    const scaledStyle = textbox.style ? {
+      ...textbox.style,
+      font: textbox.style.font ? {
+        ...textbox.style.font,
+        fontSize: textbox.style.font.fontSize ? 
+          (() => {
+            // Konvertiere common -> actual, skaliere, dann zurück zu common
+            const actualSize = commonToActual(textbox.style.font.fontSize);
+            const scaledActualSize = actualSize * fontScaleFactor;
+            return actualToCommon(scaledActualSize);
+          })() : 
+          textbox.style.font.fontSize
+      } : textbox.style.font
+    } : textbox.style;
+    
+    return {
+      ...textbox,
+      position: {
+        x: scaledX,
+        y: scaledY
+      },
+      size: {
+        width: scaledWidth,
+        height: scaledHeight
+      },
+      questionSettings: scaledQuestionSettings,
+      answerSettings: scaledAnswerSettings,
+      style: scaledStyle
+    };
+  });
+  
+  // Skaliere Elements
+  // WICHTIG: Bilder werden NICHT skaliert (nur Position), andere Elemente schon
+  const scaledElements = template.elements.map(elem => {
+    if (elem.type === 'image') {
+      // Bilder: Nur Position skalieren, Größe beibehalten
+      return {
+        ...elem,
+        position: {
+          x: elem.position.x * scaleX + marginOffsetX,
+          y: elem.position.y * scaleY + marginOffsetY
+        },
+        size: {
+          width: elem.size.width,  // Keine Skalierung
+          height: elem.size.height  // Keine Skalierung
+        }
+      };
+    } else {
+      // Andere Elemente (Shapes, Stickers): Beides skalieren
+      return {
+        ...elem,
+        position: {
+          x: elem.position.x * scaleX + marginOffsetX,
+          y: elem.position.y * scaleY + marginOffsetY
+        },
+        size: {
+          width: elem.size.width * scaleX,
+          height: elem.size.height * scaleY
+        }
+      };
+    }
+  });
   
   return {
     ...template,
-    textboxes: template.textboxes.map(textbox => ({
-      ...textbox,
-      position: {
-        x: textbox.position.x * scaleX,
-        y: textbox.position.y * scaleY
-      },
-      size: {
-        width: textbox.size.width * scaleX,
-        height: textbox.size.height * scaleY
-      }
-    })),
-    elements: template.elements.map(elem => ({
-      ...elem,
-      position: {
-        x: elem.position.x * scaleX,
-        y: elem.position.y * scaleY
-      },
-      size: {
-        width: elem.size.width * scaleX,
-        height: elem.size.height * scaleY
-      }
-    }))
+    textboxes: scaledTextboxes,
+    elements: scaledElements
   };
+}
+
+/**
+ * Hilfsfunktion: Skaliert Font-Sizes in Settings-Objekten
+ * Font-Sizes in Templates sind in "common" Format gespeichert
+ * Konvertierung: common -> actual -> skalieren -> common
+ */
+function scaleFontSizesInSettings(settings: Record<string, unknown>, scaleFactor: number): Record<string, unknown> {
+  const scaled = { ...settings };
+  
+  // Skaliere direkte fontSize Property
+  // Annahme: fontSize im Template ist in "common" Format
+  if (typeof scaled.fontSize === 'number') {
+    // Konvertiere common -> actual, skaliere, dann zurück zu common
+    const actualSize = commonToActual(scaled.fontSize);
+    const scaledActualSize = actualSize * scaleFactor;
+    scaled.fontSize = actualToCommon(scaledActualSize);
+  }
+  
+  // Skaliere fontSize in font-Objekt
+  if (scaled.font && typeof scaled.font === 'object' && scaled.font !== null) {
+    const font = scaled.font as Record<string, unknown>;
+    if (typeof font.fontSize === 'number') {
+      // Konvertiere common -> actual, skaliere, dann zurück zu common
+      const actualSize = commonToActual(font.fontSize);
+      const scaledActualSize = actualSize * scaleFactor;
+      scaled.font = {
+        ...font,
+        fontSize: actualToCommon(scaledActualSize)
+      };
+    }
+  }
+  
+  return scaled;
 }

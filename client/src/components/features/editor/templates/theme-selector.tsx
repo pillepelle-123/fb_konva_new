@@ -25,7 +25,7 @@ export function ThemeSelector({
   const themes = GLOBAL_THEMES.map(theme => theme.id);
 
   const previewSection = (
-    <div className={`p-4 ${previewPosition === 'right' ? 'w-1/2' : 'border-t border-gray-200 shrink-0'}`}>
+    <div className={`p-4 ${previewPosition === 'right' ? 'w-1/2' : 'border-t border-gray-200 shrink-0'}`} style={{ display: 'none' }}>
       <h3 className="text-sm font-medium mb-3">Preview</h3>
       {activeTheme ? (
         <div className="bg-white border rounded-lg p-4">

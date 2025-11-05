@@ -85,6 +85,7 @@ import { getRuledLinesOpacity } from '../utils/ruled-lines-utils';
 import { getBorderTheme } from '../utils/theme-utils';
 import { convertTemplateToElements } from '../utils/template-to-elements';
 import { applyLayoutTemplateWithPreservation, validateTemplateCompatibility } from '../utils/content-preservation';
+import { calculatePageDimensions } from '../utils/template-utils';
 import { pageTemplates } from '../data/templates/page-templates';
 import { colorPalettes } from '../data/templates/color-palettes';
 import { getGlobalTheme, getThemePageBackgroundColors } from '../utils/global-themes';
@@ -927,8 +928,13 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (bookLayoutTemplateId) {
         const layoutTemplate = pageTemplates.find(t => t.id === bookLayoutTemplateId);
         if (layoutTemplate) {
-          // Convert template to elements
-          pageElements = convertTemplateToElements(layoutTemplate);
+          // Berechne Canvas-Größe basierend auf Seitengröße und Ausrichtung
+          const pageSize = book.pageSize || 'A4';
+          const orientation = book.orientation || 'portrait';
+          const canvasSize = calculatePageDimensions(pageSize, orientation);
+          
+          // Convert template to elements (mit korrekter Skalierung)
+          pageElements = convertTemplateToElements(layoutTemplate, canvasSize);
           
           // Apply book theme styles to elements if available
           if (bookThemeId && bookThemeId !== 'default') {
@@ -1889,6 +1895,11 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const targetPageTemplate = updatedBookTemplate.pages[pageIndex];
       
       if (targetPageTemplate) {
+        // Berechne Canvas-Größe für diese Seite
+        const pageSize = updatedBookTemplate.pageSize || 'A4';
+        const orientation = updatedBookTemplate.orientation || 'portrait';
+        const canvasSize = calculatePageDimensions(pageSize, orientation);
+        
         // Set page background
         targetPageTemplate.background = {
           type: template.background.type,
@@ -1897,8 +1908,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           pageTheme: template.theme
         };
         
-        // Convert template to canvas elements
-        const newElements = convertTemplateToElements(template);
+        // Convert template to canvas elements (mit Canvas-Größe für Skalierung)
+        const newElements = convertTemplateToElements(template, canvasSize);
         
         // Add elements to page (replace existing elements)
         targetPageTemplate.elements = newElements;
@@ -2031,26 +2042,135 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
               }
               
               // Update border colors - create nested objects if they don't exist
-              updates.border = { ...element.border, borderColor: appliedPalette.colors.primary, enabled: true };
+              // Check if border is enabled in theme defaults before applying
+              let borderEnabled = element.border?.enabled !== false;
+              let backgroundEnabled = element.background?.enabled !== false;
+              
               if (element.textType === 'qna_inline') {
+                // Get theme defaults to check if border/background should be enabled
+                const pageTheme = page.background?.pageTheme || page.themeId;
+                const bookTheme = updatedBookApplyPalette.bookTheme;
+                const pageLayoutTemplateId = page.layoutTemplateId;
+                const bookLayoutTemplateId = updatedBookApplyPalette.layoutTemplateId;
+                const pageColorPaletteId = page.colorPaletteId;
+                const bookColorPaletteId = updatedBookApplyPalette.colorPaletteId;
+                
+                const themeDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme, element, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
+                
+                // Check if border is disabled in theme or element
+                const questionBorderEnabled = element.questionSettings?.border?.enabled ?? 
+                                             element.questionSettings?.borderEnabled ?? 
+                                             themeDefaults.questionSettings?.border?.enabled ?? 
+                                             themeDefaults.questionSettings?.borderEnabled ?? 
+                                             true;
+                const answerBorderEnabled = element.answerSettings?.border?.enabled ?? 
+                                          element.answerSettings?.borderEnabled ?? 
+                                          themeDefaults.answerSettings?.border?.enabled ?? 
+                                          themeDefaults.answerSettings?.borderEnabled ?? 
+                                          true;
+                borderEnabled = questionBorderEnabled !== false && answerBorderEnabled !== false;
+                
+                // Check if background is disabled in theme or element
+                const questionBackgroundEnabled = element.questionSettings?.background?.enabled ?? 
+                                                 element.questionSettings?.backgroundEnabled ?? 
+                                                 themeDefaults.questionSettings?.background?.enabled ?? 
+                                                 themeDefaults.questionSettings?.backgroundEnabled ?? 
+                                                 true;
+                const answerBackgroundEnabled = element.answerSettings?.background?.enabled ?? 
+                                              element.answerSettings?.backgroundEnabled ?? 
+                                              themeDefaults.answerSettings?.background?.enabled ?? 
+                                              themeDefaults.answerSettings?.backgroundEnabled ?? 
+                                              true;
+                backgroundEnabled = questionBackgroundEnabled !== false && answerBackgroundEnabled !== false;
+                
+                // Get existing border/background settings or use defaults
+                const existingQuestionBorder = element.questionSettings?.border || {};
+                const existingAnswerBorder = element.answerSettings?.border || {};
+                const existingQuestionBackground = element.questionSettings?.background || {};
+                const existingAnswerBackground = element.answerSettings?.background || {};
+                
                 updates.questionSettings = {
                   ...element.questionSettings,
                   fontColor: appliedPalette.colors.text,
                   font: { ...element.questionSettings?.font, fontColor: appliedPalette.colors.text },
-                  border: { enabled: true, borderColor: appliedPalette.colors.primary, borderWidth: 2, borderOpacity: 1 },
-                  background: { enabled: true, backgroundColor: appliedPalette.colors.accent, backgroundOpacity: 0.3 }
+                  border: borderEnabled ? {
+                    ...existingQuestionBorder,
+                    enabled: true,
+                    borderColor: appliedPalette.colors.primary,
+                    borderWidth: existingQuestionBorder.borderWidth ?? 2,
+                    borderOpacity: existingQuestionBorder.borderOpacity ?? 1
+                  } : {
+                    ...existingQuestionBorder,
+                    enabled: false
+                  },
+                  background: backgroundEnabled ? {
+                    ...existingQuestionBackground,
+                    enabled: true,
+                    backgroundColor: appliedPalette.colors.accent,
+                    backgroundOpacity: existingQuestionBackground.backgroundOpacity ?? 0.3
+                  } : {
+                    ...existingQuestionBackground,
+                    enabled: false
+                  }
                 };
                 updates.answerSettings = {
                   ...element.answerSettings,
                   fontColor: appliedPalette.colors.text,
                   font: { ...element.answerSettings?.font, fontColor: appliedPalette.colors.text },
-                  border: { enabled: true, borderColor: appliedPalette.colors.primary, borderWidth: 2, borderOpacity: 1 },
-                  background: { enabled: true, backgroundColor: appliedPalette.colors.accent, backgroundOpacity: 0.3 },
+                  border: borderEnabled ? {
+                    ...existingAnswerBorder,
+                    enabled: true,
+                    borderColor: appliedPalette.colors.primary,
+                    borderWidth: existingAnswerBorder.borderWidth ?? 2,
+                    borderOpacity: existingAnswerBorder.borderOpacity ?? 1
+                  } : {
+                    ...existingAnswerBorder,
+                    enabled: false
+                  },
+                  background: backgroundEnabled ? {
+                    ...existingAnswerBackground,
+                    enabled: true,
+                    backgroundColor: appliedPalette.colors.accent,
+                    backgroundOpacity: existingAnswerBackground.backgroundOpacity ?? 0.3
+                  } : {
+                    ...existingAnswerBackground,
+                    enabled: false
+                  },
                   ruledLines: { ...element.answerSettings?.ruledLines, lineColor: appliedPalette.colors.primary }
                 };
               }
-              // Update background colors - create nested objects if they don't exist
-              updates.background = { ...element.background, backgroundColor: appliedPalette.colors.accent, enabled: true };
+              
+              // Update border colors - only if border is enabled (for non-qna_inline elements, check existing enabled state)
+              if (element.textType === 'qna_inline') {
+                if (borderEnabled) {
+                  updates.border = { ...element.border, borderColor: appliedPalette.colors.primary, enabled: true };
+                } else {
+                  updates.border = { ...element.border, enabled: false };
+                }
+                
+                // Update background colors - only if background is enabled
+                if (backgroundEnabled) {
+                  updates.background = { ...element.background, backgroundColor: appliedPalette.colors.accent, enabled: true };
+                } else {
+                  updates.background = { ...element.background, enabled: false };
+                }
+              } else {
+                // For other text elements, check existing enabled state
+                const currentBorderEnabled = element.border?.enabled !== false;
+                const currentBackgroundEnabled = element.background?.enabled !== false;
+                
+                if (currentBorderEnabled) {
+                  updates.border = { ...element.border, borderColor: appliedPalette.colors.primary, enabled: true };
+                } else {
+                  updates.border = { ...element.border, enabled: false };
+                }
+                
+                if (currentBackgroundEnabled) {
+                  updates.background = { ...element.background, backgroundColor: appliedPalette.colors.accent, enabled: true };
+                } else {
+                  updates.background = { ...element.background, enabled: false };
+                }
+              }
 
               // Update direct font color properties
               updates.fontColor = appliedPalette.colors.text;
@@ -2107,11 +2227,22 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const updatedBookLayout = { ...savedLayoutState.currentBook! };
       
       const applyLayoutToPage = (page: Page, pageIdx: number) => {
+        // Berechne Canvas-Größe für diese Seite
+        const pageSize = updatedBookLayout.pageSize || 'A4';
+        const orientation = updatedBookLayout.orientation || 'portrait';
+        const canvasSize = calculatePageDimensions(pageSize, orientation);
+        
         // Validate template compatibility
         const validation = validateTemplateCompatibility(layoutTemplate, page.elements);
         
-        // Apply layout with content preservation
-        const newElements = applyLayoutTemplateWithPreservation(page.elements, layoutTemplate);
+        // Apply layout with content preservation (mit neuen Skalierungs-Parametern)
+        const newElements = applyLayoutTemplateWithPreservation(
+          page.elements, 
+          layoutTemplate,
+          canvasSize,
+          pageSize,
+          orientation
+        );
         
         return {
           ...page,

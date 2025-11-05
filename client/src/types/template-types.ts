@@ -77,6 +77,26 @@ export interface ShapeStyle {
   backgroundEnabled?: boolean;
 }
 
+export interface TemplateMargins {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+  unit?: 'percent' | 'mm' | 'px';
+}
+
+export interface FontScaling {
+  baseFontSize?: number;  // Referenz-Font-Size für Basis-Seitengröße
+  scaleFactor?: number;   // Multiplikator für Seitengröße (optional, wird automatisch berechnet)
+}
+
+export interface TemplateConstraints {
+  minQuestions?: number | ((pageSize: string) => number);
+  maxQuestions?: number | ((pageSize: string) => number);
+  imageSlots?: number | ((pageSize: string) => number);
+  stickerSlots?: number | ((pageSize: string) => number);
+}
+
 export interface PageTemplate {
   id: string;
   name: string;
@@ -117,6 +137,12 @@ export interface PageTemplate {
     imageSlots: number;
     stickerSlots: number;
   };
+  // Neue Felder für responsive Templates
+  baseSize?: { width: number; height: number }; // Referenzgröße (z.B. A4 Portrait: 2480x3508)
+  margins?: TemplateMargins;
+  fontScaling?: FontScaling;
+  // Erweiterte Constraints (optional, überschreibt constraints wenn vorhanden)
+  dynamicConstraints?: TemplateConstraints;
 }
 
 export interface BackgroundImage {

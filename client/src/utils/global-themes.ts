@@ -484,10 +484,10 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
         if (settings.font) {
           settings.font = { ...settings.font, fontColor: palette.colors.text || palette.colors.primary };
         }
-        if (settings.background) {
+        if (settings.background && settings.background.enabled !== false) {
           settings.background = { ...settings.background, backgroundColor: palette.colors.surface || palette.colors.background };
         }
-        if (settings.border) {
+        if (settings.border && settings.border.enabled !== false) {
           settings.border = { ...settings.border, borderColor: palette.colors.secondary };
         }
         if (settings.ruledLines) {
@@ -496,13 +496,14 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
       }
       
       // Ensure border and background objects exist if they're enabled
-      if (settings.border) {
+      // Only apply palette colors if border/background is not explicitly disabled
+      if (settings.border && settings.border.enabled !== false) {
         settings.border = {
           ...settings.border,
           borderColor: settings.border.borderColor || palette.colors.secondary
         };
       }
-      if (settings.background) {
+      if (settings.background && settings.background.enabled !== false) {
         settings.background = {
           ...settings.background,
           backgroundColor: settings.background.backgroundColor || (isAnswer ? palette.colors.background : palette.colors.surface || palette.colors.background)
@@ -515,6 +516,14 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
   
   // Extract top-level properties from qnaConfig (like cornerRadius, padding, etc.)
   const topLevelProperties: any = {};
+  let topLevelBorderTheme: string | undefined;
+  let topLevelRuledLinesTheme: string | undefined;
+  let topLevelBorderEnabled: boolean | undefined;
+  let topLevelBackgroundEnabled: boolean | undefined;
+  let topLevelBorderWidth: number | undefined;
+  let topLevelBorderOpacity: number | undefined;
+  let topLevelBackgroundOpacity: number | undefined;
+  
   if (qnaConfig) {
     // Include all top-level properties except questionSettings and answerSettings
     Object.keys(qnaConfig).forEach(key => {
@@ -525,22 +534,145 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
         } else {
           topLevelProperties[key] = qnaConfig[key];
         }
+        
+        // Extract specific properties for later use
+        if (key === 'borderTheme') {
+          topLevelBorderTheme = qnaConfig[key];
+        }
+        if (key === 'ruledLinesTheme') {
+          topLevelRuledLinesTheme = qnaConfig[key];
+        }
+        if (key === 'borderEnabled') {
+          topLevelBorderEnabled = qnaConfig[key];
+        }
+        if (key === 'backgroundEnabled') {
+          topLevelBackgroundEnabled = qnaConfig[key];
+        }
+        if (key === 'borderWidth') {
+          topLevelBorderWidth = qnaConfig[key];
+        }
+        if (key === 'borderOpacity') {
+          topLevelBorderOpacity = qnaConfig[key];
+        }
+        if (key === 'backgroundOpacity') {
+          topLevelBackgroundOpacity = qnaConfig[key];
+        }
       }
     });
   }
   
+  // Apply top-level properties to settings, respecting enabled flags
+  const applyTopLevelProperties = (settings: any) => {
+    // Handle borderEnabled first - if false, don't apply any border properties
+    if (topLevelBorderEnabled !== undefined) {
+      // Ensure border object exists
+      if (!settings.border) {
+        settings.border = {};
+      }
+      
+      if (topLevelBorderEnabled === false) {
+        // If borderEnabled is false, ensure border.enabled is false and don't apply other properties
+        settings.border = {
+          ...settings.border,
+          enabled: false
+        };
+        settings.borderEnabled = false;
+        // Explicitly don't apply borderTheme, borderWidth, borderOpacity when disabled
+      } else {
+        // If borderEnabled is true or not explicitly set, apply border properties
+        settings.border = {
+          ...settings.border,
+          enabled: topLevelBorderEnabled,
+          borderTheme: topLevelBorderTheme !== undefined ? (settings.border.borderTheme || topLevelBorderTheme) : settings.border.borderTheme
+        };
+        settings.borderEnabled = topLevelBorderEnabled;
+        // Also set on top-level of settings for backward compatibility
+        if (topLevelBorderTheme !== undefined) {
+          settings.borderTheme = settings.border.borderTheme;
+        }
+        if (topLevelBorderWidth !== undefined) {
+          settings.borderWidth = topLevelBorderWidth;
+        }
+        if (topLevelBorderOpacity !== undefined) {
+          settings.borderOpacity = topLevelBorderOpacity;
+        }
+      }
+    } else if (topLevelBorderTheme !== undefined) {
+      // If borderEnabled is not set but borderTheme is, apply it (backward compatibility)
+      if (!settings.border) {
+        settings.border = {};
+      }
+      settings.border = {
+        ...settings.border,
+        borderTheme: settings.border.borderTheme || topLevelBorderTheme
+      };
+      settings.borderTheme = settings.border.borderTheme;
+    }
+    
+    // Handle backgroundEnabled first - if false, don't apply any background properties
+    if (topLevelBackgroundEnabled !== undefined) {
+      // Ensure background object exists
+      if (!settings.background) {
+        settings.background = {};
+      }
+      
+      if (topLevelBackgroundEnabled === false) {
+        // If backgroundEnabled is false, ensure background.enabled is false and don't apply other properties
+        settings.background = {
+          ...settings.background,
+          enabled: false
+        };
+        settings.backgroundEnabled = false;
+        // Explicitly don't apply backgroundOpacity when disabled
+      } else {
+        // If backgroundEnabled is true, apply background properties
+        settings.background = {
+          ...settings.background,
+          enabled: topLevelBackgroundEnabled,
+          backgroundOpacity: topLevelBackgroundOpacity !== undefined ? topLevelBackgroundOpacity : settings.background.backgroundOpacity
+        };
+        settings.backgroundEnabled = topLevelBackgroundEnabled;
+        if (topLevelBackgroundOpacity !== undefined) {
+          settings.backgroundOpacity = topLevelBackgroundOpacity;
+        }
+      }
+    }
+    
+    // Apply ruledLinesTheme to ruledLines object if it exists
+    if (topLevelRuledLinesTheme) {
+      // Ensure ruledLines object exists (it might come from textDefaults)
+      if (!settings.ruledLines) {
+        settings.ruledLines = {};
+      }
+      settings.ruledLines = {
+        ...settings.ruledLines,
+        ruledLinesTheme: settings.ruledLines.ruledLinesTheme || topLevelRuledLinesTheme
+      };
+      // Also set on top-level of settings for backward compatibility
+      settings.ruledLinesTheme = settings.ruledLines.ruledLinesTheme;
+    }
+    
+    return settings;
+  };
+  
   if (qnaConfig?.questionSettings && qnaConfig?.answerSettings) {
+    const questionSettings = applyTopLevelProperties(buildSettings(textDefaults, qnaConfig.questionSettings, false));
+    const answerSettings = applyTopLevelProperties(buildSettings(textDefaults, qnaConfig.answerSettings, true));
+    
     return {
       ...topLevelProperties,
-      questionSettings: buildSettings(textDefaults, qnaConfig.questionSettings, false),
-      answerSettings: buildSettings(textDefaults, qnaConfig.answerSettings, true)
+      questionSettings,
+      answerSettings
     };
   }
   
+  const questionSettings = applyTopLevelProperties(buildSettings(textDefaults, {}, false));
+  const answerSettings = applyTopLevelProperties(buildSettings(textDefaults, {}, true));
+  
   return {
     ...topLevelProperties,
-    questionSettings: buildSettings(textDefaults, {}, false),
-    answerSettings: buildSettings(textDefaults, {}, true)
+    questionSettings,
+    answerSettings
   };
 }
 

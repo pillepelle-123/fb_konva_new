@@ -3,6 +3,8 @@ import type { PageTemplate, ColorPalette, TextboxStyle, ShapeStyle } from '../ty
 import type { CanvasElement } from '../context/editor-context';
 import { applyTextboxStyle, applyShapeStyle } from './template-style-applier';
 import { TOOL_DEFAULTS } from './tool-defaults';
+import { scaleTemplateToCanvas } from './template-utils';
+import { commonToActual } from './font-size-converter';
 
 interface TemplateTextbox {
   type: 'question' | 'answer' | 'text' | 'qna_inline';
@@ -10,6 +12,8 @@ interface TemplateTextbox {
   size: { width: number; height: number };
   style?: TextboxStyle;
   layoutVariant?: string; // 'inline' | 'block' | undefined
+  questionSettings?: Record<string, unknown>;
+  answerSettings?: Record<string, unknown>;
 }
 
 interface TemplateElement {
@@ -54,8 +58,11 @@ export function convertTemplateTextboxToElement(
     ...(isQnaInline ? {
       // qna_inline specific settings
       layoutVariant: 'inline',
-      questionSettings: qnaInlineDefaults.questionSettings ? { ...qnaInlineDefaults.questionSettings } : undefined,
-      answerSettings: qnaInlineDefaults.answerSettings ? { ...qnaInlineDefaults.answerSettings } : undefined
+      // Übernehme questionSettings und answerSettings aus Template (falls vorhanden), sonst Defaults
+      questionSettings: textbox.questionSettings || 
+        (qnaInlineDefaults.questionSettings ? { ...qnaInlineDefaults.questionSettings } : undefined),
+      answerSettings: textbox.answerSettings || 
+        (qnaInlineDefaults.answerSettings ? { ...qnaInlineDefaults.answerSettings } : undefined)
     } : {
       // free_text specific settings
       textSettings: freeTextDefaults.textSettings ? { ...freeTextDefaults.textSettings } : undefined
@@ -63,7 +70,57 @@ export function convertTemplateTextboxToElement(
   };
 
   // Apply template styling if available
-  return applyTextboxStyle(baseElement, textbox.style);
+  const styledElement = applyTextboxStyle(baseElement, textbox.style);
+  
+  // WICHTIG: Frage- und Antwort-Settings aus Template haben Vorrang
+  // (falls sie im Template definiert sind, überschreiben sie die Defaults)
+  // Font-Sizes aus Templates sind in "common" Format und müssen zu "actual" konvertiert werden
+  if (isQnaInline && textbox.questionSettings) {
+    const convertedQuestionSettings = { ...textbox.questionSettings };
+    // Konvertiere fontSize von common zu actual
+    if (typeof convertedQuestionSettings.fontSize === 'number') {
+      convertedQuestionSettings.fontSize = commonToActual(convertedQuestionSettings.fontSize);
+    }
+    // Konvertiere fontSize in font-Objekt
+    if (convertedQuestionSettings.font && typeof convertedQuestionSettings.font === 'object') {
+      const font = convertedQuestionSettings.font as Record<string, unknown>;
+      if (typeof font.fontSize === 'number') {
+        convertedQuestionSettings.font = {
+          ...font,
+          fontSize: commonToActual(font.fontSize)
+        };
+      }
+    }
+    
+    styledElement.questionSettings = {
+      ...styledElement.questionSettings,
+      ...convertedQuestionSettings
+    };
+  }
+  if (isQnaInline && textbox.answerSettings) {
+    const convertedAnswerSettings = { ...textbox.answerSettings };
+    // Konvertiere fontSize von common zu actual
+    if (typeof convertedAnswerSettings.fontSize === 'number') {
+      convertedAnswerSettings.fontSize = commonToActual(convertedAnswerSettings.fontSize);
+    }
+    // Konvertiere fontSize in font-Objekt
+    if (convertedAnswerSettings.font && typeof convertedAnswerSettings.font === 'object') {
+      const font = convertedAnswerSettings.font as Record<string, unknown>;
+      if (typeof font.fontSize === 'number') {
+        convertedAnswerSettings.font = {
+          ...font,
+          fontSize: commonToActual(font.fontSize)
+        };
+      }
+    }
+    
+    styledElement.answerSettings = {
+      ...styledElement.answerSettings,
+      ...convertedAnswerSettings
+    };
+  }
+  
+  return styledElement;
 }
 
 export function convertTemplateImageSlotToElement(imageSlot: TemplateElement): CanvasElement {
@@ -124,18 +181,29 @@ export function applyPaletteToElement(element: CanvasElement, palette: ColorPale
   return updated;
 }
 
-export function convertTemplateToElements(template: PageTemplate): CanvasElement[] {
+export function convertTemplateToElements(template: PageTemplate, canvasSize?: { width: number; height: number }): CanvasElement[] {
+  // Wenn canvasSize vorhanden ist, skaliere das Template
+  // Für Legacy-Templates ohne baseSize: baseSize ist undefined, also immer skalieren wenn canvasSize vorhanden
+  // Für neue Templates mit baseSize: skalieren wenn baseSize != canvasSize
+  // Die Prüfung auf baseSize == canvasSize ist nicht nötig, da scaleTemplateToCanvas
+  // die Skalierung nur durchführt wenn nötig (scaleFactor != 1.0)
+  const templateToUse = canvasSize 
+    ? scaleTemplateToCanvas(template, canvasSize)
+    : template;
+  
   const elements: CanvasElement[] = [];
   
   // Convert textboxes (highest z-index)
-  template.textboxes.forEach(textbox => {
-    // Pass layoutVariant to the conversion function
+  templateToUse.textboxes.forEach(textbox => {
+    // Pass layoutVariant, questionSettings und answerSettings to the conversion function
     const textboxWithVariant: TemplateTextbox = {
       type: textbox.type,
       position: textbox.position,
       size: textbox.size,
       style: textbox.style,
-      layoutVariant: textbox.layoutVariant
+      layoutVariant: textbox.layoutVariant,
+      questionSettings: textbox.questionSettings,
+      answerSettings: textbox.answerSettings
     };
     
     elements.push(convertTemplateTextboxToElement(textboxWithVariant, {
@@ -150,21 +218,21 @@ export function convertTemplateToElements(template: PageTemplate): CanvasElement
   });
   
   // Convert image slots (medium z-index)
-  template.elements
+  templateToUse.elements
     .filter(elem => elem.type === 'image')
     .forEach(imageSlot => {
       elements.push(convertTemplateImageSlotToElement(imageSlot));
     });
   
   // Convert shapes (low z-index)
-  template.elements
+  templateToUse.elements
     .filter(elem => elem.type === 'shape')
     .forEach(shape => {
       elements.push(convertTemplateShapeToElement(shape));
     });
   
   // Convert stickers (low z-index)
-  template.elements
+  templateToUse.elements
     .filter(elem => elem.type === 'sticker')
     .forEach(sticker => {
       elements.push(convertTemplateStickerToElement(sticker));

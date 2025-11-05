@@ -1,7 +1,9 @@
 import type { TextboxStyle, ShapeStyle } from '../types/template-types';
+import { commonToActual } from './font-size-converter';
 
 /**
  * Applies template styling to textbox elements
+ * Font-Sizes in Templates sind in "common" Format und müssen zu "actual" konvertiert werden
  */
 export function applyTextboxStyle(element: any, style?: TextboxStyle): any {
   if (!style) return element;
@@ -10,7 +12,10 @@ export function applyTextboxStyle(element: any, style?: TextboxStyle): any {
 
   // Apply font styling
   if (style.font) {
-    if (style.font.fontSize) styledElement.fontSize = style.font.fontSize;
+    // Konvertiere fontSize von common zu actual
+    if (style.font.fontSize) {
+      styledElement.fontSize = commonToActual(style.font.fontSize);
+    }
     if (style.font.fontFamily) styledElement.fontFamily = style.font.fontFamily;
     if (style.font.fontBold !== undefined) styledElement.fontWeight = style.font.fontBold ? 'bold' : 'normal';
     if (style.font.fontItalic !== undefined) styledElement.fontStyle = style.font.fontItalic ? 'italic' : 'normal';

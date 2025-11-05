@@ -5,6 +5,77 @@ import { actualToCommon } from './font-size-converter';
 import { actualToCommonRadius } from './corner-radius-converter';
 import { actualToThemeJsonStrokeWidth } from './stroke-width-converter';
 
+// Konvertierung mm zu Pixel (bei 300 DPI: 1mm = 11.81px)
+const MM_TO_PX = 11.811;
+
+/**
+ * Berechnet Margins aus minimalen Abständen der Elemente zu den Rändern
+ */
+function calculateMarginsFromElements(
+  elements: CanvasElement[],
+  canvasWidth: number,
+  canvasHeight: number
+): { top: number; right: number; bottom: number; left: number; unit: 'mm' } | undefined {
+  if (elements.length === 0) {
+    return undefined;
+  }
+
+  // Finde minimale Abstände zu den Rändern
+  let minLeft = Infinity;
+  let minTop = Infinity;
+  let minRight = Infinity;
+  let minBottom = Infinity;
+
+  elements.forEach(element => {
+    minLeft = Math.min(minLeft, element.x || 0);
+    minTop = Math.min(minTop, element.y || 0);
+    minRight = Math.min(minRight, canvasWidth - ((element.x || 0) + (element.width || 0)));
+    minBottom = Math.min(minBottom, canvasHeight - ((element.y || 0) + (element.height || 0)));
+  });
+
+  // Konvertiere zu mm (runden auf ganze mm)
+  return {
+    top: Math.round(minTop / MM_TO_PX),
+    right: Math.round(minRight / MM_TO_PX),
+    bottom: Math.round(minBottom / MM_TO_PX),
+    left: Math.round(minLeft / MM_TO_PX),
+    unit: 'mm'
+  };
+}
+
+/**
+ * Berechnet durchschnittliche Font-Size für baseFontSize
+ */
+function calculateBaseFontSize(elements: CanvasElement[]): number | undefined {
+  const fontSizes: number[] = [];
+
+  elements.forEach(element => {
+    if (element.fontSize) {
+      fontSizes.push(element.fontSize);
+    }
+    if (element.questionSettings?.fontSize) {
+      fontSizes.push(element.questionSettings.fontSize as number);
+    }
+    if (element.answerSettings?.fontSize) {
+      fontSizes.push(element.answerSettings.fontSize as number);
+    }
+    if (element.questionSettings?.font?.fontSize) {
+      fontSizes.push(element.questionSettings.font.fontSize as number);
+    }
+    if (element.answerSettings?.font?.fontSize) {
+      fontSizes.push(element.answerSettings.font.fontSize as number);
+    }
+  });
+
+  if (fontSizes.length === 0) {
+    return undefined;
+  }
+
+  // Berechne Durchschnitt
+  const avgFontSize = fontSizes.reduce((sum, size) => sum + size, 0) / fontSizes.length;
+  return Math.round(avgFontSize);
+}
+
 /**
  * Extracts layout information (position and size) from qna_inline textboxes and images
  * and converts them to PageTemplate format for layout.json
@@ -13,7 +84,8 @@ export function extractLayoutTemplate(
   elements: CanvasElement[],
   pageBackground: any,
   pageTheme?: string,
-  colorPaletteId?: string
+  colorPaletteId?: string,
+  canvasSize?: { width: number; height: number }
 ): Partial<PageTemplate> {
   const textboxes: any[] = [];
   const layoutElements: any[] = [];
@@ -206,6 +278,28 @@ export function extractLayoutTemplate(
     }
   };
 
+  // Füge baseSize hinzu (falls canvasSize vorhanden)
+  if (canvasSize) {
+    template.baseSize = {
+      width: canvasSize.width,
+      height: canvasSize.height
+    };
+
+    // Berechne Margins aus Element-Positionen
+    const margins = calculateMarginsFromElements(elements, canvasSize.width, canvasSize.height);
+    if (margins) {
+      template.margins = margins;
+    }
+
+    // Berechne baseFontSize für fontScaling
+    const baseFontSize = calculateBaseFontSize(elements);
+    if (baseFontSize) {
+      template.fontScaling = {
+        baseFontSize: actualToCommon(baseFontSize)
+      };
+    }
+  }
+
   return template;
 }
 
@@ -220,9 +314,10 @@ export function generateLayoutJSON(
   pageBackground: any,
   pageTheme?: string,
   colorPaletteId?: string,
-  thumbnail?: string
+  thumbnail?: string,
+  canvasSize?: { width: number; height: number }
 ): string {
-  const layoutTemplate = extractLayoutTemplate(elements, pageBackground, pageTheme, colorPaletteId);
+  const layoutTemplate = extractLayoutTemplate(elements, pageBackground, pageTheme, colorPaletteId, canvasSize);
 
   // Extract color palette from page background or use defaults
   const colorPalette = {
@@ -271,7 +366,8 @@ export function exportLayout(
   pageBackground: any,
   pageTheme?: string,
   colorPaletteId?: string,
-  thumbnail?: string
+  thumbnail?: string,
+  canvasSize?: { width: number; height: number }
 ): void {
   const layoutJSON = generateLayoutJSON(
     templateId,
@@ -281,7 +377,8 @@ export function exportLayout(
     pageBackground,
     pageTheme,
     colorPaletteId,
-    thumbnail
+    thumbnail,
+    canvasSize
   );
 
   displayJSONInNewWindow('Layout Export', layoutJSON);

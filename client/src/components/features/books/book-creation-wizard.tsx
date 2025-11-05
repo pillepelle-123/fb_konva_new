@@ -13,6 +13,7 @@ import { getBackgroundImagesWithUrl } from '../../../data/templates/background-i
 import { LayoutSelector } from '../editor/templates/layout-selector';
 import { ThemeSelector } from '../editor/templates/theme-selector';
 import { WizardPaletteSelector } from '../editor/templates/wizard-palette-selector';
+import { calculatePageDimensions } from '../../../utils/template-utils';
 
 const tempBooks = new Map();
 
@@ -109,8 +110,12 @@ export default function BookCreationWizard({ open, onOpenChange, onSuccess }: Bo
       templateTheme: template?.theme
     });
     
+    // Berechne Canvas-Größe basierend auf Seitengröße und Ausrichtung
+    const canvasSize = calculatePageDimensions(wizardState.pageSize, wizardState.orientation);
+    
     // Erstelle Elemente aus Template (falls Template gewählt)
-    const elements = template ? convertTemplateToElements(template) : [];
+    // WICHTIG: Übergebe canvasSize für korrekte Skalierung
+    const elements = template ? convertTemplateToElements(template, canvasSize) : [];
     
     // Bereite Background vor
     let background: {

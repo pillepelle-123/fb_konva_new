@@ -14,7 +14,7 @@ export function LayoutSelector({ selectedLayout, onLayoutSelect, onPreviewClick,
   const mergedPageTemplates: PageTemplate[] = builtinPageTemplates;
 
   const previewSection = (
-    <div className="p-4 border-t border-gray-200 shrink-0">
+    <div className="p-4 border-t border-gray-200 shrink-0" style={{ display: 'none' }}>
       <h3 className="text-sm font-medium mb-3">Preview</h3>
       {selectedLayout ? (
         <div className="bg-white border rounded-lg p-4">

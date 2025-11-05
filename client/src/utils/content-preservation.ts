@@ -3,6 +3,7 @@ import type { CanvasElement } from '../context/editor-context';
 import type { PageTemplate } from '../types/template-types';
 import { convertTemplateToElements } from './template-to-elements';
 import { getToolDefaults } from './tool-defaults';
+import { scaleTemplateToCanvas } from './template-utils';
 
 interface ContentMapping {
   existingElement: CanvasElement;
@@ -12,10 +13,15 @@ interface ContentMapping {
 
 export function applyLayoutTemplateWithPreservation(
   existingElements: CanvasElement[],
-  template: PageTemplate
+  template: PageTemplate,
+  canvasSize?: { width: number; height: number },
+  pageSize?: string,
+  orientation?: string
 ): CanvasElement[] {
-  // Convert template to elements
-  const templateElements = convertTemplateToElements(template);
+  // Convert template to elements (skaliert automatisch, wenn canvasSize vorhanden ist)
+  // Übergib pageSize und orientation NICHT als canvasSize, da convertTemplateToElements
+  // nur canvasSize benötigt und die Skalierung intern durchführt
+  const templateElements = convertTemplateToElements(template, canvasSize);
   
   // Separate textbox and non-textbox elements
   const existingTextboxes = existingElements.filter(el => 

@@ -10,7 +10,7 @@ import { Toast } from '../../components/ui/overlays/toast';
 import QuestionSelectionHandler from '../../components/features/editor/question-selection-handler';
 import PagePreviewOverlay from '../../components/features/editor/preview/page-preview-overlay';
 import TemplateGallery from '../../components/templates/template-gallery';
-import { fetchTemplates, fetchColorPalettes } from '../../services/api';
+import { fetchTemplates, fetchColorPalettes, apiService } from '../../services/api';
 
 
 function EditorContent() {
@@ -147,6 +147,120 @@ function EditorContent() {
             if (response.ok) {
               const newBook = await response.json();
               
+              // WICHTIG: Setze die Elemente direkt aus dem temporären Buch, bevor wir das Buch laden
+              // Dies stellt sicher, dass die Elemente sofort auf dem Canvas erscheinen
+              if (tempBook?.pages && tempBook.pages.length > 0 && tempBook.pages[0].elements) {
+                // Erstelle das Buch-Objekt mit den Elementen aus dem temporären Buch
+                const bookWithElements = {
+                  ...newBook,
+                  pages: tempBook.pages.map((page: any, index: number) => ({
+                    ...page,
+                    id: newBook.pages?.[index]?.id || Date.now() + index,
+                    database_id: newBook.pages?.[index]?.id || undefined
+                  }))
+                };
+                
+                // Setze das Buch direkt im State mit den Elementen
+                dispatch({ type: 'SET_BOOK', payload: bookWithElements });
+                
+                // Speichere das Buch mit den Elementen in der Datenbank
+                try {
+                  await apiService.saveBook(
+                    bookWithElements,
+                    {},
+                    {},
+                    [],
+                    {},
+                    []
+                  );
+                  
+                  // WICHTIG: Lade Editor-Settings und User-Permissions nach dem Setzen des Buches
+                  // Dies stellt sicher, dass toolbarVisible und settingsPanelVisible korrekt gesetzt werden
+                  try {
+                    const token = localStorage.getItem('token');
+                    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+                    
+                    // Lade Editor-Settings
+                    const settingsResponse = await fetch(`${apiUrl}/editor-settings/${newBook.id}`, {
+                      headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (settingsResponse.ok) {
+                      const editorSettings = await settingsResponse.json();
+                      dispatch({ type: 'SET_EDITOR_SETTINGS', payload: editorSettings });
+                    }
+                    
+                    // Lade User-Role und Permissions direkt (ohne das Buch nochmal zu laden)
+                    // Dies verhindert, dass die Elemente überschrieben werden
+                    const loadBookResponse = await fetch(`${apiUrl}/books/${newBook.id}`, {
+                      headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (loadBookResponse.ok) {
+                      const loadBookData = await loadBookResponse.json();
+                      const userRole = loadBookData.userRole;
+                      const pageAssignments = loadBookData.pageAssignments || [];
+                      
+                      if (userRole) {
+                        dispatch({ type: 'SET_USER_ROLE', payload: { role: userRole.role, assignedPages: userRole.assignedPages || [] } });
+                        dispatch({ type: 'SET_USER_PERMISSIONS', payload: { 
+                          pageAccessLevel: userRole.page_access_level || 'all_pages', 
+                          editorInteractionLevel: userRole.editor_interaction_level || 'full_edit_with_settings' 
+                        } });
+                      } else {
+                        // Default permissions for book owner
+                        dispatch({ type: 'SET_USER_PERMISSIONS', payload: { 
+                          pageAccessLevel: 'all_pages', 
+                          editorInteractionLevel: 'full_edit_with_settings' 
+                        } });
+                      }
+                      
+                      // Load page assignments
+                      const pageAssignmentsMap: Record<number, any> = {};
+                      pageAssignments.forEach((assignment: any) => {
+                        pageAssignmentsMap[assignment.page_number] = {
+                          id: assignment.user_id,
+                          name: assignment.name,
+                          email: assignment.email,
+                          role: assignment.role
+                        };
+                      });
+                      dispatch({ type: 'SET_PAGE_ASSIGNMENTS', payload: pageAssignmentsMap });
+                      
+                      // Load questions and answers
+                      const questions = loadBookData.questions || [];
+                      const answers = loadBookData.answers || [];
+                      questions.forEach((q: any) => {
+                        dispatch({ type: 'UPDATE_TEMP_QUESTION', payload: { questionId: q.id, text: q.question_text, questionPoolId: q.question_pool_id } });
+                      });
+                      answers.forEach((a: any) => {
+                        dispatch({ type: 'UPDATE_TEMP_ANSWER', payload: { questionId: a.question_id, text: a.answer_text, userId: a.user_id, answerId: a.id } });
+                      });
+                    }
+                    
+                    // Load book friends
+                    try {
+                      const friendsResponse = await fetch(`${apiUrl}/books/${newBook.id}/friends`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                      });
+                      if (friendsResponse.ok) {
+                        const bookFriends = await friendsResponse.json();
+                        dispatch({ type: 'SET_BOOK_FRIENDS', payload: bookFriends });
+                      }
+                    } catch (friendsError) {
+                      console.warn('Failed to load book friends:', friendsError);
+                    }
+                  } catch (loadError) {
+                    console.warn('Failed to load additional book data:', loadError);
+                  }
+                } catch (saveError) {
+                  console.error('Failed to save book elements:', saveError);
+                  // Falls das Speichern fehlschlägt, lade das Buch trotzdem (ohne Elemente)
+                  loadBook(newBook.id);
+                }
+              } else {
+                // Falls keine Elemente vorhanden sind, lade das Buch normal
+                loadBook(newBook.id);
+              }
+              
               // Apply wizard selections if available
               if (tempBook?.wizardSelections) {
                 const { template, theme, palette } = tempBook.wizardSelections;
@@ -166,8 +280,7 @@ function EditorContent() {
               if (tempBooks) {
                 tempBooks.delete(bookId);
               }
-              // Load the newly created book
-              loadBook(newBook.id);
+              
               // Update URL to use real ID
               window.history.replaceState(null, '', `/editor/${newBook.id}`);
             } else {

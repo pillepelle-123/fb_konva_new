@@ -688,7 +688,7 @@ export function GeneralSettings({
             value={background.patternSize || 1}
             onChange={(value) => updateBackground({ patternSize: value })}
             min={1}
-            max={12}
+            max={15}
             unit=""
           />
           
