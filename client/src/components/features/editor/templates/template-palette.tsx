@@ -64,7 +64,7 @@ export function TemplatePalette({ selectedPalette, onPaletteSelect }: TemplatePa
   return (
     <div className="flex flex-col h-full">
       {/* List section - flex-1 with scroll */}
-      <div className="p-2 flex-1 min-h-0 flex flex-col border-b border-gray-200">
+      {/* <div className="p-2 flex-1 min-h-0 flex flex-col border-b border-gray-200"> */}
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-medium flex items-center gap-2">
             <Palette className="h-4 w-4" />
@@ -117,7 +117,7 @@ export function TemplatePalette({ selectedPalette, onPaletteSelect }: TemplatePa
             </button>
           ))}
         </div>
-      </div>
+      {/* </div> */}
       
       {/* Preview section - shrink-0 at bottom */}
       <div className="p-4 border-t border-gray-200 shrink-0">

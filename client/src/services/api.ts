@@ -37,19 +37,44 @@ class ApiService {
 
   async saveBook(bookData: any, tempQuestions: Record<string, string>, tempAnswers: Record<string, Record<number, { text: string; answerId: string }>>, newQuestions: any[], pageAssignments: any, bookFriends: any[]) {
     // Save book with UPSERT logic for pages
+    // WICHTIG: id muss die numerische DB-ID sein für Updates, oder undefined für neue Seiten
     const bookToSave = {
       ...bookData,
-      pages: bookData.pages.map(page => ({
-        ...page,
-        id: page.database_id || undefined // Use database_id if exists, undefined for new pages
-      }))
+      pages: bookData.pages.map(page => {
+        // Verwende id falls bereits gesetzt (sollte DB-ID sein), sonst database_id, sonst undefined
+        const pageId = page.id || page.database_id || undefined;
+        return {
+          ...page,
+          id: pageId,
+          // Stelle sicher, dass elements ein Array ist
+          elements: Array.isArray(page.elements) ? page.elements : []
+        };
+      })
     };
     
-    await fetch(`${this.baseUrl}/books/${bookData.id}`, {
+    // Debug: Log was gesendet wird
+    console.log('apiService.saveBook sending:', {
+      bookId: bookToSave.id,
+      pageCount: bookToSave.pages.length,
+      firstPage: {
+        id: bookToSave.pages[0]?.id,
+        elementsCount: bookToSave.pages[0]?.elements?.length || 0,
+        hasElements: Array.isArray(bookToSave.pages[0]?.elements) && bookToSave.pages[0].elements.length > 0
+      }
+    });
+    
+    const response = await fetch(`${this.baseUrl}/books/${bookData.id}`, {
       method: 'PUT',
       headers: this.getHeaders(),
       body: JSON.stringify(bookToSave)
     });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('apiService.saveBook failed:', response.status, errorText);
+    } else {
+      console.log('apiService.saveBook success:', response.status);
+    }
   }
 
   // Question operations

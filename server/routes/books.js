@@ -251,7 +251,25 @@ router.get('/:id', authenticateToken, async (req, res) => {
       pageAssignments: pageAssignments.rows,
       userRole: userRole,
       pages: pages.rows.map(page => {
-        const pageData = page.elements || {};
+        // Parse page.elements - it's JSONB, so it might be an object or need parsing
+        let pageData = {};
+        if (page.elements) {
+          // If it's already an object (from JSONB), use it directly
+          if (typeof page.elements === 'object' && !Array.isArray(page.elements)) {
+            pageData = page.elements;
+          } else if (typeof page.elements === 'string') {
+            // If it's a string, parse it
+            try {
+              pageData = JSON.parse(page.elements);
+            } catch (e) {
+              console.error('Failed to parse page.elements:', e);
+              pageData = {};
+            }
+          } else {
+            // If it's an array or null, create default structure
+            pageData = { elements: Array.isArray(page.elements) ? page.elements : [] };
+          }
+        }
         const elements = pageData.elements || [];
       //console.log(`Page ${page.id} has ${elements.length} elements`);
         
@@ -351,9 +369,11 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
           const pageId = pageResult.rows[0].id;
           
           // Update page data with complete structure
+          // Ensure elements is always an array
+          const pageElements = Array.isArray(page.elements) ? page.elements : (page.elements?.elements || []);
           const completePageData = {
             id: pageId,
-            elements: page.elements || [],
+            elements: pageElements,
             background: page.background || { pageTheme: null },
             pageNumber: page.pageNumber,
             database_id: pageId
@@ -385,7 +405,8 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
           );
           
           // Add new question associations and create answer placeholders
-          const elements = page.elements || [];
+          // Ensure elements is always an array
+          const elements = Array.isArray(page.elements) ? page.elements : (page.elements?.elements || []);
           let elementsUpdated = false;
           
           for (const element of elements) {
@@ -481,6 +502,14 @@ router.put('/:id', authenticateToken, async (req, res) => {
     const bookId = req.params.id;
     const userId = req.user.id;
     const { name, pageSize, orientation, pages } = req.body;
+
+    console.log('PUT /books/:id payload summary:', {
+      bookId,
+      userId,
+      hasPages: Array.isArray(pages),
+      pageCount: Array.isArray(pages) ? pages.length : 0,
+      firstPageElements: Array.isArray(pages) && pages[0]?.elements ? (Array.isArray(pages[0].elements) ? pages[0].elements.length : 'not-array') : 'none'
+    });
     
     // Prevent duplicate save operations
     const saveKey = `${userId}-${bookId}`;
@@ -541,6 +570,12 @@ router.put('/:id', authenticateToken, async (req, res) => {
       const allPageIds = [];
       
       for (const page of pages) {
+        console.log('Processing page payload:', {
+          pageId: page.id,
+          pageNumber: page.pageNumber,
+          elementsType: Array.isArray(page.elements) ? 'array' : typeof page.elements,
+          elementsLength: Array.isArray(page.elements) ? page.elements.length : page.elements?.elements?.length,
+        });
         let pageId;
         
         if (page.id && processedPageIds.has(page.id)) {
@@ -549,14 +584,21 @@ router.put('/:id', authenticateToken, async (req, res) => {
         
         if (page.id && typeof page.id === 'number' && Number.isInteger(page.id) && page.id > 0 && page.id < 2147483647) {
           // Update existing page
+          // Ensure elements is always an array
+          const pageElements = Array.isArray(page.elements) ? page.elements : (page.elements?.elements || []);
+          console.log('Updating existing page', {
+            pageId: page.id,
+            elementsType: Array.isArray(page.elements) ? 'array' : typeof page.elements,
+            elementsLength: Array.isArray(page.elements) ? page.elements.length : (Array.isArray(page.elements?.elements) ? page.elements.elements.length : 'n/a')
+          });
           const completePageData = {
             id: page.id,
-            elements: page.elements || [],
+            elements: pageElements,
             background: page.background || { pageTheme: null },
             pageNumber: page.pageNumber,
             database_id: page.id
           };
-          
+
           const pageTheme = page.themeId || page.background?.pageTheme || null;
           await pool.query(
             'UPDATE public.pages SET page_number = $1, elements = $2, page_theme = $3, layout_template_id = $4, theme_id = $5, color_palette_id = $6 WHERE id = $7 AND book_id = $8',
@@ -575,8 +617,10 @@ router.put('/:id', authenticateToken, async (req, res) => {
           processedPageIds.add(page.id);
         } else {
           // Insert new page
+          // Ensure elements is always an array
+          const pageElements = Array.isArray(page.elements) ? page.elements : (page.elements?.elements || []);
           const completePageData = {
-            elements: page.elements || [],
+            elements: pageElements,
             background: page.background || { pageTheme: null },
             pageNumber: page.pageNumber
           };
@@ -610,6 +654,35 @@ router.put('/:id', authenticateToken, async (req, res) => {
         
         if (pageId) allPageIds.push(pageId);
 
+        // Debug: Prüfe gespeicherten Zustand nach Update/Insert
+        try {
+          const storedPage = await pool.query(
+            'SELECT id, elements FROM public.pages WHERE id = $1',
+            [pageId]
+          );
+          const storedElements = storedPage.rows[0]?.elements;
+          let storedSummary = 'unknown';
+          if (Array.isArray(storedElements)) {
+            storedSummary = `array length ${storedElements.length}`;
+          } else if (storedElements && typeof storedElements === 'object') {
+            const length = Array.isArray(storedElements.elements) ? storedElements.elements.length : 'no-elements-field';
+            storedSummary = `object elements length ${length}`;
+          } else if (typeof storedElements === 'string') {
+            try {
+              const parsed = JSON.parse(storedElements);
+              const length = Array.isArray(parsed) ? parsed.length : Array.isArray(parsed?.elements) ? parsed.elements.length : 'no-elements-field';
+              storedSummary = `string parsed length ${length}`;
+            } catch (err) {
+              storedSummary = `string parse error`;
+            }
+          } else {
+            storedSummary = typeof storedElements;
+          }
+          console.log('After page upsert:', { pageId, storedSummary });
+        } catch (debugError) {
+          console.warn('Failed to verify stored page elements:', debugError);
+        }
+
         // Remove existing question associations for this page
         await pool.query(
           'DELETE FROM public.question_pages WHERE page_id = $1',
@@ -634,7 +707,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
         }
         
         // Add new question associations and create answer placeholders
-        const elements = page.elements || [];
+        // Ensure elements is always an array
+        const elements = Array.isArray(page.elements) ? page.elements : (page.elements?.elements || []);
         let elementsUpdated = false;
         
       //console.log(`Processing ${elements.length} elements for page ${pageId}`);
@@ -795,10 +869,12 @@ router.put('/:id', authenticateToken, async (req, res) => {
             const pageId = pageResult.rows[0].id;
             const assignedUserId = assignment.userId;
             
-            // Get all questions on this page
-            const pageData = pages.find(p => p.pageNumber === parseInt(pageNumber));
-            if (pageData && pageData.elements) {
-              const questionElements = pageData.elements.filter(el => el.textType === 'question' && el.questionId);
+          // Get all questions on this page
+          const pageData = pages.find(p => p.pageNumber === parseInt(pageNumber));
+          if (pageData) {
+            // Ensure elements is always an array
+            const pageElements = Array.isArray(pageData.elements) ? pageData.elements : (pageData.elements?.elements || []);
+            const questionElements = pageElements.filter(el => el.textType === 'question' && el.questionId);
               
               for (const questionElement of questionElements) {
                 // Check if question exists before creating answer

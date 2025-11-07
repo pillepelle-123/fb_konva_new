@@ -73,11 +73,11 @@ export function ThemeSelector({
 
   const listSection = (
     <div className={`p-2 flex-1 min-h-0 flex flex-col ${previewPosition === 'right' ? 'w-1/2 border-r border-gray-200' : ''}`}>
-      <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+      <h3 className="text-sm font-medium mb-3 flex items-center gap-2 shrink-0">
         <Paintbrush2 className="h-4 w-4" />
         {title || 'Themes'}
       </h3>
-      <div className="space-y-2 flex-1 overflow-y-auto">
+      <div className="space-y-2 flex-1 min-h-0 overflow-y-auto">
         {themes.map((themeId) => {
           const theme = getGlobalTheme(themeId);
           if (!theme) return null;
@@ -127,28 +127,32 @@ export function ThemeSelector({
 
   if (previewPosition === 'right') {
     return (
-      <div className="flex flex-row h-full">
-        {listSection}
-        <div className="w-1/2 border-l border-gray-200">
-          {previewSection}
+      <div className="flex flex-col h-full flex-1">
+        <div className="flex-1 min-h-0 flex flex-row overflow-hidden">
+          {listSection}
+          <div className="w-1/2 border-l border-gray-200 flex flex-col min-h-0 overflow-hidden">
+            {previewSection}
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {previewPosition === 'top' ? (
-        <>
-          {previewSection}
-          {listSection}
-        </>
-      ) : (
-        <>
-          {listSection}
-          {previewSection}
-        </>
-      )}
+    <div className="flex flex-col h-full flex-1">
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        {previewPosition === 'top' ? (
+          <>
+            {previewSection}
+            {listSection}
+          </>
+        ) : (
+          <>
+            {listSection}
+            {previewSection}
+          </>
+        )}
+      </div>
     </div>
   );
 }

@@ -147,21 +147,56 @@ function EditorContent() {
             if (response.ok) {
               const newBook = await response.json();
               
-              // WICHTIG: Setze die Elemente direkt aus dem temporären Buch, bevor wir das Buch laden
-              // Dies stellt sicher, dass die Elemente sofort auf dem Canvas erscheinen
+              // WICHTIG: Lade die Seiten aus der DB, um die korrekten IDs zu bekommen
+              // Dann setze die Elemente aus dem temporären Buch
               if (tempBook?.pages && tempBook.pages.length > 0 && tempBook.pages[0].elements) {
+                // Lade das Buch mit Seiten aus der DB, um die korrekten IDs zu bekommen
+                const loadBookResponse = await fetch(`${apiUrl}/books/${newBook.id}`, {
+                  headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                let dbBook = null;
+                if (loadBookResponse.ok) {
+                  dbBook = await loadBookResponse.json();
+                }
+                
                 // Erstelle das Buch-Objekt mit den Elementen aus dem temporären Buch
+                // Verwende die Seiten-IDs aus der DB, falls verfügbar
                 const bookWithElements = {
                   ...newBook,
-                  pages: tempBook.pages.map((page: any, index: number) => ({
-                    ...page,
-                    id: newBook.pages?.[index]?.id || Date.now() + index,
-                    database_id: newBook.pages?.[index]?.id || undefined
-                  }))
+                  id: newBook.id,
+                  name: tempBook?.name || newBook.name,
+                  pageSize: tempBook?.pageSize || newBook.pageSize || newBook.page_size,
+                  orientation: tempBook?.orientation || newBook.orientation,
+                  bookTheme: tempBook?.bookTheme || tempBook?.theme || newBook.bookTheme || newBook.book_theme,
+                  themeId: tempBook?.themeId || newBook.themeId || newBook.theme_id,
+                  colorPaletteId: tempBook?.colorPaletteId || tempBook?.palette?.id || newBook.colorPaletteId || newBook.color_palette_id,
+                  layoutTemplateId: tempBook?.layoutTemplateId || tempBook?.selectedTemplateId || newBook.layoutTemplateId || newBook.layout_template_id,
+                  pages: tempBook.pages.map((page: any, index: number) => {
+                    const dbPage = dbBook?.pages?.[index];
+                    const pageId = dbPage?.id;
+                    return {
+                      ...page,
+                      pageNumber: page.pageNumber || page.page_number || index + 1,
+                      id: pageId || undefined,
+                      database_id: pageId || undefined,
+                      layoutTemplateId: page.layoutTemplateId || tempBook?.layoutTemplateId || null,
+                      colorPaletteId: page.colorPaletteId || tempBook?.selectedPalette?.id || tempBook?.colorPaletteId || null,
+                      themeId: page.themeId || tempBook?.selectedTheme || tempBook?.themeId || null
+                    };
+                  })
                 };
                 
                 // Setze das Buch direkt im State mit den Elementen
                 dispatch({ type: 'SET_BOOK', payload: bookWithElements });
+                
+                // Debug: Prüfe ob Elemente vorhanden sind
+                console.log('Saving book with elements:', {
+                  pageCount: bookWithElements.pages.length,
+                  firstPageElements: bookWithElements.pages[0]?.elements?.length || 0,
+                  firstPageId: bookWithElements.pages[0]?.id,
+                  firstPageDatabaseId: bookWithElements.pages[0]?.database_id
+                });
                 
                 // Speichere das Buch mit den Elementen in der Datenbank
                 try {

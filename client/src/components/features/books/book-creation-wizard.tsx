@@ -289,12 +289,12 @@ export default function BookCreationWizard({ open, onOpenChange, onSuccess }: Bo
 
   const renderStep3 = () => (
     wizardState.mode === 'quick' ? (
-      <div className="space-y-4 h-full flex flex-col">
-        <div className="mb-4">
+      <div className="h-full flex flex-col min-h-0 overflow-hidden">
+        <div className="mb-4 shrink-0">
           <h3 className="text-lg font-semibold mb-2">Quick Templates</h3>
           <p className="text-sm text-gray-600">Wähle eine komplette Vorlage. Theme und Palette werden automatisch übernommen (später änderbar).</p>
         </div>
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 flex flex-col">
           <LayoutSelector
             selectedLayout={wizardState.selectedTemplate}
             onLayoutSelect={(template) => {
@@ -306,12 +306,12 @@ export default function BookCreationWizard({ open, onOpenChange, onSuccess }: Bo
         </div>
       </div>
     ) : (
-      <div className="space-y-4 h-full flex flex-col">
-        <div className="mb-4">
+      <div className="h-full flex flex-col min-h-0 overflow-hidden">
+        <div className="mb-4 shrink-0">
           <h3 className="text-lg font-semibold mb-2">Theme Selection</h3>
           <p className="text-sm text-gray-600">Choose the visual style for your book.</p>
         </div>
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
           <ThemeSelector
             selectedTheme={wizardState.selectedTheme}
             onThemeSelect={(themeId) => updateState({ selectedTheme: themeId })}
@@ -324,12 +324,12 @@ export default function BookCreationWizard({ open, onOpenChange, onSuccess }: Bo
   );
 
   const renderAdvancedLayout = () => (
-    <div className="space-y-4 h-full flex flex-col">
-      <div className="mb-4">
+    <div className="h-full flex flex-col min-h-0 overflow-hidden">
+      <div className="mb-4 shrink-0">
         <h3 className="text-lg font-semibold mb-2">Layout Template</h3>
         <p className="text-sm text-gray-600">Choose a layout template for your book.</p>
       </div>
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
         <LayoutSelector
           selectedLayout={wizardState.selectedTemplate}
           onLayoutSelect={(template) => updateState({ selectedTemplate: template })}
@@ -341,12 +341,12 @@ export default function BookCreationWizard({ open, onOpenChange, onSuccess }: Bo
 
   const renderStep4 = () => (
     wizardState.mode === 'quick' ? renderStep5() : (
-      <div className="space-y-4 h-full flex flex-col">
-        <div className="mb-4">
+      <div className="h-full flex flex-col min-h-0">
+        <div className="mb-4 shrink-0">
           <h3 className="text-lg font-semibold mb-2">Color Palette</h3>
           <p className="text-sm text-gray-600">Choose the color scheme for your book.</p>
         </div>
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-hidden">
           <WizardPaletteSelector
             selectedPalette={wizardState.selectedPalette}
             onPaletteSelect={(palette) => updateState({ selectedPalette: palette })}
@@ -413,7 +413,7 @@ export default function BookCreationWizard({ open, onOpenChange, onSuccess }: Bo
         <div className="flex flex-col flex-1 min-h-0">
           {renderProgressBar()}
           
-          <div className="flex-1 overflow-hidden min-h-0">
+          <div className="flex-1 overflow-hidden min-h-0 flex flex-col">
             {renderCurrentStep()}
           </div>
           
