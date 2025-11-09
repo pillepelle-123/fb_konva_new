@@ -86,7 +86,8 @@ export function applyTemplateToPage(
     // All other styling properties (fontFamily, fontColor, border, background, cornerRadius) come from themes/palettes
     if (textbox.style && textbox.style.format) {
       if (textbox.style.format.textAlign) {
-        element.align = textbox.style.format.textAlign;
+        element.format = element.format || {};
+        element.format.textAlign = textbox.style.format.textAlign;
       }
       if (textbox.style.format.padding !== undefined) {
         element.padding = textbox.style.format.padding;

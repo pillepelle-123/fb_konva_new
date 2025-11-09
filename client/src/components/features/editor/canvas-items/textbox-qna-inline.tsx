@@ -1507,12 +1507,14 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
             const questionStyle = {
               ...qnaInlineDefaults.questionSettings,
               ...element.questionSettings,
-              fontFamily: element.questionSettings?.fontFamily || element.font?.fontFamily || element.fontFamily || qnaInlineDefaults.questionSettings?.fontFamily || fontFamily
+              fontFamily: element.questionSettings?.fontFamily || element.font?.fontFamily || element.fontFamily || qnaInlineDefaults.questionSettings?.fontFamily || fontFamily,
+              align: element.questionSettings?.align || element.format?.textAlign || element.align || qnaInlineDefaults.questionSettings?.align
             };
             const answerStyle = {
               ...qnaInlineDefaults.answerSettings,
               ...element.answerSettings,
-              fontFamily: element.answerSettings?.fontFamily || element.font?.fontFamily || element.fontFamily || qnaInlineDefaults.answerSettings?.fontFamily || fontFamily
+              fontFamily: element.answerSettings?.fontFamily || element.font?.fontFamily || element.fontFamily || qnaInlineDefaults.answerSettings?.fontFamily || fontFamily,
+              align: element.answerSettings?.align || element.format?.textAlign || element.align || qnaInlineDefaults.answerSettings?.align
             };
             
             // Direct color override - element settings have absolute priority
@@ -1528,8 +1530,8 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
             const userText = getUserText();
             
             // Get alignment settings - Priority: questionSettings/answerSettings > element.align (from layout) > default
-            const questionAlign = questionStyle.align || element.align || 'left';
-            const answerAlign = answerStyle.align || element.align || 'left';
+            const questionAlign = questionStyle.align || element.format?.textAlign || element.align || 'left';
+            const answerAlign = answerStyle.align || element.format?.textAlign || element.align || 'left';
             
             // Get layout variant
             const layoutVariant = element.layoutVariant || 'inline';

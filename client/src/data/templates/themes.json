@@ -11,58 +11,25 @@
         "size": 20,
         "strokeWidth": 1,
         "patternBackgroundOpacity": 0.3
+      },
+      "backgroundImage": {
+        "enabled": false
       }
     },
     "elementDefaults": {
       "text": {
-        "cornerRadius": 30,
-        "font": {
-          "fontSize": 12,
-          "fontFamily": "Century Gothic, sans-serif",
-          "fontBold": false,
-          "fontItalic": false,
-          "fontOpacity": 1
-        },
-        "border": {
-          "enabled": false,
-          "borderWidth": 0,
-          "borderOpacity": 1,
-          "borderTheme": "default"
-        },
-        "format": {
-          "textAlign": "left",
-          "paragraphSpacing": "medium",
-          "padding": 8
-        },
-        "background": {
-          "enabled": false,
-          "backgroundOpacity": 0.3
-        },
-        "ruledLines": {
-          "enabled": false,
-          "lineWidth": 0.8,
-          "lineOpacity": 0.5,
-          "ruledLinesTheme": "default"
-        }
-      },
-      "qna": {
         "layoutVariant": "inline",
         "questionPosition": "left",
         "questionWidth": 40,
         "cornerRadius": 10,
         "padding": 8,
         "paragraphSpacing": "medium",
-        "align": "left",
-        "borderEnabled": false,
-        "borderWidth": 0,
-        "borderTheme": "default",
-        "borderOpacity": 1,
-        "backgroundEnabled": false,
-        "backgroundOpacity": 0.3,
-        "ruledLines": false,
-        "ruledLinesWidth": 0.8,
-        "ruledLinesTheme": "default",
-        "ruledLinesOpacity": 0.5,
+        "ruledLines": {
+          "enabled": false,
+          "width": 0.8,
+          "opacity": 0.5,
+          "theme": "default"
+        },
         "questionSettings": {
           "fontSize": 12,
           "fontFamily": "Century Gothic, sans-serif",
@@ -76,6 +43,28 @@
           "fontBold": false,
           "fontItalic": false,
           "fontOpacity": 1
+        },
+        "font": {
+          "fontSize": 12,
+          "fontFamily": "Century Gothic, sans-serif",
+          "fontBold": false,
+          "fontItalic": false,
+          "fontOpacity": 1
+        },
+        "border": {
+          "enabled": false,
+          "width": 0,
+          "opacity": 1,
+          "theme": "default"
+        },
+        "format": {
+          "textAlign": "left",
+          "paragraphSpacing": "medium",
+          "padding": 8
+        },
+        "background": {
+          "enabled": false,
+          "opacity": 0.3
         }
       },
       "shape": {
@@ -105,71 +94,64 @@
         "size": 11,
         "strokeWidth": 12,
         "patternBackgroundOpacity": 0.4
+      },
+      "backgroundImage": {
+        "enabled": false,
+        "templateId": "decorative-border-01",
+        "size": "contain",
+        "repeat": true,
+        "opacity": 1
       }
     },
     "elementDefaults": {
       "text": {
-        "cornerRadius": 18,
-        "font": {
-          "fontSize": 14,
-          "fontFamily": "Comic Sans MS, cursive",
-          "fontBold": false,
-          "fontItalic": false,
-          "fontOpacity": 1
-        },
-        "border": {
-          "enabled": true,
-          "borderWidth": 10,
-          "borderOpacity": 1,
-          "borderTheme": "wobbly"
-        },
-        "format": {
-          "textAlign": "left",
-          "paragraphSpacing": "medium",
-          "padding": 100
-        },
-        "background": {
-          "enabled": true,
-          "backgroundOpacity": 0.3
-        },
-        "ruledLines": {
-          "enabled": false,
-          "lineWidth": 4,
-          "lineOpacity": 0.5,
-          "ruledLinesTheme": "wobbly"
-        }
-      },
-      "qna": {
         "layoutVariant": "inline",
-        "questionPosition": "left",
+        "questionPosition": "right",
         "questionWidth": 40,
         "cornerRadius": 29,
         "padding": 15,
         "paragraphSpacing": "medium",
-        "align": "left",
-        "borderEnabled": true,
-        "borderWidth": 2,
-        "borderTheme": "wobbly",
-        "borderOpacity": 1,
-        "backgroundEnabled": true,
-        "backgroundOpacity": 0.4,
-        "ruledLines": false,
-        "ruledLinesWidth": 4,
-        "ruledLinesTheme": "wobbly",
-        "ruledLinesOpacity": 0.5,
+        "ruledLines": {
+          "enabled": false,
+          "width": 4,
+          "opacity": 0.5,
+          "theme": "wobbly"
+        },
         "questionSettings": {
           "fontSize": 18,
-          "fontFamily": "Comic Sans MS, cursive",
+          "fontFamily": "'Comic Neue', cursive",
           "fontBold": false,
           "fontItalic": false,
           "fontOpacity": 1
         },
         "answerSettings": {
           "fontSize": 16,
-          "fontFamily": "Comic Sans MS, cursive",
+          "fontFamily": "'Comic Neue', cursive",
           "fontBold": false,
           "fontItalic": false,
           "fontOpacity": 1
+        },
+        "font": {
+          "fontSize": 14,
+          "fontFamily": "'Comic Neue', cursive",
+          "fontBold": false,
+          "fontItalic": false,
+          "fontOpacity": 1
+        },
+        "border": {
+          "enabled": true,
+          "width": 1,
+          "opacity": 0.5,
+          "theme": "wobbly"
+        },
+        "format": {
+          "textAlign": "right",
+          "paragraphSpacing": "medium",
+          "padding": 100
+        },
+        "background": {
+          "enabled": true,
+          "opacity": 0.4
         }
       },
       "shape": {
@@ -199,58 +181,29 @@
         "size": 30,
         "strokeWidth": 0.5,
         "patternBackgroundOpacity": 0.2
+      },
+      "backgroundImage": {
+        "enabled": true,
+        "templateId": "minimal-dots-01",
+        "size": "contain",
+        "repeat": true,
+        "opacity": 1
       }
     },
     "elementDefaults": {
       "text": {
-        "cornerRadius": 0,
-        "font": {
-          "fontSize": 14,
-          "fontFamily": "Helvetica, Arial, sans-serif",
-          "fontBold": false,
-          "fontItalic": false,
-          "fontOpacity": 1
-        },
-        "border": {
-          "enabled": false,
-          "borderWidth": 0,
-          "borderOpacity": 1,
-          "borderTheme": "default"
-        },
-        "format": {
-          "textAlign": "left",
-          "paragraphSpacing": "medium",
-          "padding": 6
-        },
-        "background": {
-          "enabled": false,
-          "backgroundOpacity": 0
-        },
-        "ruledLines": {
-          "enabled": false,
-          "lineWidth": 0.8,
-          "lineOpacity": 0.5,
-          "ruledLinesTheme": "default"
-        }
-      },
-      "qna": {
         "layoutVariant": "inline",
         "questionPosition": "left",
         "questionWidth": 40,
         "cornerRadius": 0,
         "padding": 6,
         "paragraphSpacing": "medium",
-        "align": "left",
-        "borderEnabled": false,
-        "borderWidth": 0,
-        "borderTheme": "default",
-        "borderOpacity": 1,
-        "backgroundEnabled": false,
-        "backgroundOpacity": 0,
-        "ruledLines": false,
-        "ruledLinesWidth": 0.8,
-        "ruledLinesTheme": "default",
-        "ruledLinesOpacity": 0.5,
+        "ruledLines": {
+          "enabled": false,
+          "width": 0.8,
+          "opacity": 0.5,
+          "theme": "default"
+        },
         "questionSettings": {
           "fontSize": 16,
           "fontFamily": "Helvetica, Arial, sans-serif",
@@ -264,6 +217,28 @@
           "fontBold": false,
           "fontItalic": false,
           "fontOpacity": 1
+        },
+        "font": {
+          "fontSize": 14,
+          "fontFamily": "Helvetica, Arial, sans-serif",
+          "fontBold": false,
+          "fontItalic": false,
+          "fontOpacity": 1
+        },
+        "border": {
+          "enabled": false,
+          "width": 0,
+          "opacity": 1,
+          "theme": "default"
+        },
+        "format": {
+          "textAlign": "left",
+          "paragraphSpacing": "medium",
+          "padding": 6
+        },
+        "background": {
+          "enabled": false,
+          "opacity": 0
         }
       },
       "shape": {
@@ -293,11 +268,43 @@
         "size": 11,
         "strokeWidth": 1,
         "patternBackgroundOpacity": 0.3
+      },
+      "backgroundImage": {
+        "enabled": true,
+        "templateId": "colorful-geometric-01",
+        "size": "cover",
+        "repeat": false,
+        "opacity": 1
       }
     },
     "elementDefaults": {
       "text": {
-        "cornerRadius": 12,
+        "layoutVariant": "inline",
+        "questionPosition": "left",
+        "questionWidth": 40,
+        "cornerRadius": 4,
+        "padding": 12,
+        "paragraphSpacing": "medium",
+        "ruledLines": {
+          "enabled": false,
+          "width": 0.8,
+          "opacity": 0.5,
+          "theme": "glow"
+        },
+        "questionSettings": {
+          "fontSize": 18,
+          "fontFamily": "'Knewave', cursive",
+          "fontBold": false,
+          "fontItalic": false,
+          "fontOpacity": 1
+        },
+        "answerSettings": {
+          "fontSize": 16,
+          "fontFamily": "'Knewave', cursive",
+          "fontBold": false,
+          "fontItalic": false,
+          "fontOpacity": 1
+        },
         "font": {
           "fontSize": 16,
           "fontFamily": "'Knewave', cursive",
@@ -307,9 +314,9 @@
         },
         "border": {
           "enabled": true,
-          "borderWidth": 2,
-          "borderOpacity": 1,
-          "borderTheme": "glow"
+          "width": 2,
+          "opacity": 1,
+          "theme": "glow"
         },
         "format": {
           "textAlign": "left",
@@ -318,46 +325,7 @@
         },
         "background": {
           "enabled": true,
-          "backgroundOpacity": 0.6
-        },
-        "ruledLines": {
-          "enabled": false,
-          "lineWidth": 0.8,
-          "lineOpacity": 0.5,
-          "ruledLinesTheme": "glow"
-        }
-      },
-      "qna": {
-        "layoutVariant": "inline",
-        "questionPosition": "left",
-        "questionWidth": 40,
-        "cornerRadius": 4,
-        "padding": 12,
-        "paragraphSpacing": "medium",
-        "align": "left",
-        "borderEnabled": true,
-        "borderWidth": 3,
-        "borderTheme": "glow",
-        "borderOpacity": 1,
-        "backgroundEnabled": true,
-        "backgroundOpacity": 0.7,
-        "ruledLines": false,
-        "ruledLinesWidth": 0.8,
-        "ruledLinesTheme": "glow",
-        "ruledLinesOpacity": 0.5,
-        "questionSettings": {
-          "fontSize": 18,
-          "fontFamily": "'Knewave', cursive",
-          "fontBold": true,
-          "fontItalic": false,
-          "fontOpacity": 1
-        },
-        "answerSettings": {
-          "fontSize": 16,
-          "fontFamily": "'Knewave', cursive",
-          "fontBold": true,
-          "fontItalic": false,
-          "fontOpacity": 1
+          "opacity": 0.7
         }
       },
       "shape": {
@@ -387,58 +355,29 @@
         "size": 24,
         "strokeWidth": 1,
         "patternBackgroundOpacity": 0.4
+      },
+      "backgroundImage": {
+        "enabled": true,
+        "templateId": "texture-paper-01",
+        "size": "cover",
+        "repeat": false,
+        "opacity": 1
       }
     },
     "elementDefaults": {
       "text": {
-        "cornerRadius": 4,
-        "font": {
-          "fontSize": 15,
-          "fontFamily": "'Times New Roman', serif",
-          "fontBold": false,
-          "fontItalic": true,
-          "fontOpacity": 1
-        },
-        "border": {
-          "enabled": true,
-          "borderWidth": 2,
-          "borderOpacity": 1,
-          "borderTheme": "rough"
-        },
-        "format": {
-          "textAlign": "left",
-          "paragraphSpacing": "medium",
-          "padding": 20
-        },
-        "background": {
-          "enabled": true,
-          "backgroundOpacity": 0.4
-        },
-        "ruledLines": {
-          "enabled": true,
-          "lineWidth": 10,
-          "lineOpacity": 0.6,
-          "ruledLinesTheme": "rough"
-        }
-      },
-      "qna": {
         "layoutVariant": "inline",
         "questionPosition": "left",
         "questionWidth": 40,
         "cornerRadius": 4,
         "padding": 20,
         "paragraphSpacing": "medium",
-        "align": "left",
-        "borderEnabled": true,
-        "borderWidth": 1,
-        "borderTheme": "wobbly",
-        "borderOpacity": 1,
-        "backgroundEnabled": true,
-        "backgroundOpacity": 0.5,
-        "ruledLines": true,
-        "ruledLinesWidth": 1,
-        "ruledLinesTheme": "wobbly",
-        "ruledLinesOpacity": 0.6,
+        "ruledLines": {
+          "enabled": true,
+          "width": 1,
+          "opacity": 0.6,
+          "theme": "wobbly"
+        },
         "questionSettings": {
           "fontSize": 17,
           "fontFamily": "'Times New Roman', serif",
@@ -452,6 +391,28 @@
           "fontBold": false,
           "fontItalic": true,
           "fontOpacity": 1
+        },
+        "font": {
+          "fontSize": 15,
+          "fontFamily": "'Times New Roman', serif",
+          "fontBold": false,
+          "fontItalic": true,
+          "fontOpacity": 1
+        },
+        "border": {
+          "enabled": true,
+          "width": 2,
+          "opacity": 1,
+          "theme": "rough"
+        },
+        "format": {
+          "textAlign": "left",
+          "paragraphSpacing": "medium",
+          "padding": 20
+        },
+        "background": {
+          "enabled": true,
+          "opacity": 0.5
         }
       },
       "shape": {
@@ -481,58 +442,29 @@
         "size": 20,
         "strokeWidth": 1,
         "patternBackgroundOpacity": 0.3
+      },
+      "backgroundImage": {
+        "enabled": true,
+        "templateId": "geometric-grid-01",
+        "size": "cover",
+        "repeat": false,
+        "opacity": 0.85
       }
     },
     "elementDefaults": {
       "text": {
-        "cornerRadius": 40,
-        "font": {
-          "fontSize": 16,
-          "fontFamily": "Consolas, monospace",
-          "fontBold": true,
-          "fontItalic": false,
-          "fontOpacity": 0.5
-        },
-        "border": {
-          "enabled": true,
-          "borderWidth": 15,
-          "borderOpacity": 1,
-          "borderTheme": "candy"
-        },
-        "format": {
-          "textAlign": "left",
-          "paragraphSpacing": "medium",
-          "padding": 10
-        },
-        "background": {
-          "enabled": false,
-          "backgroundOpacity": 1
-        },
-        "ruledLines": {
-          "enabled": true,
-          "lineWidth": 12,
-          "lineOpacity": 0.3,
-          "ruledLinesTheme": "zigzag"
-        }
-      },
-      "qna": {
         "layoutVariant": "block",
         "questionPosition": "top",
         "questionWidth": 40,
         "cornerRadius": 16,
         "padding": 10,
         "paragraphSpacing": "medium",
-        "align": "left",
-        "borderEnabled": true,
-        "borderWidth": 1,
-        "borderTheme": "glow",
-        "borderOpacity": 1,
-        "backgroundEnabled": false,
-        "backgroundOpacity": 0.3,
-        "ruledLines": true,
-        "ruledLinesWidth": 10,
-        "ruledLinesTheme": "zigzag",
-        "ruledLinesOpacity": 0.6,
+        "ruledLines": {
+          "enabled": true,
+          "width": 10,
+          "opacity": 0.6,
+          "theme": "zigzag"
+        },
         "questionSettings": {
           "fontSize": 28,
           "fontFamily": "Audiowide, non-serif",
@@ -546,6 +478,28 @@
           "fontBold": false,
           "fontItalic": false,
           "fontOpacity": 0.5
+        },
+        "font": {
+          "fontSize": 16,
+          "fontFamily": "Consolas, monospace",
+          "fontBold": true,
+          "fontItalic": false,
+          "fontOpacity": 0.5
+        },
+        "border": {
+          "enabled": true,
+          "width": 15,
+          "opacity": 1,
+          "theme": "candy"
+        },
+        "format": {
+          "textAlign": "left",
+          "paragraphSpacing": "medium",
+          "padding": 10
+        },
+        "background": {
+          "enabled": false,
+          "opacity": 0.3
         }
       },
       "shape": {
@@ -575,57 +529,28 @@
         "size": 20,
         "strokeWidth": 1,
         "patternBackgroundOpacity": 0.3
+      },
+      "backgroundImage": {
+        "enabled": true,
+        "templateId": "abstract-blob-01",
+        "size": "cover",
+        "repeat": false,
+        "opacity": 0.9
       }
     },
     "elementDefaults": {
       "text": {
-        "cornerRadius": 14,
-        "font": {
-          "fontSize": 12,
-          "fontFamily": "'Mynerve', cursive",
-          "fontBold": false,
-          "fontItalic": false,
-          "fontOpacity": 1
-        },
-        "border": {
-          "enabled": false,
-          "borderWidth": 1,
-          "borderOpacity": 1,
-          "borderTheme": "wobbly"
-        },
-        "background": {
-          "enabled": false,
-          "backgroundOpacity": 1
-        },
-        "ruledLines": {
-          "enabled": true,
-          "lineWidth": 2,
-          "lineOpacity": 0.7,
-          "ruledLinesTheme": "rough"
-        }
-      },
-      "qna": {
         "layoutVariant": "block",
         "questionPosition": "left",
         "questionWidth": 35,
         "cornerRadius": 47,
         "paragraphSpacing": "medium",
-        "align": "left",
-        "borderEnabled": false,
-        "borderWidth": 10,
-        "borderTheme": "wobbly",
-        "borderOpacity": 1,
-        "backgroundEnabled": false,
-        "backgroundOpacity": 0.05,
         "ruledLines": {
           "enabled": true,
-          "lineWidth": 10,
-          "lineOpacity": 0.6,
-          "ruledLinesTheme": "wobbly"
+          "width": 2,
+          "opacity": 0.7,
+          "theme": "rough"
         },
-        "ruledLinesWidth": 2,
-        "ruledLinesTheme": "rough",
-        "ruledLinesOpacity": 0.7,
         "questionSettings": {
           "fontSize": 24,
           "fontFamily": "'Mynerve', cursive",
@@ -639,6 +564,26 @@
           "fontBold": false,
           "fontItalic": false,
           "fontOpacity": 0.9
+        },
+        "font": {
+          "fontSize": 12,
+          "fontFamily": "'Mynerve', cursive",
+          "fontBold": false,
+          "fontItalic": false,
+          "fontOpacity": 1
+        },
+        "border": {
+          "enabled": false,
+          "width": 1,
+          "opacity": 1,
+          "theme": "wobbly"
+        },
+        "background": {
+          "enabled": false,
+          "opacity": 0.05
+        },
+        "format": {
+          "textAlign": "left"
         }
       },
       "shape": {
@@ -667,23 +612,55 @@
         "size": 11,
         "strokeWidth": 12,
         "patternBackgroundOpacity": 0.2
+      },
+      "backgroundImage": {
+        "enabled": true,
+        "templateId": "pattern-geometric-01",
+        "size": "contain",
+        "repeat": true,
+        "opacity": 1
       }
     },
     "elementDefaults": {
       "text": {
-        "cornerRadius": 66,
+        "layoutVariant": "inline",
+        "questionPosition": "left",
+        "questionWidth": 40,
+        "cornerRadius": 22,
+        "padding": 100,
+        "paragraphSpacing": "small",
+        "ruledLines": {
+          "enabled": false,
+          "width": 10,
+          "opacity": 0.8,
+          "theme": "default"
+        },
+        "questionSettings": {
+          "fontSize": 21,
+          "fontFamily": "'Comic Neue', cursive",
+          "fontBold": false,
+          "fontItalic": false,
+          "fontOpacity": 1
+        },
+        "answerSettings": {
+          "fontSize": 19,
+          "fontFamily": "'Comic Neue', cursive",
+          "fontBold": false,
+          "fontItalic": false,
+          "fontOpacity": 1
+        },
         "font": {
           "fontSize": 22,
-          "fontFamily": "Comic Sans MS, cursive",
+          "fontFamily": "'Comic Neue', cursive",
           "fontOpacity": 1,
           "fontBold": false,
           "fontItalic": false
         },
         "border": {
           "enabled": true,
-          "borderWidth": 25,
-          "borderOpacity": 1,
-          "borderTheme": "wobbly"
+          "width": 25,
+          "opacity": 1,
+          "theme": "wobbly"
         },
         "format": {
           "textAlign": "left",
@@ -692,46 +669,7 @@
         },
         "background": {
           "enabled": true,
-          "backgroundOpacity": 0.6
-        },
-        "ruledLines": {
-          "enabled": false,
-          "lineWidth": 4,
-          "lineOpacity": 0.5,
-          "ruledLinesTheme": "wobbly"
-        }
-      },
-      "qna": {
-        "layoutVariant": "inline",
-        "questionPosition": "left",
-        "questionWidth": 40,
-        "cornerRadius": 22,
-        "padding": 100,
-        "paragraphSpacing": "small",
-        "align": "right",
-        "borderEnabled": true,
-        "borderWidth": 25,
-        "borderTheme": "wobbly",
-        "borderOpacity": 1,
-        "backgroundEnabled": true,
-        "backgroundOpacity": 0.6,
-        "ruledLines": true,
-        "ruledLinesWidth": 10,
-        "ruledLinesTheme": "default",
-        "ruledLinesOpacity": 0.8,
-        "questionSettings": {
-          "fontSize": 21,
-          "fontFamily": "Comic Sans MS, cursive",
-          "fontBold": false,
-          "fontItalic": false,
-          "fontOpacity": 1
-        },
-        "answerSettings": {
-          "fontSize": 19,
-          "fontFamily": "Comic Sans MS, cursive",
-          "fontBold": false,
-          "fontItalic": false,
-          "fontOpacity": 1
+          "opacity": 0.6
         }
       },
       "shape": {
@@ -753,10 +691,10 @@
       }
     }
   },
-  "rustic-journal": {
-    "name": "Rustic Journal",
-    "description": "Handmade journal style with wobbly lines and warm earth tones",
-    "palette": "warm-earth",
+  "lavender-dream": {
+    "name": "Lavender Dream",
+    "description": "Custom theme exported from canvas",
+    "palette": "lavender-dream",
     "pageSettings": {
       "backgroundOpacity": 1,
       "backgroundPattern": {
@@ -765,179 +703,71 @@
         "size": 20,
         "strokeWidth": 1,
         "patternBackgroundOpacity": 0.3
+      },
+      "backgroundImage": {
+        "enabled": true,
+        "templateId": "aesthetic-minimalist-background-01",
+        "size": "cover",
+        "repeat": false,
+        "opacity": 0.4
       }
     },
     "elementDefaults": {
       "text": {
-        "cornerRadius": 0,
-        "font": {
-          "fontSize": 12,
-          "fontFamily": "Arial, Helvetica, sans-serif",
-          "fontBold": false,
-          "fontItalic": false,
-          "fontOpacity": 1
-        },
-        "border": {
-          "enabled": false,
-          "borderWidth": 0,
-          "borderOpacity": 1,
-          "borderTheme": "wobbly"
-        },
-        "format": {
-          "textAlign": "left",
-          "paragraphSpacing": "medium",
-          "padding": 8
-        },
-        "background": {
-          "enabled": false,
-          "backgroundOpacity": 1
-        },
-        "ruledLines": {
-          "enabled": true,
-          "lineWidth": 1,
-          "lineOpacity": 1,
-          "ruledLinesTheme": "wobbly"
-        }
-      },
-      "qna": {
         "layoutVariant": "inline",
         "questionPosition": "left",
         "questionWidth": 40,
-        "cornerRadius": 0,
-        "padding": 8,
+        "cornerRadius": 29,
+        "padding": 15,
         "paragraphSpacing": "medium",
         "align": "left",
-        "borderEnabled": false,
-        "borderWidth": 0,
-        "borderTheme": "wobbly",
-        "borderOpacity": 1,
-        "backgroundEnabled": false,
-        "backgroundOpacity": 1,
-        "ruledLines": true,
-        "ruledLinesWidth": 1,
-        "ruledLinesTheme": "wobbly",
-        "ruledLinesOpacity": 1,
+        "border": {
+          "enabled": false,
+          "width": 2,
+          "opacity": 1,
+          "theme": "rough"
+        },
+        "background": {
+          "enabled": false,
+          "opacity": 0.4
+        },
+        "ruledLines": {
+          "enabled": {
+            "enabled": false,
+            "lineColor": "#9c8dce",
+            "lineWidth": 4,
+            "lineOpacity": 0.5,
+            "ruledLinesTheme": "wobbly"
+          },
+          "width": 2,
+          "theme": "rough",
+          "opacity": 0.9
+        },
         "questionSettings": {
-          "fontSize": 12,
-          "fontFamily": "Arial, Helvetica, sans-serif",
-          "fontBold": false,
+          "fontSize": 22,
+          "fontFamily": "'Stalemate', cursive",
+          "fontBold": true,
           "fontItalic": false,
           "fontOpacity": 1
         },
         "answerSettings": {
-          "fontSize": 12,
-          "fontFamily": "Arial, Helvetica, sans-serif",
+          "fontSize": 22,
+          "fontFamily": "'Stalemate', cursive",
           "fontBold": false,
           "fontItalic": false,
           "fontOpacity": 1
         }
       },
       "shape": {
-        "strokeWidth": 2,
-        "cornerRadius": 10,
-        "opacity": 1,
-        "inheritTheme": "wobbly",
-        "borderEnabled": false,
+        "strokeWidth": 3,
+        "cornerRadius": 8,
+        "inheritTheme": "sketchy",
+        "borderEnabled": true,
         "backgroundEnabled": true
       },
-      "brush": {
-        "strokeWidth": 2,
-        "strokeOpacity": 1,
-        "inheritTheme": "wobbly"
-      }
-    }
-  },
-  "greenery-journal": {
-    "name": "Greenery Journal",
-    "description": "Fresh journal style with green accents and wobbly lines",
-    "palette": "sage",
-    "pageSettings": {
-      "backgroundOpacity": 1,
-      "backgroundPattern": {
-        "enabled": false,
-        "style": "dots",
-        "size": 20,
-        "strokeWidth": 1,
-        "patternBackgroundOpacity": 0.3
-      }
-    },
-    "elementDefaults": {
-      "text": {
-        "cornerRadius": 0,
-        "font": {
-          "fontSize": 12,
-          "fontFamily": "Arial, Helvetica, sans-serif",
-          "fontBold": false,
-          "fontItalic": false,
-          "fontOpacity": 1
-        },
-        "border": {
-          "enabled": false,
-          "borderWidth": 0,
-          "borderOpacity": 1,
-          "borderTheme": "wobbly"
-        },
-        "format": {
-          "textAlign": "left",
-          "paragraphSpacing": "medium",
-          "padding": 8
-        },
-        "background": {
-          "enabled": false,
-          "backgroundOpacity": 1
-        },
-        "ruledLines": {
-          "enabled": true,
-          "lineWidth": 1,
-          "lineOpacity": 1,
-          "ruledLinesTheme": "wobbly"
-        }
-      },
-      "qna": {
-        "layoutVariant": "inline",
-        "questionPosition": "left",
-        "questionWidth": 40,
-        "cornerRadius": 0,
-        "padding": 8,
-        "paragraphSpacing": "medium",
-        "align": "left",
-        "borderEnabled": false,
-        "borderWidth": 0,
-        "borderTheme": "wobbly",
-        "borderOpacity": 1,
-        "backgroundEnabled": false,
-        "backgroundOpacity": 1,
-        "ruledLines": true,
-        "ruledLinesWidth": 1,
-        "ruledLinesTheme": "wobbly",
-        "ruledLinesOpacity": 1,
-        "questionSettings": {
-          "fontSize": 12,
-          "fontFamily": "Arial, Helvetica, sans-serif",
-          "fontBold": false,
-          "fontItalic": false,
-          "fontOpacity": 1
-        },
-        "answerSettings": {
-          "fontSize": 12,
-          "fontFamily": "Arial, Helvetica, sans-serif",
-          "fontBold": false,
-          "fontItalic": false,
-          "fontOpacity": 1
-        }
-      },
-      "shape": {
-        "strokeWidth": 2,
-        "cornerRadius": 10,
-        "opacity": 1,
-        "inheritTheme": "wobbly",
-        "borderEnabled": false,
-        "backgroundEnabled": true
-      },
-      "brush": {
-        "strokeWidth": 2,
-        "strokeOpacity": 1,
-        "inheritTheme": "wobbly"
+      "line": {
+        "strokeWidth": 3,
+        "inheritTheme": "rough"
       }
     }
   }

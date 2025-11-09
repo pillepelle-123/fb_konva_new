@@ -4,12 +4,14 @@ import { Check, X } from 'lucide-react';
 import { ThemeSelector } from './templates/theme-selector';
 import { useEditor } from '../../../context/editor-context';
 import { getGlobalTheme, getThemePageBackgroundColors } from '../../../utils/global-themes';
-import type { PageBackground } from '../../../context/editor-context';
 import { PreviewImageDialog } from './preview/preview-image-dialog';
 import { exportCanvasAsImage } from '../../../utils/canvas-export';
 import Konva from 'konva';
 import { ButtonGroup } from '../../ui';
 import { getActiveTemplateIds } from '../../../utils/template-inheritance';
+import { colorPalettes } from '../../../data/templates/color-palettes';
+import type { PageBackground } from '../../../context/editor-context';
+import { applyBackgroundImageTemplate } from '../../../utils/background-image-utils';
 
 interface ThemeSelectorWrapperProps {
   onBack: () => void;
@@ -19,13 +21,68 @@ interface ThemeSelectorWrapperProps {
 
 export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: ThemeSelectorWrapperProps) {
   const { state, dispatch } = useEditor();
+  const buildBackgroundFromTheme = (
+    theme: ReturnType<typeof getGlobalTheme> | undefined,
+    resolvedThemeId: string,
+    pageColors: { backgroundColor: string; patternBackgroundColor: string },
+    backgroundOpacity: number,
+    existingBackground?: PageBackground
+  ): PageBackground => {
+    if (theme) {
+      const backgroundImageConfig = theme.pageSettings.backgroundImage;
+      if (backgroundImageConfig?.enabled && backgroundImageConfig.templateId) {
+        const imageBackground = applyBackgroundImageTemplate(backgroundImageConfig.templateId, {
+          imageSize: backgroundImageConfig.size,
+          imageRepeat: backgroundImageConfig.repeat,
+          opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
+          backgroundColor: pageColors.backgroundColor
+        });
+        if (imageBackground) {
+          return {
+            ...imageBackground,
+            pageTheme: resolvedThemeId
+          };
+        }
+      }
+
+      if (theme.pageSettings.backgroundPattern?.enabled) {
+        return {
+          type: 'pattern',
+          value: theme.pageSettings.backgroundPattern.style,
+          opacity: backgroundOpacity,
+          pageTheme: resolvedThemeId,
+          patternSize: theme.pageSettings.backgroundPattern.size,
+          patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
+          patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity,
+          patternForegroundColor: pageColors.backgroundColor,
+          patternBackgroundColor: pageColors.patternBackgroundColor
+        };
+      }
+    }
+
+    return {
+      type: 'color',
+      value: pageColors.backgroundColor,
+      opacity: backgroundOpacity,
+      pageTheme: resolvedThemeId
+    };
+  };
   
   // Get active theme ID with inheritance fallback
   const currentPage = isBookLevel ? undefined : state.currentBook?.pages[state.activePageIndex];
   const activeTemplateIds = getActiveTemplateIds(currentPage, state.currentBook);
   const currentTheme = activeTemplateIds.themeId;
-  
-  const [selectedTheme, setSelectedTheme] = useState<string>(currentTheme);
+  const pageHasCustomTheme = !!currentPage?.themeId;
+  const inheritedBookThemeId = state.currentBook?.bookTheme || 'default';
+
+  const deriveSelectedTheme = () => {
+    if (isBookLevel) {
+      return currentTheme || 'default';
+    }
+    return pageHasCustomTheme ? (currentTheme || 'default') : '__BOOK_THEME__';
+  };
+
+  const [selectedTheme, setSelectedTheme] = useState<string>(deriveSelectedTheme());
   const [previewTheme, setPreviewTheme] = useState<string | null>(null); // Separate state for preview
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -36,50 +93,49 @@ export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: The
   
   // Update selectedTheme when currentTheme changes (only if user hasn't manually selected)
   useEffect(() => {
-    // Only update if user hasn't manually selected a theme
     if (!hasUserSelectedThemeRef.current) {
-      setSelectedTheme(currentTheme);
+      setSelectedTheme(deriveSelectedTheme());
     }
-  }, [currentTheme]);
+  }, [currentTheme, pageHasCustomTheme, state.currentBook?.bookTheme, isBookLevel]);
   
   // Erstelle Preview-Seite wenn Dialog öffnet
   useEffect(() => {
-    if (!showPreviewDialog || !previewTheme || !state.currentBook || previewTheme === 'default') {
+    if (!showPreviewDialog || !previewTheme || !state.currentBook) {
       return;
     }
+    if (previewTheme === '__BOOK_THEME__') {
+      if (!state.currentBook.bookTheme) {
+        return;
+      }
+    } else if (previewTheme === 'default') {
+      // allow preview
+    }
     
-    // Speichere ursprüngliche Page-Index (wird nur einmal beim Öffnen gesetzt)
     if (originalPageIndexRef.current === undefined || previewPageIndexRef.current === null) {
       originalPageIndexRef.current = state.activePageIndex;
     }
     
-    // Erstelle Preview-Seite nur wenn noch keine existiert
     const hasPreviewPage = state.currentBook.pages.some(p => p.isPreview);
     if (!hasPreviewPage) {
       dispatch({ type: 'CREATE_PREVIEW_PAGE', payload: originalPageIndexRef.current });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showPreviewDialog, previewTheme, state.currentBook, dispatch]);
   
-  // Wenn Preview-Seite erstellt wurde, navigiere dorthin und wende Theme an
   useEffect(() => {
-    if (!showPreviewDialog || !previewTheme || !state.currentBook || previewTheme === 'default') {
+    if (!showPreviewDialog || !previewTheme || !state.currentBook) {
       return;
     }
+    const themeIdForPreview = previewTheme === '__BOOK_THEME__' ? (state.currentBook.bookTheme || 'default') : previewTheme;
     
     const previewPageIndex = state.currentBook.pages.findIndex(p => p.isPreview);
     if (previewPageIndex === -1) {
-      return; // Preview-Seite noch nicht erstellt
+      return;
     }
     
-    // Verhindere Endlosschleife: Nur verarbeiten, wenn wir noch nicht auf der Preview-Seite sind
-    // oder wenn wir noch nicht verarbeitet haben
     if (previewPageIndexRef.current === previewPageIndex && state.activePageIndex === previewPageIndex) {
-      return; // Bereits verarbeitet und auf Preview-Seite
+      return;
     }
     
-    // Wenn wir bereits auf der Preview-Seite sind, aber noch nicht verarbeitet haben,
-    // dann haben wir bereits die Navigation gemacht, nur noch Theme anwenden
     const isAlreadyOnPreviewPage = state.activePageIndex === previewPageIndex;
     previewPageIndexRef.current = previewPageIndex;
     
@@ -87,96 +143,25 @@ export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: The
       setIsExporting(true);
       
       try {
-        // Navigiere zur Preview-Seite nur wenn noch nicht dort
         if (!isAlreadyOnPreviewPage) {
           dispatch({ type: 'SET_ACTIVE_PAGE', payload: previewPageIndex });
-          // Warte kurz für React-Rendering
           await new Promise(resolve => setTimeout(resolve, 200));
         }
         
-        // Wende Theme auf Preview-Seite an (skip history)
-        if (isBookLevel) {
-          dispatch({ type: 'SET_BOOK_THEME', payload: previewTheme, skipHistory: true });
-          
-          if (state.currentBook) {
-            state.currentBook.pages.forEach((_, pageIndex) => {
-              dispatch({
-                type: 'APPLY_THEME_TO_ELEMENTS',
-                payload: { 
-                  pageIndex, 
-                  themeId: previewTheme,
-                  applyToAllPages: true,
-                  skipHistory: true
-                }
-              });
-            });
+        const resolvedThemeId = themeIdForPreview || 'default';
+        dispatch({ type: 'SET_PAGE_THEME', payload: { pageIndex: previewPageIndex, themeId: previewTheme } });
+        dispatch({
+          type: 'APPLY_THEME_TO_ELEMENTS',
+          payload: {
+            pageIndex: previewPageIndex,
+          themeId: resolvedThemeId,
+            skipHistory: true,
+            preserveColors: true
           }
-        } else {
-          dispatch({ 
-            type: 'SET_PAGE_THEME', 
-            payload: { pageIndex: previewPageIndex, themeId: previewTheme, skipHistory: true }
-          });
-          
-          dispatch({
-            type: 'APPLY_THEME_TO_ELEMENTS',
-            payload: { 
-              pageIndex: previewPageIndex, 
-              themeId: previewTheme,
-              applyToAllPages: false,
-              skipHistory: true
-            }
-          });
-        }
+        });
         
-        // Wende Background-Theme an
-        const theme = getGlobalTheme(previewTheme);
-        if (theme) {
-          const pageColors = getThemePageBackgroundColors(previewTheme);
-          const newBackground: PageBackground = {
-            type: (theme.pageSettings.backgroundPattern?.enabled ? 'pattern' : 'color') as 'color' | 'pattern' | 'image',
-            value: theme.pageSettings.backgroundPattern?.enabled ? theme.pageSettings.backgroundPattern.style : pageColors.backgroundColor,
-            opacity: theme.pageSettings.backgroundOpacity || 1,
-            pageTheme: isBookLevel ? undefined : previewTheme,
-            ...(theme.pageSettings.backgroundPattern?.enabled && {
-              patternSize: theme.pageSettings.backgroundPattern.size,
-              patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
-              patternForegroundColor: pageColors.backgroundColor,
-              patternBackgroundColor: pageColors.patternBackgroundColor,
-              patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity
-            })
-          };
-          
-          if (isBookLevel) {
-            // Für Book-Level: Wende auf alle Seiten an (inkl. Preview)
-            if (state.currentBook) {
-              state.currentBook.pages.forEach((_, pageIndex) => {
-                dispatch({
-                  type: 'UPDATE_PAGE_BACKGROUND',
-                  payload: { 
-                    pageIndex, 
-                    background: { ...newBackground, pageTheme: undefined } as PageBackground,
-                    skipHistory: true
-                  }
-                });
-              });
-            }
-          } else {
-            // Für Page-Level: Nur Preview-Seite
-            dispatch({
-              type: 'UPDATE_PAGE_BACKGROUND',
-              payload: { 
-                pageIndex: previewPageIndex, 
-                background: newBackground as PageBackground,
-                skipHistory: true
-              }
-            });
-          }
-        }
-        
-        // Warte für Rendering
         await new Promise(resolve => setTimeout(resolve, 200));
         
-        // Exportiere Canvas
         const stage = (window as unknown as { konvaStage?: Konva.Stage }).konvaStage || null;
         if (stage) {
           const dataURL = await exportCanvasAsImage(stage, 0.5, 0.75);
@@ -190,96 +175,99 @@ export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: The
     };
     
     applyThemeAndExport();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showPreviewDialog, previewTheme, state.currentBook?.pages, isBookLevel, dispatch]);
+  }, [showPreviewDialog, previewTheme, state.currentBook, dispatch]);
   
   const handleApply = () => {
-    if (!selectedTheme || selectedTheme === 'default') return;
+    if (!selectedTheme) return;
     
-    // Apply theme permanently (save to history)
     if (isBookLevel) {
       dispatch({ type: 'SET_BOOK_THEME', payload: selectedTheme });
-      
+
       if (state.currentBook) {
-        state.currentBook.pages.forEach((_, pageIndex) => {
+        state.currentBook.pages.forEach((page, pageIndex) => {
+          const pageHasCustom = !!page.themeId;
+          const themeForElements = pageHasCustom ? page.themeId! : selectedTheme;
+
+          if (!pageHasCustom) {
+            dispatch({
+              type: 'SET_PAGE_THEME',
+              payload: { pageIndex, themeId: selectedTheme, skipHistory: true }
+            });
+          }
           dispatch({
             type: 'APPLY_THEME_TO_ELEMENTS',
-            payload: { pageIndex, themeId: selectedTheme, applyToAllPages: true, skipHistory: true }
+            payload: {
+              pageIndex,
+              themeId: themeForElements,
+              skipHistory: true,
+              preserveColors: true
+            }
           });
         });
-        
-        const theme = getGlobalTheme(selectedTheme);
-        if (theme) {
-          state.currentBook.pages.forEach((_, pageIndex) => {
-            const pageColors = getThemePageBackgroundColors(selectedTheme);
-            const newBackground: PageBackground = {
-              type: (theme.pageSettings.backgroundPattern?.enabled ? 'pattern' : 'color') as 'color' | 'pattern' | 'image',
-              value: theme.pageSettings.backgroundPattern?.enabled ? theme.pageSettings.backgroundPattern.style : pageColors.backgroundColor,
-              opacity: theme.pageSettings.backgroundOpacity || 1,
-              pageTheme: undefined,
-              ...(theme.pageSettings.backgroundPattern?.enabled && {
-                patternSize: theme.pageSettings.backgroundPattern.size,
-                patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
-                patternForegroundColor: pageColors.backgroundColor,
-                patternBackgroundColor: pageColors.patternBackgroundColor,
-                patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity
-              })
-            };
-            
-            dispatch({
-              type: 'UPDATE_PAGE_BACKGROUND',
-              payload: { 
-                pageIndex, 
-                background: newBackground,
-                skipHistory: true
-              }
-            });
-          });
-        }
       }
     } else {
-      dispatch({ 
-        type: 'SET_PAGE_THEME', 
-        payload: { pageIndex: state.activePageIndex, themeId: selectedTheme }
+      const isBookThemeSelection = selectedTheme === '__BOOK_THEME__';
+      const resolvedThemeId = isBookThemeSelection ? (state.currentBook?.bookTheme || 'default') : selectedTheme;
+
+      dispatch({
+        type: 'SET_PAGE_THEME',
+        payload: {
+          pageIndex: state.activePageIndex,
+          themeId: isBookThemeSelection ? '__BOOK_THEME__' : selectedTheme
+        }
       });
-      
+
       dispatch({
         type: 'APPLY_THEME_TO_ELEMENTS',
-        payload: { pageIndex: state.activePageIndex, themeId: selectedTheme, skipHistory: true }
+        payload: {
+          pageIndex: state.activePageIndex,
+          themeId: resolvedThemeId,
+          skipHistory: true,
+          preserveColors: true
+        }
       });
-      
-      const theme = getGlobalTheme(selectedTheme);
-      if (theme) {
-        const pageColors = getThemePageBackgroundColors(selectedTheme);
-        const newBackground: PageBackground = {
-          type: (theme.pageSettings.backgroundPattern?.enabled ? 'pattern' : 'color') as 'color' | 'pattern' | 'image',
-          value: theme.pageSettings.backgroundPattern?.enabled ? theme.pageSettings.backgroundPattern.style : pageColors.backgroundColor,
-          opacity: theme.pageSettings.backgroundOpacity || 1,
-          pageTheme: selectedTheme,
-          ...(theme.pageSettings.backgroundPattern?.enabled && {
-            patternSize: theme.pageSettings.backgroundPattern.size,
-            patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
-            patternForegroundColor: pageColors.backgroundColor,
-            patternBackgroundColor: pageColors.patternBackgroundColor,
-            patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity
-          })
-        };
-        
+
+      const theme = getGlobalTheme(resolvedThemeId);
+      const currentPage = state.currentBook?.pages[state.activePageIndex];
+      if (theme && currentPage) {
+        const activePaletteId =
+          currentPage.colorPaletteId ||
+          state.currentBook?.colorPaletteId ||
+          null;
+        const paletteOverride = activePaletteId
+          ? colorPalettes.find(palette => palette.id === activePaletteId) || null
+          : null;
+        const pageColors = getThemePageBackgroundColors(
+          resolvedThemeId,
+          paletteOverride || undefined
+        );
+        const backgroundOpacity = theme.pageSettings.backgroundOpacity || 1;
+
+        const newBackground = buildBackgroundFromTheme(
+          theme,
+          resolvedThemeId,
+          pageColors,
+          backgroundOpacity,
+          currentPage.background
+        );
+
         dispatch({
           type: 'UPDATE_PAGE_BACKGROUND',
-          payload: { 
-            pageIndex: state.activePageIndex, 
-            background: newBackground,
-            skipHistory: true
+          payload: {
+            pageIndex: state.activePageIndex,
+            background: newBackground
           }
         });
       }
     }
     
-    // Speichere zu History nach vollständiger Anwendung
+    const historyThemeLabel = selectedTheme === '__BOOK_THEME__'
+      ? 'Book Theme'
+      : getGlobalTheme(selectedTheme)?.name || selectedTheme;
+
     dispatch({
       type: 'SAVE_TO_HISTORY',
-      payload: `Apply Theme "${getGlobalTheme(selectedTheme)?.name || selectedTheme}" to ${isBookLevel ? 'Book' : 'Page'}`
+      payload: `Apply Theme "${historyThemeLabel}" to ${isBookLevel ? 'Book' : 'Page'}`
     });
     
     onBack();
@@ -294,10 +282,8 @@ export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: The
   
   const handlePreview = (themeId?: string) => {
     const themeToPreview = themeId || selectedTheme;
-    if (!themeToPreview || themeToPreview === 'default') return;
-    // Set preview theme (without changing selectedTheme to avoid selection change)
+    if (!themeToPreview) return;
     setPreviewTheme(themeToPreview);
-    // Open dialog immediately
     setShowPreviewDialog(true);
   };
   
@@ -327,7 +313,7 @@ export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: The
   };
   
   const handleApplyToPage = () => {
-    if (!previewTheme || previewTheme === 'default') return;
+    if (!previewTheme) return;
     
     // Lösche Preview-Seite
     dispatch({ type: 'DELETE_PREVIEW_PAGE' });
@@ -338,56 +324,70 @@ export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: The
     // Warte kurz für Navigation
     setTimeout(() => {
       // Wende Theme auf aktuelle Seite an
+      const isBookThemeSelection = previewTheme === '__BOOK_THEME__';
+      const resolvedThemeId = isBookThemeSelection ? (state.currentBook?.bookTheme || 'default') : previewTheme;
+
       dispatch({ 
         type: 'SET_PAGE_THEME', 
-        payload: { pageIndex: state.activePageIndex, themeId: previewTheme }
+        payload: { pageIndex: state.activePageIndex, themeId: isBookThemeSelection ? '__BOOK_THEME__' : previewTheme }
       });
       
       dispatch({
         type: 'APPLY_THEME_TO_ELEMENTS',
-        payload: { pageIndex: state.activePageIndex, themeId: previewTheme, skipHistory: true }
+        payload: { pageIndex: state.activePageIndex, themeId: resolvedThemeId, skipHistory: true, preserveColors: true }
       });
-      
-      // Update selectedTheme after applying
-      setSelectedTheme(previewTheme);
-      
-      const theme = getGlobalTheme(previewTheme);
-      if (theme) {
-        const pageColors = getThemePageBackgroundColors(previewTheme);
-        const newBackground: PageBackground = {
-          type: (theme.pageSettings.backgroundPattern?.enabled ? 'pattern' : 'color') as 'color' | 'pattern' | 'image',
-          value: theme.pageSettings.backgroundPattern?.enabled ? theme.pageSettings.backgroundPattern.style : pageColors.backgroundColor,
-          opacity: theme.pageSettings.backgroundOpacity || 1,
-          pageTheme: previewTheme,
-          ...(theme.pageSettings.backgroundPattern?.enabled && {
-            patternSize: theme.pageSettings.backgroundPattern.size,
-            patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
-            patternForegroundColor: pageColors.backgroundColor,
-            patternBackgroundColor: pageColors.patternBackgroundColor,
-            patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity
-          })
-        };
-        
+
+      const theme = getGlobalTheme(resolvedThemeId);
+      const currentPage = state.currentBook?.pages[state.activePageIndex];
+      if (theme && currentPage) {
+        const activePaletteId =
+          currentPage.colorPaletteId ||
+          state.currentBook?.colorPaletteId ||
+          null;
+        const paletteOverride = activePaletteId
+          ? colorPalettes.find(palette => palette.id === activePaletteId) || null
+          : null;
+        const pageColors = getThemePageBackgroundColors(
+          resolvedThemeId,
+          paletteOverride || undefined
+        );
+        const backgroundOpacity = theme.pageSettings.backgroundOpacity || 1;
+
+        const newBackground = buildBackgroundFromTheme(
+          theme,
+          resolvedThemeId,
+          pageColors,
+          backgroundOpacity,
+          currentPage.background
+        );
+
         dispatch({
           type: 'UPDATE_PAGE_BACKGROUND',
-          payload: { 
-            pageIndex: state.activePageIndex, 
-            background: newBackground,
-            skipHistory: true
+          payload: {
+            pageIndex: state.activePageIndex,
+            background: newBackground
           }
         });
       }
       
+      // Update selectedTheme after applying
+      setSelectedTheme(previewTheme);
+      
+      // Speichere zu History
+      const previewLabel = previewTheme === '__BOOK_THEME__'
+        ? 'Book Theme'
+        : getGlobalTheme(previewTheme)?.name || previewTheme;
+      
       // Speichere zu History
       dispatch({
         type: 'SAVE_TO_HISTORY',
-        payload: `Apply Theme "${getGlobalTheme(previewTheme)?.name || previewTheme}" to Page`
+        payload: `Apply Theme "${previewLabel}" to Page`
       });
     }, 100);
   };
   
   const handleApplyToBook = () => {
-    if (!previewTheme || previewTheme === 'default') return;
+    if (!previewTheme) return;
     
     // Lösche Preview-Seite
     dispatch({ type: 'DELETE_PREVIEW_PAGE' });
@@ -398,47 +398,36 @@ export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: The
     // Warte kurz für Navigation
     setTimeout(() => {
       // Wende Theme auf alle Seiten an
-      dispatch({ type: 'SET_BOOK_THEME', payload: previewTheme });
+      dispatch({
+        type: 'SET_BOOK_THEME',
+        payload: previewTheme
+      });
       
       // Update selectedTheme after applying
       setSelectedTheme(previewTheme);
       
       if (state.currentBook) {
-        state.currentBook.pages.forEach((_, pageIndex) => {
+        state.currentBook.pages.forEach((page, pageIndex) => {
+          const pageHasCustom = !!page.themeId;
+          const themeForElements = pageHasCustom ? page.themeId! : previewTheme;
+
+          if (!pageHasCustom) {
+            dispatch({
+              type: 'SET_PAGE_THEME',
+              payload: { pageIndex, themeId: previewTheme, skipHistory: true }
+            });
+          }
+          
           dispatch({
             type: 'APPLY_THEME_TO_ELEMENTS',
-            payload: { pageIndex, themeId: previewTheme, applyToAllPages: true, skipHistory: true }
+            payload: {
+              pageIndex,
+              themeId: themeForElements,
+              skipHistory: true,
+              preserveColors: true
+            }
           });
         });
-        
-        const theme = getGlobalTheme(previewTheme);
-        if (theme) {
-          state.currentBook.pages.forEach((_, pageIndex) => {
-            const pageColors = getThemePageBackgroundColors(previewTheme);
-            const newBackground: PageBackground = {
-              type: (theme.pageSettings.backgroundPattern?.enabled ? 'pattern' : 'color') as 'color' | 'pattern' | 'image',
-              value: theme.pageSettings.backgroundPattern?.enabled ? theme.pageSettings.backgroundPattern.style : pageColors.backgroundColor,
-              opacity: theme.pageSettings.backgroundOpacity || 1,
-              pageTheme: undefined,
-              ...(theme.pageSettings.backgroundPattern?.enabled && {
-                patternSize: theme.pageSettings.backgroundPattern.size,
-                patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
-                patternForegroundColor: pageColors.backgroundColor,
-                patternBackgroundColor: pageColors.patternBackgroundColor,
-                patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity
-              })
-            };
-            
-            dispatch({
-              type: 'UPDATE_PAGE_BACKGROUND',
-              payload: { 
-                pageIndex, 
-                background: newBackground,
-                skipHistory: true
-              }
-            });
-          });
-        }
       }
       
       // Speichere zu History
@@ -486,7 +475,7 @@ export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: The
                 variant="default"
                 size="sm"
                 onClick={handleApply}
-                disabled={!selectedTheme || selectedTheme === 'default'}
+                disabled={!selectedTheme}
                 className="py-5 px-3 h-8"
             >
                 <Check className="h-4 w-4 mr-1" />
@@ -500,13 +489,14 @@ export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: The
       <div className="flex-1 min-h-0 overflow-hidden">
         <ThemeSelector
           currentTheme={currentTheme}
-          selectedTheme={selectedTheme}
+          selectedTheme={selectedTheme === '__BOOK_THEME__' ? undefined : selectedTheme}
+          isBookThemeSelected={!isBookLevel && selectedTheme === '__BOOK_THEME__'}
+          showBookThemeOption={!isBookLevel}
           onThemeSelect={(themeId) => {
             hasUserSelectedThemeRef.current = true;
             setSelectedTheme(themeId);
           }}
           onPreviewClick={(themeId) => {
-            // Open preview dialog without changing selectedTheme
             handlePreview(themeId);
           }}
           title={title}

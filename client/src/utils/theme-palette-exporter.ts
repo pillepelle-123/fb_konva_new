@@ -183,14 +183,12 @@ export function extractThemeDefaults(
   pageTheme?: string
 ): {
   text: any;
-  qna: any;
   shape: any;
   brush: any;
   line?: any;
 } {
   const defaults: any = {
     text: {},
-    qna: {},
     shape: {},
     brush: {}
   };
@@ -207,6 +205,7 @@ export function extractThemeDefaults(
   const lineElement = elements.find(el => el.type === 'line');
   
   // Extract text defaults
+  const rawTextDefaults: any = {};
   if (textElement) {
     const textDefaults: any = {};
     
@@ -233,15 +232,15 @@ export function extractThemeDefaults(
       
       textDefaults.border = {
         enabled: borderEnabled,
-        borderWidth: borderWidth ? actualToThemeJsonStrokeWidth(borderWidth, borderTheme) : 0,
-        borderOpacity: borderOpacity,
-        borderTheme: borderTheme
+        width: borderWidth ? actualToThemeJsonStrokeWidth(borderWidth, borderTheme) : 0,
+        opacity: borderOpacity,
+        theme: borderTheme
       };
     }
     
     if (textElement.padding !== undefined || textElement.format?.padding !== undefined) {
       textDefaults.format = {
-        textAlign: textElement.align || textElement.textSettings?.align || 'left',
+        textAlign: textElement.textSettings?.align || textElement.format?.textAlign || textElement.align || 'left',
         paragraphSpacing: textElement.paragraphSpacing || textElement.textSettings?.paragraphSpacing || 'medium',
         padding: textElement.padding || textElement.format?.padding || 8
       };
@@ -249,34 +248,35 @@ export function extractThemeDefaults(
     
     if (textElement.textSettings?.background?.enabled !== undefined || textElement.background?.enabled !== undefined) {
       const backgroundEnabled = textElement.textSettings?.background?.enabled ?? textElement.background?.enabled ?? false;
-      const backgroundOpacity = textElement.textSettings?.backgroundOpacity ?? textElement.backgroundOpacity ?? 1;
+      const backgroundOpacity = textElement.textSettings?.backgroundOpacity ?? textElement.backgroundOpacity ?? textElement.background?.opacity ?? 1;
       
       textDefaults.background = {
         enabled: backgroundEnabled,
-        backgroundOpacity: backgroundOpacity
+        opacity: backgroundOpacity
       };
     }
     
     if (textElement.textSettings?.ruledLines !== undefined || textElement.ruledLines !== undefined) {
       const ruledLinesEnabled = textElement.textSettings?.ruledLines ?? textElement.ruledLines ?? false;
-      const ruledLinesWidth = textElement.textSettings?.ruledLinesWidth ?? textElement.ruledLinesWidth ?? 0.8;
-      const ruledLinesTheme = textElement.textSettings?.ruledLinesTheme ?? textElement.ruledLinesTheme ?? 'default';
-      const ruledLinesOpacity = textElement.textSettings?.ruledLinesOpacity ?? textElement.ruledLinesOpacity ?? 0.5;
+      const ruledLinesWidth = textElement.textSettings?.ruledLinesWidth ?? textElement.ruledLinesWidth ?? textElement.ruledLines?.width ?? 0.8;
+      const ruledLinesTheme = textElement.textSettings?.ruledLinesTheme ?? textElement.ruledLinesTheme ?? textElement.ruledLines?.theme ?? 'default';
+      const ruledLinesOpacity = textElement.textSettings?.ruledLinesOpacity ?? textElement.ruledLinesOpacity ?? textElement.ruledLines?.opacity ?? 0.5;
       
       textDefaults.ruledLines = {
         enabled: ruledLinesEnabled,
-        lineWidth: ruledLinesWidth ? actualToThemeJsonStrokeWidth(ruledLinesWidth, ruledLinesTheme) : 0.8,
-        lineOpacity: ruledLinesOpacity,
-        ruledLinesTheme: ruledLinesTheme
+        width: ruledLinesWidth ? actualToThemeJsonStrokeWidth(ruledLinesWidth, ruledLinesTheme) : 0.8,
+        opacity: ruledLinesOpacity,
+        theme: ruledLinesTheme
       };
     }
     
     if (Object.keys(textDefaults).length > 0) {
-      defaults.text = textDefaults;
+      Object.assign(rawTextDefaults, textDefaults);
     }
   }
   
   // Extract QnA defaults
+  const rawQnaDefaults: any = {};
   if (qnaElement) {
     const qnaDefaults: any = {};
     
@@ -293,7 +293,7 @@ export function extractThemeDefaults(
     }
     
     qnaDefaults.paragraphSpacing = qnaElement.questionSettings?.paragraphSpacing || qnaElement.answerSettings?.paragraphSpacing || 'medium';
-    qnaDefaults.align = qnaElement.questionSettings?.align || qnaElement.answerSettings?.align || 'left';
+    qnaDefaults.align = qnaElement.questionSettings?.align || qnaElement.answerSettings?.align || qnaElement.format?.textAlign || qnaElement.align || 'left';
     
     // Border settings
     const borderEnabled = qnaElement.questionSettings?.border?.enabled ?? qnaElement.answerSettings?.border?.enabled ?? qnaElement.border?.enabled ?? false;
@@ -301,17 +301,21 @@ export function extractThemeDefaults(
     const borderTheme = qnaElement.questionSettings?.borderTheme ?? qnaElement.answerSettings?.borderTheme ?? qnaElement.border?.borderTheme ?? qnaElement.theme ?? pageTheme ?? 'default';
     const borderOpacity = qnaElement.questionSettings?.borderOpacity ?? qnaElement.answerSettings?.borderOpacity ?? qnaElement.borderOpacity ?? 1;
     
-    qnaDefaults.borderEnabled = borderEnabled;
-    qnaDefaults.borderWidth = borderWidth ? actualToThemeJsonStrokeWidth(borderWidth, borderTheme) : 0;
-    qnaDefaults.borderTheme = borderTheme;
-    qnaDefaults.borderOpacity = borderOpacity;
+    qnaDefaults.border = {
+      enabled: borderEnabled,
+      width: borderWidth ? actualToThemeJsonStrokeWidth(borderWidth, borderTheme) : 0,
+      opacity: borderOpacity,
+      theme: borderTheme
+    };
     
     // Background settings
     const backgroundEnabled = qnaElement.questionSettings?.background?.enabled ?? qnaElement.answerSettings?.background?.enabled ?? qnaElement.background?.enabled ?? false;
     const backgroundOpacity = qnaElement.questionSettings?.backgroundOpacity ?? qnaElement.answerSettings?.backgroundOpacity ?? qnaElement.backgroundOpacity ?? 1;
     
-    qnaDefaults.backgroundEnabled = backgroundEnabled;
-    qnaDefaults.backgroundOpacity = backgroundOpacity;
+    qnaDefaults.background = {
+      enabled: backgroundEnabled,
+      opacity: backgroundOpacity
+    };
     
     // Ruled lines
     const ruledLines = qnaElement.answerSettings?.ruledLines ?? false;
@@ -319,10 +323,12 @@ export function extractThemeDefaults(
     const ruledLinesTheme = qnaElement.answerSettings?.ruledLinesTheme ?? 'default';
     const ruledLinesOpacity = qnaElement.answerSettings?.ruledLinesOpacity ?? 0.5;
     
-    qnaDefaults.ruledLines = ruledLines;
-    qnaDefaults.ruledLinesWidth = ruledLinesWidth ? actualToThemeJsonStrokeWidth(ruledLinesWidth, ruledLinesTheme) : 0.8;
-    qnaDefaults.ruledLinesTheme = ruledLinesTheme;
-    qnaDefaults.ruledLinesOpacity = ruledLinesOpacity;
+    qnaDefaults.ruledLines = {
+      enabled: ruledLines,
+      width: ruledLinesWidth ? actualToThemeJsonStrokeWidth(ruledLinesWidth, ruledLinesTheme) : 0.8,
+      theme: ruledLinesTheme,
+      opacity: ruledLinesOpacity
+    };
     
     // Question settings
     if (qnaElement.questionSettings) {
@@ -348,7 +354,36 @@ export function extractThemeDefaults(
       };
     }
     
-    defaults.qna = qnaDefaults;
+    Object.assign(rawQnaDefaults, qnaDefaults);
+  }
+
+  const mergedTextDefaults: any = {};
+  const mergeIfMissing = (target: any, source: any) => {
+    if (!source) return;
+    for (const key of Object.keys(source)) {
+      const value = source[key];
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        if (!(key in target) || typeof target[key] !== 'object' || Array.isArray(target[key])) {
+          target[key] = Array.isArray(value) ? [...value] : {};
+        }
+        mergeIfMissing(target[key], value);
+      } else {
+        if (!(key in target)) {
+          target[key] = value;
+        }
+      }
+    }
+  };
+
+  if (Object.keys(rawQnaDefaults).length > 0) {
+    Object.assign(mergedTextDefaults, rawQnaDefaults);
+  }
+  mergeIfMissing(mergedTextDefaults, rawTextDefaults);
+
+  if (Object.keys(mergedTextDefaults).length > 0) {
+    defaults.text = mergedTextDefaults;
+  } else if (Object.keys(rawTextDefaults).length > 0) {
+    defaults.text = rawTextDefaults;
   }
   
   // Extract shape defaults
@@ -465,19 +500,30 @@ export function generateThemeJSON(
   pageSettings: any,
   elementDefaults: any
 ): string {
+  const defaultBackgroundPattern = {
+    enabled: false,
+    style: 'dots',
+    size: 20,
+    strokeWidth: 1,
+    patternBackgroundOpacity: 0.3
+  };
+
+  const defaultBackgroundImage = {
+    enabled: false
+  };
+
   const theme: any = {
     name: themeName,
     description: themeDescription,
     palette: paletteId,
     pageSettings: {
       backgroundOpacity: pageSettings.backgroundOpacity ?? 1,
-      backgroundPattern: pageSettings.backgroundPattern || {
-        enabled: false,
-        style: 'dots',
-        size: 20,
-        strokeWidth: 1,
-        patternBackgroundOpacity: 0.3
-      }
+      backgroundPattern: pageSettings.backgroundPattern
+        ? { ...pageSettings.backgroundPattern }
+        : { ...defaultBackgroundPattern },
+      backgroundImage: pageSettings.backgroundImage
+        ? { ...pageSettings.backgroundImage }
+        : { ...defaultBackgroundImage }
     },
     elementDefaults: {}
   };
@@ -485,11 +531,6 @@ export function generateThemeJSON(
   // Add text defaults
   if (elementDefaults.text && Object.keys(elementDefaults.text).length > 0) {
     theme.elementDefaults.text = elementDefaults.text;
-  }
-  
-  // Add qna defaults
-  if (elementDefaults.qna && Object.keys(elementDefaults.qna).length > 0) {
-    theme.elementDefaults.qna = elementDefaults.qna;
   }
   
   // Add shape defaults
@@ -571,6 +612,15 @@ export function exportThemeAndPalette(
       size: 20,
       strokeWidth: 1,
       patternBackgroundOpacity: 0.3
+    },
+    backgroundImage: pageBackground?.backgroundImageTemplateId ? {
+      enabled: true,
+      templateId: pageBackground.backgroundImageTemplateId,
+      size: pageBackground.imageSize || 'cover',
+      repeat: pageBackground.imageRepeat ?? false,
+      opacity: pageBackground.opacity ?? 1
+    } : {
+      enabled: false
     }
   };
   

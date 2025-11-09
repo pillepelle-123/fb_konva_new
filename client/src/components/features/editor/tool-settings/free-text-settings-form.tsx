@@ -76,7 +76,7 @@ export function FreeTextSettingsForm({
       fontItalic: tStyle.fontItalic ?? freeTextDefaults?.fontItalic ?? false,
       fontColor: tStyle.fontColor || freeTextDefaults?.fontColor || '#1f2937',
       fontOpacity: tStyle.fontOpacity ?? 1,
-      align: tStyle.align || freeTextDefaults?.align || 'left',
+      align: tStyle.align || element.format?.textAlign || freeTextDefaults?.align || 'left',
       ruledLines: tStyle.ruledLines ?? freeTextDefaults?.ruledLines ?? false,
       ruledLinesColor: tStyle.ruledLinesColor || '#1f2937',
       ruledLinesOpacity: tStyle.ruledLinesOpacity ?? 1,
@@ -99,16 +99,28 @@ export function FreeTextSettingsForm({
   const computedCurrentStyle = getTextStyle();
   
   const updateTextSetting = (key: string, value: any) => {
+    const textSettingsUpdates = {
+      ...element.textSettings,
+      [key]: value
+    };
+
+    const elementUpdates: any = {
+      textSettings: textSettingsUpdates
+    };
+
+    if (key === 'align') {
+      elementUpdates.format = {
+        ...element.format,
+        textAlign: value
+      };
+      elementUpdates.align = value;
+    }
+
     dispatch({
       type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
       payload: {
         id: element.id,
-        updates: {
-          textSettings: {
-            ...element.textSettings,
-            [key]: value
-          }
-        }
+        updates: elementUpdates
       }
     });
   };

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/auth-context';
+import { useEditor } from '../context/editor-context';
 
 interface EditorSettings {
   favoriteColors?: {
@@ -7,14 +8,16 @@ interface EditorSettings {
   };
 }
 
-interface FavoriteColors {
-  strokeColors?: string[];
-}
-
 export function useEditorSettings(bookId: number | string | undefined) {
   const { token } = useAuth();
-  const [settings, setSettings] = useState<EditorSettings>({});
+  const { state, dispatch } = useEditor();
+  const [settings, setSettings] = useState<EditorSettings>(state.editorSettings || {});
   const [loading, setLoading] = useState(false);
+
+  // Keep local hook state aligned with global editor settings
+  useEffect(() => {
+    setSettings(state.editorSettings || {});
+  }, [state.editorSettings]);
 
   // Load settings
   useEffect(() => {
@@ -39,6 +42,7 @@ export function useEditorSettings(bookId: number | string | undefined) {
         if (response.ok) {
           const data = await response.json();
           setSettings(data);
+          dispatch({ type: 'SET_EDITOR_SETTINGS', payload: data });
         } else {
           console.error('Failed to load settings:', response.status, response.statusText);
         }
@@ -70,6 +74,16 @@ export function useEditorSettings(bookId: number | string | undefined) {
           };
         }
         return prev;
+      });
+      dispatch({
+        type: 'SET_EDITOR_SETTINGS',
+        payload: {
+          ...state.editorSettings,
+          favoriteColors: {
+            ...(state.editorSettings?.favoriteColors || {}),
+            [settingKey]: settingValue
+          }
+        }
       });
       return;
     }
@@ -103,6 +117,16 @@ export function useEditorSettings(bookId: number | string | undefined) {
           }
           return prev;
         });
+        dispatch({
+          type: 'SET_EDITOR_SETTINGS',
+          payload: {
+            ...state.editorSettings,
+            favoriteColors: {
+              ...(state.editorSettings?.favoriteColors || {}),
+              [settingKey]: settingValue
+            }
+          }
+        });
       } else {
         console.error('Failed to save setting:', response.status, response.statusText);
         const errorText = await response.text();
@@ -131,6 +155,17 @@ export function useEditorSettings(bookId: number | string | undefined) {
         }
         return newSettings;
       });
+      if (settingType === 'favoriteColors' && settingKey === 'strokeColors') {
+        const favoriteColors = { ...(state.editorSettings?.favoriteColors || {}) };
+        delete favoriteColors.strokeColors;
+        dispatch({
+          type: 'SET_EDITOR_SETTINGS',
+          payload: {
+            ...state.editorSettings,
+            favoriteColors
+          }
+        });
+      }
       return;
     }
 
@@ -156,6 +191,17 @@ export function useEditorSettings(bookId: number | string | undefined) {
           }
           return newSettings;
         });
+        if (settingType === 'favoriteColors' && settingKey === 'strokeColors') {
+          const favoriteColors = { ...(state.editorSettings?.favoriteColors || {}) };
+          delete favoriteColors.strokeColors;
+          dispatch({
+            type: 'SET_EDITOR_SETTINGS',
+            payload: {
+              ...state.editorSettings,
+              favoriteColors
+            }
+          });
+        }
       } else {
         console.error('Failed to delete setting:', response.status, response.statusText);
       }

@@ -11,7 +11,7 @@ export function getBackgroundColor(element: CanvasElement): string {
  * Centralized utility for getting background opacity with consistent fallback logic
  */
 export function getBackgroundOpacity(element: CanvasElement): number {
-  return element.background?.backgroundOpacity ?? element.backgroundOpacity ?? 1;
+  return element.background?.opacity ?? element.background?.backgroundOpacity ?? element.backgroundOpacity ?? 1;
 }
 
 /**

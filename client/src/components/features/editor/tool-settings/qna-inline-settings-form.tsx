@@ -81,6 +81,9 @@ export function QnAInlineSettingsForm({
   // Local state for QnA color selector
   const [localShowColorSelector, setLocalShowColorSelector] = useState<string | null>(null);
   
+  const currentPage = state.currentBook?.pages[state.activePageIndex];
+  const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+  
   // Close color selector when activeSection changes
   useEffect(() => {
     setLocalShowColorSelector(null);
@@ -89,8 +92,6 @@ export function QnAInlineSettingsForm({
   
   const getQuestionStyle = () => {
     const qStyle = element.questionSettings || {};
-    const currentPage = state.currentBook?.pages[state.activePageIndex];
-    const pageTheme = currentPage?.background?.pageTheme;
     const bookTheme = state.currentBook?.bookTheme;
     const activeTheme = pageTheme || bookTheme;
     const qnaDefaults = activeTheme ? getQnAThemeDefaults(activeTheme, 'question') : {};
@@ -102,15 +103,13 @@ export function QnAInlineSettingsForm({
       fontItalic: qStyle.fontItalic ?? qnaDefaults?.fontItalic ?? false,
       fontColor: qStyle.fontColor || qnaDefaults?.fontColor || '#666666',
       fontOpacity: qStyle.fontOpacity ?? 1,
-      align: qStyle.align || element.align || qnaDefaults?.align || 'left',
+      align: qStyle.align || element.format?.textAlign || element.align || qnaDefaults?.align || 'left',
       ruledLines: qStyle.ruledLines ?? qnaDefaults?.ruledLines ?? false
     };
   };
   
   const getAnswerStyle = () => {
     const aStyle = element.answerSettings || {};
-    const currentPage = state.currentBook?.pages[state.activePageIndex];
-    const pageTheme = currentPage?.background?.pageTheme;
     const bookTheme = state.currentBook?.bookTheme;
     const activeTheme = pageTheme || bookTheme;
     const qnaDefaults = activeTheme ? getQnAThemeDefaults(activeTheme, 'answer') : {};
@@ -122,7 +121,7 @@ export function QnAInlineSettingsForm({
       fontItalic: aStyle.fontItalic ?? qnaDefaults?.fontItalic ?? false,
       fontColor: aStyle.fontColor || qnaDefaults?.fontColor || '#1f2937',
       fontOpacity: aStyle.fontOpacity ?? 1,
-      align: aStyle.align || element.align || qnaDefaults?.align || 'left',
+      align: aStyle.align || element.format?.textAlign || element.align || qnaDefaults?.align || 'left',
       ruledLines: aStyle.ruledLines ?? qnaDefaults?.ruledLines ?? false
     };
   };
@@ -134,8 +133,6 @@ export function QnAInlineSettingsForm({
   
   // Get theme defaults for checking border/background enabled state
   const getThemeDefaults = () => {
-    const currentPage = state.currentBook?.pages[state.activePageIndex];
-    const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
     const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
     const pageLayoutTemplateId = currentPage?.layoutTemplateId;
     const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
@@ -668,9 +665,9 @@ export function QnAInlineSettingsForm({
         case 'element-border-color': {
           const themeDefaults = getThemeDefaults();
           const currentEnabled = element.questionSettings?.border?.enabled ?? element.answerSettings?.border?.enabled ?? (themeDefaults.borderEnabled ?? false);
-          const borderWidth = element.questionSettings?.borderWidth || element.answerSettings?.borderWidth || (themeDefaults.borderWidth ?? 1);
-          const borderOpacity = element.questionSettings?.borderOpacity ?? element.answerSettings?.borderOpacity ?? (themeDefaults.borderOpacity ?? 1);
-          const borderTheme = element.questionSettings?.borderTheme || element.answerSettings?.borderTheme || themeDefaults.borderTheme || 'default';
+          const borderWidth = element.questionSettings?.border?.width || element.answerSettings?.border?.width || element.questionSettings?.borderWidth || element.answerSettings?.borderWidth || (themeDefaults.borderWidth ?? 1);
+          const borderOpacity = element.questionSettings?.border?.opacity ?? element.answerSettings?.border?.opacity ?? element.questionSettings?.borderOpacity ?? element.answerSettings?.borderOpacity ?? (themeDefaults.borderOpacity ?? 1);
+          const borderTheme = element.questionSettings?.border?.theme || element.answerSettings?.border?.theme || element.questionSettings?.borderTheme || element.answerSettings?.borderTheme || themeDefaults.borderTheme || 'default';
           
           dispatch({
             type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
@@ -1345,7 +1342,7 @@ export function QnAInlineSettingsForm({
               variant={(() => {
                 const qSettings = element.questionSettings || {};
                 const aSettings = element.answerSettings || {};
-                const align = qSettings.align || aSettings.align || 'left';
+                const align = qSettings.align || aSettings.align || element.format?.textAlign || element.align || 'left';
                 return align === 'left' ? 'default' : 'outline';
               })()}
               size="xs"
@@ -1358,7 +1355,7 @@ export function QnAInlineSettingsForm({
               variant={(() => {
                 const qSettings = element.questionSettings || {};
                 const aSettings = element.answerSettings || {};
-                const align = qSettings.align || aSettings.align || 'left';
+                const align = qSettings.align || aSettings.align || element.format?.textAlign || element.align || 'left';
                 return align === 'center' ? 'default' : 'outline';
               })()}
               size="xs"
@@ -1371,7 +1368,7 @@ export function QnAInlineSettingsForm({
               variant={(() => {
                 const qSettings = element.questionSettings || {};
                 const aSettings = element.answerSettings || {};
-                const align = qSettings.align || aSettings.align || 'left';
+                const align = qSettings.align || aSettings.align || element.format?.textAlign || element.align || 'left';
                 return align === 'right' ? 'default' : 'outline';
               })()}
               size="xs"
@@ -1384,7 +1381,7 @@ export function QnAInlineSettingsForm({
               variant={(() => {
                 const qSettings = element.questionSettings || {};
                 const aSettings = element.answerSettings || {};
-                const align = qSettings.align || aSettings.align || 'left';
+                const align = qSettings.align || aSettings.align || element.format?.textAlign || element.align || 'left';
                 return align === 'justify' ? 'default' : 'outline';
               })()}
               size="xs"

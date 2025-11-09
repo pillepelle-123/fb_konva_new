@@ -11,6 +11,8 @@ import QuestionSelectionHandler from '../../components/features/editor/question-
 import PagePreviewOverlay from '../../components/features/editor/preview/page-preview-overlay';
 import TemplateGallery from '../../components/templates/template-gallery';
 import { fetchTemplates, fetchColorPalettes, apiService } from '../../services/api';
+import { getGlobalTheme, getThemePageBackgroundColors } from '../../utils/global-themes';
+import type { PageBackground } from '../../context/editor-context';
 
 
 function EditorContent() {
@@ -42,22 +44,70 @@ function EditorContent() {
   
   // Apply wizard selections after book is loaded
   useEffect(() => {
-    if (state.currentBook && (state.wizardTemplateSelection.selectedTemplateId || state.wizardTemplateSelection.selectedPaletteId) && state.availableTemplates && state.colorPalettes) {
+    if (
+      state.currentBook &&
+      (state.wizardTemplateSelection.selectedTemplateId || state.wizardTemplateSelection.selectedPaletteId || state.wizardTemplateSelection.templateCustomizations) &&
+      state.availableTemplates &&
+      state.colorPalettes
+    ) {
       const template = state.availableTemplates.find(t => t.id === state.wizardTemplateSelection.selectedTemplateId);
-      const palette = state.colorPalettes.find(p => p.id === state.wizardTemplateSelection.selectedPaletteId);
-      
+      const paletteFromPaletteId = state.colorPalettes.find(p => p.id === state.wizardTemplateSelection.selectedPaletteId) || null;
+      const themeIdFromSelection = state.wizardTemplateSelection.templateCustomizations?.theme;
+      const paletteFromSelection = state.wizardTemplateSelection.templateCustomizations?.palette || null;
+      const palette = paletteFromPaletteId || paletteFromSelection || null;
+      const themeId = themeIdFromSelection || state.currentBook.themeId || state.currentBook.bookTheme || null;
+
       if (template) {
-        // Apply template to first page
-        dispatch({ 
-          type: 'APPLY_TEMPLATE', 
-          payload: { 
-            template, 
-            pageIndex: 0, 
-            applyToAllPages: false 
-          } 
+        dispatch({ type: 'SET_BOOK_LAYOUT_TEMPLATE', payload: template.id });
+        dispatch({
+          type: 'APPLY_TEMPLATE_TO_PAGE',
+          payload: {
+            template,
+            pageIndex: 0
+          }
         });
-      } else if (!state.wizardTemplateSelection.selectedTemplateId && palette) {
-        // No template selected, create simple textbox with palette colors
+        dispatch({
+          type: 'SET_PAGE_LAYOUT_TEMPLATE',
+          payload: { pageIndex: 0, layoutTemplateId: template.id }
+        });
+      }
+
+      if (themeId) {
+        dispatch({ type: 'SET_BOOK_THEME', payload: themeId, skipHistory: true });
+        state.currentBook.pages.forEach((page, index) => {
+          const pageThemeActionId = page.themeId || '__BOOK_THEME__';
+          const effectiveThemeId = page.themeId || themeId;
+
+          dispatch({
+            type: 'SET_PAGE_THEME',
+            payload: { pageIndex: index, themeId: pageThemeActionId, skipHistory: true }
+          });
+
+          dispatch({
+            type: 'APPLY_THEME_TO_ELEMENTS',
+            payload: {
+              pageIndex: index,
+              themeId: effectiveThemeId,
+              skipHistory: true,
+              preserveColors: true
+            }
+          });
+        });
+      }
+
+      if (palette) {
+        dispatch({ type: 'SET_BOOK_COLOR_PALETTE', payload: palette.id, skipHistory: true });
+        dispatch({
+          type: 'APPLY_COLOR_PALETTE',
+          payload: {
+            palette,
+            applyToAllPages: true,
+            skipHistory: true
+          }
+        });
+      }
+
+      if (!template && !palette && !themeId) {
         const simpleElement = {
           id: `element_${Date.now()}`,
           type: 'text' as const,
@@ -69,33 +119,16 @@ function EditorContent() {
           text: '',
           fontSize: 16,
           fontFamily: 'Century Gothic, sans-serif',
-          fontColor: palette.colors.text,
+          fontColor: '#1f2937',
           align: 'left' as const,
           padding: 12,
           cornerRadius: 8
         };
-        
-        dispatch({ 
-          type: 'ADD_ELEMENT', 
-          payload: simpleElement 
-        });
+        dispatch({ type: 'ADD_ELEMENT', payload: simpleElement });
       }
-      
-      if (palette) {
-        // Apply color palette to first page
-        dispatch({ 
-          type: 'APPLY_COLOR_PALETTE', 
-          payload: { 
-            palette, 
-            pageIndex: 0, 
-            applyToAllPages: false 
-          } 
-        });
-      }
-      
-      // Clear wizard selection after applying
-      dispatch({ 
-        type: 'SET_WIZARD_TEMPLATE_SELECTION', 
+
+      dispatch({
+        type: 'SET_WIZARD_TEMPLATE_SELECTION',
         payload: {
           selectedTemplateId: null,
           selectedPaletteId: null,
@@ -162,6 +195,9 @@ function EditorContent() {
                 
                 // Erstelle das Buch-Objekt mit den Elementen aus dem temporären Buch
                 // Verwende die Seiten-IDs aus der DB, falls verfügbar
+                const wizardThemeId = tempBook?.wizardSelections?.theme || tempBook?.bookTheme || tempBook?.themeId || null;
+                const wizardPalette = tempBook?.wizardSelections?.palette || null;
+
                 const bookWithElements = {
                   ...newBook,
                   id: newBook.id,
@@ -175,14 +211,67 @@ function EditorContent() {
                   pages: tempBook.pages.map((page: any, index: number) => {
                     const dbPage = dbBook?.pages?.[index];
                     const pageId = dbPage?.id;
+
+                    let resolvedBackground = page.background;
+                    const pageThemeOverrideId = page.themeId || null;
+                    const pagePaletteOverrideId = page.colorPaletteId || null;
+                    const effectiveThemeId = pageThemeOverrideId || wizardThemeId;
+
+                    if (effectiveThemeId) {
+                      const theme = getGlobalTheme(effectiveThemeId);
+                      const paletteForBackground =
+                        wizardPalette ||
+                        pagePaletteOverrideId ||
+                        tempBook?.colorPaletteId ||
+                        state.currentBook?.colorPaletteId ||
+                        null;
+                      const themeColors = getThemePageBackgroundColors(
+                        effectiveThemeId,
+                        paletteForBackground || undefined
+                      );
+                      const backgroundOpacity = theme?.pageSettings?.backgroundOpacity ?? page.background?.opacity ?? 1;
+
+                      const paletteBackgroundColor = page.background?.type === 'pattern'
+                        ? page.background.patternForegroundColor || wizardPalette?.colors.background || themeColors.backgroundColor
+                        : typeof page.background?.value === 'string'
+                          ? page.background.value
+                          : wizardPalette?.colors.background || themeColors.backgroundColor;
+                      const palettePatternColor = page.background?.patternBackgroundColor
+                        || wizardPalette?.colors.primary
+                        || wizardPalette?.colors.accent
+                        || themeColors.patternBackgroundColor;
+
+                      if (theme?.pageSettings?.backgroundPattern?.enabled) {
+                        resolvedBackground = {
+                          type: 'pattern' as const,
+                          value: theme.pageSettings.backgroundPattern.style,
+                          opacity: backgroundOpacity,
+                          pageTheme: effectiveThemeId,
+                          patternSize: theme.pageSettings.backgroundPattern.size,
+                          patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
+                          patternForegroundColor: paletteBackgroundColor,
+                          patternBackgroundColor: palettePatternColor,
+                          patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity
+                        };
+                      } else {
+                        resolvedBackground = {
+                          type: 'color' as const,
+                          value: paletteBackgroundColor,
+                          opacity: backgroundOpacity,
+                          pageTheme: effectiveThemeId
+                        };
+                      }
+                    }
+
                     return {
                       ...page,
+                      background: resolvedBackground,
                       pageNumber: page.pageNumber || page.page_number || index + 1,
                       id: pageId || undefined,
                       database_id: pageId || undefined,
                       layoutTemplateId: page.layoutTemplateId || tempBook?.layoutTemplateId || null,
-                      colorPaletteId: page.colorPaletteId || tempBook?.selectedPalette?.id || tempBook?.colorPaletteId || null,
-                      themeId: page.themeId || tempBook?.selectedTheme || tempBook?.themeId || null
+                      colorPaletteId: pagePaletteOverrideId,
+                      themeId: pageThemeOverrideId
                     };
                   })
                 };
@@ -306,7 +395,7 @@ function EditorContent() {
                   payload: {
                     selectedTemplateId: template?.id || null,
                     selectedPaletteId: palette?.id || null,
-                    templateCustomizations: { theme }
+                    templateCustomizations: { theme, palette }
                   }
                 });
               }

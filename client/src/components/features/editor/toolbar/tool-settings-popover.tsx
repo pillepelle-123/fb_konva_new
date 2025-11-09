@@ -8,6 +8,7 @@ import { Slider } from '../../../ui/primitives/slider';
 import { useEditor } from '../../../../context/editor-context';
 import { ColorSelector } from '../tool-settings/color-selector';
 import { getToolDefaults } from '../../../../utils/tool-defaults';
+import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 
 interface ToolSettingsPopoverProps {
   activeTool: string;
@@ -84,26 +85,45 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
     }
   }, [activeTool, isPipetteMode]);
   
-  const favoriteColors = state.editorSettings?.favoriteColors?.strokeColors || [];
+  const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
+  const favoriteColors = favoriteStrokeColors;
   
   const addFavoriteColor = (color: string) => {
-    const newFavorites = [...favoriteColors, color];
+    if (!color || favoriteColors.includes(color)) {
+      return;
+    }
+
+    // Persist via editor settings hook
+    addFavoriteStrokeColor(color);
+
+    // Keep context state in sync immediately
     dispatch({
       type: 'SET_EDITOR_SETTINGS',
       payload: {
         ...state.editorSettings,
-        favoriteColors: { strokeColors: newFavorites }
+        favoriteColors: {
+          ...(state.editorSettings?.favoriteColors || {}),
+          strokeColors: [...favoriteColors, color]
+        }
       }
     });
   };
   
   const removeFavoriteColor = (color: string) => {
-    const newFavorites = favoriteColors.filter((c: string) => c !== color);
+    if (!favoriteColors.includes(color)) {
+      return;
+    }
+
+    removeFavoriteStrokeColor(color);
+
     dispatch({
       type: 'SET_EDITOR_SETTINGS',
       payload: {
         ...state.editorSettings,
-        favoriteColors: { strokeColors: newFavorites }
+        favoriteColors: {
+          ...(state.editorSettings?.favoriteColors || {}),
+          strokeColors: favoriteColors.filter((c: string) => c !== color)
+        }
       }
     });
   };

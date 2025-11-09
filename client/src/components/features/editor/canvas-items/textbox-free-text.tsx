@@ -557,7 +557,7 @@ export default function TextboxFreeText(props: CanvasItemProps) {
             const textWidth = element.width - (padding * 2);
             const userText = getUserText();
             
-            const align = textStyle.align || 'left';
+            const align = textStyle.align || element.format?.textAlign || 'left';
             
             if (!userText) {
               return (

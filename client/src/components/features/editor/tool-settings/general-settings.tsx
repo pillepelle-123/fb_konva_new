@@ -3,7 +3,6 @@ import { useAuth } from '../../../../context/auth-context';
 import { Button } from '../../../ui/primitives/button';
 import { ChevronLeft, Settings, Palette, Image, PaintBucket, CircleHelp, LayoutPanelLeft, Paintbrush2, SwatchBook, ArrowDown, ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight } from 'lucide-react';
 import { RadioGroup } from '../../../ui/primitives/radio-group';
-import { getPalette } from '../../../../utils/global-palettes';
 import { ButtonGroup } from '../../../ui/composites/button-group';
 import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
 import type { PageBackground } from '../../../../context/editor-context';
@@ -13,7 +12,7 @@ import { Slider } from '../../../ui/primitives/slider';
 import { Separator } from '../../../ui/primitives/separator';
 import { Label } from '../../../ui/primitives/label';
 import { ThemeSelector } from '../templates/theme-selector';
-import { getGlobalThemeDefaults, getGlobalTheme, getThemePageBackgroundColors } from '../../../../utils/global-themes';
+import { getGlobalThemeDefaults, getGlobalTheme } from '../../../../utils/global-themes';
 import { getToolDefaults } from '../../../../utils/tool-defaults';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { PaletteSelector } from '../templates/palette-selector';
@@ -93,6 +92,35 @@ export function GeneralSettings({
   const [pagePaletteKey, setPagePaletteKey] = useState(0);
   const [bookPaletteKey, setBookPaletteKey] = useState(0);
 
+  const stripColorFields = (obj: any) => {
+    if (!obj || typeof obj !== 'object') {
+      return;
+    }
+
+    Object.keys(obj).forEach((key) => {
+      const value = obj[key];
+      const lowerKey = key.toLowerCase();
+      const isColorKey =
+        lowerKey === 'fill' ||
+        lowerKey === 'stroke' ||
+        lowerKey.endsWith('color') ||
+        lowerKey.endsWith('colors') ||
+        (lowerKey.includes('color') && !lowerKey.includes('colorstop'));
+
+      if (isColorKey) {
+        delete obj[key];
+        return;
+      }
+
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        stripColorFields(value);
+        if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key]) && Object.keys(obj[key]).length === 0) {
+          delete obj[key];
+        }
+      }
+    });
+  };
+
 
   const updateBackground = (updates: Partial<PageBackground>) => {
     const currentPage = state.currentBook?.pages[state.activePageIndex];
@@ -134,37 +162,83 @@ export function GeneralSettings({
               // Apply theme to all elements on current page
               dispatch({
                 type: 'APPLY_THEME_TO_ELEMENTS',
-                payload: { pageIndex: state.activePageIndex, themeId: bookThemeId }
+                payload: { pageIndex: state.activePageIndex, themeId: bookThemeId, preserveColors: true }
               });
               
               const theme = getGlobalTheme(bookThemeId);
               if (theme) {
-                // Get page background colors from palette, not from themes.json
-                const pageColors = getThemePageBackgroundColors(bookThemeId);
-                
-                // Apply page background settings
-                const newBackground = {
-                  type: theme.pageSettings.backgroundPattern?.enabled ? 'pattern' : 'color',
-                  value: theme.pageSettings.backgroundPattern?.enabled ? theme.pageSettings.backgroundPattern.style : pageColors.backgroundColor,
-                  opacity: theme.pageSettings.backgroundOpacity || 1,
-                  pageTheme: bookThemeId,
-                  ruledLines: theme.ruledLines,
-                  ...(theme.pageSettings.backgroundPattern?.enabled && {
-                    patternSize: theme.pageSettings.backgroundPattern.size,
-                    patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
-                    patternForegroundColor: pageColors.backgroundColor,
-                    patternBackgroundColor: pageColors.patternBackgroundColor,
-                    patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity
-                  })
-                };
-                
-                dispatch({
-                  type: 'UPDATE_PAGE_BACKGROUND',
-                  payload: { 
-                    pageIndex: state.activePageIndex, 
-                    background: newBackground
-                  }
+                const currentPage = state.currentBook?.pages[state.activePageIndex];
+                if (currentPage) {
+                  const activePaletteId = currentPage?.colorPaletteId || state.currentBook?.colorPaletteId || null;
+                  const paletteOverride = activePaletteId
+                    ? colorPalettes.find(palette => palette.id === activePaletteId)
+                    : undefined;
+                  const existingBackground = currentPage.background;
+                  const paletteColors = paletteOverride?.colors;
+                  const backgroundOpacity = theme.pageSettings.backgroundOpacity ?? existingBackground?.opacity ?? 1;
+
+              const backgroundImageConfig = theme.pageSettings.backgroundImage;
+              let newBackground: PageBackground | null = null;
+
+              if (backgroundImageConfig?.enabled && backgroundImageConfig.templateId) {
+                const imageBackground = applyBackgroundImageTemplate(backgroundImageConfig.templateId, {
+                  imageSize: backgroundImageConfig.size,
+                  imageRepeat: backgroundImageConfig.repeat,
+                  opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
+                  backgroundColor: paletteColors?.background || existingBackground?.value || '#ffffff'
                 });
+
+                if (imageBackground) {
+                  newBackground = {
+                    ...imageBackground,
+                    pageTheme: bookThemeId
+                  };
+                }
+              }
+
+                  const resolvedBaseColor = existingBackground
+                    ? existingBackground.type === 'pattern'
+                      ? existingBackground.patternForegroundColor || paletteColors?.background || '#ffffff'
+                      : (typeof existingBackground.value === 'string' ? existingBackground.value : paletteColors?.background || '#ffffff')
+                    : paletteColors?.background || '#ffffff';
+
+                  const resolvedPatternForeground = existingBackground?.patternForegroundColor
+                    || paletteColors?.background
+                    || resolvedBaseColor;
+                  const resolvedPatternBackground = existingBackground?.patternBackgroundColor
+                    || paletteColors?.primary
+                    || paletteColors?.accent
+                    || resolvedPatternForeground;
+
+              if (!newBackground && theme.pageSettings.backgroundPattern?.enabled) {
+                newBackground = {
+                      type: 'pattern',
+                      value: theme.pageSettings.backgroundPattern.style,
+                      opacity: backgroundOpacity,
+                      pageTheme: bookThemeId,
+                      patternSize: theme.pageSettings.backgroundPattern.size,
+                      patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
+                      patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity,
+                      patternForegroundColor: resolvedPatternForeground,
+                      patternBackgroundColor: resolvedPatternBackground
+                    };
+              } else if (!newBackground) {
+                newBackground = {
+                      type: 'color',
+                      value: resolvedBaseColor,
+                      opacity: backgroundOpacity,
+                      pageTheme: bookThemeId
+                    };
+                  }
+
+                  dispatch({
+                    type: 'UPDATE_PAGE_BACKGROUND',
+                    payload: {
+                      pageIndex: state.activePageIndex,
+                      background: newBackground
+                    }
+                  });
+                }
               }
             }}
             className="w-full mb-4"
@@ -177,118 +251,166 @@ export function GeneralSettings({
         <ThemeSelector
           currentTheme={state.currentBook?.pages[state.activePageIndex]?.background?.pageTheme || state.currentBook?.bookTheme || 'default'}
           title="Page Theme"
+          showBookThemeOption
+          isBookThemeSelected={!state.currentBook?.pages[state.activePageIndex]?.themeId}
           onThemeSelect={(themeId) => {
+            const isBookThemeSelection = themeId === '__BOOK_THEME__';
+            const resolvedThemeId =
+              isBookThemeSelection
+                ? state.currentBook?.bookTheme || state.currentBook?.themeId || 'default'
+                : themeId;
+            
             // Set page theme (saves history)
             dispatch({ type: 'SET_PAGE_THEME', payload: { pageIndex: state.activePageIndex, themeId } });
-            
-            // Remove page color palette override so theme palette is used instead (no history, part of theme application)
-            dispatch({
-              type: 'SET_PAGE_COLOR_PALETTE',
-              payload: { pageIndex: state.activePageIndex, colorPaletteId: null, skipHistory: true }
-            });
             
             // Apply theme to all elements on current page (no history, part of theme application)
             dispatch({
               type: 'APPLY_THEME_TO_ELEMENTS',
-              payload: { pageIndex: state.activePageIndex, themeId, skipHistory: true }
+              payload: {
+                pageIndex: state.activePageIndex,
+                themeId: resolvedThemeId,
+                skipHistory: true,
+                preserveColors: true
+              }
             });
             
-            const theme = getGlobalTheme(themeId);
-            if (theme) {
-                // Get page background colors from palette, not from themes.json
-                const pageColors = getThemePageBackgroundColors(themeId);
-                
-                // Apply page background settings (no history, part of theme application)
-                const newBackground = {
-                  type: theme.pageSettings.backgroundPattern?.enabled ? 'pattern' : 'color',
-                  value: theme.pageSettings.backgroundPattern?.enabled ? theme.pageSettings.backgroundPattern.style : pageColors.backgroundColor,
-                  opacity: theme.pageSettings.backgroundOpacity || 1,
-                  pageTheme: themeId,
-                  ruledLines: theme.ruledLines,
-                  ...(theme.pageSettings.backgroundPattern?.enabled && {
-                    patternSize: theme.pageSettings.backgroundPattern.size,
-                    patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
-                    patternForegroundColor: pageColors.backgroundColor,
-                    patternBackgroundColor: pageColors.patternBackgroundColor,
-                    patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity
-                  })
+            const theme = getGlobalTheme(resolvedThemeId);
+            if (!theme) {
+              return;
+            }
+            
+            const currentPage = state.currentBook?.pages[state.activePageIndex];
+            if (!currentPage) {
+              return;
+            }
+            
+            const activePaletteId =
+              currentPage.colorPaletteId ||
+              state.currentBook?.colorPaletteId ||
+              null;
+            const paletteOverride = activePaletteId
+              ? colorPalettes.find(palette => palette.id === activePaletteId) || null
+              : null;
+            const pageColors = getThemePageBackgroundColors(
+              resolvedThemeId,
+              paletteOverride || undefined
+            );
+            const backgroundOpacity = theme.pageSettings.backgroundOpacity || 1;
+            const backgroundImageConfig = theme.pageSettings.backgroundImage;
+            
+            let newBackground: PageBackground | null = null;
+            
+            if (backgroundImageConfig?.enabled && backgroundImageConfig.templateId) {
+              const imageBackground = applyBackgroundImageTemplate(backgroundImageConfig.templateId, {
+                imageSize: backgroundImageConfig.size,
+                imageRepeat: backgroundImageConfig.repeat,
+                opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
+                backgroundColor: pageColors.backgroundColor
+              });
+              
+              if (imageBackground) {
+                newBackground = {
+                  ...imageBackground,
+                  pageTheme: resolvedThemeId
                 };
-                
-                dispatch({
-                  type: 'UPDATE_PAGE_BACKGROUND',
-                  payload: { 
-                    pageIndex: state.activePageIndex, 
-                    background: newBackground,
-                    skipHistory: true
-                  }
-                });
-                
-                // Reset tool settings to theme defaults (not palette defaults)
-                // This ensures tool colors reflect the theme, not any previously applied palette
-                const currentPage = state.currentBook?.pages[state.activePageIndex];
-                const pageLayoutTemplateId = currentPage?.layoutTemplateId;
-                const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
-                
-                // Don't use palette IDs - we want pure theme colors
-                const toolTypes = ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna_inline', 'free_text'];
-                const toolUpdates: Record<string, any> = {};
-                
-                toolTypes.forEach(toolType => {
-                  // Get theme defaults WITHOUT palette - just pure theme colors
-                  const themeDefaults = getToolDefaults(
-                    toolType as any,
-                    themeId, // pageTheme - use selected theme
-                    state.currentBook?.bookTheme || 'default', // bookTheme
-                    undefined,
-                    undefined, // Don't pass toolSettings - we want pure theme defaults
-                    pageLayoutTemplateId,
-                    bookLayoutTemplateId,
-                    null, // Don't use page palette - reset to theme colors
-                    null  // Don't use book palette - reset to theme colors
-                  );
-                  
-                  // Build tool settings from theme defaults (theme palette, not manually selected palette)
-                  if (toolType === 'brush' || toolType === 'line') {
-                    const updates: Record<string, any> = {
-                      strokeColor: themeDefaults.stroke || '#1f2937',
-                      strokeWidth: themeDefaults.strokeWidth || 2
-                    };
-                    toolUpdates[toolType] = updates;
-                  } else if (['rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(toolType)) {
-                    const updates: Record<string, any> = {
-                      strokeColor: themeDefaults.stroke || '#1f2937',
-                      strokeWidth: themeDefaults.strokeWidth || 2
-                    };
-                    if (themeDefaults.fill && themeDefaults.fill !== 'transparent') {
-                      updates.fillColor = themeDefaults.fill;
-                    } else {
-                      updates.fillColor = 'transparent';
-                    }
-                    toolUpdates[toolType] = updates;
-                  } else {
-                    // Text elements
-                    toolUpdates[toolType] = {
-                      fontColor: themeDefaults.fontColor || themeDefaults.font?.fontColor || '#1f2937',
-                      borderColor: themeDefaults.borderColor || themeDefaults.border?.borderColor || '#9ca3af',
-                      backgroundColor: themeDefaults.backgroundColor || themeDefaults.background?.backgroundColor || '#FFFFFF'
-                    };
-                  }
-                });
-                
-                // Update tool settings with theme defaults (not palette defaults)
-                Object.entries(toolUpdates).forEach(([tool, settings]) => {
-                  const cleanSettings = Object.fromEntries(
-                    Object.entries(settings).filter(([, value]) => value !== undefined)
-                  );
-                  
-                  dispatch({
-                    type: 'UPDATE_TOOL_SETTINGS',
-                    payload: { tool, settings: cleanSettings }
-                  });
-                });
               }
             }
-          }
+            
+            if (!newBackground && theme.pageSettings.backgroundPattern?.enabled) {
+              newBackground = {
+                type: 'pattern',
+                value: theme.pageSettings.backgroundPattern.style,
+                opacity: backgroundOpacity,
+                pageTheme: resolvedThemeId,
+                patternSize: theme.pageSettings.backgroundPattern.size,
+                patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
+                patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity,
+                patternForegroundColor: pageColors.backgroundColor,
+                patternBackgroundColor: pageColors.patternBackgroundColor
+              };
+            }
+            
+            if (!newBackground) {
+              newBackground = {
+                type: 'color',
+                value: pageColors.backgroundColor,
+                opacity: backgroundOpacity,
+                pageTheme: resolvedThemeId
+              };
+            }
+            
+            dispatch({
+              type: 'UPDATE_PAGE_BACKGROUND',
+              payload: {
+                pageIndex: state.activePageIndex,
+                background: newBackground
+              }
+            });
+            
+            // Reset tool settings zu Theme-Defaults (ohne Palettenfarben)
+            const pageLayoutTemplateId = currentPage.layoutTemplateId;
+            const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+            const toolTypes = ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna_inline', 'free_text'];
+            const toolUpdates: Record<string, any> = {};
+            
+            toolTypes.forEach(toolType => {
+              const themeDefaults = getToolDefaults(
+                toolType as any,
+                resolvedThemeId,
+                state.currentBook?.bookTheme || 'default',
+                undefined,
+                undefined,
+                pageLayoutTemplateId,
+                bookLayoutTemplateId,
+                null,
+                null
+              );
+              
+              if (toolType === 'brush' || toolType === 'line') {
+                const updates: Record<string, any> = {
+                  strokeColor: themeDefaults.stroke || '#1f2937',
+                  strokeWidth: themeDefaults.strokeWidth || 2
+                };
+                stripColorFields(updates);
+                if (Object.keys(updates).length > 0) {
+                  toolUpdates[toolType] = updates;
+                }
+              } else if (['rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(toolType)) {
+                const updates: Record<string, any> = {
+                  strokeColor: themeDefaults.stroke || '#1f2937',
+                  strokeWidth: themeDefaults.strokeWidth || 2,
+                  fillColor: themeDefaults.fill && themeDefaults.fill !== 'transparent'
+                    ? themeDefaults.fill
+                    : 'transparent'
+                };
+                stripColorFields(updates);
+                if (Object.keys(updates).length > 0) {
+                  toolUpdates[toolType] = updates;
+                }
+              } else {
+                const updates: Record<string, any> = {
+                  fontColor: themeDefaults.fontColor || themeDefaults.font?.fontColor || '#1f2937',
+                  borderColor: themeDefaults.borderColor || themeDefaults.border?.borderColor || '#9ca3af',
+                  backgroundColor: themeDefaults.backgroundColor || themeDefaults.background?.backgroundColor || '#FFFFFF'
+                };
+                stripColorFields(updates);
+                if (Object.keys(updates).length > 0) {
+                  toolUpdates[toolType] = updates;
+                }
+              }
+            });
+            
+            Object.entries(toolUpdates).forEach(([tool, settings]) => {
+              const cleanSettings = Object.fromEntries(
+                Object.entries(settings).filter(([, value]) => value !== undefined)
+              );
+              
+              dispatch({
+                type: 'UPDATE_TOOL_SETTINGS',
+                payload: { tool, settings: cleanSettings }
+              });
+            });
+          }}
         />
         
       </div>
@@ -314,117 +436,95 @@ export function GeneralSettings({
           currentTheme={state.currentBook?.bookTheme || 'default'}
           title="Book Theme"
           onThemeSelect={(themeId) => {
-            // Set book theme (saves history)
             dispatch({ type: 'SET_BOOK_THEME', payload: themeId });
             
-            // Remove book color palette override so theme palette is used instead (no history, part of theme application)
-            dispatch({ type: 'SET_BOOK_COLOR_PALETTE', payload: null, skipHistory: true });
+            if (!state.currentBook) {
+              return;
+            }
             
-            if (state.currentBook) {
-              // Apply theme to all elements on all pages (no history, part of theme application)
-              state.currentBook.pages.forEach((_, pageIndex) => {
+            state.currentBook.pages.forEach((page, pageIndex) => {
+              const pageHasCustomTheme = !!page.themeId;
+              const themeForElements = pageHasCustomTheme ? page.themeId! : themeId;
+              
+              if (!pageHasCustomTheme) {
                 dispatch({
-                  type: 'APPLY_THEME_TO_ELEMENTS',
+                  type: 'SET_PAGE_THEME',
                   payload: { pageIndex, themeId, skipHistory: true }
                 });
-              });
-              
-              const theme = getGlobalTheme(themeId);
-              if (theme) {
-                // Apply page background settings to ALL pages (no history, part of theme application)
-                state.currentBook.pages.forEach((_, pageIndex) => {
-                  // Get page background colors from palette, not from themes.json
-                  const pageColors = getThemePageBackgroundColors(themeId);
-                  
-                  // Apply page background settings to ALL pages (overriding page themes)
-                  const newBackground = {
-                    type: theme.pageSettings.backgroundPattern?.enabled ? 'pattern' : 'color',
-                    value: theme.pageSettings.backgroundPattern?.enabled ? theme.pageSettings.backgroundPattern.style : pageColors.backgroundColor,
-                    opacity: theme.pageSettings.backgroundOpacity || 1,
-                    pageTheme: undefined, // Clear page theme override
-                    ruledLines: theme.ruledLines,
-                    ...(theme.pageSettings.backgroundPattern?.enabled && {
-                      patternSize: theme.pageSettings.backgroundPattern.size,
-                      patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
-                      patternForegroundColor: pageColors.backgroundColor,
-                      patternBackgroundColor: pageColors.patternBackgroundColor,
-                      patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity
-                    })
-                  };
-                  
-                  dispatch({
-                    type: 'UPDATE_PAGE_BACKGROUND',
-                    payload: { 
-                      pageIndex, 
-                      background: newBackground,
-                      skipHistory: true
-                    }
-                  });
-                });
-                
-                // Reset tool settings to theme defaults (not palette defaults) for all tools
-                // This ensures tool colors reflect the theme, not any previously applied palette
-                const bookLayoutTemplateId = state.currentBook.layoutTemplateId;
-                
-                // Don't use palette IDs - we want pure theme colors
-                const toolTypes = ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna_inline', 'free_text'];
-                const toolUpdates: Record<string, any> = {};
-                
-                toolTypes.forEach(toolType => {
-                  // Get theme defaults WITHOUT palette - just pure theme colors
-                  const themeDefaults = getToolDefaults(
-                    toolType as any,
-                    themeId, // pageTheme - use selected theme
-                    themeId, // bookTheme - use selected theme
-                    undefined,
-                    undefined, // Don't pass toolSettings - we want pure theme defaults
-                    undefined, // pageLayoutTemplateId
-                    bookLayoutTemplateId,
-                    null, // Don't use page palette - reset to theme colors
-                    null  // Don't use book palette - reset to theme colors
-                  );
-                  
-                  // Build tool settings from theme defaults (theme palette, not manually selected palette)
-                  if (toolType === 'brush' || toolType === 'line') {
-                    const updates: Record<string, any> = {
-                      strokeColor: themeDefaults.stroke || '#1f2937',
-                      strokeWidth: themeDefaults.strokeWidth || 2
-                    };
-                    toolUpdates[toolType] = updates;
-                  } else if (['rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(toolType)) {
-                    const updates: Record<string, any> = {
-                      strokeColor: themeDefaults.stroke || '#1f2937',
-                      strokeWidth: themeDefaults.strokeWidth || 2
-                    };
-                    if (themeDefaults.fill && themeDefaults.fill !== 'transparent') {
-                      updates.fillColor = themeDefaults.fill;
-                    } else {
-                      updates.fillColor = 'transparent';
-                    }
-                    toolUpdates[toolType] = updates;
-                  } else {
-                    // Text elements
-                    toolUpdates[toolType] = {
-                      fontColor: themeDefaults.fontColor || themeDefaults.font?.fontColor || '#1f2937',
-                      borderColor: themeDefaults.borderColor || themeDefaults.border?.borderColor || '#9ca3af',
-                      backgroundColor: themeDefaults.backgroundColor || themeDefaults.background?.backgroundColor || '#FFFFFF'
-                    };
-                  }
-                });
-                
-                // Update tool settings with theme defaults (not palette defaults)
-                Object.entries(toolUpdates).forEach(([tool, settings]) => {
-                  const cleanSettings = Object.fromEntries(
-                    Object.entries(settings).filter(([, value]) => value !== undefined)
-                  );
-                  
-                  dispatch({
-                    type: 'UPDATE_TOOL_SETTINGS',
-                    payload: { tool, settings: cleanSettings }
-                  });
-                });
               }
+              dispatch({
+                type: 'APPLY_THEME_TO_ELEMENTS',
+                payload: { pageIndex, themeId: themeForElements, skipHistory: true, preserveColors: true }
+              });
+            });
+            
+            const theme = getGlobalTheme(themeId);
+            if (!theme) {
+              return;
             }
+            
+            // Tool-Defaults auf Theme-Farben zurücksetzen (ohne Palette)
+            const bookLayoutTemplateId = state.currentBook.layoutTemplateId;
+            const toolTypes = ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna_inline', 'free_text'];
+            const toolUpdates: Record<string, any> = {};
+            
+            toolTypes.forEach(toolType => {
+              const themeDefaults = getToolDefaults(
+                toolType as any,
+                themeId,
+                themeId,
+                undefined,
+                undefined,
+                undefined,
+                bookLayoutTemplateId,
+                null,
+                null
+              );
+              
+              if (toolType === 'brush' || toolType === 'line') {
+                const updates: Record<string, any> = {
+                  strokeColor: themeDefaults.stroke || '#1f2937',
+                  strokeWidth: themeDefaults.strokeWidth || 2
+                };
+                stripColorFields(updates);
+                if (Object.keys(updates).length > 0) {
+                  toolUpdates[toolType] = updates;
+                }
+              } else if (['rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(toolType)) {
+                const updates: Record<string, any> = {
+                  strokeColor: themeDefaults.stroke || '#1f2937',
+                  strokeWidth: themeDefaults.strokeWidth || 2,
+                  fillColor: themeDefaults.fill && themeDefaults.fill !== 'transparent'
+                    ? themeDefaults.fill
+                    : 'transparent'
+                };
+                stripColorFields(updates);
+                if (Object.keys(updates).length > 0) {
+                  toolUpdates[toolType] = updates;
+                }
+              } else {
+                const updates: Record<string, any> = {
+                  fontColor: themeDefaults.fontColor || themeDefaults.font?.fontColor || '#1f2937',
+                  borderColor: themeDefaults.borderColor || themeDefaults.border?.borderColor || '#9ca3af',
+                  backgroundColor: themeDefaults.backgroundColor || themeDefaults.background?.backgroundColor || '#FFFFFF'
+                };
+                stripColorFields(updates);
+                if (Object.keys(updates).length > 0) {
+                  toolUpdates[toolType] = updates;
+                }
+              }
+            });
+            
+            Object.entries(toolUpdates).forEach(([tool, settings]) => {
+              const cleanSettings = Object.fromEntries(
+                Object.entries(settings).filter(([, value]) => value !== undefined)
+              );
+              
+              dispatch({
+                type: 'UPDATE_TOOL_SETTINGS',
+                payload: { tool, settings: cleanSettings }
+              });
+            });
           }}
           onBack={() => {}}
         />
@@ -436,11 +536,21 @@ export function GeneralSettings({
     const currentPage = state.currentBook?.pages[state.activePageIndex];
     let background = currentPage?.background;
     
-    // Get default background color from theme or palette
+    // Get default background color from current palette or existing background
     const getDefaultBackgroundColor = (): string => {
-      const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme || state.currentBook?.themeId || state.currentBook?.bookTheme || 'default';
-      const pageColors = getThemePageBackgroundColors(pageTheme);
-      return pageColors.backgroundColor;
+      const activePaletteId = currentPage?.colorPaletteId || state.currentBook?.colorPaletteId;
+      if (activePaletteId) {
+        const palette = colorPalettes.find(p => p.id === activePaletteId);
+        if (palette) {
+          return palette.colors.background;
+        }
+      }
+
+      if (currentPage?.background && typeof currentPage.background.value === 'string') {
+        return currentPage.background.value;
+      }
+
+      return '#ffffff';
     };
     
     // Initialize background if not set, with default color and opacity 15 (0.15)
@@ -469,7 +579,7 @@ export function GeneralSettings({
       const activePaletteId = pageColorPaletteId || bookColorPaletteId;
       
       if (activePaletteId) {
-        const palette = getPalette(activePaletteId);
+        const palette = colorPalettes.find(p => p.id === activePaletteId);
         if (palette) {
           return palette.colors.primary;
         }
@@ -628,7 +738,7 @@ export function GeneralSettings({
           onAddFavorite={addFavoriteStrokeColor}
           onRemoveFavorite={removeFavoriteStrokeColor}
           onBack={() => setShowColorSelector(null)}
-          showOpacitySlider={showColorSelector !== 'background-color'}
+          showOpacitySlider={false}
         />
       );
     }
@@ -761,6 +871,24 @@ export function GeneralSettings({
             { value: 'image', label: 'Image' }
           ]}
         />
+
+        <div>
+          <Label variant="xs" className="mt-2 block">Opacity</Label>
+          <Slider
+            label="Opacity"
+            value={Math.round((background.opacity ?? 1) * 100)}
+            displayValue={Math.round((background.opacity ?? 1) * 100)}
+            onChange={(value) => {
+              const opacityValue = value / 100;
+              updateBackground({ opacity: opacityValue });
+            }}
+            min={0}
+            max={100}
+            step={5}
+            unit="%"
+            hasLabel={false}
+          />
+        </div>
 
         {/* Pattern Settings Button */}
         {backgroundMode === 'pattern' && (
@@ -903,24 +1031,6 @@ export function GeneralSettings({
           </div>
         )}
 
-        {/* Opacity Slider - always visible, preserves value across background type changes */}
-        {/* <div>
-          <Label variant="xs">Opacity</Label>
-          <Slider
-            label="Opacity"
-            value={Math.round((background.opacity ?? 1) * 100)}
-            displayValue={Math.round((background.opacity ?? 1) * 100)}
-            onChange={(value) => {
-              const opacityValue = value / 100;
-              updateBackground({ opacity: opacityValue });
-            }}
-            min={0}
-            max={100}
-            step={5}
-            unit="%"
-            hasLabel={false}
-          />
-        </div> */}
       </div>
     );
   };
@@ -1050,6 +1160,9 @@ export function GeneralSettings({
   const pagePalette = pageActiveTemplates.colorPaletteId
     ? colorPalettes.find(p => p.id === pageActiveTemplates.colorPaletteId) || null
     : null;
+  const pageInheritsLayout = !currentPage?.layoutTemplateId;
+  const pageInheritsTheme = !currentPage?.themeId;
+  const pageInheritsPalette = !currentPage?.colorPaletteId;
 
   return (
     <>
@@ -1164,7 +1277,11 @@ export function GeneralSettings({
                   >
                     <LayoutPanelLeft className="h-4 w-4 mr-2" />
                     <span className="flex-1 text-left">Layout</span>
-                    {pageLayout && (
+                    {pageInheritsLayout ? (
+                      <span className="text-xs text-muted-foreground ml-2 italic">
+                        Book Layout
+                      </span>
+                    ) : pageLayout ? (
                       <div className="ml-2 h-6 w-12 bg-gray-100 rounded border relative overflow-hidden shrink-0">
                         <div className="absolute inset-1 grid grid-cols-2 gap-1">
                           {pageLayout.textboxes.slice(0, 4).map((_, i) => (
@@ -1172,7 +1289,7 @@ export function GeneralSettings({
                           ))}
                         </div>
                       </div>
-                    )}
+                    ) : null}
                   </Button>
                   <Button
                     variant="ghost_hover"
@@ -1188,9 +1305,17 @@ export function GeneralSettings({
                   >
                     <Paintbrush2 className="h-4 w-4 mr-2" />
                     <span className="flex-1 text-left">Theme</span>
-                    {pageTheme && (
+                    {pageInheritsTheme ? (
+                      <span className="text-xs text-muted-foreground ml-2 italic">
+                        Book Theme
+                      </span>
+                    ) : pageTheme ? (
                       <span className="text-xs text-muted-foreground ml-2">
                         {pageTheme.name}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground ml-2 italic">
+                        Book Theme
                       </span>
                     )}
                   </Button>
@@ -1208,7 +1333,11 @@ export function GeneralSettings({
                   >
                     <SwatchBook className="h-4 w-4 mr-2" />
                     <span className="flex-1 text-left">Color Palette</span>
-                    {pagePalette && (
+                    {pageInheritsPalette ? (
+                      <span className="text-xs text-muted-foreground ml-2 italic">
+                        Book Color Palette
+                      </span>
+                    ) : pagePalette ? (
                       <div className="ml-2 flex h-4 w-16 rounded overflow-hidden shrink-0 border border-gray-200">
                         {Object.values(pagePalette.colors).map((color, index) => (
                           <div
@@ -1218,6 +1347,10 @@ export function GeneralSettings({
                           />
                         ))}
                       </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground ml-2 italic">
+                        Book Color Palette
+                      </span>
                     )}
                   </Button>
           </div>

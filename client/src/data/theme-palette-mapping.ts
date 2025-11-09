@@ -14,6 +14,8 @@ export const THEME_PALETTE_MAP: Record<string, string> = {
   'dark': 'dark-neon',
   'custom': 'vibrant-rainbow', // Fallback for custom theme
   'leather': 'leather',
+  'lavender-dream': 'lavender-dream',
+
 
 };
 

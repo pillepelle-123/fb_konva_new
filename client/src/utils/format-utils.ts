@@ -1,7 +1,7 @@
 import type { CanvasElement } from '../context/editor-context';
 
 export function getTextAlign(element: CanvasElement): string {
-  return element.format?.align || element.align || 'left';
+  return element.format?.textAlign || element.align || 'left';
 }
 
 export function getParagraphSpacing(element: CanvasElement): string {

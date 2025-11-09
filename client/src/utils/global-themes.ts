@@ -98,25 +98,53 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
     // Map nested border properties to flat canvas element properties
     // NOTE: Colors are NOT read from themes.json - they come from color-palettes.ts via palette
     if (base.border) {
-      // Convert border width from common scale to actual size
-      if (base.border.borderWidth !== undefined) {
-        const borderTheme = base.border.borderTheme || id;
-        base.borderWidth = themeJsonToActualStrokeWidth(base.border.borderWidth, borderTheme);
+      if (base.border.width === undefined && base.border.borderWidth !== undefined) {
+        base.border.width = base.border.borderWidth;
       }
-      // borderColor is set from palette below, not from themes.json
-      if (base.border.borderOpacity !== undefined) base.borderOpacity = base.border.borderOpacity;
+      if (base.border.opacity === undefined && base.border.borderOpacity !== undefined) {
+        base.border.opacity = base.border.borderOpacity;
+      }
+      if (base.border.theme === undefined && base.border.borderTheme !== undefined) {
+        base.border.theme = base.border.borderTheme;
+      }
+
+      if (base.border.width !== undefined) {
+        const borderTheme = base.border.theme || id;
+        const convertedBorderWidth = themeJsonToActualStrokeWidth(base.border.width, borderTheme);
+        base.border.width = convertedBorderWidth;
+        base.borderWidth = convertedBorderWidth;
+        base.border.borderWidth = convertedBorderWidth;
+      }
+      if (base.border.opacity !== undefined) {
+        base.borderOpacity = base.border.opacity;
+        base.border.borderOpacity = base.border.opacity;
+      }
+      if (base.border.enabled !== undefined) {
+        base.borderEnabled = base.border.enabled;
+      }
+      if (base.border.theme !== undefined) {
+        base.borderTheme = base.border.theme;
+        base.border.borderTheme = base.border.theme;
+      }
     }
 
     // Map nested background properties to flat canvas element properties
     // NOTE: Colors are NOT read from themes.json - they come from color-palettes.ts via palette
     if (base.background) {
-      // backgroundColor is set from palette below, not from themes.json
-      if (base.background.backgroundOpacity !== undefined) base.backgroundOpacity = base.background.backgroundOpacity;
+      if (base.background.opacity === undefined && base.background.backgroundOpacity !== undefined) {
+        base.background.opacity = base.background.backgroundOpacity;
+      }
+      if (base.background.enabled !== undefined) {
+        base.backgroundEnabled = base.background.enabled;
+      }
+      if (base.background.opacity !== undefined) {
+        base.backgroundOpacity = base.background.opacity;
+        base.background.backgroundOpacity = base.background.opacity;
+      }
     }
 
     // Map nested format properties to flat canvas element properties
     if (base.format) {
-      if (base.format.textAlign) base.align = base.format.textAlign;
       if (base.format.paragraphSpacing) base.paragraphSpacing = base.format.paragraphSpacing;
       if (base.format.padding !== undefined) base.padding = base.format.padding;
     }
@@ -124,14 +152,34 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
     // Map nested ruledLines properties to flat canvas element properties
     // NOTE: Colors are NOT read from themes.json - they come from color-palettes.ts via palette
     if (base.ruledLines) {
-      // Convert line width from common scale to actual size
-      if (base.ruledLines.lineWidth !== undefined) {
-        const ruledLinesTheme = base.ruledLines.ruledLinesTheme || id;
-        base.ruledLinesWidth = themeJsonToActualStrokeWidth(base.ruledLines.lineWidth, ruledLinesTheme);
+      if (base.ruledLines.width === undefined && base.ruledLines.lineWidth !== undefined) {
+        base.ruledLines.width = base.ruledLines.lineWidth;
       }
-      // lineColor is set from palette below, not from themes.json
-      if (base.ruledLines.lineOpacity !== undefined) base.ruledLinesOpacity = base.ruledLines.lineOpacity;
-      if (base.ruledLines.ruledLinesTheme) base.ruledLinesTheme = base.ruledLines.ruledLinesTheme;
+      if (base.ruledLines.opacity === undefined && base.ruledLines.lineOpacity !== undefined) {
+        base.ruledLines.opacity = base.ruledLines.lineOpacity;
+      }
+      if (base.ruledLines.theme === undefined && base.ruledLines.ruledLinesTheme !== undefined) {
+        base.ruledLines.theme = base.ruledLines.ruledLinesTheme;
+      }
+
+      if (base.ruledLines.width !== undefined) {
+        const ruledLinesTheme = base.ruledLines.theme || id;
+        const convertedWidth = themeJsonToActualStrokeWidth(base.ruledLines.width, ruledLinesTheme);
+        base.ruledLines.width = convertedWidth;
+        base.ruledLinesWidth = convertedWidth;
+        base.ruledLines.lineWidth = convertedWidth;
+      }
+      if (base.ruledLines.opacity !== undefined) {
+        base.ruledLinesOpacity = base.ruledLines.opacity;
+        base.ruledLines.lineOpacity = base.ruledLines.opacity;
+      }
+      if (base.ruledLines.theme !== undefined) {
+        base.ruledLinesTheme = base.ruledLines.theme;
+        base.ruledLines.ruledLinesTheme = base.ruledLines.theme;
+      }
+      if (base.ruledLines.enabled !== undefined) {
+        base.ruledLinesEnabled = base.ruledLines.enabled;
+      }
     }
     
     // Convert corner radius from common scale to actual size
@@ -426,10 +474,10 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string): Pa
 
 export function getQnAThemeDefaults(themeId: string, section: 'question' | 'answer'): any {
   const themeConfig = (themesData as Record<string, any>)[themeId];
-  if (!themeConfig?.elementDefaults?.qna) return {};
+  if (!themeConfig?.elementDefaults?.text) return {};
   
-  const qnaDefaults = themeConfig.elementDefaults.qna;
-  return section === 'question' ? qnaDefaults.questionSettings : qnaDefaults.answerSettings;
+  const textDefaults = themeConfig.elementDefaults.text;
+  return section === 'question' ? textDefaults.questionSettings : textDefaults.answerSettings;
 }
 
 // Get theme defaults specifically for QnA inline elements
@@ -444,7 +492,7 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
   const palette = themeConfig?.palette ? getPalette(themeConfig.palette) : undefined;
   
   // Extract questionSettings and answerSettings from the theme if available
-  const qnaConfig = themeConfig?.elementDefaults?.qna;
+  const qnaConfig = themeConfig?.elementDefaults?.text;
   
   // Build questionSettings and answerSettings with palette colors
   const buildSettings = (base: any, qnaSpecific: any = {}, isAnswer: boolean = false) => {
@@ -535,6 +583,73 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
     // Include all top-level properties except questionSettings and answerSettings
     Object.keys(qnaConfig).forEach(key => {
       if (key !== 'questionSettings' && key !== 'answerSettings') {
+        if (key === 'border' && qnaConfig.border) {
+          const borderConfig = qnaConfig.border;
+
+          if (borderConfig.enabled !== undefined) {
+            topLevelBorderEnabled = borderConfig.enabled;
+            topLevelProperties.borderEnabled = borderConfig.enabled;
+          }
+          if (borderConfig.theme !== undefined) {
+            topLevelBorderTheme = borderConfig.theme;
+            topLevelProperties.borderTheme = borderConfig.theme;
+          } else if (borderConfig.borderTheme !== undefined) {
+            topLevelBorderTheme = borderConfig.borderTheme;
+            topLevelProperties.borderTheme = borderConfig.borderTheme;
+          }
+          const borderWidthValue = borderConfig.width ?? borderConfig.borderWidth;
+          if (borderWidthValue !== undefined) {
+            topLevelBorderWidth = borderWidthValue;
+            topLevelProperties.borderWidth = borderWidthValue;
+          }
+          const borderOpacityValue = borderConfig.opacity ?? borderConfig.borderOpacity;
+          if (borderOpacityValue !== undefined) {
+            topLevelBorderOpacity = borderOpacityValue;
+            topLevelProperties.borderOpacity = borderOpacityValue;
+          }
+
+          return;
+        }
+
+        if (key === 'background' && qnaConfig.background) {
+          const backgroundConfig = qnaConfig.background;
+
+          if (backgroundConfig.enabled !== undefined) {
+            topLevelBackgroundEnabled = backgroundConfig.enabled;
+            topLevelProperties.backgroundEnabled = backgroundConfig.enabled;
+          }
+          const backgroundOpacityValue = backgroundConfig.opacity ?? backgroundConfig.backgroundOpacity;
+          if (backgroundOpacityValue !== undefined) {
+            topLevelBackgroundOpacity = backgroundOpacityValue;
+            topLevelProperties.backgroundOpacity = backgroundOpacityValue;
+          }
+
+          return;
+        }
+
+        if (key === 'ruledLines' && qnaConfig.ruledLines) {
+          const ruledLinesConfig = qnaConfig.ruledLines;
+
+          if (ruledLinesConfig.enabled !== undefined) {
+            topLevelProperties.ruledLinesEnabled = ruledLinesConfig.enabled;
+          }
+          const ruledLinesThemeValue = ruledLinesConfig.theme ?? ruledLinesConfig.ruledLinesTheme;
+          if (ruledLinesThemeValue !== undefined) {
+            topLevelRuledLinesTheme = ruledLinesThemeValue;
+            topLevelProperties.ruledLinesTheme = ruledLinesThemeValue;
+          }
+          const ruledLinesWidthValue = ruledLinesConfig.width ?? ruledLinesConfig.lineWidth;
+          if (ruledLinesWidthValue !== undefined) {
+            topLevelProperties.ruledLinesWidth = ruledLinesWidthValue;
+          }
+          const ruledLinesOpacityValue = ruledLinesConfig.opacity ?? ruledLinesConfig.lineOpacity;
+          if (ruledLinesOpacityValue !== undefined) {
+            topLevelProperties.ruledLinesOpacity = ruledLinesOpacityValue;
+          }
+
+          return;
+        }
+
         // Convert cornerRadius from common value (in themes.json) to actual value
         if (key === 'cornerRadius') {
           topLevelProperties[key] = commonToActualRadius(qnaConfig[key]);
@@ -599,17 +714,24 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
         settings.border = {
           ...settings.border,
           enabled: topLevelBorderEnabled,
+          theme: topLevelBorderTheme !== undefined ? (settings.border.theme || topLevelBorderTheme) : settings.border.theme,
           borderTheme: topLevelBorderTheme !== undefined ? (settings.border.borderTheme || topLevelBorderTheme) : settings.border.borderTheme
         };
         settings.borderEnabled = topLevelBorderEnabled;
         // Also set on top-level of settings for backward compatibility
         if (topLevelBorderTheme !== undefined) {
-          settings.borderTheme = settings.border.borderTheme;
+          settings.border.theme = settings.border.theme || topLevelBorderTheme;
+          settings.border.borderTheme = settings.border.theme;
+          settings.borderTheme = settings.border.theme;
         }
         if (topLevelBorderWidth !== undefined) {
+          settings.border.width = topLevelBorderWidth;
+          settings.border.borderWidth = topLevelBorderWidth;
           settings.borderWidth = topLevelBorderWidth;
         }
         if (topLevelBorderOpacity !== undefined) {
+          settings.border.opacity = topLevelBorderOpacity;
+          settings.border.borderOpacity = topLevelBorderOpacity;
           settings.borderOpacity = topLevelBorderOpacity;
         }
       }
@@ -620,9 +742,12 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
       }
       settings.border = {
         ...settings.border,
+        theme: settings.border.theme || topLevelBorderTheme,
         borderTheme: settings.border.borderTheme || topLevelBorderTheme
       };
-      settings.borderTheme = settings.border.borderTheme;
+      settings.border.theme = settings.border.theme || topLevelBorderTheme;
+      settings.border.borderTheme = settings.border.theme;
+      settings.borderTheme = settings.border.theme;
     }
     
     // Handle backgroundEnabled first - if false, don't apply any background properties
@@ -645,10 +770,13 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
         settings.background = {
           ...settings.background,
           enabled: topLevelBackgroundEnabled,
+          opacity: topLevelBackgroundOpacity !== undefined ? topLevelBackgroundOpacity : settings.background.opacity,
           backgroundOpacity: topLevelBackgroundOpacity !== undefined ? topLevelBackgroundOpacity : settings.background.backgroundOpacity
         };
         settings.backgroundEnabled = topLevelBackgroundEnabled;
         if (topLevelBackgroundOpacity !== undefined) {
+          settings.background.opacity = topLevelBackgroundOpacity;
+          settings.background.backgroundOpacity = topLevelBackgroundOpacity;
           settings.backgroundOpacity = topLevelBackgroundOpacity;
         }
       }
@@ -662,10 +790,29 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
       }
       settings.ruledLines = {
         ...settings.ruledLines,
+        theme: settings.ruledLines.theme || topLevelRuledLinesTheme,
         ruledLinesTheme: settings.ruledLines.ruledLinesTheme || topLevelRuledLinesTheme
       };
       // Also set on top-level of settings for backward compatibility
-      settings.ruledLinesTheme = settings.ruledLines.ruledLinesTheme;
+      settings.ruledLines.theme = settings.ruledLines.theme || topLevelRuledLinesTheme;
+      settings.ruledLines.ruledLinesTheme = settings.ruledLines.theme;
+      settings.ruledLinesTheme = settings.ruledLines.theme;
+    }
+    if (topLevelProperties.ruledLinesWidth !== undefined) {
+      if (!settings.ruledLines) {
+        settings.ruledLines = {};
+      }
+      settings.ruledLines.width = topLevelProperties.ruledLinesWidth;
+      settings.ruledLines.lineWidth = topLevelProperties.ruledLinesWidth;
+      settings.ruledLinesWidth = topLevelProperties.ruledLinesWidth;
+    }
+    if (topLevelProperties.ruledLinesOpacity !== undefined) {
+      if (!settings.ruledLines) {
+        settings.ruledLines = {};
+      }
+      settings.ruledLines.opacity = topLevelProperties.ruledLinesOpacity;
+      settings.ruledLines.lineOpacity = topLevelProperties.ruledLinesOpacity;
+      settings.ruledLinesOpacity = topLevelProperties.ruledLinesOpacity;
     }
     
     // Apply padding from qnaConfig if it exists and is not already set in settings
@@ -678,8 +825,11 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
     // Apply align from qnaConfig if it exists and is not already set in settings
     // Align is a layout property - it should come from layout.json primarily, but if not set there,
     // use qnaConfig.align as fallback (not textDefaults.align)
-    if (topLevelAlign !== undefined && settings.align === undefined) {
-      settings.align = topLevelAlign;
+    if (topLevelAlign !== undefined && settings.format?.textAlign === undefined) {
+      if (!settings.format) {
+        settings.format = {};
+      }
+      settings.format.textAlign = topLevelAlign;
     }
     
     // Apply paragraphSpacing from qnaConfig if it exists and is not already set in settings
@@ -773,30 +923,65 @@ export function applyThemeToAllElements(theme: any, elements: any[]): any[] {
 }
 
 // Get page background colors from palette (not from themes.json)
-export function getThemePageBackgroundColors(themeId: string): { backgroundColor: string; patternBackgroundColor: string } {
+export function getThemePageBackgroundColors(
+  themeId: string,
+  paletteOverride?: string | ColorPalette | null
+): { backgroundColor: string; patternBackgroundColor: string } {
+  let resolvedPalette: ColorPalette | undefined;
+
+  if (paletteOverride) {
+    resolvedPalette = typeof paletteOverride === 'string' ? getPalette(paletteOverride) : paletteOverride;
+  }
+
+  if (resolvedPalette) {
+    return {
+      backgroundColor: resolvedPalette.colors.background,
+      patternBackgroundColor:
+        resolvedPalette.colors.primary ||
+        resolvedPalette.colors.surface ||
+        resolvedPalette.colors.accent ||
+        resolvedPalette.colors.background
+    };
+  }
+
   const themeConfig = (themesData as Record<string, any>)[themeId];
   const palette = themeConfig?.palette ? getPalette(themeConfig.palette) : undefined;
   
   if (palette) {
     return {
       backgroundColor: palette.colors.background,
-      patternBackgroundColor: palette.colors.surface || palette.colors.background
+      patternBackgroundColor:
+        palette.colors.primary ||
+        palette.colors.surface ||
+        palette.colors.accent ||
+        palette.colors.background
     };
   }
   
   // Fallback to default if no palette
   return {
     backgroundColor: '#ffffff',
-    patternBackgroundColor: '#f0f0f0'
+    patternBackgroundColor: '#1f2937'
   };
 }
 
-export function applyThemeToPage(pageSettings: any, themeId: string): any {
+export function applyThemeToPage(
+  pageSettings: any,
+  themeId: string,
+  paletteOverride?: string | ColorPalette | null
+): any {
   const theme = getGlobalTheme(themeId);
   if (!theme) return pageSettings;
   
+  const inferredPaletteOverride =
+    paletteOverride ??
+    pageSettings?.colorPaletteId ??
+    pageSettings?.bookPaletteId ??
+    pageSettings?.bookColorPaletteId ??
+    null;
+  
   // Get colors from palette, not from themes.json
-  const pageColors = getThemePageBackgroundColors(themeId);
+  const pageColors = getThemePageBackgroundColors(themeId, inferredPaletteOverride);
   
   // Apply only non-color page settings (remove backgroundColor, keep structure)
   const { backgroundColor: _, ...nonColorPageSettings } = theme.pageSettings;

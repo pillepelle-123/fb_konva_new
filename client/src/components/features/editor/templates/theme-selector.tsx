@@ -1,6 +1,7 @@
 import { Eye, Paintbrush2 } from 'lucide-react';
 
 import { GLOBAL_THEMES, getGlobalTheme } from '../../../../utils/global-themes';
+import { SelectorShell, SelectorListSection } from './selector-shell';
 
 interface ThemeSelectorProps {
   currentTheme?: string;
@@ -10,6 +11,8 @@ interface ThemeSelectorProps {
   onBack?: () => void; // Optional - kept for backwards compatibility but not used in UI
   title?: string; // Optional for template-selector/template-wrapper
   previewPosition?: 'top' | 'bottom' | 'right'; // 'bottom' = Preview below list (default), 'top' = Preview above list, 'right' = Preview to the right
+  isBookThemeSelected?: boolean;
+  showBookThemeOption?: boolean;
 }
 
 export function ThemeSelector({ 
@@ -18,11 +21,15 @@ export function ThemeSelector({
   onThemeSelect,
   onPreviewClick,
   title,
-  previewPosition = 'bottom'
+  previewPosition = 'bottom',
+  isBookThemeSelected = false,
+  showBookThemeOption = false
 }: ThemeSelectorProps) {
   // Use selectedTheme if provided (template-selector), otherwise use currentTheme (general-settings)
   const activeTheme = selectedTheme || currentTheme || 'default';
   const themes = GLOBAL_THEMES.map(theme => theme.id);
+  const includeBookThemeEntry = showBookThemeOption;
+  const bookThemeActive = includeBookThemeEntry && isBookThemeSelected;
 
   const previewSection = (
     <div className={`p-4 ${previewPosition === 'right' ? 'w-1/2' : 'border-t border-gray-200 shrink-0'}`} style={{ display: 'none' }}>
@@ -38,7 +45,6 @@ export function ThemeSelector({
             </div>
           )}
           <div className="aspect-[210/297] bg-gray-50 border rounded p-4 flex flex-col gap-2">
-            {/* Example textbox */}
             <div className={`w-full h-10 rounded flex items-center px-2 ${
               activeTheme === 'sketchy' ? 'bg-orange-100 border-2 border-orange-300' :
               activeTheme === 'minimal' ? 'bg-gray-100 border border-gray-300' :
@@ -54,7 +60,6 @@ export function ThemeSelector({
                 Example Textbox
               </span>
             </div>
-            {/* Example shape */}
             <div className={`w-16 h-12 rounded flex items-center justify-center ${
               activeTheme === 'sketchy' ? 'bg-yellow-100 border-2 border-yellow-400' :
               activeTheme === 'minimal' ? 'bg-gray-50 border border-gray-200' :
@@ -72,88 +77,91 @@ export function ThemeSelector({
   );
 
   const listSection = (
-    <div className={`p-2 flex-1 min-h-0 flex flex-col ${previewPosition === 'right' ? 'w-1/2 border-r border-gray-200' : ''}`}>
-      <h3 className="text-sm font-medium mb-3 flex items-center gap-2 shrink-0">
-        <Paintbrush2 className="h-4 w-4" />
-        {title || 'Themes'}
-      </h3>
-      <div className="space-y-2 flex-1 min-h-0 overflow-y-auto">
-        {themes.map((themeId) => {
-          const theme = getGlobalTheme(themeId);
-          if (!theme) return null;
-          
-          return (
-            <div
-              key={themeId}
-              className={`w-full p-3 border rounded-lg transition-colors flex items-center justify-between gap-2 ${
-                activeTheme === themeId
-                  ? 'border-blue-500 bg-blue-50'
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}
-            >
-              <button
-                onClick={() => onThemeSelect(themeId)}
-                className="flex-1 text-left"
-              >
-                <div className="font-medium text-sm">{theme.name}</div>
-                <div className="text-xs text-gray-600 mt-1">
-                  {theme.description || 'Theme styling'}
-                </div>
-              </button>
-              {onPreviewClick && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onPreviewClick(themeId);
-                  }}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                  className="p-1.5 rounded hover:bg-gray-200 transition-colors flex-shrink-0"
-                  title="Preview Page with this Theme"
-                >
-                  <Eye className="h-4 w-4 text-gray-600" />
-                </button>
-              )}
+    <SelectorListSection
+      title={
+        <>
+          <Paintbrush2 className="h-4 w-4" />
+          {title || 'Themes'}
+        </>
+      }
+      className={previewPosition === 'right' ? 'w-1/2 border-r border-gray-200' : ''}
+      scrollClassName="min-h-0"
+    >
+      {includeBookThemeEntry && (
+        <div
+          key="book-theme-entry"
+          className={`w-full p-3 border rounded-lg transition-colors flex items-center justify-between gap-2 ${
+            bookThemeActive
+              ? 'border-blue-500 bg-blue-50'
+              : 'border-gray-200 hover:border-gray-300'
+          }`}
+        >
+          <button
+            onClick={() => onThemeSelect('__BOOK_THEME__')}
+            className="flex-1 text-left"
+          >
+            <div className="font-medium text-sm">Book Theme</div>
+            <div className="text-xs text-gray-600 mt-1">
+              Follow the book-level theme
             </div>
-          );
-        })}
-      </div>
-    </div>
+          </button>
+        </div>
+      )}
+      {themes.map((themeId) => {
+        const theme = getGlobalTheme(themeId);
+        if (!theme) return null;
+
+        const isActive = !bookThemeActive && activeTheme === themeId;
+        
+        return (
+          <div
+            key={themeId}
+            className={`w-full p-3 border rounded-lg transition-colors flex items-center justify-between gap-2 ${
+              isActive
+                ? 'border-blue-500 bg-blue-50'
+                : 'border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            <button
+              onClick={() => onThemeSelect(themeId)}
+              className="flex-1 text-left"
+            >
+              <div className="font-medium text-sm">{theme.name}</div>
+              <div className="text-xs text-gray-600 mt-1">
+                {theme.description || 'Theme styling'}
+              </div>
+            </button>
+            {onPreviewClick && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onPreviewClick(themeId);
+                }}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                className="p-1.5 rounded hover:bg-gray-200 transition-colors flex-shrink-0"
+                title="Preview Page with this Theme"
+              >
+                <Eye className="h-4 w-4 text-gray-600" />
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </SelectorListSection>
   );
 
-  if (previewPosition === 'right') {
-    return (
-      <div className="flex flex-col h-full flex-1">
-        <div className="flex-1 min-h-0 flex flex-row overflow-hidden">
-          {listSection}
-          <div className="w-1/2 border-l border-gray-200 flex flex-col min-h-0 overflow-hidden">
-            {previewSection}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-col h-full flex-1">
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-        {previewPosition === 'top' ? (
-          <>
-            {previewSection}
-            {listSection}
-          </>
-        ) : (
-          <>
-            {listSection}
-            {previewSection}
-          </>
-        )}
-      </div>
-    </div>
+    <SelectorShell
+      listSection={listSection}
+      previewSection={previewSection}
+      previewPosition={previewPosition}
+      sidePreviewWrapperClassName="w-1/2"
+    />
   );
 }
 

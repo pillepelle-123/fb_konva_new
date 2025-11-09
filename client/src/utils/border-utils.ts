@@ -4,7 +4,7 @@ import type { CanvasElement } from '../context/editor-context';
  * Centralized utility for getting border width with consistent fallback logic
  */
 export function getBorderWidth(element: CanvasElement): number {
-  return element.border?.borderWidth ?? element.borderWidth ?? 1;
+  return element.border?.width ?? element.border?.borderWidth ?? element.borderWidth ?? 1;
 }
 
 /**
@@ -18,14 +18,14 @@ export function getBorderColor(element: CanvasElement): string {
  * Centralized utility for getting border opacity with consistent fallback logic
  */
 export function getBorderOpacity(element: CanvasElement): number {
-  return element.border?.borderOpacity ?? element.borderOpacity ?? 1;
+  return element.border?.opacity ?? element.border?.borderOpacity ?? element.borderOpacity ?? 1;
 }
 
 /**
  * Centralized utility for getting border theme with consistent fallback logic
  */
 export function getBorderTheme(element: CanvasElement): string {
-  return element.border?.borderTheme || element.border?.inheritTheme || element.theme || 'default';
+  return element.border?.theme || element.border?.borderTheme || element.border?.inheritTheme || element.theme || 'default';
 }
 
 /**

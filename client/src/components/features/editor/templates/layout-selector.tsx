@@ -1,15 +1,29 @@
 import { Layout, Eye } from 'lucide-react';
 import { pageTemplates as builtinPageTemplates } from '../../../../data/templates/page-templates';
 import type { PageTemplate } from '../../../../types/template-types';
+import { SelectorShell, SelectorListSection } from './selector-shell';
 
 interface LayoutSelectorProps {
   selectedLayout: PageTemplate | null;
   onLayoutSelect: (template: PageTemplate) => void;
   onPreviewClick?: (template: PageTemplate) => void; // Optional - for preview functionality
   previewPosition?: 'top' | 'bottom' | 'right'; // 'bottom' = Preview below list (default), 'top' = Preview above list, 'right' = Preview to the right
+  showBookLayoutOption?: boolean;
+  isBookLayoutSelected?: boolean;
+  onBookLayoutSelect?: () => void;
+  bookLayout?: PageTemplate | null;
 }
 
-export function LayoutSelector({ selectedLayout, onLayoutSelect, onPreviewClick, previewPosition = 'bottom' }: LayoutSelectorProps) {
+export function LayoutSelector({
+  selectedLayout,
+  onLayoutSelect,
+  onPreviewClick,
+  previewPosition = 'bottom',
+  showBookLayoutOption = false,
+  isBookLayoutSelected = false,
+  onBookLayoutSelect,
+  bookLayout
+}: LayoutSelectorProps) {
   // All templates are now in page-templates.ts, no conversion needed
   const mergedPageTemplates: PageTemplate[] = builtinPageTemplates;
 
@@ -54,118 +68,150 @@ export function LayoutSelector({ selectedLayout, onLayoutSelect, onPreviewClick,
   );
 
   const listSection = (
-    <div className={`p-2 flex-1 flex flex-col ${previewPosition === 'right' ? ' border-gray-200' : ''}`}>
-      <h3 className="text-sm font-medium mb-3 flex items-center gap-2 shrink-0">
-        <Layout className="h-4 w-4" />
-        Layout Templates
-      </h3>
-      <div className="space-y-2 min-h-20 flex-1 overflow-y-auto">
-        {mergedPageTemplates.map((template) => (
-          <div
-            key={template.id}
-            className={`w-full p-3 border rounded-lg transition-colors flex items-start gap-2 select-none ${
-              selectedLayout?.id === template.id
-                ? 'border-blue-500 bg-blue-50'
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
-            onMouseDown={(e) => {
-              // Prevent selection when clicking on the preview button area
-              const target = e.target as HTMLElement;
-              if (target.closest('button[type="button"]')) {
-                e.preventDefault();
-              }
-            }}
+    <SelectorListSection
+      title={
+        <>
+          <Layout className="h-4 w-4" />
+          Layout Templates
+        </>
+      }
+      className={previewPosition === 'right' ? 'w-1/2 border-r border-gray-200' : ''}
+      scrollClassName="min-h-0"
+    >
+      {showBookLayoutOption && (
+        <div
+          key="book-layout-entry"
+          className={`w-full p-3 border rounded-lg transition-colors flex items-start gap-2 ${
+            isBookLayoutSelected
+              ? 'border-blue-500 bg-blue-50'
+              : 'border-gray-200 hover:border-gray-300'
+          }`}
+        >
+          <button
             onClick={(e) => {
-              // Prevent selection when clicking on the preview button
-              const target = e.target as HTMLElement;
-              if (target.closest('button[type="button"]')) {
+              e.stopPropagation();
+              onBookLayoutSelect?.();
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+            }}
+            className="flex-1 text-left"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-medium text-sm">Book Layout</span>
+            </div>
+            <div className="text-xs text-gray-600">
+              {bookLayout ? `${bookLayout.textboxes.length} elements • ${bookLayout.constraints.imageSlots} images` : 'Follow the layout set at book level'}
+            </div>
+          </button>
+          {onPreviewClick && bookLayout && (
+            <button
+              type="button"
+              onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-              }
-            }}
-          >
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onLayoutSelect(template);
+                onPreviewClick(bookLayout);
               }}
               onMouseDown={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
               }}
-              className="flex-1 text-left"
+              onPointerDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              className="p-1.5 rounded hover:bg-gray-200 transition-colors flex-shrink-0 mt-1"
+              title="Preview Page with Book Layout"
             >
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-medium text-sm">{template.name}</span>
-                <span className="text-xs text-gray-500 capitalize">{template.category}</span>
-              </div>
-              <div className="text-xs text-gray-600">
-                {template.textboxes.length} elements • {template.constraints.imageSlots} images
-              </div>
-              <div className="mt-2 h-12 bg-gray-100 rounded border relative overflow-hidden">
-                <div className="absolute inset-1 grid grid-cols-2 gap-1">
-                  {template.textboxes.slice(0, 4).map((_, i) => (
-                    <div key={i} className="bg-blue-200 rounded-sm opacity-60" />
-                  ))}
-                </div>
-              </div>
+              <Eye className="h-4 w-4 text-gray-600" />
             </button>
-            {onPreviewClick && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onPreviewClick(template);
-                }}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
-                className="p-1.5 rounded hover:bg-gray-200 transition-colors flex-shrink-0 mt-1"
-                title="Preview Page with this Layout"
-              >
-                <Eye className="h-4 w-4 text-gray-600" />
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
+          )}
+        </div>
+      )}
+      {mergedPageTemplates.map((template) => {
+        const isActive = !isBookLayoutSelected && selectedLayout?.id === template.id;
+        return (
+        <div
+          key={template.id}
+          className={`w-full p-3 border rounded-lg transition-colors flex items-start gap-2 select-none ${
+            isActive
+              ? 'border-blue-500 bg-blue-50'
+              : 'border-gray-200 hover:border-gray-300'
+          }`}
+          onMouseDown={(e) => {
+            const target = e.target as HTMLElement;
+            if (target.closest('button[type="button"]')) {
+              e.preventDefault();
+            }
+          }}
+          onClick={(e) => {
+            const target = e.target as HTMLElement;
+            if (target.closest('button[type="button"]')) {
+              e.preventDefault();
+              e.stopPropagation();
+            }
+          }}
+        >
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onLayoutSelect(template);
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+            }}
+            className="flex-1 text-left"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-medium text-sm">{template.name}</span>
+              <span className="text-xs text-gray-500 capitalize">{template.category}</span>
+            </div>
+            <div className="text-xs text-gray-600">
+              {template.textboxes.length} elements • {template.constraints.imageSlots} images
+            </div>
+            <div className="mt-2 h-12 bg-gray-100 rounded border relative overflow-hidden">
+              <div className="absolute inset-1 grid grid-cols-2 gap-1">
+                {template.textboxes.slice(0, 4).map((_, i) => (
+                  <div key={i} className="bg-blue-200 rounded-sm opacity-60" />
+                ))}
+              </div>
+            </div>
+          </button>
+          {onPreviewClick && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onPreviewClick(template);
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onPointerDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              className="p-1.5 rounded hover:bg-gray-200 transition-colors flex-shrink-0 mt-1"
+              title="Preview Page with this Layout"
+            >
+              <Eye className="h-4 w-4 text-gray-600" />
+            </button>
+          )}
+        </div>
+        );
+      })}
+    </SelectorListSection>
   );
 
-  if (previewPosition === 'right') {
-    return (
-      <div className="flex flex-col h-full flex-1">
-        <div className="flex-1 flex flex-row overflow-hidden">
-          {listSection}
-          <div className="w-1/2 border-l border-gray-200 flex flex-col min-h-0 overflow-hidden">
-            {previewSection}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-col h-full flex-1">
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-        {previewPosition === 'top' ? (
-          <>
-            {previewSection}
-            {listSection}
-          </>
-        ) : (
-          <>
-            {listSection}
-            {previewSection}
-          </>
-        )}
-      </div>
-    </div>
+    <SelectorShell
+      listSection={listSection}
+      previewSection={previewSection}
+      previewPosition={previewPosition}
+      sidePreviewWrapperClassName="w-1/2"
+    />
   );
 }
 

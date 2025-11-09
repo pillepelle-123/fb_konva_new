@@ -378,6 +378,19 @@ export const colorPalettes: ColorPalette[] = [
       surface: '#1a1a1a'
     },
     contrast: 'AAA'
+  },
+  {
+    id: 'lavender-dream',
+    name: 'Lavender Dream',
+    colors: {
+      background: '#e8e6f5',
+      primary: '#635190',
+      secondary: '#FF6B35',
+      accent: '#FFB74D',
+      text: '#2E2E2E',
+      surface: '#d4d2e1'
+    },
+    contrast: 'AA'
   }
 ];
 
@@ -443,6 +456,10 @@ export function applyPaletteToElement(palette: ColorPalette, elementType: string
         ruledLinesColor: palette.colors.primary,
         ruledLines: { lineColor: palette.colors.primary }
       };
+      updates.fontColor = palette.colors.text || palette.colors.primary;
+      updates.borderColor = palette.colors.primary;
+      updates.backgroundColor = palette.colors.accent;
+      updates.ruledLinesColor = palette.colors.primary;
       break;
       
     case 'free_text':

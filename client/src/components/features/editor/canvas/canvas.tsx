@@ -792,7 +792,7 @@ export default function Canvas() {
             fontColor: textDefaults.fontColor,
             text: '',
             fontSize: textDefaults.fontSize,
-            align: textDefaults.align,
+            align: textDefaults.format?.textAlign || textDefaults.align,
             fontFamily: textDefaults.fontFamily,
             textType: 'text',
             paragraphSpacing: textDefaults.paragraphSpacing,

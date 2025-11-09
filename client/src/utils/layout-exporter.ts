@@ -117,7 +117,7 @@ export function extractLayoutTemplate(
 
     // Format settings (primary layout properties)
     style.format = {
-      textAlign: element.align || element.questionSettings?.align || element.answerSettings?.align || 'left',
+      textAlign: element.format?.textAlign || element.align || element.questionSettings?.align || element.answerSettings?.align || 'left',
       paragraphSpacing: element.paragraphSpacing || element.questionSettings?.paragraphSpacing || element.answerSettings?.paragraphSpacing || 'medium',
       padding: element.padding || element.format?.padding || 8
     };

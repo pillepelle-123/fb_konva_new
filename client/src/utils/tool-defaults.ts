@@ -389,7 +389,7 @@ export function getToolDefaults(
       points: existingElement.points
     };
     
-    // For qna_inline, preserve layout properties from layout (element.padding, element.align, element.paragraphSpacing)
+    // For qna_inline, preserve layout properties from layout (element.padding, element.format?.textAlign, element.paragraphSpacing)
     // and apply to questionSettings/answerSettings if not explicitly set there.
     // These are layout properties and should come from layout.json primarily.
     if (tool === 'qna_inline') {
@@ -412,19 +412,22 @@ export function getToolDefaults(
       }
       
       // Handle align
-      if (existingElement.align !== undefined) {
-        preservedProperties.align = existingElement.align;
+      const existingAlign = existingElement.format?.textAlign ?? existingElement.align;
+      if (existingAlign !== undefined) {
+        preservedProperties.format = preservedProperties.format || {};
+        preservedProperties.format.textAlign = existingAlign;
+        preservedProperties.align = existingAlign;
         
         if (mergedDefaults.questionSettings && mergedDefaults.questionSettings.align === undefined) {
           mergedDefaults.questionSettings = {
             ...mergedDefaults.questionSettings,
-            align: existingElement.align
+            align: existingAlign
           };
         }
         if (mergedDefaults.answerSettings && mergedDefaults.answerSettings.align === undefined) {
           mergedDefaults.answerSettings = {
             ...mergedDefaults.answerSettings,
-            align: existingElement.align
+            align: existingAlign
           };
         }
       }

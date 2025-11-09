@@ -317,10 +317,10 @@ router.get('/:id', authenticateToken, async (req, res) => {
           elements: updatedElements,
           background: {
             ...pageData.background,
-            pageTheme: page.page_theme || page.theme_id // Backward compatibility
+            pageTheme: page.theme_id || null
           },
           layoutTemplateId: page.layout_template_id,
-          themeId: page.theme_id || page.page_theme, // Backward compatibility: use page_theme if theme_id doesn't exist
+          themeId: page.theme_id || null,
           colorPaletteId: page.color_palette_id
         };
       })
@@ -379,14 +379,12 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
             database_id: pageId
           };
           
-          const pageTheme = page.themeId || page.background?.pageTheme || null;
           await pool.query(
-            'UPDATE public.pages SET elements = $1, page_theme = $2, layout_template_id = $3, theme_id = $4, color_palette_id = $5 WHERE id = $6',
+            'UPDATE public.pages SET elements = $1, layout_template_id = $2, theme_id = $3, color_palette_id = $4 WHERE id = $5',
             [
               JSON.stringify(completePageData), 
-              pageTheme,
               page.layoutTemplateId || null,
-              page.themeId || pageTheme,
+              page.themeId || null,
               page.colorPaletteId || null,
               pageId
             ]
@@ -599,15 +597,13 @@ router.put('/:id', authenticateToken, async (req, res) => {
             database_id: page.id
           };
 
-          const pageTheme = page.themeId || page.background?.pageTheme || null;
           await pool.query(
-            'UPDATE public.pages SET page_number = $1, elements = $2, page_theme = $3, layout_template_id = $4, theme_id = $5, color_palette_id = $6 WHERE id = $7 AND book_id = $8',
+            'UPDATE public.pages SET page_number = $1, elements = $2, layout_template_id = $3, theme_id = $4, color_palette_id = $5 WHERE id = $6 AND book_id = $7',
             [
               page.pageNumber, 
               JSON.stringify(completePageData), 
-              pageTheme,
               page.layoutTemplateId || null,
-              page.themeId || pageTheme,
+              page.themeId || null,
               page.colorPaletteId || null,
               page.id, 
               bookId
@@ -625,16 +621,14 @@ router.put('/:id', authenticateToken, async (req, res) => {
             pageNumber: page.pageNumber
           };
           
-          const pageTheme = page.themeId || page.background?.pageTheme || null;
           const pageResult = await pool.query(
-            'INSERT INTO public.pages (book_id, page_number, elements, page_theme, layout_template_id, theme_id, color_palette_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+            'INSERT INTO public.pages (book_id, page_number, elements, layout_template_id, theme_id, color_palette_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
             [
               bookId, 
               page.pageNumber, 
               JSON.stringify(completePageData), 
-              pageTheme,
               page.layoutTemplateId || null,
-              page.themeId || pageTheme,
+              page.themeId || null,
               page.colorPaletteId || null
             ]
           );
@@ -934,8 +928,8 @@ router.post('/', authenticateToken, async (req, res) => {
 
     // Create initial page
     await pool.query(
-      'INSERT INTO public.pages (book_id, page_number, elements, page_theme) VALUES ($1, $2, $3, $4)',
-      [bookId, 1, JSON.stringify([]), null]
+      'INSERT INTO public.pages (book_id, page_number, elements) VALUES ($1, $2, $3)',
+      [bookId, 1, JSON.stringify([])]
     );
 
     // Add owner as owner collaborator with full permissions

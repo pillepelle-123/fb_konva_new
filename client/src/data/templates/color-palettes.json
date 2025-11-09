@@ -390,6 +390,18 @@
         "surface": "#f5deb3"
       },
       "contrast": "AA"
+    },{
+      "id": "lavender-dream",
+      "name": "Lavender Dream",
+      "colors": {
+        "background": "#e8e6f5",
+        "primary": "#635190",
+        "secondary": "#FF6B35",
+        "accent": "#FFB74D",
+        "text": "#2E2E2E",
+        "surface": "#d4d2e1"
+      },
+      "contrast": "AA"
     }
   ]
 }

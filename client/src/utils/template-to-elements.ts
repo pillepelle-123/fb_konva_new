@@ -54,7 +54,7 @@ export function convertTemplateTextboxToElement(
     backgroundColor: (defaults as any).backgroundColor || 'transparent',
     fontSize: defaults.fontSize || 50,
     fontFamily: defaults.fontFamily || 'Arial, sans-serif',
-    align: (defaults.align as 'left' | 'center' | 'right') || 'left',
+    align: (defaults.format?.textAlign as 'left' | 'center' | 'right') || defaults.align || 'left',
     padding: defaults.padding || 4,
     // Add type-specific settings
     ...(isQnaInline ? {

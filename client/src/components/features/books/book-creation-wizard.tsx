@@ -6,10 +6,12 @@ import { Input } from '../../ui/primitives/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/overlays/dialog';
 import { ChevronLeft, ChevronRight, Check } from 'lucide-react';
 import { colorPalettes } from '../../../data/templates/color-palettes';
-import { getGlobalTheme } from '../../../utils/global-themes';
+import { getGlobalTheme, getThemePageBackgroundColors } from '../../../utils/global-themes';
+import { getToolDefaults } from '../../../utils/tool-defaults';
 import type { PageTemplate, ColorPalette, QuickTemplate } from '../../../types/template-types';
 import { convertTemplateToElements } from '../../../utils/template-to-elements';
 import { getBackgroundImagesWithUrl } from '../../../data/templates/background-images';
+import { applyBackgroundImageTemplate } from '../../../utils/background-image-utils';
 import { LayoutSelector } from '../editor/templates/layout-selector';
 import { ThemeSelector } from '../editor/templates/theme-selector';
 import { WizardPaletteSelector } from '../editor/templates/wizard-palette-selector';
@@ -115,9 +117,75 @@ export default function BookCreationWizard({ open, onOpenChange, onSuccess }: Bo
     
     // Erstelle Elemente aus Template (falls Template gewählt)
     // WICHTIG: Übergebe canvasSize für korrekte Skalierung
-    const elements = template ? convertTemplateToElements(template, canvasSize) : [];
-    
-    // Bereite Background vor
+    let elements = template ? convertTemplateToElements(template, canvasSize) : [];
+    const layoutTemplateId = template?.id || null;
+    const activePaletteId = paletteToUse?.id || null;
+
+    if (elements.length > 0) {
+      const styleElementWithThemeAndPalette = (element: any) => {
+        const toolType = element.textType || element.type;
+        const defaults = getToolDefaults(
+          toolType as any,
+          themeToUse || undefined,
+          themeToUse || undefined,
+          element,
+          undefined,
+          layoutTemplateId,
+          layoutTemplateId,
+          activePaletteId,
+          activePaletteId
+        );
+
+        const updatedElement: any = {
+          ...element,
+          ...defaults,
+          id: element.id,
+          type: element.type,
+          x: element.x,
+          y: element.y,
+          width: element.width,
+          height: element.height,
+          text: element.text,
+          formattedText: element.formattedText,
+          textType: element.textType,
+          questionId: element.questionId,
+          answerId: element.answerId,
+          questionElementId: element.questionElementId,
+          src: element.src,
+          points: element.points
+        };
+
+        if (element.textType === 'qna_inline') {
+          if (defaults.questionSettings || element.questionSettings) {
+            updatedElement.questionSettings = {
+              ...(element.questionSettings || {}),
+              ...(defaults.questionSettings || {})
+            };
+          }
+          if (defaults.answerSettings || element.answerSettings) {
+            updatedElement.answerSettings = {
+              ...(element.answerSettings || {}),
+              ...(defaults.answerSettings || {})
+            };
+          }
+        }
+
+        if (element.textType === 'free_text' && defaults.textSettings) {
+          updatedElement.textSettings = {
+            ...(element.textSettings || {}),
+            ...defaults.textSettings
+          };
+        }
+
+        return updatedElement;
+      };
+
+      elements = elements.map(styleElementWithThemeAndPalette);
+    }
+
+    const themeConfig = themeToUse ? getGlobalTheme(themeToUse) : null;
+    const themeBackgroundColors = themeToUse ? getThemePageBackgroundColors(themeToUse, paletteToUse) : null;
+
     let background: {
       type: 'color' | 'pattern' | 'image';
       value: string;
@@ -125,13 +193,58 @@ export default function BookCreationWizard({ open, onOpenChange, onSuccess }: Bo
       pageTheme?: string;
       backgroundImageTemplateId?: string;
       imageSize?: string;
+      patternSize?: number;
+      patternStrokeWidth?: number;
+      patternForegroundColor?: string;
+      patternBackgroundColor?: string;
+      patternBackgroundOpacity?: number;
     } = {
-      type: 'color' as const,
+      type: 'color',
       value: paletteToUse.colors.background,
       opacity: 1,
       pageTheme: themeToUse
     };
-    
+
+    if (themeConfig) {
+      if (themeConfig.pageSettings.backgroundPattern?.enabled) {
+        background = {
+          type: 'pattern',
+          value: themeConfig.pageSettings.backgroundPattern.style,
+          opacity: themeConfig.pageSettings.backgroundOpacity || 1,
+          pageTheme: themeToUse,
+          patternSize: themeConfig.pageSettings.backgroundPattern.size,
+          patternStrokeWidth: themeConfig.pageSettings.backgroundPattern.strokeWidth,
+          patternForegroundColor: themeBackgroundColors?.backgroundColor || paletteToUse.colors.background,
+          patternBackgroundColor: themeBackgroundColors?.patternBackgroundColor || paletteToUse.colors.primary || paletteToUse.colors.background,
+          patternBackgroundOpacity: themeConfig.pageSettings.backgroundPattern.patternBackgroundOpacity
+        };
+      } else {
+        background = {
+          type: 'color',
+          value: themeBackgroundColors?.backgroundColor || paletteToUse.colors.background,
+          opacity: themeConfig.pageSettings.backgroundOpacity || 1,
+          pageTheme: themeToUse
+        };
+      }
+
+      if (themeConfig.pageSettings.backgroundImage?.enabled && themeConfig.pageSettings.backgroundImage.templateId) {
+        const imageConfig = themeConfig.pageSettings.backgroundImage;
+        const imageBackground = applyBackgroundImageTemplate(imageConfig.templateId, {
+          imageSize: imageConfig.size,
+          imageRepeat: imageConfig.repeat,
+          opacity: imageConfig.opacity ?? background.opacity ?? 1,
+          backgroundColor: themeBackgroundColors?.backgroundColor || paletteToUse.colors.background
+        });
+
+        if (imageBackground) {
+          background = {
+            ...imageBackground,
+            pageTheme: themeToUse
+          };
+        }
+      }
+    }
+
     // Quick Mode: Prüfe auf Background Image
     if (quickTemplate?.backgroundImageId) {
       const allBackgroundImages = getBackgroundImagesWithUrl();
@@ -165,8 +278,7 @@ export default function BookCreationWizard({ open, onOpenChange, onSuccess }: Bo
         pageNumber: 1,
         elements: elements,
         background: background,
-        colorPaletteId: paletteToUse.id,
-        layoutTemplateId: template?.id || null,
+        layoutTemplateId: undefined,
         database_id: undefined
       }],
       isTemporary: true,

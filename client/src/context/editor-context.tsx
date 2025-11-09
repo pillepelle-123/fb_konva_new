@@ -90,6 +90,7 @@ import { pageTemplates } from '../data/templates/page-templates';
 import { colorPalettes } from '../data/templates/color-palettes';
 import { getGlobalTheme, getThemePageBackgroundColors } from '../utils/global-themes';
 import type { PageTemplate, ColorPalette } from '../types/template-types';
+import { applyBackgroundImageTemplate } from '../utils/background-image-utils';
 
 // Function to extract theme structure from current book state
 function logThemeStructure(book: Book | null) {
@@ -194,7 +195,7 @@ function logThemeStructure(book: Book | null) {
           };
         }
         
-        const textAlign = element.format?.align || element.align;
+        const textAlign = element.format?.textAlign || element.align;
         const paragraphSpacing = element.format?.paragraphSpacing || element.paragraphSpacing;
         const padding = element.format?.padding || element.padding;
         if (textAlign || paragraphSpacing || padding) {
@@ -428,28 +429,27 @@ export interface EditorState {
   assignedPages: number[];
   pageAccessLevel?: 'form_only' | 'own_page' | 'all_pages';
   editorInteractionLevel?: 'no_access' | 'answer_only' | 'full_edit' | 'full_edit_with_settings';
-  pageAssignments: Record<number, any>; // pageNumber -> user
+  pageAssignments: Record<number, any>;
   bookFriends?: any[];
   editorBarVisible: boolean;
   toolbarVisible: boolean;
   settingsPanelVisible: boolean;
-  hasUnsavedChanges: boolean;
   toolSettings: Record<string, Record<string, any>>;
   editorSettings: Record<string, Record<string, any>>;
-  tempQuestions: { [key: string]: string }; // questionId (UUID) -> text
-  tempAnswers: { [key: string]: { [userId: number]: { text: string; answerId: string } } }; // questionId (UUID) -> { userId -> { text, answerId } }
   history: HistoryState[];
   historyIndex: number;
   historyActions: string[];
-  magneticSnapping: boolean;
-  qnaActiveSection: 'question' | 'answer';
-  stylePainterActive: boolean;
-  copiedStyle: Partial<CanvasElement> | null;
-  hoveredElementId: string | null;
-  selectedTemplate: PageTemplate | null;
-  availableTemplates: PageTemplate[];
-  colorPalettes: ColorPalette[];
+  hasUnsavedChanges: boolean;
+  selectedTemplate?: PageTemplate | null;
+  availableTemplates?: PageTemplate[];
+  colorPalettes?: ColorPalette[];
+  selectedPaletteId?: string | null;
+  selectedThemeId?: string | null;
+  pageColorOverrides: Record<number, Record<string, boolean>>;
+  canvasBackgroundImage?: string | null;
+  canvasBackgroundPattern?: string | null;
   wizardTemplateSelection: WizardTemplateSelection;
+  wizardSetupApplied?: boolean;
 }
 
 type EditorAction =
@@ -501,7 +501,7 @@ type EditorAction =
   | { type: 'SET_BOOK_COLOR_PALETTE'; payload: string | null; skipHistory?: boolean }
   | { type: 'SET_PAGE_LAYOUT_TEMPLATE'; payload: { pageIndex: number; layoutTemplateId: string | null } }
   | { type: 'SET_PAGE_COLOR_PALETTE'; payload: { pageIndex: number; colorPaletteId: string | null; skipHistory?: boolean } }
-  | { type: 'APPLY_THEME_TO_ELEMENTS'; payload: { pageIndex: number; themeId: string; elementType?: string; applyToAllPages?: boolean; skipHistory?: boolean } }
+  | { type: 'APPLY_THEME_TO_ELEMENTS'; payload: { pageIndex: number; themeId: string; elementType?: string; applyToAllPages?: boolean; skipHistory?: boolean; preserveColors?: boolean } }
   | { type: 'REORDER_PAGES'; payload: { fromIndex: number; toIndex: number } }
   | { type: 'TOGGLE_MAGNETIC_SNAPPING' }
   | { type: 'SET_QNA_ACTIVE_SECTION'; payload: 'question' | 'answer' }
@@ -512,15 +512,16 @@ type EditorAction =
   | { type: 'SET_SELECTED_TEMPLATE'; payload: PageTemplate | null }
   | { type: 'LOAD_TEMPLATES'; payload: PageTemplate[] }
   | { type: 'LOAD_COLOR_PALETTES'; payload: ColorPalette[] }
-  | { type: 'APPLY_TEMPLATE_TO_PAGE'; payload: { pageIndex: number; template: PageTemplate } }
+  | { type: 'APPLY_TEMPLATE_TO_PAGE'; payload: { pageIndex: number; template: PageTemplate; skipHistory?: boolean } }
   | { type: 'APPLY_TEMPLATE'; payload: { template: PageTemplate; pageIndex?: number; applyToAllPages?: boolean } }
   | { type: 'APPLY_LAYOUT_TEMPLATE'; payload: { template: PageTemplate; pageIndex?: number; applyToAllPages?: boolean; skipHistory?: boolean } }
   | { type: 'APPLY_THEME_ONLY'; payload: { themeId: string; pageIndex?: number; applyToAllPages?: boolean } }
-  | { type: 'APPLY_COLOR_PALETTE'; payload: { palette: ColorPalette; pageIndex?: number; applyToAllPages?: boolean } }
+  | { type: 'APPLY_COLOR_PALETTE'; payload: { palette: ColorPalette; pageIndex?: number; applyToAllPages?: boolean; skipHistory?: boolean } }
   | { type: 'APPLY_COMPLETE_TEMPLATE'; payload: { layoutId?: string; themeId?: string; paletteId?: string; scope: 'current-page' | 'entire-book' } }
   | { type: 'SET_WIZARD_TEMPLATE_SELECTION'; payload: WizardTemplateSelection }
   | { type: 'MARK_COLOR_OVERRIDE'; payload: { elementIds: string[]; colorProperty: string } }
-  | { type: 'RESET_COLOR_OVERRIDES'; payload: { elementIds: string[]; colorProperties?: string[]; pageIndex?: number } };
+  | { type: 'RESET_COLOR_OVERRIDES'; payload: { elementIds: string[]; colorProperties?: string[]; pageIndex?: number } }
+  | { type: 'MARK_WIZARD_SETUP_APPLIED' };
 
 const initialState: EditorState = {
   currentBook: null,
@@ -556,6 +557,10 @@ const initialState: EditorState = {
     selectedPaletteId: null,
     templateCustomizations: undefined
   },
+  pageColorOverrides: {},
+  canvasBackgroundImage: null,
+  canvasBackgroundPattern: null,
+  wizardSetupApplied: false,
 };
 
 const MAX_HISTORY_SIZE = 50;
@@ -891,7 +896,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         const theme = getGlobalTheme(bookThemeId);
         if (theme) {
           // Get page background colors from palette, not from themes.json
-          const pageColors = getThemePageBackgroundColors(bookThemeId);
+          const pageColors = getThemePageBackgroundColors(bookThemeId, bookColorPaletteId);
           
           initialBackground = {
             type: theme.pageSettings.backgroundPattern?.enabled ? 'pattern' : 'color',
@@ -918,9 +923,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         elements: [],
         database_id: undefined,
         background: initialBackground,
-        layoutTemplateId: bookLayoutTemplateId || undefined,
-        themeId: bookThemeId !== 'default' ? bookThemeId : undefined,
-        colorPaletteId: bookColorPaletteId || undefined
+        layoutTemplateId: undefined
       };
       
       // Apply layout template if book has one set
@@ -987,31 +990,19 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         }
       }
       
-      // Update new page with elements from layout template
-      const newPageWithLayout: Page = {
-        ...newPage,
-        elements: pageElements
-      };
+      // Prepare tool settings for the new page (clone existing to avoid mutation)
+      const toolSettingsForNewPage: Record<string, any> = savedAddPageState.toolSettings
+        ? { ...savedAddPageState.toolSettings }
+        : {};
+      const hadInitialToolSettings = Object.keys(toolSettingsForNewPage).length > 0;
       
-      // Get color palette for tool settings
+      // Determine palette to use for tool defaults
       let paletteToUse: ColorPalette | null = null;
       if (bookColorPaletteId) {
         paletteToUse = colorPalettes.find(p => p.id === bookColorPaletteId) || null;
       }
       
-      // Apply default palette to new page if no tool settings exist
-      const hasToolSettings = savedAddPageState.toolSettings && Object.keys(savedAddPageState.toolSettings).length > 0;
-      let addPageState = {
-        ...savedAddPageState,
-        currentBook: {
-          ...book,
-          pages: [...book.pages, newPageWithLayout]
-        },
-        hasUnsavedChanges: true
-      };
-      
-      // Update tool settings with palette colors if available
-      if (paletteToUse && (!hasToolSettings || true)) { // Always apply palette if book has one
+      if (paletteToUse) {
         const toolUpdates = {
           brush: { strokeColor: paletteToUse.colors.primary },
           line: { strokeColor: paletteToUse.colors.primary },
@@ -1025,19 +1016,19 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           dog: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
           cat: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
           smiley: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
-          text: { fontColor: paletteToUse.colors.primary, borderColor: paletteToUse.colors.secondary, backgroundColor: paletteToUse.colors.background },
-          question: { fontColor: paletteToUse.colors.primary, borderColor: paletteToUse.colors.secondary, backgroundColor: paletteToUse.colors.surface || paletteToUse.colors.background },
-          answer: { fontColor: paletteToUse.colors.accent, borderColor: paletteToUse.colors.secondary, backgroundColor: paletteToUse.colors.background },
-          qna_inline: { fontColor: paletteToUse.colors.primary, borderColor: paletteToUse.colors.secondary, backgroundColor: paletteToUse.colors.background }
+          text: { fontColor: paletteToUse.colors.text || paletteToUse.colors.primary, borderColor: paletteToUse.colors.primary, backgroundColor: paletteToUse.colors.surface || paletteToUse.colors.background },
+          question: { fontColor: paletteToUse.colors.text || paletteToUse.colors.primary, borderColor: paletteToUse.colors.primary, backgroundColor: paletteToUse.colors.surface || paletteToUse.colors.background },
+          answer: { fontColor: paletteToUse.colors.accent || paletteToUse.colors.text || paletteToUse.colors.primary, borderColor: paletteToUse.colors.primary, backgroundColor: paletteToUse.colors.background },
+          qna_inline: {
+            fontColor: paletteToUse.colors.text || paletteToUse.colors.primary,
+            borderColor: paletteToUse.colors.primary,
+            backgroundColor: paletteToUse.colors.accent || paletteToUse.colors.surface || paletteToUse.colors.background
+          }
         };
-        
-        const updatedToolSettings = { ...addPageState.toolSettings };
         Object.entries(toolUpdates).forEach(([tool, settings]) => {
-          updatedToolSettings[tool] = { ...updatedToolSettings[tool], ...settings };
+          toolSettingsForNewPage[tool] = { ...(toolSettingsForNewPage[tool] || {}), ...settings };
         });
-        
-        addPageState = { ...addPageState, toolSettings: updatedToolSettings };
-      } else if (!hasToolSettings) {
+      } else if (!hadInitialToolSettings) {
         // Fallback to theme-based defaults if no book palette
         const toolUpdates: Record<string, any> = {};
         
@@ -1076,14 +1067,40 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             };
           }
         });
-        
-        const updatedToolSettings = { ...addPageState.toolSettings };
         Object.entries(toolUpdates).forEach(([tool, settings]) => {
-          updatedToolSettings[tool] = { ...updatedToolSettings[tool], ...settings };
+          toolSettingsForNewPage[tool] = { ...(toolSettingsForNewPage[tool] || {}), ...settings };
         });
-        
-        addPageState = { ...addPageState, toolSettings: updatedToolSettings };
       }
+      
+      // Update new page with elements from layout template
+      const newPageWithLayout: Page = {
+        ...newPage,
+        elements: pageElements
+      };
+      
+      const themedNewPage = applyThemeAndPaletteToPage(
+        newPageWithLayout,
+        {
+          ...book,
+          themeId: bookThemeId !== 'default' ? bookThemeId : book.themeId,
+          bookTheme: bookThemeId !== 'default' ? bookThemeId : book.bookTheme,
+          colorPaletteId: bookColorPaletteId || book.colorPaletteId,
+          layoutTemplateId: bookLayoutTemplateId || book.layoutTemplateId
+        } as Book,
+        toolSettingsForNewPage
+      );
+      
+      const addPageState = {
+        ...savedAddPageState,
+        toolSettings: toolSettingsForNewPage,
+        currentBook: {
+          ...book,
+          pages: [...book.pages, themedNewPage]
+        },
+        hasUnsavedChanges: true
+      };
+      
+      return addPageState;
       
       return addPageState;
     
@@ -1449,10 +1466,145 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const updatedBookPageTheme = { ...savedPageThemeState.currentBook! };
       const targetPageTheme = updatedBookPageTheme.pages[action.payload.pageIndex];
       if (targetPageTheme) {
-        if (!targetPageTheme.background) {
-          targetPageTheme.background = { type: 'color', value: '#ffffff', opacity: 1 };
+        if (!action.payload.themeId || action.payload.themeId === '__BOOK_THEME__') {
+          const bookThemeId = updatedBookPageTheme.bookTheme || updatedBookPageTheme.themeId || 'default';
+          const theme = getGlobalTheme(bookThemeId);
+
+          if (theme) {
+            const paletteOverrideId = targetPageTheme.colorPaletteId || updatedBookPageTheme.colorPaletteId || null;
+            const paletteOverride = paletteOverrideId ? colorPalettes.find(p => p.id === paletteOverrideId) : null;
+            const pageColors = getThemePageBackgroundColors(bookThemeId, paletteOverride || undefined);
+            const backgroundOpacity = theme.pageSettings.backgroundOpacity ?? targetPageTheme.background?.opacity ?? 1;
+
+            const backgroundImageConfig = theme.pageSettings.backgroundImage;
+            let appliedBackgroundImage = false;
+
+            if (backgroundImageConfig?.enabled && backgroundImageConfig.templateId) {
+              const imageBackground = applyBackgroundImageTemplate(backgroundImageConfig.templateId, {
+                imageSize: backgroundImageConfig.size,
+                imageRepeat: backgroundImageConfig.repeat,
+                opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
+                backgroundColor: pageColors.backgroundColor
+              });
+
+              if (imageBackground) {
+                targetPageTheme.background = {
+                  ...imageBackground,
+                  pageTheme: bookThemeId
+                };
+                appliedBackgroundImage = true;
+              }
+            }
+
+            if (!appliedBackgroundImage) {
+              if (theme.pageSettings.backgroundPattern?.enabled) {
+                targetPageTheme.background = {
+                  type: 'pattern',
+                  value: theme.pageSettings.backgroundPattern.style,
+                  opacity: backgroundOpacity,
+                  pageTheme: bookThemeId,
+                  patternSize: theme.pageSettings.backgroundPattern.size,
+                  patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
+                  patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity,
+                  patternForegroundColor: pageColors.backgroundColor,
+                  patternBackgroundColor: pageColors.patternBackgroundColor
+                };
+              } else {
+                targetPageTheme.background = {
+                  type: 'color',
+                  value: pageColors.backgroundColor,
+                  opacity: backgroundOpacity,
+                  pageTheme: bookThemeId
+                };
+              }
+            }
+          } else {
+            if (targetPageTheme.background) {
+              targetPageTheme.background = {
+                ...targetPageTheme.background,
+                pageTheme: bookThemeId || null
+              };
+            }
+          }
+
+          delete targetPageTheme.themeId;
+          return { ...savedPageThemeState, currentBook: updatedBookPageTheme, hasUnsavedChanges: true };
         }
-        targetPageTheme.background.pageTheme = action.payload.themeId;
+        if (!action.payload.themeId) {
+          delete targetPageTheme.themeId;
+          return { ...savedPageThemeState, currentBook: updatedBookPageTheme, hasUnsavedChanges: true };
+        }
+        const paletteOverrideId = targetPageTheme.colorPaletteId || updatedBookPageTheme.colorPaletteId || null;
+        const paletteOverride = paletteOverrideId ? colorPalettes.find(p => p.id === paletteOverrideId) : null;
+        const existingBackground = targetPageTheme.background;
+        const themeBackgroundPattern = pageTheme?.pageSettings?.backgroundPattern;
+        const themeBackgroundOpacity = pageTheme?.pageSettings?.backgroundOpacity ?? existingBackground?.opacity ?? 1;
+
+        const resolvedBaseColor = existingBackground
+          ? existingBackground.type === 'pattern'
+            ? existingBackground.patternForegroundColor || paletteOverride?.colors.background || '#ffffff'
+            : (typeof existingBackground.value === 'string' ? existingBackground.value : paletteOverride?.colors.background || '#ffffff')
+          : paletteOverride?.colors.background || '#ffffff';
+
+        const resolvedPatternForeground = existingBackground?.patternForegroundColor
+          || paletteOverride?.colors.background
+          || resolvedBaseColor;
+        const resolvedPatternBackground = existingBackground?.patternBackgroundColor
+          || paletteOverride?.colors.primary
+          || paletteOverride?.colors.accent
+          || resolvedPatternForeground;
+
+        const backgroundImageConfig = pageTheme?.pageSettings?.backgroundImage;
+        let appliedBackgroundImage = false;
+        if (backgroundImageConfig?.enabled && backgroundImageConfig.templateId) {
+          const imageBackground = applyBackgroundImageTemplate(backgroundImageConfig.templateId, {
+            imageSize: backgroundImageConfig.size,
+            imageRepeat: backgroundImageConfig.repeat,
+            opacity: backgroundImageConfig.opacity ?? themeBackgroundOpacity,
+            backgroundColor: resolvedBaseColor
+          });
+
+          if (imageBackground) {
+            targetPageTheme.background = {
+              ...imageBackground,
+              pageTheme: action.payload.themeId
+            };
+            appliedBackgroundImage = true;
+          }
+        }
+
+        if (appliedBackgroundImage) {
+          targetPageTheme.themeId = action.payload.themeId;
+          return { ...savedPageThemeState, currentBook: updatedBookPageTheme, hasUnsavedChanges: true };
+        }
+
+        if (existingBackground?.type === 'image') {
+          targetPageTheme.background = {
+            ...existingBackground,
+            opacity: themeBackgroundOpacity,
+            pageTheme: action.payload.themeId
+          };
+        } else if (themeBackgroundPattern?.enabled) {
+          targetPageTheme.background = {
+            type: 'pattern',
+            value: themeBackgroundPattern.style,
+            opacity: themeBackgroundOpacity,
+            pageTheme: action.payload.themeId,
+            patternSize: themeBackgroundPattern.size,
+            patternStrokeWidth: themeBackgroundPattern.strokeWidth,
+            patternBackgroundOpacity: themeBackgroundPattern.patternBackgroundOpacity,
+            patternForegroundColor: resolvedPatternForeground,
+            patternBackgroundColor: resolvedPatternBackground
+          };
+        } else {
+          targetPageTheme.background = {
+            type: 'color',
+            value: resolvedBaseColor,
+            opacity: themeBackgroundOpacity,
+            pageTheme: action.payload.themeId
+          };
+        }
+
         targetPageTheme.themeId = action.payload.themeId; // Also set themeId for consistency
       }
       return { ...savedPageThemeState, currentBook: updatedBookPageTheme, hasUnsavedChanges: true };
@@ -1496,6 +1648,48 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         : saveToHistory(state, `Apply Theme "${applyThemeName}" to ${themeScope} Elements`);
       const updatedBookApplyTheme = { ...savedApplyThemeState.currentBook! };
       
+      const copyColorValues = (from: any, to: any) => {
+        if (!from || !to || typeof from !== 'object' || typeof to !== 'object') {
+          return;
+        }
+
+        Object.keys(from).forEach((key) => {
+          const value = from[key];
+          if (value === undefined || value === null) {
+            return;
+          }
+
+          const lowerKey = key.toLowerCase();
+          const isColorKey =
+            lowerKey === 'fill' ||
+            lowerKey === 'stroke' ||
+            lowerKey.endsWith('color') ||
+            lowerKey.endsWith('colors') ||
+            (lowerKey.includes('color') && !lowerKey.includes('colorstop'));
+
+          if (isColorKey) {
+            if (Array.isArray(value)) {
+              to[key] = value.map((item: any) => (typeof item === 'object' ? { ...item } : item));
+            } else if (typeof value === 'object') {
+              if (!to[key] || typeof to[key] !== 'object') {
+                to[key] = {};
+              }
+              copyColorValues(value, to[key]);
+            } else {
+              to[key] = value;
+            }
+            return;
+          }
+
+          if (typeof value === 'object' && !Array.isArray(value)) {
+            if (!to[key] || typeof to[key] !== 'object') {
+              to[key] = {};
+            }
+            copyColorValues(value, to[key]);
+          }
+        });
+      };
+
       const applyThemeToPage = (page: any) => {
         return {
           ...page,
@@ -1556,6 +1750,10 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
               };
             }
             
+            if (action.payload.preserveColors) {
+              copyColorValues(element, updatedElement);
+            }
+
             return updatedElement;
           })
         };
@@ -1570,7 +1768,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         }
       }
       
-      return { ...savedApplyThemeState, currentBook: updatedBookApplyTheme, hasUnsavedChanges: true };
+      return { ...savedApplyThemeState, currentBook: updatedBookApplyTheme, wizardSetupApplied: true, hasUnsavedChanges: true };
     
     case 'UPDATE_BOOK_NAME':
       if (!state.currentBook) return state;
@@ -1717,7 +1915,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           borderWidth: selectedElement.borderWidth,
           borderColor: selectedElement.borderColor,
           padding: selectedElement.padding,
-          align: selectedElement.align,
+          align: selectedElement.format?.textAlign ?? selectedElement.align,
           paragraphSpacing: selectedElement.paragraphSpacing,
           lineHeight: selectedElement.lineHeight,
           stroke: selectedElement.stroke,
@@ -1889,10 +2087,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'APPLY_TEMPLATE_TO_PAGE':
       if (!state.currentBook) return state;
-      const savedTemplateState = saveToHistory(state, 'Apply Template');
-      const { pageIndex, template } = action.payload;
+      const { pageIndex, template, skipHistory: applyTemplateSkipHistory } = action.payload as any;
+      const savedTemplateState = applyTemplateSkipHistory ? state : saveToHistory(state, 'Apply Template');
       const updatedBookTemplate = { ...savedTemplateState.currentBook! };
-      const targetPageTemplate = updatedBookTemplate.pages[pageIndex];
       
       if (targetPageTemplate) {
         // Berechne Canvas-Größe für diese Seite
@@ -1914,14 +2111,16 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         ...savedTemplateState, 
         currentBook: updatedBookTemplate, 
         selectedTemplate: template,
+        wizardSetupApplied: true,
         hasUnsavedChanges: true 
       };
     
     case 'APPLY_TEMPLATE':
       if (!state.currentBook) return state;
       const savedApplyTemplateState = saveToHistory(state, 'Apply Template');
-      const { template: applyTemplate, pageIndex: applyPageIndex, applyToAllPages } = action.payload;
-      const updatedBookApplyTemplate = { ...savedApplyTemplateState.currentBook! };
+      const { template: applyTemplate, pageIndex: applyPageIndex, applyToAllPages, skipHistory } = action.payload as any;
+      const baseState = skipHistory ? state : savedApplyTemplateState;
+      const updatedBookApplyTemplate = { ...baseState.currentBook! };
       
       if (applyToAllPages) {
         // Apply to all pages
@@ -1940,7 +2139,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         });
       } else {
         // Apply to specific page
-        const targetIndex = applyPageIndex ?? savedApplyTemplateState.activePageIndex;
+        const targetIndex = applyPageIndex ?? baseState.activePageIndex;
         const targetPageApplyTemplate = updatedBookApplyTemplate.pages[targetIndex];
         
         if (targetPageApplyTemplate) {
@@ -1959,17 +2158,296 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         ...savedApplyTemplateState, 
         currentBook: updatedBookApplyTemplate, 
         selectedTemplate: applyTemplate,
+        wizardSetupApplied: true,
         hasUnsavedChanges: true 
       };
     
+    case 'APPLY_LAYOUT_TEMPLATE':
+      if (!state.currentBook) return state;
+      const { template: layoutTemplate, pageIndex: layoutPageIndex, applyToAllPages: layoutApplyToAll, skipHistory: layoutSkipHistory } = action.payload;
+      const savedLayoutState = layoutSkipHistory ? state : saveToHistory(state, 'Apply Layout Template');
+      const updatedBookLayout = { ...savedLayoutState.currentBook! };
+      
+      const applyLayoutToPage = (page: Page, pageIdx: number) => {
+        // Berechne Canvas-Größe für diese Seite
+        const pageSize = updatedBookLayout.pageSize || 'A4';
+        const orientation = updatedBookLayout.orientation || 'portrait';
+        const canvasSize = calculatePageDimensions(pageSize, orientation);
+        
+        // Validate template compatibility
+        const validation = validateTemplateCompatibility(layoutTemplate, page.elements);
+        
+        // Apply layout with content preservation (mit neuen Skalierungs-Parametern)
+        const newElements = applyLayoutTemplateWithPreservation(
+          page.elements, 
+          layoutTemplate,
+          canvasSize,
+          pageSize,
+          orientation
+        );
+        
+        return {
+          ...page,
+          elements: newElements,
+          background: {
+            ...page.background,
+            pageTheme: layoutTemplate.theme
+          }
+        };
+      };
+      
+      if (layoutApplyToAll) {
+        updatedBookLayout.pages = updatedBookLayout.pages.map(applyLayoutToPage);
+      } else {
+        const targetIndex = layoutPageIndex ?? savedLayoutState.activePageIndex;
+        updatedBookLayout.pages[targetIndex] = applyLayoutToPage(updatedBookLayout.pages[targetIndex], targetIndex);
+      }
+      
+      return { 
+        ...savedLayoutState, 
+        currentBook: updatedBookLayout, 
+        hasUnsavedChanges: true 
+      };
+    
+    case 'APPLY_THEME_ONLY':
+      if (!state.currentBook) return state;
+      const savedThemeOnlyState = saveToHistory(state, 'Apply Theme');
+      const { themeId: themeOnlyId, pageIndex: themePageIndex, applyToAllPages: themeApplyToAll } = action.payload;
+      const updatedBookThemeOnly = { ...savedThemeOnlyState.currentBook! };
+      
+      const applyThemeOnlyToPage = (page: Page) => {
+        const theme = getGlobalTheme(themeOnlyId);
+        if (!theme) return page;
+        
+        const paletteOverrideId = page.colorPaletteId || updatedBookThemeOnly.colorPaletteId || null;
+        const paletteOverride = paletteOverrideId ? colorPalettes.find(p => p.id === paletteOverrideId) : null;
+        const existingBackground = page.background;
+        const backgroundOpacity = theme.pageSettings.backgroundOpacity || existingBackground?.opacity || 1;
+        
+        const resolvedBaseColor = existingBackground
+          ? existingBackground.type === 'pattern'
+            ? existingBackground.patternForegroundColor || paletteOverride?.colors.background || '#ffffff'
+            : (typeof existingBackground.value === 'string' ? existingBackground.value : paletteOverride?.colors.background || '#ffffff')
+          : paletteOverride?.colors.background || '#ffffff';
+        
+        const resolvedPatternForeground = existingBackground?.patternForegroundColor
+          || paletteOverride?.colors.background
+          || resolvedBaseColor;
+        const resolvedPatternBackground = existingBackground?.patternBackgroundColor
+          || paletteOverride?.colors.primary
+          || paletteOverride?.colors.accent
+          || resolvedPatternForeground;
+        
+        return {
+          ...page,
+          background: existingBackground?.type === 'image'
+            ? {
+                ...existingBackground,
+                opacity: backgroundOpacity,
+                pageTheme: themeOnlyId
+              }
+            : theme.pageSettings.backgroundPattern?.enabled
+              ? {
+                  type: 'pattern',
+                  value: theme.pageSettings.backgroundPattern.style,
+                  opacity: backgroundOpacity,
+                  pageTheme: themeOnlyId,
+                  patternSize: theme.pageSettings.backgroundPattern.size,
+                  patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
+                  patternForegroundColor: resolvedPatternForeground,
+                  patternBackgroundColor: resolvedPatternBackground,
+                  patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity
+                }
+              : {
+                  type: 'color',
+                  value: resolvedBaseColor,
+                  opacity: backgroundOpacity,
+                  pageTheme: themeOnlyId
+                },
+          elements: page.elements.map(element => {
+            const toolType = element.textType || element.type;
+            const themeDefaults = getToolDefaults(toolType as any, themeOnlyId, undefined);
+            
+            // Apply all theme properties including colors
+            return {
+              ...element,
+              ...themeDefaults,
+              theme: themeOnlyId,
+              // Preserve essential content properties
+              id: element.id,
+              type: element.type,
+              x: element.x,
+              y: element.y,
+              width: element.width,
+              height: element.height,
+              text: element.text,
+              formattedText: element.formattedText,
+              textType: element.textType,
+              questionId: element.questionId,
+              answerId: element.answerId,
+              questionElementId: element.questionElementId,
+              src: element.src,
+              points: element.points
+            };
+          })
+        };
+      };
+      
+      if (themeApplyToAll) {
+        updatedBookThemeOnly.pages = updatedBookThemeOnly.pages.map(applyThemeOnlyToPage);
+      } else {
+        const targetIndex = themePageIndex ?? savedThemeOnlyState.activePageIndex;
+        updatedBookThemeOnly.pages[targetIndex] = applyThemeOnlyToPage(updatedBookThemeOnly.pages[targetIndex]);
+      }
+      
+      return { 
+        ...savedThemeOnlyState, 
+        currentBook: updatedBookThemeOnly, 
+        hasUnsavedChanges: true 
+      };
+    
+    case 'APPLY_COMPLETE_TEMPLATE':
+      if (!state.currentBook) return state;
+      const savedCompleteState = saveToHistory(state, 'Apply Complete Template');
+      const { layoutId, themeId: completeThemeId, paletteId, scope } = action.payload;
+      
+      let completeTemplateState = savedCompleteState;
+      
+      // Apply layout template if provided
+      if (layoutId) {
+        const layoutTemplateToApply = pageTemplates.find(t => t.id === layoutId);
+        if (layoutTemplateToApply) {
+          completeTemplateState = editorReducer(completeTemplateState, {
+            type: 'APPLY_LAYOUT_TEMPLATE',
+            payload: {
+              template: layoutTemplateToApply,
+              applyToAllPages: scope === 'entire-book'
+            }
+          });
+        }
+      }
+      
+      // Apply theme if provided - this should update page theme and apply to all elements
+      if (completeThemeId) {
+        // First set the page/book theme
+        if (scope === 'entire-book') {
+          completeTemplateState = { 
+            ...completeTemplateState, 
+            currentBook: { 
+              ...completeTemplateState.currentBook!, 
+              bookTheme: completeThemeId 
+            } 
+          };
+        } else {
+          const updatedBook = { ...completeTemplateState.currentBook! };
+          const targetPage = updatedBook.pages[completeTemplateState.activePageIndex];
+          if (targetPage) {
+            if (!targetPage.background) {
+              targetPage.background = { type: 'color', value: '#ffffff', opacity: 1 };
+            }
+            targetPage.background.pageTheme = completeThemeId;
+          }
+          completeTemplateState = { ...completeTemplateState, currentBook: updatedBook };
+        }
+        
+        // Then apply theme to elements
+        completeTemplateState = editorReducer(completeTemplateState, {
+          type: 'APPLY_THEME_TO_ELEMENTS',
+          payload: {
+            themeId: completeThemeId,
+            pageIndex: scope === 'entire-book' ? -1 : completeTemplateState.activePageIndex,
+            applyToAllPages: scope === 'entire-book'
+          }
+        });
+      }
+      
+      // Apply color palette if provided
+      if (paletteId) {
+        const paletteToApply = colorPalettes.find(p => p.id === paletteId);
+        if (paletteToApply) {
+          completeTemplateState = editorReducer(completeTemplateState, {
+            type: 'APPLY_COLOR_PALETTE',
+            payload: {
+              palette: paletteToApply,
+              applyToAllPages: scope === 'entire-book'
+            }
+          });
+        }
+      }
+      
+      return completeTemplateState;
+    
+    case 'SET_WIZARD_TEMPLATE_SELECTION':
+      return { ...state, wizardTemplateSelection: action.payload };
+    
+    case 'MARK_COLOR_OVERRIDE':
+      if (!state.currentBook) return state;
+      const updatedBookOverride = {
+        ...state.currentBook,
+        pages: state.currentBook.pages.map((page, index) => {
+          if (index === state.activePageIndex) {
+            return {
+              ...page,
+              elements: page.elements.map(element => {
+                if (action.payload.elementIds.includes(element.id)) {
+                  const colorOverrides = { ...element.colorOverrides };
+                  colorOverrides[action.payload.colorProperty] = true;
+                  return { ...element, colorOverrides };
+                }
+                return element;
+              })
+            };
+          }
+          return page;
+        })
+      };
+      return { ...state, currentBook: updatedBookOverride, hasUnsavedChanges: true };
+    
+    case 'RESET_COLOR_OVERRIDES':
+      if (!state.currentBook) return state;
+      const updatedBookReset = {
+        ...state.currentBook,
+        pages: state.currentBook.pages.map((page, index) => {
+          // If pageIndex is specified in payload, only process that page; otherwise use activePageIndex
+          const targetPageIndex = action.payload.pageIndex !== undefined ? action.payload.pageIndex : state.activePageIndex;
+          if (index === targetPageIndex) {
+            return {
+              ...page,
+              elements: page.elements.map(element => {
+                if (action.payload.elementIds.includes(element.id)) {
+                  const colorOverrides = { ...element.colorOverrides };
+                  if (action.payload.colorProperties) {
+                    action.payload.colorProperties.forEach(prop => {
+                      delete colorOverrides[prop];
+                    });
+                  } else {
+                    // Reset all overrides
+                    Object.keys(colorOverrides).forEach(key => {
+                      delete colorOverrides[key];
+                    });
+                  }
+                  return { ...element, colorOverrides };
+                }
+                return element;
+              })
+            };
+          }
+          return page;
+        })
+      };
+      return { ...state, currentBook: updatedBookReset, hasUnsavedChanges: true };
+    
     case 'APPLY_COLOR_PALETTE':
       if (!state.currentBook) return state;
-      const { palette: appliedPalette, pageIndex: palettePageIndex, applyToAllPages: paletteApplyToAll } = action.payload;
+      const { palette: appliedPalette, pageIndex: palettePageIndex, applyToAllPages: paletteApplyToAll, skipHistory: paletteSkipHistory } = action.payload;
       const paletteScope = paletteApplyToAll ? 'Book' : 'Page';
-      const savedApplyPaletteState = saveToHistory(state, `Apply Color Palette "${appliedPalette.name}" to ${paletteScope}`);
+      const savedApplyPaletteState = paletteSkipHistory ? state : saveToHistory(state, `Apply Color Palette "${appliedPalette.name}" to ${paletteScope}`);
       const updatedBookApplyPalette = { ...savedApplyPaletteState.currentBook! };
       
-      const applyPaletteToPage = (page: Page) => {
+      const applyPaletteToPage = (page: Page, pageIndex?: number) => {
+        if (paletteApplyToAll && page.colorPaletteId) {
+          return page;
+        }
         // Preserve background type and update only color values
         const currentBackground = page.background || { type: 'color' as const, value: '#ffffff' };
         let updatedBackground: typeof currentBackground;
@@ -2222,268 +2700,26 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       };
       
       if (paletteApplyToAll) {
-        updatedBookApplyPalette.pages = updatedBookApplyPalette.pages.map(applyPaletteToPage);
+        updatedBookApplyPalette.pages = updatedBookApplyPalette.pages.map((page, index) =>
+          applyPaletteToPage(page, index)
+        );
       } else {
         const targetIndex = palettePageIndex ?? savedApplyPaletteState.activePageIndex;
-        updatedBookApplyPalette.pages[targetIndex] = applyPaletteToPage(updatedBookApplyPalette.pages[targetIndex]);
+        updatedBookApplyPalette.pages[targetIndex] = applyPaletteToPage(
+          updatedBookApplyPalette.pages[targetIndex],
+          targetIndex
+        );
       }
       
       return { 
         ...savedApplyPaletteState, 
         currentBook: updatedBookApplyPalette, 
+        wizardSetupApplied: true, 
         hasUnsavedChanges: true 
       };
     
-    case 'APPLY_LAYOUT_TEMPLATE':
-      if (!state.currentBook) return state;
-      const { template: layoutTemplate, pageIndex: layoutPageIndex, applyToAllPages: layoutApplyToAll, skipHistory: layoutSkipHistory } = action.payload;
-      const savedLayoutState = layoutSkipHistory ? state : saveToHistory(state, 'Apply Layout Template');
-      const updatedBookLayout = { ...savedLayoutState.currentBook! };
-      
-      const applyLayoutToPage = (page: Page, pageIdx: number) => {
-        // Berechne Canvas-Größe für diese Seite
-        const pageSize = updatedBookLayout.pageSize || 'A4';
-        const orientation = updatedBookLayout.orientation || 'portrait';
-        const canvasSize = calculatePageDimensions(pageSize, orientation);
-        
-        // Validate template compatibility
-        const validation = validateTemplateCompatibility(layoutTemplate, page.elements);
-        
-        // Apply layout with content preservation (mit neuen Skalierungs-Parametern)
-        const newElements = applyLayoutTemplateWithPreservation(
-          page.elements, 
-          layoutTemplate,
-          canvasSize,
-          pageSize,
-          orientation
-        );
-        
-        return {
-          ...page,
-          elements: newElements,
-          background: {
-            ...page.background,
-            pageTheme: layoutTemplate.theme
-          }
-        };
-      };
-      
-      if (layoutApplyToAll) {
-        updatedBookLayout.pages = updatedBookLayout.pages.map(applyLayoutToPage);
-      } else {
-        const targetIndex = layoutPageIndex ?? savedLayoutState.activePageIndex;
-        updatedBookLayout.pages[targetIndex] = applyLayoutToPage(updatedBookLayout.pages[targetIndex], targetIndex);
-      }
-      
-      return { 
-        ...savedLayoutState, 
-        currentBook: updatedBookLayout, 
-        hasUnsavedChanges: true 
-      };
-    
-    case 'APPLY_THEME_ONLY':
-      if (!state.currentBook) return state;
-      const savedThemeOnlyState = saveToHistory(state, 'Apply Theme');
-      const { themeId: themeOnlyId, pageIndex: themePageIndex, applyToAllPages: themeApplyToAll } = action.payload;
-      const updatedBookThemeOnly = { ...savedThemeOnlyState.currentBook! };
-      
-      const applyThemeOnlyToPage = (page: Page) => {
-        const theme = getGlobalTheme(themeOnlyId);
-        if (!theme) return page;
-        
-        // Get page background colors from palette, not from themes.json
-        const pageColors = getThemePageBackgroundColors(themeOnlyId);
-        
-        return {
-          ...page,
-          background: {
-            ...page.background,
-            type: theme.pageSettings.backgroundPattern?.enabled ? 'pattern' : 'color',
-            value: theme.pageSettings.backgroundPattern?.enabled 
-              ? theme.pageSettings.backgroundPattern.style 
-              : pageColors.backgroundColor,
-            opacity: theme.pageSettings.backgroundOpacity || 1,
-            pageTheme: themeOnlyId,
-            ...(theme.pageSettings.backgroundPattern?.enabled && {
-              patternSize: theme.pageSettings.backgroundPattern.size,
-              patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
-              patternForegroundColor: pageColors.backgroundColor,
-              patternBackgroundColor: pageColors.patternBackgroundColor,
-              patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity
-            })
-          },
-          elements: page.elements.map(element => {
-            const toolType = element.textType || element.type;
-            const themeDefaults = getToolDefaults(toolType as any, themeOnlyId, undefined);
-            
-            // Apply all theme properties including colors
-            return {
-              ...element,
-              ...themeDefaults,
-              theme: themeOnlyId,
-              // Preserve essential content properties
-              id: element.id,
-              type: element.type,
-              x: element.x,
-              y: element.y,
-              width: element.width,
-              height: element.height,
-              text: element.text,
-              formattedText: element.formattedText,
-              textType: element.textType,
-              questionId: element.questionId,
-              answerId: element.answerId,
-              questionElementId: element.questionElementId,
-              src: element.src,
-              points: element.points
-            };
-          })
-        };
-      };
-      
-      if (themeApplyToAll) {
-        updatedBookThemeOnly.pages = updatedBookThemeOnly.pages.map(applyThemeOnlyToPage);
-      } else {
-        const targetIndex = themePageIndex ?? savedThemeOnlyState.activePageIndex;
-        updatedBookThemeOnly.pages[targetIndex] = applyThemeOnlyToPage(updatedBookThemeOnly.pages[targetIndex]);
-      }
-      
-      return { 
-        ...savedThemeOnlyState, 
-        currentBook: updatedBookThemeOnly, 
-        hasUnsavedChanges: true 
-      };
-    
-    case 'APPLY_COMPLETE_TEMPLATE':
-      if (!state.currentBook) return state;
-      const savedCompleteState = saveToHistory(state, 'Apply Complete Template');
-      const { layoutId, themeId: completeThemeId, paletteId, scope } = action.payload;
-      
-      let completeTemplateState = savedCompleteState;
-      
-      // Apply layout template if provided
-      if (layoutId) {
-        const layoutTemplateToApply = pageTemplates.find(t => t.id === layoutId);
-        if (layoutTemplateToApply) {
-          completeTemplateState = editorReducer(completeTemplateState, {
-            type: 'APPLY_LAYOUT_TEMPLATE',
-            payload: {
-              template: layoutTemplateToApply,
-              applyToAllPages: scope === 'entire-book'
-            }
-          });
-        }
-      }
-      
-      // Apply theme if provided - this should update page theme and apply to all elements
-      if (completeThemeId) {
-        // First set the page/book theme
-        if (scope === 'entire-book') {
-          completeTemplateState = { 
-            ...completeTemplateState, 
-            currentBook: { 
-              ...completeTemplateState.currentBook!, 
-              bookTheme: completeThemeId 
-            } 
-          };
-        } else {
-          const updatedBook = { ...completeTemplateState.currentBook! };
-          const targetPage = updatedBook.pages[completeTemplateState.activePageIndex];
-          if (targetPage) {
-            if (!targetPage.background) {
-              targetPage.background = { type: 'color', value: '#ffffff', opacity: 1 };
-            }
-            targetPage.background.pageTheme = completeThemeId;
-          }
-          completeTemplateState = { ...completeTemplateState, currentBook: updatedBook };
-        }
-        
-        // Then apply theme to elements
-        completeTemplateState = editorReducer(completeTemplateState, {
-          type: 'APPLY_THEME_TO_ELEMENTS',
-          payload: {
-            themeId: completeThemeId,
-            pageIndex: scope === 'entire-book' ? -1 : completeTemplateState.activePageIndex,
-            applyToAllPages: scope === 'entire-book'
-          }
-        });
-      }
-      
-      // Apply color palette if provided
-      if (paletteId) {
-        const paletteToApply = colorPalettes.find(p => p.id === paletteId);
-        if (paletteToApply) {
-          completeTemplateState = editorReducer(completeTemplateState, {
-            type: 'APPLY_COLOR_PALETTE',
-            payload: {
-              palette: paletteToApply,
-              applyToAllPages: scope === 'entire-book'
-            }
-          });
-        }
-      }
-      
-      return completeTemplateState;
-    
-    case 'SET_WIZARD_TEMPLATE_SELECTION':
-      return { ...state, wizardTemplateSelection: action.payload };
-    
-    case 'MARK_COLOR_OVERRIDE':
-      if (!state.currentBook) return state;
-      const updatedBookOverride = {
-        ...state.currentBook,
-        pages: state.currentBook.pages.map((page, index) => {
-          if (index === state.activePageIndex) {
-            return {
-              ...page,
-              elements: page.elements.map(element => {
-                if (action.payload.elementIds.includes(element.id)) {
-                  const colorOverrides = { ...element.colorOverrides };
-                  colorOverrides[action.payload.colorProperty] = true;
-                  return { ...element, colorOverrides };
-                }
-                return element;
-              })
-            };
-          }
-          return page;
-        })
-      };
-      return { ...state, currentBook: updatedBookOverride, hasUnsavedChanges: true };
-    
-    case 'RESET_COLOR_OVERRIDES':
-      if (!state.currentBook) return state;
-      const updatedBookReset = {
-        ...state.currentBook,
-        pages: state.currentBook.pages.map((page, index) => {
-          // If pageIndex is specified in payload, only process that page; otherwise use activePageIndex
-          const targetPageIndex = action.payload.pageIndex !== undefined ? action.payload.pageIndex : state.activePageIndex;
-          if (index === targetPageIndex) {
-            return {
-              ...page,
-              elements: page.elements.map(element => {
-                if (action.payload.elementIds.includes(element.id)) {
-                  const colorOverrides = { ...element.colorOverrides };
-                  if (action.payload.colorProperties) {
-                    action.payload.colorProperties.forEach(prop => {
-                      delete colorOverrides[prop];
-                    });
-                  } else {
-                    // Reset all overrides
-                    Object.keys(colorOverrides).forEach(key => {
-                      delete colorOverrides[key];
-                    });
-                  }
-                  return { ...element, colorOverrides };
-                }
-                return element;
-              })
-            };
-          }
-          return page;
-        })
-      };
-      return { ...state, currentBook: updatedBookReset, hasUnsavedChanges: true };
+    case 'MARK_WIZARD_SETUP_APPLIED':
+      return { ...state, wizardSetupApplied: true };
     
     default:
       return state;
@@ -3263,3 +3499,125 @@ export const createSampleBook = (id: number = 1): Book => ({
     ]
   }]
 });
+
+function applyThemeAndPaletteToElement(
+  element: CanvasElement,
+  options: {
+    pageThemeId?: string;
+    bookThemeId?: string;
+    pageLayoutTemplateId?: string | null;
+    bookLayoutTemplateId?: string | null;
+    pagePaletteId?: string | null;
+    bookPaletteId?: string | null;
+    toolSettings?: Record<string, any>;
+  }
+): CanvasElement {
+  const { pageThemeId, bookThemeId, pageLayoutTemplateId, bookLayoutTemplateId, pagePaletteId, bookPaletteId, toolSettings } = options;
+  const activeThemeId = pageThemeId || bookThemeId;
+  const toolType = element.textType || element.type;
+
+  const themeDefaults = getToolDefaults(
+    toolType as any,
+    pageThemeId,
+    bookThemeId,
+    element,
+    toolSettings,
+    pageLayoutTemplateId,
+    bookLayoutTemplateId,
+    pagePaletteId,
+    bookPaletteId
+  );
+
+  const updatedElement: any = {
+    ...element,
+    ...themeDefaults,
+    theme: activeThemeId || element.theme,
+    id: element.id,
+    type: element.type,
+    x: element.x,
+    y: element.y,
+    width: element.width,
+    height: element.height,
+    text: element.text,
+    formattedText: element.formattedText,
+    textType: element.textType,
+    questionId: element.questionId,
+    answerId: element.answerId,
+    questionElementId: element.questionElementId,
+    src: element.src,
+    points: element.points,
+    layoutVariant: element.layoutVariant
+  };
+
+  if (element.textType === 'free_text' && themeDefaults.textSettings) {
+    updatedElement.textSettings = {
+      ...(element.textSettings || {}),
+      ...themeDefaults.textSettings
+    };
+  }
+
+  if (element.textType === 'qna_inline') {
+    if (themeDefaults.questionSettings || element.questionSettings) {
+      updatedElement.questionSettings = {
+        ...(element.questionSettings || {}),
+        ...(themeDefaults.questionSettings || {})
+      };
+    }
+    if (themeDefaults.answerSettings || element.answerSettings) {
+      updatedElement.answerSettings = {
+        ...(element.answerSettings || {}),
+        ...(themeDefaults.answerSettings || {})
+      };
+    }
+  }
+
+  return updatedElement;
+}
+
+function applyThemeAndPaletteToPage(
+  page: Page,
+  book: Book,
+  toolSettings: Record<string, any>
+): Page {
+  const pageThemeId = page.themeId || page.background?.pageTheme || book.themeId || book.bookTheme || undefined;
+  const bookThemeId = book.themeId || book.bookTheme || undefined;
+  const pagePaletteId = page.colorPaletteId || book.colorPaletteId || undefined;
+  const bookPaletteId = book.colorPaletteId || undefined;
+  const pageLayoutTemplateId = page.layoutTemplateId || book.layoutTemplateId || null;
+  const bookLayoutTemplateId = book.layoutTemplateId || null;
+
+  const palette = pagePaletteId ? colorPalettes.find(p => p.id === pagePaletteId) : undefined;
+  let updatedBackground = page.background;
+  if (palette && page.background) {
+    if (page.background.type === 'color') {
+      updatedBackground = {
+        ...page.background,
+        value: palette.colors.background
+      };
+    } else if (page.background.type === 'pattern') {
+      updatedBackground = {
+        ...page.background,
+        patternBackgroundColor: palette.colors.primary,
+        patternForegroundColor: palette.colors.background
+      };
+    }
+  }
+
+  const updatedElements = page.elements.map(element =>
+    applyThemeAndPaletteToElement(element, {
+      pageThemeId,
+      bookThemeId,
+      pageLayoutTemplateId,
+      bookLayoutTemplateId,
+      pagePaletteId,
+      bookPaletteId,
+      toolSettings
+    })
+  );
+
+  return {
+    ...page,
+    background: updatedBackground,
+    elements: updatedElements
+  };
+}
