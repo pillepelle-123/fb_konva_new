@@ -1,6 +1,20 @@
 import type { PageBackground } from '../context/editor-context';
-import type { BackgroundImage } from '../types/template-types';
-import { getBackgroundImageById, getBackgroundImageWithUrl } from '../data/templates/background-images';
+import {
+  getBackgroundImageById,
+  getBackgroundImageWithUrl,
+  svgRawImports
+} from '../data/templates/background-images';
+import { colorPalettes } from '../data/templates/color-palettes';
+import { applyAutoPaletteToSvg, applyPaletteSlotsToSvg } from './svg-palette';
+import type { PaletteSlot } from './svg-palette';
+
+/**
+ * Optional palette context for palette-aware SVG backgrounds.
+ */
+export interface BackgroundImagePaletteOptions {
+  paletteId?: string | null;
+  paletteColors?: Partial<Record<PaletteSlot | string, string>>;
+}
 
 /**
  * Apply background image template to PageBackground
@@ -23,7 +37,7 @@ export function applyBackgroundImageTemplate(
   // Map defaultSize to imageSize and imageRepeat
   let imageSize: PageBackground['imageSize'] = 'cover';
   let imageRepeat = false;
-  
+
   if (customSettings?.imageSize) {
     imageSize = customSettings.imageSize;
     imageRepeat = customSettings.imageRepeat ?? false;
@@ -57,18 +71,23 @@ export function applyBackgroundImageTemplate(
     opacity: customSettings?.opacity ?? 1,
     imageSize,
     imageRepeat,
-    backgroundImageTemplateId: templateId,
+    backgroundImageTemplateId: templateId
   };
 
   // Apply background color if enabled and provided
-  if (template.backgroundColor?.enabled && customSettings?.backgroundColor) {
-    // Background color is applied via a separate Rect layer in canvas rendering
-    // Store it in a custom property for rendering
-    (background as any).backgroundColor = customSettings.backgroundColor;
-    (background as any).backgroundColorEnabled = true;
-  } else if (template.backgroundColor?.enabled && template.backgroundColor.defaultValue) {
-    (background as any).backgroundColor = template.backgroundColor.defaultValue;
-    (background as any).backgroundColorEnabled = true;
+  if (template.backgroundColor?.enabled) {
+    type BackgroundWithColor = PageBackground & {
+      backgroundColor?: string;
+      backgroundColorEnabled?: boolean;
+    };
+    const backgroundWithColor = background as BackgroundWithColor;
+    if (customSettings?.backgroundColor) {
+      backgroundWithColor.backgroundColor = customSettings.backgroundColor;
+      backgroundWithColor.backgroundColorEnabled = true;
+    } else if (template.backgroundColor.defaultValue) {
+      backgroundWithColor.backgroundColor = template.backgroundColor.defaultValue;
+      backgroundWithColor.backgroundColorEnabled = true;
+    }
   }
 
   return background;
@@ -77,7 +96,10 @@ export function applyBackgroundImageTemplate(
 /**
  * Get background image URL for a template ID
  */
-export function getBackgroundImageUrl(templateId: string): string | undefined {
+export function getBackgroundImageUrl(
+  templateId: string,
+  options?: BackgroundImagePaletteOptions
+): string | undefined {
   const template = getBackgroundImageWithUrl(templateId);
   if (!template) {
     console.warn(`Background image template not found: ${templateId}`);
@@ -87,6 +109,28 @@ export function getBackgroundImageUrl(templateId: string): string | undefined {
     console.warn(`Background image URL not resolved for template: ${templateId}, filePath: ${template.filePath}`);
     return undefined;
   }
+
+  if (template.format === 'vector') {
+    const rawSvg = svgRawImports[template.filePath];
+    const paletteColors = resolvePaletteColors(options);
+
+    if (rawSvg && paletteColors) {
+      if (template.paletteSlots === 'standard') {
+        return applyPaletteSlotsToSvg(rawSvg, paletteColors, {
+          cacheKey: template.id,
+          asDataUrl: true
+        });
+      }
+
+      if (template.paletteSlots === 'auto') {
+        return applyAutoPaletteToSvg(rawSvg, paletteColors, {
+          cacheKey: template.id,
+          asDataUrl: true
+        });
+      }
+    }
+  }
+
   return template.url;
 }
 
@@ -109,7 +153,7 @@ export function validateBackgroundImageTemplate(templateId: string): {
   if (!template) {
     return {
       valid: false,
-      error: `Background image template not found: ${templateId}`,
+      error: `Background image template not found: ${templateId}`
     };
   }
 
@@ -122,14 +166,17 @@ export function validateBackgroundImageTemplate(templateId: string): {
 /**
  * Resolve image URL from PageBackground (handles both template and direct URLs)
  */
-export function resolveBackgroundImageUrl(background: PageBackground): string | undefined {
+export function resolveBackgroundImageUrl(
+  background: PageBackground,
+  options?: BackgroundImagePaletteOptions
+): string | undefined {
   if (background.type !== 'image') {
     return undefined;
   }
 
-  // If using template, resolve template URL
+  // If using template, resolve template URL (with palette support for SVGs)
   if (background.backgroundImageTemplateId) {
-    return getBackgroundImageUrl(background.backgroundImageTemplateId);
+    return getBackgroundImageUrl(background.backgroundImageTemplateId, options);
   }
 
   // Otherwise use direct value
@@ -143,3 +190,45 @@ export function isTemplateBackground(background: PageBackground): boolean {
   return background.type === 'image' && !!background.backgroundImageTemplateId;
 }
 
+function resolvePaletteColors(
+  options?: BackgroundImagePaletteOptions
+): Partial<Record<PaletteSlot | string, string>> | undefined {
+  const fallbackPalette =
+    colorPalettes.find((palette) => palette.id === 'default') ?? colorPalettes[0] ?? null;
+
+  if (!options) {
+    return fallbackPalette ? withSlotFallbacks(fallbackPalette.colors) : undefined;
+  }
+
+  if (options.paletteColors) {
+    return withSlotFallbacks(options.paletteColors);
+  }
+
+  const paletteId = options.paletteId ?? null;
+  if (!paletteId) {
+    return fallbackPalette ? withSlotFallbacks(fallbackPalette.colors) : undefined;
+  }
+
+  const palette = colorPalettes.find((paletteEntry) => paletteEntry.id === paletteId) ?? fallbackPalette;
+  return palette ? withSlotFallbacks(palette.colors) : undefined;
+}
+
+function withSlotFallbacks(
+  colors: Partial<Record<PaletteSlot | string, string>>
+): Partial<Record<PaletteSlot | string, string>> {
+  const background = colors.background || colors.surface || colors.primary || colors.secondary || colors.accent;
+  const surface = colors.surface || background;
+  const primary = colors.primary || background;
+  const secondary = colors.secondary || surface;
+  const accent = colors.accent || primary;
+  const text = colors.text || primary || background;
+
+  return {
+    background,
+    surface,
+    primary,
+    secondary,
+    accent,
+    text
+  };
+}

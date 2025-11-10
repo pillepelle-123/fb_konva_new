@@ -5,7 +5,7 @@ import { Button } from '../../ui/primitives/button';
 import { Card, CardContent } from '../../ui/composites/card';
 import { Badge } from '../../ui/composites/badge';
 import { Tooltip } from '../../ui/composites/tooltip';
-import { Users, Edit, FileText, Image, CircleHelp, RotateCcw, Trash2, Archive, Contact, Pen, Settings, FilePenLine } from 'lucide-react';
+import { Users, Edit, FileText, Image, CircleHelp, RotateCcw, Trash2, Archive, Contact, Pen, Settings, FilePenLine, Eye } from 'lucide-react';
 import PageUserIcon from '../../ui/icons/page-user-icon';
 import BookRoleBadge from './book-role-badge';
 
@@ -224,6 +224,16 @@ export default function BookCard({ book, isArchived = false, onRestore, onDelete
                 </Link>
                 </Tooltip>
               </div>
+              <Tooltip content="Preview Book" side="bottom">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => navigate(`/editor/${book.id}?preview=true`)}
+                  className="space-x-2"
+                >
+                  <Eye className="h-5 w-5" />
+                </Button>
+              </Tooltip>
               {(book.userRole === 'owner' || book.userRole === 'publisher') && (
                 <>
                   <Tooltip content="Manage Book" side="bottom">

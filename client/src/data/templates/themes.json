@@ -89,18 +89,18 @@
     "pageSettings": {
       "backgroundOpacity": 1,
       "backgroundPattern": {
-        "enabled": true,
+        "enabled": false,
         "style": "cross",
         "size": 11,
         "strokeWidth": 12,
         "patternBackgroundOpacity": 0.4
       },
       "backgroundImage": {
-        "enabled": false,
-        "templateId": "decorative-border-01",
+        "enabled": true,
+        "templateId": "abstract-floral-organic-pastel-01",
         "size": "contain",
         "repeat": true,
-        "opacity": 1
+        "opacity": 0.4
       }
     },
     "elementDefaults": {
@@ -184,7 +184,7 @@
       },
       "backgroundImage": {
         "enabled": true,
-        "templateId": "minimal-dots-01",
+        "templateId": "abstract-floral-aesthetic-var-01",
         "size": "contain",
         "repeat": true,
         "opacity": 1
@@ -358,7 +358,7 @@
       },
       "backgroundImage": {
         "enabled": true,
-        "templateId": "texture-paper-01",
+        "templateId": "abstract-floral-aesthetic-var-01",
         "size": "cover",
         "repeat": false,
         "opacity": 1
@@ -445,7 +445,7 @@
       },
       "backgroundImage": {
         "enabled": true,
-        "templateId": "geometric-grid-01",
+        "templateId": "leopard-pattern-01",
         "size": "cover",
         "repeat": false,
         "opacity": 0.85
@@ -529,13 +529,6 @@
         "size": 20,
         "strokeWidth": 1,
         "patternBackgroundOpacity": 0.3
-      },
-      "backgroundImage": {
-        "enabled": true,
-        "templateId": "abstract-blob-01",
-        "size": "cover",
-        "repeat": false,
-        "opacity": 0.9
       }
     },
     "elementDefaults": {
@@ -607,7 +600,7 @@
     "pageSettings": {
       "backgroundOpacity": 0.7,
       "backgroundPattern": {
-        "enabled": true,
+        "enabled": false,
         "style": "waves",
         "size": 11,
         "strokeWidth": 12,
@@ -615,10 +608,10 @@
       },
       "backgroundImage": {
         "enabled": true,
-        "templateId": "pattern-geometric-01",
-        "size": "contain",
+        "templateId": "abstract-floral-organic-pastel-01",
+        "size": "cover",
         "repeat": true,
-        "opacity": 1
+        "opacity": 0.5
       }
     },
     "elementDefaults": {

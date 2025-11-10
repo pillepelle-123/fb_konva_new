@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useParams } from 'react-router-dom';
 import { useEditor, createSampleBook } from '../../context/editor-context';
 import EditorBar from '../../components/features/editor/editor-bar';
 import Toolbar from '../../components/features/editor/toolbar';
@@ -17,12 +17,21 @@ import type { PageBackground } from '../../context/editor-context';
 
 function EditorContent() {
   const { bookId } = useParams<{ bookId: string }>();
+  const location = useLocation();
   const { state, dispatch, loadBook, undo, redo, saveBook, canAccessEditor, canEditCanvas } = useEditor();
   const toolSettingsPanelRef = useRef<ToolSettingsPanelRef>(null);
   const [showSaveToast, setShowSaveToast] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [previewContent, setPreviewContent] = useState<'preview' | 'questions' | 'manager'>('preview');
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
+
+  const openPreviewOnLoad = useMemo(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const preview = searchParams.get('preview');
+    if (preview === null) return false;
+    const normalized = preview.toLowerCase();
+    return normalized === '' || normalized === 'true' || normalized === '1' || normalized === 'yes';
+  }, [location.search]);
 
   // Load templates and palettes on mount
   useEffect(() => {
@@ -545,7 +554,7 @@ function EditorContent() {
   return (
     <div className="h-full flex flex-col">
       <QuestionSelectionHandler />
-      <EditorBar toolSettingsPanelRef={toolSettingsPanelRef} />
+      <EditorBar toolSettingsPanelRef={toolSettingsPanelRef} initialPreviewOpen={openPreviewOnLoad} />
       
       <div className="flex-1 min-h-0">
         <Toast 

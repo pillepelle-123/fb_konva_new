@@ -148,7 +148,7 @@ export function BackgroundImageSelector({ onBack, onSelect, onUpload, selectedIm
       <Separator />
 
       {/* Image Grid */}
-      <div className="grid grid-cols-3 gap-3  overflow-y-auto">
+      <div className="grid grid-cols-2 gap-3  overflow-y-auto">
         {filteredImages.map((image) => (
           <button
             key={image.id}

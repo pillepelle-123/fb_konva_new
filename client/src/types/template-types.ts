@@ -148,6 +148,7 @@ export interface BackgroundImage {
     enabled: boolean;
     defaultValue?: string;
   };
+  paletteSlots?: 'standard' | 'auto';
   description?: string;
   tags?: string[];
 }

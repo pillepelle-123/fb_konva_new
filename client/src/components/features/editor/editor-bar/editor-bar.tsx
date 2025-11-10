@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import PDFExportModal from '../pdf-export-modal';
+import { BookPreviewModal } from '../preview/book-preview-modal';
 import StackedAvatarGroup from '../../../shared/cards/stacked-avatar-group';
 import { Toast } from '../../../ui/overlays/toast';
 
@@ -30,14 +31,16 @@ import PageAssignmentPopover from './page-assignment-popover';
 
 interface EditorBarProps {
   toolSettingsPanelRef: React.RefObject<{ openBookTheme: () => void }>;
+  initialPreviewOpen?: boolean;
 }
 
-export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
+export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = false }: EditorBarProps) {
   const { state, dispatch, saveBook, refreshPageAssignments, getVisiblePages, getVisiblePageNumbers } = useEditor();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [isSaving, setIsSaving] = useState(false);
   const [showPDFModal, setShowPDFModal] = useState(false);
+  const [showBookPreview, setShowBookPreview] = useState(initialPreviewOpen);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showAlert, setShowAlert] = useState<{ title: string; message: string } | null>(null);
@@ -45,6 +48,11 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
   const [showPagesSubmenu, setShowPagesSubmenu] = useState(false);
   const [showSaveToast, setShowSaveToast] = useState(false);
 
+  useEffect(() => {
+    if (initialPreviewOpen) {
+      setShowBookPreview(true);
+    }
+  }, [initialPreviewOpen]);
 
 
 
@@ -293,8 +301,8 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
               <BookActions
                 onSave={handleSave}
                 onExport={() => setShowPDFModal(true)}
-                onClose={handleClose}
                 isSaving={isSaving}
+                onPreview={() => setShowBookPreview(true)}
               />
               
               <Tooltip content="Close Editor" side="bottom_editor_bar">
@@ -315,6 +323,11 @@ export default function EditorBar({ toolSettingsPanelRef }: EditorBarProps) {
       <PDFExportModal 
         isOpen={showPDFModal} 
         onClose={() => setShowPDFModal(false)} 
+      />
+
+      <BookPreviewModal
+        isOpen={showBookPreview}
+        onClose={() => setShowBookPreview(false)}
       />
       
       <UnsavedChangesDialog

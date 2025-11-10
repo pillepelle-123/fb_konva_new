@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import type { CanvasElement } from '../../../../context/editor-context';
+import type { ColorPalette } from '../../../../types/template-types';
 import CanvasItemComponent from '../canvas-items';
 import { CanvasStage } from './canvas-stage';
 import { CanvasTransformer } from './canvas-transformer';
@@ -25,6 +26,7 @@ import { snapPosition, type SnapGuideline } from '../../../../utils/snapping';
 import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
 import type { PageBackground } from '../../../../context/editor-context';
 import { resolveBackgroundImageUrl } from '../../../../utils/background-image-utils';
+import { colorPalettes } from '../../../../data/templates/color-palettes';
 
 function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
   return (
@@ -227,6 +229,22 @@ export default function Canvas() {
 
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const pageSize = state.currentBook?.pageSize || 'A4';
+
+  const getPaletteForPage = (page?: typeof currentPage) => {
+    const paletteId =
+      page?.colorPaletteId ??
+      state.currentBook?.colorPaletteId ??
+      null;
+
+    if (paletteId === null) {
+      return { paletteId: null as string | null, palette: null as ColorPalette | null };
+    }
+
+    const palette = colorPalettes.find((item) => item.id === paletteId) ?? null;
+    return { paletteId, palette };
+  };
+
+  const { paletteId: activePaletteId, palette: activePalette } = getPaletteForPage(currentPage);
   const orientation = state.currentBook?.orientation || 'portrait';
   
   const dimensions = PAGE_DIMENSIONS[pageSize as keyof typeof PAGE_DIMENSIONS];
@@ -1632,7 +1650,11 @@ export default function Canvas() {
     
     if (background.type === 'image') {
       // Resolve image URL (handles both template and direct URLs)
-      const imageUrl = resolveBackgroundImageUrl(background) || background.value;
+      const imageUrl =
+        resolveBackgroundImageUrl(background, {
+          paletteId: activePaletteId,
+          paletteColors: activePalette?.colors
+        }) || background.value;
       if (!imageUrl) {
         console.warn('Background image URL is undefined', {
           backgroundType: background.type,
@@ -1892,7 +1914,11 @@ export default function Canvas() {
     
     // Preload current page background immediately
     if (background?.type === 'image') {
-      const imageUrl = resolveBackgroundImageUrl(background) || background.value;
+      const imageUrl =
+        resolveBackgroundImageUrl(background, {
+          paletteId: activePaletteId,
+          paletteColors: activePalette?.colors
+        }) || background.value;
       if (imageUrl) {
         preloadImage(imageUrl, true);
       }
@@ -1903,7 +1929,12 @@ export default function Canvas() {
       state.currentBook.pages.forEach((page, index) => {
         const pageBackground = page.background;
         if (pageBackground?.type === 'image') {
-          const imageUrl = resolveBackgroundImageUrl(pageBackground) || pageBackground.value;
+          const { paletteId, palette } = getPaletteForPage(page);
+          const imageUrl =
+            resolveBackgroundImageUrl(pageBackground, {
+              paletteId,
+              paletteColors: palette?.colors
+            }) || pageBackground.value;
           if (imageUrl) {
             preloadImage(imageUrl, index === state.activePageIndex);
           }

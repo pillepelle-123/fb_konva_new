@@ -1,19 +1,20 @@
 import { Button } from '../../../ui/primitives/button';
-import { Save, Download} from 'lucide-react';
+import { Download, Eye, Save } from 'lucide-react';
 import { Tooltip } from '../../../ui/composites/tooltip';
 import { useEditor } from '../../../../context/editor-context';
 
 interface BookActionsProps {
   onSave: () => void;
   onExport: () => void;
-  onClose: () => void;
   isSaving: boolean;
+  onPreview: () => void;
 }
 
 export function BookActions({
   onSave,
   onExport,
-  isSaving
+  isSaving,
+  onPreview
 }: BookActionsProps) {
   const { state } = useEditor();
   
@@ -33,6 +34,17 @@ export function BookActions({
         >
           <Save className="h-4 w-4 md:h-5 md:w-5" />
           {/* <span className="hidden md:inline ml-2">{isSaving ? 'Saving...' : 'Save'}</span> */}
+        </Button>
+      </Tooltip>
+
+      <Tooltip content="Preview book" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onPreview}
+          className="h-8 md:h-9 px-2 md:px-3"
+        >
+          <Eye className="h-4 w-4 md:h-5 md:w-5" />
         </Button>
       </Tooltip>
 

@@ -898,21 +898,49 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           // Get page background colors from palette, not from themes.json
           const pageColors = getThemePageBackgroundColors(bookThemeId, bookColorPaletteId);
           
-          initialBackground = {
-            type: theme.pageSettings.backgroundPattern?.enabled ? 'pattern' : 'color',
-            value: theme.pageSettings.backgroundPattern?.enabled 
-              ? theme.pageSettings.backgroundPattern.style 
-              : pageColors.backgroundColor,
-            opacity: theme.pageSettings.backgroundOpacity || 1,
-            pageTheme: bookThemeId,
-            ...(theme.pageSettings.backgroundPattern?.enabled && {
-              patternSize: theme.pageSettings.backgroundPattern.size,
-              patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
-              patternForegroundColor: pageColors.backgroundColor,
-              patternBackgroundColor: pageColors.patternBackgroundColor,
-              patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity
-            })
-          };
+          const backgroundOpacity = theme.pageSettings.backgroundOpacity || 1;
+          const backgroundImageConfig = theme.pageSettings.backgroundImage;
+          let appliedBackgroundImage = false;
+
+          if (backgroundImageConfig?.enabled && backgroundImageConfig.templateId) {
+            const imageBackground = applyBackgroundImageTemplate(backgroundImageConfig.templateId, {
+              imageSize: backgroundImageConfig.size,
+              imageRepeat: backgroundImageConfig.repeat,
+              opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
+              backgroundColor: pageColors.backgroundColor
+            });
+
+            if (imageBackground) {
+              initialBackground = {
+                ...imageBackground,
+                pageTheme: bookThemeId
+              };
+              appliedBackgroundImage = true;
+            }
+          }
+
+          if (!appliedBackgroundImage) {
+            if (theme.pageSettings.backgroundPattern?.enabled) {
+              initialBackground = {
+                type: 'pattern',
+                value: theme.pageSettings.backgroundPattern.style,
+                opacity: backgroundOpacity,
+                pageTheme: bookThemeId,
+                patternSize: theme.pageSettings.backgroundPattern.size,
+                patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
+                patternForegroundColor: pageColors.backgroundColor,
+                patternBackgroundColor: pageColors.patternBackgroundColor,
+                patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity
+              };
+            } else {
+              initialBackground = {
+                type: 'color',
+                value: pageColors.backgroundColor,
+                opacity: backgroundOpacity,
+                pageTheme: bookThemeId
+              };
+            }
+          }
         }
       }
       

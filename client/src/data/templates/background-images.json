@@ -1,111 +1,8 @@
 {
   "version": "1.0.0",
   "images": [
-    {
-      "id": "geometric-grid-01",
-      "name": "Geometric Grid",
-      "category": "geometric",
-      "format": "vector",
-      "filePath": "geometric-grid-01.svg",
-      "thumbnail": "geometric-grid-01.svg",
-      "defaultSize": "cover",
-      "backgroundColor": {
-        "enabled": false,
-        "defaultValue": "#ffffff"
-      },
-      "description": "Minimal geometric grid pattern",
-      "tags": ["minimal", "grid", "professional"]
-    },
-    {
-      "id": "nature-waves-01",
-      "name": "Ocean Waves",
-      "category": "nature",
-      "format": "vector",
-      "filePath": "nature-waves-01.svg",
-      "thumbnail": "nature-waves-01.svg",
-      "defaultSize": "contain",
-      "backgroundColor": {
-        "enabled": true,
-        "defaultValue": "#e3f2fd"
-      },
-      "description": "Calming ocean wave pattern",
-      "tags": ["ocean", "waves", "calming", "nature"]
-    },
-    {
-      "id": "abstract-blob-01",
-      "name": "Abstract Blobs",
-      "category": "abstract",
-      "format": "vector",
-      "filePath": "abstract-blob-01.svg",
-      "thumbnail": "abstract-blob-01.svg",
-      "defaultSize": "cover",
-      "backgroundColor": {
-        "enabled": false,
-        "defaultValue": "#ffffff"
-      },
-      "description": "Modern abstract blob shapes",
-      "tags": ["abstract", "modern", "shapes"]
-    },
-    {
-      "id": "texture-paper-01",
-      "name": "Paper Texture",
-      "category": "texture",
-      "format": "pixel",
-      "filePath": "/background-images/texture-paper-01.png",
-      "thumbnail": "/background-images/thumbnails/texture-paper-01.png",
-      "defaultSize": "cover",
-      "backgroundColor": {
-        "enabled": true,
-        "defaultValue": "#f5f5f5"
-      },
-      "description": "Subtle paper texture background",
-      "tags": ["texture", "paper", "subtle", "vintage"]
-    },
-    {
-      "id": "decorative-border-01",
-      "name": "Decorative Border",
-      "category": "decorative",
-      "format": "vector",
-      "filePath": "decorative-border-01.svg",
-      "thumbnail": "decorative-border-01.svg",
-      "defaultSize": "contain-repeat",
-      "backgroundColor": {
-        "enabled": true,
-        "defaultValue": "#ffffff"
-      },
-      "description": "Elegant decorative border pattern",
-      "tags": ["decorative", "border", "elegant", "ornament"]
-    },
-    {
-      "id": "minimal-dots-01",
-      "name": "Minimal Dots",
-      "category": "minimal",
-      "format": "vector",
-      "filePath": "minimal-dots-01.svg",
-      "thumbnail": "minimal-dots-01.svg",
-      "defaultSize": "contain-repeat",
-      "backgroundColor": {
-        "enabled": false,
-        "defaultValue": "#ffffff"
-      },
-      "description": "Subtle dot pattern",
-      "tags": ["minimal", "dots", "subtle", "clean"]
-    },
-    {
-      "id": "pattern-geometric-01",
-      "name": "Geometric Pattern",
-      "category": "pattern",
-      "format": "vector",
-      "filePath": "pattern-geometric-01.svg",
-      "thumbnail": "pattern-geometric-01.svg",
-      "defaultSize": "contain-repeat",
-      "backgroundColor": {
-        "enabled": false,
-        "defaultValue": "#ffffff"
-      },
-      "description": "Repeating geometric pattern",
-      "tags": ["pattern", "geometric", "repeat", "tile"]
-    },
+    
+   
     {
       "id": "colorful-geometric-01",
       "name": "Colorful Geometric",
@@ -133,6 +30,7 @@
         "enabled": false,
         "defaultValue": "#ffffff"
       },
+      "paletteSlots": "auto",
       "description": "Abstract floral aesthetic pattern",
       "tags": ["floral", "abstract", "aesthetic", "decorative"]
     },
@@ -148,6 +46,7 @@
         "enabled": false,
         "defaultValue": "#ffffff"
       },
+      "paletteSlots": "auto",
       "description": "Abstract floral aesthetic pattern variant",
       "tags": ["floral", "abstract", "aesthetic", "decorative"]
     },
@@ -163,6 +62,7 @@
         "enabled": false,
         "defaultValue": "#ffffff"
       },
+      "paletteSlots": "auto",
       "description": "Abstract floral aesthetic pattern variant",
       "tags": ["floral", "abstract", "aesthetic", "decorative"]
     },
@@ -178,6 +78,7 @@
         "enabled": false,
         "defaultValue": "#ffffff"
       },
+      "paletteSlots": "auto",
       "description": "Abstract floral aesthetic pattern variant",
       "tags": ["floral", "abstract", "aesthetic", "decorative"]
     },
@@ -193,24 +94,11 @@
         "enabled": true,
         "defaultValue": "#faf5ff"
       },
+      "paletteSlots": "auto",
       "description": "Soft pastel abstract floral organic pattern",
       "tags": ["floral", "abstract", "organic", "pastel", "soft"]
     },
-    {
-      "id": "abstract-floral-organic-pastel-02",
-      "name": "Abstract Floral Organic Pastel 02",
-      "category": "floral",
-      "format": "vector",
-      "filePath": "floral/abstract-floral-organic-pastel-02.svg",
-      "thumbnail": "floral/abstract-floral-organic-pastel-02.svg",
-      "defaultSize": "cover",
-      "backgroundColor": {
-        "enabled": true,
-        "defaultValue": "#faf5ff"
-      },
-      "description": "Soft pastel abstract floral organic pattern variant",
-      "tags": ["floral", "abstract", "organic", "pastel", "soft"]
-    },
+
     {
       "id": "aesthetic-minimalist-background-01",
       "name": "Aesthetic Minimalist Background",
@@ -223,39 +111,11 @@
         "enabled": false,
         "defaultValue": "#ffffff"
       },
+      "paletteSlots": "standard",
       "description": "Minimalist aesthetic floral background",
       "tags": ["floral", "minimalist", "aesthetic", "clean", "simple"]
     },
-    {
-      "id": "black-color-simple-natural-leaf-01",
-      "name": "Simple Natural Leaf",
-      "category": "floral",
-      "format": "vector",
-      "filePath": "floral/black-color-simple-natural-leaf-01.svg",
-      "thumbnail": "floral/black-color-simple-natural-leaf-01.svg",
-      "defaultSize": "cover",
-      "backgroundColor": {
-        "enabled": true,
-        "defaultValue": "#ffffff"
-      },
-      "description": "Simple black natural leaf pattern",
-      "tags": ["floral", "leaf", "natural", "simple", "black"]
-    },
-    {
-      "id": "botanical-floral-element-hand-drawn-01",
-      "name": "Hand Drawn Botanical Floral",
-      "category": "floral",
-      "format": "vector",
-      "filePath": "floral/botanical-floral-element-hand-drawn-01.svg",
-      "thumbnail": "floral/botanical-floral-element-hand-drawn-01.svg",
-      "defaultSize": "cover",
-      "backgroundColor": {
-        "enabled": false,
-        "defaultValue": "#ffffff"
-      },
-      "description": "Hand-drawn botanical floral element",
-      "tags": ["floral", "botanical", "hand-drawn", "organic", "artistic"]
-    },
+
     {
       "id": "leopard-pattern-01",
       "name": "Leopard Pattern",
@@ -268,53 +128,10 @@
         "enabled": false,
         "defaultValue": "#ffffff"
       },
+      "paletteSlots": "auto",
       "description": "Leopard pattern design",
       "tags": ["pattern", "leopard", "animal", "texture"]
-    },
-    {
-      "id": "simple-clean-green-floral-01",
-      "name": "Simple Clean Green Floral 01",
-      "category": "floral",
-      "format": "vector",
-      "filePath": "floral/simple-clean-green-floral-01.svg",
-      "thumbnail": "floral/simple-clean-green-floral-01.svg",
-      "defaultSize": "cover",
-      "backgroundColor": {
-        "enabled": true,
-        "defaultValue": "#f0fdf4"
-      },
-      "description": "Simple clean green floral pattern",
-      "tags": ["floral", "green", "simple", "clean", "nature"]
-    },
-    {
-      "id": "simple-clean-green-floral-02",
-      "name": "Simple Clean Green Floral 02",
-      "category": "floral",
-      "format": "vector",
-      "filePath": "floral/simple-clean-green-floral-02.svg",
-      "thumbnail": "floral/simple-clean-green-floral-02.svg",
-      "defaultSize": "cover",
-      "backgroundColor": {
-        "enabled": true,
-        "defaultValue": "#f0fdf4"
-      },
-      "description": "Simple clean green floral pattern variant",
-      "tags": ["floral", "green", "simple", "clean", "nature"]
-    },
-    {
-      "id": "simple-clean-green-floral-03",
-      "name": "Simple Clean Green Floral 03",
-      "category": "floral",
-      "format": "vector",
-      "filePath": "floral/simple-clean-green-floral-03.svg",
-      "thumbnail": "floral/simple-clean-green-floral-03.svg",
-      "defaultSize": "cover",
-      "backgroundColor": {
-        "enabled": true,
-        "defaultValue": "#f0fdf4"
-      },
-      "description": "Simple clean green floral pattern variant",
-      "tags": ["floral", "green", "simple", "clean", "nature"]
     }
+
   ]
 }
