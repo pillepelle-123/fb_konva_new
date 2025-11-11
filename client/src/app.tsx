@@ -5,6 +5,7 @@ import { EditorProvider } from './context/editor-context'
 import { SocketProvider } from './context/socket-context'
 import PageContainer from './components/layouts/page-container'
 import Navigation from './components/layouts/navigation'
+import { AdminRoute } from './admin'
 
 import Login from './pages/auth/login'
 import Register from './pages/auth/register'
@@ -77,7 +78,7 @@ function AppContent() {
           <Route path="/books/:bookId/answers" element={<ProtectedRoute><BookAccessGuard><AnswerForm /></BookAccessGuard></ProtectedRoute>} />
           <Route path="/editor/:bookId" element={<ProtectedRoute><BookAccessGuard><EditorWithBar /></BookAccessGuard></ProtectedRoute>} />
           <Route path="/404" element={<NotFound />} />
-          <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminPanel /></ProtectedRoute>} />
+          <Route path="/admin/*" element={<AdminRoute />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
@@ -114,24 +115,6 @@ function EditorWithBar() {
       <QuestionDialogHandler />
     </EditorProvider>
   );
-}
-
-function AdminPanel() {
-  return (
-    <div className="container mx-auto px-4 py-4">
-      <div className="max-w-2xl mx-auto text-center space-y-6">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">
-          Admin Panel
-        </h1>
-        <div className="bg-card border rounded-lg p-6 shadow-sm">
-          <h2 className="mb-2">Admin Features</h2>
-          <p className="text-muted-foreground">
-            Manage books, questions, and invite authors.
-          </p>
-        </div>
-      </div>
-    </div>
-  )
 }
 
 export default App

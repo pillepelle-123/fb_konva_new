@@ -144,6 +144,9 @@ export interface BackgroundImage {
   filePath: string;
   thumbnail: string;
   defaultSize: 'cover' | 'contain' | 'contain-repeat' | 'stretch';
+  defaultOpacity?: number;
+  defaultWidth?: number;
+  defaultPosition?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
   backgroundColor?: {
     enabled: boolean;
     defaultValue?: string;

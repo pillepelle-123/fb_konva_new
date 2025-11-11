@@ -16,6 +16,7 @@ CREATE TABLE users (
   invited_by INTEGER REFERENCES users(id),
   profile_picture_192 VARCHAR(255),
   profile_picture_32 VARCHAR(255),
+  admin_state VARCHAR(50) NOT NULL DEFAULT 'active',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -30,6 +31,7 @@ CREATE TABLE books (
   theme_id VARCHAR(255),
   color_palette_id VARCHAR(255),
   archived BOOLEAN DEFAULT FALSE,
+  admin_state VARCHAR(50) NOT NULL DEFAULT 'active',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -48,6 +50,7 @@ CREATE TABLE pages (
   layout_template_id VARCHAR(255),
   theme_id VARCHAR(255),
   color_palette_id VARCHAR(255),
+  admin_state VARCHAR(50) NOT NULL DEFAULT 'draft',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(book_id, page_number)
 );

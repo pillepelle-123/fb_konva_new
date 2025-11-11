@@ -1,0 +1,3 @@
+ALTER TABLE public.books
+ADD COLUMN IF NOT EXISTS admin_state VARCHAR(50) NOT NULL DEFAULT 'active';
+

@@ -616,7 +616,8 @@ export function GeneralSettings({
           backgroundImageTemplateId: savedImageTemplateId,
           imageSize: savedImageSize,
           imageRepeat: savedImageRepeat,
-          imagePosition: savedImagePosition
+          imagePosition: savedImagePosition,
+          imageContainWidthPercent: background?.imageContainWidthPercent,
         };
         // Preserve direct upload image URL in hidden property
         if (background?.type === 'image' && !background?.backgroundImageTemplateId && background?.value) {
@@ -642,7 +643,8 @@ export function GeneralSettings({
           backgroundImageTemplateId: savedImageTemplateId,
           imageSize: savedImageSize,
           imageRepeat: savedImageRepeat,
-          imagePosition: savedImagePosition
+          imagePosition: savedImagePosition,
+          imageContainWidthPercent: background?.imageContainWidthPercent,
         };
         // Preserve direct upload image URL in hidden property
         if (background?.type === 'image' && !background?.backgroundImageTemplateId && background?.value) {
@@ -667,6 +669,9 @@ export function GeneralSettings({
             if (savedImagePosition || background.imagePosition) {
               imageBackground.imagePosition = savedImagePosition || background.imagePosition || 'top-left';
             }
+            if (background.imageContainWidthPercent) {
+              imageBackground.imageContainWidthPercent = background.imageContainWidthPercent;
+            }
             updateBackground(imageBackground);
           }
           setShowBackgroundImageTemplateSelector(false);
@@ -679,7 +684,8 @@ export function GeneralSettings({
             opacity: currentOpacity,
             imageSize: savedImageSize || 'cover',
             imageRepeat: savedImageRepeat || false,
-            imagePosition: savedImagePosition || 'top-left'
+            imagePosition: savedImagePosition || 'top-left',
+            imageContainWidthPercent: background?.imageContainWidthPercent || 100
           });
           setShowBackgroundImageTemplateSelector(false);
         } else {
@@ -690,6 +696,7 @@ export function GeneralSettings({
             type: 'image',
             value: background.type === 'color' ? background.value : '#ffffff',
             opacity: currentOpacity,
+            imageContainWidthPercent: background?.imageContainWidthPercent || 100
           });
           setShowBackgroundImageTemplateSelector(false);
         }
@@ -936,7 +943,7 @@ export function GeneralSettings({
                   variant={background.imageSize === 'cover' ? 'default' : 'outline'}
                   size="xs"
                   onClick={() => {
-                    updateBackground({ imageSize: 'cover' });
+                    updateBackground({ imageSize: 'cover', imageContainWidthPercent: undefined });
                   }}
                   className="text-xs"
                 >
@@ -946,7 +953,7 @@ export function GeneralSettings({
                   variant={background.imageSize === 'contain' ? 'default' : 'outline'}
                   size="xs"
                   onClick={() => {
-                    updateBackground({ imageSize: 'contain' });
+                    updateBackground({ imageSize: 'contain', imageContainWidthPercent: background.imageContainWidthPercent ?? 100 });
                   }}
                   className="text-xs"
                 >
@@ -956,7 +963,7 @@ export function GeneralSettings({
                   variant={background.imageSize === 'stretch' ? 'default' : 'outline'}
                   size="xs"
                   onClick={() => {
-                    updateBackground({ imageSize: 'stretch' });
+                    updateBackground({ imageSize: 'stretch', imageContainWidthPercent: undefined });
                   }}
                   className="text-xs"
                 >
@@ -1026,6 +1033,26 @@ export function GeneralSettings({
                   className="rounded w-3 h-3"
                 />
                 <Label variant="xs" className="cursor-pointer">Repeat</Label>
+              </div>
+            )}
+
+            {background.imageSize === 'contain' && (
+              <div>
+                <Label variant="xs" className="mb-1 block">Image Width</Label>
+                <Slider
+                  label="Image Width"
+                  value={background.imageContainWidthPercent ?? 100}
+                  onChange={(value) => {
+                    const clampedValue = Math.max(10, Math.min(200, value));
+                    updateBackground({ imageContainWidthPercent: clampedValue });
+                  }}
+                  min={25}
+                  max={100}
+                  step={1}
+                  unit="%"
+                  displayValue={Math.round(background.imageContainWidthPercent ?? 100)}
+                  hasLabel={false}
+                />
               </div>
             )}
           </div>

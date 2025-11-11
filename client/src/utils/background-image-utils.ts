@@ -34,6 +34,10 @@ export function applyBackgroundImageTemplate(
     return null;
   }
 
+  const resolvedOpacity = customSettings?.opacity ?? template.defaultOpacity ?? 1;
+  const resolvedWidth = Math.min(Math.max(template.defaultWidth ?? 100, 10), 200);
+  const resolvedPosition = template.defaultPosition ?? 'top-left';
+
   // Map defaultSize to imageSize and imageRepeat
   let imageSize: PageBackground['imageSize'] = 'cover';
   let imageRepeat = false;
@@ -68,11 +72,18 @@ export function applyBackgroundImageTemplate(
   const background: PageBackground = {
     type: 'image',
     value: template.url,
-    opacity: customSettings?.opacity ?? 1,
+    opacity: resolvedOpacity,
     imageSize,
     imageRepeat,
     backgroundImageTemplateId: templateId
   };
+
+  if (imageSize === 'contain') {
+    background.imageContainWidthPercent = resolvedWidth;
+    if (!imageRepeat) {
+      background.imagePosition = resolvedPosition;
+    }
+  }
 
   // Apply background color if enabled and provided
   if (template.backgroundColor?.enabled) {

@@ -1,0 +1,140 @@
+import { PropsWithChildren, useMemo } from 'react'
+import { Menu, Settings, Users, LibraryBig, FileText } from 'lucide-react'
+import { NavLink, useLocation } from 'react-router-dom'
+import { Button, Sheet, SheetContent, SheetTrigger } from '../../components/ui'
+import { useAuth } from '../../context/auth-context'
+import { cn } from '../../lib/utils'
+
+export function AdminLayout({ children }: PropsWithChildren) {
+  const location = useLocation()
+  const { user } = useAuth()
+
+  const navItems = useMemo(
+    () => [
+      {
+        label: 'Benutzer',
+        to: '/admin/users',
+        icon: Users,
+        description: 'Rollen, Einladungen & Status verwalten',
+      },
+      {
+        label: 'Bücher',
+        to: '/admin/books',
+        icon: LibraryBig,
+        description: 'Bücher, Kollaborationen & Assets',
+      },
+      {
+        label: 'Seiten',
+        to: '/admin/pages',
+        icon: FileText,
+        description: 'Seitenfortschritt & Zuweisungen',
+      },
+    ],
+    [],
+  )
+
+  const renderNav = (variant: 'desktop' | 'mobile') => (
+    <nav className={cn('flex flex-1 flex-col gap-1 px-3 py-4', variant === 'desktop' ? 'pt-8' : 'pt-2')}>
+      {navItems.map((item) => {
+        const Icon = item.icon
+        return (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            className={({ isActive }) =>
+              cn(
+                'group rounded-lg px-3 py-2 transition-colors',
+                isActive
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground',
+              )
+            }
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-background/70 text-foreground transition-colors group-hover:bg-background group-hover:text-foreground">
+                <Icon className="h-4 w-4" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm font-medium leading-tight">{item.label}</span>
+                <span className="text-xs text-muted-foreground group-hover:text-muted-foreground/80">
+                  {item.description}
+                </span>
+              </div>
+            </div>
+          </NavLink>
+        )
+      })}
+    </nav>
+  )
+
+  return (
+    <div className="min-h-screen bg-muted/30 text-foreground">
+      <div className="grid min-h-screen w-full lg:grid-cols-[260px_1fr]">
+        <aside className="hidden border-r bg-background/90 lg:flex lg:flex-col">
+          <div className="flex h-16 items-center gap-2 border-b px-6">
+            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <Settings className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold">Admin-Konsole</div>
+              <div className="text-xs text-muted-foreground">Steuerzentrale</div>
+            </div>
+          </div>
+          {renderNav('desktop')}
+        </aside>
+        <div className="flex min-h-screen flex-col">
+          <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur">
+            <div className="flex h-16 items-center justify-between gap-3 px-4">
+              <div className="flex items-center gap-2">
+                <Sheet>
+                  <SheetTrigger asChild>
+                    <Button variant="ghost" size="icon" className="lg:hidden">
+                      <Menu className="h-5 w-5" />
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent side="left" className="w-72 p-0">
+                    <div className="border-b px-6 py-4">
+                      <div className="text-sm font-semibold">Admin-Konsole</div>
+                      <div className="text-xs text-muted-foreground">Navigation</div>
+                    </div>
+                    {renderNav('mobile')}
+                  </SheetContent>
+                </Sheet>
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold">
+                    {location.pathname.startsWith('/admin/users')
+                      ? 'Benutzerverwaltung'
+                      : location.pathname.startsWith('/admin/books')
+                        ? 'Bücherverwaltung'
+                        : location.pathname.startsWith('/admin/pages')
+                          ? 'Seitenstatus'
+                          : 'Übersicht'}
+                  </span>
+                  <span className="text-xs text-muted-foreground">Systemweite Administration & Monitoring</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" size="sm" className="hidden sm:inline-flex gap-2">
+                  <Settings className="h-4 w-4" />
+                  Einstellungen
+                </Button>
+                {user ? (
+                  <div className="flex items-center gap-3 rounded-full border bg-background px-3 py-1">
+                    <div className="flex flex-col leading-tight">
+                      <span className="text-xs font-semibold">{user.name}</span>
+                      <span className="text-[11px] text-muted-foreground uppercase tracking-wide">{user.role}</span>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </header>
+          <main className="flex-1 overflow-y-auto bg-muted/20">
+            <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-6">{children}</div>
+          </main>
+        </div>
+      </div>
+    </div>
+  )
+}
+

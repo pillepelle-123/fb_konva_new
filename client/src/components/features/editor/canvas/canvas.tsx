@@ -1732,10 +1732,13 @@ export default function Canvas() {
       } else if (background.imageSize === 'contain') {
         const scaleX = canvasWidth / imageWidth;
         const scaleY = canvasHeight / imageHeight;
-        const scale = Math.min(scaleX, scaleY);
+        const widthPercent = background.imageContainWidthPercent ?? 100;
+        const widthRatio = Math.max(0.1, Math.min(2, widthPercent / 100));
+        const desiredScale = Math.max(0.01, (canvasWidth * widthRatio) / imageWidth);
+        const scale = desiredScale;
         
         if (background.imageRepeat) {
-          // Use pattern fill for repeat mode
+          // Use pattern fill for repeat mode and respect slider scaling
           fillPatternScaleX = fillPatternScaleY = scale;
           fillPatternRepeat = 'repeat';
         } else {
@@ -1747,40 +1750,14 @@ export default function Canvas() {
           const scaledImageHeight = imageHeight * scale;
           const position = background.imagePosition || 'top-left';
           
-          // Calculate absolute position based on corner
-          // For right-side positions, the right edge of the image should align with the right edge of the page
-          // Right edge of page in Stage coordinates: pageOffsetX + canvasWidth
-          // Right edge of image in Stage coordinates: imageX + scaledImageWidth
-          // For right alignment: imageX + scaledImageWidth = pageOffsetX + canvasWidth
-          // Therefore: imageX = pageOffsetX + canvasWidth - scaledImageWidth
-          let imageX: number;
-          let imageY: number;
+          const horizontalSpace = canvasWidth - scaledImageWidth;
+          const verticalSpace = canvasHeight - scaledImageHeight;
           
-          switch (position) {
-            case 'top-left':
-              imageX = pageOffsetX;
-              imageY = pageOffsetY;
-              break;
-            case 'top-right':
-              // Position so that right edge of image aligns with right edge of page
-              imageX = pageOffsetX + canvasWidth - scaledImageWidth;
-              imageY = pageOffsetY;
-              break;
-            case 'bottom-left':
-              imageX = pageOffsetX;
-              imageY = pageOffsetY + canvasHeight - scaledImageHeight;
-              break;
-            case 'bottom-right':
-              // Position so that right edge of image aligns with right edge of page
-              imageX = pageOffsetX + canvasWidth - scaledImageWidth;
-              imageY = pageOffsetY + canvasHeight - scaledImageHeight;
-              break;
-            default:
-              imageX = pageOffsetX;
-              imageY = pageOffsetY;
-          }
+          const isRight = position.endsWith('right');
+          const isBottom = position.startsWith('bottom');
           
-          
+          const imageX = pageOffsetX + (isRight ? horizontalSpace : 0);
+          const imageY = pageOffsetY + (isBottom ? verticalSpace : 0);
           
           // Render as Image element instead of pattern fill for precise positioning
           const imageElement = (

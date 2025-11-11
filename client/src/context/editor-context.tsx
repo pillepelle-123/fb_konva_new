@@ -362,6 +362,7 @@ export interface PageBackground {
   imageSize?: 'cover' | 'contain' | 'stretch';
   imageRepeat?: boolean; // for contain mode
   imagePosition?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'; // for contain mode without repeat
+  imageContainWidthPercent?: number; // width in % of page width for contain mode without repeat
   patternSize?: number; // 1-10 scale for pattern size
   patternStrokeWidth?: number; // stroke width for pattern
   patternForegroundColor?: string; // color of the space between patterns

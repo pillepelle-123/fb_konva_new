@@ -1,0 +1,97 @@
+# Admin-Bereich – Architektur, Tests & Workflows
+
+## Überblick
+
+- **Pfad**: `client/src/admin`
+- **Routing**: lazy geladen über `AdminRoute` (`/admin/*`) mit `AdminGuard` (SSO + Role Check).
+- **Layout**: `AdminLayout` (Sidebar, Header, Responsive Sheet) basierend auf shadcn Admin Kit Patterns.
+- **State-Management**: [TanStack Query](https://tanstack.com/query/latest) (lokaler QueryClient via `AdminQueryClientProvider`).
+- **Tabellen**: Generische `DataTable`-Komponenten mit TanStack Table (Sortierung, Global Search, Column Filter, Bulk Actions).
+- **Backend**: Neue Express-Endpoints unter `/api/admin/*` mit eigener `requireAdmin`-Middleware.
+
+## Frontend-Dateistruktur (Auszug)
+
+```
+client/src/admin/
+  AdminApp.tsx              # lazy Route Container
+  routes.tsx                # Suspense + Guard Wrapper
+  layouts/AdminLayout.tsx   # Admin Shell
+  components/
+    table/…                 # DataTable + Toolbar + Pagination
+    forms/…                 # Dialoge für CRUD (User, Books, Pages)
+  hooks/…                   # React Query Hooks für Ressourcen
+  services/…                # REST-Adapter + Zod Validierung
+  pages/
+    users/…                 # Benutzerverwaltung
+    books/…                 # Buchverwaltung
+    page-records/…          # Seitenfortschritt
+```
+
+## Backend-Integration
+
+| Ressource | Endpoint | Features |
+|-----------|----------|----------|
+| Users     | `GET/POST/PATCH /api/admin/users`, `POST /api/admin/users/bulk` | Filter, CRUD, Bulk Activate/Suspend/Delete |
+| Books     | `GET/POST/PATCH /api/admin/books`, `POST /api/admin/books/bulk` | Status-Wechsel (`active/draft/archived`), Archivierung |
+| Pages     | `GET /api/admin/pages`, `POST /api/admin/pages/bulk` | Zuweisen/Unassign/Publish, Status-Workflow |
+
+- Gemeinsam genutzte Middleware: `authenticateToken` + `requireAdmin`.
+- Neue Schema-Felder:
+  - `users.admin_status`
+  - `books.admin_state`
+  - `pages.admin_state`
+
+> Nach Deployment `node server/migrations/run_migration.js` ausführen, damit neue Spalten aktiv sind.
+
+## Tests & QA
+
+### 1. Automatisierbare Checks
+
+| Typ | Befehl | Erwartung |
+|-----|--------|-----------|
+| Lint | `npm run lint` (client) | keine neuen Fehler |
+| Builds | `npm run build` (client) | Vite Build erfolgreich |
+| Backend | `npm start` (server) | Routen werden registriert, Admin-Endpoints liefern 200 |
+
+Optional (Schnelltests):
+```bash
+curl -H "Authorization: Bearer <token>" http://localhost:5000/api/admin/users
+curl -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{"name":"Test","email":"test@example.com","role":"editor","status":"invited"}' \
+  http://localhost:5000/api/admin/users
+```
+
+### 2. Manuelle QA-Checkliste
+
+Frontend
+- [ ] `/admin/users`: Suche, Rollen- & Status-Filter, Bulk-Aktionen (Aktivieren/Sperren/Löschen), Dialoge (Neu/Edit).
+- [ ] `/admin/books`: Filter, Archivieren/Restore/Delete (inkl. UI-Status).
+- [ ] `/admin/pages`: Filter, Bulk Assign (mit Auswahl), Unassign, Publish, mobile Navigation.
+- [ ] Guards: Kein Zugriff ohne Login, kein Zugriff für Nicht-Admins.
+
+Backend
+- [ ] `/api/admin/users` reagiert mit paginierten Daten + Filter (role/status).
+- [ ] CRUD & Bulk Aktionen aktualisieren `admin_status` korrekt.
+- [ ] `/api/admin/books` liefert Counters & Status; Archivierung toggelt `archived`.
+- [ ] `/api/admin/pages` liefert Assignments (Name + ID); Bulk Actions aktualisieren `page_assignments` & `admin_state`.
+
+### 3. Erweiterte Tests (Empfehlung)
+
+- Vitest/RTL-Komponententests für `DataTable` (Filter & Bulk Buttons).
+- Supertest-Suite für `/api/admin/*` (Role Check, Payload Validierung).
+- Playwright/Cypress Flow: Login als Admin ⇒ `/admin/users` ⇒ Filter/Bulk/Dialogs ⇒ Logout.
+
+## Wartung & Erweiterung
+
+- Neue Ressourcen können via `client/src/admin/pages/<resource>` + Hook + Service ergänzt werden.
+- `DataTable` erlaubt zusätzliche Filter (`filterFields`) & Bulk-Aktionen per Konfiguration.
+- Backend: `server/routes/admin` Feature-Ordnerstruktur; `requireAdmin` für weitere Services wiederverwenden.
+- Für Auditing/Activity-Logs: Separate Tabelle `admin_logs` + Hook (Mutation Success Handler).
+
+## ToDos / Offene Punkte
+
+- Migrationen deployen & ggf. Backfill (admin_state/admin_status) prüfen.
+- Optionales Feature Flagging (z. B. LaunchDarkly) für stufenweise Aktivierung.
+- Monitoring/Logging (z. B. Winston, pino) für Admin-Aktionen integrieren.
+

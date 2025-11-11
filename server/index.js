@@ -58,6 +58,7 @@ app.use('/api/question-pool', require('./routes/question-pool'));
 app.use('/api/templates', require('./routes/templates'));
 app.use('/api/color-palettes', require('./routes/templates'));
 app.use('/api/pages', require('./routes/templates'));
+app.use('/api/admin', require('./routes/admin'));
 
 // Socket.IO authentication middleware
 io.use((socket, next) => {
