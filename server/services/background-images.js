@@ -1,4 +1,5 @@
 const { Pool } = require('pg')
+const { deleteBackgroundImageFile } = require('./file-storage')
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -83,6 +84,19 @@ function mapCategoryRow(row) {
 }
 
 function mapImageRow(row) {
+  const normalizeRelativePath = (value) =>
+    typeof value === 'string' ? value.replace(/^\/+/, '') : value
+
+  const localFileUrl =
+    row.storage_type === 'local' && row.file_path
+      ? `/uploads/background-images/${normalizeRelativePath(row.file_path)}`
+      : null
+
+  const localThumbnailUrl =
+    row.storage_type === 'local' && row.thumbnail_path
+      ? `/uploads/background-images/${normalizeRelativePath(row.thumbnail_path)}`
+      : null
+
   return {
     id: row.id,
     slug: row.slug,
@@ -102,6 +116,8 @@ function mapImageRow(row) {
       thumbnailPath: row.thumbnail_path,
       bucket: row.bucket,
       objectKey: row.object_key,
+      publicUrl: localFileUrl,
+      thumbnailUrl: localThumbnailUrl || localFileUrl,
     },
     defaults: {
       size: row.default_size,
@@ -438,6 +454,7 @@ async function updateBackgroundImage(identifier, payload) {
 
 async function deleteBackgroundImage(identifier) {
   const isUuid = /^[0-9a-f-]{36}$/i.test(identifier)
+  await deleteBackgroundImageFileWithLookup(identifier)
   await pool.query(
     `
       DELETE FROM background_images
@@ -447,9 +464,33 @@ async function deleteBackgroundImage(identifier) {
   )
 }
 
+async function deleteBackgroundImageFileWithLookup(identifier) {
+  const image = await getBackgroundImage(identifier)
+  if (!image) {
+    return
+  }
+
+  if (image.storage?.type === 'local' && image.storage?.filePath) {
+    await deleteBackgroundImageFile({
+      storageType: image.storage.type,
+      filePath: image.storage.filePath,
+      bucket: image.storage.bucket,
+      objectKey: image.storage.objectKey,
+    })
+  }
+}
+
 async function bulkDeleteBackgroundImages(idsOrSlugs = []) {
   if (!Array.isArray(idsOrSlugs) || idsOrSlugs.length === 0) {
     return { deleted: 0 }
+  }
+
+  for (const identifier of idsOrSlugs) {
+    try {
+      await deleteBackgroundImageFileWithLookup(identifier)
+    } catch (error) {
+      console.warn(`Failed to delete file for background image ${identifier}:`, error.message)
+    }
   }
 
   const { rows } = await pool.query(

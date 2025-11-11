@@ -25,7 +25,7 @@ import { snapPosition, type SnapGuideline } from '../../../../utils/snapping';
 
 import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
 import type { PageBackground } from '../../../../context/editor-context';
-import { resolveBackgroundImageUrl } from '../../../../utils/background-image-utils';
+import { createPreviewImage, resolveBackgroundImageUrl } from '../../../../utils/background-image-utils';
 import { colorPalettes } from '../../../../data/templates/color-palettes';
 
 function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
@@ -38,6 +38,8 @@ function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; he
       fill="white"
       stroke="#e5e7eb"
       strokeWidth={11}
+      listening={false}
+      perfectDrawEnabled={false}
     />
   );
 }
@@ -89,6 +91,11 @@ const PAGE_DIMENSIONS = {
   A3: { width: 3508, height: 4961 },
   Letter: { width: 2550, height: 3300 },
   Square: { width: 2480, height: 2480 }
+};
+
+type BackgroundImageEntry = {
+  full: HTMLImageElement;
+  preview: HTMLImageElement;
 };
 
 const createPatternTile = (pattern: any, color: string, size: number, strokeWidth: number = 1): HTMLCanvasElement => {
@@ -209,6 +216,17 @@ export default function Canvas() {
     }
   }, [showQuestionDialog, user]);
 
+  useEffect(() => {
+    const handleQualityChange = (event: CustomEvent<{ mode?: 'preview' | 'full' }>) => {
+      setBackgroundQuality(event.detail?.mode === 'full' ? 'full' : 'preview');
+    };
+
+    window.addEventListener('setBackgroundQuality', handleQualityChange as EventListener);
+    return () => {
+      window.removeEventListener('setBackgroundQuality', handleQualityChange as EventListener);
+    };
+  }, []);
+
   // Alte Preview-Export-Logik entfernt - wird jetzt über Preview-Seiten gelöst
   const [selectedQuestionElementId, setSelectedQuestionElementId] = useState<string | null>(null);
   const [selectionModeState, setSelectionModeState] = useState<Map<string, number>>(new Map());
@@ -220,9 +238,10 @@ export default function Canvas() {
   const [snapGuidelines, setSnapGuidelines] = useState<SnapGuideline[]>([]);
   
   // Background image cache for preloading
-  const [backgroundImageCache, setBackgroundImageCache] = useState<Map<string, HTMLImageElement>>(new Map());
-  const backgroundImageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
+  const [backgroundImageCache, setBackgroundImageCache] = useState<Map<string, BackgroundImageEntry>>(new Map());
+  const backgroundImageCacheRef = useRef<Map<string, BackgroundImageEntry>>(new Map());
   const loadingImagesRef = useRef<Set<string>>(new Set());
+  const [backgroundQuality, setBackgroundQuality] = useState<'preview' | 'full'>('preview');
   
   // Snapping functionality
   const GUIDELINE_OFFSET = 15; // Increased for better snapping detection
@@ -1667,40 +1686,16 @@ export default function Canvas() {
       // Check if this is a template background that needs background color
       const hasBackgroundColor = (background as any).backgroundColorEnabled && (background as any).backgroundColor;
       const fallbackColor = hasBackgroundColor ? ((background as any).backgroundColor || '#ffffff') : '#ffffff';
-      
-      // Get image from cache (check both state and ref for immediate access)
-      let bgImage = backgroundImageCache.get(imageUrl) || backgroundImageCacheRef.current.get(imageUrl);
-      
-      // If image not in cache but URL is available, trigger immediate preload
-      if (!bgImage && imageUrl) {
-        const cache = backgroundImageCacheRef.current;
-        const loadingImages = loadingImagesRef.current;
-        
-        if (!cache.has(imageUrl) && !loadingImages.has(imageUrl)) {
-          loadingImages.add(imageUrl);
-          const img = new window.Image();
-          img.crossOrigin = 'anonymous';
-          
-          img.onload = () => {
-            cache.set(imageUrl, img);
-            loadingImages.delete(imageUrl);
-            setBackgroundImageCache(new Map(cache));
-          };
-          
-          img.onerror = () => {
-            loadingImages.delete(imageUrl);
-            console.error(`Failed to load background image in render: ${imageUrl}`);
-          };
-          
-          img.src = imageUrl;
-        }
-      }
-      
-      // Re-check cache after potential immediate load attempt
-      bgImage = backgroundImageCache.get(imageUrl) || backgroundImageCacheRef.current.get(imageUrl);
-      
-      // If image not loaded yet, show fallback background
-      if (!bgImage || !bgImage.complete) {
+
+    const cacheEntry =
+      imageUrl ? backgroundImageCache.get(imageUrl) || backgroundImageCacheRef.current.get(imageUrl) || null : null;
+
+    const displayImage =
+      backgroundQuality === 'full'
+        ? cacheEntry?.full
+        : cacheEntry?.preview || cacheEntry?.full;
+
+    if (!displayImage || !displayImage.complete) {
         return (
           <Rect
             x={pageOffsetX}
@@ -1713,17 +1708,17 @@ export default function Canvas() {
           />
         );
       }
-      
-      // Calculate scaling based on actual image dimensions
+
+    // Calculate scaling based on actual image dimensions
       let fillPatternScaleX = 1;
       let fillPatternScaleY = 1;
       let fillPatternOffsetX = 0;
       let fillPatternOffsetY = 0;
       let fillPatternRepeat = 'no-repeat';
-      
-      const imageWidth = bgImage.width || 1;
-      const imageHeight = bgImage.height || 1;
-      
+
+    const imageWidth = displayImage.naturalWidth || displayImage.width || 1;
+    const imageHeight = displayImage.naturalHeight || displayImage.height || 1;
+
       if (background.imageSize === 'cover') {
         const scaleX = canvasWidth / imageWidth;
         const scaleY = canvasHeight / imageHeight;
@@ -1743,26 +1738,23 @@ export default function Canvas() {
           fillPatternRepeat = 'repeat';
         } else {
           // For contain mode without repeat, use direct Image element for precise positioning
-          // Note: In Konva, coordinates are in Stage space (which matches canvas coordinates when zoom=1)
-          // pageOffsetX/pageOffsetY are in Stage pixels, canvasWidth/canvasHeight are in canvas pixels
-          // Since the Stage is scaled by zoom, but coordinates are in unscaled space, we use canvasWidth directly
           const scaledImageWidth = imageWidth * scale;
           const scaledImageHeight = imageHeight * scale;
           const position = background.imagePosition || 'top-left';
-          
+
           const horizontalSpace = canvasWidth - scaledImageWidth;
           const verticalSpace = canvasHeight - scaledImageHeight;
-          
+
           const isRight = position.endsWith('right');
           const isBottom = position.startsWith('bottom');
-          
+
           const imageX = pageOffsetX + (isRight ? horizontalSpace : 0);
           const imageY = pageOffsetY + (isBottom ? verticalSpace : 0);
-          
+
           // Render as Image element instead of pattern fill for precise positioning
           const imageElement = (
             <KonvaImage
-              image={bgImage}
+              image={displayImage}
               x={imageX}
               y={imageY}
               width={scaledImageWidth}
@@ -1771,11 +1763,11 @@ export default function Canvas() {
               listening={false}
             />
           );
-          
+
           // If background color is enabled, wrap in Group with background color
           if (hasBackgroundColor) {
             return (
-              <Group>
+              <Group listening={false}>
                 <Rect
                   x={pageOffsetX}
                   y={pageOffsetY}
@@ -1789,7 +1781,7 @@ export default function Canvas() {
               </Group>
             );
           }
-          
+
           return imageElement;
         }
       } else if (background.imageSize === 'stretch') {
@@ -1800,7 +1792,7 @@ export default function Canvas() {
       // If background color is enabled, render it behind the image
       if (hasBackgroundColor) {
         return (
-          <Group>
+          <Group listening={false}>
             {/* Background color layer */}
             <Rect
               x={pageOffsetX}
@@ -1817,7 +1809,7 @@ export default function Canvas() {
               y={pageOffsetY}
               width={canvasWidth}
               height={canvasHeight}
-              fillPatternImage={bgImage}
+              fillPatternImage={displayImage}
               fillPatternScaleX={fillPatternScaleX}
               fillPatternScaleY={fillPatternScaleY}
               fillPatternOffsetX={fillPatternOffsetX}
@@ -1836,7 +1828,7 @@ export default function Canvas() {
           y={pageOffsetY}
           width={canvasWidth}
           height={canvasHeight}
-          fillPatternImage={bgImage}
+          fillPatternImage={displayImage}
           fillPatternScaleX={fillPatternScaleX}
           fillPatternScaleY={fillPatternScaleY}
           fillPatternOffsetX={fillPatternOffsetX}
@@ -1858,7 +1850,7 @@ export default function Canvas() {
     const cache = backgroundImageCacheRef.current;
     
     // Function to preload a single image
-    const preloadImage = (imageUrl: string, isCurrentPage: boolean = false) => {
+    const preloadImage = (imageUrl: string, _isCurrentPage: boolean = false) => {
       if (!imageUrl || cache.has(imageUrl)) return;
       
       const loadingImages = loadingImagesRef.current;
@@ -1869,11 +1861,21 @@ export default function Canvas() {
       const img = new window.Image();
       img.crossOrigin = 'anonymous';
       
-      img.onload = () => {
-        cache.set(imageUrl, img);
+      const storeEntry = (entry: BackgroundImageEntry) => {
+        cache.set(imageUrl, entry);
         loadingImages.delete(imageUrl);
-        // Update state to trigger re-render
         setBackgroundImageCache(new Map(cache));
+      };
+      
+      img.onload = () => {
+        const previewImage = createPreviewImage(img);
+        
+        if (previewImage === img || previewImage.complete) {
+          storeEntry({ full: img, preview: previewImage });
+        } else {
+          previewImage.onload = () => storeEntry({ full: img, preview: previewImage });
+          previewImage.onerror = () => storeEntry({ full: img, preview: img });
+        }
       };
       
       img.onerror = () => {
@@ -1925,7 +1927,10 @@ export default function Canvas() {
     state.currentBook?.pages, 
     currentPage?.background?.type, 
     currentPage?.background?.value, 
-    JSON.stringify({ templateId: (currentPage?.background as any)?.backgroundImageTemplateId })
+    JSON.stringify({
+      templateId: (currentPage?.background as any)?.backgroundImageTemplateId,
+      applyPalette: (currentPage?.background as any)?.applyPalette,
+    }),
   ]);
 
   useEffect(() => {

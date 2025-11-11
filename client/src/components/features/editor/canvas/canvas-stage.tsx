@@ -38,6 +38,7 @@ const CanvasStage = forwardRef<Konva.Stage, CanvasStageProps>(({
       height={height}
       scaleX={zoom}
       scaleY={zoom}
+      pixelRatio={1}
       onClick={onClick}
       onTap={onClick}
       onMouseDown={onMouseDown}

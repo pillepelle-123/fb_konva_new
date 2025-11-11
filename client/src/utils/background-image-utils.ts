@@ -1,7 +1,7 @@
 import type { PageBackground } from '../context/editor-context';
 import {
   getBackgroundImageById,
-  getBackgroundImageWithUrl,
+  getBackgroundImageWithUrl as getBackgroundImageWithUrlInternal,
   svgRawImports
 } from '../data/templates/background-images';
 import { colorPalettes } from '../data/templates/color-palettes';
@@ -28,7 +28,7 @@ export function applyBackgroundImageTemplate(
     opacity?: number;
   }
 ): PageBackground | null {
-  const template = getBackgroundImageWithUrl(templateId);
+  const template = getBackgroundImageWithUrlInternal(templateId);
   if (!template) {
     console.warn(`Background image template not found: ${templateId}`);
     return null;
@@ -113,7 +113,7 @@ export function getBackgroundImageUrl(
   options?: BackgroundImagePaletteOptions,
   applyPalette = true
 ): string | undefined {
-  const template = getBackgroundImageWithUrl(templateId);
+  const template = getBackgroundImageWithUrlInternal(templateId);
   if (!template) {
     console.warn(`Background image template not found: ${templateId}`);
     return undefined;
@@ -132,17 +132,19 @@ export function getBackgroundImageUrl(
     const paletteColors = resolvePaletteColors(options);
 
     if (rawSvg && paletteColors) {
-      if (template.paletteSlots === 'standard') {
+      const containsPaletteTokens = /PALETTE_[A-Z_]+/.test(rawSvg);
+
+      if (template.paletteSlots === 'standard' && containsPaletteTokens) {
         return applyPaletteSlotsToSvg(rawSvg, paletteColors, {
           cacheKey: template.id,
-          asDataUrl: true
+          asDataUrl: true,
         });
       }
 
-      if (template.paletteSlots === 'auto') {
+      if (template.paletteSlots === 'auto' || (template.paletteSlots === 'standard' && !containsPaletteTokens)) {
         return applyAutoPaletteToSvg(rawSvg, paletteColors, {
-          cacheKey: template.id,
-          asDataUrl: true
+          cacheKey: `${template.id}::auto`,
+          asDataUrl: true,
         });
       }
     }
@@ -155,7 +157,7 @@ export function getBackgroundImageUrl(
  * Get background image thumbnail URL for a template ID
  */
 export function getBackgroundImageThumbnailUrl(templateId: string): string | undefined {
-  const template = getBackgroundImageWithUrl(templateId);
+  const template = getBackgroundImageWithUrlInternal(templateId);
   return template?.thumbnailUrl;
 }
 
@@ -194,12 +196,22 @@ export function resolveBackgroundImageUrl(
   // If using template, resolve template URL (with palette support for SVGs)
   if (background.backgroundImageTemplateId) {
     const shouldApplyPalette = background.applyPalette !== false;
-    return getBackgroundImageUrl(background.backgroundImageTemplateId, options, shouldApplyPalette);
+    if (shouldApplyPalette) {
+      return getBackgroundImageUrl(background.backgroundImageTemplateId, options, true);
+    }
+    try {
+      const template = getBackgroundImageWithUrlInternal(background.backgroundImageTemplateId);
+      return template?.url;
+    } catch {
+      return background.value;
+    }
   }
 
   // Otherwise use direct value
   return background.value;
 }
+
+export { getBackgroundImageWithUrl } from '../data/templates/background-images';
 
 /**
  * Check if background uses a template
@@ -249,4 +261,64 @@ function withSlotFallbacks(
     accent,
     text
   };
+}
+
+/**
+ * Create a downscaled preview image for heavy assets to improve runtime performance.
+ * Falls back to the original image when scaling is unnecessary.
+ */
+export function createPreviewImage(
+  source: HTMLImageElement,
+  { maxDimension = 1600, quality = 0.85 }: { maxDimension?: number; quality?: number } = {}
+): HTMLImageElement {
+  const src = source.currentSrc || source.src || '';
+  if (isSvgSource(src)) {
+    return source;
+  }
+
+  const width = source.naturalWidth || source.width;
+  const height = source.naturalHeight || source.height;
+
+  if (width === 0 || height === 0) {
+    return source;
+  }
+
+  const shouldScale =
+    width > maxDimension || height > maxDimension;
+
+  if (!shouldScale) {
+    return source;
+  }
+
+  const scale = Math.min(maxDimension / width, maxDimension / height);
+  const targetWidth = Math.max(Math.round(width * scale), 1);
+  const targetHeight = Math.max(Math.round(height * scale), 1);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) {
+    return source;
+  }
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(source, 0, 0, targetWidth, targetHeight);
+
+  const preview = new window.Image();
+  preview.src = canvas.toDataURL('image/jpeg', quality);
+  return preview;
+}
+
+function isSvgSource(src: string): boolean {
+  if (!src) return false;
+  if (src.startsWith('data:image/svg+xml')) return true;
+  try {
+    const url = new URL(src, window.location.href);
+    return /\.svg$/i.test(url.pathname);
+  } catch {
+    return /\.svg(\?|$)/i.test(src);
+  }
 }

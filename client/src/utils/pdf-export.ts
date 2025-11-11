@@ -25,6 +25,9 @@ export const exportBookToPDF = async (
   signal?: AbortSignal,
   userRole?: 'author' | 'publisher' | null
 ): Promise<void> => {
+  window.dispatchEvent(new CustomEvent('setBackgroundQuality', { detail: { mode: 'full' } }));
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  try {
   // Restrict printing quality for authors
   if (userRole === 'author' && options.quality === 'printing') {
     throw new Error('Authors cannot export in printing quality');
@@ -175,4 +178,7 @@ export const exportBookToPDF = async (
   
   // Save PDF
   pdf.save(`${book.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`);
+  } finally {
+    window.dispatchEvent(new CustomEvent('setBackgroundQuality', { detail: { mode: 'preview' } }));
+  }
 };

@@ -52,6 +52,8 @@ export interface AdminBackgroundImage {
     thumbnailPath: string | null
     bucket: string | null
     objectKey: string | null
+    publicUrl?: string | null
+    thumbnailUrl?: string | null
   }
   defaults: {
     size: string | null

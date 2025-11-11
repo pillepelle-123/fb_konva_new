@@ -20,12 +20,13 @@ import { commonToActual } from '../../../../utils/font-size-converter';
 import { useState } from 'react';
 import ConfirmationDialog from '../../../ui/overlays/confirmation-dialog';
 import { BackgroundImageSelector } from './background-image-selector';
-import { applyBackgroundImageTemplate } from '../../../../utils/background-image-utils';
+import { applyBackgroundImageTemplate, getBackgroundImageWithUrl } from '../../../../utils/background-image-utils';
 import { LayoutSelectorWrapper } from '../layout-selector-wrapper';
 import { ThemeSelectorWrapper } from '../theme-selector-wrapper';
 import { pageTemplates } from '../../../../data/templates/page-templates';
 import { colorPalettes } from '../../../../data/templates/color-palettes';
 import { getActiveTemplateIds } from '../../../../utils/template-inheritance';
+import { Modal } from '../../../ui/overlays/modal';
 
 
 interface GeneralSettingsProps {
@@ -49,6 +50,8 @@ interface GeneralSettingsProps {
   onOpenPalettes: () => void;
   selectedBackgroundImageId?: string | null;
   onBackgroundImageSelect?: (imageId: string | null) => void;
+  onApplyBackgroundImage?: () => void;
+  isBackgroundApplyDisabled?: boolean;
 }
 
 export function GeneralSettings({
@@ -71,7 +74,9 @@ export function GeneralSettings({
   onOpenThemes,
   onOpenPalettes,
   selectedBackgroundImageId,
-  onBackgroundImageSelect
+  onBackgroundImageSelect,
+  onApplyBackgroundImage,
+  isBackgroundApplyDisabled
 }: GeneralSettingsProps) {
   const { state, dispatch, canEditSettings } = useEditor();
   const { user } = useAuth();
@@ -572,6 +577,10 @@ export function GeneralSettings({
     // backgroundMode is primarily based on background.type, but use forceImageMode if user just selected "image" 
     // and background hasn't been updated yet
     const backgroundMode = isImage ? 'image' : (isPattern ? 'pattern' : (forceImageMode ? 'image' : 'color'));
+    const modalApplyDisabled =
+      isBackgroundApplyDisabled ??
+      (!selectedBackgroundImageId ||
+        selectedBackgroundImageId === (isImage ? background.backgroundImageTemplateId ?? null : null));
     
     // Get primary color from current palette or theme
     const getPrimaryColor = (): string => {
@@ -751,24 +760,6 @@ export function GeneralSettings({
       );
     }
 
-    if (showBackgroundImageTemplateSelector) {
-      return (
-        <BackgroundImageSelector
-          onBack={() => {
-            setShowBackgroundImageTemplateSelector(false);
-            // If no image was selected, revert to previous mode
-            if (!background || background.type !== 'image') {
-              handleBackgroundModeChange('color');
-            }
-          }}
-          onSelect={() => {}}
-          onUpload={() => setShowBackgroundImageModal(true)}
-          selectedImageId={selectedBackgroundImageId}
-          onImageSelect={onBackgroundImageSelect}
-        />
-      );
-    }
-
     if (showPatternSettings && isPattern) {
       return (
         <div className="space-y-4">
@@ -842,8 +833,16 @@ export function GeneralSettings({
       );
     }
 
+    const handleCloseBackgroundImageSelector = () => {
+      setShowBackgroundImageTemplateSelector(false);
+      if (!background || background.type !== 'image') {
+        handleBackgroundModeChange('color');
+      }
+    };
+
     return (
-      <div className="space-y-4">
+      <>
+        <div className="space-y-4">
         <div className="flex gap-2 mb-2">
           <Button
             variant="ghost"
@@ -936,7 +935,20 @@ export function GeneralSettings({
                   id="paint-with-palette"
                   checked={paintWithPalette}
                   onCheckedChange={(checked) => {
-                    updateBackground({ applyPalette: checked !== false });
+                    const usePalette = checked !== false;
+                    if (background?.type === 'image' && background.backgroundImageTemplateId) {
+                      if (!usePalette) {
+                        const template = getBackgroundImageWithUrl(background.backgroundImageTemplateId);
+                        updateBackground({
+                          applyPalette: false,
+                          value: template?.url ?? background.value,
+                        });
+                      } else {
+                        updateBackground({ applyPalette: true });
+                      }
+                    } else {
+                      updateBackground({ applyPalette: usePalette });
+                    }
                   }}
                 />
                 <label htmlFor="paint-with-palette" className="text-xs text-muted-foreground">
@@ -1074,6 +1086,32 @@ export function GeneralSettings({
         )}
 
       </div>
+        <Modal
+          isOpen={showBackgroundImageTemplateSelector}
+          onClose={handleCloseBackgroundImageSelector}
+          title="Background Images"
+          actions={
+            onApplyBackgroundImage
+              ? (
+                <Button
+                  size="sm"
+                  onClick={() => onApplyBackgroundImage()}
+                  disabled={modalApplyDisabled}
+                >
+                  Apply Background Image
+                </Button>
+              )
+              : undefined
+          }
+        >
+          <BackgroundImageSelector
+            onBack={handleCloseBackgroundImageSelector}
+            onUpload={() => setShowBackgroundImageModal(true)}
+            selectedImageId={selectedBackgroundImageId}
+            onImageSelect={(imageId) => onBackgroundImageSelect?.(imageId)}
+          />
+        </Modal>
+      </>
     );
   };
 

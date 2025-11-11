@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Button } from '../../../ui/primitives/button';
-import { ChevronLeft, Search, Grid3x3, Image as ImageIcon } from 'lucide-react';
+import { ChevronLeft, Search, Image as ImageIcon } from 'lucide-react';
 import { Label } from '../../../ui/primitives/label';
 import { Separator } from '../../../ui/primitives/separator';
 import { 
@@ -9,19 +9,17 @@ import {
   getBackgroundImagesWithUrl
 } from '../../../../data/templates/background-images';
 import type { BackgroundImageCategory, BackgroundImageWithUrl } from '../../../../types/template-types';
-import { applyBackgroundImageTemplate } from '../../../../utils/background-image-utils';
 import { useEditor } from '../../../../context/editor-context';
 
 interface BackgroundImageSelectorProps {
   onBack: () => void;
-  onSelect?: (templateId: string) => void;
   onUpload?: () => void;
   selectedImageId?: string | null;
   onImageSelect?: (imageId: string | null) => void;
 }
 
-export function BackgroundImageSelector({ onBack, onSelect, onUpload, selectedImageId, onImageSelect }: BackgroundImageSelectorProps) {
-  const { state, dispatch } = useEditor();
+export function BackgroundImageSelector({ onBack, onUpload, selectedImageId, onImageSelect }: BackgroundImageSelectorProps) {
+  const { state } = useEditor();
   const [selectedCategory, setSelectedCategory] = useState<BackgroundImageCategory | 'all'>('all');
   const [selectedFormat, setSelectedFormat] = useState<'vector' | 'pixel' | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -32,7 +30,7 @@ export function BackgroundImageSelector({ onBack, onSelect, onUpload, selectedIm
     if (selectedImageId !== undefined && selectedImageId !== selectedImage) {
       setSelectedImage(selectedImageId);
     }
-  }, [selectedImageId]);
+  }, [selectedImageId, selectedImage]);
 
   const categories = getBackgroundImageCategories();
   const allImages = getBackgroundImagesWithUrl();
@@ -148,12 +146,12 @@ export function BackgroundImageSelector({ onBack, onSelect, onUpload, selectedIm
       <Separator />
 
       {/* Image Grid */}
-      <div className="grid grid-cols-2 gap-3  overflow-y-auto">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 overflow-y-auto">
         {filteredImages.map((image) => (
           <button
             key={image.id}
             onClick={() => handleImageSelect(image)}
-            className={`p-2 border-2 rounded-lg transition-colors text-left ${
+            className={`p-3 border-2 rounded-lg transition-colors text-left space-y-2 h-full ${
               selectedImage === image.id
                 ? 'border-blue-500 bg-blue-50'
                 : currentBackgroundImageId === image.id
@@ -161,7 +159,7 @@ export function BackgroundImageSelector({ onBack, onSelect, onUpload, selectedIm
                 : 'border-gray-200 hover:border-gray-300'
             }`}
           >
-            <div className="aspect-square bg-gray-100 rounded mb-2 flex items-center justify-center overflow-hidden">
+            <div className="aspect-square bg-gray-100 rounded-md flex items-center justify-center overflow-hidden">
               {image.format === 'vector' ? (
                 <img 
                   src={image.thumbnailUrl} 
@@ -176,8 +174,12 @@ export function BackgroundImageSelector({ onBack, onSelect, onUpload, selectedIm
                 />
               )}
             </div>
-            <div className="text-xs font-medium truncate">{image.name}</div>
-            <div className="text-xs text-gray-500 truncate capitalize">{image.category}</div>
+            <div className="text-xs font-medium leading-snug text-foreground whitespace-normal break-words">
+              {image.name}
+            </div>
+            <div className="text-[11px] text-gray-500 capitalize whitespace-normal break-words">
+              {image.category}
+            </div>
             {currentBackgroundImageId === image.id && (
               <div className="text-xs text-green-600 mt-1">Active</div>
             )}

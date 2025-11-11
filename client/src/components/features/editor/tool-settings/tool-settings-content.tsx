@@ -93,6 +93,8 @@ interface ToolSettingsContentProps {
   onOpenPalettes: () => void;
   selectedBackgroundImageId?: string | null;
   onBackgroundImageSelect?: (imageId: string | null) => void;
+  onApplyBackgroundImage?: () => void;
+  isBackgroundApplyDisabled?: boolean;
 }
 
 export function ToolSettingsContent({
@@ -127,7 +129,9 @@ export function ToolSettingsContent({
   onOpenThemes,
   onOpenPalettes,
   selectedBackgroundImageId,
-  onBackgroundImageSelect
+  onBackgroundImageSelect,
+  onApplyBackgroundImage,
+  isBackgroundApplyDisabled
 }: ToolSettingsContentProps) {
   const { state, dispatch } = useEditor();
   const { user } = useAuth();
@@ -799,6 +803,8 @@ export function ToolSettingsContent({
           onOpenPalettes={onOpenPalettes}
           selectedBackgroundImageId={selectedBackgroundImageId}
           onBackgroundImageSelect={onBackgroundImageSelect}
+          onApplyBackgroundImage={onApplyBackgroundImage}
+          isBackgroundApplyDisabled={isBackgroundApplyDisabled}
         />
       );
     }

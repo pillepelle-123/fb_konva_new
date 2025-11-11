@@ -763,5 +763,83 @@
         "inheritTheme": "rough"
       }
     }
+  },
+  "poppy-flowers": {
+    "name": "Poppy Flowers",
+    "description": "Custom theme exported from canvas",
+    "palette": "poppy-flowers",
+    "pageSettings": {
+      "backgroundOpacity": 0.75,
+      "backgroundPattern": {
+        "enabled": false,
+        "style": "dots",
+        "size": 20,
+        "strokeWidth": 1,
+        "patternBackgroundOpacity": 0.3
+      },
+      "backgroundImage": {
+        "enabled": true,
+        "templateId": "abstract-floral-aesthetic-01",
+        "size": "cover",
+        "repeat": true,
+        "opacity": 0.75
+      }
+    },
+    "elementDefaults": {
+      "text": {
+        "layoutVariant": "inline",
+        "questionPosition": "left",
+        "questionWidth": 40,
+        "cornerRadius": 29,
+        "padding": 15,
+        "paragraphSpacing": "medium",
+        "align": "left",
+        "border": {
+          "enabled": false,
+          "width": 2,
+          "opacity": 1,
+          "theme": "rough"
+        },
+        "background": {
+          "enabled": false,
+          "opacity": 0.4
+        },
+        "ruledLines": {
+          "enabled": {
+            "theme": "rough",
+            "width": 2,
+            "enabled": {
+              "enabled": false,
+              "lineColor": "#9c8dce",
+              "lineWidth": 4,
+              "lineOpacity": 0.5,
+              "ruledLinesTheme": "wobbly"
+            },
+            "opacity": 0.9,
+            "lineColor": "#E91E63",
+            "lineWidth": 2,
+            "lineOpacity": 0.9,
+            "ruledLinesTheme": "rough"
+          },
+          "width": 2,
+          "theme": "rough",
+          "opacity": 0.9
+        },
+        "questionSettings": {
+          "fontSize": 22,
+          "fontFamily": "'Stalemate', cursive",
+          "fontBold": true,
+          "fontItalic": false,
+          "fontOpacity": 1
+        },
+        "answerSettings": {
+          "fontSize": 22,
+          "fontFamily": "'Stalemate', cursive",
+          "fontBold": false,
+          "fontItalic": false,
+          "fontOpacity": 1
+        }
+      }
+    }
   }
 }

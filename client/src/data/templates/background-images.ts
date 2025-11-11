@@ -88,6 +88,10 @@ function resolveLocalUrl(relativePath?: string | null) {
 
 function transformApiRecord(record: z.infer<typeof apiRecordSchema>): BackgroundImageWithUrl {
   const storage = record.storage ?? {}
+  const storagePublicUrl =
+    (storage as { publicUrl?: string | null }).publicUrl ?? null
+  const storageThumbnailUrl =
+    (storage as { thumbnailUrl?: string | null }).thumbnailUrl ?? null
   const defaults = record.defaults ?? {}
   const backgroundColor = defaults.backgroundColor
     ? {
@@ -121,18 +125,20 @@ function transformApiRecord(record: z.infer<typeof apiRecordSchema>): Background
   }
 
   const url =
-    storageType === 'local'
+    storagePublicUrl ??
+    (storageType === 'local'
       ? resolveLocalUrl(filePath)
       : storage.bucket && storage.objectKey
         ? `https://${storage.bucket}.s3.amazonaws.com/${storage.objectKey}`
-        : filePath ?? ''
+        : filePath ?? '')
 
   const thumbnailUrl =
-    storageType === 'local'
+    storageThumbnailUrl ??
+    (storageType === 'local'
       ? resolveLocalUrl(thumbnailPath)
       : storage.bucket && storage.objectKey
         ? `https://${storage.bucket}.s3.amazonaws.com/${storage.objectKey}`
-        : thumbnailPath ?? url
+        : thumbnailPath ?? url)
 
   return {
     ...backgroundImage,

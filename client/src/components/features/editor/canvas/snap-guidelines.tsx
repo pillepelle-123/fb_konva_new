@@ -26,6 +26,7 @@ export function SnapGuidelines({ guidelines }: SnapGuidelinesProps) {
           strokeWidth={2}
           dash={[5, 5]}
           listening={false}
+          perfectDrawEnabled={false}
         />
       ))}
     </>

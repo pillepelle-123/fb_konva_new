@@ -8,6 +8,8 @@ const storageSchema = z.object({
   thumbnailPath: z.string().nullable(),
   bucket: z.string().nullable(),
   objectKey: z.string().nullable(),
+  publicUrl: z.string().nullable().optional(),
+  thumbnailUrl: z.string().nullable().optional(),
 })
 
 const defaultsSchema = z.object({

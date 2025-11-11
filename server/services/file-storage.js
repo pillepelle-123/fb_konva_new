@@ -2,7 +2,9 @@ const path = require('path')
 const fs = require('fs/promises')
 const { randomUUID } = require('crypto')
 
-const STORAGE_ROOT = process.env.BACKGROUND_IMAGE_STORAGE_PATH || path.join(process.cwd(), 'uploads', 'background-images')
+const STORAGE_ROOT =
+  process.env.BACKGROUND_IMAGE_STORAGE_PATH ||
+  path.join(__dirname, '..', '..', 'uploads', 'background-images')
 const STORAGE_TYPE = process.env.BACKGROUND_IMAGE_STORAGE_TYPE || 'local'
 
 function slugify(value, fallback = 'file') {
@@ -46,12 +48,17 @@ async function saveLocalBackgroundImage({ category, originalName, buffer }) {
   const filePath = path.join(targetDir, fileName)
   await fs.writeFile(filePath, buffer)
   const relativePath = path.join(categorySlug, fileName).replace(/\\/g, '/')
+  const normalizedRelative = relativePath.replace(/^\/+/, '')
+  const publicUrl = `/uploads/background-images/${normalizedRelative}`
+
   return {
     storageType: 'local',
     filePath: relativePath,
     thumbnailPath: relativePath,
     bucket: null,
     objectKey: null,
+    publicUrl,
+    thumbnailUrl: publicUrl,
   }
 }
 

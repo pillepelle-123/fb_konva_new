@@ -23,7 +23,7 @@ export default function ThemedShape(props: CanvasItemProps) {
     
     return (
       <BaseCanvasItem {...props} hitArea={hitArea}>
-        <Group>
+        <Group listening={false}>
           {element.brushStrokes.map((strokeData, index) => (
             <Line
               key={index}
@@ -35,6 +35,7 @@ export default function ThemedShape(props: CanvasItemProps) {
               listening={false}
               tension={0.5}
               globalCompositeOperation="source-over"
+              perfectDrawEnabled={false}
             />
           ))}
         </Group>
@@ -96,12 +97,13 @@ export default function ThemedShape(props: CanvasItemProps) {
     
     return (
       <BaseCanvasItem {...props} hitArea={hitArea}>
-        <Group>
+        <Group listening={false}>
           <Path
             data={pathData}
             fill={strokeProps.fill}
             stroke="transparent"
             listening={false}
+            perfectDrawEnabled={false}
           />
           <Path
             data={organicPath}
@@ -112,6 +114,7 @@ export default function ThemedShape(props: CanvasItemProps) {
             listening={false}
             lineCap="round"
             lineJoin="round"
+            perfectDrawEnabled={false}
           />
         </Group>
       </BaseCanvasItem>
@@ -127,6 +130,7 @@ export default function ThemedShape(props: CanvasItemProps) {
         fillOpacity={finalFillOpacity}
         strokeScaleEnabled={false}
         listening={false}
+        perfectDrawEnabled={false}
       />
     </BaseCanvasItem>
   );

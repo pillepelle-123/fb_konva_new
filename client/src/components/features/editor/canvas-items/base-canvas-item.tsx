@@ -194,6 +194,7 @@ export default function BaseCanvasItem({
         listening={true}
         strokeWidth={10}
         stroke="transparent"
+        perfectDrawEnabled={false}
       />
       
       {/* Dashed border on hover or within selection */}

@@ -24,6 +24,7 @@ export function SelectionRectangle({ x, y, width, height, visible }: SelectionRe
       cornerRadius={8}
       strokeScaleEnabled={false}
       listening={false}
+      perfectDrawEnabled={false}
     />
   );
 }
