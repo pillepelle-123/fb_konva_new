@@ -120,7 +120,10 @@ export function applyAutoPaletteToSvg(
     return cached;
   }
 
-  const colorOccurrences = extractHexColorOccurrences(svgContent);
+  const colorOccurrences = mergeColorOccurrences([
+    extractHexColorOccurrences(svgContent),
+    extractRgbColorOccurrences(svgContent),
+  ]);
   if (colorOccurrences.size === 0) {
     return svgStringToDataUrl(svgContent, encoding);
   }
@@ -244,6 +247,45 @@ function extractHexColorOccurrences(svgContent: string): Map<string, Set<string>
     if (!normalized) {
       continue;
     }
+    if (!occurrences.has(normalized)) {
+      occurrences.set(normalized, new Set());
+    }
+    occurrences.get(normalized)!.add(original);
+  }
+
+  return occurrences;
+}
+
+function mergeColorOccurrences(
+  maps: Map<string, Set<string>>[],
+): Map<string, Set<string>> {
+  const merged = new Map<string, Set<string>>();
+  maps.forEach((map) => {
+    map.forEach((originals, normalized) => {
+      if (!merged.has(normalized)) {
+        merged.set(normalized, new Set());
+      }
+      const targetSet = merged.get(normalized)!;
+      originals.forEach((value) => targetSet.add(value));
+    });
+  });
+  return merged;
+}
+
+function extractRgbColorOccurrences(svgContent: string): Map<string, Set<string>> {
+  const regex = /rgba?\(\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})(?:\s*,\s*(0|0?\.\d+|1(?:\.0+)?))?\s*\)/gi;
+  const occurrences = new Map<string, Set<string>>();
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(svgContent)) !== null) {
+    const original = match[0];
+    const r = Number(match[1]);
+    const g = Number(match[2]);
+    const b = Number(match[3]);
+    if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) {
+      continue;
+    }
+    const normalized = rgbToHex(r, g, b);
     if (!occurrences.has(normalized)) {
       occurrences.set(normalized, new Set());
     }

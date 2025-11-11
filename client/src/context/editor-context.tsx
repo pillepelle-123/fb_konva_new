@@ -359,6 +359,7 @@ export interface PageBackground {
   type: 'color' | 'pattern' | 'image';
   value: string; // color hex, pattern name, or image URL
   opacity?: number;
+  applyPalette?: boolean;
   imageSize?: 'cover' | 'contain' | 'stretch';
   imageRepeat?: boolean; // for contain mode
   imagePosition?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'; // for contain mode without repeat

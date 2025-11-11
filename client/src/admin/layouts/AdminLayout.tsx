@@ -1,5 +1,5 @@
 import { PropsWithChildren, useMemo } from 'react'
-import { Menu, Settings, Users, LibraryBig, FileText } from 'lucide-react'
+import { Menu, Settings, Users, LibraryBig, FileText, Image } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { Button, Sheet, SheetContent, SheetTrigger } from '../../components/ui'
 import { useAuth } from '../../context/auth-context'
@@ -28,6 +28,12 @@ export function AdminLayout({ children }: PropsWithChildren) {
         to: '/admin/pages',
         icon: FileText,
         description: 'Seitenfortschritt & Zuweisungen',
+      },
+      {
+        label: 'Background Images',
+        to: '/admin/background-images',
+        icon: Image,
+        description: 'Hintergrundbilder verwalten & hochladen',
       },
     ],
     [],
@@ -108,7 +114,9 @@ export function AdminLayout({ children }: PropsWithChildren) {
                         ? 'Bücherverwaltung'
                         : location.pathname.startsWith('/admin/pages')
                           ? 'Seitenstatus'
-                          : 'Übersicht'}
+                          : location.pathname.startsWith('/admin/background-images')
+                            ? 'Background Images'
+                            : 'Übersicht'}
                   </span>
                   <span className="text-xs text-muted-foreground">Systemweite Administration & Monitoring</span>
                 </div>

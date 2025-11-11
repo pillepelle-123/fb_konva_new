@@ -5,6 +5,7 @@ import App from './app.tsx'
 import './styles/app.css'
 import './utils/theme-verification'
 import { FONT_GROUPS } from './utils/font-families'
+import { loadBackgroundImageRegistry } from './data/templates/background-images'
 
 const extractFontName = (family: string) => {
   const match = family.match(/['"]([^'"]+)['"]/);
@@ -21,9 +22,10 @@ FONT_GROUPS.forEach(group => {
 });
 
 Promise.all(
-  fontNames.map(name => 
-    document.fonts.load(`12px "${name}"`).catch(() => console.warn(`Failed: ${name}`))
-  )
-).then(() => {
-  createRoot(document.getElementById('root')!).render(<App />);
+  fontNames.map((name) =>
+    document.fonts.load(`12px "${name}"`).catch(() => console.warn(`Failed: ${name}`)),
+  ),
+).then(async () => {
+  await loadBackgroundImageRegistry()
+  createRoot(document.getElementById('root')!).render(<App />)
 })

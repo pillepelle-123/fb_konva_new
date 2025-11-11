@@ -1,14 +1,6 @@
 export type TemplateCategory = 'structured' | 'playful' | 'minimal' | 'creative';
 export type ThemeVariant = 'default' | 'sketchy' | 'minimal' | 'colorful' | 'vintage' | 'dark';
-export type BackgroundImageCategory = 
-  | 'geometric'
-  | 'nature'
-  | 'abstract'
-  | 'decorative'
-  | 'texture'
-  | 'minimal'
-  | 'pattern'
-  | 'floral';
+export type BackgroundImageCategory = string;
 
 export interface ColorPalette {
   id: string;
@@ -154,6 +146,7 @@ export interface BackgroundImage {
   paletteSlots?: 'standard' | 'auto';
   description?: string;
   tags?: string[];
+  storageType?: 'local' | 's3';
 }
 
 export interface BackgroundImageWithUrl extends BackgroundImage {

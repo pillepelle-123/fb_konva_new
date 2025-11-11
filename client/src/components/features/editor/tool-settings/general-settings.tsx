@@ -559,6 +559,7 @@ export function GeneralSettings({
       background = { type: 'color', value: defaultColor, opacity: 0.15 };
       updateBackground(background);
     }
+    const paintWithPalette = background.type === 'image' ? background.applyPalette !== false : true;
     
     // Ensure opacity is always set (default to 0.15 if not set)
     if (background.opacity === undefined) {
@@ -929,6 +930,20 @@ export function GeneralSettings({
               <Image className="h-4 w-4 mr-2" />
               Select Image
             </Button>
+            {background?.type === 'image' && background.backgroundImageTemplateId && (
+              <div className="flex items-center gap-2 rounded-md border border-border/40 bg-muted/40 px-3 py-2">
+                <Checkbox
+                  id="paint-with-palette"
+                  checked={paintWithPalette}
+                  onCheckedChange={(checked) => {
+                    updateBackground({ applyPalette: checked !== false });
+                  }}
+                />
+                <label htmlFor="paint-with-palette" className="text-xs text-muted-foreground">
+                  Paint with Color Palette
+                </label>
+              </div>
+            )}
           </div>
         )}
 

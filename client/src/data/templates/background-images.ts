@@ -1,154 +1,224 @@
-import type { BackgroundImage, BackgroundImageWithUrl } from '../../types/template-types';
-import backgroundImagesData from './background-images.json';
+import { z } from 'zod'
+import type { BackgroundImage, BackgroundImageWithUrl } from '../../types/template-types'
 
-// Import SVG assets (these will be bundled)
-// Note: When adding new SVG files, add the import here
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
-import colorfulGeometric01Svg from '../../assets/background-images/colorful-geometric-01.svg';
-// Floral category imports
-import abstractFloralAesthetic01Svg from '../../assets/background-images/floral/abstract-floral-aesthetic-01.svg';
-import abstractFloralAesthetic02Svg from '../../assets/background-images/floral/abstract-floral-aesthetic-02.svg';
-import abstractFloralAesthetic03Svg from '../../assets/background-images/floral/abstract-floral-aesthetic-03.svg';
-import abstractFloralAestheticVar01Svg from '../../assets/background-images/floral/abstract-floral-aesthetic-var-01.svg';
-import abstractFloralOrganicPastel01Svg from '../../assets/background-images/floral/abstract-floral-organic-pastel-01.svg';
-import aestheticMinimalistBackground01Svg from '../../assets/background-images/floral/aesthetic-minimalist-background_01.svg';
-import aestheticMinimalistBackground01SvgRaw from '../../assets/background-images/floral/aesthetic-minimalist-background_01.svg?raw';
-import leopardPattern01Svg from '../../assets/background-images/floral/leopard-pattern-01.svg';
-import abstractFloralAesthetic01SvgRaw from '../../assets/background-images/floral/abstract-floral-aesthetic-01.svg?raw';
-import abstractFloralAesthetic02SvgRaw from '../../assets/background-images/floral/abstract-floral-aesthetic-02.svg?raw';
-import abstractFloralAesthetic03SvgRaw from '../../assets/background-images/floral/abstract-floral-aesthetic-03.svg?raw';
-import abstractFloralAestheticVar01SvgRaw from '../../assets/background-images/floral/abstract-floral-aesthetic-var-01.svg?raw';
-import abstractFloralOrganicPastel01SvgRaw from '../../assets/background-images/floral/abstract-floral-organic-pastel-01.svg?raw';
-import leopardPattern01SvgRaw from '../../assets/background-images/floral/leopard-pattern-01.svg?raw';
+let apiBaseOrigin: string | null = null
+try {
+  const parsed = new URL(API_BASE_URL)
+  apiBaseOrigin = parsed.origin
+} catch (error) {
+  console.warn('Invalid VITE_API_URL, falling back to relative paths:', error)
+}
 
-// SVG import mapping: filename -> imported asset URL
-// Note: For files in subfolders, use the full relative path from background-images/
-const svgImports: Record<string, string> = {
-  'colorful-geometric-01.svg': colorfulGeometric01Svg,
-  // Floral category
-  'floral/abstract-floral-aesthetic-01.svg': abstractFloralAesthetic01Svg,
-  'floral/abstract-floral-aesthetic-02.svg': abstractFloralAesthetic02Svg,
-  'floral/abstract-floral-aesthetic-03.svg': abstractFloralAesthetic03Svg,
-  'floral/abstract-floral-aesthetic-var-01.svg': abstractFloralAestheticVar01Svg,
-  'floral/abstract-floral-organic-pastel-01.svg': abstractFloralOrganicPastel01Svg,
-  'floral/aesthetic-minimalist-background_01.svg': aestheticMinimalistBackground01Svg,
-  'floral/leopard-pattern-01.svg': leopardPattern01Svg,
-};
+const PUBLIC_UPLOAD_PREFIX = 'uploads/background-images'
 
-export const svgRawImports: Record<string, string | undefined> = {
-  'floral/aesthetic-minimalist-background_01.svg': aestheticMinimalistBackground01SvgRaw,
-  'floral/abstract-floral-aesthetic-01.svg': abstractFloralAesthetic01SvgRaw,
-  'floral/abstract-floral-aesthetic-02.svg': abstractFloralAesthetic02SvgRaw,
-  'floral/abstract-floral-aesthetic-03.svg': abstractFloralAesthetic03SvgRaw,
-  'floral/abstract-floral-aesthetic-var-01.svg': abstractFloralAestheticVar01SvgRaw,
-  'floral/abstract-floral-organic-pastel-01.svg': abstractFloralOrganicPastel01SvgRaw,
-  'floral/leopard-pattern-01.svg': leopardPattern01SvgRaw,
-};
+const svgRawCache: Record<string, string> = {}
+export const svgRawImports: Record<string, string | undefined> = svgRawCache
 
-// Load images from JSON file
-export const backgroundImages: BackgroundImage[] = (backgroundImagesData as { images: BackgroundImage[] }).images;
+let registry: BackgroundImageWithUrl[] = []
+let registryMap = new Map<string, BackgroundImageWithUrl>()
+let registryCategories: BackgroundImage['category'][] = []
 
-/**
- * Resolve image URL based on format
- * - Vector (SVG): Uses import mapping (bundled asset)
- * - Pixel (PNG/JPG): Uses static path from public folder
- */
-function resolveImageUrl(image: BackgroundImage, isThumbnail = false): string {
-  const filePath = isThumbnail ? image.thumbnail : image.filePath;
-  
-  if (image.format === 'vector') {
-    // SVG files are bundled, use import mapping
-    // First try with full path (for subfolder files like floral/image.svg)
-    const importedUrl = svgImports[filePath];
-    if (importedUrl) {
-      return importedUrl;
-    }
-    // Fallback: try with just filename (for root-level files)
-    const fileName = filePath.split('/').pop() || filePath;
-    const importedUrlByName = svgImports[fileName];
-    if (importedUrlByName) {
-      return importedUrlByName;
-    }
-    // Fallback: try to construct path (shouldn't happen if all SVGs are imported)
-    console.warn(`SVG import not found for ${filePath} (id: ${image.id}). Available keys:`, Object.keys(svgImports).filter(k => k.includes('floral')).slice(0, 5));
-    return `/src/assets/background-images/${filePath}`;
-  } else {
-    // Pixel images are static, use as-is (path should already be absolute from public/)
-    return filePath.startsWith('/') ? filePath : `/background-images/${filePath}`;
+const apiCategorySchema = z.object({
+  id: z.number().optional(),
+  name: z.string(),
+  slug: z.string().nullable().optional(),
+})
+
+const apiStorageSchema = z.object({
+  type: z.enum(['local', 's3']).nullable().optional(),
+  filePath: z.string().nullable().optional(),
+  thumbnailPath: z.string().nullable().optional(),
+  bucket: z.string().nullable().optional(),
+  objectKey: z.string().nullable().optional(),
+})
+
+const apiDefaultsSchema = z.object({
+  size: z.string().nullable().optional(),
+  position: z.string().nullable().optional(),
+  repeat: z.string().nullable().optional(),
+  width: z.number().nullable().optional(),
+  opacity: z.number().nullable().optional(),
+  backgroundColor: z
+    .object({
+      enabled: z.boolean().optional(),
+      defaultValue: z.string().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
+})
+
+const apiRecordSchema = z.object({
+  id: z.string().optional(),
+  slug: z.string(),
+  name: z.string(),
+  description: z.string().nullable().optional(),
+  category: apiCategorySchema,
+  format: z.enum(['vector', 'pixel']),
+  storage: apiStorageSchema,
+  defaults: apiDefaultsSchema,
+  paletteSlots: z.string().nullable().optional(),
+  tags: z.array(z.string()).nullable().optional(),
+})
+
+const apiListResponseSchema = z.object({
+  items: z.array(apiRecordSchema),
+})
+
+function resolveLocalUrl(relativePath?: string | null) {
+  if (!relativePath) return ''
+  let normalized = relativePath.replace(/^\/+/, '')
+
+  if (!normalized.startsWith('uploads/')) {
+    normalized = normalized.startsWith('background-images/')
+      ? normalized.replace(/^background-images\//, '')
+      : normalized
+    normalized = `${PUBLIC_UPLOAD_PREFIX}/${normalized}`
+  }
+
+  const pathWithPrefix = normalized.replace(/^\/+/, '')
+
+  if (apiBaseOrigin) {
+    return `${apiBaseOrigin}/${pathWithPrefix}`
+  }
+
+  return `/${pathWithPrefix}`
+}
+
+function transformApiRecord(record: z.infer<typeof apiRecordSchema>): BackgroundImageWithUrl {
+  const storage = record.storage ?? {}
+  const defaults = record.defaults ?? {}
+  const backgroundColor = defaults.backgroundColor
+    ? {
+        enabled: Boolean(defaults.backgroundColor.enabled),
+        defaultValue: defaults.backgroundColor.defaultValue ?? undefined,
+      }
+    : undefined
+  const paletteSlots =
+    record.paletteSlots === 'standard' || record.paletteSlots === 'auto' ? record.paletteSlots : undefined
+
+  const filePath = storage.filePath ?? undefined
+  const thumbnailPath = storage.thumbnailPath ?? storage.filePath ?? undefined
+  const storageType = (storage.type as 'local' | 's3' | undefined) ?? 'local'
+
+  const backgroundImage: BackgroundImage = {
+    id: record.slug ?? record.id ?? record.name,
+    name: record.name,
+    category: record.category.slug ?? record.category.name,
+    format: record.format,
+    filePath: filePath ?? '',
+    thumbnail: thumbnailPath ?? filePath ?? '',
+    defaultSize: (defaults.size as BackgroundImage['defaultSize'] | undefined) ?? 'cover',
+    defaultOpacity: defaults.opacity ?? 1,
+    defaultWidth: defaults.width ?? undefined,
+    defaultPosition: (defaults.position as BackgroundImage['defaultPosition'] | undefined) ?? undefined,
+    backgroundColor,
+    paletteSlots,
+    description: record.description ?? undefined,
+    tags: record.tags ?? undefined,
+    storageType,
+  }
+
+  const url =
+    storageType === 'local'
+      ? resolveLocalUrl(filePath)
+      : storage.bucket && storage.objectKey
+        ? `https://${storage.bucket}.s3.amazonaws.com/${storage.objectKey}`
+        : filePath ?? ''
+
+  const thumbnailUrl =
+    storageType === 'local'
+      ? resolveLocalUrl(thumbnailPath)
+      : storage.bucket && storage.objectKey
+        ? `https://${storage.bucket}.s3.amazonaws.com/${storage.objectKey}`
+        : thumbnailPath ?? url
+
+  return {
+    ...backgroundImage,
+    url,
+    thumbnailUrl: thumbnailUrl || url,
   }
 }
 
-/**
- * Get all background images
- */
+function rebuildDerivedState(images: BackgroundImageWithUrl[]) {
+  registry = images
+  registryMap = new Map(images.map((image) => [image.id, image]))
+  const categorySet = new Set<BackgroundImage['category']>()
+  images.forEach((image) => {
+    if (image.category) categorySet.add(image.category)
+  })
+  registryCategories = Array.from(categorySet)
+}
+
+export async function loadBackgroundImageRegistry(force = false) {
+  if (registry.length > 0 && !force) return
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/background-images?page=1&pageSize=500`)
+    if (!response.ok) {
+      throw new Error(`Failed to load background images (${response.status})`)
+    }
+    const payload = apiListResponseSchema.parse(await response.json())
+    const transformed = payload.items.map(transformApiRecord)
+    rebuildDerivedState(transformed)
+
+    await Promise.all(
+      transformed
+        .filter((image) => image.format === 'vector' && image.url)
+        .map(async (image) => {
+          try {
+            const response = await fetch(image.url)
+            if (!response.ok) return
+            const raw = await response.text()
+            svgRawCache[image.filePath] = raw
+          } catch (error) {
+            console.warn(`SVG konnte nicht geladen werden (${image.filePath}):`, error)
+          }
+        }),
+    )
+  } catch (error) {
+    console.error('Hintergrundbilder konnten nicht geladen werden:', error)
+    rebuildDerivedState([])
+  }
+}
+
 export function getBackgroundImages(): BackgroundImage[] {
-  return backgroundImages;
+  return registry
 }
 
-/**
- * Get background image by ID
- */
-export function getBackgroundImageById(id: string): BackgroundImage | undefined {
-  return backgroundImages.find(img => img.id === id);
+export function getBackgroundImageById(id: string): BackgroundImageWithUrl | undefined {
+  return registryMap.get(id)
 }
 
-/**
- * Get background images by category
- */
-export function getBackgroundImagesByCategory(category: BackgroundImage['category']): BackgroundImage[] {
-  return backgroundImages.filter(img => img.category === category);
+export function getBackgroundImagesByCategory(category: BackgroundImage['category']): BackgroundImageWithUrl[] {
+  return registry.filter((image) => image.category === category)
 }
 
-/**
- * Get background images by format
- */
-export function getBackgroundImagesByFormat(format: 'vector' | 'pixel'): BackgroundImage[] {
-  return backgroundImages.filter(img => img.format === format);
+export function getBackgroundImagesByFormat(format: 'vector' | 'pixel'): BackgroundImageWithUrl[] {
+  return registry.filter((image) => image.format === format)
 }
 
-/**
- * Search background images by name or tags
- */
-export function searchBackgroundImages(query: string): BackgroundImage[] {
-  const lowerQuery = query.toLowerCase();
-  return backgroundImages.filter(img => {
-    const nameMatch = img.name.toLowerCase().includes(lowerQuery);
-    const descMatch = img.description?.toLowerCase().includes(lowerQuery);
-    const tagMatch = img.tags?.some(tag => tag.toLowerCase().includes(lowerQuery));
-    return nameMatch || descMatch || tagMatch;
-  });
+export function searchBackgroundImages(query: string): BackgroundImageWithUrl[] {
+  const normalized = query.trim().toLowerCase()
+  if (!normalized) return registry
+
+  return registry.filter((image) => {
+    const nameMatch = image.name.toLowerCase().includes(normalized)
+    const descMatch = image.description?.toLowerCase().includes(normalized)
+    const tagMatch = image.tags?.some((tag) => tag.toLowerCase().includes(normalized))
+    return Boolean(nameMatch || descMatch || tagMatch)
+  })
 }
 
-/**
- * Get background image with resolved URLs
- */
 export function getBackgroundImageWithUrl(id: string): BackgroundImageWithUrl | undefined {
-  const image = getBackgroundImageById(id);
-  if (!image) return undefined;
-  
-  return {
-    ...image,
-    url: resolveImageUrl(image, false),
-    thumbnailUrl: resolveImageUrl(image, true),
-  };
+  return registryMap.get(id)
 }
 
-/**
- * Get all background images with resolved URLs
- */
 export function getBackgroundImagesWithUrl(): BackgroundImageWithUrl[] {
-  return backgroundImages.map(image => ({
-    ...image,
-    url: resolveImageUrl(image, false),
-    thumbnailUrl: resolveImageUrl(image, true),
-  }));
+  return registry
 }
 
-/**
- * Get all available categories
- */
 export function getBackgroundImageCategories(): BackgroundImage['category'][] {
-  const categories = new Set<BackgroundImage['category']>();
-  backgroundImages.forEach(img => categories.add(img.category));
-  return Array.from(categories);
+  return registryCategories
 }

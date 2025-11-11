@@ -75,7 +75,8 @@ export function applyBackgroundImageTemplate(
     opacity: resolvedOpacity,
     imageSize,
     imageRepeat,
-    backgroundImageTemplateId: templateId
+    backgroundImageTemplateId: templateId,
+    applyPalette: true
   };
 
   if (imageSize === 'contain') {
@@ -109,7 +110,8 @@ export function applyBackgroundImageTemplate(
  */
 export function getBackgroundImageUrl(
   templateId: string,
-  options?: BackgroundImagePaletteOptions
+  options?: BackgroundImagePaletteOptions,
+  applyPalette = true
 ): string | undefined {
   const template = getBackgroundImageWithUrl(templateId);
   if (!template) {
@@ -119,6 +121,10 @@ export function getBackgroundImageUrl(
   if (!template.url) {
     console.warn(`Background image URL not resolved for template: ${templateId}, filePath: ${template.filePath}`);
     return undefined;
+  }
+
+  if (!applyPalette) {
+    return template.url;
   }
 
   if (template.format === 'vector') {
@@ -187,7 +193,8 @@ export function resolveBackgroundImageUrl(
 
   // If using template, resolve template URL (with palette support for SVGs)
   if (background.backgroundImageTemplateId) {
-    return getBackgroundImageUrl(background.backgroundImageTemplateId, options);
+    const shouldApplyPalette = background.applyPalette !== false;
+    return getBackgroundImageUrl(background.backgroundImageTemplateId, options, shouldApplyPalette);
   }
 
   // Otherwise use direct value

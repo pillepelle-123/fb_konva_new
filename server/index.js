@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const { Pool } = require('pg');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
@@ -36,7 +37,10 @@ pool.connect((err, client, release) => {
 });
 
 // Static file serving
-app.use('/uploads', express.static('uploads'));
+const UPLOADS_DIR =
+  process.env.UPLOADS_DIR ||
+  path.join(__dirname, '..', 'uploads');
+app.use('/uploads', express.static(UPLOADS_DIR));
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
@@ -59,6 +63,7 @@ app.use('/api/templates', require('./routes/templates'));
 app.use('/api/color-palettes', require('./routes/templates'));
 app.use('/api/pages', require('./routes/templates'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/background-images', require('./routes/background-images'));
 
 // Socket.IO authentication middleware
 io.use((socket, next) => {

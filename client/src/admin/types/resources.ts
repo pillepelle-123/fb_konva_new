@@ -31,3 +31,64 @@ export interface AdminPageRecord {
   updatedAt: string
 }
 
+export interface AdminBackgroundImageCategory {
+  id: number
+  name: string
+  slug: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AdminBackgroundImage {
+  id: string
+  slug: string
+  name: string
+  description: string | null
+  category: AdminBackgroundImageCategory
+  format: string
+  storage: {
+    type: 'local' | 's3'
+    filePath: string | null
+    thumbnailPath: string | null
+    bucket: string | null
+    objectKey: string | null
+  }
+  defaults: {
+    size: string | null
+    position: string | null
+    repeat: string | null
+    width: number | null
+    opacity: number
+    backgroundColor: Record<string, unknown> | null
+  }
+  paletteSlots: string | null
+  tags: string[]
+  metadata: Record<string, unknown>
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AdminBackgroundImageInput {
+  name: string
+  slug?: string
+  categoryId: number
+  description?: string | null
+  format?: string
+  storageType?: 'local' | 's3'
+  filePath?: string | null
+  thumbnailPath?: string | null
+  bucket?: string | null
+  objectKey?: string | null
+  defaults?: {
+    size?: string | null
+    position?: string | null
+    repeat?: string | null
+    width?: number | null
+    opacity?: number | null
+    backgroundColor?: Record<string, unknown> | null
+  }
+  paletteSlots?: string | null
+  tags?: string[]
+  metadata?: Record<string, unknown>
+}
+

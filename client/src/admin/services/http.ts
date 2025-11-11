@@ -68,3 +68,33 @@ export async function apiFetch<T>(
   return schema ? schema.parse(data) : (data as T)
 }
 
+export async function apiFetchFormData<T>(
+  token: string | null,
+  path: string,
+  formData: FormData,
+  schema?: z.ZodType<T>,
+  init: RequestInit = {},
+): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    method: init.method ?? 'POST',
+    body: formData,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...init.headers,
+    },
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new AdminApiError(errorText || response.statusText, response.status)
+  }
+
+  if (response.status === 204) {
+    return undefined as T
+  }
+
+  const data = (await response.json()) as unknown
+  return schema ? schema.parse(data) : (data as T)
+}
+
