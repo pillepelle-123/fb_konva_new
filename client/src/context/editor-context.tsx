@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
+import { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from './auth-context';
@@ -91,6 +91,7 @@ import { colorPalettes } from '../data/templates/color-palettes';
 import { getGlobalTheme, getThemePageBackgroundColors } from '../utils/global-themes';
 import type { PageTemplate, ColorPalette } from '../types/template-types';
 import { applyBackgroundImageTemplate } from '../utils/background-image-utils';
+import { generatePagePreview } from '../utils/page-preview-generator';
 
 // Function to extract theme structure from current book state
 function logThemeStructure(book: Book | null) {
@@ -452,6 +453,8 @@ export interface EditorState {
   canvasBackgroundPattern?: string | null;
   wizardTemplateSelection: WizardTemplateSelection;
   wizardSetupApplied?: boolean;
+  pagePreviewCache: Record<number, { dataUrl: string | null; version: number }>;
+  pagePreviewVersions: Record<number, number>;
 }
 
 type EditorAction =
@@ -523,6 +526,7 @@ type EditorAction =
   | { type: 'SET_WIZARD_TEMPLATE_SELECTION'; payload: WizardTemplateSelection }
   | { type: 'MARK_COLOR_OVERRIDE'; payload: { elementIds: string[]; colorProperty: string } }
   | { type: 'RESET_COLOR_OVERRIDES'; payload: { elementIds: string[]; colorProperties?: string[]; pageIndex?: number } }
+  | { type: 'SET_PAGE_PREVIEW'; payload: { pageId: number; dataUrl: string | null; version: number } }
   | { type: 'MARK_WIZARD_SETUP_APPLIED' };
 
 const initialState: EditorState = {
@@ -563,6 +567,8 @@ const initialState: EditorState = {
   canvasBackgroundImage: null,
   canvasBackgroundPattern: null,
   wizardSetupApplied: false,
+  pagePreviewCache: {},
+  pagePreviewVersions: {},
 };
 
 const MAX_HISTORY_SIZE = 50;
@@ -607,14 +613,60 @@ function saveToHistory(state: EditorState, actionName: string): EditorState {
   };
 }
 
+function invalidatePagePreviews(state: EditorState, pageIds: number[]): EditorState {
+  if (!pageIds.length) {
+    return state;
+  }
+
+  let cacheChanged = false;
+  let versionChanged = false;
+  const newCache = { ...state.pagePreviewCache };
+  const newVersions = { ...state.pagePreviewVersions };
+
+  pageIds.forEach((pageId) => {
+    if (pageId == null) {
+      return;
+    }
+    if (newCache[pageId]) {
+      delete newCache[pageId];
+      cacheChanged = true;
+    }
+    newVersions[pageId] = (newVersions[pageId] || 0) + 1;
+    versionChanged = true;
+  });
+
+  if (!cacheChanged && !versionChanged) {
+    return state;
+  }
+
+  return {
+    ...state,
+    pagePreviewCache: newCache,
+    pagePreviewVersions: newVersions,
+  };
+}
+
 function editorReducer(state: EditorState, action: EditorAction): EditorState {
   switch (action.type) {
-    case 'SET_BOOK':
-      const bookState = { ...state, currentBook: action.payload, activePageIndex: 0 };
+    case 'SET_BOOK': {
+      const previewVersions: Record<number, number> = action.payload
+        ? action.payload.pages.reduce((acc, page) => {
+            acc[page.id] = (state.pagePreviewVersions[page.id] || 0) + 1;
+            return acc;
+          }, {} as Record<number, number>)
+        : {};
+      const bookState = {
+        ...state,
+        currentBook: action.payload,
+        activePageIndex: 0,
+        pagePreviewCache: {},
+        pagePreviewVersions: previewVersions,
+      };
       if (action.payload) {
         return saveToHistory(bookState, 'Load Book');
       }
       return bookState;
+    }
     
     case 'SET_ACTIVE_PAGE':
       const activePageState = { ...state, activePageIndex: action.payload, selectedElementIds: [] };
@@ -694,10 +746,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         selectedElementIds: [action.payload.id], 
         hasUnsavedChanges: true 
       };
-      
-
-      
-      return newState;
+      const targetPage = newBook.pages[savedState.activePageIndex];
+      return invalidatePagePreviews(newState, targetPage ? [targetPage.id] : []);
     
     case 'UPDATE_ELEMENT':
       if (!state.currentBook) return state;
@@ -717,10 +767,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         page.elements[elementIndex] = { ...oldElement, ...enforcedUpdates };
       }
       const updatedState = { ...state, currentBook: updatedBook, hasUnsavedChanges: true };
-      
-
-      
-      return updatedState;
+      const pageId = updatedBook.pages[state.activePageIndex]?.id;
+      return invalidatePagePreviews(updatedState, pageId ? [pageId] : []);
     
     case 'UPDATE_ELEMENT_PRESERVE_SELECTION':
       if (!state.currentBook) return state;
@@ -805,7 +853,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           return page;
         })
       };
-      return { ...state, currentBook: updatedBookPreserve, hasUnsavedChanges: true };
+      const stateAfterUpdate = { ...state, currentBook: updatedBookPreserve, hasUnsavedChanges: true };
+      const updatedPageId = updatedBookPreserve.pages[state.activePageIndex]?.id;
+      return invalidatePagePreviews(stateAfterUpdate, updatedPageId ? [updatedPageId] : []);
     
     case 'UPDATE_GROUPED_ELEMENT':
       if (!state.currentBook) return state;
@@ -833,20 +883,25 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           return page;
         })
       };
-      return { ...state, currentBook: updatedBookGrouped, hasUnsavedChanges: true };
+      const stateAfterGrouped = { ...state, currentBook: updatedBookGrouped, hasUnsavedChanges: true };
+      const groupedPageId = updatedBookGrouped.pages[state.activePageIndex]?.id;
+      return invalidatePagePreviews(stateAfterGrouped, groupedPageId ? [groupedPageId] : []);
     
     case 'UPDATE_ELEMENT_ALL_PAGES':
       if (!state.currentBook) return state;
       const updatedBookAllPages = { ...state.currentBook };
+      const affectedAllPages: number[] = [];
       updatedBookAllPages.pages.forEach(page => {
         const elementIndex = page.elements.findIndex(el => el.id === action.payload.id);
         if (elementIndex !== -1) {
           const oldElementAllPages = page.elements[elementIndex];
           const enforcedUpdatesAllPages = enforceThemeBoundaries(action.payload.updates, oldElementAllPages);
           page.elements[elementIndex] = { ...oldElementAllPages, ...enforcedUpdatesAllPages };
+          affectedAllPages.push(page.id);
         }
       });
-      return { ...state, currentBook: updatedBookAllPages, hasUnsavedChanges: true };
+      const stateAfterAllPages = { ...state, currentBook: updatedBookAllPages, hasUnsavedChanges: true };
+      return invalidatePagePreviews(stateAfterAllPages, affectedAllPages);
     
     case 'DELETE_ELEMENT':
       if (!state.currentBook) return state;
@@ -873,7 +928,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       
 
       
-      return deleteState;
+      const deletePageId = filteredBook.pages[savedDeleteState.activePageIndex]?.id;
+      return invalidatePagePreviews(deleteState, deletePageId ? [deletePageId] : []);
     
     case 'ADD_PAGE':
       if (!state.currentBook || state.userRole === 'author') return state;
@@ -1129,16 +1185,20 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         },
         hasUnsavedChanges: true
       };
-      
-      return addPageState;
-      
-      return addPageState;
+      return invalidatePagePreviews(addPageState, [themedNewPage.id]);
     
     case 'DELETE_PAGE':
       if (!state.currentBook || state.currentBook.pages.length <= 1 || state.userRole === 'author') return state;
       const savedDeletePageState = saveToHistory(state, 'Delete Page');
+      const removedPage = savedDeletePageState.currentBook!.pages[action.payload];
       const pagesAfterDelete = savedDeletePageState.currentBook!.pages.filter((_, index) => index !== action.payload);
       const newActiveIndex = action.payload >= pagesAfterDelete.length ? pagesAfterDelete.length - 1 : savedDeletePageState.activePageIndex;
+      const cacheWithoutPage = { ...savedDeletePageState.pagePreviewCache };
+      const versionsWithoutPage = { ...savedDeletePageState.pagePreviewVersions };
+      if (removedPage) {
+        delete cacheWithoutPage[removedPage.id];
+        delete versionsWithoutPage[removedPage.id];
+      }
       return {
         ...savedDeletePageState,
         currentBook: {
@@ -1147,7 +1207,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         },
         activePageIndex: newActiveIndex,
         selectedElementIds: [],
-        hasUnsavedChanges: true
+        hasUnsavedChanges: true,
+        pagePreviewCache: cacheWithoutPage,
+        pagePreviewVersions: versionsWithoutPage
       };
     
     case 'DUPLICATE_PAGE':
@@ -1158,8 +1220,11 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         id: Date.now(),
         pageNumber: action.payload + 2,
         elements: pageToDuplicate.elements.map(el => ({ ...el, id: uuidv4() })),
-        background: pageToDuplicate.background,
-        database_id: undefined // Duplicated page, no database ID yet
+        background: pageToDuplicate.background ? JSON.parse(JSON.stringify(pageToDuplicate.background)) : undefined,
+        database_id: undefined, // Duplicated page, no database ID yet
+        layoutTemplateId: pageToDuplicate.layoutTemplateId,
+        themeId: pageToDuplicate.themeId,
+        colorPaletteId: pageToDuplicate.colorPaletteId
       };
       const pagesWithDuplicate = [
         ...savedDuplicateState.currentBook!.pages.slice(0, action.payload + 1),
@@ -1184,15 +1249,17 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       // Ensure new duplicated page has no assignment
       updatedPageAssignments[insertPosition] = null;
       
-      return {
+      const stateAfterDuplicate = {
         ...savedDuplicateState,
         currentBook: {
           ...savedDuplicateState.currentBook!,
           pages: pagesWithDuplicate
         },
         pageAssignments: updatedPageAssignments,
+        activePageIndex: action.payload + 1,
         hasUnsavedChanges: true
       };
+      return invalidatePagePreviews(stateAfterDuplicate, [duplicatedPage.id]);
     
     case 'CREATE_PREVIEW_PAGE':
       if (!state.currentBook) return state;
@@ -1436,9 +1503,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       // History is already saved by SET_BOOK_THEME/SET_PAGE_THEME/APPLY_COLOR_PALETTE
       const savedBgState = action.payload.skipHistory ? state : saveToHistory(state, 'Update Page Background');
       const updatedBookBg = { ...savedBgState.currentBook! };
-      const targetPage = updatedBookBg.pages[action.payload.pageIndex];
-      if (targetPage) {
-        targetPage.background = action.payload.background;
+      const backgroundPage = updatedBookBg.pages[action.payload.pageIndex];
+      if (backgroundPage) {
+        backgroundPage.background = action.payload.background;
       }
       return { ...savedBgState, currentBook: updatedBookBg, hasUnsavedChanges: true };
     
@@ -2748,6 +2815,27 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         hasUnsavedChanges: true 
       };
     
+    case 'SET_PAGE_PREVIEW': {
+      const { pageId, dataUrl, version } = action.payload;
+      const existingEntry = state.pagePreviewCache[pageId];
+      const cacheUnchanged = existingEntry && existingEntry.dataUrl === dataUrl && existingEntry.version === version;
+      const versionUnchanged = state.pagePreviewVersions[pageId] === version;
+      if (cacheUnchanged && versionUnchanged) {
+        return state;
+      }
+      return {
+        ...state,
+        pagePreviewCache: {
+          ...state.pagePreviewCache,
+          [pageId]: { dataUrl, version }
+        },
+        pagePreviewVersions: {
+          ...state.pagePreviewVersions,
+          [pageId]: version
+        }
+      };
+    }
+    
     case 'MARK_WIZARD_SETUP_APPLIED':
       return { ...state, wizardSetupApplied: true };
     
@@ -2853,12 +2941,162 @@ export const useEditor = () => {
 export const EditorProvider = ({ children }: { children: ReactNode }) => {
   const [state, dispatch] = useReducer(editorReducer, initialState);
   const { user } = useAuth();
+  const previewSignaturesRef = useRef<Record<number, string>>({});
+  const generatingPreviewsRef = useRef<Set<number>>(new Set());
+  const previousBookIdRef = useRef<number | string | null>(null);
 
   useEffect(() => {
     if (user) {
       dispatch({ type: 'SET_USER', payload: { id: user.id, role: user.role } });
     }
   }, [user]);
+
+  useEffect(() => {
+    if (!state.currentBook) {
+      previewSignaturesRef.current = {};
+      generatingPreviewsRef.current.clear();
+      previousBookIdRef.current = null;
+      return;
+    }
+
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return;
+    }
+
+    const currentBookId = state.currentBook.id;
+    if (previousBookIdRef.current !== currentBookId) {
+      previewSignaturesRef.current = {};
+      generatingPreviewsRef.current.clear();
+      previousBookIdRef.current = currentBookId;
+    }
+
+    const pages = state.currentBook.pages.filter((page) => !page.isPreview);
+    const tasks: Array<{ page: Page; signature: string; version: number }> = [];
+
+    pages.forEach((page) => {
+      const signature = JSON.stringify({
+        id: page.id,
+        elements: page.elements.map((el) => ({
+          id: el.id,
+          type: el.type,
+          textType: el.textType,
+          x: el.x,
+          y: el.y,
+          width: el.width,
+          height: el.height,
+          rotation: el.rotation,
+          fill: el.fill,
+          stroke: el.stroke,
+          fontSize: el.fontSize,
+          fontColor: el.fontColor,
+          backgroundColor: el.backgroundColor,
+          questionId: el.questionId,
+        })),
+        background: page.background,
+        layoutTemplateId: page.layoutTemplateId,
+        themeId: page.themeId,
+        colorPaletteId: page.colorPaletteId,
+      });
+
+      const cached = state.pagePreviewCache[page.id];
+      const targetVersion = state.pagePreviewVersions[page.id] ?? (cached?.version ?? 0);
+
+      let versionToUse = targetVersion;
+      let requiresRender = false;
+
+      if (!cached) {
+        versionToUse = targetVersion || 1;
+        requiresRender = true;
+      } else if (cached.version !== targetVersion) {
+        versionToUse = targetVersion;
+        requiresRender = true;
+      }
+
+      if (!requiresRender && previewSignaturesRef.current[page.id] !== signature) {
+        versionToUse = (cached?.version ?? 0) + 1;
+        requiresRender = true;
+      }
+
+      if (requiresRender && !generatingPreviewsRef.current.has(page.id)) {
+        tasks.push({ page, signature, version: versionToUse });
+      }
+    });
+
+    if (!tasks.length) {
+      return;
+    }
+
+    const limitedTasks = tasks.slice(0, 4);
+
+    let cancelled = false;
+
+    const runGeneration = async () => {
+      for (const task of limitedTasks) {
+        if (cancelled) {
+          break;
+        }
+
+        generatingPreviewsRef.current.add(task.page.id);
+
+        try {
+          const dataUrl = await generatePagePreview({
+            page: task.page,
+            book: state.currentBook!,
+            previewWidth: 200,
+            previewHeight: 280,
+          });
+
+          if (!cancelled) {
+            previewSignaturesRef.current[task.page.id] = task.signature;
+            dispatch({
+              type: 'SET_PAGE_PREVIEW',
+              payload: { pageId: task.page.id, dataUrl, version: task.version },
+            });
+          }
+        } catch (error) {
+          if (!cancelled) {
+            previewSignaturesRef.current[task.page.id] = task.signature;
+            dispatch({
+              type: 'SET_PAGE_PREVIEW',
+              payload: { pageId: task.page.id, dataUrl: null, version: task.version },
+            });
+          }
+        } finally {
+          generatingPreviewsRef.current.delete(task.page.id);
+        }
+      }
+    };
+
+    let idleHandle: number | null = null;
+    let timeoutHandle: number | null = null;
+
+    const schedule = () => {
+      const win = window as any;
+
+      if (typeof win.requestIdleCallback === 'function') {
+        idleHandle = win.requestIdleCallback(() => {
+          runGeneration();
+        });
+      } else {
+        timeoutHandle = window.setTimeout(() => {
+          runGeneration();
+        }, 0);
+      }
+    };
+
+    schedule();
+
+    return () => {
+      cancelled = true;
+      const win = window as any;
+      if (idleHandle !== null && typeof win.cancelIdleCallback === 'function') {
+        win.cancelIdleCallback(idleHandle);
+      }
+      if (timeoutHandle !== null) {
+        window.clearTimeout(timeoutHandle);
+      }
+    };
+  }, [state.currentBook, state.pagePreviewVersions, state.pagePreviewCache]);
 
   const saveBook = async () => {
     if (!state.currentBook) return;

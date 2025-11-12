@@ -82,11 +82,12 @@ export function PagesSubmenu({ pages, activePageIndex, onClose, onPageSelect, on
             onClick={() => onPageSelect(isRestrictedView ? index + 1 : page.pageNumber)}
           >
             <PagePreview 
-              bookId={bookId} 
               pageId={page.id} 
               pageNumber={isRestrictedView ? index + 1 : page.pageNumber}
               assignedUser={state.pageAssignments[page.pageNumber] || null}
               isActive={index === activePageIndex}
+              page={page}
+              book={state.currentBook || undefined}
             />
           </div>
         ))}

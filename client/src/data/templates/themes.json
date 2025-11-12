@@ -185,7 +185,7 @@
       "backgroundImage": {
         "enabled": true,
         "templateId": "abstract-floral-aesthetic-var-01",
-        "size": "contain",
+        "size": "cover",
         "repeat": true,
         "opacity": 1
       }

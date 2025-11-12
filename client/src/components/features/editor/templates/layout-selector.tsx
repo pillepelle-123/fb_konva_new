@@ -14,6 +14,168 @@ interface LayoutSelectorProps {
   bookLayout?: PageTemplate | null;
 }
 
+const PAGE_WIDTH = 2480;
+const PAGE_HEIGHT = 3508;
+
+type TemplateItem =
+  | {
+      id: string;
+      type: 'qna_inline' | 'text' | 'qna' | 'answer' | 'other';
+      position: { x: number; y: number };
+      size: { width: number; height: number };
+    }
+  | {
+      id: string;
+      type: 'image';
+      position: { x: number; y: number };
+      size: { width: number; height: number };
+    };
+
+const ITEM_STYLE: Record<
+  TemplateItem['type'],
+  { background: string; border: string; label: string }
+> = {
+  qna_inline: {
+    background: 'rgba(59, 130, 246, 0.65)', // blue
+    border: '#1d4ed8',
+    label: 'Q&A Inline'
+  },
+  qna: {
+    background: 'rgba(37, 99, 235, 0.65)', // darker blue
+    border: '#1e3a8a',
+    label: 'Q&A'
+  },
+  answer: {
+    background: 'rgba(56, 189, 248, 0.65)',
+    border: '#0ea5e9',
+    label: 'Answer'
+  },
+  text: {
+    background: 'rgba(96, 165, 250, 0.65)',
+    border: '#2563eb',
+    label: 'Text'
+  },
+  other: {
+    background: 'rgba(148, 163, 184, 0.65)',
+    border: '#475569',
+    label: 'Element'
+  },
+  image: {
+    background: 'rgba(249, 115, 22, 0.65)', // orange
+    border: '#ea580c',
+    label: 'Bild'
+  }
+};
+
+function normalizeTemplateItems(template: PageTemplate): TemplateItem[] {
+  const textboxItems =
+    template.textboxes?.map((textbox, index) => {
+      const type = (textbox.type as TemplateItem['type']) ?? 'other';
+      return {
+        id: `textbox-${index}`,
+        type: ITEM_STYLE[type] ? type : ('other' as const),
+        position: {
+          x: textbox.position.x ?? 0,
+          y: textbox.position.y ?? 0
+        },
+        size: {
+          width: textbox.size.width ?? 0,
+          height: textbox.size.height ?? 0
+        }
+      };
+    }) ?? [];
+
+  const elementItems =
+    template.elements?.map((element, index) => ({
+      id: `element-${index}`,
+      type: element.type === 'image' ? ('image' as const) : ('other' as const),
+      position: {
+        x: element.position.x ?? 0,
+        y: element.position.y ?? 0
+      },
+      size: {
+        width: element.size.width ?? 0,
+        height: element.size.height ?? 0
+      }
+    })) ?? [];
+
+  return [...textboxItems, ...elementItems];
+}
+
+interface LayoutTemplatePreviewProps {
+  template: PageTemplate;
+  className?: string;
+  showLegend?: boolean;
+}
+
+function LayoutTemplatePreview({
+  template,
+  className,
+  showLegend = false
+}: LayoutTemplatePreviewProps) {
+  const items = normalizeTemplateItems(template);
+
+  return (
+    <div className={`flex flex-col gap-2 ${className ?? ''}`}>
+      <div className="relative w-full rounded-lg border border-gray-200 bg-slate-50 shadow-inner aspect-[210/297] overflow-hidden">
+        <div className="absolute inset-2 rounded-md border border-dashed border-slate-300 bg-white" />
+        {items.map((item) => {
+          const styleConfig = ITEM_STYLE[item.type] ?? ITEM_STYLE.other;
+          const widthPercent = (item.size.width / PAGE_WIDTH) * 100;
+          const heightPercent = (item.size.height / PAGE_HEIGHT) * 100;
+          const leftPercent = (item.position.x / PAGE_WIDTH) * 100;
+          const topPercent = (item.position.y / PAGE_HEIGHT) * 100;
+
+          return (
+            <div
+              key={item.id}
+              className="absolute flex items-center justify-center text-[11px] font-medium text-white"
+              style={{
+                left: `${leftPercent}%`,
+                top: `${topPercent}%`,
+                width: `${widthPercent}%`,
+                height: `${heightPercent}%`,
+                backgroundColor: styleConfig.background,
+                border: `1.5px solid ${styleConfig.border}`,
+                borderRadius: 6,
+                boxShadow: '0 2px 4px rgba(15, 23, 42, 0.15)',
+                letterSpacing: '0.02em'
+              }}
+            >
+              <span className="px-2 py-0.5 rounded-full bg-slate-900/20 backdrop-blur">
+                {styleConfig.label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {showLegend && (
+        <div className="flex flex-wrap gap-2 text-[11px] text-slate-600">
+          {Object.entries(ITEM_STYLE).map(([key, value]) => {
+            // Hide generic "Element" legend if no item uses it
+            if (
+              key === 'other' &&
+              !items.some((item) => item.type === ('other' as TemplateItem['type']))
+            ) {
+              return null;
+            }
+            return (
+              <div key={key} className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/80 px-2 py-1 shadow-sm">
+                <span
+                  className="inline-flex h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: value.background, border: `1px solid ${value.border}` }}
+                />
+                <span className="font-medium">{value.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function LayoutSelector({
   selectedLayout,
   onLayoutSelect,
@@ -28,38 +190,17 @@ export function LayoutSelector({
   const mergedPageTemplates: PageTemplate[] = builtinPageTemplates;
 
   const previewSection = (
-    <div className="p-4 border-t border-gray-200 shrink-0" style={{ display: 'none' }}>
+    <div className="p-4 border-t border-gray-200 shrink-0">
       <h3 className="text-sm font-medium mb-3">Preview</h3>
       {selectedLayout ? (
         <div className="bg-white border rounded-lg p-4">
           <div className="text-sm font-medium mb-2">{selectedLayout.name}</div>
           <div className="text-xs text-gray-600 mb-3">
-            {selectedLayout.textboxes.length} Textbox{selectedLayout.textboxes.length !== 1 ? 'es' : ''} • {selectedLayout.constraints.imageSlots} Image{selectedLayout.constraints.imageSlots !== 1 ? 's' : ''}
+            {selectedLayout.textboxes.length} Textbox{selectedLayout.textboxes.length !== 1 ? 'es' : ''} •{' '}
+            {selectedLayout.constraints.imageSlots} Image
+            {selectedLayout.constraints.imageSlots !== 1 ? 's' : ''}
           </div>
-          <div className="aspect-[210/297] bg-gray-50 border rounded relative overflow-hidden">
-            {selectedLayout.textboxes.map((textbox, i) => (
-              <div
-                key={i}
-                className="absolute bg-blue-200 border-2 border-blue-400 rounded opacity-80 flex items-center justify-center"
-                style={{
-                  left: `${(textbox.position.x / 2480) * 100}%`,
-                  top: `${(textbox.position.y / 3508) * 100}%`,
-                  width: `${(textbox.size.width / 2480) * 100}%`,
-                  height: `${(textbox.size.height / 3508) * 100}%`,
-                  fontSize: '10px',
-                  color: '#1e40af',
-                  fontWeight: '600'
-                }}
-              >
-                {textbox.type === 'qna_inline' ? 'Q&A' : 'Text'}
-              </div>
-            ))}
-            {selectedLayout.constraints.imageSlots > 0 && (
-              <div className="absolute bottom-2 right-2 text-xs text-gray-500">
-                {selectedLayout.constraints.imageSlots} image slot{selectedLayout.constraints.imageSlots !== 1 ? 's' : ''}
-              </div>
-            )}
-          </div>
+          <LayoutTemplatePreview template={selectedLayout} showLegend />
         </div>
       ) : (
         <div className="text-gray-500 text-sm">Select a layout to see preview</div>
@@ -169,13 +310,7 @@ export function LayoutSelector({
             <div className="text-xs text-gray-600">
               {template.textboxes.length} elements • {template.constraints.imageSlots} images
             </div>
-            <div className="mt-2 h-12 bg-gray-100 rounded border relative overflow-hidden">
-              <div className="absolute inset-1 grid grid-cols-2 gap-1">
-                {template.textboxes.slice(0, 4).map((_, i) => (
-                  <div key={i} className="bg-blue-200 rounded-sm opacity-60" />
-                ))}
-              </div>
-            </div>
+            <LayoutTemplatePreview template={template} className="mt-3" />
           </button>
           {onPreviewClick && (
             <button

@@ -565,10 +565,15 @@ export function PaletteSelector({ onBack, title, isBookLevel = false, previewPos
     dispatch({ type: 'SET_ACTIVE_PAGE', payload: originalPageIndexRef.current });
     
     setTimeout(() => {
+    const targetPageIndex =
+      originalPageIndexRef.current !== undefined
+        ? originalPageIndexRef.current
+        : state.activePageIndex;
+    
       dispatch({
         type: 'SET_PAGE_COLOR_PALETTE',
         payload: { 
-          pageIndex: state.activePageIndex, 
+        pageIndex: targetPageIndex, 
           colorPaletteId: useBookPalette ? null : paletteToApply.id
         }
       });
@@ -577,7 +582,7 @@ export function PaletteSelector({ onBack, title, isBookLevel = false, previewPos
         type: 'APPLY_COLOR_PALETTE',
         payload: {
           palette: paletteToApply,
-          pageIndex: state.activePageIndex,
+        pageIndex: targetPageIndex,
           applyToAllPages: false
         }
       });

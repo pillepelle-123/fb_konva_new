@@ -189,17 +189,6 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
 
   const handleDuplicatePage = () => {
     dispatch({ type: 'DUPLICATE_PAGE', payload: state.activePageIndex });
-    // Navigate to the newly created page (find it in visible pages)
-    setTimeout(() => {
-      const newVisiblePages = getVisiblePages();
-      if (newVisiblePages.length > 0) {
-        const lastPage = newVisiblePages[newVisiblePages.length - 1];
-        const lastPageIndex = state.currentBook.pages.findIndex(p => p.id === lastPage.id);
-        if (lastPageIndex !== -1) {
-          dispatch({ type: 'SET_ACTIVE_PAGE', payload: lastPageIndex });
-        }
-      }
-    }, 100);
   };
 
   const handleGoToPage = (page: number) => {

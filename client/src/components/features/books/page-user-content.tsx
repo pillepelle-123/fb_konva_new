@@ -336,7 +336,14 @@ export default function PagesContent({ bookId, bookFriends: propBookFriends, onS
 
                 {/* Page Preview */}
                 <div className="flex-shrink-0">
-                  <PagePreview key={`${page.pageId}-${page.pageNumber}`} bookId={bookId} pageId={page.pageId} pageNumber={page.pageNumber} />
+                  <PagePreview
+                    key={`${page.pageId}-${page.pageNumber}`}
+                    pageId={page.pageId}
+                    pageNumber={page.pageNumber}
+                    assignedUser={page.assignedUser}
+                    page={editorState?.currentBook?.pages.find((p: any) => p.id === page.pageId)}
+                    book={editorState?.currentBook || undefined}
+                  />
                 </div>
 
                 {/* Page Info */}

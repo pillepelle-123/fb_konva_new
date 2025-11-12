@@ -274,6 +274,11 @@ export function LayoutSelectorWrapper({ onBack, title, isBookLevel = false }: La
     dispatch({ type: 'SET_ACTIVE_PAGE', payload: originalPageIndexRef.current });
     
     setTimeout(() => {
+    const targetPageIndex =
+      originalPageIndexRef.current !== undefined
+        ? originalPageIndexRef.current
+        : state.activePageIndex;
+    
       const layoutToApply = selectedBookLayout ? bookLayout : previewLayout;
       
       if (layoutToApply) {
@@ -281,7 +286,7 @@ export function LayoutSelectorWrapper({ onBack, title, isBookLevel = false }: La
           type: 'APPLY_LAYOUT_TEMPLATE',
           payload: {
             template: layoutToApply,
-            pageIndex: state.activePageIndex,
+          pageIndex: targetPageIndex,
             applyToAllPages: false
           }
         });
@@ -290,7 +295,7 @@ export function LayoutSelectorWrapper({ onBack, title, isBookLevel = false }: La
       dispatch({
         type: 'SET_PAGE_LAYOUT_TEMPLATE',
         payload: {
-          pageIndex: state.activePageIndex,
+        pageIndex: targetPageIndex,
           layoutTemplateId: selectedBookLayout ? null : layoutToApply?.id
         }
       });
