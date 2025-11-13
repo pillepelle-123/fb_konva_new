@@ -7,7 +7,6 @@ import { getGlobalTheme, getThemePageBackgroundColors } from '../../../utils/glo
 import { PreviewImageDialog } from './preview/preview-image-dialog';
 import { exportCanvasAsImage } from '../../../utils/canvas-export';
 import Konva from 'konva';
-import { ButtonGroup } from '../../ui';
 import { getActiveTemplateIds } from '../../../utils/template-inheritance';
 import { colorPalettes } from '../../../data/templates/color-palettes';
 import type { PageBackground } from '../../../context/editor-context';
@@ -26,7 +25,6 @@ export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: The
     resolvedThemeId: string,
     pageColors: { backgroundColor: string; patternBackgroundColor: string },
     backgroundOpacity: number,
-    existingBackground?: PageBackground
   ): PageBackground => {
     if (theme) {
       const backgroundImageConfig = theme.pageSettings.backgroundImage;
@@ -34,6 +32,8 @@ export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: The
         const imageBackground = applyBackgroundImageTemplate(backgroundImageConfig.templateId, {
           imageSize: backgroundImageConfig.size,
           imageRepeat: backgroundImageConfig.repeat,
+          imagePosition: backgroundImageConfig.position,
+          imageWidth: backgroundImageConfig.width,
           opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
           backgroundColor: pageColors.backgroundColor
         });
@@ -72,8 +72,15 @@ export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: The
   const currentPage = isBookLevel ? undefined : state.currentBook?.pages[state.activePageIndex];
   const activeTemplateIds = getActiveTemplateIds(currentPage, state.currentBook);
   const currentTheme = activeTemplateIds.themeId;
-  const pageHasCustomTheme = !!currentPage?.themeId;
-  const inheritedBookThemeId = state.currentBook?.bookTheme || 'default';
+  // CRITICAL: Check if page.themeId exists as an OWN property (not inherited)
+  // Use Object.prototype.hasOwnProperty to ensure it's not in the prototype chain
+  // This distinguishes between "inheriting book theme" (no themeId) and 
+  // "explicitly set to same theme" (has themeId, even if matching bookThemeId)
+  const pageHasCustomTheme = currentPage 
+    ? Object.prototype.hasOwnProperty.call(currentPage, 'themeId') && 
+      currentPage.themeId !== undefined && 
+      currentPage.themeId !== null
+    : false;
 
   const deriveSelectedTheme = () => {
     if (isBookLevel) {
@@ -185,14 +192,22 @@ export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: The
 
       if (state.currentBook) {
         state.currentBook.pages.forEach((page, pageIndex) => {
-          const pageHasCustom = !!page.themeId;
+          // CRITICAL: Check if page.themeId exists as an OWN property (not inherited)
+          // Use Object.prototype.hasOwnProperty to ensure it's not in the prototype chain
+          // This distinguishes between "inheriting book theme" (no themeId) and 
+          // "explicitly set to same theme" (has themeId, even if matching bookThemeId)
+          const pageHasCustom = Object.prototype.hasOwnProperty.call(page, 'themeId') && 
+                                 page.themeId !== undefined && 
+                                 page.themeId !== null;
           const themeForElements = pageHasCustom ? page.themeId! : selectedTheme;
 
+          // CRITICAL: Only update pages that inherit book theme (no themeId)
+          // Pages with explicit themeId should NOT be updated, even if they match the new book theme
           if (!pageHasCustom) {
-            dispatch({
-              type: 'SET_PAGE_THEME',
-              payload: { pageIndex, themeId: selectedTheme, skipHistory: true }
-            });
+            // Page inherits book theme - update it to inherit the new book theme
+            // But don't set themeId - let it remain undefined so it continues to inherit
+            // We don't need to call SET_PAGE_THEME here because the page already inherits
+            // The background and elements will be updated by SET_BOOK_THEME itself
           }
           dispatch({
             type: 'APPLY_THEME_TO_ELEMENTS',
@@ -200,9 +215,26 @@ export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: The
               pageIndex,
               themeId: themeForElements,
               skipHistory: true,
-              preserveColors: true
+              preserveColors: false // Don't preserve colors - we want to apply theme/palette fully
             }
           });
+          
+          // Apply palette colors to elements if palette is available
+          const activePaletteId = page?.colorPaletteId || state.currentBook?.colorPaletteId || null;
+          if (activePaletteId) {
+            const palette = colorPalettes.find(p => p.id === activePaletteId);
+            if (palette) {
+              dispatch({
+                type: 'APPLY_COLOR_PALETTE',
+                payload: {
+                  palette,
+                  pageIndex,
+                  applyToAllPages: false,
+                  skipHistory: true
+                }
+              });
+            }
+          }
         });
       }
     } else {
@@ -223,7 +255,7 @@ export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: The
           pageIndex: state.activePageIndex,
           themeId: resolvedThemeId,
           skipHistory: true,
-          preserveColors: true
+          preserveColors: false // Don't preserve colors - we want to apply theme/palette fully
         }
       });
 
@@ -237,6 +269,20 @@ export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: The
         const paletteOverride = activePaletteId
           ? colorPalettes.find(palette => palette.id === activePaletteId) || null
           : null;
+        
+        // Apply palette colors to elements if palette is available
+        if (paletteOverride) {
+          dispatch({
+            type: 'APPLY_COLOR_PALETTE',
+            payload: {
+              palette: paletteOverride,
+              pageIndex: state.activePageIndex,
+              applyToAllPages: false,
+              skipHistory: true
+            }
+          });
+        }
+        
         const pageColors = getThemePageBackgroundColors(
           resolvedThemeId,
           paletteOverride || undefined
@@ -247,8 +293,7 @@ export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: The
           theme,
           resolvedThemeId,
           pageColors,
-          backgroundOpacity,
-          currentPage.background
+          backgroundOpacity
         );
 
         dispatch({
@@ -362,8 +407,7 @@ export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: The
           theme,
           resolvedThemeId,
           pageColors,
-          backgroundOpacity,
-          currentPage.background
+          backgroundOpacity
         );
 
         dispatch({

@@ -239,7 +239,7 @@ export function ShapeSettingsForm({
                   className="w-full"
                 >
                   <Palette className="h-4 w-4 mr-2" />
-                  Background Color & Opacity
+                  Background Color
                 </Button>
               </div>
               

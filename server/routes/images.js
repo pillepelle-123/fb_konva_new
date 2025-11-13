@@ -208,4 +208,110 @@ router.delete('/', authenticateToken, async (req, res) => {
   }
 });
 
+// Proxy endpoint to serve S3 images with CORS headers
+// This endpoint loads images from S3 and serves them with proper CORS headers
+// to avoid CORS issues when loading images into Konva canvas
+// Authentication can be done via token in query parameter (for Image elements) or via Authorization header
+router.get('/proxy', async (req, res) => {
+  try {
+    const { url, token } = req.query;
+    const jwt = require('jsonwebtoken');
+    
+    if (!url) {
+      return res.status(400).json({ error: 'URL parameter required' });
+    }
+    
+    // Authenticate via token in query parameter or Authorization header
+    let authenticated = false;
+    if (token) {
+      // Verify token from query parameter
+      try {
+        jwt.verify(token, process.env.JWT_SECRET);
+        authenticated = true;
+      } catch (error) {
+        // Token invalid, continue to check Authorization header
+      }
+    }
+    
+    if (!authenticated) {
+      // Try to authenticate via Authorization header
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const authToken = authHeader.substring(7);
+        try {
+          jwt.verify(authToken, process.env.JWT_SECRET);
+          authenticated = true;
+        } catch (error) {
+          // Token invalid
+        }
+      }
+    }
+    
+    if (!authenticated) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    // Parse S3 URL to get bucket and key
+    // S3 URLs can have different formats:
+    // - https://fb-konva.s3.us-east-1.amazonaws.com/images/2/image_2_20251021_111014.JPG
+    // - https://fb-konva.s3.amazonaws.com/images/2/image_2_20251021_111014.JPG
+    // - https://s3.us-east-1.amazonaws.com/fb-konva/images/2/image_2_20251021_111014.JPG
+    
+    let s3Key = null;
+    
+    // Try different URL patterns
+    // Pattern 1: https://bucket.s3.region.amazonaws.com/key
+    const pattern1 = /https?:\/\/fb-konva\.s3[^\/]*\.amazonaws\.com\/(.+)/;
+    let match = url.match(pattern1);
+    if (match) {
+      s3Key = decodeURIComponent(match[1]); // Decode URL-encoded characters
+    }
+    
+    // Pattern 2: https://s3.region.amazonaws.com/bucket/key
+    if (!s3Key) {
+      const pattern2 = /https?:\/\/s3[^\/]*\.amazonaws\.com\/fb-konva\/(.+)/;
+      match = url.match(pattern2);
+      if (match) {
+        s3Key = decodeURIComponent(match[1]);
+      }
+    }
+    
+    // Pattern 3: If URL is already just a key path (starts with images/)
+    if (!s3Key && url.startsWith('images/')) {
+      s3Key = decodeURIComponent(url);
+    }
+    
+    if (!s3Key) {
+      console.error('Failed to parse S3 URL:', url);
+      return res.status(400).json({ error: 'Invalid S3 URL format' });
+    }
+    
+    // Remove any query parameters that might have been included
+    s3Key = s3Key.split('?')[0];
+    
+    console.log('Parsed S3 URL:', { originalUrl: url, extractedKey: s3Key });
+    
+    // Get object from S3
+    const s3Params = {
+      Bucket: bucketName,
+      Key: s3Key
+    };
+    
+    const s3Object = await s3.getObject(s3Params).promise();
+    
+    // Set CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Content-Type', s3Object.ContentType || 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+    
+    // Send image data
+    res.send(s3Object.Body);
+  } catch (error) {
+    console.error('Error proxying image:', error);
+    res.status(500).json({ error: 'Failed to load image' });
+  }
+});
+
 module.exports = router;

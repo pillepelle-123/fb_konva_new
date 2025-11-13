@@ -94,7 +94,6 @@ const apiService = {
         pagination
       };
     } catch (error) {
-      console.error('Failed to load book:', error);
       // Fallback to empty book
       return {
         book: {
@@ -1256,6 +1255,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             const imageBackground = applyBackgroundImageTemplate(backgroundImageConfig.templateId, {
               imageSize: backgroundImageConfig.size,
               imageRepeat: backgroundImageConfig.repeat,
+              imagePosition: backgroundImageConfig.position,
+              imageWidth: backgroundImageConfig.width,
               opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
               backgroundColor: pageColors.backgroundColor
             });
@@ -1879,7 +1880,6 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       // IMPORTANT: Do this in ONE pass to avoid any issues with themeId being restored
       let updatedPages: Page[] = [];
       if (theme) {
-        console.log('[SET_BOOK_THEME] Starting theme update for book. New theme:', action.payload);
         updatedPages = originalBook.pages.map((page, pageIndex) => {
           // Check if page has themeId property (not just if it's truthy)
           const hasThemeIdProperty = 'themeId' in page;
@@ -1887,34 +1887,30 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           const themeIdValue = page.themeId;
           const bookThemeId = action.payload;
           
-          // CRITICAL FIX: A page has a custom theme if:
+          // CRITICAL: Determine if page has a custom theme that should be preserved
+          // A page has a custom theme if:
           // 1. themeId exists as an own property
           // 2. themeId has a value (not undefined/null)
-          // NOTE: Even if themeId matches bookThemeId, we treat it as a custom theme
-          // This distinguishes between "inheriting book theme" (no themeId) and 
-          // "explicitly set to same theme" (has themeId matching bookThemeId)
-          // The latter should NOT be updated when book theme changes
+          // 3. themeId is DIFFERENT from the new book theme
+          // 
+          // IMPORTANT: If page.themeId matches the new bookThemeId, we remove it (inheritance)
+          // This ensures that when book theme changes to match a page's explicit theme,
+          // the page switches to inheritance (shows "Book Theme")
           const pageHasCustomTheme = hasThemeIdOwnProperty && 
                                      themeIdValue !== undefined && 
-                                     themeIdValue !== null;
+                                     themeIdValue !== null &&
+                                     themeIdValue !== bookThemeId; // Only preserve if different from new book theme
           
-          console.log(`[SET_BOOK_THEME] Page ${pageIndex}: hasThemeIdProperty=${hasThemeIdProperty}, hasThemeIdOwnProperty=${hasThemeIdOwnProperty}, themeIdValue=${themeIdValue}, bookThemeId=${bookThemeId}, pageHasCustomTheme=${pageHasCustomTheme}`);
-          
-          // If page has custom theme (different from book theme), don't change it
+          // If page has custom theme (different from new book theme), don't change it
           if (pageHasCustomTheme) {
-            console.log(`[SET_BOOK_THEME] Page ${pageIndex} has custom theme (${themeIdValue}), skipping`);
             return page;
           }
           
-          // NOTE: Even if themeId matches bookThemeId, we keep it as a custom theme
-          // This allows users to explicitly set a page to the same theme as the book
-          // When book theme changes, pages with explicit themeId (even if matching) won't be updated
-          
-          // Page inherits book theme - ensure page.themeId is explicitly deleted and update background and elements
+          // Page either has no themeId or themeId matches new book theme
+          // In both cases, ensure page inherits book theme (remove themeId if it exists)
           // Create a new page object WITHOUT themeId by destructuring it out
           // This ensures themeId is completely removed from the object, not just set to undefined
           const { themeId: _removedThemeId, ...pageWithoutThemeId } = page;
-          console.log(`[SET_BOOK_THEME] Page ${pageIndex}: Removed themeId. pageWithoutThemeId has themeId: ${'themeId' in pageWithoutThemeId}`);
           
           // Get page color palette (or book color palette if page.colorPaletteId is null)
           const pageColorPaletteId = page.colorPaletteId || currentBookColorPaletteId || currentBookThemePaletteId;
@@ -1938,9 +1934,12 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           
           // Only replace background if it's not a custom image, or if new theme has a background image
           if (backgroundImageConfig?.enabled && backgroundImageConfig.templateId) {
+            // Ensure position and width are passed correctly (even if undefined, they will use template defaults)
             const imageBackground = applyBackgroundImageTemplate(backgroundImageConfig.templateId, {
               imageSize: backgroundImageConfig.size,
               imageRepeat: backgroundImageConfig.repeat,
+              imagePosition: backgroundImageConfig.position, // Pass directly - will use template default if undefined
+              imageWidth: backgroundImageConfig.width, // Pass directly - will use template default if undefined
               opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
               backgroundColor: pageColors.backgroundColor
             });
@@ -2260,14 +2259,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           };
           
           // Verify themeId is not in the final page
-          const finalPageHasThemeId = 'themeId' in finalPage;
           const finalPageHasThemeIdOwnProperty = Object.prototype.hasOwnProperty.call(finalPage, 'themeId');
-          const finalPageThemeIdValue = (finalPage as any).themeId;
-          
-          console.log(`[SET_BOOK_THEME] Page ${pageIndex}: Final page - hasThemeId: ${finalPageHasThemeId}, hasThemeIdOwnProperty: ${finalPageHasThemeIdOwnProperty}, value: ${finalPageThemeIdValue}`);
           
           if (finalPageHasThemeIdOwnProperty) {
-            console.error(`[SET_BOOK_THEME] CRITICAL ERROR: Page ${pageIndex} STILL has themeId as own property after explicit construction! This should not happen!`);
             // This should never happen, but if it does, force remove it
             const { themeId: _forceRemove, ...trulyFinalPage } = finalPage as any;
             return trulyFinalPage as Page;
@@ -2275,7 +2269,6 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           
           return finalPage;
         });
-        console.log('[SET_BOOK_THEME] Finished updating pages');
       } else {
         // No theme - just create a copy of pages without themeId for inheriting pages
         updatedPages = originalBook.pages.map((page) => {
@@ -2284,26 +2277,28 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           const themeIdValue = page.themeId;
           const bookThemeId = action.payload;
           
-          // CRITICAL FIX: A page has a custom theme if:
+          // CRITICAL: Determine if page has a custom theme that should be preserved
+          // A page has a custom theme if:
           // 1. themeId exists as an own property
           // 2. themeId has a value (not undefined/null)
-          // NOTE: Even if themeId matches bookThemeId, we treat it as a custom theme
-          // This distinguishes between "inheriting book theme" (no themeId) and 
-          // "explicitly set to same theme" (has themeId matching bookThemeId)
+          // 3. themeId is DIFFERENT from the new book theme
+          // 
+          // IMPORTANT: If page.themeId matches the new bookThemeId, we remove it (inheritance)
+          // This ensures that when book theme changes to match a page's explicit theme,
+          // the page switches to inheritance (shows "Book Theme")
           const pageHasCustomTheme = hasThemeIdOwnProperty && 
                                      themeIdValue !== undefined && 
-                                     themeIdValue !== null;
+                                     themeIdValue !== null &&
+                                     themeIdValue !== bookThemeId; // Only preserve if different from new book theme
           
           if (pageHasCustomTheme) {
-            // Page has custom theme (different from book theme) - keep it as is
-            console.log(`[SET_BOOK_THEME] Page has custom theme (${themeIdValue}), keeping it`);
+            // Page has custom theme (different from new book theme) - keep it as is
             return page;
           }
           
-          // Page inherits book theme - remove themeId if it exists
-          // NOTE: We only remove themeId if page doesn't have a custom theme
-          // Pages with explicit themeId (even if matching bookThemeId) are not updated here
-          const { themeId: _removed, ...pageWithoutThemeId } = page;
+          // Page either has no themeId or themeId matches new book theme
+          // In both cases, ensure page inherits book theme (remove themeId if it exists)
+          const { themeId: _removedThemeId, ...pageWithoutThemeId } = page;
           return pageWithoutThemeId as Page;
         });
       }
@@ -2317,25 +2312,6 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         pages: updatedPages
       };
       
-      // DEBUG: Final verification - check that pages don't have themeId
-      console.log('[SET_BOOK_THEME] Final verification of all pages...');
-      finalBookWithNewTheme.pages.forEach((page, idx) => {
-        const hasThemeIdIn = 'themeId' in page;
-        const hasThemeIdOwnProperty = Object.prototype.hasOwnProperty.call(page, 'themeId');
-        const themeIdValue = page.themeId;
-        
-        if (hasThemeIdOwnProperty && themeIdValue !== undefined && themeIdValue !== null) {
-          // Page should have custom theme - this is OK
-          console.log(`[SET_BOOK_THEME] Page ${idx} has custom theme (OK):`, themeIdValue);
-        } else if (hasThemeIdIn && !hasThemeIdOwnProperty) {
-          // themeId exists in prototype chain but not as own property - unexpected but not critical
-          console.warn(`[SET_BOOK_THEME] Page ${idx} has themeId in prototype chain:`, themeIdValue);
-        } else {
-          // Page correctly has no themeId - this is what we want for inheriting pages
-          console.log(`[SET_BOOK_THEME] Page ${idx} correctly has no themeId (inherits book theme)`);
-        }
-      });
-      
       // CRITICAL: Create a completely new state object to ensure no reference issues
       // Don't use spread operator on savedBookThemeState - explicitly construct the new state
       const updatedBookThemeState: EditorState = {
@@ -2344,95 +2320,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         hasUnsavedChanges: true
       };
       
-      // CRITICAL: Verify that finalBookWithNewTheme.pages is a completely new array
-      // and that each page object is a new object without themeId
-      console.log('[SET_BOOK_THEME] Verifying finalBookWithNewTheme structure...');
-      console.log('[SET_BOOK_THEME] finalBookWithNewTheme.pages === originalBook.pages:', finalBookWithNewTheme.pages === originalBook.pages);
-      console.log('[SET_BOOK_THEME] finalBookWithNewTheme.pages[0] === originalBook.pages[0]:', finalBookWithNewTheme.pages[0] === originalBook.pages[0]);
-      
-      // DEBUG: Verify state after update
-      const pageAfterUpdate = updatedBookThemeState.currentBook?.pages[0];
-      if (pageAfterUpdate) {
-        const hasThemeIdAfter = 'themeId' in pageAfterUpdate;
-        const hasOwnThemeIdAfter = Object.prototype.hasOwnProperty.call(pageAfterUpdate, 'themeId');
-        const themeIdValueAfter = pageAfterUpdate.themeId;
-        const pageKeys = Object.keys(pageAfterUpdate);
-        const pageOwnKeys = Object.getOwnPropertyNames(pageAfterUpdate);
-        
-        console.log(`[SET_BOOK_THEME] State after update - Page 0:`, {
-          hasThemeId: hasThemeIdAfter,
-          hasOwnThemeId: hasOwnThemeIdAfter,
-          value: themeIdValueAfter,
-          pageKeys: pageKeys.slice(0, 15), // First 15 keys
-          pageOwnKeys: pageOwnKeys.slice(0, 15),
-          pageId: pageAfterUpdate.id,
-          pageNumber: pageAfterUpdate.pageNumber,
-          isSameObjectAsOriginal: pageAfterUpdate === originalBook.pages[0]
-        });
-        
-        if (hasThemeIdAfter && themeIdValueAfter) {
-          console.error(`[SET_BOOK_THEME] CRITICAL: Page 0 in updatedBookThemeState has themeId:`, themeIdValueAfter);
-          console.error(`[SET_BOOK_THEME] Page 0 is same object as original:`, pageAfterUpdate === originalBook.pages[0]);
-          
-          // Try to stringify the page object to see its structure
-          try {
-            const pageStr = JSON.stringify(pageAfterUpdate, null, 2);
-            console.error(`[SET_BOOK_THEME] Page 0 object (first 1000 chars):`, pageStr.substring(0, 1000));
-          } catch (e) {
-            console.error(`[SET_BOOK_THEME] Could not stringify page 0:`, e);
-          }
-        }
-      }
-      
       // CRITICAL: Verify that withPreviewInvalidation doesn't mutate the state
       const stateAfterPreviewInvalidation = withPreviewInvalidation(updatedBookThemeState);
-      
-      // Verify that pages don't have themeId after withPreviewInvalidation
-      const pageAfterPreviewInvalidation = stateAfterPreviewInvalidation.currentBook?.pages[0];
-      if (pageAfterPreviewInvalidation) {
-        const hasThemeIdAfterPreview = 'themeId' in pageAfterPreviewInvalidation;
-        const hasOwnThemeIdAfterPreview = Object.prototype.hasOwnProperty.call(pageAfterPreviewInvalidation, 'themeId');
-        const themeIdValueAfterPreview = pageAfterPreviewInvalidation.themeId;
-        
-        console.log(`[SET_BOOK_THEME] Page 0 after withPreviewInvalidation:`, {
-          hasThemeId: hasThemeIdAfterPreview,
-          hasOwnThemeId: hasOwnThemeIdAfterPreview,
-          value: themeIdValueAfterPreview,
-          isSameObjectAsBefore: pageAfterPreviewInvalidation === pageAfterUpdate,
-          isSameObjectAsOriginal: pageAfterPreviewInvalidation === originalBook.pages[0]
-        });
-        
-        if (hasOwnThemeIdAfterPreview && themeIdValueAfterPreview) {
-          console.error(`[SET_BOOK_THEME] CRITICAL: Page 0 has themeId as own property AFTER withPreviewInvalidation! Value:`, themeIdValueAfterPreview);
-          console.error(`[SET_BOOK_THEME] Page 0 object identity:`, {
-            isSameAsBefore: pageAfterPreviewInvalidation === pageAfterUpdate,
-            isSameAsOriginal: pageAfterPreviewInvalidation === originalBook.pages[0],
-            isSameAsFinalBook: pageAfterPreviewInvalidation === finalBookWithNewTheme.pages[0]
-          });
-        }
-      }
-      
-      // CRITICAL: Final verification - log state for first page
-      // NOTE: We no longer clean pages with themeId matching bookThemeId
-      // Pages with explicit themeId (even if matching bookThemeId) are kept as-is
-      // This allows users to explicitly set a page to the same theme as the book
-      // When book theme changes, such pages should keep their explicit theme
-      console.log('[SET_BOOK_THEME] Final state verification before return...');
-      const finalBookThemeId = action.payload;
-      const finalStatePage = stateAfterPreviewInvalidation.currentBook?.pages[0];
-      
-      if (finalStatePage) {
-        const finalHasOwnThemeId = Object.prototype.hasOwnProperty.call(finalStatePage, 'themeId');
-        const finalThemeIdValue = finalStatePage.themeId;
-        
-        if (finalHasOwnThemeId && finalThemeIdValue) {
-          // Page has explicit theme (even if it matches bookThemeId)
-          console.log(`[SET_BOOK_THEME] Final state Page 0 has explicit theme: ${finalThemeIdValue} (bookThemeId: ${finalBookThemeId})`);
-        } else {
-          // Page inherits book theme
-          console.log(`[SET_BOOK_THEME] Final state Page 0 inherits book theme (hasOwnThemeId: ${finalHasOwnThemeId}, value: ${finalThemeIdValue}, bookThemeId: ${finalBookThemeId})`);
-        }
-      }
       
       return stateAfterPreviewInvalidation;
     
@@ -2461,11 +2350,35 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const savedBookPaletteState = action.skipHistory 
         ? state 
         : saveToHistory(state, actionName, { cloneEntireBook: true });
+      
+      const bookForPalette = savedBookPaletteState.currentBook!;
+      const newBookColorPaletteId = action.payload;
+      
+      // CRITICAL: Update pages that have colorPaletteId matching the new book palette
+      // If a page has an explicit colorPaletteId that matches the new book colorPaletteId,
+      // remove it (set to null) so the page inherits the book palette (shows "Book Color Palette")
+      // This ensures that when book palette changes to match a page's explicit palette,
+      // the page switches to inheritance
+      const updatedPagesForPalette = bookForPalette.pages.map((page) => {
+        const pageColorPaletteId = page.colorPaletteId;
+        const pageHasColorPaletteId = pageColorPaletteId !== undefined && pageColorPaletteId !== null;
+        
+        // If page has explicit colorPaletteId that matches new book palette, remove it (inheritance)
+        if (pageHasColorPaletteId && pageColorPaletteId === newBookColorPaletteId) {
+          const { colorPaletteId: _removed, ...pageWithoutColorPaletteId } = page;
+          return { ...pageWithoutColorPaletteId, colorPaletteId: null } as typeof page;
+        }
+        
+        // Otherwise, keep page as is (either no colorPaletteId or different from new book palette)
+        return page;
+      });
+      
       const updatedBookPaletteState = {
         ...savedBookPaletteState,
         currentBook: {
-          ...savedBookPaletteState.currentBook!,
-          colorPaletteId: action.payload
+          ...bookForPalette,
+          colorPaletteId: action.payload,
+          pages: updatedPagesForPalette
         },
         hasUnsavedChanges: true
       };
@@ -2510,6 +2423,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
               const imageBackground = applyBackgroundImageTemplate(backgroundImageConfig.templateId, {
                 imageSize: backgroundImageConfig.size,
                 imageRepeat: backgroundImageConfig.repeat,
+                imagePosition: backgroundImageConfig.position, // CRITICAL: Pass position from theme
+                imageWidth: backgroundImageConfig.width, // CRITICAL: Pass width from theme
                 opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
                 backgroundColor: pageColors.backgroundColor
               });
@@ -2587,6 +2502,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           const imageBackground = applyBackgroundImageTemplate(backgroundImageConfig.templateId, {
             imageSize: backgroundImageConfig.size,
             imageRepeat: backgroundImageConfig.repeat,
+            imagePosition: backgroundImageConfig.position, // CRITICAL: Pass position from theme
+            imageWidth: backgroundImageConfig.width, // CRITICAL: Pass width from theme
             opacity: backgroundImageConfig.opacity ?? themeBackgroundOpacity,
             backgroundColor: resolvedBaseColor
           });
@@ -2602,17 +2519,11 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
 
         // CRITICAL: Determine if page should have themeId set
         // - If themeId === '__BOOK_THEME__': Remove themeId (inheritance)
-        // - If themeId matches bookThemeId: Check if page had themeId before
-        //   - If page had themeId before: Keep it (explicit theme, even if matching)
-        //   - If page didn't have themeId before: Don't set it (inheritance)
-        // - If themeId is different from bookThemeId: Always set it (explicit theme)
+        // - If themeId is any other value: Always set it (explicit theme selection, even if it matches bookThemeId)
+        //   This ensures that when a user explicitly selects a theme (even if same as book), it shows as selected
+        //   rather than showing as "Book Theme" (inherited)
         const bookThemeId = updatedBookPageTheme.bookTheme || updatedBookPageTheme.themeId || 'default';
-        const pageHadThemeIdBefore = Object.prototype.hasOwnProperty.call(targetPageTheme, 'themeId') && 
-                                      targetPageTheme.themeId !== undefined && 
-                                      targetPageTheme.themeId !== null;
-        const themeIdMatchesBookTheme = action.payload.themeId === bookThemeId;
-        const shouldSetThemeId = action.payload.themeId !== '__BOOK_THEME__' && 
-                                 (themeIdMatchesBookTheme ? pageHadThemeIdBefore : true);
+        const shouldSetThemeId = action.payload.themeId !== '__BOOK_THEME__';
         
         if (appliedBackgroundImage) {
           if (shouldSetThemeId) {
@@ -2988,7 +2899,6 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       return { ...state, qnaActiveSection: action.payload };
     
     case 'TOGGLE_STYLE_PAINTER':
-      console.log('TOGGLE_STYLE_PAINTER action received', { currentBook: !!state.currentBook, selectedCount: state.selectedElementIds.length, active: state.stylePainterActive });
       if (!state.currentBook || state.selectedElementIds.length !== 1) return state;
       
       if (!state.stylePainterActive) {
@@ -2996,7 +2906,6 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         const selectedElement = state.currentBook.pages[state.activePageIndex]?.elements
           .find(el => el.id === state.selectedElementIds[0]);
         
-        console.log('Selected element for style copy:', selectedElement);
         if (!selectedElement) return state;
         
         // Copy all style-related properties
@@ -3038,7 +2947,6 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           textSettings: selectedElement.textSettings ? { ...selectedElement.textSettings } : undefined
         };
         
-        console.log('Activating style painter with copied style:', copiedStyle);
         return {
           ...state,
           stylePainterActive: true,
@@ -4014,29 +3922,13 @@ export const useEditor = () => {
     if (import.meta.env.DEV) {
       // In development, return a safe fallback instead of crashing
       // This prevents the app from breaking during hot reload
-      console.warn(
-        'useEditor called outside EditorProvider. This may happen during hot reload. ' +
-        'Returning fallback values. If this persists, check component hierarchy.'
-      );
       
       // Return a minimal safe fallback that matches the context interface
       return {
         state: initialState,
-        dispatch: () => {
-          if (import.meta.env.DEV) {
-            console.warn('dispatch called outside EditorProvider');
-          }
-        },
-        saveBook: async () => {
-          if (import.meta.env.DEV) {
-            console.warn('saveBook called outside EditorProvider');
-          }
-        },
-        loadBook: async () => {
-          if (import.meta.env.DEV) {
-            console.warn('loadBook called outside EditorProvider');
-          }
-        },
+        dispatch: () => {},
+        saveBook: async () => {},
+        loadBook: async () => {},
         applyTemplateToPage: () => {},
         applyCompleteTemplate: () => {},
         getWizardTemplateSelection: () => ({
@@ -4256,7 +4148,6 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     
     // Prevent concurrent saves
     if (saveBook.isRunning) {
-      console.log('Save already in progress, skipping duplicate call');
       return;
     }
     
@@ -4302,11 +4193,10 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
               });
               
               if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Question save failed:', response.status, errorText);
+                await response.text();
               }
             } catch (error) {
-              console.error('Failed to save question', questionId, ':', error);
+              // Failed to save question
             }
           }
         }
@@ -4332,11 +4222,10 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
               });
               
               if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Answer save failed:', response.status, errorText);
+                await response.text();
               }
             } catch (error) {
-              console.error('Failed to save answer for question', questionId, 'user', userId, ':', error);
+              // Failed to save answer
             }
           }
         }
@@ -4543,6 +4432,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
               const imageBackground = applyBackgroundImageTemplate(backgroundImageConfig.templateId, {
                 imageSize: backgroundImageConfig.size,
                 imageRepeat: backgroundImageConfig.repeat,
+                imagePosition: backgroundImageConfig.position, // CRITICAL: Pass position from theme
+                imageWidth: backgroundImageConfig.width, // CRITICAL: Pass width from theme
                 opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
                 backgroundColor: pageColors.backgroundColor
               });
@@ -4598,14 +4489,6 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
             
             // Update elements with theme defaults and palette colors (same logic as SET_BOOK_THEME)
             // NOTE: getToolDefaults already applies palette colors, so we don't need separate palette application
-            console.log('[loadBook] Updating elements for page that inherits book theme:', {
-              pageNumber,
-              bookThemeId,
-              elementCount: resolvedElements.length,
-              pageColorPaletteId,
-              effectiveBookColorPaletteId
-            });
-            
             resolvedElements = resolvedElements.map((element: any, elementIndex: number) => {
               const toolType = element.textType || element.type;
               const themeDefaults = getToolDefaults(
@@ -4620,18 +4503,6 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
                 effectiveBookColorPaletteId
               );
               
-              console.log(`[loadBook] Element ${elementIndex} (${toolType}):`, {
-                originalTheme: element.theme,
-                originalFontFamily: element.fontFamily,
-                themeDefaultsTheme: themeDefaults.theme,
-                themeDefaultsFontFamily: themeDefaults.fontFamily,
-                themeDefaultsQuestionSettingsFontFamily: (themeDefaults as any).questionSettings?.fontFamily,
-                themeDefaultsAnswerSettingsFontFamily: (themeDefaults as any).answerSettings?.fontFamily,
-                themeDefaultsKeys: Object.keys(themeDefaults),
-                themeDefaultsQuestionSettingsKeys: (themeDefaults as any).questionSettings ? Object.keys((themeDefaults as any).questionSettings) : [],
-                themeDefaultsAnswerSettingsKeys: (themeDefaults as any).answerSettings ? Object.keys((themeDefaults as any).answerSettings) : []
-              });
-              
               // CRITICAL: Preserve existing element properties that shouldn't be overridden
               // (like position, size, content, etc.) but update theme-related properties
               const updatedElement = {
@@ -4641,14 +4512,6 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
                 // Ensure theme is set to bookThemeId
                 theme: bookThemeId
               };
-              
-              console.log(`[loadBook] Element ${elementIndex} after update:`, {
-                theme: updatedElement.theme,
-                fontFamily: updatedElement.fontFamily,
-                fontSize: updatedElement.fontSize,
-                questionSettingsFontFamily: (updatedElement as any).questionSettings?.fontFamily,
-                answerSettingsFontFamily: (updatedElement as any).answerSettings?.fontFamily
-              });
               
               // For qna_inline elements, we need special handling similar to SET_BOOK_THEME
               if (element.textType === 'qna_inline') {
@@ -4762,25 +4625,13 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
                   updatedElement.background = { ...updatedElement.background, enabled: false };
                 }
                 
-                // Debug: Log border and background enabled state
-                console.log(`[loadBook] Element ${elementIndex} (qna_inline) border/background:`, {
-                  borderEnabled,
-                  backgroundEnabled,
-                  questionSettingsBorderEnabled: updatedElement.questionSettings?.border?.enabled,
-                  answerSettingsBorderEnabled: updatedElement.answerSettings?.border?.enabled,
-                  questionSettingsBackgroundEnabled: updatedElement.questionSettings?.background?.enabled,
-                  answerSettingsBackgroundEnabled: updatedElement.answerSettings?.background?.enabled,
-                  topLevelBorderEnabled: updatedElement.border?.enabled,
-                  topLevelBackgroundEnabled: updatedElement.background?.enabled
-                });
+                // Apply qnaIndividualSettings from theme defaults if available
+                if (themeDefaultsForQna.qnaIndividualSettings !== undefined) {
+                  updatedElement.qnaIndividualSettings = themeDefaultsForQna.qnaIndividualSettings;
+                }
               }
               
               return updatedElement;
-            });
-            
-            console.log('[loadBook] Finished updating elements for page:', {
-              pageNumber,
-              updatedElementCount: resolvedElements.length
             });
           }
         }
@@ -4858,7 +4709,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
           }
         }
       } catch (settingsError) {
-        console.warn('Failed to load editor settings:', settingsError);
+        // Failed to load editor settings
       }
       
       // Load book friends
@@ -4872,7 +4723,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
           dispatch({ type: 'SET_BOOK_FRIENDS', payload: bookFriends });
         }
       } catch (friendsError) {
-        console.warn('Failed to load book friends:', friendsError);
+        // Failed to load book friends
       }
       
       // Map database IDs to pages
@@ -5105,7 +4956,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         dispatch({ type: 'SET_USER_ROLE', payload: { role: roleData.role, assignedPages: roleData.assignedPages || [] } });
       }
     } catch (error) {
-      console.error('Error refreshing page assignments:', error);
+      // Error refreshing page assignments
     }
   }, [state.currentBook]);
 
@@ -5442,6 +5293,10 @@ function applyThemeAndPaletteToElement(
         ...(element.answerSettings || {}),
         ...(themeDefaults.answerSettings || {})
       };
+    }
+    // Apply qnaIndividualSettings from theme defaults if available
+    if (themeDefaults.qnaIndividualSettings !== undefined) {
+      updatedElement.qnaIndividualSettings = themeDefaults.qnaIndividualSettings;
     }
   }
 

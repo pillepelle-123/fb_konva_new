@@ -158,17 +158,17 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
         return 'Fill Color';
       case 'text-color':
       case 'element-text-color':
-        return 'Font Color & Opacity';
+        return 'Font Color';
       case 'text-border':
       case 'element-text-border':
         return 'Border Color';
       case 'text-background':
       case 'element-text-background':
-        return 'Background Color & Opacity';
+        return 'Background Color';
       case 'background-color':
         return 'Color';
       case 'pattern-background':
-        return 'Background Color & Opacity';
+        return 'Background Color';
       case 'ruled-lines-color':
       case 'element-ruled-lines-color':
         return 'Line Color';

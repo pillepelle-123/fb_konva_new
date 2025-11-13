@@ -405,6 +405,32 @@
       "contrast": "AA"
     },
     {
+      "id": "poppy-flowers",
+      "name": "Poppy Flowers",
+      "colors": {
+        "background": "#f7f3e9",
+        "primary": "#654321",
+        "secondary": "#f5deb3",
+        "accent": "#f5deb3",
+        "text": "#332217",
+        "surface": "#f5deb3"
+      },
+      "contrast": "AA"
+    },
+    {
+      "id": "sketchy",
+      "name": "Sketchy",
+      "colors": {
+        "background": "#FFFFFF",
+        "primary": "#424242",
+        "secondary": "#505050",
+        "accent": "#BDBDBD",
+        "text": "#212121",
+        "surface": "#FFFFFF"
+      },
+      "contrast": "AA"
+    },
+    {
       "id": "custom",
       "name": "Custom",
       "colors": {

@@ -189,6 +189,8 @@ export function GeneralSettings({
                 const imageBackground = applyBackgroundImageTemplate(backgroundImageConfig.templateId, {
                   imageSize: backgroundImageConfig.size,
                   imageRepeat: backgroundImageConfig.repeat,
+                  imagePosition: backgroundImageConfig.position,
+                  imageWidth: backgroundImageConfig.width,
                   opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
                   backgroundColor: paletteColors?.background || existingBackground?.value || '#ffffff'
                 });
@@ -263,18 +265,26 @@ export function GeneralSettings({
             // Check if themeId exists as an own property in the object
             const hasThemeIdOwnProperty = Object.prototype.hasOwnProperty.call(currentPage, 'themeId');
             const themeIdValue = currentPage.themeId;
+            const bookThemeId = state.currentBook?.bookTheme || state.currentBook?.themeId || 'default';
             
             // CRITICAL FIX: If page.themeId exists as own property, it's an explicit theme
             // Even if it matches bookThemeId, we show the explicit theme (not '__BOOK_THEME__')
             // This distinguishes between "inheriting book theme" (no themeId) and 
             // "explicitly set to same theme" (has themeId, even if matching bookThemeId)
-            if (hasThemeIdOwnProperty && themeIdValue !== undefined && themeIdValue !== null) {
-              // Page has explicit theme - show it (even if it matches bookThemeId)
-              return themeIdValue;
-            } else {
-              // Page inherits book theme (no themeId) - show '__BOOK_THEME__'
-              return '__BOOK_THEME__';
-            }
+            const result = (hasThemeIdOwnProperty && themeIdValue !== undefined && themeIdValue !== null)
+              ? themeIdValue  // Page has explicit theme - show it (even if it matches bookThemeId)
+              : '__BOOK_THEME__';  // Page inherits book theme (no themeId) - show '__BOOK_THEME__'
+            
+            // console.log('[GeneralSettings] Page Theme currentTheme calculation:', {
+            //   hasThemeIdOwnProperty,
+            //   themeIdValue,
+            //   bookThemeId,
+            //   result,
+            //   pageId: currentPage.id,
+            //   pageNumber: currentPage.pageNumber
+            // });
+            
+            return result;
           })()}
           title="Page Theme"
           showBookThemeOption
@@ -286,10 +296,22 @@ export function GeneralSettings({
             // Check if themeId exists as an own property in the object
             const hasThemeIdOwnProperty = Object.prototype.hasOwnProperty.call(currentPage, 'themeId');
             const themeIdValue = currentPage.themeId;
+            const bookThemeId = state.currentBook?.bookTheme || state.currentBook?.themeId || 'default';
             
             // Page inherits book theme ONLY if themeId doesn't exist as own property OR is undefined/null
             // If themeId exists and has a value (even if matching bookThemeId), it's an explicit theme
-            return !hasThemeIdOwnProperty || themeIdValue === undefined || themeIdValue === null;
+            const result = !hasThemeIdOwnProperty || themeIdValue === undefined || themeIdValue === null;
+            
+            // console.log('[GeneralSettings] Page Theme isBookThemeSelected calculation:', {
+            //   hasThemeIdOwnProperty,
+            //   themeIdValue,
+            //   bookThemeId,
+            //   result,
+            //   pageId: currentPage.id,
+            //   pageNumber: currentPage.pageNumber
+            // });
+            
+            return result;
           })()}
           onThemeSelect={(themeId) => {
             const isBookThemeSelection = themeId === '__BOOK_THEME__';
@@ -342,6 +364,8 @@ export function GeneralSettings({
               const imageBackground = applyBackgroundImageTemplate(backgroundImageConfig.templateId, {
                 imageSize: backgroundImageConfig.size,
                 imageRepeat: backgroundImageConfig.repeat,
+                imagePosition: backgroundImageConfig.position,
+                imageWidth: backgroundImageConfig.width,
                 opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
                 backgroundColor: pageColors.backgroundColor
               });
@@ -692,17 +716,20 @@ export function GeneralSettings({
         // If background already has a backgroundImageTemplateId, apply it immediately
         if (background && (background as any).backgroundImageTemplateId) {
           const templateId = (background as any).backgroundImageTemplateId;
+          // CRITICAL: Always pass imagePosition and imageWidth to preserve theme values
           const imageBackground = applyBackgroundImageTemplate(templateId, {
             imageSize: savedImageSize || background.imageSize || 'cover',
             imageRepeat: savedImageRepeat !== undefined ? savedImageRepeat : (background.imageRepeat || false),
+            imagePosition: savedImagePosition || background.imagePosition, // Preserve existing position
+            imageWidth: background.imageContainWidthPercent, // Preserve existing width
             opacity: currentOpacity,
           });
           if (imageBackground) {
-            // Preserve imagePosition if it was set
+            // CRITICAL: Ensure position and width are preserved even if applyBackgroundImageTemplate doesn't set them
             if (savedImagePosition || background.imagePosition) {
-              imageBackground.imagePosition = savedImagePosition || background.imagePosition || 'top-left';
+              imageBackground.imagePosition = savedImagePosition || background.imagePosition;
             }
-            if (background.imageContainWidthPercent) {
+            if (background.imageContainWidthPercent !== undefined) {
               imageBackground.imageContainWidthPercent = background.imageContainWidthPercent;
             }
             updateBackground(imageBackground);
@@ -1363,30 +1390,30 @@ export function GeneralSettings({
     const bookThemeId = state.currentBook?.bookTheme || state.currentBook?.themeId || 'default';
     
     // Log detailed information including object identity
-    console.log('[GeneralSettings] Page state:', {
-      pageIndex: state.activePageIndex,
-      hasThemeIdIn,
-      hasThemeIdOwnProperty,
-      themeIdValue,
-      bookTheme: bookThemeId,
-      pageActiveTemplatesThemeId: pageActiveTemplates.themeId,
-      pageKeys: Object.keys(currentPage).slice(0, 10), // First 10 keys
-      pageOwnKeys: Object.getOwnPropertyNames(currentPage).slice(0, 10),
-      pageId: currentPage.id,
-      pageNumber: currentPage.pageNumber,
-      // Log if themeId matches bookThemeId (should be treated as inheritance)
-      themeIdMatchesBookTheme: themeIdValue === bookThemeId,
-      shouldTreatAsInheritance: !hasThemeIdOwnProperty || themeIdValue === undefined || themeIdValue === null || themeIdValue === bookThemeId
-    });
+    // console.log('[GeneralSettings] Page state:', {
+    //   pageIndex: state.activePageIndex,
+    //   hasThemeIdIn,
+    //   hasThemeIdOwnProperty,
+    //   themeIdValue,
+    //   bookTheme: bookThemeId,
+    //   pageActiveTemplatesThemeId: pageActiveTemplates.themeId,
+    //   pageKeys: Object.keys(currentPage).slice(0, 10), // First 10 keys
+    //   pageOwnKeys: Object.getOwnPropertyNames(currentPage).slice(0, 10),
+    //   pageId: currentPage.id,
+    //   pageNumber: currentPage.pageNumber,
+    //   // Log if themeId matches bookThemeId (should be treated as inheritance)
+    //   themeIdMatchesBookTheme: themeIdValue === bookThemeId,
+    //   shouldTreatAsInheritance: !hasThemeIdOwnProperty || themeIdValue === undefined || themeIdValue === null || themeIdValue === bookThemeId
+    // });
     
     // CRITICAL: If themeId exists but matches bookThemeId, log a warning
     if (hasThemeIdOwnProperty && themeIdValue && themeIdValue === bookThemeId) {
-      console.warn('[GeneralSettings] WARNING: Page has themeId as own property but it matches bookThemeId. This should be treated as inheritance!', {
-        pageId: currentPage.id,
-        pageNumber: currentPage.pageNumber,
-        themeIdValue,
-        bookThemeId
-      });
+      // console.warn('[GeneralSettings] WARNING: Page has themeId as own property but it matches bookThemeId. This should be treated as inheritance!', {
+      //   pageId: currentPage.id,
+      //   pageNumber: currentPage.pageNumber,
+      //   themeIdValue,
+      //   bookThemeId
+      // });
     }
   }
   
@@ -1416,7 +1443,7 @@ export function GeneralSettings({
   const pageInheritsTheme = !hasThemeIdOwnProperty || themeIdValue === undefined || themeIdValue === null;
   const pageInheritsPalette = !currentPage?.colorPaletteId;
   
-  console.log('[GeneralSettings] pageInheritsTheme:', pageInheritsTheme, 'hasThemeIdOwnProperty:', hasThemeIdOwnProperty, 'themeIdValue:', themeIdValue, 'bookThemeId:', bookThemeId);
+  // console.log('[GeneralSettings] pageInheritsTheme:', pageInheritsTheme, 'hasThemeIdOwnProperty:', hasThemeIdOwnProperty, 'themeIdValue:', themeIdValue, 'bookThemeId:', bookThemeId);
 
   return (
     <>

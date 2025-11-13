@@ -1,157 +1,126 @@
 import { useState, useEffect } from 'react';
-import { Rect, Text, Image as KonvaImage } from 'react-konva';
-import { useAuth } from '../../../../context/auth-context';
-import { useEditor } from '../../../../context/editor-context';
+import { Rect, Image as KonvaImage, Group, Line, Path } from 'react-konva';
 import BaseCanvasItem from './base-canvas-item';
 import type { CanvasItemProps } from './base-canvas-item';
+import { getThemeRenderer } from '../../../../utils/themes';
+import type { CanvasElement } from '../../../../context/editor-context';
+import { useAuth } from '../../../../context/auth-context';
 
 export default function Image(props: CanvasItemProps) {
-  const { element } = props;
+  const { element, zoom = 1 } = props;
   const { token } = useAuth();
-  const { dispatch } = useEditor();
   const [image, setImage] = useState<HTMLImageElement | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
 
   const handleDoubleClick = () => {
-    // Only allow upload if it's a placeholder
     if (element.type === 'placeholder') {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'image/*';
-      input.onchange = handleFileUpload;
-      input.click();
-    }
-  };
-
-  const handleFileUpload = async (e: Event) => {
-    const target = e.target as HTMLInputElement;
-    const file = target.files?.[0];
-    if (!file) return;
-
-    setIsUploading(true);
-
-    try {
-      const formData = new FormData();
-      formData.append('image', file);
-
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-      const response = await fetch(`${apiUrl}/upload`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`
-        },
-        body: formData
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        
-        // Load the image
-        const img = new window.Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-          setImage(img);
-          
-          dispatch({
-            type: 'UPDATE_ELEMENT',
-            payload: {
-              id: element.id,
-              updates: {
-                type: 'image',
-                src: data.url
-              }
-            }
-          });
-        };
-        img.onerror = () => {
-          // Fallback without CORS
-          const fallbackImg = new window.Image();
-          fallbackImg.onload = () => {
-            setImage(fallbackImg);
-            dispatch({
-              type: 'UPDATE_ELEMENT',
-              payload: {
-                id: element.id,
-                updates: {
-                  type: 'image',
-                  src: data.url
-                }
-              }
-            });
-          };
-          fallbackImg.src = data.url;
-        };
-        img.src = data.url;
-      }
-    } catch (error) {
-      console.error('Upload failed:', error);
-    } finally {
-      setIsUploading(false);
+      // Dispatch custom event to open image modal in canvas
+      window.dispatchEvent(new CustomEvent('openImageModal', {
+        detail: {
+          elementId: element.id,
+          position: {
+            x: element.x,
+            y: element.y
+          }
+        }
+      }));
     }
   };
 
   // Load existing image when src changes
   useEffect(() => {
     if (element.type === 'image' && element.src) {
+      // Check if this is an S3 URL that might have CORS issues
+      const isS3Url = element.src.includes('s3.amazonaws.com') || element.src.includes('s3.us-east-1.amazonaws.com');
+      
+      // For S3 URLs, use the proxy endpoint to avoid CORS issues
+      // Include token as query parameter for authentication
+      let imageUrl = element.src;
+      if (isS3Url && token) {
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+        imageUrl = `${apiUrl}/images/proxy?url=${encodeURIComponent(element.src)}&token=${encodeURIComponent(token)}`;
+      }
+      
       const img = new window.Image();
       img.crossOrigin = 'anonymous';
       img.onload = () => setImage(img);
       img.onerror = (error) => {
         console.warn('Failed to load image with CORS, trying without:', error);
-        // Fallback: try loading without CORS
-        const fallbackImg = new window.Image();
-        fallbackImg.onload = () => setImage(fallbackImg);
-        fallbackImg.onerror = () => console.error('Failed to load image:', element.src);
-        fallbackImg.src = element.src;
+        // Fallback: try loading without CORS (only for non-S3 URLs)
+        if (!isS3Url) {
+          const fallbackImg = new window.Image();
+          fallbackImg.onload = () => setImage(fallbackImg);
+          fallbackImg.onerror = () => console.error('Failed to load image:', element.src);
+          fallbackImg.src = element.src;
+        } else {
+          console.error('Failed to load S3 image through proxy:', element.src);
+        }
       };
-      img.src = element.src;
+      img.src = imageUrl;
     } else {
       setImage(null);
     }
-  }, [element.type, element.src]);
+  }, [element.type, element.src, token]);
 
   return (
     <BaseCanvasItem {...props} onDoubleClick={handleDoubleClick}>
       {element.type === 'placeholder' ? (
         <>
-          {/* Background rectangle - transparent like textbox */}
+          {/* Hellgrauer Hintergrund */}
           <Rect
             width={element.width}
             height={element.height}
-            fill="transparent"
-            stroke="transparent"
+            fill="#f3f4f6"
+            stroke="#e5e7eb"
             strokeWidth={1}
             cornerRadius={element.cornerRadius || 4}
             listening={false}
           />
           
-
-          
-          {/* Placeholder text - same styling as textbox */}
-          <Text
-            text={isUploading ? "Uploading..." : "Double-click to choose image"}
-            fontSize={66}
-            // fontFamily="Arial, sans-serif"
-            fill="#1f2937"
-            width={element.width - 8}
-            height={element.height - 8}
-            x={4}
-            y={4}
-            align="center"
-            verticalAlign="top"
-            opacity={0.6}
+          {/* Image-Plus Icon in dunklerem Grau */}
+          <Group
+            x={element.width / 2}
+            y={element.height / 2}
             listening={false}
-            name='no-print'
-          />
+          >
+            {/* Bild-Rahmen (vereinfachtes Icon) */}
+            <Rect
+              x={-element.width * 0.15}
+              y={-element.height * 0.15}
+              width={element.width * 0.3}
+              height={element.height * 0.3}
+              fill="transparent"
+              stroke="#9ca3af"
+              strokeWidth={2}
+              cornerRadius={2}
+              listening={false}
+            />
+            {/* Plus-Zeichen */}
+            <Line
+              points={[0, -element.height * 0.08, 0, element.height * 0.08]}
+              stroke="#9ca3af"
+              strokeWidth={2}
+              lineCap="round"
+              listening={false}
+            />
+            <Line
+              points={[-element.width * 0.08, 0, element.width * 0.08, 0]}
+              stroke="#9ca3af"
+              strokeWidth={2}
+              lineCap="round"
+              listening={false}
+            />
+          </Group>
         </>
       ) : (
         <>
+          {/* Image with opacity */}
           {image && (
             <KonvaImage
               image={image}
               width={element.width}
               height={element.height}
               cornerRadius={element.cornerRadius || 0}
+              opacity={element.imageOpacity !== undefined ? element.imageOpacity : 1}
               listening={false}
             />
           )}
@@ -165,6 +134,78 @@ export default function Image(props: CanvasItemProps) {
               listening={false}
             />
           )}
+          
+          {/* Frame around image */}
+          {image && (() => {
+            const frameEnabled = element.frameEnabled !== undefined 
+              ? element.frameEnabled 
+              : (element.strokeWidth || 0) > 0;
+            const strokeWidth = element.strokeWidth || 0;
+            const stroke = element.stroke || '#1f2937';
+            const strokeOpacity = element.strokeOpacity !== undefined ? element.strokeOpacity : 1;
+            const frameTheme = element.frameTheme || element.theme || 'default';
+            const cornerRadius = element.cornerRadius || 0;
+            
+            if (!frameEnabled || strokeWidth === 0) {
+              return null;
+            }
+            
+            // Use theme renderer for consistent frame rendering
+            // Pass zoom to generatePath and getStrokeProps for proper scaling
+            // Use strokeScaleEnabled={false} so zoom is handled manually (consistent with themed-shape.tsx)
+            const themeRenderer = getThemeRenderer(frameTheme);
+            if (themeRenderer && frameTheme !== 'default') {
+              // Create a temporary element-like object for generatePath
+              const frameElement = {
+                type: 'rect' as const,
+                id: element.id + '-frame',
+                x: 0,
+                y: 0,
+                width: element.width,
+                height: element.height,
+                cornerRadius: cornerRadius,
+                stroke: stroke,
+                strokeWidth: strokeWidth,
+                fill: 'transparent'
+              } as CanvasElement;
+              
+              // Pass zoom to generatePath and getStrokeProps for proper scaling
+              const pathData = themeRenderer.generatePath(frameElement, zoom);
+              const strokeProps = themeRenderer.getStrokeProps(frameElement, zoom);
+              
+              if (pathData) {
+                return (
+                  <Path
+                    data={pathData}
+                    stroke={strokeProps.stroke || stroke}
+                    strokeWidth={strokeProps.strokeWidth || strokeWidth}
+                    opacity={strokeOpacity}
+                    fill="transparent"
+                    strokeScaleEnabled={false}
+                    listening={false}
+                    lineCap="round"
+                    lineJoin="round"
+                  />
+                );
+              }
+            }
+            
+            // Fallback to simple Rect for default theme
+            // Manually scale strokeWidth with zoom (consistent with themed-shape.tsx)
+            return (
+              <Rect
+                width={element.width}
+                height={element.height}
+                fill="transparent"
+                stroke={stroke}
+                strokeWidth={strokeWidth * zoom}
+                opacity={strokeOpacity}
+                cornerRadius={cornerRadius}
+                strokeScaleEnabled={false}
+                listening={false}
+              />
+            );
+          })()}
         </>
       )}
     </BaseCanvasItem>

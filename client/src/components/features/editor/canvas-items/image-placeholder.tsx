@@ -1,71 +1,24 @@
 import { useState } from 'react';
-import { Rect, Text, Image as KonvaImage } from 'react-konva';
-import { useAuth } from '../../../../context/auth-context';
-import { useEditor } from '../../../../context/editor-context';
+import { Rect, Image as KonvaImage, Group, Line } from 'react-konva';
 import BaseCanvasItem from './base-canvas-item';
 import type { CanvasItemProps } from './base-canvas-item';
 
 export default function ImagePlaceholder(props: CanvasItemProps) {
   const { element } = props;
-  const { token } = useAuth();
-  const { dispatch } = useEditor();
   const [image, setImage] = useState<HTMLImageElement | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
 
   const handleDoubleClick = () => {
     if (element.type === 'placeholder') {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'image/*';
-      input.onchange = handleFileUpload;
-      input.click();
-    }
-  };
-
-  const handleFileUpload = async (e: Event) => {
-    const target = e.target as HTMLInputElement;
-    const file = target.files?.[0];
-    if (!file) return;
-
-    setIsUploading(true);
-
-    try {
-      const formData = new FormData();
-      formData.append('image', file);
-
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-      const response = await fetch(`${apiUrl}/upload`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`
-        },
-        body: formData
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        
-        const img = new window.Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-          setImage(img);
-          dispatch({
-            type: 'UPDATE_ELEMENT',
-            payload: {
-              id: element.id,
-              updates: {
-                type: 'image',
-                src: data.url
-              }
-            }
-          });
-        };
-        img.src = data.url;
-      }
-    } catch (error) {
-      console.error('Upload failed:', error);
-    } finally {
-      setIsUploading(false);
+      // Dispatch custom event to open image modal in canvas
+      window.dispatchEvent(new CustomEvent('openImageModal', {
+        detail: {
+          elementId: element.id,
+          position: {
+            x: element.x,
+            y: element.y
+          }
+        }
+      }));
     }
   };
 
@@ -81,30 +34,51 @@ export default function ImagePlaceholder(props: CanvasItemProps) {
     <BaseCanvasItem {...props} onDoubleClick={handleDoubleClick}>
       {element.type === 'placeholder' ? (
         <>
+          {/* Hellgrauer Hintergrund */}
           <Rect
             width={element.width}
             height={element.height}
-            fill="transparent"
-            stroke="transparent"
+            fill="#f3f4f6"
+            stroke="#e5e7eb"
             strokeWidth={1}
             cornerRadius={4}
             listening={false}
           />
           
-          <Text
-            text={isUploading ? "Uploading..." : "Double-click to choose image"}
-            fontSize={66}
-            fill="#1f2937"
-            width={element.width - 8}
-            height={element.height - 8}
-            x={4}
-            y={4}
-            align="center"
-            verticalAlign="top"
-            opacity={0.6}
+          {/* Image-Plus Icon in dunklerem Grau */}
+          <Group
+            x={element.width / 2}
+            y={element.height / 2}
             listening={false}
-            name='no-print'
-          />
+          >
+            {/* Bild-Rahmen (vereinfachtes Icon) */}
+            <Rect
+              x={-element.width * 0.15}
+              y={-element.height * 0.15}
+              width={element.width * 0.3}
+              height={element.height * 0.3}
+              fill="transparent"
+              stroke="#9ca3af"
+              strokeWidth={2}
+              cornerRadius={2}
+              listening={false}
+            />
+            {/* Plus-Zeichen */}
+            <Line
+              points={[0, -element.height * 0.08, 0, element.height * 0.08]}
+              stroke="#9ca3af"
+              strokeWidth={2}
+              lineCap="round"
+              listening={false}
+            />
+            <Line
+              points={[-element.width * 0.08, 0, element.width * 0.08, 0]}
+              stroke="#9ca3af"
+              strokeWidth={2}
+              lineCap="round"
+              listening={false}
+            />
+          </Group>
         </>
       ) : (
         <>

@@ -447,7 +447,7 @@ export function QnAInlineSettingsForm({
             className="w-full"
           >
             <Palette className="w-4 mr-2" />
-            Font Color & Opacity
+            Font Color
           </Button>
         </div>
         
@@ -1233,7 +1233,7 @@ export function QnAInlineSettingsForm({
               className="w-full"
             >
               <Palette className="w-4 mr-2" />
-              Line Color & Opacity
+              Line Color
             </Button>
           </div>
           
@@ -1336,7 +1336,7 @@ export function QnAInlineSettingsForm({
               className="w-full"
             >
               <Palette className="w-4 mr-2" />
-              Border Color & Opacity
+              Border Color
             </Button>
           </div>
           
@@ -1406,7 +1406,7 @@ export function QnAInlineSettingsForm({
               className="w-full"
             >
               <Palette className="w-4 mr-2" />
-              Background Color & Opacity
+              Background Color
             </Button>
           </div>
           

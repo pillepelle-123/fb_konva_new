@@ -206,6 +206,7 @@ export default function Canvas() {
   const [previewTextbox, setPreviewTextbox] = useState<{ x: number; y: number; width: number; height: number; type: string } | null>(null);
   const [showImageModal, setShowImageModal] = useState(false);
   const [pendingImagePosition, setPendingImagePosition] = useState<{ x: number; y: number } | null>(null);
+  const [pendingImageElementId, setPendingImageElementId] = useState<string | null>(null);
   const [editingElement, setEditingElement] = useState<CanvasElement | null>(null);
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
   
@@ -2068,6 +2069,13 @@ export default function Canvas() {
       }
     };
     
+    const handleOpenImageModal = (event: CustomEvent<{ elementId: string; position: { x: number; y: number } }>) => {
+      const { elementId, position } = event.detail;
+      setPendingImageElementId(elementId);
+      setPendingImagePosition(position);
+      setShowImageModal(true);
+    };
+    
     updateSize();
     window.addEventListener('resize', updateSize);
     window.addEventListener('click', handleClickOutside);
@@ -2075,6 +2083,7 @@ export default function Canvas() {
     window.addEventListener('brushDone', handleBrushDone as EventListener);
     window.addEventListener('brushCancel', handleBrushCancel as EventListener);
     window.addEventListener('brushUndo', handleBrushUndo as EventListener);
+    window.addEventListener('openImageModal', handleOpenImageModal as EventListener);
     
     return () => {
       window.removeEventListener('resize', updateSize);
@@ -2083,6 +2092,7 @@ export default function Canvas() {
       window.removeEventListener('brushDone', handleBrushDone as EventListener);
       window.removeEventListener('brushCancel', handleBrushCancel as EventListener);
       window.removeEventListener('brushUndo', handleBrushUndo as EventListener);
+      window.removeEventListener('openImageModal', handleOpenImageModal as EventListener);
     };
   }, [brushStrokes, state.currentBook, state.activePageIndex, state.toolSettings]);
   
@@ -2467,6 +2477,42 @@ export default function Canvas() {
   }, [fitToView]);
 
   const handleImageSelect = (imageId: number, imageUrl: string) => {
+    // If we have a pending element ID, update the existing placeholder element
+    if (pendingImageElementId) {
+      // Load image to get original dimensions
+      const img = new window.Image();
+      img.onload = () => {
+        const element = currentPage?.elements.find(el => el.id === pendingImageElementId);
+        if (element) {
+          const maxWidth = 600;
+          const aspectRatio = img.width / img.height;
+          const width = maxWidth;
+          const height = maxWidth / aspectRatio;
+          
+          dispatch({
+            type: 'UPDATE_ELEMENT',
+            payload: {
+              id: pendingImageElementId,
+              updates: {
+                type: 'image',
+                src: imageUrl,
+                width: element.width || width,
+                height: element.height || height
+              }
+            }
+          });
+        }
+      };
+      img.src = imageUrl;
+      
+      dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+      setShowImageModal(false);
+      setPendingImagePosition(null);
+      setPendingImageElementId(null);
+      return;
+    }
+    
+    // Otherwise, create a new element (existing behavior)
     if (!pendingImagePosition) return;
     
     // Load image to get original dimensions
@@ -2495,11 +2541,13 @@ export default function Canvas() {
     dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
     setShowImageModal(false);
     setPendingImagePosition(null);
+    setPendingImageElementId(null);
   };
 
   const handleImageModalClose = () => {
     setShowImageModal(false);
     setPendingImagePosition(null);
+    setPendingImageElementId(null);
     dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
   };
 

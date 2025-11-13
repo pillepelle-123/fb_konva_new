@@ -24,6 +24,8 @@ export function applyBackgroundImageTemplate(
   customSettings?: {
     imageSize?: PageBackground['imageSize'];
     imageRepeat?: boolean;
+    imagePosition?: PageBackground['imagePosition'];
+    imageWidth?: number; // width in % of page width (0-200, default 100)
     backgroundColor?: string;
     opacity?: number;
   }
@@ -35,8 +37,10 @@ export function applyBackgroundImageTemplate(
   }
 
   const resolvedOpacity = customSettings?.opacity ?? template.defaultOpacity ?? 1;
-  const resolvedWidth = Math.min(Math.max(template.defaultWidth ?? 100, 10), 200);
-  const resolvedPosition = template.defaultPosition ?? 'top-left';
+  const resolvedWidth = customSettings?.imageWidth !== undefined 
+    ? Math.min(Math.max(customSettings.imageWidth, 10), 200)
+    : Math.min(Math.max(template.defaultWidth ?? 100, 10), 200);
+  const resolvedPosition = customSettings?.imagePosition ?? template.defaultPosition ?? 'top-left';
 
   // Map defaultSize to imageSize and imageRepeat
   let imageSize: PageBackground['imageSize'] = 'cover';
@@ -79,11 +83,15 @@ export function applyBackgroundImageTemplate(
     applyPalette: true
   };
 
-  if (imageSize === 'contain') {
+  // Always set position (resolvedPosition already handles customSettings, template default, or fallback)
+  background.imagePosition = resolvedPosition;
+
+  // Always set width - resolvedWidth already handles customSettings, template default, or fallback
+  // For contain mode, width is always used. For other modes, it's set if explicitly provided in customSettings or template.
+  // CRITICAL: Always set width if it was provided in customSettings (from theme) OR if template has defaultWidth
+  // This ensures theme values are always applied, even for cover/stretch modes
+  if (customSettings?.imageWidth !== undefined || imageSize === 'contain' || template.defaultWidth !== undefined) {
     background.imageContainWidthPercent = resolvedWidth;
-    if (!imageRepeat) {
-      background.imagePosition = resolvedPosition;
-    }
   }
 
   // Apply background color if enabled and provided

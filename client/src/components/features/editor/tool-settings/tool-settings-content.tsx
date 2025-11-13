@@ -354,6 +354,8 @@ export function ToolSettingsContent({
           return element.stroke || '#1f2937';
         case 'element-shape-fill':
           return element.fill || 'transparent';
+        case 'element-image-frame-stroke':
+          return element.stroke || '#1f2937';
         default:
           return '#1f2937';
       }
@@ -365,6 +367,8 @@ export function ToolSettingsContent({
           return element.opacity || element.strokeOpacity || 1;
         case 'element-shape-fill':
           return element.fillOpacity || element.opacity || 1;
+        case 'element-image-frame-stroke':
+          return element.strokeOpacity || 1;
         default:
           return 1;
       }
@@ -377,6 +381,8 @@ export function ToolSettingsContent({
           return overrides.stroke === true;
         case 'element-shape-fill':
           return overrides.fill === true;
+        case 'element-image-frame-stroke':
+          return overrides.stroke === true;
         default:
           return false;
       }
@@ -400,6 +406,14 @@ export function ToolSettingsContent({
             payload: { elementIds: [element.id], colorProperty: 'fill' }
           });
           break;
+        case 'element-image-frame-stroke':
+          updateElementSetting(element.id, { stroke: color });
+          // Mark stroke as manually overridden
+          dispatch({
+            type: 'MARK_COLOR_OVERRIDE',
+            payload: { elementIds: [element.id], colorProperty: 'stroke' }
+          });
+          break;
       }
     };
     
@@ -411,11 +425,25 @@ export function ToolSettingsContent({
         case 'element-shape-fill':
           updateElementSetting(element.id, { fillOpacity: opacity });
           break;
+        case 'element-image-frame-stroke':
+          updateElementSetting(element.id, { strokeOpacity: opacity });
+          break;
       }
     };
     
     const handleResetOverride = () => {
-      const colorProperty = colorType === 'element-shape-stroke' ? 'stroke' : 'fill';
+      let colorProperty: string;
+      switch (colorType) {
+        case 'element-shape-stroke':
+        case 'element-image-frame-stroke':
+          colorProperty = 'stroke';
+          break;
+        case 'element-shape-fill':
+          colorProperty = 'fill';
+          break;
+        default:
+          colorProperty = 'stroke';
+      }
       dispatch({
         type: 'RESET_COLOR_OVERRIDES',
         payload: { elementIds: [element.id], colorProperties: [colorProperty] }
@@ -860,8 +888,10 @@ export function ToolSettingsContent({
           <ImageSettingsForm
             element={element}
             updateSetting={updateElementSettingLocal}
+            updateSettings={(updates) => updateElementSetting(element.id, updates)}
             setSelectedImageElementId={setSelectedImageElementId}
             setShowImageModal={setShowImageModal}
+            setShowColorSelector={setShowColorSelector}
           />
         );
 

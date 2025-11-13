@@ -32,6 +32,8 @@ export interface GlobalTheme {
       size: 'cover' | 'contain' | 'stretch';
       repeat?: boolean;
       opacity?: number;
+      position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+      width?: number; // width in % of page width (0-200, default 100)
     };
     cornerRadius: number;
   };
@@ -607,6 +609,7 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
   let topLevelPadding: number | undefined;
   let topLevelAlign: string | undefined;
   let topLevelParagraphSpacing: string | undefined;
+  let topLevelQnaIndividualSettings: boolean | undefined;
   
   if (qnaConfig) {
     // Include all top-level properties except questionSettings and answerSettings
@@ -716,6 +719,10 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
         }
         if (key === 'paragraphSpacing') {
           topLevelParagraphSpacing = qnaConfig[key];
+        }
+        if (key === 'qnaIndividualSettings') {
+          topLevelQnaIndividualSettings = qnaConfig[key];
+          topLevelProperties.qnaIndividualSettings = qnaConfig[key];
         }
       }
     });
@@ -877,6 +884,7 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
     
     return {
       ...topLevelProperties,
+      qnaIndividualSettings: topLevelQnaIndividualSettings ?? false,
       questionSettings,
       answerSettings
     };
@@ -887,6 +895,7 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
   
   return {
     ...topLevelProperties,
+    qnaIndividualSettings: topLevelQnaIndividualSettings ?? false,
     questionSettings,
     answerSettings
   };

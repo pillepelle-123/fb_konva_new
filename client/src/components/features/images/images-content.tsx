@@ -118,13 +118,52 @@ export default function ImagesContent({
           const imageUrl = firstImage.s3_url || `${apiUrl.replace('/api', '')}/uploads/${firstImage.file_path}`;
           onImageUpload(imageUrl);
         }
-      } else if (response.status === 413) {
+      } else {
+        // Try to parse error message from response
+        let errorMessage = 'Upload failed. Please try again.';
+        try {
+          const errorText = await response.text();
+          let errorData;
+          try {
+            errorData = JSON.parse(errorText);
+          } catch {
+            // If not JSON, use the text directly
+            errorData = { message: errorText, error: errorText };
+          }
+          
+          const errorMessageText = errorData.message || errorData.error || errorText || JSON.stringify(errorData);
+          
+          // Check for Multer file size errors (case-insensitive)
+          const lowerErrorText = errorMessageText.toLowerCase();
+          if (response.status === 413 || 
+              lowerErrorText.includes('file too large') || 
+              lowerErrorText.includes('multererror') ||
+              lowerErrorText.includes('limit_file_size')) {
+            errorMessage = 'File too large. Maximum file size is 2MB per image.';
+          } else if (errorMessageText && errorMessageText !== '{}') {
+            errorMessage = errorMessageText;
+          }
+        } catch {
+          // If response cannot be read, check status code
+          if (response.status === 413) {
+            errorMessage = 'File too large. Maximum file size is 2MB per image.';
+          }
+        }
+        setUploadError(errorMessage);
+      }
+    } catch (error) {
+      console.error('Upload failed:', error);
+      // Also check error message in catch block
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const lowerErrorText = errorMessage.toLowerCase();
+      
+      if (lowerErrorText.includes('file too large') || 
+          lowerErrorText.includes('multererror') ||
+          lowerErrorText.includes('limit_file_size')) {
         setUploadError('File too large. Maximum file size is 2MB per image.');
       } else {
         setUploadError('Upload failed. Please try again.');
       }
-    } catch (error) {
-      console.error('Upload failed:', error);
     } finally {
       setIsUploading(false);
       setTimeout(() => {

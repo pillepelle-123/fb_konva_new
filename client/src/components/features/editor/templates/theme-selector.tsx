@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Eye, Paintbrush2 } from 'lucide-react';
 
 import { GLOBAL_THEMES, getGlobalTheme } from '../../../../utils/global-themes';
@@ -30,6 +31,20 @@ export function ThemeSelector({
   const themes = GLOBAL_THEMES.map(theme => theme.id);
   const includeBookThemeEntry = showBookThemeOption;
   const bookThemeActive = includeBookThemeEntry && isBookThemeSelected;
+  
+  // DEBUG: Log theme selection state when props change
+  // Log for both page-level (showBookThemeOption=true) and book-level (showBookThemeOption=false)
+  // useEffect(() => {
+  //   console.log('[ThemeSelector] Theme selection state:', {
+  //     currentTheme,
+  //     selectedTheme,
+  //     activeTheme,
+  //     isBookThemeSelected,
+  //     bookThemeActive,
+  //     showBookThemeOption,
+  //     isBookLevel: !showBookThemeOption // Book-level when showBookThemeOption is false
+  //   });
+  // }, [currentTheme, selectedTheme, activeTheme, isBookThemeSelected, bookThemeActive, showBookThemeOption]);
 
   const previewSection = (
     <div className={`p-4 ${previewPosition === 'right' ? 'w-1/2' : 'border-t border-gray-200 shrink-0'}`} style={{ display: 'none' }}>

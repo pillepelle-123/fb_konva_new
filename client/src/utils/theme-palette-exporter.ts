@@ -618,7 +618,9 @@ export function exportThemeAndPalette(
       templateId: pageBackground.backgroundImageTemplateId,
       size: pageBackground.imageSize || 'cover',
       repeat: pageBackground.imageRepeat ?? false,
-      opacity: pageBackground.opacity ?? 1
+      opacity: pageBackground.opacity ?? 1,
+      position: pageBackground.imagePosition || 'top-left',
+      width: pageBackground.imageContainWidthPercent ?? 100
     } : {
       enabled: false
     }

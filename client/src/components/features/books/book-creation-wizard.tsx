@@ -136,9 +136,8 @@ export default function BookCreationWizard({ open, onOpenChange, onSuccess }: Bo
           activePaletteId
         );
 
-        const updatedElement: any = {
-          ...element,
-          ...defaults,
+        // Preserve essential element properties
+        const preservedProps = {
           id: element.id,
           type: element.type,
           x: element.x,
@@ -155,25 +154,119 @@ export default function BookCreationWizard({ open, onOpenChange, onSuccess }: Bo
           points: element.points
         };
 
+        // Build updated element with all theme/palette properties explicitly set
+        const updatedElement: any = {
+          ...preservedProps,
+          // Apply all defaults from theme/palette
+          ...defaults,
+          // Explicitly set theme property
+          theme: themeToUse || defaults.theme || element.theme
+        };
+
+        // For qna_inline: Ensure questionSettings and answerSettings are fully populated
         if (element.textType === 'qna_inline') {
-          if (defaults.questionSettings || element.questionSettings) {
-            updatedElement.questionSettings = {
-              ...(element.questionSettings || {}),
-              ...(defaults.questionSettings || {})
-            };
+          // Deep merge questionSettings to ensure all properties are present
+          updatedElement.questionSettings = {
+            ...(defaults.questionSettings || {}),
+            ...(element.questionSettings || {}),
+            // Ensure nested objects are fully merged
+            font: {
+              ...(defaults.questionSettings?.font || {}),
+              ...(element.questionSettings?.font || {})
+            },
+            border: {
+              ...(defaults.questionSettings?.border || {}),
+              ...(element.questionSettings?.border || {})
+            },
+            background: {
+              ...(defaults.questionSettings?.background || {}),
+              ...(element.questionSettings?.background || {})
+            }
+          };
+          
+          // Deep merge answerSettings to ensure all properties are present
+          updatedElement.answerSettings = {
+            ...(defaults.answerSettings || {}),
+            ...(element.answerSettings || {}),
+            // Ensure nested objects are fully merged
+            font: {
+              ...(defaults.answerSettings?.font || {}),
+              ...(element.answerSettings?.font || {})
+            },
+            border: {
+              ...(defaults.answerSettings?.border || {}),
+              ...(element.answerSettings?.border || {})
+            },
+            background: {
+              ...(defaults.answerSettings?.background || {}),
+              ...(element.answerSettings?.background || {})
+            }
+          };
+        }
+
+        // For free_text: Ensure textSettings is fully populated
+        if (element.textType === 'free_text' && defaults.textSettings) {
+          updatedElement.textSettings = {
+            ...defaults.textSettings,
+            ...(element.textSettings || {}),
+            // Ensure nested objects are fully merged
+            font: {
+              ...(defaults.textSettings?.font || {}),
+              ...(element.textSettings?.font || {})
+            },
+            border: {
+              ...(defaults.textSettings?.border || {}),
+              ...(element.textSettings?.border || {})
+            },
+            background: {
+              ...(defaults.textSettings?.background || {}),
+              ...(element.textSettings?.background || {})
+            }
+          };
+        }
+
+        // For shapes: Ensure opacity properties are set (strokeOpacity, fillOpacity)
+        if (['line', 'circle', 'rect', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(element.type)) {
+          // If defaults have strokeOpacity/fillOpacity, use them; otherwise preserve element values
+          if (defaults.strokeOpacity !== undefined) {
+            updatedElement.strokeOpacity = defaults.strokeOpacity;
+          } else if (element.strokeOpacity !== undefined) {
+            updatedElement.strokeOpacity = element.strokeOpacity;
           }
-          if (defaults.answerSettings || element.answerSettings) {
-            updatedElement.answerSettings = {
-              ...(element.answerSettings || {}),
-              ...(defaults.answerSettings || {})
-            };
+          
+          if (defaults.fillOpacity !== undefined) {
+            updatedElement.fillOpacity = defaults.fillOpacity;
+          } else if (element.fillOpacity !== undefined) {
+            updatedElement.fillOpacity = element.fillOpacity;
           }
         }
 
-        if (element.textType === 'free_text' && defaults.textSettings) {
-          updatedElement.textSettings = {
-            ...(element.textSettings || {}),
-            ...defaults.textSettings
+        // Ensure nested objects are fully populated for all element types
+        if (defaults.font) {
+          updatedElement.font = {
+            ...defaults.font,
+            ...(element.font || {})
+          };
+        }
+        
+        if (defaults.border) {
+          updatedElement.border = {
+            ...defaults.border,
+            ...(element.border || {})
+          };
+        }
+        
+        if (defaults.background) {
+          updatedElement.background = {
+            ...defaults.background,
+            ...(element.background || {})
+          };
+        }
+        
+        if (defaults.ruledLines) {
+          updatedElement.ruledLines = {
+            ...defaults.ruledLines,
+            ...(element.ruledLines || {})
           };
         }
 
@@ -236,6 +329,8 @@ export default function BookCreationWizard({ open, onOpenChange, onSuccess }: Bo
           const imageBackground = applyBackgroundImageTemplate(templateId, {
           imageSize: imageConfig.size,
           imageRepeat: imageConfig.repeat,
+          imagePosition: imageConfig.position,
+          imageWidth: imageConfig.width,
           opacity: imageConfig.opacity ?? background.opacity ?? 1,
           backgroundColor: themeBackgroundColors?.backgroundColor || paletteToUse.colors.background || '#ffffff'
         });
