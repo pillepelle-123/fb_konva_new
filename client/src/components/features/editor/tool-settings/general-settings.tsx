@@ -601,8 +601,8 @@ export function GeneralSettings({
       (!selectedBackgroundImageId ||
         selectedBackgroundImageId === (isImage ? background.backgroundImageTemplateId ?? null : null));
     
-    // Get primary color from current palette or theme
-    const getPrimaryColor = (): string => {
+    // Get secondary color from current palette or theme
+    const getSecondaryColor = (): string => {
       const pageColorPaletteId = currentPage?.colorPaletteId;
       const bookColorPaletteId = state.currentBook?.colorPaletteId;
       const activePaletteId = pageColorPaletteId || bookColorPaletteId;
@@ -610,14 +610,14 @@ export function GeneralSettings({
       if (activePaletteId) {
         const palette = colorPalettes.find(p => p.id === activePaletteId);
         if (palette) {
-          return palette.colors.primary;
+          return palette.colors.secondary;
         }
       }
       
-      // Fallback to theme primary color
+      // Fallback to theme secondary color or primary if secondary not available
       const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme || state.currentBook?.themeId || state.currentBook?.bookTheme || 'default';
       const themeDefaults = getGlobalThemeDefaults(pageTheme, 'shape');
-      return themeDefaults.stroke || '#000000';
+      return themeDefaults.stroke || '#666666';
     };
     
     const handleBackgroundModeChange = (mode: 'color' | 'pattern' | 'image') => {
@@ -659,15 +659,19 @@ export function GeneralSettings({
         setShowBackgroundImageTemplateSelector(false);
       } else if (mode === 'pattern') {
         setForceImageMode(false);
-        const primaryColor = getPrimaryColor();
+        const backgroundColor = getDefaultBackgroundColor();
+        const secondaryColor = getSecondaryColor();
         // Preserve backgroundImageTemplateId and image settings when switching to pattern (for restoration later)
+        // patternForegroundColor is the space between patterns (background color)
+        // patternBackgroundColor is the color of the pattern itself (secondary color)
         const updateData: any = {
           type: 'pattern',
           value: 'dots',
           patternSize: 6,
           patternStrokeWidth: 10,
-          patternForegroundColor: primaryColor,
-          patternBackgroundColor: 'transparent',
+          patternForegroundColor: backgroundColor, // Space between patterns uses background color
+          patternBackgroundColor: secondaryColor, // Pattern itself uses secondary color
+          patternBackgroundOpacity: background?.patternBackgroundOpacity ?? 1, // Preserve existing opacity or default to 1
           opacity: currentOpacity,
           backgroundImageTemplateId: savedImageTemplateId,
           imageSize: savedImageSize,
@@ -780,6 +784,70 @@ export function GeneralSettings({
     }
 
     if (showPatternSettings && isPattern) {
+      const currentPatternId = background.value || 'dots';
+      
+      // Pattern Size configuration
+      const patternSizeConfig: Record<string, { min: number; max: number; step: number }> = {
+        'dots': { min: 2, max: 11, step: 1 },
+        'grid': { min: 1, max: 9, step: 1 },
+        'diagonal': { min: 1, max: 11, step: 1 },
+        'cross': { min: 1, max: 11, step: 1 },
+      'waves': { min: 1, max: 11, step: 1 },
+        'hexagon': { min: 1, max: 11, step: 1 }
+      };
+      
+      // Pattern Stroke Width configuration
+      const patternStrokeWidthConfig: Record<string, { min: number; max: number; step: number } | null> = {
+        'dots': null, // Hide for dots
+        'grid': { min: 1, max: 500, step: 5 },
+        'diagonal': { min: 1, max: 500, step: 5 },
+        'cross': { min: 1, max: 500, step: 5 },
+        'waves': { min: 1, max: 380, step: 4 },
+        'hexagon': { min: 1, max: 500, step: 5 }
+      };
+      
+      const sizeConfig = patternSizeConfig[currentPatternId] || patternSizeConfig['dots'];
+      const strokeWidthConfig = patternStrokeWidthConfig[currentPatternId] ?? patternStrokeWidthConfig['grid'];
+      
+      // Clamp values to valid ranges (without triggering updates during render)
+      const currentPatternSize = background.patternSize || sizeConfig.min;
+      const clampedPatternSize = Math.max(sizeConfig.min, Math.min(sizeConfig.max, currentPatternSize));
+      
+      const currentPatternStrokeWidth = background.patternStrokeWidth || (strokeWidthConfig?.min ?? 1);
+      const clampedPatternStrokeWidth = strokeWidthConfig 
+        ? Math.max(strokeWidthConfig.min, Math.min(strokeWidthConfig.max, currentPatternStrokeWidth))
+        : currentPatternStrokeWidth;
+      
+      // Handle pattern change - clamp values when pattern changes
+      const handlePatternChange = (patternId: string) => {
+        const newSizeConfig = patternSizeConfig[patternId] || patternSizeConfig['dots'];
+        const newStrokeWidthConfig = patternStrokeWidthConfig[patternId] ?? patternStrokeWidthConfig['grid'];
+        
+        const currentSize = background.patternSize || newSizeConfig.min;
+        const clampedSize = Math.max(newSizeConfig.min, Math.min(newSizeConfig.max, currentSize));
+        
+        const updates: Partial<PageBackground> = { value: patternId };
+        
+        if (clampedSize !== currentSize) {
+          updates.patternSize = clampedSize;
+        }
+        
+        if (newStrokeWidthConfig) {
+          const currentStrokeWidth = background.patternStrokeWidth || newStrokeWidthConfig.min;
+          const clampedStrokeWidth = Math.max(newStrokeWidthConfig.min, Math.min(newStrokeWidthConfig.max, currentStrokeWidth));
+          if (clampedStrokeWidth !== currentStrokeWidth) {
+            updates.patternStrokeWidth = clampedStrokeWidth;
+          }
+        } else {
+          // If switching to dots, remove patternStrokeWidth
+          if (background.patternStrokeWidth !== undefined) {
+            updates.patternStrokeWidth = undefined;
+          }
+        }
+        
+        updateBackground(updates);
+      };
+      
       return (
         <div className="space-y-4">
           <div className="flex items-center gap-2 mb-2">
@@ -811,7 +879,7 @@ export function GeneralSettings({
                       background.value === pattern.id ? 'border-4 border-[hsl(var(--ring))]' : 'border-gray-200'
                     }`}
                     style={{ backgroundImage: `url(${patternDataUrl})` }}
-                    onClick={() => updateBackground({ value: pattern.id })}
+                    onClick={() => handlePatternChange(pattern.id)}
                     title={pattern.name}
                   />
                 );
@@ -821,21 +889,24 @@ export function GeneralSettings({
           
           <Slider
             label="Pattern Size"
-            value={background.patternSize || 1}
+            value={clampedPatternSize}
             onChange={(value) => updateBackground({ patternSize: value })}
-            min={1}
-            max={15}
+            min={sizeConfig.min}
+            max={sizeConfig.max}
+            step={sizeConfig.step}
             unit=""
           />
           
-          <Slider
-            label="Pattern Stroke Width"
-            value={background.patternStrokeWidth || 1}
-            onChange={(value) => updateBackground({ patternStrokeWidth: value })}
-            min={1}
-            max={300}
-            step={3}
-          />
+          {strokeWidthConfig && (
+            <Slider
+              label="Pattern Stroke Width"
+              value={clampedPatternStrokeWidth}
+              onChange={(value) => updateBackground({ patternStrokeWidth: value })}
+              min={strokeWidthConfig.min}
+              max={strokeWidthConfig.max}
+              step={strokeWidthConfig.step}
+            />
+          )}
           
           <div>
             <Button
@@ -847,6 +918,24 @@ export function GeneralSettings({
               <Palette className="h-4 w-4 mr-2" />
               Background Color & Opacity
             </Button>
+          </div>
+          
+          <div>
+            <Label variant="xs" className="mt-2 block">Opacity</Label>
+            <Slider
+              label="Opacity"
+              value={Math.round((background.patternBackgroundOpacity ?? 1) * 100)}
+              displayValue={Math.round((background.patternBackgroundOpacity ?? 1) * 100)}
+              onChange={(value) => {
+                const opacityValue = value / 100;
+                updateBackground({ patternBackgroundOpacity: opacityValue });
+              }}
+              min={0}
+              max={100}
+              step={5}
+              unit="%"
+              hasLabel={false}
+            />
           </div>
         </div>
       );
@@ -874,19 +963,6 @@ export function GeneralSettings({
           </Button>
         </div>
 
-        {/* Color Button */}
-        <div>
-          <Button
-            variant="outline"
-            size="xs"
-            onClick={() => setShowColorSelector('background-color')}
-            className="w-full"
-          >
-            <Palette className="h-4 w-4 mr-2" />
-            Color
-          </Button>
-        </div>
-
         {/* Radio Group for Color/Pattern/Image */}
         <RadioGroup
           value={backgroundMode}
@@ -897,24 +973,22 @@ export function GeneralSettings({
             { value: 'image', label: 'Image' }
           ]}
         />
-
-        <div>
-          <Label variant="xs" className="mt-2 block">Opacity</Label>
-          <Slider
-            label="Opacity"
-            value={Math.round((background.opacity ?? 1) * 100)}
-            displayValue={Math.round((background.opacity ?? 1) * 100)}
-            onChange={(value) => {
-              const opacityValue = value / 100;
-              updateBackground({ opacity: opacityValue });
-            }}
-            min={0}
-            max={100}
-            step={5}
-            unit="%"
-            hasLabel={false}
-          />
-        </div>
+        
+        {/* Color Button */}
+        {(backgroundMode === 'color' || backgroundMode === 'pattern') && ( 
+          
+          <div>
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => setShowColorSelector('background-color')}
+              className="w-full"
+            >
+              <Palette className="h-4 w-4 mr-2" />
+              Color
+            </Button>
+          </div>
+          )}
 
         {/* Pattern Settings Button */}
         {backgroundMode === 'pattern' && (
@@ -929,6 +1003,7 @@ export function GeneralSettings({
             </Button>
           </div>
         )}
+
 
         {/* Select Image Button */}
         {backgroundMode === 'image' && (
@@ -977,6 +1052,24 @@ export function GeneralSettings({
             )}
           </div>
         )}
+        
+        <div>
+          <Label variant="xs" className="mt-2 block">Opacity</Label>
+          <Slider
+            label="Opacity"
+            value={Math.round((background.opacity ?? 1) * 100)}
+            displayValue={Math.round((background.opacity ?? 1) * 100)}
+            onChange={(value) => {
+              const opacityValue = value / 100;
+              updateBackground({ opacity: opacityValue });
+            }}
+            min={0}
+            max={100}
+            step={5}
+            unit="%"
+            hasLabel={false}
+          />
+        </div>
 
         {/* Image Size, Position, and Repeat Controls - only visible when image background is active */}
         {backgroundMode === 'image' && background && background.type === 'image' && (

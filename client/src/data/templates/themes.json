@@ -689,7 +689,7 @@
     "description": "Custom theme exported from canvas",
     "palette": "lavender-dream",
     "pageSettings": {
-      "backgroundOpacity": 1,
+      "backgroundOpacity": 0.7,
       "backgroundPattern": {
         "enabled": false,
         "style": "dots",
@@ -702,7 +702,7 @@
         "templateId": "aesthetic-minimalist-background-01",
         "size": "cover",
         "repeat": false,
-        "opacity": 0.4
+        "opacity": 0.8
       }
     },
     "elementDefaults": {
