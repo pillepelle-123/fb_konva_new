@@ -2,7 +2,7 @@
   "default": {
     "name": "Default",
     "description": "Clean and simple",
-    "palette": "neutral-harmony",
+    "palette": "default",
     "pageSettings": {
       "backgroundOpacity": 1,
       "backgroundPattern": {

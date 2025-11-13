@@ -1,21 +1,28 @@
 import { useState } from 'react';
 import { SwatchBook } from 'lucide-react';
 import { Label } from '../../../ui/primitives/label';
-import { getAllCategories, getPalettesByCategory } from '../../../../data/templates/color-palettes';
+import { getAllCategories, getPalettesByCategory, colorPalettes } from '../../../../data/templates/color-palettes';
 import type { ColorPalette } from '../../../../types/template-types';
+import { getThemePaletteId } from '../../../../utils/global-themes';
 
 interface WizardPaletteSelectorProps {
   selectedPalette: ColorPalette | null;
   onPaletteSelect: (palette: ColorPalette) => void;
   previewPosition?: 'top' | 'bottom' | 'right'; // 'bottom' = Preview below list (default), 'top' = Preview above list, 'right' = Preview to the right
+  themeId?: string; // Theme ID to get default palette from
 }
 
 export function WizardPaletteSelector({ 
   selectedPalette, 
   onPaletteSelect, 
-  previewPosition = 'top' 
+  previewPosition = 'top',
+  themeId
 }: WizardPaletteSelectorProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>('Default');
+  
+  // Get theme default palette if themeId is provided
+  const themePaletteId = themeId ? getThemePaletteId(themeId) : undefined;
+  const themePalette = themePaletteId ? colorPalettes.find(p => p.id === themePaletteId) || null : null;
   
   const categories = getAllCategories();
 
@@ -109,6 +116,23 @@ export function WizardPaletteSelector({
       </div>
 
       <div className="space-y-2 max-h-96 overflow-y-auto">
+        {themePalette && (
+          <button
+            key="theme-palette-entry"
+            onClick={() => onPaletteSelect(themePalette)}
+            className={`w-full p-3 border rounded-lg text-left transition-colors ${
+              selectedPalette?.id === themePalette.id
+                ? 'border-blue-500 bg-blue-50'
+                : 'border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            <div className="font-medium text-sm mb-1">Default</div>
+            <div className="mb-2">
+              {renderPalettePreview(themePalette)}
+            </div>
+            <div className="text-xs text-gray-600">{themePalette.name}</div>
+          </button>
+        )}
         {getPalettesByCategory(selectedCategory).map(palette => (
           <button
             key={palette.id}

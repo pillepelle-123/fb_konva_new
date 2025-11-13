@@ -229,18 +229,26 @@ export default function BookCreationWizard({ open, onOpenChange, onSuccess }: Bo
 
       if (themeConfig.pageSettings.backgroundImage?.enabled && themeConfig.pageSettings.backgroundImage.templateId) {
         const imageConfig = themeConfig.pageSettings.backgroundImage;
-        const imageBackground = applyBackgroundImageTemplate(imageConfig.templateId, {
+        const templateId = imageConfig.templateId;
+        if (!templateId) {
+          console.warn('Background image enabled but templateId is missing');
+        } else {
+          const imageBackground = applyBackgroundImageTemplate(templateId, {
           imageSize: imageConfig.size,
           imageRepeat: imageConfig.repeat,
           opacity: imageConfig.opacity ?? background.opacity ?? 1,
-          backgroundColor: themeBackgroundColors?.backgroundColor || paletteToUse.colors.background
+          backgroundColor: themeBackgroundColors?.backgroundColor || paletteToUse.colors.background || '#ffffff'
         });
 
-        if (imageBackground) {
-          background = {
-            ...imageBackground,
-            pageTheme: themeToUse
-          };
+          if (imageBackground && imageBackground.value) {
+            background = {
+              ...imageBackground,
+              opacity: imageBackground.opacity ?? imageConfig.opacity ?? background.opacity ?? 1,
+              pageTheme: themeToUse
+            };
+          } else {
+            console.warn('Failed to apply background image template:', templateId);
+          }
         }
       }
     }
@@ -463,6 +471,7 @@ export default function BookCreationWizard({ open, onOpenChange, onSuccess }: Bo
             selectedPalette={wizardState.selectedPalette}
             onPaletteSelect={(palette) => updateState({ selectedPalette: palette })}
             previewPosition="right"
+            themeId={wizardState.selectedTheme}
           />
         </div>
       </div>

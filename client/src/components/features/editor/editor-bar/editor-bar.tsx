@@ -35,7 +35,7 @@ interface EditorBarProps {
 }
 
 export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = false }: EditorBarProps) {
-  const { state, dispatch, saveBook, refreshPageAssignments, getVisiblePages, getVisiblePageNumbers } = useEditor();
+  const { state, dispatch, saveBook, refreshPageAssignments, getVisiblePages, getVisiblePageNumbers, ensurePagesLoaded } = useEditor();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [isSaving, setIsSaving] = useState(false);
@@ -120,6 +120,7 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
       const currentVisibleIndex = visiblePageNumbers.indexOf(currentPage);
       if (currentVisibleIndex > 0) {
         const prevPageNumber = visiblePageNumbers[currentVisibleIndex - 1];
+        ensurePagesLoaded(prevPageNumber - 1, prevPageNumber);
         dispatch({ type: 'SET_ACTIVE_PAGE', payload: prevPageNumber - 1 });
       }
     } else {
@@ -133,6 +134,7 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
         const prevVisiblePage = visiblePages[currentVisibleIndex - 1];
         const prevPageIndex = state.currentBook.pages.findIndex(p => p.id === prevVisiblePage.id);
         if (prevPageIndex !== -1) {
+          ensurePagesLoaded(prevPageIndex, prevPageIndex + 1);
           dispatch({ type: 'SET_ACTIVE_PAGE', payload: prevPageIndex });
         }
       }
@@ -144,6 +146,7 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
       const currentVisibleIndex = visiblePageNumbers.indexOf(currentPage);
       if (currentVisibleIndex < visiblePageNumbers.length - 1) {
         const nextPageNumber = visiblePageNumbers[currentVisibleIndex + 1];
+        ensurePagesLoaded(nextPageNumber - 1, nextPageNumber);
         dispatch({ type: 'SET_ACTIVE_PAGE', payload: nextPageNumber - 1 });
       }
     } else {
@@ -157,6 +160,7 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
         const nextVisiblePage = visiblePages[currentVisibleIndex + 1];
         const nextPageIndex = state.currentBook.pages.findIndex(p => p.id === nextVisiblePage.id);
         if (nextPageIndex !== -1) {
+          ensurePagesLoaded(nextPageIndex, nextPageIndex + 1);
           dispatch({ type: 'SET_ACTIVE_PAGE', payload: nextPageIndex });
         }
       }
@@ -171,6 +175,7 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
       const lastPage = newVisiblePages[newVisiblePages.length - 1];
       const lastPageIndex = state.currentBook.pages.findIndex(p => p.id === lastPage.id);
       if (lastPageIndex !== -1) {
+        ensurePagesLoaded(lastPageIndex, lastPageIndex + 1);
         dispatch({ type: 'SET_ACTIVE_PAGE', payload: lastPageIndex });
       }
     }
@@ -196,9 +201,11 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
       // For own_page access, page parameter is the visible page number (1-based)
       if (page >= 1 && page <= visiblePageNumbers.length) {
         const actualPageNumber = visiblePageNumbers[page - 1];
+        ensurePagesLoaded(actualPageNumber - 1, actualPageNumber);
         dispatch({ type: 'SET_ACTIVE_PAGE', payload: actualPageNumber - 1 });
       }
     } else {
+      ensurePagesLoaded(page - 1, page);
       dispatch({ type: 'SET_ACTIVE_PAGE', payload: page - 1 });
     }
   };

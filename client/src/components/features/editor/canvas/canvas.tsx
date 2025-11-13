@@ -27,6 +27,7 @@ import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
 import type { PageBackground } from '../../../../context/editor-context';
 import { createPreviewImage, resolveBackgroundImageUrl } from '../../../../utils/background-image-utils';
 import { colorPalettes } from '../../../../data/templates/color-palettes';
+import { getThemePaletteId, getGlobalTheme } from '../../../../utils/global-themes';
 
 function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
   return (
@@ -250,17 +251,23 @@ export default function Canvas() {
   const pageSize = state.currentBook?.pageSize || 'A4';
 
   const getPaletteForPage = (page?: typeof currentPage) => {
-    const paletteId =
-      page?.colorPaletteId ??
-      state.currentBook?.colorPaletteId ??
-      null;
+    // Get page color palette (or book color palette if page.colorPaletteId is null)
+    const pageColorPaletteId = page?.colorPaletteId ?? null;
+    const bookColorPaletteId = state.currentBook?.colorPaletteId ?? null;
+    
+    // If book.colorPaletteId is null, use theme's default palette
+    const bookThemeId = state.currentBook?.bookTheme || state.currentBook?.themeId || 'default';
+    const bookThemePaletteId = !bookColorPaletteId ? getThemePaletteId(bookThemeId) : null;
+    
+    // Determine effective palette: page palette > book palette > theme's default palette
+    const effectivePaletteId = pageColorPaletteId ?? bookColorPaletteId ?? bookThemePaletteId;
 
-    if (paletteId === null) {
+    if (effectivePaletteId === null) {
       return { paletteId: null as string | null, palette: null as ColorPalette | null };
     }
 
-    const palette = colorPalettes.find((item) => item.id === paletteId) ?? null;
-    return { paletteId, palette };
+    const palette = colorPalettes.find((item) => item.id === effectivePaletteId) ?? null;
+    return { paletteId: effectivePaletteId, palette };
   };
 
   const { paletteId: activePaletteId, palette: activePalette } = getPaletteForPage(currentPage);
@@ -299,12 +306,27 @@ export default function Canvas() {
           }
           
           return node;
-        }).filter(node => node && node.getStage());
+        }).filter(node => {
+          // Verify node is valid and still attached to the stage
+          if (!node || !node.getStage()) return false;
+          try {
+            // Check if node has a parent (is still in the scene graph)
+            return node.getParent() !== null;
+          } catch {
+            return false;
+          }
+        });
         
-        transformer.nodes(selectedNodes);
-        transformer.forceUpdate();
-        transformer.moveToTop();
-        transformer.getLayer()?.batchDraw();
+        if (selectedNodes.length > 0) {
+          transformer.nodes(selectedNodes);
+          transformer.forceUpdate();
+          transformer.moveToTop();
+          transformer.getLayer()?.batchDraw();
+        } else {
+          // No valid nodes found, clear selection
+          transformer.nodes([]);
+          transformer.getLayer()?.batchDraw();
+        }
       } else {
         transformer.nodes([]);
         transformer.getLayer()?.batchDraw();
@@ -317,9 +339,18 @@ export default function Canvas() {
     if (transformerRef.current && state.selectedElementIds.length > 0) {
       const transformer = transformerRef.current;
       setTimeout(() => {
-        if (transformer && transformer.nodes().length > 0) {
-          transformer.forceUpdate();
-          transformer.getLayer()?.batchDraw();
+        if (transformer) {
+          const nodes = transformer.nodes();
+          // Filter out undefined or invalid nodes
+          const validNodes = nodes.filter(node => node && node.getStage());
+          if (validNodes.length > 0 && validNodes.length === nodes.length) {
+            transformer.forceUpdate();
+            transformer.getLayer()?.batchDraw();
+          } else if (validNodes.length !== nodes.length) {
+            // Some nodes are invalid, update the transformer with only valid nodes
+            transformer.nodes(validNodes);
+            transformer.getLayer()?.batchDraw();
+          }
         }
       }, 10);
     }
@@ -343,9 +374,20 @@ export default function Canvas() {
         }).filter(node => node && node.getStage());
         
         if (selectedNodes.length > 0) {
-          transformer.nodes(selectedNodes);
-          transformer.forceUpdate();
-          transformer.getLayer()?.batchDraw();
+          // Verify all nodes are valid before updating
+          const validNodes = selectedNodes.filter(node => {
+            try {
+              return node && node.getStage() && node.getParent();
+            } catch {
+              return false;
+            }
+          });
+          
+          if (validNodes.length > 0) {
+            transformer.nodes(validNodes);
+            transformer.forceUpdate();
+            transformer.getLayer()?.batchDraw();
+          }
         }
       }, 0);
       
@@ -1669,16 +1711,32 @@ export default function Canvas() {
     
     if (background.type === 'image') {
       // Resolve image URL (handles both template and direct URLs)
-      const imageUrl =
-        resolveBackgroundImageUrl(background, {
-          paletteId: activePaletteId,
-          paletteColors: activePalette?.colors
-        }) || background.value;
+      // First try with palette if available
+      let imageUrl = resolveBackgroundImageUrl(background, {
+        paletteId: activePaletteId,
+        paletteColors: activePalette?.colors
+      });
+      
+      // If URL is undefined and we have a template ID, try without palette as fallback
+      if (!imageUrl && background.backgroundImageTemplateId) {
+        imageUrl = resolveBackgroundImageUrl(background, {
+          paletteId: null,
+          paletteColors: undefined
+        });
+      }
+      
+      // Final fallback to direct value
+      if (!imageUrl) {
+        imageUrl = background.value;
+      }
+      
       if (!imageUrl) {
         console.warn('Background image URL is undefined', {
           backgroundType: background.type,
           templateId: (background as any).backgroundImageTemplateId,
-          value: background.value
+          value: background.value,
+          paletteId: activePaletteId,
+          hasPalette: !!activePalette
         });
         return null;
       }

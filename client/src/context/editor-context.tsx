@@ -3,61 +3,95 @@ import type { ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from './auth-context';
 import { getToolDefaults } from '../utils/tool-defaults';
+
+type LoadBookOptions = {
+  pageOffset?: number;
+  pageLimit?: number;
+  pagesOnly?: boolean;
+};
+
 // Load real book data from API
 const apiService = {
-  loadBook: async (bookId) => {
+  loadBook: async (bookId: number | string, options: LoadBookOptions = {}) => {
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
     const token = localStorage.getItem('token');
     
     try {
+      const params = new URLSearchParams();
+      if (typeof options.pageOffset === 'number') {
+        params.set('pageOffset', String(Math.max(0, options.pageOffset)));
+      }
+      if (typeof options.pageLimit === 'number' && options.pageLimit > 0) {
+        params.set('pageLimit', String(options.pageLimit));
+      }
+      if (options.pagesOnly) {
+        params.set('pagesOnly', 'true');
+      }
+      const query = params.toString();
+
       // Load book data
-      const bookResponse = await fetch(`${apiUrl}/books/${bookId}`, {
+      const bookResponse = await fetch(`${apiUrl}/books/${bookId}${query ? `?${query}` : ''}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!bookResponse.ok) throw new Error('Failed to load book');
-      const book = await bookResponse.json();
-      
-      // Load questions
-      const questionsResponse = await fetch(`${apiUrl}/books/${bookId}/questions`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const questions = questionsResponse.ok ? await questionsResponse.json() : [];
-      
-      // Load answers
-      let answers = [];
-      try {
-        const answersResponse = await fetch(`${apiUrl}/answers/book/${bookId}`, {
+      const responseData = await bookResponse.json();
+      const {
+        pagination = null,
+        questions: responseQuestions,
+        answers: responseAnswers,
+        userRole: responseUserRole,
+        pageAssignments: responseAssignments,
+        ...book
+      } = responseData;
+
+      const shouldFetchDetails = !options.pagesOnly;
+
+      let questions = Array.isArray(responseQuestions) ? responseQuestions : [];
+      if (shouldFetchDetails && questions.length === 0) {
+        const questionsResponse = await fetch(`${apiUrl}/books/${bookId}/questions`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        if (answersResponse.ok) {
-          const answersData = await answersResponse.json();
-          answers = Array.isArray(answersData) ? answersData : answersData.answers || [];
-          // console.log('Loaded answers:', answers);
-        } else {
-          // console.log('Answers response not ok:', answersResponse.status);
-        }
-      } catch (error) {
-        // console.error('Failed to load answers:', error);
+        questions = questionsResponse.ok ? await questionsResponse.json() : [];
       }
       
-      // Load user role
-      const roleResponse = await fetch(`${apiUrl}/books/${bookId}/user-role`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const userRole = roleResponse.ok ? await roleResponse.json() : null;
+      let answers = Array.isArray(responseAnswers) ? responseAnswers : [];
+      if (shouldFetchDetails && answers.length === 0) {
+        try {
+          const answersResponse = await fetch(`${apiUrl}/answers/book/${bookId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (answersResponse.ok) {
+            const answersData = await answersResponse.json();
+            answers = Array.isArray(answersData) ? answersData : answersData.answers || [];
+          }
+        } catch (error) {
+          // Ignore answer load errors during pagination
+        }
+      }
       
-      // Load page assignments
-      const assignmentsResponse = await fetch(`${apiUrl}/page-assignments/book/${bookId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const pageAssignments = assignmentsResponse.ok ? await assignmentsResponse.json() : [];
+      let userRole = responseUserRole || null;
+      if (!userRole && shouldFetchDetails) {
+        const roleResponse = await fetch(`${apiUrl}/books/${bookId}/user-role`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        userRole = roleResponse.ok ? await roleResponse.json() : null;
+      }
+      
+      let pageAssignments = Array.isArray(responseAssignments) ? responseAssignments : [];
+      if (pageAssignments.length === 0 && shouldFetchDetails) {
+        const assignmentsResponse = await fetch(`${apiUrl}/page-assignments/book/${bookId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        pageAssignments = assignmentsResponse.ok ? await assignmentsResponse.json() : [];
+      }
       
       return {
         book,
         questions,
         answers,
         userRole,
-        pageAssignments
+        pageAssignments,
+        pagination
       };
     } catch (error) {
       console.error('Failed to load book:', error);
@@ -73,7 +107,8 @@ const apiService = {
         questions: [],
         answers: [],
         userRole: null,
-        pageAssignments: []
+        pageAssignments: [],
+        pagination: null
       };
     }
   }
@@ -88,7 +123,7 @@ import { applyLayoutTemplateWithPreservation, validateTemplateCompatibility } fr
 import { calculatePageDimensions } from '../utils/template-utils';
 import { pageTemplates } from '../data/templates/page-templates';
 import { colorPalettes } from '../data/templates/color-palettes';
-import { getGlobalTheme, getThemePageBackgroundColors } from '../utils/global-themes';
+import { getGlobalTheme, getThemePageBackgroundColors, getThemePaletteId } from '../utils/global-themes';
 import type { PageTemplate, ColorPalette } from '../types/template-types';
 import { applyBackgroundImageTemplate } from '../utils/background-image-utils';
 import { generatePagePreview } from '../utils/page-preview-generator';
@@ -391,6 +426,7 @@ export interface Page {
   themeId?: string; // page-level theme ID (in addition to background.pageTheme for compatibility)
   colorPaletteId?: string; // page-level color palette ID
   isPreview?: boolean; // Flag für temporäre Preview-Seiten (werden nicht in UI angezeigt)
+  isPlaceholder?: boolean; // Flag für Platzhalter-Seiten, die noch geladen werden müssen
 }
 
 export interface Book {
@@ -407,8 +443,56 @@ export interface Book {
   isTemporary?: boolean; // temporary book flag
 }
 
+type PageKey = string | number;
+type BookMetadataSnapshot = Omit<Book, 'pages'>;
+
+function cloneData<T>(value: T): T {
+  try {
+    const structuredCloneFn = (globalThis as typeof globalThis & { structuredClone?: typeof structuredClone }).structuredClone;
+    if (typeof structuredCloneFn === 'function') {
+      return structuredCloneFn(value);
+    }
+  } catch {
+    // Ignore structuredClone errors and fall back to JSON clone
+  }
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function clonePage(page: Page): Page {
+  return cloneData(page);
+}
+
+function extractBookMetadata(book: Book): BookMetadataSnapshot {
+  const { pages, ...metadata } = book;
+  return cloneData(metadata);
+}
+
+function rebuildBookFromSnapshot(snapshot: HistoryState): Book | null {
+  if (!snapshot.bookMeta || !snapshot.pageOrder) {
+    return null;
+  }
+
+  const pages = snapshot.pageOrder
+    .map((key) => {
+      const page = snapshot.pageSnapshots.get(key);
+      return page ? clonePage(page) : null;
+    })
+    .filter((page): page is Page => page !== null);
+
+  return {
+    ...cloneData(snapshot.bookMeta),
+    pages
+  };
+}
+
+function getPageKey(page: Page, index: number): PageKey {
+  return page.id ?? page.database_id ?? `page-${index}`;
+}
+
 export interface HistoryState {
-  currentBook: Book | null;
+  bookMeta: BookMetadataSnapshot | null;
+  pageOrder: PageKey[];
+  pageSnapshots: Map<PageKey, Page>;
   activePageIndex: number;
   selectedElementIds: string[];
   toolSettings: Record<string, Record<string, any>>;
@@ -453,12 +537,14 @@ export interface EditorState {
   canvasBackgroundPattern?: string | null;
   wizardTemplateSelection: WizardTemplateSelection;
   wizardSetupApplied?: boolean;
+  pagePagination?: PagePaginationState;
   pagePreviewCache: Record<number, { dataUrl: string | null; version: number }>;
   pagePreviewVersions: Record<number, number>;
+  modifiedPageIds: Set<number>; // Track which pages have been modified since last save
 }
 
 type EditorAction =
-  | { type: 'SET_BOOK'; payload: Book }
+  | { type: 'SET_BOOK'; payload: Book; pagination?: PagePaginationState }
   | { type: 'SET_ACTIVE_PAGE'; payload: number }
   | { type: 'SET_ACTIVE_TOOL'; payload: EditorState['activeTool'] }
   | { type: 'SET_SELECTED_ELEMENTS'; payload: string[] }
@@ -526,8 +612,11 @@ type EditorAction =
   | { type: 'SET_WIZARD_TEMPLATE_SELECTION'; payload: WizardTemplateSelection }
   | { type: 'MARK_COLOR_OVERRIDE'; payload: { elementIds: string[]; colorProperty: string } }
   | { type: 'RESET_COLOR_OVERRIDES'; payload: { elementIds: string[]; colorProperties?: string[]; pageIndex?: number } }
+  | { type: 'SET_PAGE_PAGINATION'; payload: PagePaginationState | undefined }
+  | { type: 'MERGE_BOOK_PAGES'; payload: { pages: Page[]; pagination?: PagePaginationState } }
   | { type: 'SET_PAGE_PREVIEW'; payload: { pageId: number; dataUrl: string | null; version: number } }
-  | { type: 'MARK_WIZARD_SETUP_APPLIED' };
+  | { type: 'MARK_WIZARD_SETUP_APPLIED' }
+  | { type: 'CLEAR_MODIFIED_PAGES' };
 
 const initialState: EditorState = {
   currentBook: null,
@@ -567,11 +656,41 @@ const initialState: EditorState = {
   canvasBackgroundImage: null,
   canvasBackgroundPattern: null,
   wizardSetupApplied: false,
+  pagePagination: undefined,
   pagePreviewCache: {},
   pagePreviewVersions: {},
+  modifiedPageIds: new Set<number>(),
 };
 
-const MAX_HISTORY_SIZE = 50;
+const BASE_HISTORY_LIMIT = 50;
+const PAGE_CHUNK_SIZE = 20;
+
+type PagePaginationState = {
+  totalPages: number;
+  pageSize: number;
+  loadedPages: Record<number, true>;
+};
+
+function getHistoryLimitForBook(book: Book | null | undefined): number {
+  const defaultLimit = BASE_HISTORY_LIMIT;
+  if (!book?.pages) {
+    return defaultLimit;
+  }
+
+  const pageCount = book.pages.length;
+  const totalElementCount = book.pages.reduce((sum, page) => sum + (page.elements?.length ?? 0), 0);
+
+  if (pageCount <= 16 && totalElementCount < 400) {
+    return 60;
+  }
+  if (pageCount <= 32 && totalElementCount < 800) {
+    return 45;
+  }
+  if (pageCount <= 64 && totalElementCount < 1500) {
+    return 30;
+  }
+  return 20;
+}
 
 // Function to enforce theme stroke width boundaries
 function enforceThemeBoundaries(updates: Partial<CanvasElement>, oldElement: CanvasElement): Partial<CanvasElement> {
@@ -580,31 +699,179 @@ function enforceThemeBoundaries(updates: Partial<CanvasElement>, oldElement: Can
   return updates;
 }
 
-function saveToHistory(state: EditorState, actionName: string): EditorState {
+interface SaveHistoryOptions {
+  affectedPageIndexes?: number[];
+  cloneEntireBook?: boolean;
+}
+
+function getAllPageIndexes(state: EditorState): number[] {
+  return state.currentBook ? state.currentBook.pages.map((_, index) => index) : [];
+}
+
+function collectPageCacheIds(book: Book | null | undefined): number[] {
+  if (!book || !book.pages) return [];
+  return book.pages
+    .map((page, index) => {
+      return getPagePreviewCacheId(page, index + 1);
+    })
+    .filter((id) => typeof id === 'number' && !Number.isNaN(id));
+}
+
+export function getPagePreviewCacheId(page: Page | undefined | null, fallbackValue?: number): number | null {
+  if (!page) return fallbackValue ?? null;
+  if (typeof page.id === 'number' && !Number.isNaN(page.id)) {
+    return page.id;
+  }
+  if (typeof page.database_id === 'number' && !Number.isNaN(page.database_id)) {
+    return page.database_id;
+  }
+  if (typeof page.pageNumber === 'number' && !Number.isNaN(page.pageNumber)) {
+    return page.pageNumber;
+  }
+  if (typeof fallbackValue === 'number' && !Number.isNaN(fallbackValue)) {
+    return fallbackValue;
+  }
+  return null;
+}
+
+function withPreviewInvalidation(state: EditorState, pageIds?: number[]): EditorState {
+  const ids = pageIds && pageIds.length ? pageIds : collectPageCacheIds(state.currentBook);
+  return invalidatePagePreviews(state, ids);
+}
+
+function markPageAsModified(state: EditorState, pageId: number | null | undefined): EditorState {
+  if (!pageId || typeof pageId !== 'number' || Number.isNaN(pageId)) {
+    return state;
+  }
+  const newModifiedIds = new Set(state.modifiedPageIds);
+  newModifiedIds.add(pageId);
+  return { ...state, modifiedPageIds: newModifiedIds };
+}
+
+function markPageIndexAsModified(state: EditorState, pageIndex: number): EditorState {
+  if (!state.currentBook || pageIndex < 0 || pageIndex >= state.currentBook.pages.length) {
+    return state;
+  }
+  const page = state.currentBook.pages[pageIndex];
+  const pageId = getPagePreviewCacheId(page, pageIndex + 1);
+  return markPageAsModified(state, pageId);
+}
+
+function markAllPagesAsModified(state: EditorState): EditorState {
+  if (!state.currentBook) {
+    return state;
+  }
+  const newModifiedIds = new Set(state.modifiedPageIds);
+  state.currentBook.pages.forEach((page, index) => {
+    const pageId = getPagePreviewCacheId(page, index + 1);
+    if (pageId !== null) {
+      newModifiedIds.add(pageId);
+    }
+  });
+  return { ...state, modifiedPageIds: newModifiedIds };
+}
+
+function createPlaceholderPage(pageNumber: number): Page {
+  return {
+    id: -pageNumber,
+    pageNumber,
+    elements: [],
+    isPlaceholder: true,
+    layoutTemplateId: undefined,
+    themeId: undefined,
+    colorPaletteId: undefined,
+  };
+}
+
+function ensurePageArrayLength(pages: Page[], totalPages: number): Page[] {
+  const pageMap = new Map<number, Page>();
+  pages.forEach((page, index) => {
+    const number = page.pageNumber ?? index + 1;
+    pageMap.set(number, page);
+  });
+
+  const result: Page[] = [];
+  for (let pageNumber = 1; pageNumber <= totalPages; pageNumber++) {
+    const existing = pageMap.get(pageNumber);
+    if (existing) {
+      result.push(existing);
+    } else {
+      result.push(createPlaceholderPage(pageNumber));
+    }
+  }
+  return result;
+}
+
+function saveToHistory(state: EditorState, actionName: string, options?: SaveHistoryOptions): EditorState {
   if (!state.currentBook) return state;
-  
+
+  const currentPages = state.currentBook.pages || [];
+  const previousSnapshot = state.history[state.historyIndex] ?? null;
+  const shouldCloneAll = options?.cloneEntireBook || !previousSnapshot;
+  const defaultIndexes: number[] =
+    state.activePageIndex >= 0 && state.activePageIndex < currentPages.length
+      ? [state.activePageIndex]
+      : [];
+  const indexesToClone = shouldCloneAll
+    ? currentPages.map((_, index) => index)
+    : Array.from(new Set((options?.affectedPageIndexes ?? defaultIndexes).filter((index) => index >= 0)));
+
+  const pageOrder: PageKey[] = currentPages.map((page, index) => getPageKey(page, index));
+  const pageSnapshots = previousSnapshot ? new Map(previousSnapshot.pageSnapshots) : new Map<PageKey, Page>();
+
+  if (!shouldCloneAll && previousSnapshot) {
+    const existingKeys = new Set(pageOrder);
+    previousSnapshot.pageSnapshots.forEach((_value, key) => {
+      if (!existingKeys.has(key) && pageSnapshots.has(key)) {
+        pageSnapshots.delete(key);
+      }
+    });
+  }
+
+  indexesToClone.forEach((index) => {
+    if (index < 0 || index >= currentPages.length) {
+      return;
+    }
+    const page = currentPages[index];
+    const key = getPageKey(page, index);
+    pageSnapshots.set(key, clonePage(page));
+  });
+
+  if (shouldCloneAll) {
+    currentPages.forEach((page, index) => {
+      const key = getPageKey(page, index);
+      if (!pageSnapshots.has(key)) {
+        pageSnapshots.set(key, clonePage(page));
+      }
+    });
+  }
+
   const historyState: HistoryState = {
-    currentBook: JSON.parse(JSON.stringify(state.currentBook)),
+    bookMeta: extractBookMetadata(state.currentBook),
+    pageOrder,
+    pageSnapshots,
     activePageIndex: state.activePageIndex,
     selectedElementIds: [...state.selectedElementIds],
-    toolSettings: JSON.parse(JSON.stringify(state.toolSettings)),
-    editorSettings: JSON.parse(JSON.stringify(state.editorSettings))
+    toolSettings: cloneData(state.toolSettings),
+    editorSettings: cloneData(state.editorSettings)
   };
-  
+
   const newHistory = state.history.slice(0, state.historyIndex + 1);
   newHistory.push(historyState);
-  
-  if (newHistory.length > MAX_HISTORY_SIZE) {
+
+  const historyLimit = getHistoryLimitForBook(state.currentBook);
+
+  if (newHistory.length > historyLimit) {
     newHistory.shift();
   }
-  
+
   const newHistoryActions = state.historyActions.slice(0, state.historyIndex + 1);
   newHistoryActions.push(actionName);
-  
-  if (newHistoryActions.length > MAX_HISTORY_SIZE) {
+
+  if (newHistoryActions.length > historyLimit) {
     newHistoryActions.shift();
   }
-  
+
   return {
     ...state,
     history: newHistory,
@@ -650,8 +917,14 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
   switch (action.type) {
     case 'SET_BOOK': {
       const previewVersions: Record<number, number> = action.payload
-        ? action.payload.pages.reduce((acc, page) => {
-            acc[page.id] = (state.pagePreviewVersions[page.id] || 0) + 1;
+        ? action.payload.pages.reduce((acc, page, index) => {
+            if (page.isPlaceholder) {
+              return acc;
+            }
+            const cacheId = getPagePreviewCacheId(page, index + 1);
+            if (cacheId != null) {
+              acc[cacheId] = (state.pagePreviewVersions[cacheId] || 0) + 1;
+            }
             return acc;
           }, {} as Record<number, number>)
         : {};
@@ -661,9 +934,11 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         activePageIndex: 0,
         pagePreviewCache: {},
         pagePreviewVersions: previewVersions,
+        pagePagination: action.pagination,
+        modifiedPageIds: new Set<number>(), // Reset modified pages when loading a new book
       };
       if (action.payload) {
-        return saveToHistory(bookState, 'Load Book');
+        return saveToHistory(bookState, 'Load Book', { cloneEntireBook: true });
       }
       return bookState;
     }
@@ -720,7 +995,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (state.editorInteractionLevel === 'answer_only') return state;
       // Check if author is assigned to current page
       if (state.userRole === 'author' && !state.assignedPages.includes(state.activePageIndex + 1)) return state;
-      const savedState = saveToHistory(state, `Add ${action.payload.type}`);
+      const savedState = saveToHistory(state, `Add ${action.payload.type}`, {
+        affectedPageIndexes: [state.activePageIndex]
+      });
       
       // Apply current tool settings as defaults (which include palette colors)
       const toolType = action.payload.textType || action.payload.type;
@@ -747,7 +1024,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         hasUnsavedChanges: true 
       };
       const targetPage = newBook.pages[savedState.activePageIndex];
-      return invalidatePagePreviews(newState, targetPage ? [targetPage.id] : []);
+      const stateWithInvalidation = invalidatePagePreviews(newState, targetPage ? [targetPage.id] : []);
+      return markPageIndexAsModified(stateWithInvalidation, savedState.activePageIndex);
     
     case 'UPDATE_ELEMENT':
       if (!state.currentBook) return state;
@@ -768,7 +1046,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       }
       const updatedState = { ...state, currentBook: updatedBook, hasUnsavedChanges: true };
       const pageId = updatedBook.pages[state.activePageIndex]?.id;
-      return invalidatePagePreviews(updatedState, pageId ? [pageId] : []);
+      const updateStateWithInvalidation = invalidatePagePreviews(updatedState, pageId ? [pageId] : []);
+      return markPageIndexAsModified(updateStateWithInvalidation, state.activePageIndex);
     
     case 'UPDATE_ELEMENT_PRESERVE_SELECTION':
       if (!state.currentBook) return state;
@@ -855,7 +1134,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       };
       const stateAfterUpdate = { ...state, currentBook: updatedBookPreserve, hasUnsavedChanges: true };
       const updatedPageId = updatedBookPreserve.pages[state.activePageIndex]?.id;
-      return invalidatePagePreviews(stateAfterUpdate, updatedPageId ? [updatedPageId] : []);
+      const preserveStateWithInvalidation = invalidatePagePreviews(stateAfterUpdate, updatedPageId ? [updatedPageId] : []);
+      return markPageIndexAsModified(preserveStateWithInvalidation, state.activePageIndex);
     
     case 'UPDATE_GROUPED_ELEMENT':
       if (!state.currentBook) return state;
@@ -885,7 +1165,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       };
       const stateAfterGrouped = { ...state, currentBook: updatedBookGrouped, hasUnsavedChanges: true };
       const groupedPageId = updatedBookGrouped.pages[state.activePageIndex]?.id;
-      return invalidatePagePreviews(stateAfterGrouped, groupedPageId ? [groupedPageId] : []);
+      const groupedStateWithInvalidation = invalidatePagePreviews(stateAfterGrouped, groupedPageId ? [groupedPageId] : []);
+      return markPageIndexAsModified(groupedStateWithInvalidation, state.activePageIndex);
     
     case 'UPDATE_ELEMENT_ALL_PAGES':
       if (!state.currentBook) return state;
@@ -901,7 +1182,15 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         }
       });
       const stateAfterAllPages = { ...state, currentBook: updatedBookAllPages, hasUnsavedChanges: true };
-      return invalidatePagePreviews(stateAfterAllPages, affectedAllPages);
+      const allPagesStateWithInvalidation = invalidatePagePreviews(stateAfterAllPages, affectedAllPages);
+      // Mark all affected pages as modified
+      let finalState = allPagesStateWithInvalidation;
+      updatedBookAllPages.pages.forEach((page, index) => {
+        if (affectedAllPages.includes(page.id)) {
+          finalState = markPageIndexAsModified(finalState, index);
+        }
+      });
+      return finalState;
     
     case 'DELETE_ELEMENT':
       if (!state.currentBook) return state;
@@ -909,7 +1198,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (state.editorInteractionLevel === 'answer_only') return state;
       // Check if author is assigned to current page
       if (state.userRole === 'author' && !state.assignedPages.includes(state.activePageIndex + 1)) return state;
-      const savedDeleteState = saveToHistory(state, 'Delete Element');
+      const savedDeleteState = saveToHistory(state, 'Delete Element', {
+        affectedPageIndexes: [state.activePageIndex]
+      });
       
       // Find the element being deleted to check if it's a question
       const elementToDelete = savedDeleteState.currentBook!.pages[savedDeleteState.activePageIndex].elements
@@ -926,14 +1217,15 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         hasUnsavedChanges: true
       };
       
-
-      
       const deletePageId = filteredBook.pages[savedDeleteState.activePageIndex]?.id;
-      return invalidatePagePreviews(deleteState, deletePageId ? [deletePageId] : []);
+      const deleteStateWithInvalidation = invalidatePagePreviews(deleteState, deletePageId ? [deletePageId] : []);
+      return markPageIndexAsModified(deleteStateWithInvalidation, savedDeleteState.activePageIndex);
     
     case 'ADD_PAGE':
       if (!state.currentBook || state.userRole === 'author') return state;
-      const savedAddPageState = saveToHistory(state, 'Add Page');
+      const savedAddPageState = saveToHistory(state, 'Add Page', {
+        affectedPageIndexes: []
+      });
       const newPageNumber = savedAddPageState.currentBook!.pages.length + 1;
       const book = savedAddPageState.currentBook!;
       
@@ -1176,6 +1468,11 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         toolSettingsForNewPage
       );
       
+      // Ensure new page has no assignment (even if pageNumber already exists in pageAssignments)
+      const updatedPageAssignmentsForNewPage = { ...savedAddPageState.pageAssignments };
+      // Explicitly remove any assignment for the new page number to ensure it starts unassigned
+      delete updatedPageAssignmentsForNewPage[newPageNumber];
+      
       const addPageState = {
         ...savedAddPageState,
         toolSettings: toolSettingsForNewPage,
@@ -1183,13 +1480,18 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           ...book,
           pages: [...book.pages, themedNewPage]
         },
+        pageAssignments: updatedPageAssignmentsForNewPage,
         hasUnsavedChanges: true
       };
-      return invalidatePagePreviews(addPageState, [themedNewPage.id]);
+      const addPageStateWithInvalidation = invalidatePagePreviews(addPageState, [themedNewPage.id]);
+      // Mark new page as modified (new pages need to be saved)
+      return markPageAsModified(addPageStateWithInvalidation, themedNewPage.id);
     
     case 'DELETE_PAGE':
       if (!state.currentBook || state.currentBook.pages.length <= 1 || state.userRole === 'author') return state;
-      const savedDeletePageState = saveToHistory(state, 'Delete Page');
+      const savedDeletePageState = saveToHistory(state, 'Delete Page', {
+        affectedPageIndexes: [action.payload]
+      });
       const removedPage = savedDeletePageState.currentBook!.pages[action.payload];
       const pagesAfterDelete = savedDeletePageState.currentBook!.pages.filter((_, index) => index !== action.payload);
       const newActiveIndex = action.payload >= pagesAfterDelete.length ? pagesAfterDelete.length - 1 : savedDeletePageState.activePageIndex;
@@ -1199,7 +1501,29 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         delete cacheWithoutPage[removedPage.id];
         delete versionsWithoutPage[removedPage.id];
       }
-      return {
+      
+      // Clean up pageAssignments: remove assignment for deleted page and shift remaining assignments
+      const updatedPageAssignmentsAfterDelete: Record<number, any> = {};
+      const deletedPageNumber = removedPage?.pageNumber;
+      if (deletedPageNumber) {
+        // Rebuild pageAssignments: remove deleted page and shift remaining assignments
+        Object.entries(savedDeletePageState.pageAssignments).forEach(([pageNumStr, user]) => {
+          const pageNum = parseInt(pageNumStr);
+          if (pageNum < deletedPageNumber) {
+            // Keep assignment as is (pages before deleted page)
+            updatedPageAssignmentsAfterDelete[pageNum] = user;
+          } else if (pageNum > deletedPageNumber) {
+            // Shift assignment to new page number (pageNumber - 1)
+            updatedPageAssignmentsAfterDelete[pageNum - 1] = user;
+          }
+          // pageNum === deletedPageNumber is skipped (deleted)
+        });
+      } else {
+        // If no deleted page number, keep all assignments as is
+        Object.assign(updatedPageAssignmentsAfterDelete, savedDeletePageState.pageAssignments);
+      }
+      
+      const deletePageState = {
         ...savedDeletePageState,
         currentBook: {
           ...savedDeletePageState.currentBook!,
@@ -1209,12 +1533,21 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         selectedElementIds: [],
         hasUnsavedChanges: true,
         pagePreviewCache: cacheWithoutPage,
-        pagePreviewVersions: versionsWithoutPage
+        pagePreviewVersions: versionsWithoutPage,
+        pageAssignments: updatedPageAssignmentsAfterDelete
       };
+      // Mark all pages after deleted page as modified (page numbers changed)
+      let finalDeleteState = deletePageState;
+      for (let i = action.payload; i < pagesAfterDelete.length; i++) {
+        finalDeleteState = markPageIndexAsModified(finalDeleteState, i);
+      }
+      return finalDeleteState;
     
     case 'DUPLICATE_PAGE':
       if (!state.currentBook || state.userRole === 'author') return state;
-      const savedDuplicateState = saveToHistory(state, 'Duplicate Page');
+      const savedDuplicateState = saveToHistory(state, 'Duplicate Page', {
+        affectedPageIndexes: [action.payload]
+      });
       const pageToDuplicate = savedDuplicateState.currentBook!.pages[action.payload];
       const duplicatedPage: Page = {
         id: Date.now(),
@@ -1259,7 +1592,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         activePageIndex: action.payload + 1,
         hasUnsavedChanges: true
       };
-      return invalidatePagePreviews(stateAfterDuplicate, [duplicatedPage.id]);
+      const duplicateStateWithInvalidation = invalidatePagePreviews(stateAfterDuplicate, [duplicatedPage.id]);
+      // Mark duplicated page as modified (new page needs to be saved)
+      return markPageAsModified(duplicateStateWithInvalidation, duplicatedPage.id);
     
     case 'CREATE_PREVIEW_PAGE':
       if (!state.currentBook) return state;
@@ -1326,7 +1661,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       return { ...state, hasUnsavedChanges: false };
     
     case 'UPDATE_TOOL_SETTINGS':
-      const savedToolState = saveToHistory(state, 'Update Tool Settings');
+      const savedToolState = saveToHistory(state, 'Update Tool Settings', {
+        affectedPageIndexes: []
+      });
       return {
         ...savedToolState,
         toolSettings: {
@@ -1434,9 +1771,10 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case 'UNDO':
       if (state.historyIndex > 0) {
         const prevState = state.history[state.historyIndex - 1];
+        const restoredBook = rebuildBookFromSnapshot(prevState) ?? state.currentBook;
         return {
           ...state,
-          currentBook: prevState.currentBook,
+          currentBook: restoredBook,
           activePageIndex: prevState.activePageIndex,
           selectedElementIds: prevState.selectedElementIds,
           toolSettings: prevState.toolSettings,
@@ -1450,9 +1788,10 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case 'REDO':
       if (state.historyIndex < state.history.length - 1) {
         const nextState = state.history[state.historyIndex + 1];
+        const restoredBook = rebuildBookFromSnapshot(nextState) ?? state.currentBook;
         return {
           ...state,
-          currentBook: nextState.currentBook,
+          currentBook: restoredBook,
           activePageIndex: nextState.activePageIndex,
           selectedElementIds: nextState.selectedElementIds,
           toolSettings: nextState.toolSettings,
@@ -1466,9 +1805,10 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case 'GO_TO_HISTORY_STEP':
       if (action.payload >= 0 && action.payload < state.history.length) {
         const targetState = state.history[action.payload];
+        const restoredBook = rebuildBookFromSnapshot(targetState) ?? state.currentBook;
         return {
           ...state,
-          currentBook: targetState.currentBook,
+          currentBook: restoredBook,
           activePageIndex: targetState.activePageIndex,
           selectedElementIds: targetState.selectedElementIds,
           toolSettings: targetState.toolSettings,
@@ -1480,7 +1820,10 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       return state;
     
     case 'SAVE_TO_HISTORY':
-      return saveToHistory(state, action.payload);
+      const historyState = saveToHistory(state, action.payload, { cloneEntireBook: true });
+      // Ensure hasUnsavedChanges is set to true when saving to history
+      // This ensures that changes (like theme/layout/palette) are marked as unsaved
+      return { ...historyState, hasUnsavedChanges: true };
     
     case 'UPDATE_PAGE_NUMBERS':
       if (!state.currentBook) return state;
@@ -1501,33 +1844,604 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (!state.currentBook) return state;
       // Don't save to history if this is part of a theme/palette application sequence
       // History is already saved by SET_BOOK_THEME/SET_PAGE_THEME/APPLY_COLOR_PALETTE
-      const savedBgState = action.payload.skipHistory ? state : saveToHistory(state, 'Update Page Background');
+      const savedBgState = action.payload.skipHistory
+        ? state
+        : saveToHistory(state, 'Update Page Background', {
+            affectedPageIndexes: [action.payload.pageIndex]
+          });
       const updatedBookBg = { ...savedBgState.currentBook! };
       const backgroundPage = updatedBookBg.pages[action.payload.pageIndex];
       if (backgroundPage) {
         backgroundPage.background = action.payload.background;
       }
-      return { ...savedBgState, currentBook: updatedBookBg, hasUnsavedChanges: true };
+      const stateWithChanges = { ...savedBgState, currentBook: updatedBookBg, hasUnsavedChanges: true };
+      return markPageIndexAsModified(stateWithChanges, action.payload.pageIndex);
     
     case 'SET_BOOK_THEME':
       if (!state.currentBook) return state;
       const theme = getGlobalTheme(action.payload);
       const themeName = theme?.name || action.payload;
-      const savedBookThemeState = action.skipHistory ? state : saveToHistory(state, `Apply Theme "${themeName}" to Book`);
-      return {
+      const savedBookThemeState = action.skipHistory
+        ? state
+        : saveToHistory(state, `Apply Theme "${themeName}" to Book`, { cloneEntireBook: true });
+      
+      // CRITICAL: Create a deep copy of the book to avoid reference issues
+      // We need to create a new book object with a new pages array
+      // This ensures that mutations to bookWithNewTheme.pages don't affect savedBookThemeState.currentBook.pages
+      const originalBook = savedBookThemeState.currentBook!;
+      
+      // Get book color palette (or theme's default palette if book.colorPaletteId is null)
+      const currentBookColorPaletteId = originalBook.colorPaletteId || null;
+      const currentBookThemePaletteId = !currentBookColorPaletteId ? getThemePaletteId(action.payload) : null;
+      const currentBookLayoutTemplateId = originalBook.layoutTemplateId;
+      
+      // Update all pages that inherit the book theme (background, themeId, and elements)
+      // IMPORTANT: Do this in ONE pass to avoid any issues with themeId being restored
+      let updatedPages: Page[] = [];
+      if (theme) {
+        console.log('[SET_BOOK_THEME] Starting theme update for book. New theme:', action.payload);
+        updatedPages = originalBook.pages.map((page, pageIndex) => {
+          // Check if page has themeId property (not just if it's truthy)
+          const hasThemeIdProperty = 'themeId' in page;
+          const hasThemeIdOwnProperty = Object.prototype.hasOwnProperty.call(page, 'themeId');
+          const themeIdValue = page.themeId;
+          const bookThemeId = action.payload;
+          
+          // CRITICAL FIX: A page has a custom theme if:
+          // 1. themeId exists as an own property
+          // 2. themeId has a value (not undefined/null)
+          // NOTE: Even if themeId matches bookThemeId, we treat it as a custom theme
+          // This distinguishes between "inheriting book theme" (no themeId) and 
+          // "explicitly set to same theme" (has themeId matching bookThemeId)
+          // The latter should NOT be updated when book theme changes
+          const pageHasCustomTheme = hasThemeIdOwnProperty && 
+                                     themeIdValue !== undefined && 
+                                     themeIdValue !== null;
+          
+          console.log(`[SET_BOOK_THEME] Page ${pageIndex}: hasThemeIdProperty=${hasThemeIdProperty}, hasThemeIdOwnProperty=${hasThemeIdOwnProperty}, themeIdValue=${themeIdValue}, bookThemeId=${bookThemeId}, pageHasCustomTheme=${pageHasCustomTheme}`);
+          
+          // If page has custom theme (different from book theme), don't change it
+          if (pageHasCustomTheme) {
+            console.log(`[SET_BOOK_THEME] Page ${pageIndex} has custom theme (${themeIdValue}), skipping`);
+            return page;
+          }
+          
+          // NOTE: Even if themeId matches bookThemeId, we keep it as a custom theme
+          // This allows users to explicitly set a page to the same theme as the book
+          // When book theme changes, pages with explicit themeId (even if matching) won't be updated
+          
+          // Page inherits book theme - ensure page.themeId is explicitly deleted and update background and elements
+          // Create a new page object WITHOUT themeId by destructuring it out
+          // This ensures themeId is completely removed from the object, not just set to undefined
+          const { themeId: _removedThemeId, ...pageWithoutThemeId } = page;
+          console.log(`[SET_BOOK_THEME] Page ${pageIndex}: Removed themeId. pageWithoutThemeId has themeId: ${'themeId' in pageWithoutThemeId}`);
+          
+          // Get page color palette (or book color palette if page.colorPaletteId is null)
+          const pageColorPaletteId = page.colorPaletteId || currentBookColorPaletteId || currentBookThemePaletteId;
+          const effectivePaletteId = pageColorPaletteId || null;
+          const paletteOverride = effectivePaletteId ? colorPalettes.find(p => p.id === effectivePaletteId) : null;
+          const pageColors = getThemePageBackgroundColors(action.payload, paletteOverride || undefined);
+          const backgroundOpacity = theme.pageSettings.backgroundOpacity ?? page.background?.opacity ?? 1;
+          
+          // Update background with new theme colors
+          // Note: background.pageTheme is set to the book theme, but this is just for reference
+          // The actual page theme is determined by page.themeId (which is now undefined)
+          const backgroundImageConfig = theme.pageSettings.backgroundImage;
+          
+          // Check if old background is a custom image (not from theme template)
+          // Custom images should be preserved, theme images should be replaced
+          const isCustomImageBackground = page.background?.type === 'image' && 
+                                        !page.background?.backgroundImageTemplateId &&
+                                        page.background?.value;
+          
+          let newBackground: PageBackground | null = null;
+          
+          // Only replace background if it's not a custom image, or if new theme has a background image
+          if (backgroundImageConfig?.enabled && backgroundImageConfig.templateId) {
+            const imageBackground = applyBackgroundImageTemplate(backgroundImageConfig.templateId, {
+              imageSize: backgroundImageConfig.size,
+              imageRepeat: backgroundImageConfig.repeat,
+              opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
+              backgroundColor: pageColors.backgroundColor
+            });
+            
+            if (imageBackground) {
+              newBackground = {
+                ...imageBackground,
+                pageTheme: action.payload
+              };
+            }
+          } else if (theme.pageSettings.backgroundPattern?.enabled) {
+            newBackground = {
+              type: 'pattern',
+              value: theme.pageSettings.backgroundPattern.style,
+              opacity: backgroundOpacity,
+              pageTheme: action.payload,
+              patternSize: theme.pageSettings.backgroundPattern.size,
+              patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
+              patternForegroundColor: pageColors.backgroundColor,
+              patternBackgroundColor: pageColors.patternBackgroundColor,
+              patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity
+            };
+          } else {
+            // New theme has no background image or pattern - use color background
+            // CRITICAL: Always set newBackground, even if old background was an image
+            // This ensures theme background images are removed when switching to a theme without images
+            newBackground = {
+              type: 'color',
+              value: pageColors.backgroundColor,
+              opacity: backgroundOpacity,
+              pageTheme: action.payload
+            };
+          }
+          
+          // Preserve custom image backgrounds (user-uploaded, not from theme template)
+          // Only if new theme doesn't have a background image
+          if (isCustomImageBackground && !(backgroundImageConfig?.enabled && backgroundImageConfig.templateId)) {
+            // Keep custom image but update pageTheme for palette resolution
+            newBackground = {
+              ...page.background,
+              pageTheme: action.payload
+            };
+          }
+          
+          // Apply theme and palette to elements
+          // First apply theme to elements, then apply palette colors using APPLY_COLOR_PALETTE logic
+          const pageLayoutTemplateId = page.layoutTemplateId;
+          const bookThemePaletteIdForElements = !currentBookColorPaletteId ? getThemePaletteId(action.payload) : null;
+          const effectiveBookColorPaletteId = currentBookColorPaletteId || bookThemePaletteIdForElements;
+          
+          // First update elements with theme defaults
+          let updatedElements = page.elements.map(element => {
+            const toolType = element.textType || element.type;
+            const themeDefaults = getToolDefaults(
+              toolType as any,
+              action.payload,
+              action.payload,
+              element,
+              undefined,
+              pageLayoutTemplateId,
+              currentBookLayoutTemplateId,
+              pageColorPaletteId,
+              effectiveBookColorPaletteId
+            );
+            
+            return {
+              ...element,
+              ...themeDefaults,
+              theme: action.payload
+            };
+          });
+          
+          // Then apply palette colors if palette exists (using same logic as APPLY_COLOR_PALETTE)
+          const effectivePaletteForElement = effectivePaletteId ? colorPalettes.find(p => p.id === effectivePaletteId) : null;
+          
+          if (effectivePaletteForElement) {
+            updatedElements = updatedElements.map((updatedElement, elementIndex) => {
+              // Use original element for reference, but apply updates to updatedElement
+              const originalElement = page.elements[elementIndex];
+              const updates: Partial<CanvasElement> = {};
+              
+              // Apply palette colors based on element type (same logic as APPLY_COLOR_PALETTE)
+              if (updatedElement.type === 'text' || updatedElement.textType) {
+                // Update font color in nested font object if it exists
+                if (updatedElement.font) {
+                  updates.font = { ...updatedElement.font, fontColor: effectivePaletteForElement.colors.text };
+                }
+                // Update QnA specific nested settings
+                if (updatedElement.questionSettings) {
+                  updates.questionSettings = {
+                    ...updatedElement.questionSettings,
+                    font: updatedElement.questionSettings.font ? 
+                      { ...updatedElement.questionSettings.font, fontColor: effectivePaletteForElement.colors.text } : 
+                      { fontColor: effectivePaletteForElement.colors.text },
+                    fontColor: effectivePaletteForElement.colors.text
+                  };
+                }
+                if (updatedElement.answerSettings) {
+                  updates.answerSettings = {
+                    ...updatedElement.answerSettings,
+                    font: updatedElement.answerSettings.font ? 
+                      { ...updatedElement.answerSettings.font, fontColor: effectivePaletteForElement.colors.text } : 
+                      { fontColor: effectivePaletteForElement.colors.text },
+                    fontColor: effectivePaletteForElement.colors.text
+                  };
+                }
+                
+                // Handle free_text elements with textSettings
+                if (updatedElement.textType === 'free_text') {
+                  const currentBorder = updatedElement.textSettings?.border || {};
+                  const currentBackground = updatedElement.textSettings?.background || {};
+                  updates.textSettings = {
+                    ...updatedElement.textSettings,
+                    fontColor: effectivePaletteForElement.colors.text,
+                    font: updatedElement.textSettings?.font ? 
+                      { ...updatedElement.textSettings.font, fontColor: effectivePaletteForElement.colors.text } : 
+                      { fontColor: effectivePaletteForElement.colors.text },
+                    border: {
+                      ...currentBorder,
+                      borderColor: effectivePaletteForElement.colors.primary,
+                      enabled: currentBorder.enabled !== undefined ? currentBorder.enabled : true
+                    },
+                    borderColor: effectivePaletteForElement.colors.primary,
+                    background: {
+                      ...currentBackground,
+                      backgroundColor: effectivePaletteForElement.colors.accent,
+                      enabled: currentBackground.enabled !== undefined ? currentBackground.enabled : true
+                    },
+                    backgroundColor: effectivePaletteForElement.colors.accent
+                  };
+                }
+                
+                // Update border colors - create nested objects if they don't exist
+                let borderEnabled = updatedElement.border?.enabled !== false;
+                let backgroundEnabled = updatedElement.background?.enabled !== false;
+                
+                if (updatedElement.textType === 'qna_inline') {
+                  // Get theme defaults to check if border/background should be enabled
+                  const pageTheme = action.payload;
+                  const bookTheme = action.payload;
+                  
+                  const themeDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme, originalElement, undefined, pageLayoutTemplateId, currentBookLayoutTemplateId, pageColorPaletteId, effectiveBookColorPaletteId);
+                  
+                  // Check if border is disabled in theme or element
+                  const questionBorderEnabled = originalElement.questionSettings?.border?.enabled ?? 
+                                               originalElement.questionSettings?.borderEnabled ?? 
+                                               themeDefaults.questionSettings?.border?.enabled ?? 
+                                               themeDefaults.questionSettings?.borderEnabled ?? 
+                                               true;
+                  const answerBorderEnabled = originalElement.answerSettings?.border?.enabled ?? 
+                                            originalElement.answerSettings?.borderEnabled ?? 
+                                            themeDefaults.answerSettings?.border?.enabled ?? 
+                                            themeDefaults.answerSettings?.borderEnabled ?? 
+                                            true;
+                  borderEnabled = questionBorderEnabled !== false && answerBorderEnabled !== false;
+                  
+                  // Check if background is disabled in theme or element
+                  const questionBackgroundEnabled = originalElement.questionSettings?.background?.enabled ?? 
+                                                   originalElement.questionSettings?.backgroundEnabled ?? 
+                                                   themeDefaults.questionSettings?.background?.enabled ?? 
+                                                   themeDefaults.questionSettings?.backgroundEnabled ?? 
+                                                   true;
+                  const answerBackgroundEnabled = originalElement.answerSettings?.background?.enabled ?? 
+                                                originalElement.answerSettings?.backgroundEnabled ?? 
+                                                themeDefaults.answerSettings?.background?.enabled ?? 
+                                                themeDefaults.answerSettings?.backgroundEnabled ?? 
+                                                true;
+                  backgroundEnabled = questionBackgroundEnabled !== false && answerBackgroundEnabled !== false;
+                  
+                  // Get existing border/background settings or use defaults
+                  const existingQuestionBorder = updatedElement.questionSettings?.border || {};
+                  const existingAnswerBorder = updatedElement.answerSettings?.border || {};
+                  const existingQuestionBackground = updatedElement.questionSettings?.background || {};
+                  const existingAnswerBackground = updatedElement.answerSettings?.background || {};
+                  
+                  updates.questionSettings = {
+                    ...updatedElement.questionSettings,
+                    fontColor: effectivePaletteForElement.colors.text,
+                    font: { ...updatedElement.questionSettings?.font, fontColor: effectivePaletteForElement.colors.text },
+                    border: borderEnabled ? {
+                      ...existingQuestionBorder,
+                      enabled: true,
+                      borderColor: effectivePaletteForElement.colors.primary,
+                      borderWidth: existingQuestionBorder.borderWidth ?? 2,
+                      borderOpacity: existingQuestionBorder.borderOpacity ?? 1
+                    } : {
+                      ...existingQuestionBorder,
+                      enabled: false
+                    },
+                    background: backgroundEnabled ? {
+                      ...existingQuestionBackground,
+                      enabled: true,
+                      backgroundColor: effectivePaletteForElement.colors.accent,
+                      backgroundOpacity: existingQuestionBackground.backgroundOpacity ?? 0.3
+                    } : {
+                      ...existingQuestionBackground,
+                      enabled: false
+                    }
+                  };
+                  updates.answerSettings = {
+                    ...updatedElement.answerSettings,
+                    fontColor: effectivePaletteForElement.colors.text,
+                    font: { ...updatedElement.answerSettings?.font, fontColor: effectivePaletteForElement.colors.text },
+                    border: borderEnabled ? {
+                      ...existingAnswerBorder,
+                      enabled: true,
+                      borderColor: effectivePaletteForElement.colors.primary,
+                      borderWidth: existingAnswerBorder.borderWidth ?? 2,
+                      borderOpacity: existingAnswerBorder.borderOpacity ?? 1
+                    } : {
+                      ...existingAnswerBorder,
+                      enabled: false
+                    },
+                    background: backgroundEnabled ? {
+                      ...existingAnswerBackground,
+                      enabled: true,
+                      backgroundColor: effectivePaletteForElement.colors.accent,
+                      backgroundOpacity: existingAnswerBackground.backgroundOpacity ?? 0.3
+                    } : {
+                      ...existingAnswerBackground,
+                      enabled: false
+                    }
+                  };
+                }
+                
+                // Update border colors - only if border is enabled
+                if (updatedElement.textType === 'qna_inline') {
+                  if (borderEnabled) {
+                    updates.border = { ...updatedElement.border, borderColor: effectivePaletteForElement.colors.primary, enabled: true };
+                  } else {
+                    updates.border = { ...updatedElement.border, enabled: false };
+                  }
+                  
+                  // Update background colors - only if background is enabled
+                  if (backgroundEnabled) {
+                    updates.background = { ...updatedElement.background, backgroundColor: effectivePaletteForElement.colors.accent, enabled: true };
+                  } else {
+                    updates.background = { ...updatedElement.background, enabled: false };
+                  }
+                } else {
+                  // For other text elements, check existing enabled state
+                  const currentBorderEnabled = updatedElement.border?.enabled !== false;
+                  const currentBackgroundEnabled = updatedElement.background?.enabled !== false;
+                  
+                  if (currentBorderEnabled) {
+                    updates.border = { ...updatedElement.border, borderColor: effectivePaletteForElement.colors.primary, enabled: true };
+                  } else {
+                    updates.border = { ...updatedElement.border, enabled: false };
+                  }
+                  
+                  if (currentBackgroundEnabled) {
+                    updates.background = { ...updatedElement.background, backgroundColor: effectivePaletteForElement.colors.accent, enabled: true };
+                  } else {
+                    updates.background = { ...updatedElement.background, enabled: false };
+                  }
+                }
+
+                // Update direct font color properties
+                updates.fontColor = effectivePaletteForElement.colors.text;
+                updates.fill = effectivePaletteForElement.colors.text;
+                updates.borderColor = effectivePaletteForElement.colors.primary;
+                updates.backgroundColor = effectivePaletteForElement.colors.accent;
+              }
+              
+              // Apply stroke color to shapes and lines
+              if (updatedElement.type === 'line' || updatedElement.type === 'circle' || updatedElement.type === 'rect' || 
+                  updatedElement.type === 'heart' || updatedElement.type === 'star' || updatedElement.type === 'triangle' ||
+                  updatedElement.type === 'polygon' || updatedElement.type === 'speech-bubble' || updatedElement.type === 'dog' ||
+                  updatedElement.type === 'cat' || updatedElement.type === 'smiley' || updatedElement.type === 'brush') {
+                updates.stroke = effectivePaletteForElement.colors.primary;
+                updates.strokeColor = effectivePaletteForElement.colors.primary;
+              }
+              
+              // Apply fill color to filled shapes - apply even if fill is missing or transparent
+              if (updatedElement.type === 'circle' || updatedElement.type === 'rect' || updatedElement.type === 'heart' || 
+                  updatedElement.type === 'star' || updatedElement.type === 'triangle' || updatedElement.type === 'polygon' ||
+                  updatedElement.type === 'speech-bubble' || updatedElement.type === 'dog' || updatedElement.type === 'cat' ||
+                  updatedElement.type === 'smiley') {
+                // Only apply fill if element had a fill (not transparent) before
+                if (originalElement.fill && originalElement.fill !== 'transparent') {
+                  updates.fill = effectivePaletteForElement.colors.accent;
+                  updates.fillColor = effectivePaletteForElement.colors.accent;
+                }
+                // If element doesn't have fill or has transparent, don't change it
+              }
+              
+              return { ...updatedElement, ...updates };
+            });
+          }
+          
+          // Return updated page without themeId, with new background and elements
+          // CRITICAL: Create final page object with ONLY the properties we want
+          // Do NOT use spread operator on pageWithoutThemeId - explicitly construct the object
+          // This ensures themeId is never included, even if it somehow exists in pageWithoutThemeId
+          // CRITICAL: Always use newBackground if it's set (which it should be, unless custom image is preserved)
+          // This ensures theme background images are removed when switching to themes without images
+          const backgroundToUse = newBackground || {
+            type: 'color',
+            value: pageColors.backgroundColor,
+            opacity: backgroundOpacity,
+            pageTheme: action.payload
+          };
+          
+          // Create final page object by explicitly listing all properties (except themeId)
+          // This is the safest way to ensure themeId is never included
+          const finalPage: Page = {
+            id: pageWithoutThemeId.id,
+            pageNumber: pageWithoutThemeId.pageNumber,
+            elements: updatedElements,
+            background: backgroundToUse,
+            database_id: pageWithoutThemeId.database_id,
+            layoutTemplateId: pageWithoutThemeId.layoutTemplateId,
+            // Explicitly DO NOT include themeId - it should not exist
+            colorPaletteId: pageWithoutThemeId.colorPaletteId,
+            isPreview: pageWithoutThemeId.isPreview,
+            isPlaceholder: pageWithoutThemeId.isPlaceholder
+          };
+          
+          // Verify themeId is not in the final page
+          const finalPageHasThemeId = 'themeId' in finalPage;
+          const finalPageHasThemeIdOwnProperty = Object.prototype.hasOwnProperty.call(finalPage, 'themeId');
+          const finalPageThemeIdValue = (finalPage as any).themeId;
+          
+          console.log(`[SET_BOOK_THEME] Page ${pageIndex}: Final page - hasThemeId: ${finalPageHasThemeId}, hasThemeIdOwnProperty: ${finalPageHasThemeIdOwnProperty}, value: ${finalPageThemeIdValue}`);
+          
+          if (finalPageHasThemeIdOwnProperty) {
+            console.error(`[SET_BOOK_THEME] CRITICAL ERROR: Page ${pageIndex} STILL has themeId as own property after explicit construction! This should not happen!`);
+            // This should never happen, but if it does, force remove it
+            const { themeId: _forceRemove, ...trulyFinalPage } = finalPage as any;
+            return trulyFinalPage as Page;
+          }
+          
+          return finalPage;
+        });
+        console.log('[SET_BOOK_THEME] Finished updating pages');
+      } else {
+        // No theme - just create a copy of pages without themeId for inheriting pages
+        updatedPages = originalBook.pages.map((page) => {
+          // Check if page has themeId as own property
+          const hasThemeIdOwnProperty = Object.prototype.hasOwnProperty.call(page, 'themeId');
+          const themeIdValue = page.themeId;
+          const bookThemeId = action.payload;
+          
+          // CRITICAL FIX: A page has a custom theme if:
+          // 1. themeId exists as an own property
+          // 2. themeId has a value (not undefined/null)
+          // NOTE: Even if themeId matches bookThemeId, we treat it as a custom theme
+          // This distinguishes between "inheriting book theme" (no themeId) and 
+          // "explicitly set to same theme" (has themeId matching bookThemeId)
+          const pageHasCustomTheme = hasThemeIdOwnProperty && 
+                                     themeIdValue !== undefined && 
+                                     themeIdValue !== null;
+          
+          if (pageHasCustomTheme) {
+            // Page has custom theme (different from book theme) - keep it as is
+            console.log(`[SET_BOOK_THEME] Page has custom theme (${themeIdValue}), keeping it`);
+            return page;
+          }
+          
+          // Page inherits book theme - remove themeId if it exists
+          // NOTE: We only remove themeId if page doesn't have a custom theme
+          // Pages with explicit themeId (even if matching bookThemeId) are not updated here
+          const { themeId: _removed, ...pageWithoutThemeId } = page;
+          return pageWithoutThemeId as Page;
+        });
+      }
+      
+      // Create the final book object with updated pages
+      // CRITICAL: Ensure pages array is completely new to avoid reference issues
+      const finalBookWithNewTheme: Book = {
+        ...originalBook,
+        bookTheme: action.payload,
+        themeId: action.payload, // Also set themeId for consistency
+        pages: updatedPages
+      };
+      
+      // DEBUG: Final verification - check that pages don't have themeId
+      console.log('[SET_BOOK_THEME] Final verification of all pages...');
+      finalBookWithNewTheme.pages.forEach((page, idx) => {
+        const hasThemeIdIn = 'themeId' in page;
+        const hasThemeIdOwnProperty = Object.prototype.hasOwnProperty.call(page, 'themeId');
+        const themeIdValue = page.themeId;
+        
+        if (hasThemeIdOwnProperty && themeIdValue !== undefined && themeIdValue !== null) {
+          // Page should have custom theme - this is OK
+          console.log(`[SET_BOOK_THEME] Page ${idx} has custom theme (OK):`, themeIdValue);
+        } else if (hasThemeIdIn && !hasThemeIdOwnProperty) {
+          // themeId exists in prototype chain but not as own property - unexpected but not critical
+          console.warn(`[SET_BOOK_THEME] Page ${idx} has themeId in prototype chain:`, themeIdValue);
+        } else {
+          // Page correctly has no themeId - this is what we want for inheriting pages
+          console.log(`[SET_BOOK_THEME] Page ${idx} correctly has no themeId (inherits book theme)`);
+        }
+      });
+      
+      // CRITICAL: Create a completely new state object to ensure no reference issues
+      // Don't use spread operator on savedBookThemeState - explicitly construct the new state
+      const updatedBookThemeState: EditorState = {
         ...savedBookThemeState,
-        currentBook: {
-          ...savedBookThemeState.currentBook!,
-          bookTheme: action.payload,
-          themeId: action.payload // Also set themeId for consistency
-        },
+        currentBook: finalBookWithNewTheme,
         hasUnsavedChanges: true
       };
+      
+      // CRITICAL: Verify that finalBookWithNewTheme.pages is a completely new array
+      // and that each page object is a new object without themeId
+      console.log('[SET_BOOK_THEME] Verifying finalBookWithNewTheme structure...');
+      console.log('[SET_BOOK_THEME] finalBookWithNewTheme.pages === originalBook.pages:', finalBookWithNewTheme.pages === originalBook.pages);
+      console.log('[SET_BOOK_THEME] finalBookWithNewTheme.pages[0] === originalBook.pages[0]:', finalBookWithNewTheme.pages[0] === originalBook.pages[0]);
+      
+      // DEBUG: Verify state after update
+      const pageAfterUpdate = updatedBookThemeState.currentBook?.pages[0];
+      if (pageAfterUpdate) {
+        const hasThemeIdAfter = 'themeId' in pageAfterUpdate;
+        const hasOwnThemeIdAfter = Object.prototype.hasOwnProperty.call(pageAfterUpdate, 'themeId');
+        const themeIdValueAfter = pageAfterUpdate.themeId;
+        const pageKeys = Object.keys(pageAfterUpdate);
+        const pageOwnKeys = Object.getOwnPropertyNames(pageAfterUpdate);
+        
+        console.log(`[SET_BOOK_THEME] State after update - Page 0:`, {
+          hasThemeId: hasThemeIdAfter,
+          hasOwnThemeId: hasOwnThemeIdAfter,
+          value: themeIdValueAfter,
+          pageKeys: pageKeys.slice(0, 15), // First 15 keys
+          pageOwnKeys: pageOwnKeys.slice(0, 15),
+          pageId: pageAfterUpdate.id,
+          pageNumber: pageAfterUpdate.pageNumber,
+          isSameObjectAsOriginal: pageAfterUpdate === originalBook.pages[0]
+        });
+        
+        if (hasThemeIdAfter && themeIdValueAfter) {
+          console.error(`[SET_BOOK_THEME] CRITICAL: Page 0 in updatedBookThemeState has themeId:`, themeIdValueAfter);
+          console.error(`[SET_BOOK_THEME] Page 0 is same object as original:`, pageAfterUpdate === originalBook.pages[0]);
+          
+          // Try to stringify the page object to see its structure
+          try {
+            const pageStr = JSON.stringify(pageAfterUpdate, null, 2);
+            console.error(`[SET_BOOK_THEME] Page 0 object (first 1000 chars):`, pageStr.substring(0, 1000));
+          } catch (e) {
+            console.error(`[SET_BOOK_THEME] Could not stringify page 0:`, e);
+          }
+        }
+      }
+      
+      // CRITICAL: Verify that withPreviewInvalidation doesn't mutate the state
+      const stateAfterPreviewInvalidation = withPreviewInvalidation(updatedBookThemeState);
+      
+      // Verify that pages don't have themeId after withPreviewInvalidation
+      const pageAfterPreviewInvalidation = stateAfterPreviewInvalidation.currentBook?.pages[0];
+      if (pageAfterPreviewInvalidation) {
+        const hasThemeIdAfterPreview = 'themeId' in pageAfterPreviewInvalidation;
+        const hasOwnThemeIdAfterPreview = Object.prototype.hasOwnProperty.call(pageAfterPreviewInvalidation, 'themeId');
+        const themeIdValueAfterPreview = pageAfterPreviewInvalidation.themeId;
+        
+        console.log(`[SET_BOOK_THEME] Page 0 after withPreviewInvalidation:`, {
+          hasThemeId: hasThemeIdAfterPreview,
+          hasOwnThemeId: hasOwnThemeIdAfterPreview,
+          value: themeIdValueAfterPreview,
+          isSameObjectAsBefore: pageAfterPreviewInvalidation === pageAfterUpdate,
+          isSameObjectAsOriginal: pageAfterPreviewInvalidation === originalBook.pages[0]
+        });
+        
+        if (hasOwnThemeIdAfterPreview && themeIdValueAfterPreview) {
+          console.error(`[SET_BOOK_THEME] CRITICAL: Page 0 has themeId as own property AFTER withPreviewInvalidation! Value:`, themeIdValueAfterPreview);
+          console.error(`[SET_BOOK_THEME] Page 0 object identity:`, {
+            isSameAsBefore: pageAfterPreviewInvalidation === pageAfterUpdate,
+            isSameAsOriginal: pageAfterPreviewInvalidation === originalBook.pages[0],
+            isSameAsFinalBook: pageAfterPreviewInvalidation === finalBookWithNewTheme.pages[0]
+          });
+        }
+      }
+      
+      // CRITICAL: Final verification - log state for first page
+      // NOTE: We no longer clean pages with themeId matching bookThemeId
+      // Pages with explicit themeId (even if matching bookThemeId) are kept as-is
+      // This allows users to explicitly set a page to the same theme as the book
+      // When book theme changes, such pages should keep their explicit theme
+      console.log('[SET_BOOK_THEME] Final state verification before return...');
+      const finalBookThemeId = action.payload;
+      const finalStatePage = stateAfterPreviewInvalidation.currentBook?.pages[0];
+      
+      if (finalStatePage) {
+        const finalHasOwnThemeId = Object.prototype.hasOwnProperty.call(finalStatePage, 'themeId');
+        const finalThemeIdValue = finalStatePage.themeId;
+        
+        if (finalHasOwnThemeId && finalThemeIdValue) {
+          // Page has explicit theme (even if it matches bookThemeId)
+          console.log(`[SET_BOOK_THEME] Final state Page 0 has explicit theme: ${finalThemeIdValue} (bookThemeId: ${finalBookThemeId})`);
+        } else {
+          // Page inherits book theme
+          console.log(`[SET_BOOK_THEME] Final state Page 0 inherits book theme (hasOwnThemeId: ${finalHasOwnThemeId}, value: ${finalThemeIdValue}, bookThemeId: ${finalBookThemeId})`);
+        }
+      }
+      
+      return stateAfterPreviewInvalidation;
     
     case 'SET_BOOK_LAYOUT_TEMPLATE':
       if (!state.currentBook) return state;
-      const savedBookLayoutState = saveToHistory(state, 'Set Book Layout Template');
-      return {
+      const savedBookLayoutState = saveToHistory(state, 'Set Book Layout Template', {
+        cloneEntireBook: true
+      });
+      const updatedBookLayoutState = {
         ...savedBookLayoutState,
         currentBook: {
           ...savedBookLayoutState.currentBook!,
@@ -1535,6 +2449,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         },
         hasUnsavedChanges: true
       };
+      return withPreviewInvalidation(updatedBookLayoutState);
     
     case 'SET_BOOK_COLOR_PALETTE':
       if (!state.currentBook) return state;
@@ -1545,8 +2460,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const actionName = action.payload ? `Apply Color Palette "${paletteName}" to Book` : 'Reset Book Color Palette';
       const savedBookPaletteState = action.skipHistory 
         ? state 
-        : saveToHistory(state, actionName);
-      return {
+        : saveToHistory(state, actionName, { cloneEntireBook: true });
+      const updatedBookPaletteState = {
         ...savedBookPaletteState,
         currentBook: {
           ...savedBookPaletteState.currentBook!,
@@ -1554,22 +2469,37 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         },
         hasUnsavedChanges: true
       };
+      return withPreviewInvalidation(updatedBookPaletteState);
     
     case 'SET_PAGE_THEME':
       if (!state.currentBook) return state;
       const pageTheme = getGlobalTheme(action.payload.themeId);
       const pageThemeName = pageTheme?.name || action.payload.themeId;
-      const savedPageThemeState = action.payload.skipHistory ? state : saveToHistory(state, `Apply Theme "${pageThemeName}" to Page`);
+      const savedPageThemeState = action.payload.skipHistory
+        ? state
+        : saveToHistory(state, `Apply Theme "${pageThemeName}" to Page`, {
+            affectedPageIndexes: [action.payload.pageIndex]
+          });
       const updatedBookPageTheme = { ...savedPageThemeState.currentBook! };
       const targetPageTheme = updatedBookPageTheme.pages[action.payload.pageIndex];
+      const wrapStateWithPageInvalidation = (overrideState: EditorState) => {
+        const pageCandidate = overrideState.currentBook?.pages[action.payload.pageIndex];
+        const pageId = getPagePreviewCacheId(pageCandidate, action.payload.pageIndex + 1);
+        return withPreviewInvalidation(overrideState, pageId != null ? [pageId] : undefined);
+      };
       if (targetPageTheme) {
         if (!action.payload.themeId || action.payload.themeId === '__BOOK_THEME__') {
           const bookThemeId = updatedBookPageTheme.bookTheme || updatedBookPageTheme.themeId || 'default';
           const theme = getGlobalTheme(bookThemeId);
 
           if (theme) {
-            const paletteOverrideId = targetPageTheme.colorPaletteId || updatedBookPageTheme.colorPaletteId || null;
-            const paletteOverride = paletteOverrideId ? colorPalettes.find(p => p.id === paletteOverrideId) : null;
+            // Get page color palette (page.colorPaletteId) or book color palette (book.colorPaletteId)
+            // If book.colorPaletteId is null, use theme's default palette
+            const pageColorPaletteId = targetPageTheme.colorPaletteId || null;
+            const bookColorPaletteId = updatedBookPageTheme.colorPaletteId || null;
+            const bookThemePaletteId = !bookColorPaletteId ? getThemePaletteId(bookThemeId) : null;
+            const effectivePaletteId = pageColorPaletteId || bookColorPaletteId || bookThemePaletteId;
+            const paletteOverride = effectivePaletteId ? colorPalettes.find(p => p.id === effectivePaletteId) : null;
             const pageColors = getThemePageBackgroundColors(bookThemeId, paletteOverride || undefined);
             const backgroundOpacity = theme.pageSettings.backgroundOpacity ?? targetPageTheme.background?.opacity ?? 1;
 
@@ -1625,11 +2555,11 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           }
 
           delete targetPageTheme.themeId;
-          return { ...savedPageThemeState, currentBook: updatedBookPageTheme, hasUnsavedChanges: true };
+          return wrapStateWithPageInvalidation({ ...savedPageThemeState, currentBook: updatedBookPageTheme, hasUnsavedChanges: true });
         }
         if (!action.payload.themeId) {
           delete targetPageTheme.themeId;
-          return { ...savedPageThemeState, currentBook: updatedBookPageTheme, hasUnsavedChanges: true };
+          return wrapStateWithPageInvalidation({ ...savedPageThemeState, currentBook: updatedBookPageTheme, hasUnsavedChanges: true });
         }
         const paletteOverrideId = targetPageTheme.colorPaletteId || updatedBookPageTheme.colorPaletteId || null;
         const paletteOverride = paletteOverrideId ? colorPalettes.find(p => p.id === paletteOverrideId) : null;
@@ -1670,9 +2600,27 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           }
         }
 
+        // CRITICAL: Determine if page should have themeId set
+        // - If themeId === '__BOOK_THEME__': Remove themeId (inheritance)
+        // - If themeId matches bookThemeId: Check if page had themeId before
+        //   - If page had themeId before: Keep it (explicit theme, even if matching)
+        //   - If page didn't have themeId before: Don't set it (inheritance)
+        // - If themeId is different from bookThemeId: Always set it (explicit theme)
+        const bookThemeId = updatedBookPageTheme.bookTheme || updatedBookPageTheme.themeId || 'default';
+        const pageHadThemeIdBefore = Object.prototype.hasOwnProperty.call(targetPageTheme, 'themeId') && 
+                                      targetPageTheme.themeId !== undefined && 
+                                      targetPageTheme.themeId !== null;
+        const themeIdMatchesBookTheme = action.payload.themeId === bookThemeId;
+        const shouldSetThemeId = action.payload.themeId !== '__BOOK_THEME__' && 
+                                 (themeIdMatchesBookTheme ? pageHadThemeIdBefore : true);
+        
         if (appliedBackgroundImage) {
-          targetPageTheme.themeId = action.payload.themeId;
-          return { ...savedPageThemeState, currentBook: updatedBookPageTheme, hasUnsavedChanges: true };
+          if (shouldSetThemeId) {
+            targetPageTheme.themeId = action.payload.themeId;
+          } else {
+            delete targetPageTheme.themeId;
+          }
+          return wrapStateWithPageInvalidation({ ...savedPageThemeState, currentBook: updatedBookPageTheme, hasUnsavedChanges: true });
         }
 
         if (existingBackground?.type === 'image') {
@@ -1702,19 +2650,29 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           };
         }
 
-        targetPageTheme.themeId = action.payload.themeId; // Also set themeId for consistency
+        // Set or remove themeId based on whether page should inherit or have explicit theme
+        if (shouldSetThemeId) {
+          targetPageTheme.themeId = action.payload.themeId;
+        } else {
+          delete targetPageTheme.themeId;
+        }
       }
-      return { ...savedPageThemeState, currentBook: updatedBookPageTheme, hasUnsavedChanges: true };
+      return wrapStateWithPageInvalidation({ ...savedPageThemeState, currentBook: updatedBookPageTheme, hasUnsavedChanges: true });
     
     case 'SET_PAGE_LAYOUT_TEMPLATE':
       if (!state.currentBook) return state;
-      const savedPageLayoutState = saveToHistory(state, 'Set Page Layout Template');
+      const savedPageLayoutState = saveToHistory(state, 'Set Page Layout Template', {
+        affectedPageIndexes: [action.payload.pageIndex]
+      });
       const updatedBookPageLayout = { ...savedPageLayoutState.currentBook! };
       const targetPageLayout = updatedBookPageLayout.pages[action.payload.pageIndex];
       if (targetPageLayout) {
         targetPageLayout.layoutTemplateId = action.payload.layoutTemplateId;
       }
-      return { ...savedPageLayoutState, currentBook: updatedBookPageLayout, hasUnsavedChanges: true };
+      return withPreviewInvalidation(
+        { ...savedPageLayoutState, currentBook: updatedBookPageLayout, hasUnsavedChanges: true },
+        [getPagePreviewCacheId(targetPageLayout, action.payload.pageIndex + 1) ?? action.payload.pageIndex + 1]
+      );
     
     case 'SET_PAGE_COLOR_PALETTE':
       if (!state.currentBook) return state;
@@ -1725,7 +2683,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const pageActionName = action.payload.colorPaletteId ? `Apply Color Palette "${pagePaletteName}" to Page` : 'Reset Page Color Palette';
       const savedPagePaletteState = action.payload.skipHistory 
         ? state 
-        : saveToHistory(state, pageActionName);
+        : saveToHistory(state, pageActionName, {
+            affectedPageIndexes: [action.payload.pageIndex]
+          });
       const updatedBookPagePalette = { ...savedPagePaletteState.currentBook! };
       const targetPagePalette = updatedBookPagePalette.pages[action.payload.pageIndex];
       if (targetPagePalette) {
@@ -1740,9 +2700,15 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const applyTheme = getGlobalTheme(action.payload.themeId);
       const applyThemeName = applyTheme?.name || action.payload.themeId;
       const themeScope = action.payload.applyToAllPages ? 'Book' : 'Page';
+      const affectedThemeIndexes = action.payload.applyToAllPages
+        ? getAllPageIndexes(state)
+        : [action.payload.pageIndex ?? state.activePageIndex];
       const savedApplyThemeState = action.payload.skipHistory 
         ? state 
-        : saveToHistory(state, `Apply Theme "${applyThemeName}" to ${themeScope} Elements`);
+        : saveToHistory(state, `Apply Theme "${applyThemeName}" to ${themeScope} Elements`, {
+            affectedPageIndexes: affectedThemeIndexes,
+            cloneEntireBook: Boolean(action.payload.applyToAllPages)
+          });
       const updatedBookApplyTheme = { ...savedApplyThemeState.currentBook! };
       
       const copyColorValues = (from: any, to: any) => {
@@ -1804,17 +2770,21 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             const bookLayoutTemplateId = updatedBookApplyTheme.layoutTemplateId;
             const pageColorPaletteId = currentPage?.colorPaletteId;
             const bookColorPaletteId = updatedBookApplyTheme.colorPaletteId;
+            // If book.colorPaletteId is null, use theme's default palette
+            const bookThemeId = updatedBookApplyTheme.bookTheme || updatedBookApplyTheme.themeId || 'default';
+            const bookThemePaletteId = !bookColorPaletteId ? getThemePaletteId(bookThemeId) : null;
+            const effectiveBookColorPaletteId = bookColorPaletteId || bookThemePaletteId;
             
             const themeDefaults = getToolDefaults(
               toolType as any, 
               action.payload.themeId, 
-              updatedBookApplyTheme.bookTheme,
+              bookThemeId,
               element,
               undefined,
               pageLayoutTemplateId,
               bookLayoutTemplateId,
               pageColorPaletteId,
-              bookColorPaletteId
+              effectiveBookColorPaletteId
             );
             
             // Apply ALL theme properties including colors and fonts
@@ -1865,7 +2835,13 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         }
       }
       
-      return { ...savedApplyThemeState, currentBook: updatedBookApplyTheme, wizardSetupApplied: true, hasUnsavedChanges: true };
+      const themePageIds = affectedThemeIndexes
+        .map((index) => getPagePreviewCacheId(updatedBookApplyTheme.pages[index], index + 1))
+        .filter((id): id is number => typeof id === 'number' && !Number.isNaN(id));
+      return withPreviewInvalidation(
+        { ...savedApplyThemeState, currentBook: updatedBookApplyTheme, wizardSetupApplied: true, hasUnsavedChanges: true },
+        themePageIds.length ? themePageIds : undefined
+      );
     
     case 'UPDATE_BOOK_NAME':
       if (!state.currentBook) return state;
@@ -1880,8 +2856,10 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'UPDATE_BOOK_SETTINGS':
       if (!state.currentBook) return state;
-      const savedBookSettingsState = saveToHistory(state, 'Update Book Settings');
-      return {
+      const savedBookSettingsState = saveToHistory(state, 'Update Book Settings', {
+        cloneEntireBook: true
+      });
+      return withPreviewInvalidation({
         ...savedBookSettingsState,
         currentBook: {
           ...savedBookSettingsState.currentBook!,
@@ -1889,25 +2867,27 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           orientation: action.payload.orientation
         },
         hasUnsavedChanges: true
-      };
+      });
     
     case 'SET_HOVERED_ELEMENT':
       return { ...state, hoveredElementId: action.payload };
     
     case 'REORDER_PAGES':
       if (!state.currentBook || state.userRole === 'author') return state;
-      const savedReorderState = saveToHistory(state, 'Reorder Pages');
+      const savedReorderState = saveToHistory(state, 'Reorder Pages', {
+        cloneEntireBook: true
+      });
       const { fromIndex, toIndex } = action.payload;
       const reorderedPages = [...savedReorderState.currentBook!.pages];
       const [movedPage] = reorderedPages.splice(fromIndex, 1);
       reorderedPages.splice(toIndex, 0, movedPage);
       
       // Update page numbers
-      const updatedPages = reorderedPages.map((page, index) => ({ ...page, pageNumber: index + 1 }));
+      const reorderedPagesWithNumbers = reorderedPages.map((page, index) => ({ ...page, pageNumber: index + 1 }));
       
       // Reorder page assignments to match new page order
       const newPageAssignments = {};
-      updatedPages.forEach((page, newIndex) => {
+      reorderedPagesWithNumbers.forEach((page, newIndex) => {
         const originalIndex = savedReorderState.currentBook!.pages.findIndex(p => p.id === page.id);
         const oldAssignment = savedReorderState.pageAssignments[originalIndex + 1];
         if (oldAssignment) {
@@ -1915,21 +2895,33 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         }
       });
       
-      return {
-        ...savedReorderState,
-        currentBook: {
-          ...savedReorderState.currentBook!,
-          pages: updatedPages
-        },
-        pageAssignments: newPageAssignments,
-        hasUnsavedChanges: true
-      };
+      const reorderState = withPreviewInvalidation(
+        {
+          ...savedReorderState,
+          currentBook: {
+            ...savedReorderState.currentBook!,
+            pages: reorderedPagesWithNumbers
+          },
+          pageAssignments: newPageAssignments,
+          hasUnsavedChanges: true
+        }
+      );
+      // Mark all affected pages as modified (page numbers changed)
+      const minIndex = Math.min(fromIndex, toIndex);
+      const maxIndex = Math.max(fromIndex, toIndex);
+      let finalReorderState = reorderState;
+      for (let i = minIndex; i <= maxIndex; i++) {
+        finalReorderState = markPageIndexAsModified(finalReorderState, i);
+      }
+      return finalReorderState;
     
     case 'MOVE_ELEMENT_TO_FRONT':
       if (!state.currentBook) return state;
       // Block for answer_only users
       if (state.editorInteractionLevel === 'answer_only') return state;
-      const savedFrontState = saveToHistory(state, 'Move to Front');
+      const savedFrontState = saveToHistory(state, 'Move to Front', {
+        affectedPageIndexes: [state.activePageIndex]
+      });
       const bookFront = { ...savedFrontState.currentBook! };
       const pageFront = bookFront.pages[savedFrontState.activePageIndex];
       const elementIndexFront = pageFront.elements.findIndex(el => el.id === action.payload);
@@ -1943,7 +2935,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (!state.currentBook) return state;
       // Block for answer_only users
       if (state.editorInteractionLevel === 'answer_only') return state;
-      const savedBackState = saveToHistory(state, 'Move to Back');
+      const savedBackState = saveToHistory(state, 'Move to Back', {
+        affectedPageIndexes: [state.activePageIndex]
+      });
       const bookBack = { ...savedBackState.currentBook! };
       const pageBack = bookBack.pages[savedBackState.activePageIndex];
       const elementIndexBack = pageBack.elements.findIndex(el => el.id === action.payload);
@@ -1957,7 +2951,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (!state.currentBook) return state;
       // Block for answer_only users
       if (state.editorInteractionLevel === 'answer_only') return state;
-      const savedUpState = saveToHistory(state, 'Move Up');
+      const savedUpState = saveToHistory(state, 'Move Up', {
+        affectedPageIndexes: [state.activePageIndex]
+      });
       const bookUp = { ...savedUpState.currentBook! };
       const pageUp = bookUp.pages[savedUpState.activePageIndex];
       const elementIndexUp = pageUp.elements.findIndex(el => el.id === action.payload);
@@ -1972,7 +2968,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (!state.currentBook) return state;
       // Block for answer_only users
       if (state.editorInteractionLevel === 'answer_only') return state;
-      const savedDownState = saveToHistory(state, 'Move Down');
+      const savedDownState = saveToHistory(state, 'Move Down', {
+        affectedPageIndexes: [state.activePageIndex]
+      });
       const bookDown = { ...savedDownState.currentBook! };
       const pageDown = bookDown.pages[savedDownState.activePageIndex];
       const elementIndexDown = pageDown.elements.findIndex(el => el.id === action.payload);
@@ -2063,7 +3061,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       
       if (!targetElement) return state;
       
-      const savedStyleState = saveToHistory(state, 'Apply Style');
+      const savedStyleState = saveToHistory(state, 'Apply Style', {
+        affectedPageIndexes: [state.activePageIndex]
+      });
       
       // Apply copied style to target element
       const updatedBookStyle = { ...savedStyleState.currentBook! };
@@ -2185,8 +3185,14 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case 'APPLY_TEMPLATE_TO_PAGE':
       if (!state.currentBook) return state;
       const { pageIndex, template, skipHistory: applyTemplateSkipHistory } = action.payload as any;
-      const savedTemplateState = applyTemplateSkipHistory ? state : saveToHistory(state, 'Apply Template');
+      const targetTemplateIndex = typeof pageIndex === 'number' ? pageIndex : state.activePageIndex;
+      const savedTemplateState = applyTemplateSkipHistory
+        ? state
+        : saveToHistory(state, 'Apply Template', {
+            affectedPageIndexes: [targetTemplateIndex]
+          });
       const updatedBookTemplate = { ...savedTemplateState.currentBook! };
+      const targetPageTemplate = updatedBookTemplate.pages[targetTemplateIndex];
       
       if (targetPageTemplate) {
         // Berechne Canvas-Größe für diese Seite
@@ -2204,19 +3210,29 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         targetPageTemplate.elements = newElements;
       }
       
-      return { 
-        ...savedTemplateState, 
-        currentBook: updatedBookTemplate, 
-        selectedTemplate: template,
-        wizardSetupApplied: true,
-        hasUnsavedChanges: true 
-      };
+      const templatePage = updatedBookTemplate.pages[targetTemplateIndex];
+      const templatePageId = getPagePreviewCacheId(templatePage, targetTemplateIndex + 1);
+      return withPreviewInvalidation(
+        { 
+          ...savedTemplateState, 
+          currentBook: updatedBookTemplate, 
+          selectedTemplate: template,
+          wizardSetupApplied: true,
+          hasUnsavedChanges: true 
+        },
+        templatePageId != null ? [templatePageId] : undefined
+      );
     
     case 'APPLY_TEMPLATE':
       if (!state.currentBook) return state;
-      const savedApplyTemplateState = saveToHistory(state, 'Apply Template');
       const { template: applyTemplate, pageIndex: applyPageIndex, applyToAllPages, skipHistory } = action.payload as any;
-      const baseState = skipHistory ? state : savedApplyTemplateState;
+      const affectedApplyIndexes = applyToAllPages ? getAllPageIndexes(state) : [applyPageIndex ?? state.activePageIndex];
+      const baseState = skipHistory
+        ? state
+        : saveToHistory(state, 'Apply Template', {
+            affectedPageIndexes: affectedApplyIndexes,
+            cloneEntireBook: Boolean(applyToAllPages)
+          });
       const updatedBookApplyTemplate = { ...baseState.currentBook! };
       
       if (applyToAllPages) {
@@ -2251,18 +3267,30 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         }
       }
       
-      return { 
-        ...savedApplyTemplateState, 
-        currentBook: updatedBookApplyTemplate, 
-        selectedTemplate: applyTemplate,
-        wizardSetupApplied: true,
-        hasUnsavedChanges: true 
-      };
+      const affectedApplyPageIds = affectedApplyIndexes
+        .map((index) => getPagePreviewCacheId(updatedBookApplyTemplate.pages[index], index + 1))
+        .filter((id): id is number => typeof id === 'number' && !Number.isNaN(id));
+      return withPreviewInvalidation(
+        { 
+          ...baseState, 
+          currentBook: updatedBookApplyTemplate, 
+          selectedTemplate: applyTemplate,
+          wizardSetupApplied: true,
+          hasUnsavedChanges: true 
+        },
+        affectedApplyPageIds.length ? affectedApplyPageIds : undefined
+      );
     
     case 'APPLY_LAYOUT_TEMPLATE':
       if (!state.currentBook) return state;
       const { template: layoutTemplate, pageIndex: layoutPageIndex, applyToAllPages: layoutApplyToAll, skipHistory: layoutSkipHistory } = action.payload;
-      const savedLayoutState = layoutSkipHistory ? state : saveToHistory(state, 'Apply Layout Template');
+      const affectedLayoutIndexes = layoutApplyToAll ? getAllPageIndexes(state) : [layoutPageIndex ?? state.activePageIndex];
+      const savedLayoutState = layoutSkipHistory
+        ? state
+        : saveToHistory(state, 'Apply Layout Template', {
+            affectedPageIndexes: affectedLayoutIndexes,
+            cloneEntireBook: Boolean(layoutApplyToAll)
+          });
       const updatedBookLayout = { ...savedLayoutState.currentBook! };
       
       const applyLayoutToPage = (page: Page, pageIdx: number) => {
@@ -2300,16 +3328,26 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         updatedBookLayout.pages[targetIndex] = applyLayoutToPage(updatedBookLayout.pages[targetIndex], targetIndex);
       }
       
-      return { 
-        ...savedLayoutState, 
-        currentBook: updatedBookLayout, 
-        hasUnsavedChanges: true 
-      };
+      const layoutPageIds = affectedLayoutIndexes
+        .map((index) => getPagePreviewCacheId(updatedBookLayout.pages[index], index + 1))
+        .filter((id): id is number => typeof id === 'number' && !Number.isNaN(id));
+      return withPreviewInvalidation(
+        { 
+          ...savedLayoutState, 
+          currentBook: updatedBookLayout, 
+          hasUnsavedChanges: true 
+        },
+        layoutPageIds.length ? layoutPageIds : undefined
+      );
     
     case 'APPLY_THEME_ONLY':
       if (!state.currentBook) return state;
-      const savedThemeOnlyState = saveToHistory(state, 'Apply Theme');
       const { themeId: themeOnlyId, pageIndex: themePageIndex, applyToAllPages: themeApplyToAll } = action.payload;
+      const affectedThemeOnlyIndexes = themeApplyToAll ? getAllPageIndexes(state) : [themePageIndex ?? state.activePageIndex];
+      const savedThemeOnlyState = saveToHistory(state, 'Apply Theme', {
+        affectedPageIndexes: affectedThemeOnlyIndexes,
+        cloneEntireBook: Boolean(themeApplyToAll)
+      });
       const updatedBookThemeOnly = { ...savedThemeOnlyState.currentBook! };
       
       const applyThemeOnlyToPage = (page: Page) => {
@@ -2397,16 +3435,26 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         updatedBookThemeOnly.pages[targetIndex] = applyThemeOnlyToPage(updatedBookThemeOnly.pages[targetIndex]);
       }
       
-      return { 
-        ...savedThemeOnlyState, 
-        currentBook: updatedBookThemeOnly, 
-        hasUnsavedChanges: true 
-      };
+      const themeOnlyPageIds = affectedThemeOnlyIndexes
+        .map((index) => getPagePreviewCacheId(updatedBookThemeOnly.pages[index], index + 1))
+        .filter((id): id is number => typeof id === 'number' && !Number.isNaN(id));
+      return withPreviewInvalidation(
+        { 
+          ...savedThemeOnlyState, 
+          currentBook: updatedBookThemeOnly, 
+          hasUnsavedChanges: true 
+        },
+        themeOnlyPageIds.length ? themeOnlyPageIds : undefined
+      );
     
     case 'APPLY_COMPLETE_TEMPLATE':
       if (!state.currentBook) return state;
-      const savedCompleteState = saveToHistory(state, 'Apply Complete Template');
       const { layoutId, themeId: completeThemeId, paletteId, scope } = action.payload;
+      const affectedCompleteIndexes = scope === 'entire-book' ? getAllPageIndexes(state) : [state.activePageIndex];
+      const savedCompleteState = saveToHistory(state, 'Apply Complete Template', {
+        affectedPageIndexes: affectedCompleteIndexes,
+        cloneEntireBook: scope === 'entire-book'
+      });
       
       let completeTemplateState = savedCompleteState;
       
@@ -2538,7 +3586,13 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (!state.currentBook) return state;
       const { palette: appliedPalette, pageIndex: palettePageIndex, applyToAllPages: paletteApplyToAll, skipHistory: paletteSkipHistory } = action.payload;
       const paletteScope = paletteApplyToAll ? 'Book' : 'Page';
-      const savedApplyPaletteState = paletteSkipHistory ? state : saveToHistory(state, `Apply Color Palette "${appliedPalette.name}" to ${paletteScope}`);
+      const affectedPaletteIndexes = paletteApplyToAll ? getAllPageIndexes(state) : [palettePageIndex ?? state.activePageIndex];
+      const savedApplyPaletteState = paletteSkipHistory
+        ? state
+        : saveToHistory(state, `Apply Color Palette "${appliedPalette.name}" to ${paletteScope}`, {
+            affectedPageIndexes: affectedPaletteIndexes,
+            cloneEntireBook: Boolean(paletteApplyToAll)
+          });
       const updatedBookApplyPalette = { ...savedApplyPaletteState.currentBook! };
       
       const applyPaletteToPage = (page: Page, pageIndex?: number) => {
@@ -2815,6 +3869,81 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         hasUnsavedChanges: true 
       };
     
+    case 'SET_PAGE_PAGINATION':
+      return { ...state, pagePagination: action.payload };
+
+    case 'MERGE_BOOK_PAGES': {
+      if (!state.currentBook) return state;
+
+      const incomingPages = action.payload.pages ?? [];
+      if (incomingPages.length === 0) {
+        return state;
+      }
+
+      const basePagination = action.payload.pagination ?? state.pagePagination;
+      const totalPages =
+        action.payload.pagination?.totalPages ??
+        basePagination?.totalPages ??
+        Math.max(state.currentBook.pages.length, incomingPages.length);
+
+      let updatedPages = state.currentBook.pages.slice();
+      if (totalPages > updatedPages.length) {
+        updatedPages = ensurePageArrayLength(updatedPages, totalPages);
+      }
+
+      const updatedCacheIds: number[] = [];
+      const loadedRecords: Record<number, true> = { ...(basePagination?.loadedPages ?? {}) };
+
+      incomingPages.forEach((incomingPage, index) => {
+        const pageNumber = incomingPage.pageNumber ?? index + 1;
+        const pageIndex = Math.max(0, pageNumber - 1);
+
+        if (pageIndex >= updatedPages.length) {
+          updatedPages = ensurePageArrayLength(updatedPages, pageIndex + 1);
+        }
+
+        const normalizedPage: Page = {
+          ...incomingPage,
+          pageNumber,
+          database_id: incomingPage.database_id ?? incomingPage.id,
+          isPlaceholder: false,
+        };
+
+        updatedPages[pageIndex] = normalizedPage;
+
+        if (pageNumber > 0) {
+          loadedRecords[pageNumber] = true;
+        }
+
+        const cacheId = getPagePreviewCacheId(normalizedPage, pageNumber);
+        if (cacheId != null) {
+          updatedCacheIds.push(cacheId);
+        }
+      });
+
+      const nextPagination = basePagination
+        ? {
+            totalPages: Math.max(totalPages, updatedPages.length),
+            pageSize:
+              action.payload.pagination?.pageSize ??
+              basePagination.pageSize ??
+              PAGE_CHUNK_SIZE,
+            loadedPages: loadedRecords,
+          }
+        : undefined;
+
+      const mergedState = {
+        ...state,
+        currentBook: {
+          ...state.currentBook,
+          pages: updatedPages,
+        },
+        pagePagination: nextPagination,
+      };
+
+      return invalidatePagePreviews(mergedState, updatedCacheIds);
+    }
+
     case 'SET_PAGE_PREVIEW': {
       const { pageId, dataUrl, version } = action.payload;
       const existingEntry = state.pagePreviewCache[pageId];
@@ -2838,6 +3967,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'MARK_WIZARD_SETUP_APPLIED':
       return { ...state, wizardSetupApplied: true };
+    
+    case 'CLEAR_MODIFIED_PAGES':
+      return { ...state, modifiedPageIds: new Set<number>() };
     
     default:
       return state;
@@ -2864,13 +3996,14 @@ const EditorContext = createContext<{
   refreshPageAssignments: () => Promise<void>;
   getQuestionAssignmentsForUser: (userId: number) => Set<string>;
   isQuestionAvailableForUser: (questionId: string, userId: number) => boolean;
-  checkUserQuestionConflicts: (userId: number, pageNumber: number) => { questionId: string; questionText: string; pageNumber: number }[];
+  checkUserQuestionConflicts: (userId: number, pageNumber: number) => { questionId: string; questionText: string; pageNumbers: number[] }[];
   validateQuestionSelection: (questionId: string, currentPageNumber: number) => { valid: boolean; reason?: string };
   canAccessEditor: () => boolean;
   canEditCanvas: () => boolean;
   canEditSettings: () => boolean;
   getVisiblePages: () => Page[];
   getVisiblePageNumbers: () => number[];
+  ensurePagesLoaded: (startIndex: number, endIndex: number) => Promise<void>;
 } | undefined>(undefined);
 
 export const useEditor = () => {
@@ -2923,13 +4056,14 @@ export const useEditor = () => {
         refreshPageAssignments: async () => {},
         getQuestionAssignmentsForUser: () => new Set<string>(),
         isQuestionAvailableForUser: () => true,
-        checkUserQuestionConflicts: () => [],
+        checkUserQuestionConflicts: () => [] as { questionId: string; questionText: string; pageNumbers: number[] }[],
         validateQuestionSelection: () => ({ valid: true }),
         canAccessEditor: () => false,
         canEditCanvas: () => false,
         canEditSettings: () => false,
         getVisiblePages: () => [],
         getVisiblePageNumbers: () => [],
+        ensurePagesLoaded: async () => {},
       };
     }
     // In production, still throw to catch actual bugs
@@ -2944,6 +4078,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
   const previewSignaturesRef = useRef<Record<number, string>>({});
   const generatingPreviewsRef = useRef<Set<number>>(new Set());
   const previousBookIdRef = useRef<number | string | null>(null);
+  const loadingPageChunksRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (user) {
@@ -2970,12 +4105,17 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       previousBookIdRef.current = currentBookId;
     }
 
-    const pages = state.currentBook.pages.filter((page) => !page.isPreview);
-    const tasks: Array<{ page: Page; signature: string; version: number }> = [];
+    const pages = state.currentBook.pages.filter((page) => !page.isPreview && !page.isPlaceholder);
+    const tasks: Array<{ page: Page; cacheId: number; signature: string; version: number }> = [];
 
-    pages.forEach((page) => {
+    pages.forEach((page, index) => {
+      const cacheId = getPagePreviewCacheId(page, index + 1);
+      if (cacheId == null) {
+        return;
+      }
+
       const signature = JSON.stringify({
-        id: page.id,
+        id: cacheId,
         elements: page.elements.map((el) => ({
           id: el.id,
           type: el.type,
@@ -2998,8 +4138,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         colorPaletteId: page.colorPaletteId,
       });
 
-      const cached = state.pagePreviewCache[page.id];
-      const targetVersion = state.pagePreviewVersions[page.id] ?? (cached?.version ?? 0);
+      const cached = state.pagePreviewCache[cacheId];
+      const targetVersion = state.pagePreviewVersions[cacheId] ?? (cached?.version ?? 0);
 
       let versionToUse = targetVersion;
       let requiresRender = false;
@@ -3012,13 +4152,13 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         requiresRender = true;
       }
 
-      if (!requiresRender && previewSignaturesRef.current[page.id] !== signature) {
+      if (!requiresRender && previewSignaturesRef.current[cacheId] !== signature) {
         versionToUse = (cached?.version ?? 0) + 1;
         requiresRender = true;
       }
 
-      if (requiresRender && !generatingPreviewsRef.current.has(page.id)) {
-        tasks.push({ page, signature, version: versionToUse });
+      if (requiresRender && !generatingPreviewsRef.current.has(cacheId)) {
+        tasks.push({ page, cacheId, signature, version: versionToUse });
       }
     });
 
@@ -3036,33 +4176,46 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
           break;
         }
 
-        generatingPreviewsRef.current.add(task.page.id);
+        generatingPreviewsRef.current.add(task.cacheId);
 
         try {
+          const start = typeof performance !== 'undefined' ? performance.now() : 0;
           const dataUrl = await generatePagePreview({
             page: task.page,
             book: state.currentBook!,
             previewWidth: 200,
             previewHeight: 280,
           });
+          const duration = typeof performance !== 'undefined' ? performance.now() - start : null;
 
           if (!cancelled) {
-            previewSignaturesRef.current[task.page.id] = task.signature;
+            previewSignaturesRef.current[task.cacheId] = task.signature;
             dispatch({
               type: 'SET_PAGE_PREVIEW',
-              payload: { pageId: task.page.id, dataUrl, version: task.version },
+              payload: { pageId: task.cacheId, dataUrl, version: task.version },
             });
+            if (duration != null) {
+              window.dispatchEvent(
+                new CustomEvent('pagePreview:generated', {
+                  detail: {
+                    pageId: task.cacheId,
+                    duration,
+                    timestamp: Date.now(),
+                  },
+                }),
+              );
+            }
           }
         } catch (error) {
           if (!cancelled) {
-            previewSignaturesRef.current[task.page.id] = task.signature;
+            previewSignaturesRef.current[task.cacheId] = task.signature;
             dispatch({
               type: 'SET_PAGE_PREVIEW',
-              payload: { pageId: task.page.id, dataUrl: null, version: task.version },
+              payload: { pageId: task.cacheId, dataUrl: null, version: task.version },
             });
           }
         } finally {
-          generatingPreviewsRef.current.delete(task.page.id);
+          generatingPreviewsRef.current.delete(task.cacheId);
         }
       }
     };
@@ -3221,17 +4374,37 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         dispatch({ type: 'MARK_SAVED' });
         return;
       } else {
-        // For publishers/owners - save full book
+        // For publishers/owners - save only modified pages
+        // Filter pages to only include modified ones or new pages (without database_id)
+        const modifiedPages = state.currentBook.pages.filter((page, index) => {
+          // Always include new pages (without database_id) - they need to be saved
+          if (!page.database_id && (!page.id || page.id < 0)) {
+            return true;
+          }
+          const pageId = getPagePreviewCacheId(page, index + 1);
+          return pageId !== null && state.modifiedPageIds.has(pageId);
+        });
+        
+        // If no pages are modified, still send book metadata update
+        const bookPayload = {
+          ...state.currentBook,
+          pages: modifiedPages.length > 0 ? modifiedPages : state.currentBook.pages,
+          onlyModifiedPages: modifiedPages.length > 0 && modifiedPages.length < state.currentBook.pages.length // Flag to indicate partial save
+        };
+        
         const response = await fetch(`${apiUrl}/books/${state.currentBook.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify(state.currentBook)
+          body: JSON.stringify(bookPayload)
         });
         
         if (!response.ok) throw new Error('Failed to save book');
+        
+        // Clear modified pages after successful save
+        dispatch({ type: 'CLEAR_MODIFIED_PAGES' });
       }
       
       // Save page assignments if any exist (publishers only)
@@ -3328,7 +4501,329 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
 
   const loadBook = useCallback(async (bookId: number) => {
     try {
-      const { book, questions, answers, userRole, pageAssignments } = await apiService.loadBook(bookId);
+      const { book, questions, answers, userRole, pageAssignments, pagination } = await apiService.loadBook(bookId, {
+        pageOffset: 0,
+        pageLimit: PAGE_CHUNK_SIZE
+      });
+
+      // Get book theme and palette for inheritance
+      const bookThemeId = book.bookTheme || book.themeId || 'default';
+      const bookColorPaletteId = book.colorPaletteId || null;
+      const bookThemePaletteId = !bookColorPaletteId ? getThemePaletteId(bookThemeId) : null;
+      const effectiveBookPaletteId = bookColorPaletteId || bookThemePaletteId;
+      const bookPalette = effectiveBookPaletteId ? colorPalettes.find(p => p.id === effectiveBookPaletteId) : null;
+      
+      const normalizedLoadedPages = (book.pages ?? []).map((page: any, index: number) => {
+        const pageNumber = page.pageNumber ?? page.page_number ?? index + 1;
+        
+        // CRITICAL: Check if page inherits book theme (no themeId as own property)
+        const hasThemeIdOwnProperty = Object.prototype.hasOwnProperty.call(page, 'themeId');
+        const pageThemeId = page.themeId;
+        const pageInheritsTheme = !hasThemeIdOwnProperty || pageThemeId === undefined || pageThemeId === null;
+        
+        // If page inherits book theme, recalculate background from book theme
+        // EXCEPT: Preserve custom image backgrounds (direct uploads without templateId)
+        let resolvedBackground = page.background;
+        const isCustomImageBackground = page.background?.type === 'image' && 
+                                        !page.background?.backgroundImageTemplateId &&
+                                        page.background?.value;
+        
+        if (pageInheritsTheme && bookThemeId && !isCustomImageBackground) {
+          const theme = getGlobalTheme(bookThemeId);
+          if (theme) {
+            // Get effective palette for this page (page palette > book palette > theme palette)
+            const pageColorPaletteId = page.colorPaletteId || effectiveBookPaletteId;
+            const pagePalette = pageColorPaletteId ? colorPalettes.find(p => p.id === pageColorPaletteId) : null;
+            const pageColors = getThemePageBackgroundColors(bookThemeId, pagePalette || bookPalette || undefined);
+            const backgroundOpacity = theme.pageSettings.backgroundOpacity ?? page.background?.opacity ?? 1;
+            
+            // Check if theme has background image
+            const backgroundImageConfig = theme.pageSettings.backgroundImage;
+            if (backgroundImageConfig?.enabled && backgroundImageConfig.templateId) {
+              const imageBackground = applyBackgroundImageTemplate(backgroundImageConfig.templateId, {
+                imageSize: backgroundImageConfig.size,
+                imageRepeat: backgroundImageConfig.repeat,
+                opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
+                backgroundColor: pageColors.backgroundColor
+              });
+              
+              if (imageBackground) {
+                resolvedBackground = {
+                  ...imageBackground,
+                  pageTheme: bookThemeId
+                };
+              }
+            } else if (theme.pageSettings.backgroundPattern?.enabled) {
+              resolvedBackground = {
+                type: 'pattern',
+                value: theme.pageSettings.backgroundPattern.style,
+                opacity: backgroundOpacity,
+                pageTheme: bookThemeId,
+                patternSize: theme.pageSettings.backgroundPattern.size,
+                patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
+                patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity,
+                patternForegroundColor: pageColors.backgroundColor,
+                patternBackgroundColor: pageColors.patternBackgroundColor
+              };
+            } else {
+              resolvedBackground = {
+                type: 'color',
+                value: pageColors.backgroundColor,
+                opacity: backgroundOpacity,
+                pageTheme: bookThemeId
+              };
+            }
+          }
+        } else if (isCustomImageBackground && pageInheritsTheme) {
+          // Preserve custom image background but update pageTheme for palette resolution
+          resolvedBackground = {
+            ...page.background,
+            pageTheme: bookThemeId
+          };
+        }
+        
+        // CRITICAL: If page inherits book theme, also update elements with book theme defaults
+        // Use the same logic as SET_BOOK_THEME to ensure consistency
+        let resolvedElements = page.elements || [];
+        if (pageInheritsTheme && bookThemeId && resolvedElements.length > 0) {
+          const theme = getGlobalTheme(bookThemeId);
+          if (theme) {
+            // Get effective palette for elements (same as background)
+            const pageColorPaletteId = page.colorPaletteId || effectiveBookPaletteId;
+            const bookThemePaletteIdForElements = !bookColorPaletteId ? getThemePaletteId(bookThemeId) : null;
+            const effectiveBookColorPaletteId = bookColorPaletteId || bookThemePaletteIdForElements;
+            const pageLayoutTemplateId = page.layoutTemplateId || book.layoutTemplateId || null;
+            const bookLayoutTemplateId = book.layoutTemplateId || null;
+            const effectivePaletteId = pageColorPaletteId || null;
+            
+            // Update elements with theme defaults and palette colors (same logic as SET_BOOK_THEME)
+            // NOTE: getToolDefaults already applies palette colors, so we don't need separate palette application
+            console.log('[loadBook] Updating elements for page that inherits book theme:', {
+              pageNumber,
+              bookThemeId,
+              elementCount: resolvedElements.length,
+              pageColorPaletteId,
+              effectiveBookColorPaletteId
+            });
+            
+            resolvedElements = resolvedElements.map((element: any, elementIndex: number) => {
+              const toolType = element.textType || element.type;
+              const themeDefaults = getToolDefaults(
+                toolType as any,
+                bookThemeId,
+                bookThemeId,
+                element,
+                undefined,
+                pageLayoutTemplateId,
+                bookLayoutTemplateId,
+                pageColorPaletteId,
+                effectiveBookColorPaletteId
+              );
+              
+              console.log(`[loadBook] Element ${elementIndex} (${toolType}):`, {
+                originalTheme: element.theme,
+                originalFontFamily: element.fontFamily,
+                themeDefaultsTheme: themeDefaults.theme,
+                themeDefaultsFontFamily: themeDefaults.fontFamily,
+                themeDefaultsQuestionSettingsFontFamily: (themeDefaults as any).questionSettings?.fontFamily,
+                themeDefaultsAnswerSettingsFontFamily: (themeDefaults as any).answerSettings?.fontFamily,
+                themeDefaultsKeys: Object.keys(themeDefaults),
+                themeDefaultsQuestionSettingsKeys: (themeDefaults as any).questionSettings ? Object.keys((themeDefaults as any).questionSettings) : [],
+                themeDefaultsAnswerSettingsKeys: (themeDefaults as any).answerSettings ? Object.keys((themeDefaults as any).answerSettings) : []
+              });
+              
+              // CRITICAL: Preserve existing element properties that shouldn't be overridden
+              // (like position, size, content, etc.) but update theme-related properties
+              const updatedElement = {
+                ...element,
+                // Apply theme defaults (includes palette colors via getToolDefaults)
+                ...themeDefaults,
+                // Ensure theme is set to bookThemeId
+                theme: bookThemeId
+              };
+              
+              console.log(`[loadBook] Element ${elementIndex} after update:`, {
+                theme: updatedElement.theme,
+                fontFamily: updatedElement.fontFamily,
+                fontSize: updatedElement.fontSize,
+                questionSettingsFontFamily: (updatedElement as any).questionSettings?.fontFamily,
+                answerSettingsFontFamily: (updatedElement as any).answerSettings?.fontFamily
+              });
+              
+              // For qna_inline elements, we need special handling similar to SET_BOOK_THEME
+              if (element.textType === 'qna_inline') {
+                const originalElement = element;
+                const themeDefaultsForQna = getToolDefaults('qna_inline', bookThemeId, bookThemeId, originalElement, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, effectiveBookColorPaletteId);
+                
+                // Get effective palette for element
+                const effectivePaletteForElement = pageColorPaletteId || effectiveBookColorPaletteId 
+                  ? colorPalettes.find(p => p.id === (pageColorPaletteId || effectiveBookColorPaletteId)) 
+                  : null;
+                
+                // CRITICAL: For pages that inherit book theme, ALWAYS use theme defaults for border/background enabled state
+                // This ensures that when a book theme changes, all elements on inheriting pages get the new theme's defaults
+                // We don't check for explicit element settings here because the page inherits the book theme
+                const questionBorderEnabled = themeDefaultsForQna.questionSettings?.border?.enabled ?? 
+                                             themeDefaultsForQna.questionSettings?.borderEnabled ?? 
+                                             themeDefaultsForQna.answerSettings?.border?.enabled ?? 
+                                             themeDefaultsForQna.answerSettings?.borderEnabled ?? 
+                                             true;
+                const answerBorderEnabled = themeDefaultsForQna.answerSettings?.border?.enabled ?? 
+                                          themeDefaultsForQna.answerSettings?.borderEnabled ?? 
+                                          themeDefaultsForQna.questionSettings?.border?.enabled ?? 
+                                          themeDefaultsForQna.questionSettings?.borderEnabled ?? 
+                                          true;
+                const borderEnabled = questionBorderEnabled !== false && answerBorderEnabled !== false;
+                
+                const questionBackgroundEnabled = themeDefaultsForQna.questionSettings?.background?.enabled ?? 
+                                                 themeDefaultsForQna.questionSettings?.backgroundEnabled ?? 
+                                                 themeDefaultsForQna.answerSettings?.background?.enabled ?? 
+                                                 themeDefaultsForQna.answerSettings?.backgroundEnabled ?? 
+                                                 true;
+                const answerBackgroundEnabled = themeDefaultsForQna.answerSettings?.background?.enabled ?? 
+                                              themeDefaultsForQna.answerSettings?.backgroundEnabled ?? 
+                                              themeDefaultsForQna.questionSettings?.background?.enabled ?? 
+                                              themeDefaultsForQna.questionSettings?.backgroundEnabled ?? 
+                                              true;
+                const backgroundEnabled = questionBackgroundEnabled !== false && answerBackgroundEnabled !== false;
+                
+                // Get existing border/background settings or use defaults
+                const existingQuestionBorder = updatedElement.questionSettings?.border || {};
+                const existingAnswerBorder = updatedElement.answerSettings?.border || {};
+                const existingQuestionBackground = updatedElement.questionSettings?.background || {};
+                const existingAnswerBackground = updatedElement.answerSettings?.background || {};
+                
+                // Get colors from palette if available, otherwise use theme defaults
+                const borderColor = effectivePaletteForElement?.colors.primary || themeDefaultsForQna.questionSettings?.border?.borderColor || themeDefaultsForQna.borderColor || '#000000';
+                const backgroundColor = effectivePaletteForElement?.colors.accent || themeDefaultsForQna.questionSettings?.background?.backgroundColor || themeDefaultsForQna.backgroundColor || 'transparent';
+                const textColor = effectivePaletteForElement?.colors.text || themeDefaultsForQna.questionSettings?.fontColor || themeDefaultsForQna.fontColor || '#1f2937';
+                
+                updatedElement.questionSettings = {
+                  ...updatedElement.questionSettings,
+                  ...themeDefaultsForQna.questionSettings,
+                  fontColor: textColor,
+                  font: { ...updatedElement.questionSettings?.font, fontColor: textColor },
+                  border: borderEnabled ? {
+                    ...existingQuestionBorder,
+                    enabled: true,
+                    borderColor: borderColor,
+                    borderWidth: existingQuestionBorder.borderWidth ?? themeDefaultsForQna.questionSettings?.border?.borderWidth ?? 2,
+                    borderOpacity: existingQuestionBorder.borderOpacity ?? themeDefaultsForQna.questionSettings?.border?.borderOpacity ?? 1
+                  } : {
+                    ...existingQuestionBorder,
+                    enabled: false
+                  },
+                  background: backgroundEnabled ? {
+                    ...existingQuestionBackground,
+                    enabled: true,
+                    backgroundColor: backgroundColor,
+                    backgroundOpacity: existingQuestionBackground.backgroundOpacity ?? themeDefaultsForQna.questionSettings?.background?.backgroundOpacity ?? 0.3
+                  } : {
+                    ...existingQuestionBackground,
+                    enabled: false
+                  }
+                };
+                updatedElement.answerSettings = {
+                  ...updatedElement.answerSettings,
+                  ...themeDefaultsForQna.answerSettings,
+                  fontColor: textColor,
+                  font: { ...updatedElement.answerSettings?.font, fontColor: textColor },
+                  border: borderEnabled ? {
+                    ...existingAnswerBorder,
+                    enabled: true,
+                    borderColor: borderColor,
+                    borderWidth: existingAnswerBorder.borderWidth ?? themeDefaultsForQna.answerSettings?.border?.borderWidth ?? 2,
+                    borderOpacity: existingAnswerBorder.borderOpacity ?? themeDefaultsForQna.answerSettings?.border?.borderOpacity ?? 1
+                  } : {
+                    ...existingAnswerBorder,
+                    enabled: false
+                  },
+                  background: backgroundEnabled ? {
+                    ...existingAnswerBackground,
+                    enabled: true,
+                    backgroundColor: backgroundColor,
+                    backgroundOpacity: existingAnswerBackground.backgroundOpacity ?? themeDefaultsForQna.answerSettings?.background?.backgroundOpacity ?? 0.3
+                  } : {
+                    ...existingAnswerBackground,
+                    enabled: false
+                  }
+                };
+                
+                // Update border and background colors at top level
+                if (borderEnabled) {
+                  updatedElement.border = { ...updatedElement.border, borderColor: borderColor, enabled: true };
+                } else {
+                  updatedElement.border = { ...updatedElement.border, enabled: false };
+                }
+                
+                if (backgroundEnabled) {
+                  updatedElement.background = { ...updatedElement.background, backgroundColor: backgroundColor, enabled: true };
+                } else {
+                  updatedElement.background = { ...updatedElement.background, enabled: false };
+                }
+                
+                // Debug: Log border and background enabled state
+                console.log(`[loadBook] Element ${elementIndex} (qna_inline) border/background:`, {
+                  borderEnabled,
+                  backgroundEnabled,
+                  questionSettingsBorderEnabled: updatedElement.questionSettings?.border?.enabled,
+                  answerSettingsBorderEnabled: updatedElement.answerSettings?.border?.enabled,
+                  questionSettingsBackgroundEnabled: updatedElement.questionSettings?.background?.enabled,
+                  answerSettingsBackgroundEnabled: updatedElement.answerSettings?.background?.enabled,
+                  topLevelBorderEnabled: updatedElement.border?.enabled,
+                  topLevelBackgroundEnabled: updatedElement.background?.enabled
+                });
+              }
+              
+              return updatedElement;
+            });
+            
+            console.log('[loadBook] Finished updating elements for page:', {
+              pageNumber,
+              updatedElementCount: resolvedElements.length
+            });
+          }
+        }
+        
+        return {
+          ...page,
+          id: page.id ?? page.database_id ?? pageNumber,
+          pageNumber,
+          database_id: page.id ?? page.database_id,
+          isPlaceholder: false,
+          background: resolvedBackground,
+          elements: resolvedElements,
+          // Only include themeId if page has explicit theme (not inheriting)
+          ...(hasThemeIdOwnProperty && pageThemeId !== undefined && pageThemeId !== null ? { themeId: pageThemeId } : {})
+        };
+      });
+
+      const totalPages = pagination?.totalPages ?? normalizedLoadedPages.length;
+      const pagesWithPlaceholders =
+        totalPages > normalizedLoadedPages.length
+          ? ensurePageArrayLength(normalizedLoadedPages, totalPages)
+          : normalizedLoadedPages;
+
+      const loadedRecords = normalizedLoadedPages.reduce<Record<number, true>>((acc, page) => {
+        if (page.pageNumber) {
+          acc[page.pageNumber] = true;
+        }
+        return acc;
+      }, {});
+
+      const paginationState: PagePaginationState | undefined = pagination
+        ? {
+            totalPages,
+            pageSize: pagination.limit || PAGE_CHUNK_SIZE,
+            loadedPages: loadedRecords
+          }
+        : (totalPages > normalizedLoadedPages.length
+            ? {
+                totalPages,
+                pageSize: PAGE_CHUNK_SIZE,
+                loadedPages: loadedRecords
+              }
+            : undefined);
       
       // Store questions and answers in temp storage using UUID keys
       questions.forEach(q => {
@@ -3383,13 +4878,10 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       // Map database IDs to pages
       const bookWithDatabaseIds = {
         ...book,
-        pages: book.pages.map(page => ({
-          ...page,
-          database_id: page.id // Store original database ID
-        }))
+        pages: pagesWithPlaceholders
       };
       
-      dispatch({ type: 'SET_BOOK', payload: bookWithDatabaseIds });
+      dispatch({ type: 'SET_BOOK', payload: bookWithDatabaseIds, pagination: paginationState });
       
       if (userRole) {
         dispatch({ type: 'SET_USER_ROLE', payload: { role: userRole.role, assignedPages: userRole.assignedPages || [] } });
@@ -3500,12 +4992,12 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       .filter(([_, user]) => user?.id === userId)
       .map(([pageNum, _]) => parseInt(pageNum));
     
-    // Get all questions on those pages
+    // Get all questions on those pages (including qna_inline)
     const assignedQuestions = new Set<string>();
     state.currentBook.pages.forEach(page => {
       if (userPages.includes(page.pageNumber)) {
         page.elements.forEach(element => {
-          if ((element.textType === 'question' || element.textType === 'qna') && element.questionId) {
+          if ((element.textType === 'question' || element.textType === 'qna' || element.textType === 'qna_inline') && element.questionId) {
             assignedQuestions.add(element.questionId);
           }
         });
@@ -3515,20 +5007,28 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     return assignedQuestions;
   };
   
-  const checkUserQuestionConflicts = (userId: number, pageNumber: number): { questionId: string; questionText: string; pageNumber: number }[] => {
+  const checkUserQuestionConflicts = (userId: number, pageNumber: number): { questionId: string; questionText: string; pageNumbers: number[] }[] => {
     if (!state.currentBook) return [];
     
-    const conflicts: { questionId: string; questionText: string; pageNumber: number }[] = [];
+    // Map to store conflicts: questionId -> { questionText, pageNumbers }
+    const conflictsMap = new Map<string, { questionText: string; pageNumbers: Set<number> }>();
     
     // Get questions on the target page
     const targetPage = state.currentBook.pages.find(p => p.pageNumber === pageNumber);
     if (!targetPage) return [];
     
-    // Get all questions on the target page
+    // Get all questions on the target page (including qna_inline)
     const targetQuestions = new Set<string>();
     targetPage.elements.forEach(element => {
-      if ((element.textType === 'question' || element.textType === 'qna') && element.questionId) {
+      if ((element.textType === 'question' || element.textType === 'qna' || element.textType === 'qna_inline') && element.questionId) {
         targetQuestions.add(element.questionId);
+        // Initialize conflict entry for this question
+        if (!conflictsMap.has(element.questionId)) {
+          conflictsMap.set(element.questionId, {
+            questionText: getQuestionText(element.questionId) || 'Unknown question',
+            pageNumbers: new Set<number>()
+          });
+        }
       }
     });
     
@@ -3538,17 +5038,29 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         const assignedUser = state.pageAssignments[page.pageNumber];
         if (assignedUser && assignedUser.id === userId) {
           page.elements.forEach(element => {
-            if ((element.textType === 'question' || element.textType === 'qna') && element.questionId && targetQuestions.has(element.questionId)) {
-              conflicts.push({
-                questionId: element.questionId,
-                questionText: getQuestionText(element.questionId) || 'Unknown question',
-                pageNumber: page.pageNumber
-              });
+            if ((element.textType === 'question' || element.textType === 'qna' || element.textType === 'qna_inline') && element.questionId && targetQuestions.has(element.questionId)) {
+              // Add this page number to the conflict for this question
+              const conflict = conflictsMap.get(element.questionId);
+              if (conflict) {
+                conflict.pageNumbers.add(page.pageNumber);
+              }
             }
           });
         }
       }
     }
+    
+    // Convert map to array, filtering out questions with no conflicts
+    const conflicts: { questionId: string; questionText: string; pageNumbers: number[] }[] = [];
+    conflictsMap.forEach((conflict, questionId) => {
+      if (conflict.pageNumbers.size > 0) {
+        conflicts.push({
+          questionId,
+          questionText: conflict.questionText,
+          pageNumbers: Array.from(conflict.pageNumbers).sort((a, b) => a - b)
+        });
+      }
+    });
     
     return conflicts;
   };
@@ -3561,11 +5073,11 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       .filter(([_, user]) => user?.id === userId)
       .map(([pageNum, _]) => parseInt(pageNum));
     
-    // Check if question exists on any of these pages
+    // Check if question exists on any of these pages (including qna_inline)
     for (const page of state.currentBook.pages) {
       if (userPages.includes(page.pageNumber)) {
         const hasQuestion = page.elements.some(el => 
-          (el.textType === 'question' || el.textType === 'qna') && el.questionId === questionId
+          (el.textType === 'question' || el.textType === 'qna' || el.textType === 'qna_inline') && el.questionId === questionId
         );
         if (hasQuestion) {
           return false; // Question already exists on a page assigned to this user
@@ -3596,6 +5108,99 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       console.error('Error refreshing page assignments:', error);
     }
   }, [state.currentBook]);
+
+  const ensurePagesLoaded = useCallback(async (startIndex: number, endIndex: number) => {
+    if (!state.currentBook) return;
+    const totalPages = state.pagePagination?.totalPages ?? state.currentBook.pages.length;
+    if (totalPages === 0) return;
+
+    const safeStart = Math.max(0, Math.min(startIndex, totalPages - 1));
+    const safeEnd = Math.max(safeStart + 1, Math.min(endIndex, totalPages));
+
+    const candidatePages = state.currentBook.pages.slice(safeStart, safeEnd);
+    const placeholders = candidatePages
+      .map((page, offset) => ({ page, index: safeStart + offset }))
+      .filter((item) => item.page?.isPlaceholder);
+
+    if (!placeholders.length) {
+      return;
+    }
+
+    const chunkSize = state.pagePagination?.pageSize ?? PAGE_CHUNK_SIZE;
+    const minPageNumber = Math.min(
+      ...placeholders.map((item) => item.page?.pageNumber ?? item.index + 1)
+    );
+    const chunkStart = Math.max(0, Math.floor((minPageNumber - 1) / chunkSize) * chunkSize);
+    const chunkKey = `${chunkStart}-${chunkSize}`;
+
+    if (loadingPageChunksRef.current.has(chunkKey)) {
+      return;
+    }
+
+    loadingPageChunksRef.current.add(chunkKey);
+    try {
+      const { book: partialBook, pagination } = await apiService.loadBook(state.currentBook.id, {
+        pageOffset: chunkStart,
+        pageLimit: chunkSize,
+        pagesOnly: true
+      });
+
+      const rawPages = Array.isArray(partialBook.pages) ? partialBook.pages : [];
+      if (!rawPages.length) {
+        return;
+      }
+
+      const chunkPages: Page[] = rawPages.map((page: any, index: number) => {
+        const pageNumber = page.pageNumber ?? page.page_number ?? chunkStart + index + 1;
+        return {
+          ...page,
+          id: page.id ?? page.database_id ?? pageNumber,
+          pageNumber,
+          database_id: page.id ?? page.database_id,
+          elements: page.elements ?? [],
+          isPlaceholder: false
+        };
+      });
+
+      const chunkLoadedRecord = chunkPages.reduce<Record<number, true>>((acc, page) => {
+        if (page.pageNumber) {
+          acc[page.pageNumber] = true;
+        }
+        return acc;
+      }, {});
+
+      const mergedPagination = state.pagePagination
+        ? {
+            totalPages: Math.max(
+              state.pagePagination.totalPages,
+              pagination?.totalPages ?? 0,
+              chunkStart + chunkPages.length
+            ),
+            pageSize: pagination?.limit || state.pagePagination.pageSize || chunkSize,
+            loadedPages: {
+              ...state.pagePagination.loadedPages,
+              ...chunkLoadedRecord
+            }
+          }
+        : pagination
+          ? {
+              totalPages: pagination.totalPages ?? chunkPages.length,
+              pageSize: pagination.limit || chunkSize,
+              loadedPages: chunkLoadedRecord
+            }
+          : undefined;
+
+      dispatch({
+        type: 'MERGE_BOOK_PAGES',
+        payload: {
+          pages: chunkPages,
+          pagination: mergedPagination
+        }
+      });
+    } finally {
+      loadingPageChunksRef.current.delete(chunkKey);
+    }
+  }, [state.currentBook, state.pagePagination]);
 
   const canAccessEditor = () => {
     return state.editorInteractionLevel !== 'no_access';
@@ -3679,7 +5284,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       // No user assigned, only check if question already exists on current page
       if (currentPage) {
         const hasQuestion = currentPage.elements.some(el => 
-          (el.textType === 'question' || el.textType === 'qna') && el.questionId === questionId
+          (el.textType === 'question' || el.textType === 'qna' || el.textType === 'qna_inline') && el.questionId === questionId
         );
         if (hasQuestion) {
           return { valid: false, reason: 'This question already exists on this page.' };
@@ -3688,7 +5293,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       return { valid: true };
     }
     
-    // Check if this question is already used by this user on another page
+    // Check if this question is already used by this user on another page (including qna_inline)
     const isAvailable = isQuestionAvailableForUser(questionId, assignedUser.id);
     if (!isAvailable) {
       return { 
@@ -3724,6 +5329,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       canEditSettings,
       getVisiblePages,
       getVisiblePageNumbers,
+      ensurePagesLoaded,
       applyTemplateToPage,
       applyCompleteTemplate,
       getWizardTemplateSelection,

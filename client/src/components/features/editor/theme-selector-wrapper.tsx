@@ -411,29 +411,9 @@ export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: The
       // Update selectedTheme after applying
       setSelectedTheme(previewTheme);
       
-      if (state.currentBook) {
-        state.currentBook.pages.forEach((page, pageIndex) => {
-          const pageHasCustom = !!page.themeId;
-          const themeForElements = pageHasCustom ? page.themeId! : previewTheme;
-
-          if (!pageHasCustom) {
-            dispatch({
-              type: 'SET_PAGE_THEME',
-              payload: { pageIndex, themeId: previewTheme, skipHistory: true }
-            });
-          }
-          
-          dispatch({
-            type: 'APPLY_THEME_TO_ELEMENTS',
-            payload: {
-              pageIndex,
-              themeId: themeForElements,
-              skipHistory: true,
-              preserveColors: true
-            }
-          });
-        });
-      }
+      // NOTE: SET_BOOK_THEME already handles updating all pages that inherit the book theme
+      // It removes themeId, updates backgrounds, and applies theme/palette to elements
+      // We don't need to dispatch SET_PAGE_THEME here, as it would interfere with inheritance
       
       // Speichere zu History
       dispatch({

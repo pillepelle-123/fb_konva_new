@@ -28,8 +28,10 @@ export interface GlobalTheme {
     };
     backgroundImage?: {
       enabled: boolean;
+      templateId?: string;
       size: 'cover' | 'contain' | 'stretch';
       repeat?: boolean;
+      opacity?: number;
     };
     cornerRadius: number;
   };
@@ -299,6 +301,16 @@ export function getGlobalTheme(id: string): GlobalTheme | undefined {
   return processedTheme;
 }
 
+/**
+ * Get the default palette ID for a theme
+ * @param themeId - The theme ID
+ * @returns The palette ID or undefined if theme not found
+ */
+export function getThemePaletteId(themeId: string): string | undefined {
+  const themeConfig = (themesData as Record<string, ThemeConfig>)[themeId];
+  return themeConfig?.palette;
+}
+
 export const GLOBAL_THEMES: GlobalTheme[] = Object.keys(themesData).map(id => getGlobalTheme(id)!).filter(Boolean);
 
 function getThemeCategory(elementType: string): keyof GlobalTheme['elementDefaults'] {
@@ -345,8 +357,10 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string): Pa
   if (elementType === 'qna_inline') {
     const qnaDefaults = getQnAInlineThemeDefaults(themeId);
     // Add top-level palette colors for consistency
+    // CRITICAL: Also add theme property so elements know which theme to use
     return {
       ...qnaDefaults,
+      theme: themeId, // Add theme property so elements know which theme to use
       fontColor: palette ? (palette.colors.text || palette.colors.primary) : undefined,
       borderColor: palette ? palette.colors.secondary : undefined,
       backgroundColor: palette ? (palette.colors.surface || palette.colors.background) : undefined,

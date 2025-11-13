@@ -1189,6 +1189,8 @@ export function QnAInlineSettingsForm({
               return element.questionSettings?.border?.enabled ?? 
                      element.answerSettings?.border?.enabled ?? 
                      element.border?.enabled ??
+                     themeDefaults.questionSettings?.border?.enabled ??
+                     themeDefaults.answerSettings?.border?.enabled ??
                      (themeDefaults.borderEnabled ?? false);
             })()}
             onCheckedChange={(checked) => updateSharedSetting('borderEnabled', checked)}
@@ -1202,8 +1204,9 @@ export function QnAInlineSettingsForm({
         const borderEnabled = element.questionSettings?.border?.enabled ?? 
                              element.answerSettings?.border?.enabled ?? 
                              element.border?.enabled ??
-                             themeDefaults.borderEnabled ?? 
-                             false;
+                             themeDefaults.questionSettings?.border?.enabled ??
+                             themeDefaults.answerSettings?.border?.enabled ??
+                             (themeDefaults.borderEnabled ?? false);
         return borderEnabled;
       })() && (
         <IndentedSection>
@@ -1259,6 +1262,8 @@ export function QnAInlineSettingsForm({
               return element.questionSettings?.background?.enabled ?? 
                      element.answerSettings?.background?.enabled ?? 
                      element.background?.enabled ??
+                     themeDefaults.questionSettings?.background?.enabled ??
+                     themeDefaults.answerSettings?.background?.enabled ??
                      (themeDefaults.backgroundEnabled ?? false);
             })()}
             onCheckedChange={(checked) => updateSharedSetting('backgroundEnabled', checked)}
@@ -1272,8 +1277,9 @@ export function QnAInlineSettingsForm({
         const backgroundEnabled = element.questionSettings?.background?.enabled ?? 
                                   element.answerSettings?.background?.enabled ?? 
                                   element.background?.enabled ??
-                                  themeDefaults.backgroundEnabled ?? 
-                                  false;
+                                  themeDefaults.questionSettings?.background?.enabled ??
+                                  themeDefaults.answerSettings?.background?.enabled ??
+                                  (themeDefaults.backgroundEnabled ?? false);
         return backgroundEnabled;
       })() && (
         <IndentedSection>

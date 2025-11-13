@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Badge } from '../../ui/composites/badge';
 import { FileText } from 'lucide-react';
 import ProfilePicture from '../users/profile-picture';
-import { useEditor } from '../../../context/editor-context';
+import { useEditor, getPagePreviewCacheId } from '../../../context/editor-context';
 import { generatePagePreview } from '../../../utils/page-preview-generator';
 import type { Page, Book } from '../../../context/editor-context';
 
@@ -19,27 +19,34 @@ interface PagePreviewProps {
 export default function PagePreview({ pageId, pageNumber, assignedUser, isActive, page: pageProp, book: bookProp }: PagePreviewProps) {
   const { state } = useEditor();
   const [localPreview, setLocalPreview] = useState<string | null>(null);
-  const lastGeneratedPageIdRef = useRef<number | null>(null);
+  const lastGeneratedCacheIdRef = useRef<number | null>(null);
 
   const bookData = bookProp ?? state.currentBook ?? null;
   const pageData = pageProp ?? bookData?.pages.find((p) => p.id === pageId) ?? null;
-  const cachedPreview = pageData ? state.pagePreviewCache[pageData.id] : undefined;
+  const cacheId = getPagePreviewCacheId(pageData, pageNumber);
+  const cachedPreview = cacheId != null ? state.pagePreviewCache[cacheId] : undefined;
   const previewUrl = cachedPreview?.dataUrl ?? localPreview;
 
   useEffect(() => {
     if (cachedPreview?.dataUrl) {
       setLocalPreview(null);
-      lastGeneratedPageIdRef.current = null;
+      lastGeneratedCacheIdRef.current = null;
       return;
     }
 
-    if (!pageData || !bookData) {
+    if (pageData?.isPlaceholder) {
       setLocalPreview(null);
-      lastGeneratedPageIdRef.current = null;
+      lastGeneratedCacheIdRef.current = null;
       return;
     }
 
-    if (lastGeneratedPageIdRef.current === pageData.id) {
+    if (!pageData || !bookData || cacheId == null) {
+      setLocalPreview(null);
+      lastGeneratedCacheIdRef.current = null;
+      return;
+    }
+
+    if (lastGeneratedCacheIdRef.current === cacheId) {
       return;
     }
 
@@ -47,13 +54,13 @@ export default function PagePreview({ pageId, pageNumber, assignedUser, isActive
     generatePagePreview({ page: pageData, book: bookData, previewWidth: 200, previewHeight: 280 })
       .then((dataUrl) => {
         if (!cancelled) {
-          lastGeneratedPageIdRef.current = pageData.id;
+          lastGeneratedCacheIdRef.current = cacheId;
           setLocalPreview(dataUrl ?? null);
         }
       })
       .catch(() => {
         if (!cancelled) {
-          lastGeneratedPageIdRef.current = pageData.id;
+          lastGeneratedCacheIdRef.current = cacheId;
           setLocalPreview(null);
         }
       });
@@ -61,7 +68,7 @@ export default function PagePreview({ pageId, pageNumber, assignedUser, isActive
     return () => {
       cancelled = true;
     };
-  }, [cachedPreview?.dataUrl, pageData, bookData]);
+  }, [cachedPreview?.dataUrl, pageData, bookData, cacheId]);
 
   const borderClass = isActive ? 'border-ring' : 'border-border';
 

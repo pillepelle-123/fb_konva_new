@@ -153,6 +153,11 @@ router.get('/:id', authenticateToken, async (req, res) => {
     const bookId = req.params.id;
     const userId = req.user.id;
 
+    // Parse pagination parameters
+    const pageOffset = parseInt(req.query.pageOffset) || 0;
+    const pageLimit = parseInt(req.query.pageLimit) || 0;
+    const pagesOnly = req.query.pagesOnly === 'true';
+
     // Check if user has access to this book
     const bookAccess = await pool.query(`
       SELECT b.* FROM public.books b
@@ -166,42 +171,73 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
     const book = bookAccess.rows[0];
 
-    // Get pages for this book
-    const pages = await pool.query(
-      'SELECT * FROM public.pages WHERE book_id = $1 ORDER BY page_number ASC',
+    // Get total page count
+    const totalPagesResult = await pool.query(
+      'SELECT COUNT(*) as count FROM public.pages WHERE book_id = $1',
       [bookId]
     );
+    const totalPages = parseInt(totalPagesResult.rows[0].count);
+
+    // Get pages for this book (with pagination if specified)
+    let pages;
+    if (pageLimit > 0 && pageOffset >= 0) {
+      pages = await pool.query(
+        'SELECT * FROM public.pages WHERE book_id = $1 ORDER BY page_number ASC LIMIT $2 OFFSET $3',
+        [bookId, pageLimit, pageOffset]
+      );
+    } else {
+      pages = await pool.query(
+        'SELECT * FROM public.pages WHERE book_id = $1 ORDER BY page_number ASC',
+        [bookId]
+      );
+    }
     
-    // Get all answers for this book to populate canvas elements
-    const allAnswers = await pool.query(`
-      SELECT a.* FROM public.answers a
-      JOIN public.questions q ON a.question_id = q.id
-      WHERE q.book_id = $1
-    `, [bookId]);
+    // Get all answers for this book to populate canvas elements (only if not pagesOnly)
+    let allAnswers = [];
+    if (!pagesOnly) {
+      const answersResult = await pool.query(`
+        SELECT a.* FROM public.answers a
+        JOIN public.questions q ON a.question_id = q.id
+        WHERE q.book_id = $1
+      `, [bookId]);
+      allAnswers = answersResult.rows;
+    }
     
-    // Get user-specific answers for the current user
-    const userAnswers = await pool.query(`
-      SELECT a.* FROM public.answers a
-      JOIN public.questions q ON a.question_id = q.id
-      WHERE q.book_id = $1 AND a.user_id = $2
-    `, [bookId, userId]);
+    // Get user-specific answers for the current user (only if not pagesOnly)
+    let userAnswers = [];
+    if (!pagesOnly) {
+      const userAnswersResult = await pool.query(`
+        SELECT a.* FROM public.answers a
+        JOIN public.questions q ON a.question_id = q.id
+        WHERE q.book_id = $1 AND a.user_id = $2
+      `, [bookId, userId]);
+      userAnswers = userAnswersResult.rows;
+    }
 
-    // Get questions for this book
-    const questions = await pool.query(
-      'SELECT * FROM public.questions WHERE book_id = $1',
-      [bookId]
-    );
+    // Get questions for this book (only if not pagesOnly)
+    let questions = [];
+    if (!pagesOnly) {
+      const questionsResult = await pool.query(
+        'SELECT * FROM public.questions WHERE book_id = $1',
+        [bookId]
+      );
+      questions = questionsResult.rows;
+    }
 
-    // Get page assignments for this book
-    const pageAssignments = await pool.query(`
-      SELECT pa.page_id, pa.user_id, p.page_number, u.name, u.email, u.role
-      FROM public.page_assignments pa
-      JOIN public.pages p ON pa.page_id = p.id
-      JOIN public.users u ON pa.user_id = u.id
-      WHERE p.book_id = $1
-    `, [bookId]);
+    // Get page assignments for this book (only if not pagesOnly)
+    let pageAssignments = [];
+    if (!pagesOnly) {
+      const assignmentsResult = await pool.query(`
+        SELECT pa.page_id, pa.user_id, p.page_number, u.name, u.email, u.role
+        FROM public.page_assignments pa
+        JOIN public.pages p ON pa.page_id = p.id
+        JOIN public.users u ON pa.user_id = u.id
+        WHERE p.book_id = $1
+      `, [bookId]);
+      pageAssignments = assignmentsResult.rows;
+    }
 
-    // Get user role and permissions for this book
+    // Get user role and permissions for this book (always needed)
     let userRole = null;
     if (book.owner_id === userId) {
       userRole = {
@@ -236,7 +272,8 @@ router.get('/:id', authenticateToken, async (req, res) => {
       }
     }
 
-    res.json({
+    // Build response object
+    const response = {
       id: book.id,
       name: book.name,
       pageSize: book.page_size,
@@ -246,9 +283,9 @@ router.get('/:id', authenticateToken, async (req, res) => {
       layoutTemplateId: book.layout_template_id,
       themeId: book.theme_id || book.book_theme, // Backward compatibility: use book_theme if theme_id doesn't exist
       colorPaletteId: book.color_palette_id,
-      questions: questions.rows,
-      answers: allAnswers.rows,
-      pageAssignments: pageAssignments.rows,
+      questions: questions,
+      answers: allAnswers,
+      pageAssignments: pageAssignments,
       userRole: userRole,
       pages: pages.rows.map(page => {
         // Parse page.elements - it's JSONB, so it might be an object or need parsing
@@ -278,7 +315,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
         //console.log(`Element type: ${element.textType}, questionId: ${element.questionId}`);
           if (element.textType === 'answer') {
             // Find the user assigned to this page
-            const pageAssignment = pageAssignments.rows.find(pa => pa.page_id === page.id);
+            const pageAssignment = pageAssignments.find(pa => pa.page_id === page.id);
           //console.log(`Page ${page.id}: assignment found:`, pageAssignment);
             if (pageAssignment) {
               // If answer element has no questionId, find question on same page
@@ -293,7 +330,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
               
               if (questionId) {
                 // Find the answer from the assigned user
-                const assignedUserAnswer = allAnswers.rows.find(a => 
+                const assignedUserAnswer = allAnswers.find(a => 
                   a.question_id === questionId && a.user_id === pageAssignment.user_id
                 );
               //console.log(`Answer found for question ${questionId}:`, assignedUserAnswer);
@@ -320,11 +357,24 @@ router.get('/:id', authenticateToken, async (req, res) => {
             pageTheme: page.theme_id || null
           },
           layoutTemplateId: page.layout_template_id,
-          themeId: page.theme_id || null,
+          // Only set themeId if it's not null - if it's null, the page inherits the book theme
+          // This way, pages that inherit the book theme won't have themeId property at all
+          ...(page.theme_id ? { themeId: page.theme_id } : {}),
           colorPaletteId: page.color_palette_id
         };
       })
-    });
+    };
+
+    // Add pagination info if pagination parameters were used
+    if (pageLimit > 0 && pageOffset >= 0) {
+      response.pagination = {
+        totalPages: totalPages,
+        limit: pageLimit,
+        offset: pageOffset
+      };
+    }
+
+    res.json(response);
   } catch (error) {
     console.error('Book fetch error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -379,12 +429,16 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
             database_id: pageId
           };
           
+          // Only set theme_id if themeId property exists in the page object
+          // If themeId doesn't exist, the page inherits the book theme, so set theme_id to null
+          const themeIdToSave = 'themeId' in page ? (page.themeId || null) : null;
+          
           await pool.query(
             'UPDATE public.pages SET elements = $1, layout_template_id = $2, theme_id = $3, color_palette_id = $4 WHERE id = $5',
             [
               JSON.stringify(completePageData), 
               page.layoutTemplateId || null,
-              page.themeId || null,
+              themeIdToSave,
               page.colorPaletteId || null,
               pageId
             ]
@@ -499,7 +553,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
   try {
     const bookId = req.params.id;
     const userId = req.user.id;
-    const { name, pageSize, orientation, pages } = req.body;
+    const { name, pageSize, orientation, pages, onlyModifiedPages } = req.body;
 
     console.log('PUT /books/:id payload summary:', {
       bookId,
@@ -557,17 +611,24 @@ router.put('/:id', authenticateToken, async (req, res) => {
         ]
       );
 
-      // First, temporarily set all existing page numbers to negative values to avoid conflicts
-      await pool.query(
-        'UPDATE public.pages SET page_number = -page_number WHERE book_id = $1 AND page_number > 0',
-        [bookId]
-      );
+      // Only temporarily set page numbers to negative if we're saving all pages (not partial save)
+      if (!onlyModifiedPages) {
+        // First, temporarily set all existing page numbers to negative values to avoid conflicts
+        await pool.query(
+          'UPDATE public.pages SET page_number = -page_number WHERE book_id = $1 AND page_number > 0',
+          [bookId]
+        );
+      }
       
       // UPSERT pages: update existing, insert new
+      // Process pages in reverse order (highest pageNumber first) to avoid conflicts
+      // when pages are moved to different positions
+      const pagesToProcess = [...pages].sort((a, b) => (b.pageNumber || 0) - (a.pageNumber || 0));
+      
       const processedPageIds = new Set();
       const allPageIds = [];
       
-      for (const page of pages) {
+      for (const page of pagesToProcess) {
         console.log('Processing page payload:', {
           pageId: page.id,
           pageNumber: page.pageNumber,
@@ -576,12 +637,71 @@ router.put('/:id', authenticateToken, async (req, res) => {
         });
         let pageId;
         
-        if (page.id && processedPageIds.has(page.id)) {
-          continue;
+        // Only skip if the page was already processed AND it has a valid database ID
+        // This allows pages that were just inserted to be updated later if needed
+        if (page.id && processedPageIds.has(page.id) && typeof page.id === 'number' && Number.isInteger(page.id) && page.id > 0 && page.id < 2147483647) {
+          // Check if this page already has the target pageNumber in the database
+          // If so, we can skip it. If not, we should update it.
+          const existingPageCheck = await pool.query(
+            'SELECT page_number FROM public.pages WHERE id = $1 AND book_id = $2',
+            [page.id, bookId]
+          );
+          if (existingPageCheck.rows.length > 0) {
+            const currentPageNumber = existingPageCheck.rows[0].page_number;
+            // Only skip if the page already has the target pageNumber
+            if (Math.abs(currentPageNumber) === page.pageNumber) {
+              console.log('Skipping already processed page with same pageNumber:', { pageId: page.id, pageNumber: page.pageNumber });
+              // Still add to allPageIds to prevent deletion
+              if (page.id && typeof page.id === 'number' && Number.isInteger(page.id) && page.id > 0 && page.id < 2147483647) {
+                allPageIds.push(page.id);
+              }
+              continue;
+            }
+            // If pageNumber is different, we should update it
+            console.log('Page was processed but pageNumber changed, updating:', { pageId: page.id, currentPageNumber, targetPageNumber: page.pageNumber });
+          }
         }
         
         if (page.id && typeof page.id === 'number' && Number.isInteger(page.id) && page.id > 0 && page.id < 2147483647) {
           // Update existing page
+          // First, check if another page (not this one) already has the target pageNumber
+          // If so, we need to temporarily move it to avoid conflicts
+          const conflictingPage = await pool.query(
+            'SELECT id FROM public.pages WHERE book_id = $1 AND ABS(page_number) = $2 AND id != $3',
+            [bookId, page.pageNumber, page.id]
+          );
+          
+          if (conflictingPage.rows.length > 0) {
+            // Another page has this pageNumber - temporarily move it to a negative value
+            // This will be resolved when page numbers are restored at the end
+            const conflictingPageId = conflictingPage.rows[0].id;
+            // Only move if it hasn't been processed yet (to avoid overwriting changes)
+            // Only move pages with positive page_number (not already moved)
+            if (!processedPageIds.has(conflictingPageId)) {
+              // Get the current page_number to encode it properly
+              const currentPage = await pool.query(
+                'SELECT page_number FROM public.pages WHERE id = $1 AND book_id = $2',
+                [conflictingPageId, bookId]
+              );
+              if (currentPage.rows.length > 0) {
+                const currentPageNumber = currentPage.rows[0].page_number;
+                // Only move if page_number is positive (not already moved)
+                if (currentPageNumber > 0) {
+                  // Calculate the new page_number in JavaScript to avoid PostgreSQL type ambiguity
+                  const newPageNumber = -currentPageNumber - 10000;
+                  await pool.query(
+                    'UPDATE public.pages SET page_number = $1 WHERE id = $2 AND book_id = $3',
+                    [newPageNumber, conflictingPageId, bookId]
+                  );
+                  // Add to allPageIds to prevent deletion, even though it's not being updated
+                  if (conflictingPageId && typeof conflictingPageId === 'number' && Number.isInteger(conflictingPageId) && conflictingPageId > 0 && conflictingPageId < 2147483647) {
+                    allPageIds.push(conflictingPageId);
+                  }
+                }
+              }
+            }
+          }
+          
           // Ensure elements is always an array
           const pageElements = Array.isArray(page.elements) ? page.elements : (page.elements?.elements || []);
           console.log('Updating existing page', {
@@ -597,13 +717,17 @@ router.put('/:id', authenticateToken, async (req, res) => {
             database_id: page.id
           };
 
+          // Only set theme_id if themeId property exists in the page object
+          // If themeId doesn't exist, the page inherits the book theme, so set theme_id to null
+          const themeIdToSave = 'themeId' in page ? (page.themeId || null) : null;
+          
           await pool.query(
             'UPDATE public.pages SET page_number = $1, elements = $2, layout_template_id = $3, theme_id = $4, color_palette_id = $5 WHERE id = $6 AND book_id = $7',
             [
               page.pageNumber, 
               JSON.stringify(completePageData), 
               page.layoutTemplateId || null,
-              page.themeId || null,
+              themeIdToSave,
               page.colorPaletteId || null,
               page.id, 
               bookId
@@ -612,41 +736,123 @@ router.put('/:id', authenticateToken, async (req, res) => {
           pageId = page.id;
           processedPageIds.add(page.id);
         } else {
-          // Insert new page
-          // Ensure elements is always an array
-          const pageElements = Array.isArray(page.elements) ? page.elements : (page.elements?.elements || []);
-          const completePageData = {
-            elements: pageElements,
-            background: page.background || { pageTheme: null },
-            pageNumber: page.pageNumber
-          };
-          
-          const pageResult = await pool.query(
-            'INSERT INTO public.pages (book_id, page_number, elements, layout_template_id, theme_id, color_palette_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
-            [
-              bookId, 
-              page.pageNumber, 
-              JSON.stringify(completePageData), 
-              page.layoutTemplateId || null,
-              page.themeId || null,
-              page.colorPaletteId || null
-            ]
-          );
-          pageId = pageResult.rows[0].id;
-          
-          // Update with complete structure including database_id
-          completePageData.id = pageId;
-          completePageData.database_id = pageId;
-          
-          await pool.query(
-            'UPDATE public.pages SET elements = $1 WHERE id = $2',
-            [JSON.stringify(completePageData), pageId]
+          // Always check if a page with this pageNumber already exists for this book
+          // Use ABS() to handle cases where page_number might be temporarily negated
+          const existingPage = await pool.query(
+            'SELECT id FROM public.pages WHERE book_id = $1 AND ABS(page_number) = $2',
+            [bookId, page.pageNumber]
           );
           
-          if (page.id) processedPageIds.add(page.id);
+          let existingPageId = null;
+          let shouldUpdateExisting = false;
+          if (existingPage.rows.length > 0) {
+            existingPageId = existingPage.rows[0].id;
+            
+            // IMPORTANT: Don't overwrite an existing page if it was already processed
+            // This prevents original pages from being overwritten by duplicates
+            // that come earlier in the list
+            if (processedPageIds.has(existingPageId)) {
+              // This page was already processed, so we should use it but not update it
+              // This ensures it's added to allPageIds and won't be deleted
+              console.warn(`Page with pageNumber ${page.pageNumber} already exists and was processed. Using existing page without update.`);
+              shouldUpdateExisting = false;
+            } else {
+              // Page exists and hasn't been processed yet, so we can update it
+              // This applies to both full saves and partial saves - if a page is in the
+              // modified pages list, it should be updated even if it already exists
+              shouldUpdateExisting = true;
+            }
+          }
+          
+          if (existingPageId && shouldUpdateExisting) {
+            // Update existing page instead of inserting
+            const pageElements = Array.isArray(page.elements) ? page.elements : (page.elements?.elements || []);
+            const completePageData = {
+              id: existingPageId,
+              elements: pageElements,
+              background: page.background || { pageTheme: null },
+              pageNumber: page.pageNumber,
+              database_id: existingPageId
+            };
+
+            await pool.query(
+              'UPDATE public.pages SET page_number = $1, elements = $2, layout_template_id = $3, theme_id = $4, color_palette_id = $5 WHERE id = $6 AND book_id = $7',
+              [
+                page.pageNumber, 
+                JSON.stringify(completePageData), 
+                page.layoutTemplateId || null,
+                page.themeId || null,
+                page.colorPaletteId || null,
+                existingPageId, 
+                bookId
+              ]
+            );
+            pageId = existingPageId;
+            processedPageIds.add(existingPageId);
+          } else if (existingPageId && !shouldUpdateExisting) {
+            // Page exists but should not be updated (already processed or partial save)
+            // Just use its ID so it's added to allPageIds and won't be deleted
+            pageId = existingPageId;
+            // Add to processedPageIds to prevent duplicate processing
+            if (!processedPageIds.has(existingPageId)) {
+              processedPageIds.add(existingPageId);
+            }
+          } else {
+            // Insert new page
+            // But first check if page_number would conflict
+            if (existingPageId) {
+              // A page with this page_number exists but we can't update it
+              // This shouldn't happen, but if it does, we need to skip this page
+              console.error(`Cannot insert page with pageNumber ${page.pageNumber}: page exists but cannot be updated.`);
+              continue;
+            }
+            // Ensure elements is always an array
+            const pageElements = Array.isArray(page.elements) ? page.elements : (page.elements?.elements || []);
+            const completePageData = {
+              elements: pageElements,
+              background: page.background || { pageTheme: null },
+              pageNumber: page.pageNumber
+            };
+            
+            // Only set theme_id if themeId property exists in the page object
+            // If themeId doesn't exist, the page inherits the book theme, so set theme_id to null
+            const themeIdToInsert = 'themeId' in page ? (page.themeId || null) : null;
+            
+            const pageResult = await pool.query(
+              'INSERT INTO public.pages (book_id, page_number, elements, layout_template_id, theme_id, color_palette_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+              [
+                bookId, 
+                page.pageNumber, 
+                JSON.stringify(completePageData), 
+                page.layoutTemplateId || null,
+                themeIdToInsert,
+                page.colorPaletteId || null
+              ]
+            );
+            pageId = pageResult.rows[0].id;
+            
+            // Update with complete structure including database_id
+            completePageData.id = pageId;
+            completePageData.database_id = pageId;
+            
+            await pool.query(
+              'UPDATE public.pages SET elements = $1 WHERE id = $2',
+              [JSON.stringify(completePageData), pageId]
+            );
+            
+            // Add both the original page.id (if it exists) and the new database ID to processedPageIds
+            // This ensures that if the page is later referenced by its database ID, it will be recognized
+            if (page.id) processedPageIds.add(page.id);
+            if (pageId && typeof pageId === 'number' && Number.isInteger(pageId) && pageId > 0 && pageId < 2147483647) {
+              processedPageIds.add(pageId);
+            }
+          }
         }
         
-        if (pageId) allPageIds.push(pageId);
+        // Only add valid PostgreSQL INTEGER IDs to allPageIds
+        if (pageId && typeof pageId === 'number' && Number.isInteger(pageId) && pageId > 0 && pageId < 2147483647) {
+          allPageIds.push(pageId);
+        }
 
         // Debug: Prüfe gespeicherten Zustand nach Update/Insert
         try {
@@ -841,13 +1047,43 @@ router.put('/:id', authenticateToken, async (req, res) => {
         }
       }
       
-      // Delete pages that are no longer in the pages array
-      if (allPageIds.length > 0) {
+      // Delete pages that are no longer in the pages array (only if saving all pages)
+      if (!onlyModifiedPages && allPageIds.length > 0) {
         const placeholders = allPageIds.map((_, i) => `$${i + 2}`).join(',');
         // console.log(`Preserving all pages: ${allPageIds.join(', ')}`);
         await pool.query(
           `DELETE FROM public.pages WHERE book_id = $1 AND id NOT IN (${placeholders})`,
           [bookId, ...allPageIds]
+        );
+      }
+      
+      // If only modified pages were sent, restore page numbers for unmodified pages
+      if (onlyModifiedPages) {
+        // Restore page numbers for pages that weren't in the modified list
+        // Filter to only include valid PostgreSQL INTEGER values (max 2147483647)
+        const modifiedPageIds = pages
+          .map(p => p.id)
+          .filter(id => id && typeof id === 'number' && Number.isInteger(id) && id > 0 && id < 2147483647);
+        if (modifiedPageIds.length > 0) {
+          const placeholders = modifiedPageIds.map((_, i) => `$${i + 2}`).join(',');
+          await pool.query(
+            `UPDATE public.pages SET page_number = ABS(page_number) WHERE book_id = $1 AND id NOT IN (${placeholders}) AND page_number < 0`,
+            [bookId, ...modifiedPageIds]
+          );
+        }
+      } else {
+        // If all pages were sent, restore all page numbers from negative values
+        // First, restore pages that were temporarily moved (page_number < -10000)
+        // These were moved to make room for original pages
+        // Formula: original_page_number = ABS(page_number) - 10000
+        await pool.query(
+          'UPDATE public.pages SET page_number = ABS(page_number) - 10000 WHERE book_id = $1 AND page_number < -10000',
+          [bookId]
+        );
+        // Then restore other pages with negative page numbers
+        await pool.query(
+          'UPDATE public.pages SET page_number = ABS(page_number) WHERE book_id = $1 AND page_number < 0',
+          [bookId]
         );
       }
       

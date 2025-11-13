@@ -1043,6 +1043,9 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
       questionText.textContent = hasExistingQuestion ? getQuestionText() : 'No question selected';
       questionText.style.cssText = 'font-size:0.875rem;color:#374151;font-weight:500;flex:1';
       
+      const toolbarButtonContainer = document.createElement('div');
+      toolbarButtonContainer.style.cssText = 'display:flex;gap:8px;align-items:center';
+      
       const insertQuestionBtn = document.createElement('button');
       insertQuestionBtn.textContent = hasExistingQuestion ? 'Change Question' : 'Insert Question';
       insertQuestionBtn.style.cssText = 'padding:6px 12px;border:1px solid #e2e8f0;border-radius:4px;cursor:pointer;background:white;font-size:0.875rem';
@@ -1054,8 +1057,20 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
         }));
       };
       
+      const resetQuestionBtn = document.createElement('button');
+      resetQuestionBtn.textContent = 'Reset Question';
+      resetQuestionBtn.style.cssText = 'padding:6px 12px;border:1px solid #e2e8f0;border-radius:4px;cursor:pointer;background:white;font-size:0.875rem;color:#dc2626';
+      resetQuestionBtn.style.display = hasExistingQuestion ? 'block' : 'none';
+      resetQuestionBtn.onmouseover = () => resetQuestionBtn.style.background = '#fef2f2';
+      resetQuestionBtn.onmouseout = () => resetQuestionBtn.style.background = 'white';
+      
+      toolbarButtonContainer.appendChild(insertQuestionBtn);
+      if (hasExistingQuestion) {
+        toolbarButtonContainer.appendChild(resetQuestionBtn);
+      }
+      
       toolbar.appendChild(questionText);
-      toolbar.appendChild(insertQuestionBtn);
+      toolbar.appendChild(toolbarButtonContainer);
       
       const editorContainer = document.createElement('div');
       editorContainer.style.cssText = 'min-height:90px;margin-bottom:0px;border:1px solid #e2e8f0;border-radius:4px';
@@ -1140,6 +1155,46 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
         // Track current question ID (can change when user selects new question)
         let currentQuestionId = element.questionId;
         
+        // Reset question handler
+        resetQuestionBtn.onclick = () => {
+          // Clear question ID from element
+          currentQuestionId = undefined;
+          dispatch({
+            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+            payload: {
+              id: element.id,
+              updates: {
+                questionId: undefined,
+                answerId: undefined,
+                text: '',
+                formattedText: ''
+              }
+            }
+          });
+          
+          // Clear Quill editor content
+          quill.setText('');
+          
+          // Update UI
+          insertQuestionBtn.textContent = 'Insert Question';
+          resetQuestionBtn.style.display = 'none';
+          questionText.textContent = 'No question selected';
+          
+          // Remove reset button from toolbar if it exists
+          if (toolbarButtonContainer.contains(resetQuestionBtn)) {
+            toolbarButtonContainer.removeChild(resetQuestionBtn);
+          }
+          
+          // Disable editor and show placeholder
+          quill.disable();
+          quill.root.setAttribute('data-placeholder', 'Add a question');
+          quill.root.style.backgroundColor = '#f9fafb';
+          quill.root.style.color = '#9ca3af';
+          
+          // Close the modal
+          closeModal();
+        };
+        
         // No need to protect placeholder since it's not in the editor
         
         // No need to block deletion since there's no placeholder
@@ -1189,6 +1244,14 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
           // Update button text and question display
           insertQuestionBtn.textContent = 'Change Question';
           questionText.textContent = selectedQuestionText || 'No question selected';
+          
+          // Show reset button if it's not already visible
+          if (resetQuestionBtn.style.display === 'none' || !toolbarButtonContainer.contains(resetQuestionBtn)) {
+            resetQuestionBtn.style.display = 'block';
+            if (!toolbarButtonContainer.contains(resetQuestionBtn)) {
+              toolbarButtonContainer.appendChild(resetQuestionBtn);
+            }
+          }
           
           // Update element with questionId and load question text
           dispatch({
@@ -1400,14 +1463,17 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
           {/* Border */}
           {(() => {
             // Get default settings from tool defaults if not present
+            // CRITICAL: Use element.theme if present (set during loadBook for pages that inherit book theme)
+            // Otherwise fall back to page/book theme from state
             const currentPage = state.currentBook?.pages[state.activePageIndex];
-            const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
-            const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+            const elementTheme = element.theme; // Use element.theme if it was set during loadBook
+            const pageTheme = elementTheme || currentPage?.themeId || currentPage?.background?.pageTheme;
+            const bookTheme = elementTheme || state.currentBook?.themeId || state.currentBook?.bookTheme;
             const pageLayoutTemplateId = currentPage?.layoutTemplateId;
             const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
             const pageColorPaletteId = currentPage?.colorPaletteId;
             const bookColorPaletteId = state.currentBook?.colorPaletteId;
-            const qnaInlineDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
+            const qnaInlineDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme, element, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
             
             const questionStyle = {
               ...qnaInlineDefaults.questionSettings,
@@ -1495,14 +1561,17 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
             <KonvaSkeleton width={element.width} height={element.height} />
           ) : (() => {
             // Get default settings from tool defaults if not present
+            // CRITICAL: Use element.theme if present (set during loadBook for pages that inherit book theme)
+            // Otherwise fall back to page/book theme from state
             const currentPage = state.currentBook?.pages[state.activePageIndex];
-            const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
-            const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+            const elementTheme = element.theme; // Use element.theme if it was set during loadBook
+            const pageTheme = elementTheme || currentPage?.themeId || currentPage?.background?.pageTheme;
+            const bookTheme = elementTheme || state.currentBook?.themeId || state.currentBook?.bookTheme;
             const pageLayoutTemplateId = currentPage?.layoutTemplateId;
             const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
             const pageColorPaletteId = currentPage?.colorPaletteId;
             const bookColorPaletteId = state.currentBook?.colorPaletteId;
-            const qnaInlineDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
+            const qnaInlineDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme, element, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
             
             const questionStyle = {
               ...qnaInlineDefaults.questionSettings,
@@ -1539,12 +1608,12 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
             
             if (!questionText && !userText) {
               // Use question font properties for placeholder text
-              const qFontFamily = questionStyle.fontFamily || element.font?.fontFamily || element.fontFamily || toolDefaults.questionSettings?.fontFamily || fontFamily;
+              const qFontFamily = questionStyle.fontFamily || element.font?.fontFamily || element.fontFamily || qnaInlineDefaults.questionSettings?.fontFamily || fontFamily;
               const qFontSize = questionStyle.fontSize || fontSize;
-              const qFontColor = questionStyle.fontColor || questionStyle.font?.fontColor || element.font?.fontColor || element.fontColor || toolDefaults.questionSettings?.fontColor || '#666666';
-              const qFontOpacity = questionStyle.fontOpacity ?? toolDefaults.questionSettings?.fontOpacity ?? 1;
-              const qFontBold = questionStyle.fontBold || toolDefaults.questionSettings?.fontBold || false;
-              const qFontItalic = questionStyle.fontItalic || toolDefaults.questionSettings?.fontItalic || false;
+              const qFontColor = questionStyle.fontColor || questionStyle.font?.fontColor || element.font?.fontColor || element.fontColor || qnaInlineDefaults.questionSettings?.fontColor || '#666666';
+              const qFontOpacity = questionStyle.fontOpacity ?? qnaInlineDefaults.questionSettings?.fontOpacity ?? 1;
+              const qFontBold = questionStyle.fontBold || qnaInlineDefaults.questionSettings?.fontBold || false;
+              const qFontItalic = questionStyle.fontItalic || qnaInlineDefaults.questionSettings?.fontItalic || false;
               
               return (
                 <Text
@@ -1609,17 +1678,17 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
             // Render based on layout variant
             if (layoutVariant === 'block') {
               // Block layout: question and answer in separate areas
-              const qFontFamily = questionStyle.fontFamily || element.font?.fontFamily || element.fontFamily || toolDefaults.questionSettings?.fontFamily || fontFamily;
-              const qFontColor = questionStyle.fontColor || questionStyle.font?.fontColor || element.font?.fontColor || element.fontColor || toolDefaults.questionSettings?.fontColor || '#666666';
-              const qFontBold = questionStyle.fontBold || toolDefaults.questionSettings?.fontBold || false;
-              const qFontItalic = questionStyle.fontItalic || toolDefaults.questionSettings?.fontItalic || false;
-              const qFontOpacity = questionStyle.fontOpacity ?? toolDefaults.questionSettings?.fontOpacity ?? 1;
+              const qFontFamily = questionStyle.fontFamily || element.font?.fontFamily || element.fontFamily || qnaInlineDefaults.questionSettings?.fontFamily || fontFamily;
+              const qFontColor = questionStyle.fontColor || questionStyle.font?.fontColor || element.font?.fontColor || element.fontColor || qnaInlineDefaults.questionSettings?.fontColor || '#666666';
+              const qFontBold = questionStyle.fontBold || qnaInlineDefaults.questionSettings?.fontBold || false;
+              const qFontItalic = questionStyle.fontItalic || qnaInlineDefaults.questionSettings?.fontItalic || false;
+              const qFontOpacity = questionStyle.fontOpacity ?? qnaInlineDefaults.questionSettings?.fontOpacity ?? 1;
               
-              const aFontFamily = answerStyle.fontFamily || element.font?.fontFamily || element.fontFamily || toolDefaults.answerSettings?.fontFamily || fontFamily;
-              const aFontColor = answerStyle.fontColor || answerStyle.font?.fontColor || element.font?.fontColor || element.fontColor || toolDefaults.answerSettings?.fontColor || '#1f2937';
-              const aFontBold = answerStyle.fontBold || toolDefaults.answerSettings?.fontBold || false;
-              const aFontItalic = answerStyle.fontItalic || toolDefaults.answerSettings?.fontItalic || false;
-              const aFontOpacity = answerStyle.fontOpacity ?? toolDefaults.answerSettings?.fontOpacity ?? 1;
+              const aFontFamily = answerStyle.fontFamily || element.font?.fontFamily || element.fontFamily || qnaInlineDefaults.answerSettings?.fontFamily || fontFamily;
+              const aFontColor = answerStyle.fontColor || answerStyle.font?.fontColor || element.font?.fontColor || element.fontColor || qnaInlineDefaults.answerSettings?.fontColor || '#1f2937';
+              const aFontBold = answerStyle.fontBold || qnaInlineDefaults.answerSettings?.fontBold || false;
+              const aFontItalic = answerStyle.fontItalic || qnaInlineDefaults.answerSettings?.fontItalic || false;
+              const aFontOpacity = answerStyle.fontOpacity ?? qnaInlineDefaults.answerSettings?.fontOpacity ?? 1;
               
               let questionArea = { x: padding, y: padding, width: textWidth, height: element.height - padding * 2 };
               let answerArea = { x: padding, y: padding, width: textWidth, height: element.height - padding * 2 };
@@ -1811,11 +1880,11 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               // Inline layout: original implementation
               // Render question text first
               if (questionText) {
-              const qFontFamily = questionStyle.fontFamily || element.font?.fontFamily || element.fontFamily || toolDefaults.questionSettings?.fontFamily || fontFamily;
-              const qFontColor = questionStyle.fontColor || questionStyle.font?.fontColor || element.font?.fontColor || element.fontColor || toolDefaults.questionSettings?.fontColor || '#666666';
-              const qFontBold = questionStyle.fontBold || toolDefaults.questionSettings?.fontBold || false;
-              const qFontItalic = questionStyle.fontItalic || toolDefaults.questionSettings?.fontItalic || false;
-              const qFontOpacity = questionStyle.fontOpacity ?? toolDefaults.questionSettings?.fontOpacity ?? 1;
+              const qFontFamily = questionStyle.fontFamily || element.font?.fontFamily || element.fontFamily || qnaInlineDefaults.questionSettings?.fontFamily || fontFamily;
+              const qFontColor = questionStyle.fontColor || questionStyle.font?.fontColor || element.font?.fontColor || element.fontColor || qnaInlineDefaults.questionSettings?.fontColor || '#666666';
+              const qFontBold = questionStyle.fontBold || qnaInlineDefaults.questionSettings?.fontBold || false;
+              const qFontItalic = questionStyle.fontItalic || qnaInlineDefaults.questionSettings?.fontItalic || false;
+              const qFontOpacity = questionStyle.fontOpacity ?? qnaInlineDefaults.questionSettings?.fontOpacity ?? 1;
               
               // Calculate question text width and handle wrapping
               const canvas = document.createElement('canvas');
@@ -1875,11 +1944,11 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               
               // Render user text with custom wrapping logic
               if (userText) {
-                const aFontFamily = answerStyle.fontFamily || element.font?.fontFamily || element.fontFamily || toolDefaults.answerSettings?.fontFamily || fontFamily;
-                const aFontColor = answerStyle.fontColor || answerStyle.font?.fontColor || element.font?.fontColor || element.fontColor || toolDefaults.answerSettings?.fontColor || '#1f2937';
-                const aFontBold = answerStyle.fontBold || toolDefaults.answerSettings?.fontBold || false;
-                const aFontItalic = answerStyle.fontItalic || toolDefaults.answerSettings?.fontItalic || false;
-                const aFontOpacity = answerStyle.fontOpacity ?? toolDefaults.answerSettings?.fontOpacity ?? 1;
+                const aFontFamily = answerStyle.fontFamily || element.font?.fontFamily || element.fontFamily || qnaInlineDefaults.answerSettings?.fontFamily || fontFamily;
+                const aFontColor = answerStyle.fontColor || answerStyle.font?.fontColor || element.font?.fontColor || element.fontColor || qnaInlineDefaults.answerSettings?.fontColor || '#1f2937';
+                const aFontBold = answerStyle.fontBold || qnaInlineDefaults.answerSettings?.fontBold || false;
+                const aFontItalic = answerStyle.fontItalic || qnaInlineDefaults.answerSettings?.fontItalic || false;
+                const aFontOpacity = answerStyle.fontOpacity ?? qnaInlineDefaults.answerSettings?.fontOpacity ?? 1;
                 
                 context.font = `${aFontBold ? 'bold ' : ''}${aFontItalic ? 'italic ' : ''}${aFontSize}px ${aFontFamily}`;
                 
@@ -2102,11 +2171,11 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               }
             } else if (userText) {
               // Only user text, no question - handle line breaks manually
-              const aFontFamily = answerStyle.fontFamily || element.font?.fontFamily || element.fontFamily || toolDefaults.answerSettings?.fontFamily || fontFamily;
-              const aFontColor = answerStyle.fontColor || answerStyle.font?.fontColor || element.font?.fontColor || element.fontColor || toolDefaults.answerSettings?.fontColor || '#1f2937';
-              const aFontBold = answerStyle.fontBold || toolDefaults.answerSettings?.fontBold || false;
-              const aFontItalic = answerStyle.fontItalic || toolDefaults.answerSettings?.fontItalic || false;
-              const aFontOpacity = answerStyle.fontOpacity ?? toolDefaults.answerSettings?.fontOpacity ?? 1;
+              const aFontFamily = answerStyle.fontFamily || element.font?.fontFamily || element.fontFamily || qnaInlineDefaults.answerSettings?.fontFamily || fontFamily;
+              const aFontColor = answerStyle.fontColor || answerStyle.font?.fontColor || element.font?.fontColor || element.fontColor || qnaInlineDefaults.answerSettings?.fontColor || '#1f2937';
+              const aFontBold = answerStyle.fontBold || qnaInlineDefaults.answerSettings?.fontBold || false;
+              const aFontItalic = answerStyle.fontItalic || qnaInlineDefaults.answerSettings?.fontItalic || false;
+              const aFontOpacity = answerStyle.fontOpacity ?? qnaInlineDefaults.answerSettings?.fontOpacity ?? 1;
               
               const canvas = document.createElement('canvas');
               const context = canvas.getContext('2d')!;

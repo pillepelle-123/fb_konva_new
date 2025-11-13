@@ -12,7 +12,7 @@ import { Slider } from '../../../ui/primitives/slider';
 import { Separator } from '../../../ui/primitives/separator';
 import { Label } from '../../../ui/primitives/label';
 import { ThemeSelector } from '../templates/theme-selector';
-import { getGlobalThemeDefaults, getGlobalTheme } from '../../../../utils/global-themes';
+import { getGlobalThemeDefaults, getGlobalTheme, getThemePaletteId, getThemePageBackgroundColors } from '../../../../utils/global-themes';
 import { getToolDefaults } from '../../../../utils/tool-defaults';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { PaletteSelector } from '../templates/palette-selector';
@@ -254,10 +254,43 @@ export function GeneralSettings({
         )}
         
         <ThemeSelector
-          currentTheme={state.currentBook?.pages[state.activePageIndex]?.background?.pageTheme || state.currentBook?.bookTheme || 'default'}
+          currentTheme={(() => {
+            // CRITICAL: Check if page.themeId exists as an OWN property (not inherited)
+            // Use Object.prototype.hasOwnProperty to ensure it's not in the prototype chain
+            const currentPage = state.currentBook?.pages[state.activePageIndex];
+            if (!currentPage) return '__BOOK_THEME__';
+            
+            // Check if themeId exists as an own property in the object
+            const hasThemeIdOwnProperty = Object.prototype.hasOwnProperty.call(currentPage, 'themeId');
+            const themeIdValue = currentPage.themeId;
+            
+            // CRITICAL FIX: If page.themeId exists as own property, it's an explicit theme
+            // Even if it matches bookThemeId, we show the explicit theme (not '__BOOK_THEME__')
+            // This distinguishes between "inheriting book theme" (no themeId) and 
+            // "explicitly set to same theme" (has themeId, even if matching bookThemeId)
+            if (hasThemeIdOwnProperty && themeIdValue !== undefined && themeIdValue !== null) {
+              // Page has explicit theme - show it (even if it matches bookThemeId)
+              return themeIdValue;
+            } else {
+              // Page inherits book theme (no themeId) - show '__BOOK_THEME__'
+              return '__BOOK_THEME__';
+            }
+          })()}
           title="Page Theme"
           showBookThemeOption
-          isBookThemeSelected={!state.currentBook?.pages[state.activePageIndex]?.themeId}
+          isBookThemeSelected={(() => {
+            // Page inherits book theme ONLY if themeId doesn't exist as own property
+            // If themeId exists (even if it matches bookThemeId), it's an explicit theme
+            const currentPage = state.currentBook?.pages[state.activePageIndex];
+            if (!currentPage) return true;
+            // Check if themeId exists as an own property in the object
+            const hasThemeIdOwnProperty = Object.prototype.hasOwnProperty.call(currentPage, 'themeId');
+            const themeIdValue = currentPage.themeId;
+            
+            // Page inherits book theme ONLY if themeId doesn't exist as own property OR is undefined/null
+            // If themeId exists and has a value (even if matching bookThemeId), it's an explicit theme
+            return !hasThemeIdOwnProperty || themeIdValue === undefined || themeIdValue === null;
+          })()}
           onThemeSelect={(themeId) => {
             const isBookThemeSelection = themeId === '__BOOK_THEME__';
             const resolvedThemeId =
@@ -441,27 +474,13 @@ export function GeneralSettings({
           currentTheme={state.currentBook?.bookTheme || 'default'}
           title="Book Theme"
           onThemeSelect={(themeId) => {
+            // SET_BOOK_THEME now handles updating all pages that inherit book theme
+            // It will delete page.themeId, update backgrounds, and apply theme/palette to elements
             dispatch({ type: 'SET_BOOK_THEME', payload: themeId });
             
             if (!state.currentBook) {
               return;
             }
-            
-            state.currentBook.pages.forEach((page, pageIndex) => {
-              const pageHasCustomTheme = !!page.themeId;
-              const themeForElements = pageHasCustomTheme ? page.themeId! : themeId;
-              
-              if (!pageHasCustomTheme) {
-                dispatch({
-                  type: 'SET_PAGE_THEME',
-                  payload: { pageIndex, themeId, skipHistory: true }
-                });
-              }
-              dispatch({
-                type: 'APPLY_THEME_TO_ELEMENTS',
-                payload: { pageIndex, themeId: themeForElements, skipHistory: true, preserveColors: true }
-              });
-            });
             
             const theme = getGlobalTheme(themeId);
             if (!theme) {
@@ -1120,6 +1139,8 @@ export function GeneralSettings({
   }
   
   if (showPagePalette) {
+    const currentPage = state.currentBook?.pages[state.activePageIndex];
+    const pageActiveTemplates = getActiveTemplateIds(currentPage, state.currentBook);
     return (
       <PaletteSelector
         key={`page-palette-${pagePaletteKey}`}
@@ -1129,11 +1150,13 @@ export function GeneralSettings({
         }}
         title="Page Color Palette"
         isBookLevel={false}
+        themeId={pageActiveTemplates.themeId}
       />
     );
   }
   
   if (showBookPalette) {
+    const bookActiveTemplates = getActiveTemplateIds(undefined, state.currentBook);
     return (
       <PaletteSelector
         key={`book-palette-${bookPaletteKey}`}
@@ -1143,6 +1166,7 @@ export function GeneralSettings({
         }}
         title="Book Color Palette"
         isBookLevel={true}
+        themeId={bookActiveTemplates.themeId}
       />
     );
   }
@@ -1226,23 +1250,80 @@ export function GeneralSettings({
     ? pageTemplates.find(t => t.id === bookActiveTemplates.layoutTemplateId) || null
     : null;
   const bookTheme = getGlobalTheme(bookActiveTemplates.themeId);
-  const bookPalette = bookActiveTemplates.colorPaletteId
-    ? colorPalettes.find(p => p.id === bookActiveTemplates.colorPaletteId) || null
+  // If book.colorPaletteId is null, check if theme has a default palette
+  const bookPaletteId = bookActiveTemplates.colorPaletteId || (bookActiveTemplates.themeId ? getThemePaletteId(bookActiveTemplates.themeId) : null);
+  const bookPalette = bookPaletteId
+    ? colorPalettes.find(p => p.id === bookPaletteId) || null
     : null;
 
   // Get active templates for Page Settings (with inheritance)
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const pageActiveTemplates = getActiveTemplateIds(currentPage, state.currentBook);
+  
+  // DEBUG: Log page state with object identity tracking
+  if (currentPage) {
+    // CRITICAL: Use Object.prototype.hasOwnProperty to check if themeId exists as an own property
+    // 'themeId' in currentPage also checks the prototype chain, which is wrong
+    const hasThemeIdIn = 'themeId' in currentPage;
+    const hasThemeIdOwnProperty = Object.prototype.hasOwnProperty.call(currentPage, 'themeId');
+    const themeIdValue = currentPage.themeId;
+    const bookThemeId = state.currentBook?.bookTheme || state.currentBook?.themeId || 'default';
+    
+    // Log detailed information including object identity
+    console.log('[GeneralSettings] Page state:', {
+      pageIndex: state.activePageIndex,
+      hasThemeIdIn,
+      hasThemeIdOwnProperty,
+      themeIdValue,
+      bookTheme: bookThemeId,
+      pageActiveTemplatesThemeId: pageActiveTemplates.themeId,
+      pageKeys: Object.keys(currentPage).slice(0, 10), // First 10 keys
+      pageOwnKeys: Object.getOwnPropertyNames(currentPage).slice(0, 10),
+      pageId: currentPage.id,
+      pageNumber: currentPage.pageNumber,
+      // Log if themeId matches bookThemeId (should be treated as inheritance)
+      themeIdMatchesBookTheme: themeIdValue === bookThemeId,
+      shouldTreatAsInheritance: !hasThemeIdOwnProperty || themeIdValue === undefined || themeIdValue === null || themeIdValue === bookThemeId
+    });
+    
+    // CRITICAL: If themeId exists but matches bookThemeId, log a warning
+    if (hasThemeIdOwnProperty && themeIdValue && themeIdValue === bookThemeId) {
+      console.warn('[GeneralSettings] WARNING: Page has themeId as own property but it matches bookThemeId. This should be treated as inheritance!', {
+        pageId: currentPage.id,
+        pageNumber: currentPage.pageNumber,
+        themeIdValue,
+        bookThemeId
+      });
+    }
+  }
+  
   const pageLayout = pageActiveTemplates.layoutTemplateId
     ? pageTemplates.find(t => t.id === pageActiveTemplates.layoutTemplateId) || null
     : null;
   const pageTheme = getGlobalTheme(pageActiveTemplates.themeId);
-  const pagePalette = pageActiveTemplates.colorPaletteId
-    ? colorPalettes.find(p => p.id === pageActiveTemplates.colorPaletteId) || null
+  // If pageActiveTemplates.colorPaletteId is null, check if theme has a default palette
+  const pagePaletteId = pageActiveTemplates.colorPaletteId || (pageActiveTemplates.themeId ? getThemePaletteId(pageActiveTemplates.themeId) : null);
+  const pagePalette = pagePaletteId
+    ? colorPalettes.find(p => p.id === pagePaletteId) || null
     : null;
   const pageInheritsLayout = !currentPage?.layoutTemplateId;
-  const pageInheritsTheme = !currentPage?.themeId;
+  
+  // CRITICAL: Check if page.themeId exists as an OWN property (not inherited)
+  // Use Object.prototype.hasOwnProperty to ensure it's not in the prototype chain
+  // If themeId doesn't exist as own property, the page inherits the book theme
+  // CRITICAL FIX: If themeId exists (even if it matches bookThemeId), it's an explicit theme
+  const hasThemeIdOwnProperty = currentPage ? Object.prototype.hasOwnProperty.call(currentPage, 'themeId') : false;
+  const themeIdValue = currentPage?.themeId;
+  const bookThemeId = state.currentBook?.bookTheme || state.currentBook?.themeId || 'default';
+  
+  // Page inherits book theme ONLY if themeId doesn't exist as own property
+  // If themeId exists (even if it matches bookThemeId), it's an explicit theme
+  // This distinguishes between "inheriting book theme" (no themeId) and 
+  // "explicitly set to same theme" (has themeId, even if matching bookThemeId)
+  const pageInheritsTheme = !hasThemeIdOwnProperty || themeIdValue === undefined || themeIdValue === null;
   const pageInheritsPalette = !currentPage?.colorPaletteId;
+  
+  console.log('[GeneralSettings] pageInheritsTheme:', pageInheritsTheme, 'hasThemeIdOwnProperty:', hasThemeIdOwnProperty, 'themeIdValue:', themeIdValue, 'bookThemeId:', bookThemeId);
 
   return (
     <>
@@ -1414,9 +1495,22 @@ export function GeneralSettings({
                     <SwatchBook className="h-4 w-4 mr-2" />
                     <span className="flex-1 text-left">Color Palette</span>
                     {pageInheritsPalette ? (
-                      <span className="text-xs text-muted-foreground ml-2 italic">
-                        Book Color Palette
-                      </span>
+                      // When inheriting, show bookPalette (which includes theme palette if book.colorPaletteId is null)
+                      bookPalette ? (
+                        <div className="ml-2 flex h-4 w-16 rounded overflow-hidden shrink-0 border border-gray-200">
+                          {Object.values(bookPalette.colors).map((color, index) => (
+                            <div
+                              key={index}
+                              className="flex-1"
+                              style={{ backgroundColor: color }}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground ml-2 italic">
+                          Book Color Palette
+                        </span>
+                      )
                     ) : pagePalette ? (
                       <div className="ml-2 flex h-4 w-16 rounded overflow-hidden shrink-0 border border-gray-200">
                         {Object.values(pagePalette.colors).map((color, index) => (

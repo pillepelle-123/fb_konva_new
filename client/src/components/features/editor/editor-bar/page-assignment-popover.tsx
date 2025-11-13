@@ -26,21 +26,67 @@ export default function PageAssignmentPopover({
   onAssignUser 
 }: PageAssignmentPopoverProps) {
   const { user } = useAuth();
-  const { state } = useEditor();
+  const { state: editorState, checkUserQuestionConflicts, getQuestionText } = useEditor();
   const [open, setOpen] = useState(false);
 
   // Use bookFriends from editor state instead of fetching
   // Ensure current user is included if not already in the list
-  const bookFriends = state.bookFriends || [];
+  const bookFriends = editorState.bookFriends || [];
   const currentUserInList = bookFriends.find(f => f.id === user?.id);
   const allFriends = currentUserInList ? bookFriends : [...bookFriends, { id: user!.id, name: user!.name, email: user!.email, role: 'owner' }];
 
-  const handleAssignUser = (user: BookFriend | null) => {
-    onAssignUser(user);
+  const handleAssignUser = (userToAssign: BookFriend | null) => {
+    // If removing assignment, allow it without validation
+    if (!userToAssign) {
+      onAssignUser(null);
+      setOpen(false);
+      return;
+    }
+
+    // Skip validation if assigning the same user that's already assigned
+    const currentAssignedUser = editorState.pageAssignments[currentPage];
+    if (currentAssignedUser && currentAssignedUser.id === userToAssign.id) {
+      // Same user, no change needed
+      setOpen(false);
+      return;
+    }
+
+    // Check for question conflicts before assigning user
+    const conflicts = checkUserQuestionConflicts(userToAssign.id, currentPage);
+    
+    if (conflicts.length > 0) {
+      // Close popover first so alert is not covered
+      setOpen(false);
+      
+      // Build conflict message with better formatting
+      const conflictMessages = conflicts.map(conflict => {
+        const pageList = conflict.pageNumbers.length === 1 
+          ? `page ${conflict.pageNumbers[0]}` 
+          : `pages ${conflict.pageNumbers.join(', ')}`;
+        return `"${conflict.questionText || getQuestionText(conflict.questionId) || 'Unknown question'}" (already on ${pageList})`;
+      }).join('\n');
+      
+      // Show alert after a short delay to ensure popover is closed
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('showAlert', {
+          detail: { 
+            message: `Cannot assign ${userToAssign.name} to page ${currentPage}.\n\nThe following ${conflicts.length === 1 ? 'question is' : 'questions are'} already assigned to this user on other pages:\n${conflictMessages}`,
+            x: 100,
+            y: 100,
+            width: 500,
+            height: 250
+          }
+        }));
+      }, 100);
+      return;
+    }
+
+    // No conflicts, proceed with assignment
+    onAssignUser(userToAssign);
     setOpen(false);
   };
 
-  const assignedUser = state.pageAssignments[currentPage];
+  const assignedUser = editorState.pageAssignments[currentPage];
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

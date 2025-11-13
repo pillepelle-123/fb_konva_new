@@ -12,6 +12,7 @@ import PagePreviewOverlay from '../../components/features/editor/preview/page-pr
 import TemplateGallery from '../../components/templates/template-gallery';
 import { fetchTemplates, fetchColorPalettes, apiService } from '../../services/api';
 import { getGlobalTheme, getThemePageBackgroundColors } from '../../utils/global-themes';
+import { applyBackgroundImageTemplate } from '../../utils/background-image-utils';
 import type { PageBackground } from '../../context/editor-context';
 
 
@@ -226,7 +227,10 @@ function EditorContent() {
                     const pagePaletteOverrideId = page.colorPaletteId || null;
                     const effectiveThemeId = pageThemeOverrideId || wizardThemeId;
 
-                    if (effectiveThemeId) {
+                    // Preserve image backgrounds from wizard - don't override them
+                    const isImageBackground = page.background?.type === 'image' && page.background?.value;
+                    
+                    if (effectiveThemeId && !isImageBackground) {
                       const theme = getGlobalTheme(effectiveThemeId);
                       const paletteForBackground =
                         wizardPalette ||
@@ -240,17 +244,35 @@ function EditorContent() {
                       );
                       const backgroundOpacity = theme?.pageSettings?.backgroundOpacity ?? page.background?.opacity ?? 1;
 
-                      const paletteBackgroundColor = page.background?.type === 'pattern'
-                        ? page.background.patternForegroundColor || wizardPalette?.colors.background || themeColors.backgroundColor
-                        : typeof page.background?.value === 'string'
-                          ? page.background.value
-                          : wizardPalette?.colors.background || themeColors.backgroundColor;
-                      const palettePatternColor = page.background?.patternBackgroundColor
-                        || wizardPalette?.colors.primary
-                        || wizardPalette?.colors.accent
-                        || themeColors.patternBackgroundColor;
-
-                      if (theme?.pageSettings?.backgroundPattern?.enabled) {
+                      // Check if theme has background image
+                      const themeBackgroundImage = theme?.pageSettings?.backgroundImage;
+                      if (themeBackgroundImage?.enabled && themeBackgroundImage.templateId) {
+                        // Apply theme background image
+                        const imageBackground = applyBackgroundImageTemplate(themeBackgroundImage.templateId, {
+                          imageSize: themeBackgroundImage.size,
+                          imageRepeat: themeBackgroundImage.repeat,
+                          opacity: themeBackgroundImage.opacity ?? backgroundOpacity,
+                          backgroundColor: themeColors.backgroundColor || wizardPalette?.colors.background || '#ffffff'
+                        });
+                        
+                        if (imageBackground && imageBackground.value) {
+                          resolvedBackground = {
+                            ...imageBackground,
+                            opacity: imageBackground.opacity ?? backgroundOpacity,
+                            pageTheme: effectiveThemeId
+                          };
+                        }
+                      } else if (theme?.pageSettings?.backgroundPattern?.enabled) {
+                        const paletteBackgroundColor = page.background?.type === 'pattern'
+                          ? page.background.patternForegroundColor || wizardPalette?.colors.background || themeColors.backgroundColor
+                          : typeof page.background?.value === 'string'
+                            ? page.background.value
+                            : wizardPalette?.colors.background || themeColors.backgroundColor;
+                        const palettePatternColor = page.background?.patternBackgroundColor
+                          || wizardPalette?.colors.primary
+                          || wizardPalette?.colors.accent
+                          || themeColors.patternBackgroundColor;
+                        
                         resolvedBackground = {
                           type: 'pattern' as const,
                           value: theme.pageSettings.backgroundPattern.style,
@@ -263,6 +285,12 @@ function EditorContent() {
                           patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity
                         };
                       } else {
+                        const paletteBackgroundColor = page.background?.type === 'pattern'
+                          ? page.background.patternForegroundColor || wizardPalette?.colors.background || themeColors.backgroundColor
+                          : typeof page.background?.value === 'string'
+                            ? page.background.value
+                            : wizardPalette?.colors.background || themeColors.backgroundColor;
+                        
                         resolvedBackground = {
                           type: 'color' as const,
                           value: paletteBackgroundColor,
@@ -270,6 +298,12 @@ function EditorContent() {
                           pageTheme: effectiveThemeId
                         };
                       }
+                    } else if (isImageBackground) {
+                      // Ensure image background has pageTheme set
+                      resolvedBackground = {
+                        ...page.background,
+                        pageTheme: effectiveThemeId || page.background?.pageTheme
+                      };
                     }
 
                     return {
