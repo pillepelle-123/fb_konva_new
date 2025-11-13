@@ -450,6 +450,67 @@ export function QnAInlineSettingsForm({
             Font Color & Opacity
           </Button>
         </div>
+        
+        <div>
+          <Slider
+            label="Font Opacity"
+            value={Math.round(((() => {
+              if (!individualSettings && sectionType === 'shared') {
+                return element.questionSettings?.fontOpacity ?? element.answerSettings?.fontOpacity ?? 1;
+              } else if (activeSection === 'question') {
+                return element.questionSettings?.fontOpacity ?? 1;
+              } else {
+                return element.answerSettings?.fontOpacity ?? 1;
+              }
+            })()) * 100)}
+            displayValue={Math.round(((() => {
+              if (!individualSettings && sectionType === 'shared') {
+                return element.questionSettings?.fontOpacity ?? element.answerSettings?.fontOpacity ?? 1;
+              } else if (activeSection === 'question') {
+                return element.questionSettings?.fontOpacity ?? 1;
+              } else {
+                return element.answerSettings?.fontOpacity ?? 1;
+              }
+            })()) * 100)}
+            onChange={(value) => {
+              const opacity = value / 100;
+              if (!individualSettings && sectionType === 'shared') {
+                updateSharedSetting('fontOpacity', opacity);
+              } else if (individualSettings && (sectionType === 'question' || activeSection === 'question')) {
+                dispatch({
+                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                  payload: {
+                    id: element.id,
+                    updates: {
+                      questionSettings: {
+                        ...element.questionSettings,
+                        fontOpacity: opacity
+                      }
+                    }
+                  }
+                });
+              } else {
+                dispatch({
+                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                  payload: {
+                    id: element.id,
+                    updates: {
+                      answerSettings: {
+                        ...element.answerSettings,
+                        fontOpacity: opacity
+                      }
+                    }
+                  }
+                });
+              }
+            }}
+            min={0}
+            max={100}
+            step={5}
+            unit="%"
+            hasLabel={false}
+          />
+        </div>
       </>
     );
   };
@@ -792,6 +853,7 @@ export function QnAInlineSettingsForm({
           onAddFavorite={addFavoriteStrokeColor}
           onRemoveFavorite={removeFavoriteStrokeColor}
           onBack={() => setLocalShowColorSelector(null)}
+          showOpacitySlider={false}
         />
     );
   }
@@ -1134,7 +1196,7 @@ export function QnAInlineSettingsForm({
                 }
               });
             }}
-            min={0.01}
+            min={0}
             max={30}
             step={0.1}
           />
@@ -1173,6 +1235,33 @@ export function QnAInlineSettingsForm({
               <Palette className="w-4 mr-2" />
               Line Color & Opacity
             </Button>
+          </div>
+          
+          <div>
+            <Slider
+              label="Line Opacity"
+              value={Math.round(((element.answerSettings?.ruledLinesOpacity ?? 1) * 100))}
+              displayValue={Math.round(((element.answerSettings?.ruledLinesOpacity ?? 1) * 100))}
+              onChange={(value) => {
+                dispatch({
+                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                  payload: {
+                    id: element.id,
+                    updates: {
+                      answerSettings: {
+                        ...element.answerSettings,
+                        ruledLinesOpacity: value / 100
+                      }
+                    }
+                  }
+                });
+              }}
+              min={0}
+              max={100}
+              step={5}
+              unit="%"
+              hasLabel={false}
+            />
           </div>
         </IndentedSection>
       )}
@@ -1219,9 +1308,9 @@ export function QnAInlineSettingsForm({
                      (element.border?.borderWidth ?? (themeDefaults.borderWidth ?? 1));
             })()}
             onChange={(value) => updateSharedSetting('borderWidth', value)}
-            min={0.1}
-            max={10}
-            step={0.1}
+            min={0}
+            max={20}
+            step={1}
           />
           
           <div>
@@ -1249,6 +1338,32 @@ export function QnAInlineSettingsForm({
               <Palette className="w-4 mr-2" />
               Border Color & Opacity
             </Button>
+          </div>
+          
+          <div>
+            <Slider
+              label="Border Opacity"
+              value={Math.round(((() => {
+                const themeDefaults = getThemeDefaults();
+                return element.questionSettings?.borderOpacity ?? 
+                       element.answerSettings?.borderOpacity ?? 
+                       element.border?.borderOpacity ?? 
+                       (themeDefaults.borderOpacity ?? 1);
+              })()) * 100)}
+              displayValue={Math.round(((() => {
+                const themeDefaults = getThemeDefaults();
+                return element.questionSettings?.borderOpacity ?? 
+                       element.answerSettings?.borderOpacity ?? 
+                       element.border?.borderOpacity ?? 
+                       (themeDefaults.borderOpacity ?? 1);
+              })()) * 100)}
+              onChange={(value) => updateSharedSetting('borderOpacity', value / 100)}
+              min={0}
+              max={100}
+              step={5}
+              unit="%"
+              hasLabel={false}
+            />
           </div>
         </IndentedSection>
       )}
@@ -1293,6 +1408,32 @@ export function QnAInlineSettingsForm({
               <Palette className="w-4 mr-2" />
               Background Color & Opacity
             </Button>
+          </div>
+          
+          <div>
+            <Slider
+              label="Background Opacity"
+              value={Math.round(((() => {
+                const themeDefaults = getThemeDefaults();
+                return element.questionSettings?.backgroundOpacity ?? 
+                       element.answerSettings?.backgroundOpacity ?? 
+                       element.background?.backgroundOpacity ?? 
+                       (themeDefaults.backgroundOpacity ?? 1);
+              })()) * 100)}
+              displayValue={Math.round(((() => {
+                const themeDefaults = getThemeDefaults();
+                return element.questionSettings?.backgroundOpacity ?? 
+                       element.answerSettings?.backgroundOpacity ?? 
+                       element.background?.backgroundOpacity ?? 
+                       (themeDefaults.backgroundOpacity ?? 1);
+              })()) * 100)}
+              onChange={(value) => updateSharedSetting('backgroundOpacity', value / 100)}
+              min={0}
+              max={100}
+              step={5}
+              unit="%"
+              hasLabel={false}
+            />
           </div>
         </IndentedSection>
       )}

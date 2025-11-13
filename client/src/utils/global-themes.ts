@@ -236,6 +236,21 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
       }
     }
     
+    // Map borderOpacity and backgroundOpacity for shapes to strokeOpacity and fillOpacity
+    if (elementType === 'shape') {
+      if (base.borderOpacity !== undefined) {
+        base.strokeOpacity = base.borderOpacity;
+      }
+      if (base.backgroundOpacity !== undefined) {
+        base.fillOpacity = base.backgroundOpacity;
+      }
+      // Fallback: if old opacity property exists, use it for both (for backward compatibility)
+      if (base.opacity !== undefined && base.borderOpacity === undefined && base.backgroundOpacity === undefined) {
+        base.strokeOpacity = base.opacity;
+        base.fillOpacity = base.opacity;
+      }
+    }
+    
     // Handle theme inheritance for borders and ruled lines
     if (base.border) {
       base.border.borderTheme = base.border.borderTheme || id;

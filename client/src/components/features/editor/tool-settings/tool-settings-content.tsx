@@ -610,7 +610,7 @@ export function ToolSettingsContent({
                 </Button>
                 
                 <Slider
-                  label="Opacity"
+                  label="Brush Opacity"
                   value={Math.round(((singleBrush as any).strokeOpacity || 1) * 100)}
                   onChange={(value) => {
                     dispatch({

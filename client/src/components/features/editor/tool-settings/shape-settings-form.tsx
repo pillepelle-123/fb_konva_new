@@ -54,7 +54,7 @@ export function ShapeSettingsForm({
           </Button>
           
           <Slider
-            label="Opacity"
+            label="Brush Opacity"
             value={Math.round(((element as any).strokeOpacity || 1) * 100)}
             onChange={(value) => updateSetting('strokeOpacity', value / 100)}
             min={0}
@@ -101,6 +101,20 @@ export function ShapeSettingsForm({
               <Palette className="h-4 w-4 mr-2" />
               Color
             </Button>
+          </div>
+          
+          <div>
+            <Slider
+              label="Line Opacity"
+              value={Math.round(((element.strokeOpacity ?? 1) * 100))}
+              displayValue={Math.round(((element.strokeOpacity ?? 1) * 100))}
+              onChange={(value) => updateSetting('strokeOpacity', value / 100)}
+              min={0}
+              max={100}
+              step={5}
+              unit="%"
+              hasLabel={false}
+            />
           </div>
         </div>
       );
@@ -181,6 +195,16 @@ export function ShapeSettingsForm({
                   Border Color
                 </Button>
               </div>
+              
+              <Slider
+                label="Border Opacity"
+                value={Math.round((element.strokeOpacity !== undefined ? element.strokeOpacity : (element.opacity !== undefined ? element.opacity : 1)) * 100)}
+                onChange={(value) => updateSetting('strokeOpacity', value / 100)}
+                min={0}
+                max={100}
+                step={5}
+                unit="%"
+              />
             </IndentedSection>
           )}
           
@@ -218,18 +242,18 @@ export function ShapeSettingsForm({
                   Background Color & Opacity
                 </Button>
               </div>
+              
+              <Slider
+                label="Background Opacity"
+                value={Math.round((element.fillOpacity !== undefined ? element.fillOpacity : (element.opacity !== undefined ? element.opacity : 1)) * 100)}
+                onChange={(value) => updateSetting('fillOpacity', value / 100)}
+                min={0}
+                max={100}
+                step={5}
+                unit="%"
+              />
             </IndentedSection>
           )}
-          
-          <Slider
-            label="Opacity"
-            value={Math.round((element.opacity || (element as any).strokeOpacity || 1) * 100)}
-            onChange={(value) => updateSetting('opacity', value / 100)}
-            min={0}
-            max={100}
-            step={5}
-            unit="%"
-          />
           
           {element.theme === 'candy' && (
             <div>

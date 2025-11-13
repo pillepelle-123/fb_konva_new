@@ -840,6 +840,8 @@ export default function Canvas() {
           strokeWidth: shapeDefaults.strokeWidth || toolSettings.strokeWidth || 2,
           cornerRadius: shapeDefaults.cornerRadius || 0,
           theme: shapeDefaults.theme || 'default',
+          strokeOpacity: shapeDefaults.strokeOpacity !== undefined ? shapeDefaults.strokeOpacity : undefined,
+          fillOpacity: shapeDefaults.fillOpacity !== undefined ? shapeDefaults.fillOpacity : undefined,
           polygonSides: previewShape.type === 'polygon' ? (state.toolSettings?.polygon?.polygonSides || 5) : undefined
         };
         dispatch({ type: 'ADD_ELEMENT', payload: newElement });

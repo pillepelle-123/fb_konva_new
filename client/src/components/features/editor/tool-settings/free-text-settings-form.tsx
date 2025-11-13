@@ -232,6 +232,7 @@ export function FreeTextSettingsForm({
         onAddFavorite={addFavoriteStrokeColor}
         onRemoveFavorite={removeFavoriteStrokeColor}
         onBack={() => setLocalShowColorSelector(null)}
+        showOpacitySlider={false}
       />
     );
   }
@@ -298,6 +299,20 @@ export function FreeTextSettingsForm({
           <Palette className="w-4 mr-2" />
           Font Color & Opacity
         </Button>
+      </div>
+      
+      <div>
+        <Slider
+          label="Font Opacity"
+          value={Math.round((computedCurrentStyle.fontOpacity ?? 1) * 100)}
+          displayValue={Math.round((computedCurrentStyle.fontOpacity ?? 1) * 100)}
+          onChange={(value) => updateTextSetting('fontOpacity', value / 100)}
+          min={0}
+          max={100}
+          step={5}
+          unit="%"
+          hasLabel={false}
+        />
       </div>
       
       <Separator/>
@@ -377,6 +392,20 @@ export function FreeTextSettingsForm({
               <Palette className="w-4 mr-2" />
               Line Color & Opacity
             </Button>
+          </div>
+          
+          <div>
+            <Slider
+              label="Line Opacity"
+              value={Math.round((computedCurrentStyle.ruledLinesOpacity ?? 1) * 100)}
+              displayValue={Math.round((computedCurrentStyle.ruledLinesOpacity ?? 1) * 100)}
+              onChange={(value) => updateTextSetting('ruledLinesOpacity', value / 100)}
+              min={0}
+              max={100}
+              step={5}
+              unit="%"
+              hasLabel={false}
+            />
           </div>
         </IndentedSection>
       )}
@@ -459,6 +488,20 @@ export function FreeTextSettingsForm({
               <Palette className="w-4 mr-2" />
               Background Color & Opacity
             </Button>
+          </div>
+          
+          <div>
+            <Slider
+              label="Background Opacity"
+              value={Math.round((computedCurrentStyle.backgroundOpacity ?? 1) * 100)}
+              displayValue={Math.round((computedCurrentStyle.backgroundOpacity ?? 1) * 100)}
+              onChange={(value) => updateTextSetting('backgroundOpacity', value / 100)}
+              min={0}
+              max={100}
+              step={5}
+              unit="%"
+              hasLabel={false}
+            />
           </div>
         </IndentedSection>
       )}

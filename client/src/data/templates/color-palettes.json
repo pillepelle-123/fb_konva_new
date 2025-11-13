@@ -403,7 +403,21 @@
         "surface": "#d4d2e1"
       },
       "contrast": "AA"
+    },
+    {
+      "id": "custom",
+      "name": "Custom",
+      "colors": {
+        "background": "#FAFAFA",
+        "primary": "#388E3C",
+        "secondary": "#E91E63",
+        "accent": "#C8E6C9",
+        "text": "#2E2E2E",
+        "surface": "#C8E6C9"
+      },
+      "contrast": "AA"
     }
+    
   ]
 }
 
