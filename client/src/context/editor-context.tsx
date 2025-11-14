@@ -126,7 +126,16 @@ import { getGlobalTheme, getThemePageBackgroundColors, getThemePaletteId } from 
 import type { PageTemplate, ColorPalette } from '../types/template-types';
 import { applyBackgroundImageTemplate } from '../utils/background-image-utils';
 import { generatePagePreview } from '../utils/page-preview-generator';
-import { cloneCanvasElements, clonePageBackground, collectPairIds, getNextNumericPairId, getPairBounds, generateSequentialPairId } from '../utils/book-structure';
+import {
+  cloneCanvasElements,
+  clonePageBackground,
+  collectPairIds,
+  ensureSpecialPages,
+  getNextNumericPairId,
+  getPairBounds,
+  generateSequentialPairId
+} from '../utils/book-structure';
+import { applyMirroredLayout, applyRandomLayout, createSeededRNG } from '../utils/layout-variations';
 
 // Function to extract theme structure from current book state
 function logThemeStructure(book: Book | null) {
@@ -499,6 +508,184 @@ function cloneData<T>(value: T): T {
 
 function clonePage(page: Page): Page {
   return cloneData(page);
+}
+
+function parseJsonField<T = unknown>(value: unknown): T | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return null;
+    }
+  }
+  return value as T;
+}
+
+type LayoutVariationKind = NonNullable<Page['layoutVariation']>;
+type BackgroundStylePlan = {
+  variation: NonNullable<Page['backgroundVariation']>;
+  transform?: Page['backgroundTransform'];
+};
+
+interface SpreadPlanPage {
+  template: PageTemplate | null;
+  variation: LayoutVariationKind;
+  seed: number;
+  background: BackgroundStylePlan;
+}
+
+function resolveTemplateReference(templateRef?: string | PageTemplate | null): PageTemplate | null {
+  if (!templateRef) return null;
+  if (typeof templateRef === 'string') {
+    return pageTemplates.find((template) => template.id === templateRef) ?? null;
+  }
+  return templateRef;
+}
+
+function pickRandomTemplateFromPool(
+  pool: PageTemplate[],
+  rng: () => number,
+  fallback: PageTemplate | null
+): PageTemplate | null {
+  if (!pool.length) return fallback;
+  const index = Math.floor(rng() * pool.length);
+  return pool[index] ?? fallback;
+}
+
+function buildBackgroundStylingFromSeed(
+  seed: number,
+  options: { mirror?: boolean; randomize?: boolean }
+): BackgroundStylePlan {
+  const rng = createSeededRNG(Math.max(1, seed));
+  const transform: Page['backgroundTransform'] = {};
+  if (options.mirror) {
+    transform.mirror = true;
+  }
+  if (options.randomize) {
+    transform.offsetRatioX = (rng() - 0.5) * 0.2;
+    transform.offsetRatioY = (rng() - 0.5) * 0.2;
+    transform.scale = 0.85 + rng() * 0.35;
+  }
+  const variation: NonNullable<Page['backgroundVariation']> = options.randomize
+    ? 'randomized'
+    : options.mirror
+      ? 'mirrored'
+      : 'normal';
+  return {
+    variation,
+    transform: Object.keys(transform).length ? transform : undefined
+  };
+}
+
+function applyVariationToElements(
+  template: PageTemplate | null,
+  variation: LayoutVariationKind,
+  canvasSize: { width: number; height: number },
+  seed: number
+): CanvasElement[] {
+  if (!template) return [];
+  let elements = convertTemplateToElements(template, canvasSize);
+  if (variation === 'mirrored') {
+    elements = applyMirroredLayout(elements, canvasSize.width);
+  } else if (variation === 'randomized') {
+    elements = applyRandomLayout(elements, {
+      seed: Math.max(1, seed),
+      pageWidth: canvasSize.width,
+      pageHeight: canvasSize.height
+    });
+  }
+  return elements;
+}
+
+function buildSpreadPlanForBook(book: Book, canvasSize: { width: number; height: number }): {
+  left: SpreadPlanPage;
+  right: SpreadPlanPage;
+} {
+  const fallbackTemplate = resolveTemplateReference(book.layoutTemplateId) ?? pageTemplates[0] ?? null;
+  const assistedLayouts = {
+    single: resolveTemplateReference(book.assistedLayouts?.single),
+    left: resolveTemplateReference(book.assistedLayouts?.left),
+    right: resolveTemplateReference(book.assistedLayouts?.right)
+  };
+  const layoutStrategy = book.layoutStrategy ?? 'same';
+  const randomMode = book.layoutRandomMode ?? 'single';
+  const rng = createSeededRNG(Math.max(1, Date.now()));
+
+  const templatePool = pageTemplates.length ? pageTemplates : fallbackTemplate ? [fallbackTemplate] : [];
+  const pickRandomTemplate = () => pickRandomTemplateFromPool(templatePool, rng, fallbackTemplate);
+
+  let leftTemplate = assistedLayouts.single ?? fallbackTemplate;
+  let rightTemplate = leftTemplate;
+
+  switch (layoutStrategy) {
+    case 'pair':
+      leftTemplate = assistedLayouts.left ?? fallbackTemplate;
+      rightTemplate = assistedLayouts.right ?? fallbackTemplate;
+      break;
+    case 'mirrored':
+      leftTemplate = assistedLayouts.single ?? fallbackTemplate;
+      rightTemplate = leftTemplate;
+      break;
+    case 'random':
+      if (randomMode === 'pair') {
+        const randomTemplate = pickRandomTemplate() ?? fallbackTemplate;
+        leftTemplate = randomTemplate;
+        rightTemplate = randomTemplate;
+      } else {
+        leftTemplate = pickRandomTemplate() ?? fallbackTemplate;
+        rightTemplate = pickRandomTemplate() ?? fallbackTemplate;
+      }
+      break;
+    case 'same':
+    default:
+      leftTemplate = assistedLayouts.single ?? fallbackTemplate;
+      rightTemplate = leftTemplate;
+      break;
+  }
+
+  const shouldRandomizeLayouts = layoutStrategy === 'random';
+  const shouldMirrorRightLayouts =
+    layoutStrategy === 'mirrored' || (layoutStrategy === 'random' && randomMode === 'pair');
+  const shouldRandomizeBackground = layoutStrategy === 'random';
+  const shouldMirrorRightBackground =
+    layoutStrategy === 'mirrored' || (layoutStrategy === 'random' && randomMode === 'pair');
+
+  const leftVariation: LayoutVariationKind = shouldRandomizeLayouts ? 'randomized' : 'normal';
+  const rightVariation: LayoutVariationKind = shouldMirrorRightLayouts
+    ? 'mirrored'
+    : shouldRandomizeLayouts
+      ? 'randomized'
+      : 'normal';
+
+  const baseSeed = Math.max(1, Math.floor(rng() * 1_000_000));
+  const leftSeed = baseSeed;
+  const rightSeed = Math.max(1, Math.floor(rng() * 1_000_000));
+
+  const leftBackground = buildBackgroundStylingFromSeed(leftSeed, {
+    randomize: shouldRandomizeBackground
+  });
+  const rightBackground = buildBackgroundStylingFromSeed(rightSeed, {
+    mirror: shouldMirrorRightBackground,
+    randomize: shouldRandomizeBackground
+  });
+
+  return {
+    left: {
+      template: leftTemplate,
+      variation: leftVariation,
+      seed: leftSeed,
+      background: leftBackground
+    },
+    right: {
+      template: rightTemplate,
+      variation: rightVariation,
+      seed: rightSeed,
+      background: rightBackground
+    }
+  };
 }
 
 function extractBookMetadata(book: Book): BookMetadataSnapshot {
@@ -1335,84 +1522,16 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       }
       
       const basePageId = Date.now();
-      // Create new page with book-level settings
-      const newTemplatePage: Page = {
-        id: basePageId,
-        pageNumber: 0,
-        elements: [],
-        database_id: undefined,
-        background: initialBackground,
-        layoutTemplateId: undefined,
-        isSpecialPage: false,
-        isLocked: false,
-        isPrintable: true,
-        pageType: 'content',
-        pagePairId: ''
-      };
+      const canvasSize = calculatePageDimensions(book.pageSize || 'A4', book.orientation || 'portrait');
+      const spreadPlan = buildSpreadPlanForBook(book, canvasSize);
       
-      // Apply layout template if book has one set
-      let pageElements: CanvasElement[] = [];
-      if (bookLayoutTemplateId) {
-        const layoutTemplate = pageTemplates.find(t => t.id === bookLayoutTemplateId);
-        if (layoutTemplate) {
-          // Berechne Canvas-Größe basierend auf Seitengröße und Ausrichtung
-          const pageSize = book.pageSize || 'A4';
-          const orientation = book.orientation || 'portrait';
-          const canvasSize = calculatePageDimensions(pageSize, orientation);
-          
-          // Convert template to elements (mit korrekter Skalierung)
-          pageElements = convertTemplateToElements(layoutTemplate, canvasSize);
-          
-          // Apply book theme styles to elements if available
-          if (bookThemeId && bookThemeId !== 'default') {
-            pageElements = pageElements.map(element => {
-              const toolType = element.textType || element.type;
-              const themeDefaults = getToolDefaults(toolType as any, bookThemeId, undefined);
-              return {
-                ...element,
-                ...themeDefaults,
-                theme: bookThemeId,
-                // Preserve essential properties
-                id: element.id,
-                type: element.type,
-                x: element.x,
-                y: element.y,
-                width: element.width,
-                height: element.height,
-                text: element.text,
-                textType: element.textType
-              };
-            });
-          }
-          
-          // Apply book color palette to elements if available (after theme to override theme colors)
-          if (bookColorPaletteId) {
-            const bookPalette = colorPalettes.find(p => p.id === bookColorPaletteId);
-            if (bookPalette) {
-              // Apply palette colors to all elements
-              pageElements = pageElements.map(element => {
-                const updates: Partial<CanvasElement> = {};
-                
-                if (element.type === 'text' || element.textType) {
-                  updates.fontColor = bookPalette.colors.primary;
-                  updates.borderColor = bookPalette.colors.secondary;
-                  updates.backgroundColor = bookPalette.colors.background;
-                }
-                if (element.type === 'line' || element.type === 'brush' || 
-                    element.type === 'circle' || element.type === 'rect' || 
-                    element.type === 'triangle' || element.type === 'polygon') {
-                  updates.stroke = bookPalette.colors.primary;
-                  if (element.type !== 'line' && element.type !== 'brush') {
-                    updates.fill = bookPalette.colors.surface || bookPalette.colors.accent;
-                  }
-                }
-                
-                return { ...element, ...updates };
-              });
-            }
-          }
-        }
-      }
+      const themeContextBook: Book = {
+        ...book,
+        themeId: bookThemeId !== 'default' ? bookThemeId : book.themeId,
+        bookTheme: bookThemeId !== 'default' ? bookThemeId : book.bookTheme,
+        colorPaletteId: bookColorPaletteId || book.colorPaletteId,
+        layoutTemplateId: bookLayoutTemplateId || book.layoutTemplateId
+      } as Book;
       
       // Prepare tool settings for the new page (clone existing to avoid mutation)
       const toolSettingsForNewPage: Record<string, any> = savedAddPageState.toolSettings
@@ -1502,43 +1621,34 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         elements: pageElements
       };
       
-      const themedNewPage = applyThemeAndPaletteToPage(
-        newPageWithLayout,
-        {
-          ...book,
-          themeId: bookThemeId !== 'default' ? bookThemeId : book.themeId,
-          bookTheme: bookThemeId !== 'default' ? bookThemeId : book.bookTheme,
-          colorPaletteId: bookColorPaletteId || book.colorPaletteId,
-          layoutTemplateId: bookLayoutTemplateId || book.layoutTemplateId
-        } as Book,
-        toolSettingsForNewPage
-      );
-      
       const pairId = generatePagePairId(book.pages);
       const leftPageId = basePageId;
       const rightPageId = basePageId + 1;
-      const leftPage: Page = {
-        ...themedNewPage,
-        id: leftPageId,
-        elements: cloneCanvasElements(themedNewPage.elements),
-        background: clonePageBackground(themedNewPage.background),
-        pagePairId: pairId,
-        pageType: 'content',
-        isSpecialPage: false,
-        isLocked: false,
-        isPrintable: true
+
+      const createPageFromPlan = (plan: SpreadPlanPage, pageId: number): Page => {
+        const baseElements = applyVariationToElements(plan.template, plan.variation, canvasSize, plan.seed);
+        const basePage: Page = {
+          id: pageId,
+          pageNumber: 0,
+          elements: baseElements,
+          background: clonePageBackground(initialBackground),
+          database_id: undefined,
+          layoutTemplateId: plan.template?.id ?? book.layoutTemplateId ?? undefined,
+          colorPaletteId: undefined,
+          pageType: 'content',
+          isSpecialPage: false,
+          isLocked: false,
+          isPrintable: true,
+          pagePairId: pairId,
+          layoutVariation: plan.variation,
+          backgroundVariation: plan.background.variation,
+          backgroundTransform: plan.background.transform
+        };
+        return applyThemeAndPaletteToPage(basePage, themeContextBook, toolSettingsForNewPage);
       };
-      const rightPage: Page = {
-        ...themedNewPage,
-        id: rightPageId,
-        elements: cloneCanvasElements(themedNewPage.elements),
-        background: clonePageBackground(themedNewPage.background),
-        pagePairId: pairId,
-        pageType: 'content',
-        isSpecialPage: false,
-        isLocked: false,
-        isPrintable: true
-      };
+
+      const leftPage = createPageFromPlan(spreadPlan.left, leftPageId);
+      const rightPage = createPageFromPlan(spreadPlan.right, rightPageId);
       const insertBeforeLastPage = book.pages.findIndex((page) => page.pageType === 'last-page');
       const insertIndex = insertBeforeLastPage >= 0 ? insertBeforeLastPage : book.pages.length;
       const updatedPages = [...book.pages];
@@ -1979,7 +2089,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       
       // Update all pages that inherit the book theme (background, themeId, and elements)
       // IMPORTANT: Do this in ONE pass to avoid any issues with themeId being restored
-      let bookUpdatedPages: Page[];
+    let bookUpdatedPages: Page[] = [];
       if (theme) {
         bookUpdatedPages = originalBook.pages.map((page, pageIndex) => {
           // Check if page has themeId property (not just if it's truthy)
@@ -4519,6 +4629,18 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       
       const normalizedLoadedPages = (book.pages ?? []).map((page: any, index: number) => {
         const pageNumber = page.pageNumber ?? page.page_number ?? index + 1;
+        const resolvedPageType = page.pageType ?? page.page_type ?? 'content';
+        const resolvedPagePairId = page.pagePairId ?? page.page_pair_id ?? undefined;
+        const resolvedIsSpecial = page.isSpecialPage ?? page.is_special_page ?? (resolvedPageType !== 'content');
+        const resolvedIsLocked = page.isLocked ?? page.is_locked ?? false;
+        const resolvedIsPrintableValue = page.isPrintable ?? page.is_printable;
+        const resolvedIsPrintable = resolvedIsPrintableValue === undefined ? true : resolvedIsPrintableValue;
+        const resolvedLayoutVariation = page.layoutVariation ?? page.layout_variation ?? 'normal';
+        const resolvedBackgroundVariation = page.backgroundVariation ?? page.background_variation ?? 'normal';
+        const resolvedBackgroundTransform =
+          page.backgroundTransform ??
+          parseJsonField<Page['backgroundTransform']>(page.background_transform) ??
+          undefined;
         
         // CRITICAL: Check if page inherits book theme (no themeId as own property)
         const hasThemeIdOwnProperty = Object.prototype.hasOwnProperty.call(page, 'themeId');
@@ -4759,18 +4881,28 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
           isPlaceholder: false,
           background: resolvedBackground,
           elements: resolvedElements,
+          pageType: resolvedPageType,
+          pagePairId: resolvedPagePairId,
+          isSpecialPage: resolvedIsSpecial,
+          isLocked: resolvedIsLocked,
+          isPrintable: resolvedIsPrintable,
+          layoutVariation: resolvedLayoutVariation,
+          backgroundVariation: resolvedBackgroundVariation,
+          ...(resolvedBackgroundTransform ? { backgroundTransform: resolvedBackgroundTransform } : {}),
           // Only include themeId if page has explicit theme (not inheriting)
           ...(hasThemeIdOwnProperty && pageThemeId !== undefined && pageThemeId !== null ? { themeId: pageThemeId } : {})
         };
       });
 
-      const totalPages = pagination?.totalPages ?? normalizedLoadedPages.length;
+      const structuredPages = ensureSpecialPages(normalizedLoadedPages);
+      const structuredCount = structuredPages.length;
+      const totalPages = Math.max(pagination?.totalPages ?? structuredCount, structuredCount);
       const pagesWithPlaceholders =
-        totalPages > normalizedLoadedPages.length
-          ? ensurePageArrayLength(normalizedLoadedPages, totalPages)
-          : normalizedLoadedPages;
+        totalPages > structuredCount
+          ? ensurePageArrayLength(structuredPages, totalPages)
+          : structuredPages;
 
-      const loadedRecords = normalizedLoadedPages.reduce<Record<number, true>>((acc, page) => {
+      const loadedRecords = structuredPages.reduce<Record<number, true>>((acc, page) => {
         if (page.pageNumber) {
           acc[page.pageNumber] = true;
         }
@@ -4783,7 +4915,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
             pageSize: pagination.limit || PAGE_CHUNK_SIZE,
             loadedPages: loadedRecords
           }
-        : (totalPages > normalizedLoadedPages.length
+        : (totalPages > structuredCount
             ? {
                 totalPages,
                 pageSize: PAGE_CHUNK_SIZE,

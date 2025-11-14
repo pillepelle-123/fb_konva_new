@@ -10,9 +10,24 @@ class ApiService {
   }
 
   // Book operations
-  async loadBook(bookId: number) {
+  async loadBook(
+    bookId: number,
+    options?: { pageOffset?: number; pageLimit?: number; pagesOnly?: boolean }
+  ) {
+    const params = new URLSearchParams();
+    if (typeof options?.pageOffset === 'number') {
+      params.append('pageOffset', String(options.pageOffset));
+    }
+    if (typeof options?.pageLimit === 'number') {
+      params.append('pageLimit', String(options.pageLimit));
+    }
+    if (typeof options?.pagesOnly === 'boolean') {
+      params.append('pagesOnly', String(options.pagesOnly));
+    }
+    const query = params.toString() ? `?${params.toString()}` : '';
+
     // Use the single endpoint that returns everything
-    const response = await fetch(`${this.baseUrl}/books/${bookId}`, { headers: this.getHeaders() });
+    const response = await fetch(`${this.baseUrl}/books/${bookId}${query}`, { headers: this.getHeaders() });
     const data = await response.json();
     
     // Extract data from the response
@@ -24,7 +39,17 @@ class ApiService {
       pages: data.pages,
       bookTheme: data.bookTheme,
       owner_id: data.owner_id,
-      isTemporary: data.isTemporary
+      isTemporary: data.isTemporary,
+      layoutTemplateId: data.layoutTemplateId,
+      themeId: data.themeId,
+      colorPaletteId: data.colorPaletteId,
+      minPages: data.minPages ?? data.min_pages ?? null,
+      maxPages: data.maxPages ?? data.max_pages ?? null,
+      pagePairingEnabled: data.pagePairingEnabled ?? data.page_pairing_enabled ?? false,
+      specialPagesConfig: data.specialPagesConfig ?? data.special_pages_config ?? null,
+      layoutStrategy: data.layoutStrategy ?? data.layout_strategy ?? null,
+      layoutRandomMode: data.layoutRandomMode ?? data.layout_random_mode ?? null,
+      assistedLayouts: data.assistedLayouts ?? data.assisted_layouts ?? null
     };
     
     const questions = data.questions || [];

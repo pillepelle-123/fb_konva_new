@@ -21,6 +21,7 @@ import QuestionsManagerDialog from '../questions-manager-dialog';
 
 import { getToolDefaults, TOOL_DEFAULTS } from '../../../../utils/tool-defaults';
 import { Alert, AlertDescription } from '../../../ui/composites/alert';
+import { Badge } from '../../../ui/composites/badge';
 import { snapPosition, type SnapGuideline } from '../../../../utils/snapping';
 
 import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
@@ -94,6 +95,25 @@ const PAGE_DIMENSIONS = {
   A3: { width: 3508, height: 4961 },
   Letter: { width: 2550, height: 3300 },
   Square: { width: 2480, height: 2480 }
+};
+
+const PAGE_TYPE_LABELS: Record<string, string> = {
+  'front-cover': 'Front Cover',
+  'back-cover': 'Back Cover',
+  'inner-front': 'Inner Front',
+  'inner-back': 'Inner Back',
+  'first-page': 'First Page',
+  'last-page': 'Last Page'
+};
+
+const LAYOUT_VARIATION_LABELS: Record<string, string> = {
+  mirrored: 'Mirrored layout',
+  randomized: 'Remixed layout'
+};
+
+const BACKGROUND_VARIATION_LABELS: Record<string, string> = {
+  mirrored: 'Mirrored background',
+  randomized: 'Remixed background'
 };
 
 type BackgroundImageEntry = {
@@ -253,6 +273,18 @@ export default function Canvas() {
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const isPrintablePage = currentPage?.isPrintable !== false;
   const pageSize = state.currentBook?.pageSize || 'A4';
+  const specialPageLabel =
+    currentPage?.pageType && currentPage.pageType !== 'content'
+      ? PAGE_TYPE_LABELS[currentPage.pageType] ?? currentPage.pageType
+      : null;
+  const layoutVariationLabel =
+    currentPage?.layoutVariation && currentPage.layoutVariation !== 'normal'
+      ? LAYOUT_VARIATION_LABELS[currentPage.layoutVariation] ?? `Layout: ${currentPage.layoutVariation}`
+      : null;
+  const backgroundVariationLabel =
+    currentPage?.backgroundVariation && currentPage.backgroundVariation !== 'normal'
+      ? BACKGROUND_VARIATION_LABELS[currentPage.backgroundVariation] ?? `Background: ${currentPage.backgroundVariation}`
+      : null;
 
   const getPaletteForPage = (page?: typeof currentPage) => {
     // Get page color palette (or book color palette if page.colorPaletteId is null)
@@ -2599,6 +2631,25 @@ export default function Canvas() {
           activeTool={state.activeTool}
           stylePainterActive={state.stylePainterActive}
         >
+        {(specialPageLabel || layoutVariationLabel || backgroundVariationLabel) && (
+          <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none z-10">
+            {specialPageLabel && (
+              <Badge variant="secondary" className="bg-white/90 border border-border/60 text-foreground shadow-sm px-3 py-1">
+                {specialPageLabel}
+              </Badge>
+            )}
+            {layoutVariationLabel && (
+              <Badge variant="outline" className="bg-white/90 border-blue-200 text-blue-800 px-2 py-0.5 shadow-sm">
+                {layoutVariationLabel}
+              </Badge>
+            )}
+            {backgroundVariationLabel && (
+              <Badge variant="outline" className="bg-white/90 border-purple-200 text-purple-800 px-2 py-0.5 shadow-sm">
+                {backgroundVariationLabel}
+              </Badge>
+            )}
+          </div>
+        )}
         <CanvasStage
           ref={stageRef}
           width={containerSize.width}

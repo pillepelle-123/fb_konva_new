@@ -17,6 +17,49 @@ pool.on('connect', (client) => {
   client.query(`SET search_path TO ${schema}`);
 });
 
+const parseJsonField = (value) => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  return value;
+};
+
+const normalizePageMetadata = (page = {}) => {
+  const pageType = page.pageType ?? page.page_type ?? 'content';
+  const pagePairId = page.pagePairId ?? page.page_pair_id ?? null;
+  const isSpecialPage =
+    page.isSpecialPage ??
+    page.is_special_page ??
+    Boolean(pageType && pageType !== 'content');
+  const isLocked = page.isLocked ?? page.is_locked ?? false;
+  const isPrintable =
+    page.isPrintable ?? page.is_printable ?? true;
+  const layoutVariation =
+    page.layoutVariation ?? page.layout_variation ?? 'normal';
+  const backgroundVariation =
+    page.backgroundVariation ?? page.background_variation ?? 'normal';
+  const backgroundTransform =
+    parseJsonField(page.backgroundTransform ?? page.background_transform) ?? null;
+
+  return {
+    pageType,
+    pagePairId,
+    isSpecialPage,
+    isLocked,
+    isPrintable,
+    layoutVariation,
+    backgroundVariation,
+    backgroundTransform
+  };
+};
+
 // Dashboard data
 router.get('/dashboard', authenticateToken, async (req, res) => {
   try {
@@ -170,6 +213,8 @@ router.get('/:id', authenticateToken, async (req, res) => {
     }
 
     const book = bookAccess.rows[0];
+    const specialPagesConfig = parseJsonField(book.special_pages_config) || null;
+    const assistedLayouts = parseJsonField(book.assisted_layouts) || null;
 
     // Get total page count
     const totalPagesResult = await pool.query(
@@ -283,6 +328,13 @@ router.get('/:id', authenticateToken, async (req, res) => {
       layoutTemplateId: book.layout_template_id,
       themeId: book.theme_id || book.book_theme, // Backward compatibility: use book_theme if theme_id doesn't exist
       colorPaletteId: book.color_palette_id,
+      minPages: book.min_pages,
+      maxPages: book.max_pages,
+      pagePairingEnabled: book.page_pairing_enabled,
+      specialPagesConfig,
+      layoutStrategy: book.layout_strategy,
+      layoutRandomMode: book.layout_random_mode,
+      assistedLayouts,
       questions: questions,
       answers: allAnswers,
       pageAssignments: pageAssignments,
@@ -308,6 +360,9 @@ router.get('/:id', authenticateToken, async (req, res) => {
           }
         }
         const elements = pageData.elements || [];
+        const metadataSource = { ...pageData, ...page };
+        const pageMeta = normalizePageMetadata(metadataSource);
+        const backgroundTransform = pageMeta.backgroundTransform;
       //console.log(`Page ${page.id} has ${elements.length} elements`);
         
         // Update answer elements with actual answer text from assigned users
@@ -360,7 +415,15 @@ router.get('/:id', authenticateToken, async (req, res) => {
           // Only set themeId if it's not null - if it's null, the page inherits the book theme
           // This way, pages that inherit the book theme won't have themeId property at all
           ...(page.theme_id ? { themeId: page.theme_id } : {}),
-          colorPaletteId: page.color_palette_id
+          colorPaletteId: page.color_palette_id,
+          pageType: pageMeta.pageType,
+          pagePairId: pageMeta.pagePairId || undefined,
+          isSpecialPage: pageMeta.isSpecialPage,
+          isLocked: pageMeta.isLocked,
+          isPrintable: pageMeta.isPrintable,
+          layoutVariation: pageMeta.layoutVariation,
+          backgroundVariation: pageMeta.backgroundVariation,
+          ...(backgroundTransform ? { backgroundTransform } : {})
         };
       })
     };
@@ -421,12 +484,21 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
           // Update page data with complete structure
           // Ensure elements is always an array
           const pageElements = Array.isArray(page.elements) ? page.elements : (page.elements?.elements || []);
+          const pageMeta = normalizePageMetadata(page);
           const completePageData = {
             id: pageId,
             elements: pageElements,
             background: page.background || { pageTheme: null },
             pageNumber: page.pageNumber,
-            database_id: pageId
+            database_id: pageId,
+            pageType: pageMeta.pageType,
+            pagePairId: pageMeta.pagePairId,
+            isSpecialPage: pageMeta.isSpecialPage,
+            isLocked: pageMeta.isLocked,
+            isPrintable: pageMeta.isPrintable,
+            layoutVariation: pageMeta.layoutVariation,
+            backgroundVariation: pageMeta.backgroundVariation,
+            ...(pageMeta.backgroundTransform ? { backgroundTransform: pageMeta.backgroundTransform } : {})
           };
           
           // Only set theme_id if themeId property exists in the page object
@@ -434,12 +506,33 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
           const themeIdToSave = 'themeId' in page ? (page.themeId || null) : null;
           
           await pool.query(
-            'UPDATE public.pages SET elements = $1, layout_template_id = $2, theme_id = $3, color_palette_id = $4 WHERE id = $5',
+            `UPDATE public.pages 
+             SET elements = $1,
+                 layout_template_id = $2,
+                 theme_id = $3,
+                 color_palette_id = $4,
+                 page_type = $5,
+                 page_pair_id = $6,
+                 is_special_page = $7,
+                 is_locked = $8,
+                 is_printable = $9,
+                 layout_variation = $10,
+                 background_variation = $11,
+                 background_transform = $12
+             WHERE id = $13`,
             [
               JSON.stringify(completePageData), 
               page.layoutTemplateId || null,
               themeIdToSave,
               page.colorPaletteId || null,
+              pageMeta.pageType,
+              pageMeta.pagePairId,
+              pageMeta.isSpecialPage,
+              pageMeta.isLocked,
+              pageMeta.isPrintable,
+              pageMeta.layoutVariation,
+              pageMeta.backgroundVariation,
+              pageMeta.backgroundTransform ? JSON.stringify(pageMeta.backgroundTransform) : null,
               pageId
             ]
           );
@@ -598,7 +691,23 @@ router.put('/:id', authenticateToken, async (req, res) => {
       // Update book metadata
       const bookTheme = req.body.bookTheme || req.body.themeId || 'default';
       await pool.query(
-        'UPDATE public.books SET name = $1, page_size = $2, orientation = $3, book_theme = $4, layout_template_id = $5, theme_id = $6, color_palette_id = $7, updated_at = CURRENT_TIMESTAMP WHERE id = $8',
+        `UPDATE public.books 
+         SET name = $1,
+             page_size = $2,
+             orientation = $3,
+             book_theme = $4,
+             layout_template_id = $5,
+             theme_id = $6,
+             color_palette_id = $7,
+             min_pages = $8,
+             max_pages = $9,
+             page_pairing_enabled = $10,
+             special_pages_config = $11,
+             layout_strategy = $12,
+             layout_random_mode = $13,
+             assisted_layouts = $14,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $15`,
         [
           name, 
           pageSize, 
@@ -607,6 +716,13 @@ router.put('/:id', authenticateToken, async (req, res) => {
           req.body.layoutTemplateId || null,
           req.body.themeId || bookTheme,
           req.body.colorPaletteId || null,
+          req.body.minPages ?? null,
+          req.body.maxPages ?? null,
+          req.body.pagePairingEnabled ?? false,
+          req.body.specialPagesConfig ? JSON.stringify(req.body.specialPagesConfig) : null,
+          req.body.layoutStrategy || null,
+          req.body.layoutRandomMode || null,
+          req.body.assistedLayouts ? JSON.stringify(req.body.assistedLayouts) : null,
           bookId
         ]
       );
@@ -709,12 +825,21 @@ router.put('/:id', authenticateToken, async (req, res) => {
             elementsType: Array.isArray(page.elements) ? 'array' : typeof page.elements,
             elementsLength: Array.isArray(page.elements) ? page.elements.length : (Array.isArray(page.elements?.elements) ? page.elements.elements.length : 'n/a')
           });
+          const pageMeta = normalizePageMetadata(page);
           const completePageData = {
             id: page.id,
             elements: pageElements,
             background: page.background || { pageTheme: null },
             pageNumber: page.pageNumber,
-            database_id: page.id
+            database_id: page.id,
+            pageType: pageMeta.pageType,
+            pagePairId: pageMeta.pagePairId,
+            isSpecialPage: pageMeta.isSpecialPage,
+            isLocked: pageMeta.isLocked,
+            isPrintable: pageMeta.isPrintable,
+            layoutVariation: pageMeta.layoutVariation,
+            backgroundVariation: pageMeta.backgroundVariation,
+            ...(pageMeta.backgroundTransform ? { backgroundTransform: pageMeta.backgroundTransform } : {})
           };
 
           // Only set theme_id if themeId property exists in the page object
@@ -722,13 +847,35 @@ router.put('/:id', authenticateToken, async (req, res) => {
           const themeIdToSave = 'themeId' in page ? (page.themeId || null) : null;
           
           await pool.query(
-            'UPDATE public.pages SET page_number = $1, elements = $2, layout_template_id = $3, theme_id = $4, color_palette_id = $5 WHERE id = $6 AND book_id = $7',
+            `UPDATE public.pages 
+             SET page_number = $1,
+                 elements = $2,
+                 layout_template_id = $3,
+                 theme_id = $4,
+                 color_palette_id = $5,
+                 page_type = $6,
+                 page_pair_id = $7,
+                 is_special_page = $8,
+                 is_locked = $9,
+                 is_printable = $10,
+                 layout_variation = $11,
+                 background_variation = $12,
+                 background_transform = $13
+             WHERE id = $14 AND book_id = $15`,
             [
               page.pageNumber, 
               JSON.stringify(completePageData), 
               page.layoutTemplateId || null,
               themeIdToSave,
               page.colorPaletteId || null,
+              pageMeta.pageType,
+              pageMeta.pagePairId,
+              pageMeta.isSpecialPage,
+              pageMeta.isLocked,
+              pageMeta.isPrintable,
+              pageMeta.layoutVariation,
+              pageMeta.backgroundVariation,
+              pageMeta.backgroundTransform ? JSON.stringify(pageMeta.backgroundTransform) : null,
               page.id, 
               bookId
             ]
@@ -767,22 +914,53 @@ router.put('/:id', authenticateToken, async (req, res) => {
           if (existingPageId && shouldUpdateExisting) {
             // Update existing page instead of inserting
             const pageElements = Array.isArray(page.elements) ? page.elements : (page.elements?.elements || []);
+            const pageMeta = normalizePageMetadata(page);
             const completePageData = {
               id: existingPageId,
               elements: pageElements,
               background: page.background || { pageTheme: null },
               pageNumber: page.pageNumber,
-              database_id: existingPageId
+              database_id: existingPageId,
+              pageType: pageMeta.pageType,
+              pagePairId: pageMeta.pagePairId,
+              isSpecialPage: pageMeta.isSpecialPage,
+              isLocked: pageMeta.isLocked,
+              isPrintable: pageMeta.isPrintable,
+              layoutVariation: pageMeta.layoutVariation,
+              backgroundVariation: pageMeta.backgroundVariation,
+              ...(pageMeta.backgroundTransform ? { backgroundTransform: pageMeta.backgroundTransform } : {})
             };
 
             await pool.query(
-              'UPDATE public.pages SET page_number = $1, elements = $2, layout_template_id = $3, theme_id = $4, color_palette_id = $5 WHERE id = $6 AND book_id = $7',
+              `UPDATE public.pages 
+               SET page_number = $1,
+                   elements = $2,
+                   layout_template_id = $3,
+                   theme_id = $4,
+                   color_palette_id = $5,
+                   page_type = $6,
+                   page_pair_id = $7,
+                   is_special_page = $8,
+                   is_locked = $9,
+                   is_printable = $10,
+                   layout_variation = $11,
+                   background_variation = $12,
+                   background_transform = $13
+               WHERE id = $14 AND book_id = $15`,
               [
                 page.pageNumber, 
                 JSON.stringify(completePageData), 
                 page.layoutTemplateId || null,
                 page.themeId || null,
                 page.colorPaletteId || null,
+                pageMeta.pageType,
+                pageMeta.pagePairId,
+                pageMeta.isSpecialPage,
+                pageMeta.isLocked,
+                pageMeta.isPrintable,
+                pageMeta.layoutVariation,
+                pageMeta.backgroundVariation,
+                pageMeta.backgroundTransform ? JSON.stringify(pageMeta.backgroundTransform) : null,
                 existingPageId, 
                 bookId
               ]
@@ -808,10 +986,19 @@ router.put('/:id', authenticateToken, async (req, res) => {
             }
             // Ensure elements is always an array
             const pageElements = Array.isArray(page.elements) ? page.elements : (page.elements?.elements || []);
+            const pageMeta = normalizePageMetadata(page);
             const completePageData = {
               elements: pageElements,
               background: page.background || { pageTheme: null },
-              pageNumber: page.pageNumber
+              pageNumber: page.pageNumber,
+              pageType: pageMeta.pageType,
+              pagePairId: pageMeta.pagePairId,
+              isSpecialPage: pageMeta.isSpecialPage,
+              isLocked: pageMeta.isLocked,
+              isPrintable: pageMeta.isPrintable,
+              layoutVariation: pageMeta.layoutVariation,
+              backgroundVariation: pageMeta.backgroundVariation,
+              ...(pageMeta.backgroundTransform ? { backgroundTransform: pageMeta.backgroundTransform } : {})
             };
             
             // Only set theme_id if themeId property exists in the page object
@@ -819,14 +1006,37 @@ router.put('/:id', authenticateToken, async (req, res) => {
             const themeIdToInsert = 'themeId' in page ? (page.themeId || null) : null;
             
             const pageResult = await pool.query(
-              'INSERT INTO public.pages (book_id, page_number, elements, layout_template_id, theme_id, color_palette_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+              `INSERT INTO public.pages (
+                 book_id,
+                 page_number,
+                 elements,
+                 layout_template_id,
+                 theme_id,
+                 color_palette_id,
+                 page_type,
+                 page_pair_id,
+                 is_special_page,
+                 is_locked,
+                 is_printable,
+                 layout_variation,
+                 background_variation,
+                 background_transform
+               ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id`,
               [
                 bookId, 
                 page.pageNumber, 
                 JSON.stringify(completePageData), 
                 page.layoutTemplateId || null,
                 themeIdToInsert,
-                page.colorPaletteId || null
+                page.colorPaletteId || null,
+                pageMeta.pageType,
+                pageMeta.pagePairId,
+                pageMeta.isSpecialPage,
+                pageMeta.isLocked,
+                pageMeta.isPrintable,
+                pageMeta.layoutVariation,
+                pageMeta.backgroundVariation,
+                pageMeta.backgroundTransform ? JSON.stringify(pageMeta.backgroundTransform) : null
               ]
             );
             pageId = pageResult.rows[0].id;
@@ -1032,12 +1242,21 @@ router.put('/:id', authenticateToken, async (req, res) => {
         
         // Update page elements if answer IDs were added
         if (elementsUpdated) {
+          const pageMeta = normalizePageMetadata(page);
           const updatedPageData = {
             id: pageId,
             elements: elements,
             background: page.background || { pageTheme: null },
             pageNumber: page.pageNumber,
-            database_id: pageId
+            database_id: pageId,
+            pageType: pageMeta.pageType,
+            pagePairId: pageMeta.pagePairId,
+            isSpecialPage: pageMeta.isSpecialPage,
+            isLocked: pageMeta.isLocked,
+            isPrintable: pageMeta.isPrintable,
+            layoutVariation: pageMeta.layoutVariation,
+            backgroundVariation: pageMeta.backgroundVariation,
+            ...(pageMeta.backgroundTransform ? { backgroundTransform: pageMeta.backgroundTransform } : {})
           };
           
           await pool.query(
@@ -1156,16 +1375,78 @@ router.post('/', authenticateToken, async (req, res) => {
     const finalTheme = themeId || bookTheme || 'default';
 
     const result = await pool.query(
-      'INSERT INTO public.books (name, owner_id, page_size, orientation, book_theme, layout_template_id, theme_id, color_palette_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
-      [name, userId, pageSize, orientation, finalTheme, layoutTemplateId || null, finalTheme, colorPaletteId || null]
+      `INSERT INTO public.books (
+        name,
+        owner_id,
+        page_size,
+        orientation,
+        book_theme,
+        layout_template_id,
+        theme_id,
+        color_palette_id,
+        min_pages,
+        max_pages,
+        page_pairing_enabled,
+        special_pages_config,
+        layout_strategy,
+        layout_random_mode,
+        assisted_layouts
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
+      [
+        name,
+        userId,
+        pageSize,
+        orientation,
+        finalTheme,
+        layoutTemplateId || null,
+        finalTheme,
+        colorPaletteId || null,
+        req.body.minPages ?? null,
+        req.body.maxPages ?? null,
+        req.body.pagePairingEnabled ?? false,
+        req.body.specialPagesConfig ? JSON.stringify(req.body.specialPagesConfig) : null,
+        req.body.layoutStrategy || null,
+        req.body.layoutRandomMode || null,
+        req.body.assistedLayouts ? JSON.stringify(req.body.assistedLayouts) : null
+      ]
     );
 
     const bookId = result.rows[0].id;
 
     // Create initial page
     await pool.query(
-      'INSERT INTO public.pages (book_id, page_number, elements) VALUES ($1, $2, $3)',
-      [bookId, 1, JSON.stringify([])]
+      `INSERT INTO public.pages (
+        book_id,
+        page_number,
+        elements,
+        layout_template_id,
+        theme_id,
+        color_palette_id,
+        page_type,
+        page_pair_id,
+        is_special_page,
+        is_locked,
+        is_printable,
+        layout_variation,
+        background_variation,
+        background_transform
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+      [
+        bookId,
+        1,
+        JSON.stringify([]),
+        null,
+        null,
+        colorPaletteId || null,
+        'content',
+        null,
+        false,
+        false,
+        true,
+        'normal',
+        'normal',
+        null
+      ]
     );
 
     // Add owner as owner collaborator with full permissions

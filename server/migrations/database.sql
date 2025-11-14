@@ -30,6 +30,13 @@ CREATE TABLE books (
   layout_template_id VARCHAR(255),
   theme_id VARCHAR(255),
   color_palette_id VARCHAR(255),
+  min_pages INTEGER,
+  max_pages INTEGER,
+  page_pairing_enabled BOOLEAN DEFAULT FALSE,
+  special_pages_config JSONB,
+  layout_strategy VARCHAR(50),
+  layout_random_mode VARCHAR(50),
+  assisted_layouts JSONB,
   archived BOOLEAN DEFAULT FALSE,
   admin_state VARCHAR(50) NOT NULL DEFAULT 'active',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -50,6 +57,14 @@ CREATE TABLE pages (
   layout_template_id VARCHAR(255),
   theme_id VARCHAR(255),
   color_palette_id VARCHAR(255),
+  page_type VARCHAR(50),
+  page_pair_id VARCHAR(100),
+  is_special_page BOOLEAN DEFAULT FALSE,
+  is_locked BOOLEAN DEFAULT FALSE,
+  is_printable BOOLEAN DEFAULT TRUE,
+  layout_variation VARCHAR(50),
+  background_variation VARCHAR(50),
+  background_transform JSONB,
   admin_state VARCHAR(50) NOT NULL DEFAULT 'draft',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(book_id, page_number)
@@ -184,6 +199,27 @@ CREATE TABLE images (
 -- Create indexes for better performance
 CREATE INDEX idx_images_book_id ON images(book_id);
 CREATE INDEX idx_images_uploaded_by ON images(uploaded_by);
+
+-- ###############################################################
+-- Editor Settings Table
+-- ###############################################################
+
+-- Create editor_settings table for storing user preferences
+CREATE TABLE IF NOT EXISTS public.editor_settings (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    book_id INTEGER NOT NULL REFERENCES public.books(id) ON DELETE CASCADE,
+    setting_type VARCHAR(50) NOT NULL,
+    setting_key VARCHAR(100) NOT NULL,
+    setting_value TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, book_id, setting_type, setting_key)
+);
+
+-- Create index for faster lookups
+CREATE INDEX IF NOT EXISTS idx_editor_settings_user_book ON public.editor_settings(user_id, book_id);
+CREATE INDEX IF NOT EXISTS idx_editor_settings_type ON public.editor_settings(setting_type);
 
 -- ###############################################################
 -- Page Assignments Table

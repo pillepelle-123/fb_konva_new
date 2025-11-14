@@ -15,6 +15,16 @@ const PAGE_LABELS: Record<string, string> = {
   'last-page': 'Last Page'
 };
 
+const LAYOUT_VARIATION_LABELS: Record<string, string> = {
+  mirrored: 'Mirrored layout',
+  randomized: 'Remixed layout'
+};
+
+const BACKGROUND_VARIATION_LABELS: Record<string, string> = {
+  mirrored: 'Mirrored background',
+  randomized: 'Remixed background'
+};
+
 interface PagePreviewProps {
   bookId?: number;
   pageId: number;
@@ -37,6 +47,16 @@ export default function PagePreview({ pageId, pageNumber, assignedUser, isActive
   const previewUrl = cachedPreview?.dataUrl ?? localPreview;
   const specialLabel = pageData?.pageType ? PAGE_LABELS[pageData.pageType] : null;
   const isPrintable = pageData?.isPrintable !== false;
+  const layoutVariation = pageData?.layoutVariation;
+  const backgroundVariation = pageData?.backgroundVariation;
+  const layoutVariationLabel =
+    layoutVariation && layoutVariation !== 'normal'
+      ? LAYOUT_VARIATION_LABELS[layoutVariation] ?? `Layout: ${layoutVariation}`
+      : null;
+  const backgroundVariationLabel =
+    backgroundVariation && backgroundVariation !== 'normal'
+      ? BACKGROUND_VARIATION_LABELS[backgroundVariation] ?? `Background: ${backgroundVariation}`
+      : null;
 
   useEffect(() => {
     if (cachedPreview?.dataUrl) {
@@ -103,6 +123,20 @@ export default function PagePreview({ pageId, pageNumber, assignedUser, isActive
       {!isPrintable && (
         <div className="absolute inset-0 bg-black/60 rounded-lg text-[10px] text-white flex items-center justify-center text-center px-1">
           Not printable
+        </div>
+      )}
+      {(layoutVariationLabel || backgroundVariationLabel) && (
+        <div className="absolute bottom-1 left-1 right-1 flex flex-col items-start gap-1 pointer-events-none">
+          {layoutVariationLabel && (
+            <span className="text-[8px] px-1 py-px rounded bg-white/90 text-blue-800 border border-blue-200 shadow-sm">
+              {layoutVariationLabel}
+            </span>
+          )}
+          {backgroundVariationLabel && (
+            <span className="text-[8px] px-1 py-px rounded bg-white/90 text-purple-800 border border-purple-200 shadow-sm">
+              {backgroundVariationLabel}
+            </span>
+          )}
         </div>
       )}
       

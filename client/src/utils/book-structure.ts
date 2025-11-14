@@ -12,7 +12,7 @@ export const SPECIAL_PAGE_SEQUENCE: Array<Page['pageType']> = [
 
 export const SPECIAL_PAGE_TYPES = new Set(SPECIAL_PAGE_SEQUENCE);
 
-const SPECIAL_PAGE_CONFIG: Record<
+export const SPECIAL_PAGE_CONFIG: Record<
   NonNullable<Page['pageType']>,
   { locked: boolean; printable: boolean; spread: 'cover' | 'intro' | 'outro' | 'content'; order: number }
 > = {
@@ -118,5 +118,94 @@ export function getNextNumericPairId(existingIds: Set<string>) {
     .filter((value) => !Number.isNaN(value));
   const nextId = numericIds.length ? Math.max(...numericIds) + 1 : 0;
   return `pair-${nextId}`;
+}
+
+function createSpecialPage(pageType: NonNullable<Page['pageType']>, pairId: string): Page {
+  const config = SPECIAL_PAGE_CONFIG[pageType];
+  const tempId = Number(`${Date.now()}${Math.floor(Math.random() * 1000)}`);
+  return {
+    id: tempId,
+    pageNumber: 0,
+    elements: [],
+    background: undefined,
+    database_id: undefined,
+    layoutTemplateId: undefined,
+    colorPaletteId: undefined,
+    pageType,
+    pagePairId: pairId,
+    isSpecialPage: true,
+    isLocked: config.locked,
+    isPrintable: config.printable,
+    layoutVariation: 'normal',
+    backgroundVariation: 'normal'
+  };
+}
+
+export function ensureSpecialPages(pages: Page[]): Page[] {
+  const existingPairIds = collectPairIds(pages);
+  let pairCounter = existingPairIds.size;
+  const getNextPairId = () => generateSequentialPairId(pairCounter++);
+
+  const spreadPairMap = new Map<'cover' | 'intro' | 'outro', string>();
+  const updatedPages = pages.map((page) => {
+    if (!page.pageType || !isSpecialPageType(page.pageType)) {
+      return page;
+    }
+    const config = SPECIAL_PAGE_CONFIG[page.pageType];
+    if (!config) {
+      return page;
+    }
+    if (config.spread !== 'content') {
+      const existingPair = spreadPairMap.get(config.spread);
+      const appliedPairId = existingPair || page.pagePairId || getNextPairId();
+      if (!existingPair) {
+        spreadPairMap.set(config.spread, appliedPairId);
+      }
+      return {
+        ...page,
+        pagePairId: appliedPairId,
+        isSpecialPage: true,
+        isLocked: config.locked,
+        isPrintable: config.printable
+      };
+    }
+    return {
+      ...page,
+      isSpecialPage: config.locked,
+      isLocked: config.locked,
+      isPrintable: config.printable
+    };
+  });
+
+  const existingTypes = new Set(updatedPages.map((page) => page.pageType).filter(Boolean) as NonNullable<Page['pageType']>[]);
+
+  const ensurePairIdForSpread = (spread: 'cover' | 'intro' | 'outro') => {
+    if (!spreadPairMap.has(spread)) {
+      spreadPairMap.set(spread, getNextPairId());
+    }
+    return spreadPairMap.get(spread)!;
+  };
+
+  const ensurePageType = (pageType: NonNullable<Page['pageType']>, spread: 'cover' | 'intro' | 'outro') => {
+    if (existingTypes.has(pageType)) {
+      return;
+    }
+    const pairId = ensurePairIdForSpread(spread);
+    updatedPages.push(createSpecialPage(pageType, pairId));
+    existingTypes.add(pageType);
+  };
+
+  ensurePageType('back-cover', 'cover');
+  ensurePageType('front-cover', 'cover');
+  ensurePageType('inner-front', 'intro');
+  ensurePageType('first-page', 'intro');
+  ensurePageType('last-page', 'outro');
+  ensurePageType('inner-back', 'outro');
+
+  const orderedPages = sortPagesByBookStructure(updatedPages);
+  return orderedPages.map((page, index) => ({
+    ...page,
+    pageNumber: index + 1
+  }));
 }
 

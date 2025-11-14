@@ -40,6 +40,11 @@ function loadImage(url: string): Promise<HTMLImageElement> {
 
 function drawBackground(layer: Konva.Layer, page: Page, book: Book, pageWidth: number, pageHeight: number) {
   const background = page.background;
+  const backgroundTransform = page.backgroundTransform;
+  const transformScale = backgroundTransform?.scale ?? 1;
+  const transformOffsetX = (backgroundTransform?.offsetRatioX ?? 0) * pageWidth;
+  const transformOffsetY = (backgroundTransform?.offsetRatioY ?? 0) * pageHeight;
+  const mirrorBackground = Boolean(backgroundTransform?.mirror);
   if (!background) {
     layer.add(new Konva.Rect({
       x: 0,
@@ -99,13 +104,18 @@ function drawBackground(layer: Konva.Layer, page: Page, book: Book, pageWidth: n
         .then((image) => {
           const bg = new Konva.Image({
             image,
-            x: 0,
-            y: 0,
+            x: transformOffsetX,
+            y: transformOffsetY,
             width: pageWidth,
             height: pageHeight,
             opacity: background.opacity ?? 1,
             listening: false,
+            scaleX: mirrorBackground ? -transformScale : transformScale,
+            scaleY: transformScale,
           });
+          if (mirrorBackground) {
+            bg.offsetX(pageWidth);
+          }
           layer.add(bg);
         })
         .catch(() => {
