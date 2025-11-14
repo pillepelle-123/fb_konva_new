@@ -59,13 +59,25 @@ export function PageNavigation({
     setIsEditing(false);
     setInputValue(currentPage.toString());
   };
+
+  const handlePrevPair = () => {
+    if (!canGoPrev) return;
+    const target = Math.max(1, currentPage - 2);
+    onGoToPage(target);
+  };
+
+  const handleNextPair = () => {
+    if (!canGoNext) return;
+    const target = Math.min(totalPages, currentPage + 2);
+    onGoToPage(target);
+  };
   return (
     <div className="flex items-center gap-1 md:gap-2">
-      <Tooltip content={canGoPrev ? "Go to previous page" : "Already on first page"} side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
+      <Tooltip content={canGoPrev ? "Go to previous page pair" : "Already on first page"} side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
         <Button
           variant="outline"
           size="sm"
-          onClick={onPrevPage}
+          onClick={handlePrevPair}
           disabled={!canGoPrev}
           className="h-8 w-8 p-0 md:h-9 md:w-9"
         >
@@ -104,29 +116,17 @@ export function PageNavigation({
         <span className="text-xs md:text-sm font-medium text-foreground pl">/</span><span>{totalPages}</span>
       </div>
 
-      {canGoNext ? (
-        <Tooltip content="Go to next page" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onNextPage}
-            disabled={!canGoNext}
-            className="h-8 w-8 p-0 md:h-9 md:w-9"
-          >
-            <ChevronRight className="h-3 w-3 md:h-4 md:w-4" />
-          </Button>
-        </Tooltip>
-      ) : (
+      <Tooltip content="Go to next page pair" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
         <Button
           variant="outline"
           size="sm"
-          onClick={onNextPage}
+          onClick={handleNextPair}
           disabled={!canGoNext}
           className="h-8 w-8 p-0 md:h-9 md:w-9"
         >
           <ChevronRight className="h-3 w-3 md:h-4 md:w-4" />
         </Button>
-      )}
+      </Tooltip>
 
     </div>
   );

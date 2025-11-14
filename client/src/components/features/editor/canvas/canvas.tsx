@@ -1,5 +1,5 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
-import { Layer, Rect, Group, Text, Image as KonvaImage } from 'react-konva';
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+import { Layer, Rect, Group, Text, Image as KonvaImage, Circle } from 'react-konva';
 import Konva from 'konva';
 import { v4 as uuidv4 } from 'uuid';
 import { useEditor } from '../../../../context/editor-context';
@@ -272,6 +272,28 @@ export default function Canvas() {
 
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const isPrintablePage = currentPage?.isPrintable !== false;
+  const partnerInfo = useMemo(() => {
+    if (!state.currentBook) return null;
+    const pages = state.currentBook.pages;
+    const active = pages[state.activePageIndex];
+    if (!active) return null;
+    if (active.pagePairId) {
+      const partnerIndex = pages.findIndex(
+        (page, index) => page.pagePairId === active.pagePairId && index !== state.activePageIndex
+      );
+      if (partnerIndex !== -1) {
+        return { page: pages[partnerIndex], index: partnerIndex };
+      }
+    } else {
+      const inferredIndex = state.activePageIndex % 2 === 0 ? state.activePageIndex + 1 : state.activePageIndex - 1;
+      if (inferredIndex >= 0 && inferredIndex < pages.length) {
+        return { page: pages[inferredIndex], index: inferredIndex };
+      }
+    }
+    return null;
+  }, [state.currentBook, state.activePageIndex]);
+  const partnerPage = partnerInfo?.page ?? null;
+  const hasPartnerPage = Boolean(partnerPage);
   const pageSize = state.currentBook?.pageSize || 'A4';
   const specialPageLabel =
     currentPage?.pageType && currentPage.pageType !== 'content'
@@ -312,11 +334,45 @@ export default function Canvas() {
   const dimensions = PAGE_DIMENSIONS[pageSize as keyof typeof PAGE_DIMENSIONS];
   const canvasWidth = orientation === 'landscape' ? dimensions.height : dimensions.width;
   const canvasHeight = orientation === 'landscape' ? dimensions.width : dimensions.height;
+  const spreadGapCanvas = hasPartnerPage ? canvasWidth * 0.05 : 0;
+  const spreadWidthCanvas = hasPartnerPage ? canvasWidth * 2 + spreadGapCanvas : canvasWidth;
+  const isActiveLeft = partnerInfo ? state.activePageIndex <= partnerInfo.index : true;
+  const activePageOffsetX = partnerInfo && !isActiveLeft ? canvasWidth + spreadGapCanvas : 0;
+  const previewPageOffsetX = partnerInfo ? (isActiveLeft ? canvasWidth + spreadGapCanvas : 0) : null;
+  const pageOffsetY = 0;
+  const handlePreviewClick = useCallback(() => {
+    if (!partnerInfo) return;
+    dispatch({ type: 'SET_ACTIVE_PAGE', payload: partnerInfo.index });
+  }, [dispatch, partnerInfo]);
 
-  // Scale for display with zoom
-  const scale = zoom;
-  const displayWidth = canvasWidth * scale;
-  const displayHeight = canvasHeight * scale;
+  const clampStagePosition = useCallback((pos: { x: number; y: number }, scaleOverride?: number) => {
+    const appliedZoom = scaleOverride ?? zoom;
+    const contentWidth = spreadWidthCanvas * appliedZoom;
+    const contentHeight = canvasHeight * appliedZoom;
+    const marginX = Math.min(400, containerSize.width);
+    const marginY = Math.min(300, containerSize.height);
+
+    let clampedX = pos.x;
+    let clampedY = pos.y;
+
+    if (contentWidth + marginX * 2 <= containerSize.width) {
+      clampedX = (containerSize.width - contentWidth) / 2;
+    } else {
+      const minX = containerSize.width - contentWidth - marginX;
+      const maxX = marginX;
+      clampedX = Math.min(maxX, Math.max(minX, pos.x));
+    }
+
+    if (contentHeight + marginY * 2 <= containerSize.height) {
+      clampedY = (containerSize.height - contentHeight) / 2;
+    } else {
+      const minY = containerSize.height - contentHeight - marginY;
+      const maxY = marginY;
+      clampedY = Math.min(maxY, Math.max(minY, pos.y));
+    }
+
+    return { x: clampedX, y: clampedY };
+  }, [canvasHeight, containerSize.height, containerSize.width, spreadWidthCanvas, zoom]);
 
   useEffect(() => {
     if (isDragging) return; // Don't update transformer during drag
@@ -489,14 +545,14 @@ export default function Canvas() {
       setIsDrawing(true);
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
-        const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
+        const x = (pos.x - stagePos.x) / zoom - activePageOffsetX;
         const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
         setCurrentPath([x, y]);
       }
     } else if (state.activeTool === 'line') {
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
-        const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
+        const x = (pos.x - stagePos.x) / zoom - activePageOffsetX;
         const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
         const isBackgroundClick = e.target === e.target.getStage() || 
           (e.target.getClassName() === 'Rect' && !e.target.id());
@@ -510,7 +566,7 @@ export default function Canvas() {
     } else if (['rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(state.activeTool)) {
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
-        const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
+        const x = (pos.x - stagePos.x) / zoom - activePageOffsetX;
         const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
         const isBackgroundClick = e.target === e.target.getStage() || 
           (e.target.getClassName() === 'Rect' && !e.target.id());
@@ -524,7 +580,7 @@ export default function Canvas() {
     } else if (state.activeTool === 'text' || state.activeTool === 'question' || state.activeTool === 'answer' || state.activeTool === 'qna' || state.activeTool === 'qna2' || state.activeTool === 'qna_inline' || state.activeTool === 'free_text') {
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
-        const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
+        const x = (pos.x - stagePos.x) / zoom - activePageOffsetX;
         const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
         const isBackgroundClick = e.target === e.target.getStage() || 
           (e.target.getClassName() === 'Rect' && !e.target.id());
@@ -576,7 +632,7 @@ export default function Canvas() {
       const pos = e.target.getStage()?.getPointerPosition();
       if (!pos) return;
       
-      const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
+      const x = (pos.x - stagePos.x) / zoom - activePageOffsetX;
       const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
       
       // Check if clicked on background
@@ -618,10 +674,12 @@ export default function Canvas() {
         const pos = e.target.getStage()?.getPointerPosition();
         if (pos) {
           setHasPanned(true);
-          setStagePos({
-            x: pos.x - panStart.x,
-            y: pos.y - panStart.y
-          });
+          setStagePos(
+            clampStagePosition({
+              x: pos.x - panStart.x,
+              y: pos.y - panStart.y
+            })
+          );
         }
       }
       return;
@@ -631,29 +689,31 @@ export default function Canvas() {
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
         setHasPanned(true);
-        setStagePos({
-          x: pos.x - panStart.x,
-          y: pos.y - panStart.y
-        });
+        setStagePos(
+          clampStagePosition({
+            x: pos.x - panStart.x,
+            y: pos.y - panStart.y
+          })
+        );
       }
     } else if (isDrawing && state.activeTool === 'brush') {
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
-        const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
+        const x = (pos.x - stagePos.x) / zoom - activePageOffsetX;
         const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
         setCurrentPath(prev => [...prev, x, y]);
       }
     } else if (isDrawingLine && lineStart) {
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
-        const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
+        const x = (pos.x - stagePos.x) / zoom - activePageOffsetX;
         const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
         setPreviewLine({ x1: lineStart.x, y1: lineStart.y, x2: x, y2: y });
       }
     } else if (isDrawingShape && shapeStart) {
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
-        const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
+        const x = (pos.x - stagePos.x) / zoom - activePageOffsetX;
         const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
         const width = x - shapeStart.x;
         const height = y - shapeStart.y;
@@ -668,7 +728,7 @@ export default function Canvas() {
     } else if (isDrawingTextbox && textboxStart) {
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
-        const x = (pos.x - stagePos.x) / zoom - pageOffsetX;
+        const x = (pos.x - stagePos.x) / zoom - activePageOffsetX;
         const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
         const width = x - textboxStart.x;
         const height = y - textboxStart.y;
@@ -1142,7 +1202,7 @@ export default function Canvas() {
       const transformer = transformerRef.current;
       const box = transformer.getClientRect();
       // Convert transformer bounds to page coordinates
-      const pageX = (box.x - stagePos.x) / zoom - pageOffsetX;
+      const pageX = (box.x - stagePos.x) / zoom - activePageOffsetX;
       const pageY = (box.y - stagePos.y) / zoom - pageOffsetY;
       const pageWidth = box.width / zoom;
       const pageHeight = box.height / zoom;
@@ -1158,7 +1218,7 @@ export default function Canvas() {
     if (transformerRef.current && transformerRef.current.nodes().length > 0) {
       const transformer = transformerRef.current;
       const box = transformer.getClientRect();
-      const pageX = (box.x - stagePos.x) / zoom - pageOffsetX;
+      const pageX = (box.x - stagePos.x) / zoom - activePageOffsetX;
       const pageY = (box.y - stagePos.y) / zoom - pageOffsetY;
       const pageWidth = box.width / zoom;
       const pageHeight = box.height / zoom;
@@ -1182,7 +1242,7 @@ export default function Canvas() {
     
     // Adjust selection rectangle for page offset
     const adjustedSelectionRect = {
-      x: selectionRect.x - pageOffsetX,
+      x: selectionRect.x - activePageOffsetX,
       y: selectionRect.y - pageOffsetY,
       width: selectionRect.width,
       height: selectionRect.height
@@ -1427,7 +1487,7 @@ export default function Canvas() {
         if (hasConflict) {
           // Show conflict dialog
           setAlertMessage('This user already has one of these questions assigned.');
-          const alertX = (lastMousePos.x - stagePos.x) / zoom + pageOffsetX;
+          const alertX = (lastMousePos.x - stagePos.x) / zoom + activePageOffsetX;
           const alertY = (lastMousePos.y - stagePos.y) / zoom + pageOffsetY;
           setAlertPosition({ x: alertX, y: alertY });
           
@@ -1442,7 +1502,7 @@ export default function Canvas() {
       }
     }
     
-    const x = (lastMousePos.x - stagePos.x) / zoom - pageOffsetX;
+    const x = (lastMousePos.x - stagePos.x) / zoom - activePageOffsetX;
     const y = (lastMousePos.y - stagePos.y) / zoom - pageOffsetY;
     
     // Create ID mapping for question-answer pairs
@@ -1606,13 +1666,15 @@ export default function Canvas() {
       };
       
       setZoom(clampedScale);
-      setStagePos(newPos);
+      setStagePos(clampStagePosition(newPos, clampedScale));
     } else {
       // Pan with two-finger touchpad (mousewheel without Ctrl)
-      setStagePos({
-        x: stagePos.x - e.evt.deltaX,
-        y: stagePos.y - e.evt.deltaY
-      });
+      setStagePos(
+        clampStagePosition({
+          x: stagePos.x - e.evt.deltaX,
+          y: stagePos.y - e.evt.deltaY
+        })
+      );
     }
   };
 
@@ -1686,14 +1748,14 @@ export default function Canvas() {
     }
   };
 
-  const renderBackground = () => {
-    const currentPage = state.currentBook?.pages[state.activePageIndex];
-    const background = currentPage?.background;
-    const backgroundTransform = currentPage?.backgroundTransform;
+  const renderBackground = (page: typeof currentPage, offsetX: number) => {
+    const background = page?.background;
+    const backgroundTransform = page?.backgroundTransform;
     const transformScale = backgroundTransform?.scale ?? 1;
     const transformOffsetX = (backgroundTransform?.offsetRatioX ?? 0) * canvasWidth;
     const transformOffsetY = (backgroundTransform?.offsetRatioY ?? 0) * canvasHeight;
     const mirrorBackground = Boolean(backgroundTransform?.mirror);
+    const { paletteId, palette } = getPaletteForPage(page);
     
     if (!background) return null;
 
@@ -1702,7 +1764,7 @@ export default function Canvas() {
     if (background.type === 'color') {
       return (
         <Rect
-          x={pageOffsetX}
+          x={offsetX}
           y={pageOffsetY}
           width={canvasWidth}
           height={canvasHeight}
@@ -1728,7 +1790,7 @@ export default function Canvas() {
           <Group>
             {spaceColor !== 'transparent' && (
               <Rect
-                x={pageOffsetX}
+                x={offsetX}
                 y={pageOffsetY}
                 width={canvasWidth}
                 height={canvasHeight}
@@ -1738,7 +1800,7 @@ export default function Canvas() {
               />
             )}
             <Rect
-              x={pageOffsetX}
+              x={offsetX}
               y={pageOffsetY}
               width={canvasWidth}
               height={canvasHeight}
@@ -1760,8 +1822,8 @@ export default function Canvas() {
       // Resolve image URL (handles both template and direct URLs)
       // First try with palette if available
       let imageUrl = resolveBackgroundImageUrl(background, {
-        paletteId: activePaletteId,
-        paletteColors: activePalette?.colors
+        paletteId,
+        paletteColors: palette?.colors
       });
       
       // If URL is undefined and we have a template ID, try without palette as fallback
@@ -1782,8 +1844,8 @@ export default function Canvas() {
           backgroundType: background.type,
           templateId: (background as any).backgroundImageTemplateId,
           value: background.value,
-          paletteId: activePaletteId,
-          hasPalette: !!activePalette
+          paletteId,
+          hasPalette: !!palette
         });
         return null;
       }
@@ -1803,7 +1865,7 @@ export default function Canvas() {
     if (!displayImage || !displayImage.complete) {
         return (
           <Rect
-            x={pageOffsetX}
+            x={offsetX}
             y={pageOffsetY}
             width={canvasWidth}
             height={canvasHeight}
@@ -1853,7 +1915,7 @@ export default function Canvas() {
           const isRight = position.endsWith('right');
           const isBottom = position.startsWith('bottom');
 
-          const imageX = pageOffsetX + (isRight ? horizontalSpace : 0);
+          const imageX = offsetX + (isRight ? horizontalSpace : 0);
           const imageY = pageOffsetY + (isBottom ? verticalSpace : 0);
 
           // Render as Image element instead of pattern fill for precise positioning
@@ -1878,7 +1940,7 @@ export default function Canvas() {
             return (
               <Group listening={false}>
                 <Rect
-                  x={pageOffsetX}
+                  x={offsetX}
                   y={pageOffsetY}
                   width={canvasWidth}
                   height={canvasHeight}
@@ -1914,7 +1976,7 @@ export default function Canvas() {
           <Group listening={false}>
             {/* Background color layer */}
             <Rect
-              x={pageOffsetX}
+              x={offsetX}
               y={pageOffsetY}
               width={canvasWidth}
               height={canvasHeight}
@@ -1924,7 +1986,7 @@ export default function Canvas() {
             />
             {/* Image layer */}
             <Rect
-              x={pageOffsetX}
+              x={offsetX}
               y={pageOffsetY}
               width={canvasWidth}
               height={canvasHeight}
@@ -1943,7 +2005,7 @@ export default function Canvas() {
       
       return (
         <Rect
-          x={pageOffsetX}
+          x={offsetX}
           y={pageOffsetY}
           width={canvasWidth}
           height={canvasHeight}
@@ -1960,6 +2022,59 @@ export default function Canvas() {
     }
     
     return null;
+  };
+
+  const renderPageBadge = (
+    page: typeof currentPage | null | undefined,
+    offsetX: number,
+    isPreview: boolean,
+    currentZoom: number
+  ) => {
+    if (!page) return null;
+    const label = page.pageNumber ? `${page.pageNumber}` : '—';
+    const effectiveZoom = currentZoom || 1;
+    const screenDiameter = 30;
+    const screenGap = 14;
+    const screenFont = 12;
+    const screenStrokeWidth = 3;
+    const diameter = screenDiameter / effectiveZoom;
+    const radius = diameter / 2;
+    const verticalGap = screenGap / effectiveZoom;
+    const centerX = offsetX + canvasWidth / 2;
+    const centerY = pageOffsetY - radius - verticalGap;
+    const strokeWidth = screenStrokeWidth / effectiveZoom;
+    const fontSize = screenFont / effectiveZoom;
+    return (
+      <Group
+        listening={false}
+        name="no-print page-number-badge"
+        opacity={isPreview ? 0.75 : 1}
+      >
+        <Circle
+          x={centerX}
+          y={centerY}
+          radius={radius}
+          fill="white"
+          stroke="#E5E7EB"
+          strokeWidth={strokeWidth}
+          listening={false}
+        />
+        <Text
+          x={centerX - radius}
+          y={centerY - radius}
+          width={diameter}
+          height={diameter}
+          text={label}
+          fontSize={fontSize}
+          fontStyle="600"
+          fontFamily="Inter, system-ui, sans-serif"
+          fill="#6B7280"
+          align="center"
+          verticalAlign="middle"
+          listening={false}
+        />
+      </Group>
+    );
   };
 
   // Preload background images when page changes or background is updated
@@ -2404,7 +2519,7 @@ export default function Canvas() {
       setAlertMessage(message);
       
       // Calculate alert position relative to textbox
-      const alertX = (x + width / 2) * zoom + stagePos.x + pageOffsetX;
+      const alertX = (x + width / 2) * zoom + stagePos.x + activePageOffsetX;
       const alertY = (y + height + 10) * zoom + stagePos.y + pageOffsetY;
       setAlertPosition({ x: alertX, y: alertY });
       
@@ -2454,28 +2569,6 @@ export default function Canvas() {
     }
   }, [stageRef.current]);
 
-  const containerPadding = 40;
-  const availableWidth = containerSize.width - containerPadding * 2;
-  const availableHeight = containerSize.height - containerPadding * 2;
-  
-  const pageAspectRatio = canvasWidth / canvasHeight;
-  const containerAspectRatio = availableWidth / availableHeight;
-  
-  let pageDisplayWidth, pageDisplayHeight, pageOffsetX, pageOffsetY;
-  
-  if (pageAspectRatio > containerAspectRatio) {
-    pageDisplayWidth = availableWidth;
-    pageDisplayHeight = availableWidth / pageAspectRatio;
-    pageOffsetX = containerPadding;
-    pageOffsetY = containerPadding + (availableHeight - pageDisplayHeight) / 2;
-  } else {
-    pageDisplayWidth = availableHeight * pageAspectRatio;
-    pageDisplayHeight = availableHeight;
-    pageOffsetX = containerPadding + (availableWidth - pageDisplayWidth) / 2;
-    pageOffsetY = containerPadding;
-  }
-  
-  const pageScale = pageDisplayWidth / canvasWidth;
 
   const handleSnapPosition = (node: Konva.Node, x: number, y: number, enableGridSnap: boolean = false) => {
     const result = snapPosition(
@@ -2487,7 +2580,7 @@ export default function Canvas() {
       currentPage!,
       canvasWidth,
       canvasHeight,
-      pageOffsetX,
+      activePageOffsetX,
       pageOffsetY,
       stageRef
     );
@@ -2504,25 +2597,26 @@ export default function Canvas() {
     const containerWidth = containerRect.width;
     const containerHeight = containerRect.height;
     
-    // Calculate zoom to fit the entire page with some padding
+    // Calculate zoom to fit the entire spread with some padding
     const padding = 40;
     const availableWidth = containerWidth - padding * 2;
     const availableHeight = containerHeight - padding * 2;
     
-    const scaleX = availableWidth / canvasWidth;
+    const spreadWidth = canvasWidth * (hasPartnerPage ? 2 : 1) + (hasPartnerPage ? canvasWidth * 0.05 : 0);
+    const scaleX = availableWidth / spreadWidth;
     const scaleY = availableHeight / canvasHeight;
     const optimalZoom = Math.min(scaleX, scaleY, 1); // Don't zoom in beyond 100%
     
-    // Center the page in the container
-    const scaledPageWidth = canvasWidth * optimalZoom;
+    // Center the spread in the container
+    const scaledSpreadWidth = spreadWidth * optimalZoom;
     const scaledPageHeight = canvasHeight * optimalZoom;
     
-    const centerX = (containerWidth - scaledPageWidth) / 2;
+    const centerX = (containerWidth - scaledSpreadWidth) / 2;
     const centerY = (containerHeight - scaledPageHeight) / 2;
     
     setZoom(optimalZoom);
-    setStagePos({ x: centerX, y: centerY });
-  }, [canvasWidth, canvasHeight]);
+    setStagePos(clampStagePosition({ x: centerX, y: centerY }, optimalZoom));
+  }, [canvasWidth, canvasHeight, clampStagePosition, hasPartnerPage]);
 
   // Auto-fit when entering the canvas editor or when container size changes
   useEffect(() => {
@@ -2667,13 +2761,34 @@ export default function Canvas() {
         >
           <Layer>
             {/* Page boundary */}
-            <CanvasPageEditArea width={canvasWidth} height={canvasHeight} x={pageOffsetX} y={pageOffsetY} />
+            <CanvasPageEditArea width={canvasWidth} height={canvasHeight} x={activePageOffsetX} y={pageOffsetY} />
+            {partnerPage && previewPageOffsetX !== null && (
+              <CanvasPageEditArea width={canvasWidth} height={canvasHeight} x={previewPageOffsetX} y={pageOffsetY} />
+            )}
+            {renderPageBadge(currentPage, activePageOffsetX, false, zoom)}
+            {partnerPage && previewPageOffsetX !== null && renderPageBadge(partnerPage, previewPageOffsetX, true, zoom)}
             
             {/* Background Layer */}
-            {renderBackground()}
+            {renderBackground(currentPage, activePageOffsetX)}
+            {partnerPage && previewPageOffsetX !== null && (
+              <Group opacity={0.3} listening={false}>
+                {renderBackground(partnerPage, previewPageOffsetX)}
+              </Group>
+            )}
+            {partnerPage && previewPageOffsetX !== null && (
+              <Rect
+                x={previewPageOffsetX}
+                y={pageOffsetY}
+                width={canvasWidth}
+                height={canvasHeight}
+                fill="#EEEEEE"
+                opacity={0.8}
+                listening={false}
+              />
+            )}
             
             {/* Canvas elements */}
-            <Group x={pageOffsetX} y={pageOffsetY}>
+            <Group x={activePageOffsetX} y={pageOffsetY}>
               {currentPage?.elements.map(element => (
                 <Group key={`${element.id}-${element.questionId || 'no-question'}`}>
                   <CanvasItemComponent
@@ -2946,6 +3061,38 @@ export default function Canvas() {
                 />
               )}
             </Group>
+            {partnerPage && previewPageOffsetX !== null && (
+              <Group
+                x={previewPageOffsetX}
+                y={pageOffsetY}
+                listening={false}
+                name="no-print preview-page"
+                opacity={0.7}
+              >
+                {partnerPage.elements.map(element => (
+                  <Group key={`preview-${element.id}`}>
+                    <CanvasItemComponent
+                      element={element}
+                      isSelected={false}
+                      zoom={zoom}
+                      hoveredElementId={null}
+                    />
+                  </Group>
+                ))}
+              </Group>
+            )}
+            {partnerPage && previewPageOffsetX !== null && (
+              <Rect
+                x={previewPageOffsetX}
+                y={pageOffsetY}
+                width={canvasWidth}
+                height={canvasHeight}
+                fill="transparent"
+                onClick={handlePreviewClick}
+                onTap={handlePreviewClick}
+                listening
+              />
+            )}
             
             {/* Selection rectangle */}
             <SelectionRectangle
@@ -2963,7 +3110,7 @@ export default function Canvas() {
               if (groupElement && childElement) {
                 return (
                   <SelectionRectangle
-                    x={pageOffsetX + groupElement.x + childElement.x}
+                    x={activePageOffsetX + groupElement.x + childElement.x}
                     y={pageOffsetY + groupElement.y + childElement.y}
                     width={childElement.width || 100}
                     height={childElement.height || 100}
@@ -3008,7 +3155,7 @@ export default function Canvas() {
                 } else {
                   // Multi-selection snapping using transformer as the node
                   const box = transformer.getClientRect();
-                  const currentX = (box.x - stagePos.x) / zoom - pageOffsetX;
+                  const currentX = (box.x - stagePos.x) / zoom - activePageOffsetX;
                   const currentY = (box.y - stagePos.y) / zoom - pageOffsetY;
                   
                   const snapped = handleSnapPosition(transformer, currentX, currentY, false);
@@ -3058,7 +3205,7 @@ export default function Canvas() {
                   if (!node || otherElement.id === node.id()) return;
                   
                   const otherBox = {
-                    x: (otherElement.x + pageOffsetX),
+                    x: (otherElement.x + activePageOffsetX),
                     y: (otherElement.y + pageOffsetY),
                     width: otherElement.width || 100,
                     height: otherElement.height || 100
