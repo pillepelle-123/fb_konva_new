@@ -32,6 +32,8 @@ import { getThemePaletteId, getGlobalTheme } from '../../../../utils/global-them
 function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
   return (
     <Rect
+      id="canvas-page-edit-area"
+      name="canvas-page-bounds"
       x={x}
       y={y}
       width={width}
@@ -249,6 +251,7 @@ export default function Canvas() {
   const GUIDELINE_OFFSET = 15; // Increased for better snapping detection
 
   const currentPage = state.currentBook?.pages[state.activePageIndex];
+  const isPrintablePage = currentPage?.isPrintable !== false;
   const pageSize = state.currentBook?.pageSize || 'A4';
 
   const getPaletteForPage = (page?: typeof currentPage) => {
@@ -1654,6 +1657,11 @@ export default function Canvas() {
   const renderBackground = () => {
     const currentPage = state.currentBook?.pages[state.activePageIndex];
     const background = currentPage?.background;
+    const backgroundTransform = currentPage?.backgroundTransform;
+    const transformScale = backgroundTransform?.scale ?? 1;
+    const transformOffsetX = (backgroundTransform?.offsetRatioX ?? 0) * canvasWidth;
+    const transformOffsetY = (backgroundTransform?.offsetRatioY ?? 0) * canvasHeight;
+    const mirrorBackground = Boolean(backgroundTransform?.mirror);
     
     if (!background) return null;
 
@@ -1704,6 +1712,10 @@ export default function Canvas() {
               height={canvasHeight}
               fillPatternImage={patternTile}
               fillPatternRepeat="repeat"
+              fillPatternScaleX={mirrorBackground ? -transformScale : transformScale}
+              fillPatternScaleY={transformScale}
+              fillPatternOffsetX={mirrorBackground ? transformOffsetX - canvasWidth * transformScale : transformOffsetX}
+              fillPatternOffsetY={transformOffsetY}
               opacity={background.patternBackgroundOpacity || 1}
               listening={false}
             />
@@ -1813,15 +1825,19 @@ export default function Canvas() {
           const imageY = pageOffsetY + (isBottom ? verticalSpace : 0);
 
           // Render as Image element instead of pattern fill for precise positioning
+          const finalWidth = scaledImageWidth * transformScale;
+          const finalHeight = scaledImageHeight * transformScale;
           const imageElement = (
             <KonvaImage
               image={displayImage}
-              x={imageX}
-              y={imageY}
-              width={scaledImageWidth}
-              height={scaledImageHeight}
+              x={mirrorBackground ? imageX + finalWidth + transformOffsetX : imageX + transformOffsetX}
+              y={imageY + transformOffsetY}
+              width={finalWidth}
+              height={finalHeight}
               opacity={opacity}
               listening={false}
+              scaleX={mirrorBackground ? -1 : 1}
+              scaleY={1}
             />
           );
 
@@ -1848,6 +1864,16 @@ export default function Canvas() {
       } else if (background.imageSize === 'stretch') {
         fillPatternScaleX = canvasWidth / imageWidth;
         fillPatternScaleY = canvasHeight / imageHeight;
+      }
+      
+      // Apply transform adjustments for pattern fill
+      fillPatternScaleX *= transformScale;
+      fillPatternScaleY *= transformScale;
+      fillPatternOffsetX += transformOffsetX;
+      fillPatternOffsetY += transformOffsetY;
+      if (mirrorBackground) {
+        fillPatternScaleX = -fillPatternScaleX;
+        fillPatternOffsetX -= canvasWidth * transformScale;
       }
       
       // If background color is enabled, render it behind the image
@@ -2550,6 +2576,19 @@ export default function Canvas() {
     setPendingImageElementId(null);
     dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
   };
+
+  if (!isPrintablePage) {
+    return (
+      <CanvasPageContainer assignedUser={state.pageAssignments[state.activePageIndex + 1] || null}>
+        <div className="flex flex-col items-center justify-center w-full h-full bg-muted/40 border border-dashed border-muted rounded-xl text-center px-8 py-10 space-y-3">
+          <h2 className="text-xl font-semibold text-foreground">This page is not printable</h2>
+          <p className="text-sm text-muted-foreground max-w-md">
+            This side of the spread is intentionally left blank. Use the opposite page to add your content.
+          </p>
+        </div>
+      </CanvasPageContainer>
+    );
+  }
 
   return (
     <>

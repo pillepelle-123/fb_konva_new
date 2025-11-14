@@ -1,14 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../../context/auth-context';
 import { useEditor } from '../../../context/editor-context';
+import type { Page } from '../../../context/editor-context';
 import { Button } from '../../ui/primitives/button';
 import { Card, CardContent } from '../../ui/composites/card';
-import { Input } from '../../ui/primitives/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../ui/overlays/dialog';
-import { Avatar } from '../../ui/composites/avatar';
-import { Badge } from '../../ui/composites/badge';
 
-import { ChevronUp, ChevronDown, UserPlus, UserSearch, X, FileText, User } from 'lucide-react';
+import { ChevronUp, ChevronDown, UserPlus, UserSearch, X, Lock } from 'lucide-react';
 import FindFriendsDialog from '../friends/find-friends-dialog';
 import ProfilePicture from '../users/profile-picture';
 import PagePreview from './page-preview';
@@ -34,6 +32,21 @@ interface BookFriend {
   role: string;
 }
 
+interface ApiBookResponse {
+  pages: Array<{
+    id: number;
+    pageNumber: number;
+  }>;
+}
+
+interface ApiAssignment {
+  page_id: number;
+  user_id: number;
+  name: string;
+  email: string;
+  book_role: string;
+}
+
 interface PagesContentProps {
   bookId: number;
   bookFriends?: BookFriend[];
@@ -43,14 +56,8 @@ interface PagesContentProps {
 
 export default function PagesContent({ bookId, bookFriends: propBookFriends, onSave, onCancel }: PagesContentProps) {
   const { token } = useAuth();
-  
-  // Try to use editor context if available, otherwise work standalone
-  let editorState = null;
-  try {
-    editorState = useEditor()?.state;
-  } catch {
-    // Editor context not available, work standalone
-  }
+  const editorContext = useEditor();
+  const editorState = editorContext?.state ?? null;
   const [pages, setPages] = useState<PageAssignment[]>([]);
   const [localBookFriends, setLocalBookFriends] = useState<BookFriend[]>([]);
   const bookFriends = propBookFriends || localBookFriends;
@@ -60,44 +67,10 @@ export default function PagesContent({ bookId, bookFriends: propBookFriends, onS
   const [showFindFriendsDialog, setShowFindFriendsDialog] = useState(false);
   const [showInviteDialog, setShowInviteDialog] = useState(false);
 
-  useEffect(() => {
-    fetchData();
-  }, [bookId, editorState?.currentBook?.pages?.length, editorState?.pageAssignments]);
-
-  // Additional effect to handle editor context changes
-  useEffect(() => {
-    if (editorState?.currentBook && editorState.currentBook.id === bookId && editorState.pageAssignments) {
-      const pageAssignments: PageAssignment[] = editorState.currentBook.pages.map((page: any) => {
-        const assignment = editorState.pageAssignments[page.pageNumber];
-        return {
-          pageId: page.id,
-          pageNumber: page.pageNumber,
-          assignedUser: assignment || null
-        };
-      });
-      setPages(pageAssignments);
-    }
-  }, [editorState?.pageAssignments, editorState?.currentBook, bookId]);
-
-
-
-  const fetchData = async () => {
+  const fetchPages = useCallback(async () => {
     try {
-      const promises = [fetchPages(), fetchAllFriends()];
-      if (!propBookFriends) {
-        promises.push(fetchBookFriends());
-      }
-      await Promise.all(promises);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchPages = async () => {
-    try {
-      // Use editor context if available
       if (editorState?.currentBook && editorState.currentBook.id === bookId) {
-        const pageAssignments: PageAssignment[] = editorState.currentBook.pages.map((page: any) => {
+        const pageAssignments: PageAssignment[] = editorState.currentBook.pages.map((page: Page) => {
           const assignment = editorState.pageAssignments[page.pageNumber];
           return {
             pageId: page.id,
@@ -106,48 +79,49 @@ export default function PagesContent({ bookId, bookFriends: propBookFriends, onS
           };
         });
         setPages(pageAssignments);
-      } else {
-        // Fallback to API
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-        const [bookResponse, assignmentsResponse] = await Promise.all([
-          fetch(`${apiUrl}/books/${bookId}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          }),
-          fetch(`${apiUrl}/page-assignments/book/${bookId}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          })
-        ]);
+        return;
+      }
 
-        if (bookResponse.ok) {
-          const book = await bookResponse.json();
-          const assignments = assignmentsResponse.ok ? await assignmentsResponse.json() : [];
-          
-          const pageAssignments: PageAssignment[] = book.pages.map((page: any) => {
-            const assignment = assignments.find((a: any) => a.page_id === page.id);
-            return {
-              pageId: page.id,
-              pageNumber: page.pageNumber,
-              assignedUser: assignment ? {
-                id: assignment.user_id,
-                name: assignment.name,
-                email: assignment.email,
-                role: assignment.book_role
-              } : null
-            };
-          });
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const [bookResponse, assignmentsResponse] = await Promise.all([
+        fetch(`${apiUrl}/books/${bookId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        fetch(`${apiUrl}/page-assignments/book/${bookId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      ]);
 
-          setPages(pageAssignments);
-        }
+      if (bookResponse.ok) {
+        const book = (await bookResponse.json()) as ApiBookResponse;
+        const assignments = assignmentsResponse.ok ? ((await assignmentsResponse.json()) as ApiAssignment[]) : [];
+
+        const pageAssignments: PageAssignment[] = book.pages.map((page) => {
+          const assignment = assignments.find((a) => a.page_id === page.id);
+          return {
+            pageId: page.id,
+            pageNumber: page.pageNumber,
+            assignedUser: assignment
+              ? {
+                  id: assignment.user_id,
+                  name: assignment.name,
+                  email: assignment.email,
+                  role: assignment.book_role
+                }
+              : null
+          };
+        });
+
+        setPages(pageAssignments);
       }
     } catch (error) {
       console.error('Error fetching pages:', error);
     }
-  };
+  }, [bookId, editorState?.currentBook, editorState?.pageAssignments, token]);
 
-  const fetchBookFriends = async () => {
-    // Skip fetching if bookFriends are provided as prop (sheet context)
+  const fetchBookFriends = useCallback(async () => {
     if (propBookFriends) return;
-    
+
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const response = await fetch(`${apiUrl}/books/${bookId}/friends`, {
@@ -160,9 +134,9 @@ export default function PagesContent({ bookId, bookFriends: propBookFriends, onS
     } catch (error) {
       console.error('Error fetching book friends:', error);
     }
-  };
+  }, [bookId, propBookFriends, token]);
 
-  const fetchAllFriends = async () => {
+  const fetchAllFriends = useCallback(async () => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const response = await fetch(`${apiUrl}/friendships/friends`, {
@@ -175,12 +149,104 @@ export default function PagesContent({ bookId, bookFriends: propBookFriends, onS
     } catch (error) {
       console.error('Error fetching friends:', error);
     }
+  }, [token]);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const promises = [fetchPages(), fetchAllFriends()];
+      if (!propBookFriends) {
+        promises.push(fetchBookFriends());
+      }
+      await Promise.all(promises);
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchPages, fetchAllFriends, fetchBookFriends, propBookFriends]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Additional effect to handle editor context changes
+  useEffect(() => {
+    if (editorState?.currentBook && editorState.currentBook.id === bookId && editorState.pageAssignments) {
+      const pageAssignments: PageAssignment[] = editorState.currentBook.pages.map((page: Page) => {
+        const assignment = editorState.pageAssignments[page.pageNumber];
+        return {
+          pageId: page.id,
+          pageNumber: page.pageNumber,
+          assignedUser: assignment || null
+        };
+      });
+      setPages(pageAssignments);
+    }
+  }, [editorState?.pageAssignments, editorState?.currentBook, bookId]);
+
+  const pageMetaById = useMemo(() => {
+    const map = new Map<number, Page>();
+    editorState?.currentBook?.pages.forEach((page: Page) => {
+      if (typeof page.id === 'number') {
+        map.set(page.id, page);
+      }
+    });
+    return map;
+  }, [editorState?.currentBook?.pages]);
+
+  const getPairIdForAssignment = (assignment: PageAssignment) => {
+    const meta = assignment.pageId ? pageMetaById.get(assignment.pageId) : null;
+    if (meta?.pagePairId) {
+      return meta.pagePairId;
+    }
+    if (meta?.pageNumber) {
+      return `pair-${Math.floor((meta.pageNumber - 1) / 2)}`;
+    }
+    return `pair-${Math.floor((assignment.pageNumber - 1) / 2)}`;
   };
 
-  const movePageUp = (index: number) => {
-    if (index === 0) return;
+  const isPairLocked = (pairId: string) => {
+    if (!editorState?.currentBook) return false;
+    const pairPages = editorState.currentBook.pages.filter((page: Page) => page.pagePairId === pairId);
+    if (!pairPages.length) return false;
+    return pairPages.some((page: Page) => page.isLocked || page.isSpecialPage || page.isPrintable === false);
+  };
+
+  const getPairRangeInAssignments = (pairId: string) => {
+    let start = -1;
+    let length = 0;
+    pages.forEach((assignment, idx) => {
+      if (getPairIdForAssignment(assignment) !== pairId) return;
+      if (start === -1) start = idx;
+      length += 1;
+    });
+    return { start, length };
+  };
+
+  const canMovePair = (pairId: string, direction: 'up' | 'down') => {
+    const { start, length } = getPairRangeInAssignments(pairId);
+    if (start === -1 || length === 0) return false;
+    if (isPairLocked(pairId)) return false;
+    if (direction === 'up') {
+      if (start === 0) return false;
+      const neighborPairId = getPairIdForAssignment(pages[start - 1]);
+      return !isPairLocked(neighborPairId);
+    }
+    const endIndex = start + length;
+    if (endIndex >= pages.length) return false;
+    const neighborPairId = getPairIdForAssignment(pages[endIndex]);
+    return !isPairLocked(neighborPairId);
+  };
+
+  const movePair = (pairId: string, direction: 'up' | 'down') => {
+    const { start, length } = getPairRangeInAssignments(pairId);
+    if (start === -1 || length === 0) return;
+    if (!canMovePair(pairId, direction)) return;
+
     const newPages = [...pages];
-    [newPages[index - 1], newPages[index]] = [newPages[index], newPages[index - 1]];
+    const moving = newPages.splice(start, length);
+    const targetIndex = direction === 'up' ? start - length : start + length;
+    const insertIndex = Math.max(0, Math.min(newPages.length, targetIndex));
+    newPages.splice(insertIndex, 0, ...moving);
+
     const updatedPages = newPages.map((page, idx) => ({
       ...page,
       pageNumber: idx + 1
@@ -188,15 +254,9 @@ export default function PagesContent({ bookId, bookFriends: propBookFriends, onS
     setPages(updatedPages);
   };
 
-  const movePageDown = (index: number) => {
-    if (index === pages.length - 1) return;
-    const newPages = [...pages];
-    [newPages[index], newPages[index + 1]] = [newPages[index + 1], newPages[index]];
-    const updatedPages = newPages.map((page, idx) => ({
-      ...page,
-      pageNumber: idx + 1
-    }));
-    setPages(updatedPages);
+  const handleMove = (assignment: PageAssignment, direction: 'up' | 'down') => {
+    const pairId = getPairIdForAssignment(assignment);
+    movePair(pairId, direction);
   };
 
   const assignUserToPage = (pageNumber: number, user: User | null) => {
@@ -205,20 +265,6 @@ export default function PagesContent({ bookId, bookFriends: propBookFriends, onS
         ? { ...page, assignedUser: user }
         : page
     ));
-  };
-
-  const removeUserFromBook = (userId: number) => {
-    // Remove user from all page assignments
-    setPages(pages.map(page => 
-      page.assignedUser?.id === userId 
-        ? { ...page, assignedUser: null }
-        : page
-    ));
-    
-    // Remove from book friends list (only if managing local state)
-    if (!propBookFriends) {
-      setLocalBookFriends(bookFriends.filter(friend => friend.id !== userId));
-    }
   };
 
   const addUserToBook = async (userId: number) => {
@@ -313,26 +359,40 @@ export default function PagesContent({ bookId, bookFriends: propBookFriends, onS
             <CardContent className="p-4">
               <div className="flex items-center gap-4">
                 {/* Move Controls */}
-                <div className="flex flex-col gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => movePageUp(index)}
-                    disabled={index === 0}
-                    className="h-6 w-6 p-0"
-                  >
-                    <ChevronUp className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => movePageDown(index)}
-                    disabled={index === pages.length - 1}
-                    className="h-6 w-6 p-0"
-                  >
-                    <ChevronDown className="h-4 w-4" />
-                  </Button>
-                </div>
+                {(() => {
+                  const pairId = getPairIdForAssignment(page);
+                  const locked = isPairLocked(pairId);
+                  const disableUp = locked || !canMovePair(pairId, 'up');
+                  const disableDown = locked || !canMovePair(pairId, 'down');
+                  return (
+                    <div className="flex flex-col gap-1 items-center min-w-[32px]">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleMove(page, 'up')}
+                        disabled={disableUp}
+                        className="h-6 w-6 p-0"
+                      >
+                        <ChevronUp className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleMove(page, 'down')}
+                        disabled={disableDown}
+                        className="h-6 w-6 p-0"
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </Button>
+                      {locked && (
+                        <span className="flex items-center gap-1 text-[10px] text-amber-600 mt-1">
+                          <Lock className="h-3 w-3" />
+                          Locked
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Page Preview */}
                 <div className="flex-shrink-0">
@@ -341,7 +401,7 @@ export default function PagesContent({ bookId, bookFriends: propBookFriends, onS
                     pageId={page.pageId}
                     pageNumber={page.pageNumber}
                     assignedUser={page.assignedUser}
-                    page={editorState?.currentBook?.pages.find((p: any) => p.id === page.pageId)}
+                    page={editorState?.currentBook?.pages.find((p: Page) => p.id === page.pageId)}
                     book={editorState?.currentBook || undefined}
                   />
                 </div>

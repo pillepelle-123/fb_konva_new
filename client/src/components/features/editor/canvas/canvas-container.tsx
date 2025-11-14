@@ -31,6 +31,7 @@ const CanvasContainer = forwardRef<HTMLDivElement, CanvasContainerProps>(({
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
+        position: 'relative',
         cursor: getCursor(),
       }}
     >

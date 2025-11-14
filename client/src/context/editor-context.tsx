@@ -126,6 +126,7 @@ import { getGlobalTheme, getThemePageBackgroundColors, getThemePaletteId } from 
 import type { PageTemplate, ColorPalette } from '../types/template-types';
 import { applyBackgroundImageTemplate } from '../utils/background-image-utils';
 import { generatePagePreview } from '../utils/page-preview-generator';
+import { cloneCanvasElements, clonePageBackground, collectPairIds, getNextNumericPairId, getPairBounds, generateSequentialPairId } from '../utils/book-structure';
 
 // Function to extract theme structure from current book state
 function logThemeStructure(book: Book | null) {
@@ -390,6 +391,13 @@ export interface CanvasElement {
   };
 }
 
+export interface BackgroundTransform {
+  mirror?: boolean;
+  offsetRatioX?: number;
+  offsetRatioY?: number;
+  scale?: number;
+}
+
 export interface PageBackground {
   type: 'color' | 'pattern' | 'image';
   value: string; // color hex, pattern name, or image URL
@@ -426,7 +434,18 @@ export interface Page {
   colorPaletteId?: string; // page-level color palette ID
   isPreview?: boolean; // Flag für temporäre Preview-Seiten (werden nicht in UI angezeigt)
   isPlaceholder?: boolean; // Flag für Platzhalter-Seiten, die noch geladen werden müssen
+  pageType?: 'content' | 'front-cover' | 'back-cover' | 'inner-front' | 'inner-back' | 'first-page' | 'last-page';
+  pagePairId?: string;
+  isSpecialPage?: boolean;
+  isLocked?: boolean;
+  isPrintable?: boolean;
+  layoutVariation?: 'normal' | 'mirrored' | 'randomized';
+  backgroundVariation?: 'normal' | 'mirrored' | 'randomized';
+  backgroundTransform?: BackgroundTransform;
 }
+
+const MIN_TOTAL_PAGES = 24;
+const MAX_TOTAL_PAGES = 96;
 
 export interface Book {
   id: number | string;
@@ -440,10 +459,31 @@ export interface Book {
   colorPaletteId?: string; // book-level color palette ID
   owner_id?: number; // book owner ID
   isTemporary?: boolean; // temporary book flag
+  minPages?: number;
+  maxPages?: number;
+  pagePairingEnabled?: boolean;
+  specialPagesConfig?: Record<
+    string,
+    {
+      locked: boolean;
+      printable: boolean;
+    }
+  >;
+  layoutStrategy?: 'same' | 'pair' | 'mirrored' | 'random';
+  layoutRandomMode?: 'single' | 'pair';
+  assistedLayouts?: {
+    single?: string | null;
+    left?: string | null;
+    right?: string | null;
+  };
 }
 
 type PageKey = string | number;
 type BookMetadataSnapshot = Omit<Book, 'pages'>;
+
+function generatePagePairId(pages: Page[]) {
+  return getNextNumericPairId(collectPairIds(pages));
+}
 
 function cloneData<T>(value: T): T {
   try {
@@ -592,7 +632,7 @@ type EditorAction =
   | { type: 'SET_PAGE_LAYOUT_TEMPLATE'; payload: { pageIndex: number; layoutTemplateId: string | null } }
   | { type: 'SET_PAGE_COLOR_PALETTE'; payload: { pageIndex: number; colorPaletteId: string | null; skipHistory?: boolean } }
   | { type: 'APPLY_THEME_TO_ELEMENTS'; payload: { pageIndex: number; themeId: string; elementType?: string; applyToAllPages?: boolean; skipHistory?: boolean; preserveColors?: boolean } }
-  | { type: 'REORDER_PAGES'; payload: { fromIndex: number; toIndex: number } }
+  | { type: 'REORDER_PAGES'; payload: { fromIndex: number; toIndex: number; count?: number } }
   | { type: 'TOGGLE_MAGNETIC_SNAPPING' }
   | { type: 'SET_QNA_ACTIVE_SECTION'; payload: 'question' | 'answer' }
   | { type: 'TOGGLE_STYLE_PAINTER' }
@@ -1222,10 +1262,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'ADD_PAGE':
       if (!state.currentBook || state.userRole === 'author') return state;
-      const savedAddPageState = saveToHistory(state, 'Add Page', {
-        affectedPageIndexes: []
+      const savedAddPageState = saveToHistory(state, 'Add Spread', {
+        cloneEntireBook: true
       });
-      const newPageNumber = savedAddPageState.currentBook!.pages.length + 1;
       const book = savedAddPageState.currentBook!;
       
       // Get book-level settings
@@ -1295,14 +1334,20 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         }
       }
       
+      const basePageId = Date.now();
       // Create new page with book-level settings
-      const newPage: Page = {
-        id: Date.now(),
-        pageNumber: newPageNumber,
+      const newTemplatePage: Page = {
+        id: basePageId,
+        pageNumber: 0,
         elements: [],
         database_id: undefined,
         background: initialBackground,
-        layoutTemplateId: undefined
+        layoutTemplateId: undefined,
+        isSpecialPage: false,
+        isLocked: false,
+        isPrintable: true,
+        pageType: 'content',
+        pagePairId: ''
       };
       
       // Apply layout template if book has one set
@@ -1453,7 +1498,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       
       // Update new page with elements from layout template
       const newPageWithLayout: Page = {
-        ...newPage,
+        ...newTemplatePage,
         elements: pageElements
       };
       
@@ -1469,66 +1514,109 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         toolSettingsForNewPage
       );
       
-      // Ensure new page has no assignment (even if pageNumber already exists in pageAssignments)
-      const updatedPageAssignmentsForNewPage = { ...savedAddPageState.pageAssignments };
-      // Explicitly remove any assignment for the new page number to ensure it starts unassigned
-      delete updatedPageAssignmentsForNewPage[newPageNumber];
+      const pairId = generatePagePairId(book.pages);
+      const leftPageId = basePageId;
+      const rightPageId = basePageId + 1;
+      const leftPage: Page = {
+        ...themedNewPage,
+        id: leftPageId,
+        elements: cloneCanvasElements(themedNewPage.elements),
+        background: clonePageBackground(themedNewPage.background),
+        pagePairId: pairId,
+        pageType: 'content',
+        isSpecialPage: false,
+        isLocked: false,
+        isPrintable: true
+      };
+      const rightPage: Page = {
+        ...themedNewPage,
+        id: rightPageId,
+        elements: cloneCanvasElements(themedNewPage.elements),
+        background: clonePageBackground(themedNewPage.background),
+        pagePairId: pairId,
+        pageType: 'content',
+        isSpecialPage: false,
+        isLocked: false,
+        isPrintable: true
+      };
+      const insertBeforeLastPage = book.pages.findIndex((page) => page.pageType === 'last-page');
+      const insertIndex = insertBeforeLastPage >= 0 ? insertBeforeLastPage : book.pages.length;
+      const updatedPages = [...book.pages];
+      updatedPages.splice(insertIndex, 0, leftPage, rightPage);
+      const renumberedPages = updatedPages.map((page, index) => ({ ...page, pageNumber: index + 1 }));
+      
+      const updatedPageAssignments: Record<number, any> = {};
+      Object.entries(savedAddPageState.pageAssignments).forEach(([pageNumStr, assignment]) => {
+        const pageNum = parseInt(pageNumStr, 10);
+        if (Number.isNaN(pageNum)) return;
+        if (pageNum >= insertIndex + 1) {
+          updatedPageAssignments[pageNum + 2] = assignment;
+        } else {
+          updatedPageAssignments[pageNum] = assignment;
+        }
+      });
+      updatedPageAssignments[insertIndex + 1] = null;
+      updatedPageAssignments[insertIndex + 2] = null;
       
       const addPageState = {
         ...savedAddPageState,
         toolSettings: toolSettingsForNewPage,
         currentBook: {
           ...book,
-          pages: [...book.pages, themedNewPage]
+          pages: renumberedPages
         },
-        pageAssignments: updatedPageAssignmentsForNewPage,
+        pageAssignments: updatedPageAssignments,
+        activePageIndex: insertIndex,
         hasUnsavedChanges: true
       };
-      const addPageStateWithInvalidation = invalidatePagePreviews(addPageState, [themedNewPage.id]);
-      // Mark new page as modified (new pages need to be saved)
-      return markPageAsModified(addPageStateWithInvalidation, themedNewPage.id);
+      const addPageStateWithInvalidation = invalidatePagePreviews(addPageState, [leftPageId, rightPageId]);
+      let finalAddState = addPageStateWithInvalidation;
+      finalAddState = markPageIndexAsModified(finalAddState, insertIndex);
+      finalAddState = markPageIndexAsModified(
+        finalAddState,
+        Math.min(insertIndex + 1, finalAddState.currentBook!.pages.length - 1)
+      );
+      return finalAddState;
     
-    case 'DELETE_PAGE':
-      if (!state.currentBook || state.currentBook.pages.length <= 1 || state.userRole === 'author') return state;
-      const savedDeletePageState = saveToHistory(state, 'Delete Page', {
-        affectedPageIndexes: [action.payload]
+    case 'DELETE_PAGE': {
+      if (!state.currentBook || state.userRole === 'author') return state;
+      if (state.currentBook.pages.length <= 2) return state;
+      const bounds = getPairBounds(state.currentBook.pages, action.payload);
+      const pairPages = state.currentBook.pages.slice(bounds.start, bounds.end + 1);
+      if (!pairPages.length || pairPages.some((page) => page.isSpecialPage || page.isLocked || page.isPrintable === false)) {
+        return state;
+      }
+      const savedDeletePageState = saveToHistory(state, 'Delete Spread', {
+        cloneEntireBook: true
       });
-      const removedPage = savedDeletePageState.currentBook!.pages[action.payload];
-      const pagesAfterDelete = savedDeletePageState.currentBook!.pages.filter((_, index) => index !== action.payload);
-      const newActiveIndex = action.payload >= pagesAfterDelete.length ? pagesAfterDelete.length - 1 : savedDeletePageState.activePageIndex;
       const cacheWithoutPage = { ...savedDeletePageState.pagePreviewCache };
       const versionsWithoutPage = { ...savedDeletePageState.pagePreviewVersions };
-      if (removedPage) {
-        delete cacheWithoutPage[removedPage.id];
-        delete versionsWithoutPage[removedPage.id];
-      }
-      
-      // Clean up pageAssignments: remove assignment for deleted page and shift remaining assignments
+      pairPages.forEach((page) => {
+        if (page) {
+          delete cacheWithoutPage[page.id];
+          delete versionsWithoutPage[page.id];
+        }
+      });
+      const pagesAfterDelete = savedDeletePageState.currentBook!.pages.filter(
+        (_, index) => index < bounds.start || index > bounds.end
+      );
+      const renumberedPages = pagesAfterDelete.map((page, index) => ({ ...page, pageNumber: index + 1 }));
       const updatedPageAssignmentsAfterDelete: Record<number, any> = {};
-      const deletedPageNumber = removedPage?.pageNumber;
-      if (deletedPageNumber) {
-        // Rebuild pageAssignments: remove deleted page and shift remaining assignments
-        Object.entries(savedDeletePageState.pageAssignments).forEach(([pageNumStr, user]) => {
-          const pageNum = parseInt(pageNumStr);
-          if (pageNum < deletedPageNumber) {
-            // Keep assignment as is (pages before deleted page)
-            updatedPageAssignmentsAfterDelete[pageNum] = user;
-          } else if (pageNum > deletedPageNumber) {
-            // Shift assignment to new page number (pageNumber - 1)
-            updatedPageAssignmentsAfterDelete[pageNum - 1] = user;
-          }
-          // pageNum === deletedPageNumber is skipped (deleted)
-        });
-      } else {
-        // If no deleted page number, keep all assignments as is
-        Object.assign(updatedPageAssignmentsAfterDelete, savedDeletePageState.pageAssignments);
-      }
-      
+      Object.entries(savedDeletePageState.pageAssignments).forEach(([pageNumStr, user]) => {
+        const pageNum = parseInt(pageNumStr, 10);
+        if (Number.isNaN(pageNum)) return;
+        if (pageNum > bounds.end + 1) {
+          updatedPageAssignmentsAfterDelete[pageNum - pairPages.length] = user;
+        } else if (pageNum < bounds.start + 1) {
+          updatedPageAssignmentsAfterDelete[pageNum] = user;
+        }
+      });
+      const newActiveIndex = Math.max(0, Math.min(bounds.start - 1, renumberedPages.length - 1));
       const deletePageState = {
         ...savedDeletePageState,
         currentBook: {
           ...savedDeletePageState.currentBook!,
-          pages: pagesAfterDelete.map((page, index) => ({ ...page, pageNumber: index + 1 }))
+          pages: renumberedPages
         },
         activePageIndex: newActiveIndex,
         selectedElementIds: [],
@@ -1537,65 +1625,78 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         pagePreviewVersions: versionsWithoutPage,
         pageAssignments: updatedPageAssignmentsAfterDelete
       };
-      // Mark all pages after deleted page as modified (page numbers changed)
       let finalDeleteState = deletePageState;
-      for (let i = action.payload; i < pagesAfterDelete.length; i++) {
+      for (let i = bounds.start; i < renumberedPages.length; i++) {
         finalDeleteState = markPageIndexAsModified(finalDeleteState, i);
       }
       return finalDeleteState;
+    }
     
-    case 'DUPLICATE_PAGE':
+    case 'DUPLICATE_PAGE': {
       if (!state.currentBook || state.userRole === 'author') return state;
-      const savedDuplicateState = saveToHistory(state, 'Duplicate Page', {
-        affectedPageIndexes: [action.payload]
+      const bounds = getPairBounds(state.currentBook.pages, action.payload);
+      const pairPages = state.currentBook.pages.slice(bounds.start, bounds.end + 1);
+      if (!pairPages.length || pairPages.some((page) => page.isSpecialPage || page.isLocked)) {
+        return state;
+      }
+      const savedDuplicateState = saveToHistory(state, 'Duplicate Spread', {
+        cloneEntireBook: true
       });
-      const pageToDuplicate = savedDuplicateState.currentBook!.pages[action.payload];
-      const duplicatedPage: Page = {
-        id: Date.now(),
-        pageNumber: action.payload + 2,
-        elements: pageToDuplicate.elements.map(el => ({ ...el, id: uuidv4() })),
-        background: pageToDuplicate.background ? JSON.parse(JSON.stringify(pageToDuplicate.background)) : undefined,
-        database_id: undefined, // Duplicated page, no database ID yet
-        layoutTemplateId: pageToDuplicate.layoutTemplateId,
-        themeId: pageToDuplicate.themeId,
-        colorPaletteId: pageToDuplicate.colorPaletteId
-      };
-      const pagesWithDuplicate = [
-        ...savedDuplicateState.currentBook!.pages.slice(0, action.payload + 1),
-        duplicatedPage,
-        ...savedDuplicateState.currentBook!.pages.slice(action.payload + 1)
-      ].map((page, index) => ({ ...page, pageNumber: index + 1 }));
+      const insertIndex = bounds.end + 1;
+      const pairId = generatePagePairId(savedDuplicateState.currentBook!.pages);
+      const timestamp = Date.now();
+      const duplicatedPages = pairPages.map((page, offset) => ({
+        ...page,
+        id: timestamp + offset,
+        elements: cloneCanvasElements(page.elements),
+        background: clonePageBackground(page.background),
+        database_id: undefined,
+        isSpecialPage: false,
+        isLocked: false,
+        pagePairId: pairId
+      }));
+      const pagesWithDuplicate = [...savedDuplicateState.currentBook!.pages];
+      pagesWithDuplicate.splice(insertIndex, 0, ...duplicatedPages);
+      const renumberedPages = pagesWithDuplicate.map((page, index) => ({ ...page, pageNumber: index + 1 }));
       
-      // Shift page assignments for pages after the duplicated page
       const updatedPageAssignments = { ...savedDuplicateState.pageAssignments };
-      const insertPosition = action.payload + 2; // New page position
-      
-      // Shift assignments for pages >= insertPosition
-      const pageNumbers = Object.keys(updatedPageAssignments).map(n => parseInt(n)).sort((a, b) => b - a);
-      pageNumbers.forEach(pageNumber => {
+      const shiftAmount = duplicatedPages.length;
+      const insertPosition = insertIndex + 1;
+      const pageNumbers = Object.keys(updatedPageAssignments)
+        .map((n) => parseInt(n, 10))
+        .filter((n) => !Number.isNaN(n))
+        .sort((a, b) => b - a);
+      pageNumbers.forEach((pageNumber) => {
         if (pageNumber >= insertPosition) {
           const user = updatedPageAssignments[pageNumber];
           delete updatedPageAssignments[pageNumber];
-          updatedPageAssignments[pageNumber + 1] = user;
+          updatedPageAssignments[pageNumber + shiftAmount] = user;
         }
       });
-      
-      // Ensure new duplicated page has no assignment
-      updatedPageAssignments[insertPosition] = null;
+      for (let i = 0; i < shiftAmount; i++) {
+        updatedPageAssignments[insertPosition + i] = null;
+      }
       
       const stateAfterDuplicate = {
         ...savedDuplicateState,
         currentBook: {
           ...savedDuplicateState.currentBook!,
-          pages: pagesWithDuplicate
+          pages: renumberedPages
         },
         pageAssignments: updatedPageAssignments,
-        activePageIndex: action.payload + 1,
+        activePageIndex: insertIndex,
         hasUnsavedChanges: true
       };
-      const duplicateStateWithInvalidation = invalidatePagePreviews(stateAfterDuplicate, [duplicatedPage.id]);
-      // Mark duplicated page as modified (new page needs to be saved)
-      return markPageAsModified(duplicateStateWithInvalidation, duplicatedPage.id);
+      const duplicateStateWithInvalidation = invalidatePagePreviews(
+        stateAfterDuplicate,
+        duplicatedPages.map((page) => page.id)
+      );
+      let finalDuplicateState = duplicateStateWithInvalidation;
+      for (let i = insertIndex; i < insertIndex + duplicatedPages.length; i++) {
+        finalDuplicateState = markPageIndexAsModified(finalDuplicateState, i);
+      }
+      return finalDuplicateState;
+    }
     
     case 'CREATE_PREVIEW_PAGE':
       if (!state.currentBook) return state;
@@ -1878,9 +1979,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       
       // Update all pages that inherit the book theme (background, themeId, and elements)
       // IMPORTANT: Do this in ONE pass to avoid any issues with themeId being restored
-      let updatedPages: Page[] = [];
+      let bookUpdatedPages: Page[];
       if (theme) {
-        updatedPages = originalBook.pages.map((page, pageIndex) => {
+        bookUpdatedPages = originalBook.pages.map((page, pageIndex) => {
           // Check if page has themeId property (not just if it's truthy)
           const hasThemeIdProperty = 'themeId' in page;
           const hasThemeIdOwnProperty = Object.prototype.hasOwnProperty.call(page, 'themeId');
@@ -2271,7 +2372,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         });
       } else {
         // No theme - just create a copy of pages without themeId for inheriting pages
-        updatedPages = originalBook.pages.map((page) => {
+        bookUpdatedPages = originalBook.pages.map((page) => {
           // Check if page has themeId as own property
           const hasThemeIdOwnProperty = Object.prototype.hasOwnProperty.call(page, 'themeId');
           const themeIdValue = page.themeId;
@@ -2309,7 +2410,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         ...originalBook,
         bookTheme: action.payload,
         themeId: action.payload, // Also set themeId for consistency
-        pages: updatedPages
+        pages: bookUpdatedPages
       };
       
       // CRITICAL: Create a completely new state object to ensure no reference issues
@@ -2783,28 +2884,40 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case 'SET_HOVERED_ELEMENT':
       return { ...state, hoveredElementId: action.payload };
     
-    case 'REORDER_PAGES':
+    case 'REORDER_PAGES': {
       if (!state.currentBook || state.userRole === 'author') return state;
       const savedReorderState = saveToHistory(state, 'Reorder Pages', {
         cloneEntireBook: true
       });
       const { fromIndex, toIndex } = action.payload;
-      const reorderedPages = [...savedReorderState.currentBook!.pages];
-      const [movedPage] = reorderedPages.splice(fromIndex, 1);
-      reorderedPages.splice(toIndex, 0, movedPage);
+      const { start: fromStart, end: fromEnd } = getPairBounds(savedReorderState.currentBook!.pages, fromIndex);
+      const movingPages = savedReorderState.currentBook!.pages.slice(fromStart, fromEnd + 1);
+      if (!movingPages.length || movingPages.some((page) => page.isSpecialPage || page.isLocked)) {
+        return state;
+      }
+      let targetIndex = toIndex;
+      if (targetIndex > fromStart) {
+        targetIndex -= movingPages.length;
+      }
+      targetIndex = Math.max(0, Math.min(savedReorderState.currentBook!.pages.length - movingPages.length, targetIndex));
+      const remainingPages = savedReorderState.currentBook!.pages.filter(
+        (_, index) => index < fromStart || index > fromEnd
+      );
+      remainingPages.splice(targetIndex, 0, ...movingPages);
+      const reorderedPagesWithNumbers = remainingPages.map((page, index) => ({ ...page, pageNumber: index + 1 }));
       
-      // Update page numbers
-      const reorderedPagesWithNumbers = reorderedPages.map((page, index) => ({ ...page, pageNumber: index + 1 }));
-      
-      // Reorder page assignments to match new page order
-      const newPageAssignments = {};
+      const newPageAssignments: Record<number, any> = {};
       reorderedPagesWithNumbers.forEach((page, newIndex) => {
-        const originalIndex = savedReorderState.currentBook!.pages.findIndex(p => p.id === page.id);
+        const originalIndex = savedReorderState.currentBook!.pages.findIndex((p) => p.id === page.id);
         const oldAssignment = savedReorderState.pageAssignments[originalIndex + 1];
-        if (oldAssignment) {
+        if (oldAssignment !== undefined) {
           newPageAssignments[newIndex + 1] = oldAssignment;
         }
       });
+      const activePageId = savedReorderState.currentBook!.pages[savedReorderState.activePageIndex]?.id;
+      const newActiveIndex = activePageId
+        ? reorderedPagesWithNumbers.findIndex((page) => page.id === activePageId)
+        : savedReorderState.activePageIndex;
       
       const reorderState = withPreviewInvalidation(
         {
@@ -2814,17 +2927,19 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             pages: reorderedPagesWithNumbers
           },
           pageAssignments: newPageAssignments,
+          activePageIndex: newActiveIndex,
           hasUnsavedChanges: true
         }
       );
-      // Mark all affected pages as modified (page numbers changed)
-      const minIndex = Math.min(fromIndex, toIndex);
-      const maxIndex = Math.max(fromIndex, toIndex);
+      
+      const minIndex = Math.min(fromStart, targetIndex);
+      const maxIndex = Math.max(fromEnd, targetIndex + movingPages.length - 1);
       let finalReorderState = reorderState;
       for (let i = minIndex; i <= maxIndex; i++) {
         finalReorderState = markPageIndexAsModified(finalReorderState, i);
       }
       return finalReorderState;
+    }
     
     case 'MOVE_ELEMENT_TO_FRONT':
       if (!state.currentBook) return state;

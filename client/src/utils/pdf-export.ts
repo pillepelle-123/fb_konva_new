@@ -110,48 +110,47 @@ export const exportBookToPDF = async (
     const mainLayer = stage.getLayers()[0];
     if (mainLayer) {
       const clonedLayer = mainLayer.clone();
-      
-      // Remove the page border (CanvasPageEditArea) from export
-      const pageRect = clonedLayer.findOne('Rect');
-      if (pageRect && !pageRect.id()) {
+
+      // Detect page offsets using the CanvasPageEditArea rectangle
+      let pageRect = clonedLayer.findOne('#canvas-page-edit-area') as Konva.Rect | null;
+      const allRects = clonedLayer.find<Konva.Rect>('Rect');
+      if (!pageRect) {
+        pageRect = allRects.find((rectNode) => {
+          return (
+            !rectNode.id() &&
+            rectNode.stroke() === '#e5e7eb' &&
+            rectNode.strokeWidth() === 11
+          );
+        }) ?? null;
+      }
+
+      let pageOffsetX = 0;
+      let pageOffsetY = 0;
+      let pageContentWidth = canvasWidth;
+      let pageContentHeight = canvasHeight;
+
+      if (pageRect) {
+        pageOffsetX = pageRect.x();
+        pageOffsetY = pageRect.y();
+        pageContentWidth = pageRect.width();
+        pageContentHeight = pageRect.height();
         pageRect.destroy();
       }
-      
+
       // Remove elements with no-print name
       const noPrintElements = clonedLayer.find('.no-print');
       noPrintElements.forEach(element => element.destroy());
-      
+
+      const placeholderGroups = clonedLayer.find('.placeholder-element');
+      placeholderGroups.forEach(node => node.destroy());
+
+      // Resize export stage to actual page dimensions and shift layer so page starts at (0,0)
+      tempStage.size({ width: pageContentWidth, height: pageContentHeight });
+      clonedLayer.position({
+        x: -pageOffsetX,
+        y: -pageOffsetY
+      });
       tempStage.add(clonedLayer);
-      
-      // Adjust background elements positioning for PDF export FIRST
-      // This must be done before finding the page content group
-      const backgroundRects = clonedLayer.find('Rect').filter(rect => !rect.listening());
-      backgroundRects.forEach(rect => {
-        rect.x(0);
-        rect.y(0);
-      });
-      
-      // Also adjust background Groups (pattern backgrounds are in a Group)
-      const backgroundGroups = clonedLayer.find('Group').filter((group: any) => {
-        const children = group.getChildren();
-        // Background groups typically contain only Rects with listening={false}
-        const hasOnlyBackgroundRects = children.length > 0 && 
-          children.every((child: any) => 
-            child.getClassName() === 'Rect' && !child.listening()
-          );
-        return hasOnlyBackgroundRects;
-      });
-      
-      backgroundGroups.forEach((group: any) => {
-        group.x(0);
-        group.y(0);
-        // Also ensure all child Rects are at (0,0)
-        const childRects = group.find('Rect');
-        childRects.forEach((rect: any) => {
-          rect.x(0);
-          rect.y(0);
-        });
-      });
       
       // Fix pattern fills for PDF export - pattern fills don't clone correctly
       // Check if current page has pattern background
@@ -177,59 +176,13 @@ export const exportBookToPDF = async (
             (rect as any).fillPatternImage(patternTile);
             (rect as any).fillPatternRepeat('repeat');
             
-            // Ensure rect dimensions match canvas dimensions exactly
-            rect.width(canvasWidth);
-            rect.height(canvasHeight);
+            // Ensure rect dimensions match page dimensions exactly
+            rect.width(pageContentWidth);
+            rect.height(pageContentHeight);
             rect.x(0);
             rect.y(0);
           });
         }
-      }
-      
-      // Find the page content group (the one containing elements, not background)
-      // Background groups typically have listening={false} or contain only Rects
-      // The elements group is the one that contains multiple child Groups (one per element)
-      const allGroups = clonedLayer.find('Group');
-      let pageGroup: Konva.Group | null = null;
-      
-      // Find the group that contains element groups (has many child Groups)
-      // This is the elements container group, not the background group
-      for (let i = 0; i < allGroups.length; i++) {
-        const group = allGroups[i] as Konva.Group;
-        const children = group.getChildren();
-        // The elements group typically has many child Groups (one per element)
-        // Background groups typically have only Rects or fewer children
-        const hasManyChildGroups = children.filter((child: any) => child.getClassName() === 'Group').length > 1;
-        const hasTextOrPathChildren = children.some((child: any) => 
-          child.getClassName() === 'Text' || 
-          child.getClassName() === 'Path' ||
-          (child.getClassName() === 'Group' && child.getChildren().some((grandchild: any) => 
-            grandchild.getClassName() === 'Text' || grandchild.getClassName() === 'Path'
-          ))
-        );
-        
-        // The elements group is the one with many child Groups or Text/Path children
-        if (hasManyChildGroups || hasTextOrPathChildren) {
-          pageGroup = group;
-          break;
-        }
-      }
-      
-      // Fallback: if no group found with the above criteria, use the last Group
-      // (background groups are typically rendered first, elements group last)
-      if (!pageGroup && allGroups.length > 0) {
-        pageGroup = allGroups[allGroups.length - 1] as Konva.Group;
-      }
-      
-      // Adjust the page content group positioning
-      if (pageGroup) {
-        // Get the original offset (should be pageOffsetX/pageOffsetY from canvas)
-        const originalX = pageGroup.x();
-        const originalY = pageGroup.y();
-        
-        // Reset to 0,0 for PDF export
-        pageGroup.x(0);
-        pageGroup.y(0);
       }
       
       // Increase stroke widths to compensate for PDF thinning - do this after adding to stage

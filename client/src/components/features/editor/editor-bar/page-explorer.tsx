@@ -1,113 +1,74 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { Button } from '../../../ui/primitives/button';
 import { Tooltip } from '../../../ui/composites/tooltip';
 import PagePreview from '../../books/page-preview';
 import { useEditor } from '../../../../context/editor-context';
+import type { Page } from '../../../../context/editor-context';
 
-const ITEM_WIDTH = 72;
-const ITEM_HEIGHT = 116;
-const ITEM_SPACING = 12;
-const VIRTUAL_BUFFER = 4;
-
-export function PagesSubmenu({ pages, activePageIndex, onClose, onPageSelect, onReorderPages, bookId, isRestrictedView = false }: {
-  pages: any[];
+export function PagesSubmenu({
+  pages,
+  activePageIndex,
+  onClose,
+  onPageSelect,
+  onReorderPages,
+  bookId,
+  isRestrictedView = false
+}: {
+  pages: Page[];
   activePageIndex: number;
   onClose: () => void;
   onPageSelect: (page: number) => void;
-  onReorderPages: (fromIndex: number, toIndex: number) => void;
+  onReorderPages: (fromIndex: number, toIndex: number, count?: number) => void;
   bookId: number;
   isRestrictedView?: boolean;
 }) {
   const { state, ensurePagesLoaded } = useEditor();
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const isAuthor = state.userRole === 'author';
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [virtualRange, setVirtualRange] = useState<{ start: number; end: number }>(() => ({
-    start: 0,
-    end: Math.min(pages.length, 12)
-  }));
-
-  const itemFullWidth = ITEM_WIDTH + ITEM_SPACING;
-
-  const calculateRange = useCallback(() => {
-    const container = scrollContainerRef.current;
-    if (!container) {
-      const fallbackVisible = 8;
-      return {
-        start: 0,
-        end: Math.min(pages.length, fallbackVisible)
-      };
-    }
-
-    const scrollLeft = container.scrollLeft;
-    const containerWidth = container.clientWidth || 1;
-    const estimatedStart = Math.floor(scrollLeft / itemFullWidth);
-    const visibleCount = Math.ceil(containerWidth / itemFullWidth);
-    const start = Math.max(0, estimatedStart - VIRTUAL_BUFFER);
-    const end = Math.min(pages.length, start + visibleCount + VIRTUAL_BUFFER * 2);
-    return { start, end };
-  }, [itemFullWidth, pages.length]);
-
-  const updateRange = useCallback(() => {
-    const nextRange = calculateRange();
-    setVirtualRange((prev) =>
-      prev.start === nextRange.start && prev.end === nextRange.end ? prev : nextRange
-    );
-  }, [calculateRange]);
-
-  useEffect(() => {
-    updateRange();
-  }, [pages.length, updateRange]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    const handleScroll = () => updateRange();
-    const handleResize = () => updateRange();
-
-    container.addEventListener('scroll', handleScroll, { passive: true });
-    window.addEventListener('resize', handleResize);
-
-    let resizeObserver: ResizeObserver | null = null;
-    if ('ResizeObserver' in window) {
-      resizeObserver = new ResizeObserver(() => updateRange());
-      resizeObserver.observe(container);
-    }
-
-    return () => {
-      container.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('resize', handleResize);
-      resizeObserver?.disconnect();
-    };
-  }, [updateRange]);
-
-  const virtualPages = useMemo(
-    () => pages.slice(virtualRange.start, virtualRange.end),
-    [pages, virtualRange]
-  );
-
-  useEffect(() => {
-    if (!state.currentBook || isRestrictedView || !virtualPages.length) return;
-    const globalIndexes = virtualPages
-      .map((page) => state.currentBook!.pages.findIndex((p) => p.id === page.id))
-      .filter((index) => index !== undefined && index >= 0) as number[];
-    if (!globalIndexes.length) return;
-
-    const totalPageCount = state.pagePagination?.totalPages ?? state.currentBook.pages.length;
-    const start = Math.max(0, Math.min(...globalIndexes) - VIRTUAL_BUFFER);
-    const end = Math.min(totalPageCount, Math.max(...globalIndexes) + 1 + VIRTUAL_BUFFER);
-    ensurePagesLoaded(start, end);
-  }, [virtualPages, state.currentBook, state.pagePagination, ensurePagesLoaded, isRestrictedView]);
 
   if (!state.currentBook) {
     return null;
   }
 
-  const handleDragStart = (e: React.DragEvent, index: number) => {
-    if (isAuthor) {
+  const displayedIds = useMemo(() => new Set(pages.map((page) => page.id)), [pages]);
+  const pairEntries = useMemo(() => {
+    const entries: Array<{
+      pairId: string;
+      startIndex: number;
+      pages: Page[];
+      isLocked: boolean;
+      isSpecial: boolean;
+    }> = [];
+    const seen = new Set<string>();
+    state.currentBook!.pages.forEach((page, idx) => {
+      if (!displayedIds.has(page.id)) return;
+      const pairId = page.pagePairId ?? `pair-${Math.floor(idx / 2)}`;
+      if (seen.has(pairId)) return;
+      const pairWithIndex = state.currentBook!.pages
+        .map((candidate, candidateIndex) => ({ candidate, candidateIndex }))
+        .filter(({ candidate, candidateIndex }) => (candidate.pagePairId ?? `pair-${Math.floor(candidateIndex / 2)}`) === pairId)
+        .sort((a, b) => a.candidateIndex - b.candidateIndex);
+      const pairPages = pairWithIndex.map(({ candidate }) => candidate);
+      const startIndex = pairWithIndex[0]?.candidateIndex ?? idx;
+      seen.add(pairId);
+      entries.push({
+        pairId,
+        startIndex,
+        pages: pairPages,
+        isLocked: pairPages.some((entry) => entry.isLocked),
+        isSpecial: pairPages.some((entry) => entry.isSpecialPage)
+      });
+    });
+    return entries;
+  }, [state.currentBook, displayedIds]);
+
+  const activePageId = state.currentBook.pages[activePageIndex]?.id;
+  const activePairId =
+    state.currentBook.pages[activePageIndex]?.pagePairId ?? `pair-${Math.floor(activePageIndex / 2)}`;
+
+  const handleDragStart = (e: React.DragEvent, index: number, isLocked: boolean) => {
+    if (isAuthor || isLocked) {
       e.preventDefault();
       return;
     }
@@ -123,79 +84,74 @@ export function PagesSubmenu({ pages, activePageIndex, onClose, onPageSelect, on
   const handleDrop = (e: React.DragEvent, dropIndex: number) => {
     e.preventDefault();
     if (isAuthor || draggedIndex === null || draggedIndex === dropIndex) return;
-    
-    onReorderPages(draggedIndex, dropIndex);
-    
-    // Update active page to follow the moved page
-    let newActiveIndex = activePageIndex;
-    if (activePageIndex === draggedIndex) {
-      // User was on the dragged page, follow it to new position
-      newActiveIndex = dropIndex;
-    } else if (activePageIndex > draggedIndex && activePageIndex <= dropIndex) {
-      // Active page shifts left
-      newActiveIndex = activePageIndex - 1;
-    } else if (activePageIndex < draggedIndex && activePageIndex >= dropIndex) {
-      // Active page shifts right
-      newActiveIndex = activePageIndex + 1;
-    }
-    
-    if (newActiveIndex !== activePageIndex) {
-      onPageSelect(newActiveIndex + 1);
-    }
-    
+    const movingPair = pairEntries[draggedIndex];
+    const targetPair = pairEntries[dropIndex];
+    if (!movingPair || !targetPair) return;
+    onReorderPages(movingPair.startIndex, targetPair.startIndex, movingPair.pages.length);
     setDraggedIndex(null);
   };
 
   const pagesContent = (
-    <div className="flex items-center flex-1 overflow-x-auto" ref={scrollContainerRef}>
-      <div
-        className="relative"
-        style={{
-          height: ITEM_HEIGHT,
-          width: Math.max(pages.length * itemFullWidth, itemFullWidth * 6)
-        }}
-      >
-        {virtualPages.map((page, index) => {
-          const globalIndex = state.currentBook.pages.findIndex((p) => p.id === page.id);
-          const actualIndex = globalIndex >= 0 ? globalIndex : virtualRange.start + index;
-          const left = actualIndex * itemFullWidth;
-          const pageNumber = isRestrictedView ? actualIndex + 1 : page.pageNumber;
-          const isActivePage = actualIndex === activePageIndex;
-          const isDragged = draggedIndex === actualIndex;
-
+    <div className="flex items-center flex-1 overflow-x-auto">
+      <div className="flex gap-4 py-2 pr-4">
+        {pairEntries.map((pair, index) => {
+          const isActivePair = pair.pairId === activePairId;
+          const isDragged = draggedIndex === index;
           return (
-            <div
-              key={page.id ?? `page-${actualIndex}`}
-              style={{
-                position: 'absolute',
-                top: 0,
-                left,
-                width: ITEM_WIDTH,
-                marginRight: ITEM_SPACING
-              }}
-              draggable={!isAuthor}
-              onDragStart={(e) => handleDragStart(e, actualIndex)}
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, actualIndex)}
-              className={`
-                cursor-pointer transition-all duration-200
-                ${isActivePage ? 'shadow-lg' : ''}
-                ${isDragged ? 'opacity-50' : ''}
-                ${isAuthor ? 'cursor-default' : ''}
-              `}
-              onClick={() => {
-                ensurePagesLoaded(actualIndex, actualIndex + 1);
-                onPageSelect(pageNumber);
-              }}
-            >
-              <PagePreview 
-                pageId={page.id} 
-                pageNumber={pageNumber}
-                assignedUser={state.pageAssignments[page.pageNumber] || null}
-                isActive={isActivePage}
-                page={page}
-                book={state.currentBook || undefined}
-              />
+            <div key={pair.pairId} className="flex flex-col items-start min-w-[180px]">
+              {pair.isSpecial && (
+                <span className="text-[11px] font-semibold text-amber-600 mb-1 uppercase tracking-wide">
+                  Special spread
+                </span>
+              )}
+              <div
+                className={`
+                  border rounded-xl p-2 bg-white flex gap-2 transition-all min-w-[170px]
+                  ${isActivePair ? 'ring-2 ring-blue-500' : 'shadow-sm'}
+                  ${pair.isLocked ? 'opacity-60 cursor-not-allowed' : 'cursor-grab'}
+                  ${isDragged ? 'opacity-40' : ''}
+                `}
+                draggable={!isAuthor && !pair.isLocked}
+                onDragStart={(e) => handleDragStart(e, index, pair.isLocked)}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, index)}
+              >
+                {Array.from({ length: Math.max(pair.pages.length, 2) }).map((_, slotIndex) => {
+                  const page = pair.pages[slotIndex];
+                  if (!page) {
+                    return (
+                      <div
+                        key={`placeholder-${slotIndex}`}
+                        className="w-16 h-20 border border-dashed border-muted rounded-lg flex items-center justify-center text-[10px] text-muted-foreground bg-muted"
+                      >
+                        Empty
+                      </div>
+                    );
+                  }
+                  const isActivePage = page.id === activePageId;
+                  return (
+                    <button
+                      key={page.id}
+                      type="button"
+                      className="flex flex-col items-center gap-1"
+                      onClick={() => {
+                        const indexToLoad = state.currentBook!.pages.findIndex((p) => p.id === page.id);
+                        ensurePagesLoaded(indexToLoad, indexToLoad + 1);
+                        onPageSelect(page.pageNumber);
+                      }}
+                    >
+                      <PagePreview
+                        pageId={page.id}
+                        pageNumber={page.pageNumber}
+                        assignedUser={state.pageAssignments[page.pageNumber] || null}
+                        isActive={isActivePage}
+                        page={page}
+                        book={state.currentBook || undefined}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           );
         })}

@@ -1,7 +1,9 @@
-import { Layout, Eye } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { Layout, Eye, Filter } from 'lucide-react';
 import { pageTemplates as builtinPageTemplates } from '../../../../data/templates/page-templates';
-import type { PageTemplate } from '../../../../types/template-types';
+import type { PageTemplate, TemplateCategory } from '../../../../types/template-types';
 import { SelectorShell, SelectorListSection } from './selector-shell';
+import { getMirroredTemplateId, mirrorTemplate } from '../../../../utils/layout-mirroring';
 
 interface LayoutSelectorProps {
   selectedLayout: PageTemplate | null;
@@ -63,7 +65,7 @@ const ITEM_STYLE: Record<
   image: {
     background: 'rgba(249, 115, 22, 0.65)', // orange
     border: '#ea580c',
-    label: 'Bild'
+    label: 'Image'
   }
 };
 
@@ -102,16 +104,18 @@ function normalizeTemplateItems(template: PageTemplate): TemplateItem[] {
   return [...textboxItems, ...elementItems];
 }
 
-interface LayoutTemplatePreviewProps {
+export interface LayoutTemplatePreviewProps {
   template: PageTemplate;
   className?: string;
   showLegend?: boolean;
+  showItemLabels?: boolean;
 }
 
-function LayoutTemplatePreview({
+export function LayoutTemplatePreview({
   template,
   className,
-  showLegend = false
+  showLegend = false,
+  showItemLabels = true
 }: LayoutTemplatePreviewProps) {
   const items = normalizeTemplateItems(template);
 
@@ -142,9 +146,11 @@ function LayoutTemplatePreview({
                 letterSpacing: '0.02em'
               }}
             >
-              <span className="px-2 py-0.5 rounded-full bg-slate-900/20 backdrop-blur">
-                {styleConfig.label}
-              </span>
+              {showItemLabels && (
+                <span className="px-2 py-0.5 rounded-full bg-slate-900/20 backdrop-blur">
+                  {styleConfig.label}
+                </span>
+              )}
             </div>
           );
         })}
@@ -188,6 +194,104 @@ export function LayoutSelector({
 }: LayoutSelectorProps) {
   // All templates are now in page-templates.ts, no conversion needed
   const mergedPageTemplates: PageTemplate[] = builtinPageTemplates;
+  const mirroredCache = useRef<Record<string, PageTemplate>>({});
+  const [mirroredFlags, setMirroredFlags] = useState<Record<string, boolean>>({});
+
+  const getDisplayTemplate = (template: PageTemplate, mirrored: boolean) => {
+    if (!mirrored) return template;
+    const mirroredId = getMirroredTemplateId(template.id);
+    if (!mirroredCache.current[mirroredId]) {
+      mirroredCache.current[mirroredId] = mirrorTemplate(template);
+    }
+    return mirroredCache.current[mirroredId];
+  };
+
+  const handleMirrorToggle = (template: PageTemplate, enabled: boolean) => {
+    setMirroredFlags((prev) => ({ ...prev, [template.id]: enabled }));
+    if (
+      selectedLayout &&
+      (selectedLayout.id === template.id || selectedLayout.id === getMirroredTemplateId(template.id))
+    ) {
+      onLayoutSelect(getDisplayTemplate(template, enabled));
+    }
+  };
+
+  const uniqueCounts = useMemo(() => {
+    const qna = new Set<number>();
+    const images = new Set<number>();
+    const columns = new Set<number>();
+    const categories = new Set<TemplateCategory>();
+
+    mergedPageTemplates.forEach((template) => {
+      categories.add(template.category);
+      const meta = template.meta;
+      if (meta) {
+        qna.add(meta.qnaInlineCount);
+        images.add(meta.imageCount);
+        columns.add(meta.columns);
+      } else {
+        qna.add(template.textboxes.length);
+        images.add(
+          template.elements.filter((element) => element.type === 'image').length
+        );
+        columns.add(template.columns ?? 1);
+      }
+    });
+
+    const sortNumeric = (values: Set<number>) =>
+      Array.from(values).sort((a, b) => a - b);
+
+    return {
+      qna: sortNumeric(qna),
+      images: sortNumeric(images),
+      columns: sortNumeric(columns),
+      categories: Array.from(categories).sort()
+    };
+  }, [mergedPageTemplates]);
+
+  type FilterValue = 'any' | number;
+  const [filters, setFilters] = useState<{
+    qna: FilterValue;
+    images: FilterValue;
+    columns: FilterValue;
+    category: 'any' | TemplateCategory;
+  }>({
+    qna: 'any',
+    images: 'any',
+    columns: 'any',
+    category: 'any'
+  });
+
+  const hasActiveFilters =
+    filters.qna !== 'any' ||
+    filters.images !== 'any' ||
+    filters.columns !== 'any' ||
+    filters.category !== 'any';
+
+  const filteredTemplates = useMemo(() => {
+    return mergedPageTemplates.filter((template) => {
+      const meta = template.meta;
+      const qnaInlineCount = meta?.qnaInlineCount ?? template.textboxes.length;
+      const imageCount =
+        meta?.imageCount ??
+        template.elements.filter((element) => element.type === 'image').length;
+      const columns = meta?.columns ?? template.columns ?? 1;
+
+      if (filters.qna !== 'any' && qnaInlineCount !== filters.qna) {
+        return false;
+      }
+      if (filters.images !== 'any' && imageCount !== filters.images) {
+        return false;
+      }
+      if (filters.columns !== 'any' && columns !== filters.columns) {
+        return false;
+      }
+      if (filters.category !== 'any' && template.category !== filters.category) {
+        return false;
+      }
+      return true;
+    });
+  }, [mergedPageTemplates, filters]);
 
   const previewSection = (
     <div className="p-4 border-t border-gray-200 shrink-0">
@@ -219,6 +323,121 @@ export function LayoutSelector({
       className={previewPosition === 'right' ? 'w-1/2 border-r border-gray-200' : ''}
       scrollClassName="min-h-0"
     >
+      <div className="w-full p-3 mb-3 border border-gray-200 rounded-lg bg-white/70">
+        <div className="flex items-center gap-2 mb-3 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+          <Filter className="h-3.5 w-3.5" />
+          Filter
+          {hasActiveFilters && (
+            <button
+              type="button"
+              className="ml-auto text-blue-600 hover:underline"
+              onClick={() =>
+                setFilters({
+                  qna: 'any',
+                  images: 'any',
+                  columns: 'any'
+                })
+              }
+            >
+              Reset
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+          <label className="text-xs text-slate-600 space-y-1">
+            <span>Q&A Boxes</span>
+            <select
+              className="w-full rounded border border-gray-200 bg-white px-2 py-1 text-sm"
+              value={filters.qna}
+              onChange={(event) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  qna:
+                    event.target.value === 'any'
+                      ? 'any'
+                      : Number(event.target.value)
+                }))
+              }
+            >
+              <option value="any">Any</option>
+              {uniqueCounts.qna.map((count) => (
+                <option key={`filter-qna-${count}`} value={count}>
+                  {count}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs text-slate-600 space-y-1">
+            <span>Images</span>
+            <select
+              className="w-full rounded border border-gray-200 bg-white px-2 py-1 text-sm"
+              value={filters.images}
+              onChange={(event) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  images:
+                    event.target.value === 'any'
+                      ? 'any'
+                      : Number(event.target.value)
+                }))
+              }
+            >
+              <option value="any">Any</option>
+              {uniqueCounts.images.map((count) => (
+                <option key={`filter-images-${count}`} value={count}>
+                  {count}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs text-slate-600 space-y-1">
+            <span>Columns</span>
+            <select
+              className="w-full rounded border border-gray-200 bg-white px-2 py-1 text-sm"
+              value={filters.columns}
+              onChange={(event) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  columns:
+                    event.target.value === 'any'
+                      ? 'any'
+                      : Number(event.target.value)
+                }))
+              }
+            >
+              <option value="any">Any</option>
+              {uniqueCounts.columns.map((count) => (
+                <option key={`filter-columns-${count}`} value={count}>
+                  {count === 1 ? '1 column' : `${count} columns`}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs text-slate-600 space-y-1">
+            <span>Category</span>
+            <select
+              className="w-full rounded border border-gray-200 bg-white px-2 py-1 text-sm"
+              value={filters.category}
+              onChange={(event) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  category:
+                    event.target.value === 'any'
+                      ? 'any'
+                      : (event.target.value as TemplateCategory)
+                }))
+              }
+            >
+              <option value="any">Any</option>
+              {uniqueCounts.categories.map((category) => (
+                <option key={`filter-category-${category}`} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </div>
       {showBookLayoutOption && (
         <div
           key="book-layout-entry"
@@ -269,8 +488,18 @@ export function LayoutSelector({
           )}
         </div>
       )}
-      {mergedPageTemplates.map((template) => {
-        const isActive = !isBookLayoutSelected && selectedLayout?.id === template.id;
+      {filteredTemplates.map((template) => {
+        const mirroredId = getMirroredTemplateId(template.id);
+        const isBaseSelected = !isBookLayoutSelected && selectedLayout?.id === template.id;
+        const isMirroredSelected = !isBookLayoutSelected && selectedLayout?.id === mirroredId;
+        const isActive = isBaseSelected || isMirroredSelected;
+        const mirrorChecked = mirroredFlags[template.id] ?? isMirroredSelected;
+        const displayTemplate = getDisplayTemplate(template, mirrorChecked);
+        const meta = template.meta ?? {
+          qnaInlineCount: template.textboxes.length,
+          imageCount: template.elements.filter((element) => element.type === 'image').length,
+          columns: template.columns ?? 1
+        };
         return (
         <div
           key={template.id}
@@ -296,7 +525,8 @@ export function LayoutSelector({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onLayoutSelect(template);
+              const isMirrored = mirroredFlags[template.id] ?? isMirroredSelected;
+              onLayoutSelect(getDisplayTemplate(template, isMirrored));
             }}
             onMouseDown={(e) => {
               e.stopPropagation();
@@ -307,10 +537,28 @@ export function LayoutSelector({
               <span className="font-medium text-sm">{template.name}</span>
               <span className="text-xs text-gray-500 capitalize">{template.category}</span>
             </div>
-            <div className="text-xs text-gray-600">
-              {template.textboxes.length} elements • {template.constraints.imageSlots} images
+            <div className="text-xs text-gray-600 flex flex-wrap gap-2">
+              <span>{meta.qnaInlineCount} Q&A</span>
+              <span>•</span>
+              <span>{meta.imageCount} image{meta.imageCount === 1 ? '' : 's'}</span>
+              <span>•</span>
+              <span>{meta.columns} column{meta.columns === 1 ? '' : 's'}</span>
             </div>
-            <LayoutTemplatePreview template={template} className="mt-3" />
+            <div className="mt-3 w-1/4 min-w-[70px]">
+              <LayoutTemplatePreview
+                template={displayTemplate}
+                showItemLabels={false}
+              />
+            </div>
+            <label className="mt-3 inline-flex items-center gap-2 text-xs font-medium text-gray-600">
+              <input
+                type="checkbox"
+                checked={mirrorChecked}
+                onChange={(event) => handleMirrorToggle(template, event.target.checked)}
+                onClick={(event) => event.stopPropagation()}
+              />
+              <span>Mirrored</span>
+            </label>
           </button>
           {onPreviewClick && (
             <button
@@ -318,7 +566,7 @@ export function LayoutSelector({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                onPreviewClick(template);
+                onPreviewClick(displayTemplate);
               }}
               onMouseDown={(e) => {
                 e.preventDefault();

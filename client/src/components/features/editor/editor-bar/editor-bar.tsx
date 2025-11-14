@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEditor } from '../../../../context/editor-context';
+import type { Page } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import PDFExportModal from '../pdf-export-modal';
 import { BookPreviewModal } from '../preview/book-preview-modal';
@@ -29,6 +30,22 @@ import ProfilePicture from '../../users/profile-picture';
 import { PagesSubmenu } from './page-explorer';
 import PageAssignmentPopover from './page-assignment-popover';
 
+const MIN_TOTAL_PAGES = 24;
+const MAX_TOTAL_PAGES = 96;
+
+function getPairPages(pages: Page[], index: number): Page[] {
+  if (!pages.length || index < 0 || index >= pages.length) {
+    return [];
+  }
+  const pairId = pages[index]?.pagePairId;
+  if (!pairId) {
+    const start = index % 2 === 0 ? index : Math.max(0, index - 1);
+    const end = Math.min(pages.length, start + 2);
+    return pages.slice(start, end);
+  }
+  return pages.filter((page) => page.pagePairId === pairId);
+}
+
 interface EditorBarProps {
   toolSettingsPanelRef: React.RefObject<{ openBookTheme: () => void }>;
   initialPreviewOpen?: boolean;
@@ -54,9 +71,32 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
     }
   }, [initialPreviewOpen]);
 
-
-
   if (!state.currentBook) return null;
+
+  const activePairPages = getPairPages(state.currentBook.pages, state.activePageIndex);
+  const activePairLocked = activePairPages.some((page) => page?.isLocked);
+  const activePairSpecial = activePairPages.some((page) => page?.isSpecialPage);
+  const activePairNonPrintable = activePairPages.some((page) => page?.isPrintable === false);
+  const canDuplicateSpread = activePairPages.length > 0 && !activePairLocked && !activePairSpecial && !activePairNonPrintable;
+  const remainingPagesAfterDelete = state.currentBook.pages.length - activePairPages.length;
+  const deleteLeavesMinimum = remainingPagesAfterDelete >= MIN_TOTAL_PAGES;
+  const canDeleteSpread = canDuplicateSpread && deleteLeavesMinimum;
+  const deleteTooltip = !deleteLeavesMinimum
+    ? `Books must keep at least ${MIN_TOTAL_PAGES} pages.`
+    : activePairSpecial
+      ? 'Special spreads cannot be deleted.'
+      : activePairLocked
+        ? 'This spread is locked.'
+        : undefined;
+  const canAddSpread = state.currentBook.pages.length + 2 <= MAX_TOTAL_PAGES;
+  const duplicateBlockedMessage = activePairSpecial
+    ? 'Special spreads cannot be duplicated.'
+    : activePairLocked
+      ? 'This spread is locked and cannot be duplicated.'
+      : activePairNonPrintable
+        ? 'Non-printable spreads cannot be duplicated.'
+        : 'This spread cannot be duplicated.';
+  const addBlockedMessage = `Books can have at most ${MAX_TOTAL_PAGES} pages. Delete a spread before adding another one.`;
 
   const { pages } = state.currentBook;
   const visiblePages = getVisiblePages();
@@ -167,7 +207,13 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
     }
   };
 
+  const deleteBlockedMessage = deleteTooltip ?? 'This spread cannot be deleted.';
+
   const handleAddPage = () => {
+    if (!canAddSpread) {
+      setShowAlert({ title: 'Cannot add spread', message: addBlockedMessage });
+      return;
+    }
     dispatch({ type: 'ADD_PAGE' });
     // Jump to the newly added page (use visiblePages to get correct count)
     const newVisiblePages = getVisiblePages();
@@ -182,17 +228,27 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
   };
 
   const handleDeletePage = () => {
-    if (visiblePages.length > 1) {
-      setShowDeleteConfirm(true);
+    if (!canDeleteSpread) {
+      setShowAlert({ title: 'Cannot delete spread', message: deleteBlockedMessage });
+      return;
     }
+    setShowDeleteConfirm(true);
   };
 
   const handleConfirmDeletePage = () => {
+    if (!canDeleteSpread) {
+      setShowDeleteConfirm(false);
+      return;
+    }
     setShowDeleteConfirm(false);
     dispatch({ type: 'DELETE_PAGE', payload: state.activePageIndex });
   };
 
   const handleDuplicatePage = () => {
+    if (!canDuplicateSpread) {
+      setShowAlert({ title: 'Cannot duplicate spread', message: duplicateBlockedMessage });
+      return;
+    }
     dispatch({ type: 'DUPLICATE_PAGE', payload: state.activePageIndex });
   };
 
@@ -210,8 +266,8 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
     }
   };
 
-  const handleReorderPages = (fromIndex: number, toIndex: number) => {
-    dispatch({ type: 'REORDER_PAGES', payload: { fromIndex, toIndex } });
+  const handleReorderPages = (fromIndex: number, toIndex: number, count: number = 2) => {
+    dispatch({ type: 'REORDER_PAGES', payload: { fromIndex, toIndex, count } });
   };
 
   return (
@@ -257,7 +313,10 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
                   onAddPage={handleAddPage}
                   onDuplicatePage={handleDuplicatePage}
                   onDeletePage={handleDeletePage}
-                  canDelete={visiblePages.length > 1}
+                  canDelete={canDeleteSpread}
+                  canAdd={canAddSpread}
+                  canDuplicate={canDuplicateSpread}
+                  deleteTooltip={deleteBlockedMessage}
                   showAssignFriends={false}
                 />
               )}

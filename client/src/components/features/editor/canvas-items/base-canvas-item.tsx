@@ -1,4 +1,5 @@
-import React, { useRef, useState, ReactNode, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { Group, Rect } from 'react-konva';
 import { SelectionHoverRectangle } from '../canvas/selection-hover-rectangle';
 import Konva from 'konva';
@@ -22,7 +23,7 @@ export interface CanvasItemProps {
 interface BaseCanvasItemProps extends CanvasItemProps {
   children: ReactNode;
   hitArea?: { x: number; y: number; width: number; height: number };
-  onDoubleClick?: (e?: any) => void;
+  onDoubleClick?: (e?: Konva.KonvaEventObject<MouseEvent>) => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
   hoveredElementId?: string | null;
@@ -82,8 +83,6 @@ export default function BaseCanvasItem({
     window.addEventListener('hoverPartner', handlePartnerHover as EventListener);
     return () => window.removeEventListener('hoverPartner', handlePartnerHover as EventListener);
   }, [element.id, element.textType, element.questionElementId, state.currentBook, state.activePageIndex]);
-  const [lastClickTime, setLastClickTime] = useState(0);
-
   const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (isInsideGroup) return; // Don't handle clicks for grouped elements
     if (state.activeTool === 'select') {
@@ -138,10 +137,15 @@ export default function BaseCanvasItem({
 
   const defaultHitArea = hitArea || { x: 0, y: 0, width: element.width || 100, height: element.height || 100 };
 
+  const groupName = element.type === 'placeholder'
+    ? 'canvas-item no-print placeholder-element'
+    : 'canvas-item';
+
   return (
     <Group
       ref={groupRef}
       id={element.id}
+      name={groupName}
       x={element.x}
       y={element.y}
       scaleX={(element.textType === 'question' || element.textType === 'answer') ? 1 : (element.scaleX || 1)}
@@ -159,7 +163,7 @@ export default function BaseCanvasItem({
           onSelect();
         }
       }}
-      onDragStart={(e) => {
+      onDragStart={() => {
         setIsDragging(true);
         onDragStart?.();
       }}
@@ -226,7 +230,8 @@ export default function BaseCanvasItem({
       {/* Pass isDragging to children if they are React elements */}
       {React.Children.map(children, (child) => {
         if (React.isValidElement(child) && typeof child.type !== 'string' && child.type !== React.Fragment) {
-          return React.cloneElement(child, { isDragging });
+          const typedChild = child as React.ReactElement<Record<string, unknown>>;
+          return React.cloneElement(typedChild, { isDragging });
         }
         return child;
       })}

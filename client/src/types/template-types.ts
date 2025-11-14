@@ -89,6 +89,12 @@ export interface TemplateConstraints {
   stickerSlots?: number | ((pageSize: string) => number);
 }
 
+export interface LayoutMeta {
+  qnaInlineCount: number;
+  imageCount: number;
+  columns: number;
+}
+
 export interface PageTemplate {
   id: string;
   name: string;
@@ -96,6 +102,7 @@ export interface PageTemplate {
   thumbnail: string;
   // theme, colorPalette, and background are NOT layout properties - they are managed by themes.json and color-palettes.json
   columns?: number; // 1 or 2, extracted from layout ID (e.g., "qna-1col-..." or "qna-2col-...")
+  meta?: LayoutMeta;
   textboxes: Array<{
     type: 'question' | 'answer' | 'text' | 'qna_inline';
     position: { x: number; y: number };

@@ -6,6 +6,15 @@ import { useEditor, getPagePreviewCacheId } from '../../../context/editor-contex
 import { generatePagePreview } from '../../../utils/page-preview-generator';
 import type { Page, Book } from '../../../context/editor-context';
 
+const PAGE_LABELS: Record<string, string> = {
+  'front-cover': 'Front Cover',
+  'back-cover': 'Back Cover',
+  'inner-front': 'Inner Front',
+  'inner-back': 'Inner Back',
+  'first-page': 'First Page',
+  'last-page': 'Last Page'
+};
+
 interface PagePreviewProps {
   bookId?: number;
   pageId: number;
@@ -26,6 +35,8 @@ export default function PagePreview({ pageId, pageNumber, assignedUser, isActive
   const cacheId = getPagePreviewCacheId(pageData, pageNumber);
   const cachedPreview = cacheId != null ? state.pagePreviewCache[cacheId] : undefined;
   const previewUrl = cachedPreview?.dataUrl ?? localPreview;
+  const specialLabel = pageData?.pageType ? PAGE_LABELS[pageData.pageType] : null;
+  const isPrintable = pageData?.isPrintable !== false;
 
   useEffect(() => {
     if (cachedPreview?.dataUrl) {
@@ -74,6 +85,11 @@ export default function PagePreview({ pageId, pageNumber, assignedUser, isActive
 
   return (
     <div className={`w-16 h-20 bg-muted border-2 ${borderClass} rounded-lg flex items-center justify-center relative overflow-visible`}>
+      {specialLabel && (
+        <span className="absolute -top-2 left-0 bg-blue-500 text-white text-[10px] px-2 py-0.5 rounded-full shadow">
+          {specialLabel}
+        </span>
+      )}
       {previewUrl ? (
         <img 
           src={previewUrl} 
@@ -83,6 +99,11 @@ export default function PagePreview({ pageId, pageNumber, assignedUser, isActive
         />
       ) : (
         <FileText className="h-6 w-6 text-muted-foreground" />
+      )}
+      {!isPrintable && (
+        <div className="absolute inset-0 bg-black/60 rounded-lg text-[10px] text-white flex items-center justify-center text-center px-1">
+          Not printable
+        </div>
       )}
       
       {/* Profile picture badge at top-right */}

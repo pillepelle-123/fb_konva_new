@@ -1,5 +1,5 @@
 import type { CanvasElement } from '../context/editor-context';
-import type { PageTemplate } from '../types/template-types';
+import type { LayoutMeta, PageTemplate } from '../types/template-types';
 import { displayJSONInNewWindow } from './json-display';
 import { actualToCommon } from './font-size-converter';
 import { actualToCommonRadius } from './corner-radius-converter';
@@ -255,12 +255,25 @@ export function generateLayoutJSON(
   };
 
   // Build complete template (without theme, colorPalette, or background - these are not layout properties)
-  const template: PageTemplate & { columns?: number } = {
+  const qnaInlineCount = layoutTemplate.textboxes?.length ?? 0;
+  const imageCount =
+    layoutTemplate.elements?.filter((element) => element.type === 'image')
+      .length ?? 0;
+  const columns = extractColumns(templateId);
+
+  const meta: LayoutMeta = {
+    qnaInlineCount,
+    imageCount,
+    columns
+  };
+
+  const template: PageTemplate = {
     id: templateId,
     name: templateName,
     category: templateCategory,
     thumbnail: thumbnail || '/templates/default.png',
-    columns: extractColumns(templateId), // Extract columns from ID
+    columns,
+    meta,
     textboxes: layoutTemplate.textboxes || [],
     elements: layoutTemplate.elements || [],
     constraints: layoutTemplate.constraints || {

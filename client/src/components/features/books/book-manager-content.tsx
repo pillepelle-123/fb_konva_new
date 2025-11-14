@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from '../../../context/auth-context';
 import { useEditor } from '../../../context/editor-context';
@@ -644,7 +644,7 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
       }
     }
     setLoading(false);
-  }, [isStandalone, state?.bookFriends]);
+  }, [isStandalone]);
   
   const fetchBookData = async () => {
     try {
@@ -742,6 +742,9 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
   };
 
   const handleAddFriend = (friend: User) => {
+    console.log('Adding friend:', friend);
+    console.log('Current bookFriends before:', tempState.bookFriends);
+    
     // Add to local book friends with default permissions
     const newFriend = {
       ...friend,
@@ -750,12 +753,17 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
       pageAccessLevel: 'own_page' as const,
       editorInteractionLevel: 'full_edit' as const
     };
-    const updatedBookFriends = [...tempState.bookFriends, newFriend];
-    setTempState(prev => ({ 
-      ...prev, 
-      bookFriends: updatedBookFriends
-    }));
+    
+    setTempState(prev => {
+      const updated = { 
+        ...prev, 
+        bookFriends: [...prev.bookFriends, newFriend]
+      };
+      console.log('Updated bookFriends:', updated.bookFriends);
+      return updated;
+    });
     setShowAddUser(false);
+    setActiveTab('friends');
   };
 
   const handleRemoveFriend = (friendToRemove: BookFriend) => {
@@ -804,7 +812,10 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
   );
 
   // Use book friends list directly (current user is already included from API)
-  const allBookCollaborators = tempState.bookFriends;
+  const allBookCollaborators = useMemo(() => {
+    // console.log('Recalculating allBookCollaborators:', tempState.bookFriends);
+    return tempState.bookFriends;
+  }, [tempState.bookFriends]);
 
   const renderBookFriend = (user: User) => (
     <div 
