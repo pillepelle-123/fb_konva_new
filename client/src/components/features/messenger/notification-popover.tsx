@@ -3,15 +3,7 @@ import { useAuth } from '../../../context/auth-context';
 import { Link } from 'react-router-dom';
 import { MessageCircle } from 'lucide-react';
 import ProfilePicture from '../users/profile-picture';
-
-interface UnreadConversation {
-  id: number;
-  friend_id: number;
-  friend_name: string;
-  last_message: string;
-  last_message_time: string;
-  unread_count: number;
-}
+import type { Conversation } from './types';
 
 interface NotificationPopoverProps {
   onUpdate: () => void;
@@ -20,7 +12,7 @@ interface NotificationPopoverProps {
 
 export default function NotificationPopover({ onUpdate, onClose }: NotificationPopoverProps) {
   const { token } = useAuth();
-  const [unreadConversations, setUnreadConversations] = useState<UnreadConversation[]>([]);
+  const [unreadConversations, setUnreadConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,8 +27,8 @@ export default function NotificationPopover({ onUpdate, onClose }: NotificationP
       });
       
       if (response.ok) {
-        const data = await response.json();
-        const unread = data.filter((conv: UnreadConversation) => conv.unread_count > 0);
+        const data: Conversation[] = await response.json();
+        const unread = data.filter((conv) => conv.unread_count > 0);
         setUnreadConversations(unread);
       }
     } catch (error) {
@@ -101,25 +93,48 @@ export default function NotificationPopover({ onUpdate, onClose }: NotificationP
         </div>
       ) : (
         <div className="space-y-2 max-h-64 overflow-y-auto">
-          {unreadConversations.map((conversation) => (
+          {unreadConversations.map((conversation) => {
+            const isGroup = conversation.is_group;
+            const partner = conversation.direct_partner;
+            const conversationName = isGroup
+              ? conversation.title || conversation.book_name || 'Book Chat'
+              : partner?.name || 'Conversation';
+            const senderName = conversation.last_message_sender_name?.trim();
+            const avatarLabel = isGroup
+              ? senderName || 'Teilnehmer'
+              : partner?.name || conversationName;
+            const avatarUserId = isGroup
+              ? conversation.last_message_sender_id ?? undefined
+              : partner?.id;
+            const previewText = conversation.last_message
+              ? isGroup && senderName
+                ? `${senderName}: ${conversation.last_message}`
+                : conversation.last_message
+              : 'Keine Nachrichten';
+            const timestampLabel = conversation.last_message_time
+              ? formatTime(conversation.last_message_time)
+              : '';
+            const conversationLink = `/messenger?conversationId=${conversation.id}`;
+
+            return (
             <Link
               key={conversation.id}
-              to={`/messenger?friendId=${conversation.friend_id}`}
+              to={conversationLink}
               onClick={() => { markAsRead(conversation.id); onClose(); }}
               className="block p-3 rounded-lg hover:bg-muted transition-colors"
             >
               <div className="flex items-start gap-3">
                 <ProfilePicture 
-                  name={conversation.friend_name} 
+                  name={avatarLabel} 
                   size="sm" 
-                  userId={conversation.friend_id}
+                  userId={avatarUserId}
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-medium text-sm truncate">{conversation.friend_name}</span>
+                    <span className="font-medium text-sm truncate">{conversationName}</span>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span className="text-xs text-muted-foreground">
-                        {formatTime(conversation.last_message_time)}
+                        {timestampLabel}
                       </span>
                       <div className="bg-highlight text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
                         {conversation.unread_count}
@@ -127,12 +142,13 @@ export default function NotificationPopover({ onUpdate, onClose }: NotificationP
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground truncate">
-                    {conversation.last_message}
+                    {previewText}
                   </p>
                 </div>
               </div>
             </Link>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

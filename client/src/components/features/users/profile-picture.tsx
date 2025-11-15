@@ -45,6 +45,7 @@ const sizeMap: Record<'xs' | 'sm' | 'md' | 'lg', { class: string; pixels: number
 };
 
 export default function ProfilePicture({ name, size = 'md', className = '', userId, editable = false, variant = 'default' }: ProfilePictureProps) {
+  const displayName = name?.trim() || 'User';
   const { class: sizeClass, pixels } = sizeMap[size];
   const { user, token } = useAuth();
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -108,19 +109,19 @@ export default function ProfilePicture({ name, size = 'md', className = '', user
     }
   };
 
-  const imageUrl = profileImageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${getConsistentColor(name)}&color=fff&size=${pixels}`;
+  const imageUrl = profileImageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=${getConsistentColor(displayName)}&color=fff&size=${pixels}`;
   
   if (variant === 'withColoredBorder') {
     return (
       <div className="relative inline-block">
         <div 
           className={`${sizeClass} rounded-full ${size === "lg" || size === "md" ? (size === "lg" ? "p-3" : "p-2") : "p-0.5"} flex items-center justify-center`}
-          style={{ backgroundColor: `#${getConsistentColor(name)}` }}
+          style={{ backgroundColor: `#${getConsistentColor(displayName)}` }}
         >
           <img
             className={`w-full h-full rounded-full ${className}`}
             src={imageUrl}
-            alt={name}
+            alt={displayName}
           />
         </div>
         {canEdit && (
@@ -145,7 +146,7 @@ export default function ProfilePicture({ name, size = 'md', className = '', user
       <img
         className={`${sizeClass} rounded-full ${className}`}
         src={imageUrl}
-        alt={name}
+        alt={displayName}
       />
       {canEdit && (
         <button

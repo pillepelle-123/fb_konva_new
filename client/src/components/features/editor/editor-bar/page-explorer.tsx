@@ -36,6 +36,7 @@ export function PagesSubmenu({
   const { state, ensurePagesLoaded } = useEditor();
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const microScrollRef = useRef<HTMLDivElement | null>(null);
   const book = state.currentBook;
   const isCompact = viewMode === 'compact';
   const isMicro = viewMode === 'micro';
@@ -114,20 +115,23 @@ export function PagesSubmenu({
     setDraggedIndex(null);
   };
 
-  const handleWheelScroll = (event: React.WheelEvent<HTMLDivElement>) => {
-    if (!scrollContainerRef.current) return;
+  const handleWheelScroll = (
+    event: React.WheelEvent<HTMLDivElement>,
+    targetRef: React.RefObject<HTMLDivElement>,
+  ) => {
+    if (!targetRef.current) return;
     const { deltaY, deltaX } = event;
     // Only hijack primarily vertical wheel gestures
     if (Math.abs(deltaY) <= Math.abs(deltaX)) return;
     event.preventDefault();
-    scrollContainerRef.current.scrollLeft += deltaY;
+    targetRef.current.scrollLeft += deltaY;
   };
 
   const scrollableContent = (
     <div
       ref={scrollContainerRef}
-      onWheel={handleWheelScroll}
-      className={`flex items-center flex-1 overflow-x-auto overflow-y-hidden ${isCompact ? 'py-1' : ''}`}
+      onWheel={(event) => handleWheelScroll(event, scrollContainerRef)}
+      className={`flex items-center flex-1 overflow-x-auto overflow-y-hidden scrollbar-thin ${isCompact ? 'py-1' : 'pb-1'}`}
     >
       <div className={`flex ${isCompact ? 'gap-3 py-1 pr-2' : 'gap-4 py-2 pr-4'}`}>
         {pairEntries.map((pair, index) => {
@@ -243,41 +247,47 @@ export function PagesSubmenu({
   );
 
   const microContent = (
-    <div className="flex flex-wrap gap-2">
+    <div
+      ref={microScrollRef}
+      onWheel={(event) => handleWheelScroll(event, microScrollRef)}
+      className="flex gap-2 overflow-x-auto overflow-y-hidden pb-1 scrollbar-thin"
+    >
       {pairEntries.map((pair) => (
-        <ButtonGroup key={pair.pairId}>
-          {pair.pages.map((page, index) => {
-            if (!page) {
+        <div key={pair.pairId} className="flex-shrink-0">
+          <ButtonGroup>
+            {pair.pages.map((page, index) => {
+              if (!page) {
+                return (
+                  <Button key={`placeholder-${pair.pairId}-${index}`} variant="outline" size="xs" className="h-8 w-8 p-0" disabled>
+                    -
+                  </Button>
+                );
+              }
+              const isActivePage = page.id === activePageId;
+              const isNonEditable = isNonEditablePageNumber(page.pageNumber);
               return (
-                <Button key={`placeholder-${pair.pairId}-${index}`} variant="outline" size="xs" className="h-8 w-8 p-0" disabled>
-                  -
+                <Button
+                  key={page.id}
+                  variant="outline"
+                  size="xs"
+                  className={`h-7 w-7 p-0 text-xs ${isActivePage ? 'bg-primary/10 border-primary text-primary' : ''}`}
+                  disabled={isNonEditable}
+                  onClick={
+                    isNonEditable
+                      ? undefined
+                      : () => {
+                          const indexToLoad = book.pages.findIndex((p) => p.id === page.id);
+                          ensurePagesLoaded(indexToLoad, indexToLoad + 1);
+                          onPageSelect(page.pageNumber);
+                        }
+                  }
+                >
+                  {page.pageNumber}
                 </Button>
               );
-            }
-            const isActivePage = page.id === activePageId;
-            const isNonEditable = isNonEditablePageNumber(page.pageNumber);
-            return (
-              <Button
-                key={page.id}
-                variant="outline"
-                size="xs"
-                className={`h-8 w-8 p-0 text-xs ${isActivePage ? 'bg-primary/10 border-primary text-primary' : ''}`}
-                disabled={isNonEditable}
-                onClick={
-                  isNonEditable
-                    ? undefined
-                    : () => {
-                        const indexToLoad = book.pages.findIndex((p) => p.id === page.id);
-                        ensurePagesLoaded(indexToLoad, indexToLoad + 1);
-                        onPageSelect(page.pageNumber);
-                      }
-                }
-              >
-                {page.pageNumber}
-              </Button>
-            );
-          })}
-        </ButtonGroup>
+            })}
+          </ButtonGroup>
+        </div>
       ))}
     </div>
   );

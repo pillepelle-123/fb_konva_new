@@ -2,6 +2,7 @@ const express = require('express');
 const { Pool } = require('pg');
 const { authenticateToken } = require('../middleware/auth');
 const { sendInvitationEmail } = require('../services/email');
+const { syncGroupChatForBook } = require('../services/book-chats');
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -61,6 +62,8 @@ router.post('/send', authenticateToken, async (req, res) => {
       'INSERT INTO public.book_friends (book_id, user_id, book_role, page_access_level, editor_interaction_level) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING',
       [bookId, userId, 'author', 'all_pages', 'answer_only']
     );
+
+    await syncGroupChatForBook(bookId);
 
     // Get invitation token
     const tokenResult = await pool.query('SELECT invitation_token FROM public.users WHERE id = $1', [userId]);

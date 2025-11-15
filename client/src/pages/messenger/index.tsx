@@ -3,15 +3,7 @@ import { useAuth } from '../../context/auth-context';
 import { useSearchParams } from 'react-router-dom';
 import ConversationList from '../../components/features/messenger/conversation-list';
 import ChatWindow from '../../components/features/messenger/chat-window';
-
-interface Conversation {
-  id: number;
-  friend_id: number;
-  friend_name: string;
-  last_message: string;
-  last_message_time: string;
-  unread_count: number;
-}
+import type { Conversation } from '../../components/features/messenger/types';
 
 export default function MessengerPage() {
   const { token } = useAuth();
@@ -26,15 +18,35 @@ export default function MessengerPage() {
   }, []);
 
   useEffect(() => {
+    if (loading) return;
+
+    const conversationIdParam = searchParams.get('conversationId');
+    if (conversationIdParam) {
+      const parsedConversationId = parseInt(conversationIdParam, 10);
+      if (!Number.isNaN(parsedConversationId)) {
+        const conversation = conversations.find((c) => c.id === parsedConversationId);
+        if (conversation) {
+          setSelectedConversation(conversation.id);
+          setShouldFocusInput(true);
+          return;
+        }
+      }
+    }
+
     const friendId = searchParams.get('friendId');
-    if (friendId && !loading) {
-      const conversation = conversations.find(c => c.friend_id === parseInt(friendId));
+    if (friendId) {
+      const parsedId = parseInt(friendId, 10);
+      if (Number.isNaN(parsedId)) return;
+
+      const conversation = conversations.find(
+        (c) => !c.is_group && c.direct_partner?.id === parsedId
+      );
       if (conversation) {
         setSelectedConversation(conversation.id);
         setShouldFocusInput(true);
       } else {
         // Create new conversation if it doesn't exist
-        createConversation(parseInt(friendId));
+        createConversation(parsedId);
       }
     }
   }, [searchParams, conversations, loading]);
@@ -79,7 +91,7 @@ export default function MessengerPage() {
       
       if (response.ok) {
         const newConversation = await response.json();
-        setSelectedConversation(newConversation.id);
+        setSelectedConversation(newConversation.conversationId);
         fetchConversations();
         setShouldFocusInput(true);
       }
@@ -111,6 +123,7 @@ export default function MessengerPage() {
           {selectedConversation ? (
             <ChatWindow
               conversationId={selectedConversation}
+              conversationMeta={conversations.find(c => c.id === selectedConversation) || undefined}
               onMessageSent={fetchConversations}
               shouldFocusInput={shouldFocusInput}
               onInputFocused={() => setShouldFocusInput(false)}

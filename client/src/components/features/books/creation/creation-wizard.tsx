@@ -26,6 +26,9 @@ import { PaletteSelectionStep } from './steps/palette-selection-step';
 import { ConfirmationStep } from './steps/confirmation-step';
 import { LayoutVariationStep } from './steps/layout-variation-step';
 import { AssistedLayoutStep } from './steps/assisted-layout-step';
+import { WizardFriendsStep } from './steps/friends-step';
+import InviteUserDialog from '../invite-user-dialog';
+import type { BookFriend, User } from '../book-manager-content';
 
 const tempBooks = new Map();
 const CONTENT_PAIR_COUNT = 11;
@@ -77,29 +80,67 @@ export function CreationWizard({ open, onOpenChange, onSuccess }: CreationWizard
       right: null
     }
   });
+  const [wizardFriends, setWizardFriends] = useState<BookFriend[]>([]);
+  const [wizardFriendInvites, setWizardFriendInvites] = useState<Array<{ name: string; email: string }>>([]);
+  const [availableFriends, setAvailableFriends] = useState<User[]>([]);
+  const [showFriendPicker, setShowFriendPicker] = useState(false);
+  const [showFriendInviteDialog, setShowFriendInviteDialog] = useState(false);
+  const [wizardInviteError, setWizardInviteError] = useState('');
+  const [wizardGroupChatEnabled, setWizardGroupChatEnabled] = useState(false);
 
   const updateState = (updates: Partial<WizardState>) => {
     setWizardState((prev) => ({ ...prev, ...updates }));
   };
 
+  useEffect(() => {
+    if (!open) return;
+    const fetchFriends = async () => {
+      try {
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${apiUrl}/friendships/friends`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setAvailableFriends(data);
+        }
+      } catch (error) {
+        console.warn('Failed to load available friends:', error);
+      }
+    };
+    fetchFriends();
+  }, [open]);
+
+  useEffect(() => {
+    if (open) return;
+    setWizardFriends([]);
+    setWizardFriendInvites([]);
+    setWizardGroupChatEnabled(false);
+    setShowFriendPicker(false);
+    setShowFriendInviteDialog(false);
+    setWizardInviteError('');
+  }, [open]);
+
   const steps = useMemo(() => {
     switch (wizardState.mode) {
       case 'pre-designed':
-        return ['basic', 'mode', 'layout', 'confirm'];
+        return ['basic', 'mode', 'layout', 'friends', 'confirm'];
       case 'empty':
-        return ['basic', 'mode', 'confirm'];
+        return ['basic', 'mode', 'friends', 'confirm'];
       case 'assisted': {
         const sequence = ['basic', 'mode', 'variation'];
         if (wizardState.layoutStrategy !== 'random') {
           sequence.push('assisted-layout');
         }
-        sequence.push('theme', 'palette', 'confirm');
+        sequence.push('theme', 'palette', 'friends', 'confirm');
         return sequence;
       }
       case 'advanced':
+        return ['basic', 'mode', 'advanced-layout', 'theme', 'palette', 'friends', 'confirm'];
       case null:
       default:
-        return ['basic', 'mode', 'advanced-layout', 'theme', 'palette', 'confirm'];
+        return ['basic', 'mode', 'advanced-layout', 'theme', 'palette', 'friends', 'confirm'];
     }
   }, [wizardState.mode, wizardState.layoutStrategy]);
 
@@ -153,6 +194,36 @@ export function CreationWizard({ open, onOpenChange, onSuccess }: CreationWizard
     }
 
     updateState({ mode });
+  };
+
+  const normalizeFriend = (friend: User): BookFriend => ({
+    id: friend.id,
+    name: friend.name,
+    email: friend.email,
+    role: friend.role || 'author',
+    book_role: 'author',
+    pageAccessLevel: 'own_page',
+    editorInteractionLevel: 'full_edit',
+  });
+
+  const handleWizardFriendSelect = (friend: User) => {
+    setWizardFriends((prev) => {
+      if (prev.some((f) => f.id === friend.id)) {
+        return prev;
+      }
+      return [...prev, normalizeFriend(friend)];
+    });
+    setShowFriendPicker(false);
+  };
+
+  const handleWizardFriendRemove = (friendId: number) => {
+    setWizardFriends((prev) => prev.filter((friend) => friend.id !== friendId));
+  };
+
+  const handleWizardInvite = (name: string, email: string) => {
+    setWizardFriendInvites((prev) => [...prev, { name, email }]);
+    setShowFriendInviteDialog(false);
+    setWizardInviteError('');
   };
 
   useEffect(() => {
@@ -757,6 +828,13 @@ export function CreationWizard({ open, onOpenChange, onSuccess }: CreationWizard
       console.warn('Generated book outside allowed page range', { count: pages.length });
     }
 
+    const normalizedFriends = wizardFriends.map((friend) => ({
+      ...friend,
+      book_role: friend.book_role || friend.role || 'author',
+      pageAccessLevel: friend.pageAccessLevel || 'own_page',
+      editorInteractionLevel: friend.editorInteractionLevel || 'full_edit',
+    }));
+
     const newBook = {
       id: tempId,
       name: wizardState.name,
@@ -799,7 +877,11 @@ export function CreationWizard({ open, onOpenChange, onSuccess }: CreationWizard
         layoutStrategy: wizardState.layoutStrategy,
         randomMode: wizardState.randomMode,
         assistedLayouts: wizardState.assistedLayouts
-      }
+      },
+      bookFriends: normalizedFriends,
+      wizardFriends: normalizedFriends,
+      wizardFriendInvites,
+      wizardGroupChatEnabled,
     };
 
     tempBooks.set(tempId, newBook);
@@ -918,6 +1000,33 @@ export function CreationWizard({ open, onOpenChange, onSuccess }: CreationWizard
             themeId={wizardState.selectedTheme}
             onSelect={(palette) => updateState({ selectedPalette: palette })}
           />
+        );
+      case 'friends':
+        return (
+          <>
+            <WizardFriendsStep
+              friends={wizardFriends}
+              pendingInvites={wizardFriendInvites}
+              availableFriends={availableFriends}
+              showFriendPicker={showFriendPicker}
+              onOpenFriendPicker={() => setShowFriendPicker(true)}
+              onCloseFriendPicker={() => setShowFriendPicker(false)}
+              onSelectFriend={handleWizardFriendSelect}
+              onInviteFriend={() => setShowFriendInviteDialog(true)}
+              onRemoveFriend={handleWizardFriendRemove}
+              groupChatEnabled={wizardGroupChatEnabled}
+              onGroupChatChange={(value) => setWizardGroupChatEnabled(value)}
+            />
+            <InviteUserDialog
+              open={showFriendInviteDialog}
+              onOpenChange={(open) => {
+                setShowFriendInviteDialog(open);
+                if (!open) setWizardInviteError('');
+              }}
+              onInvite={handleWizardInvite}
+              errorMessage={wizardInviteError}
+            />
+          </>
         );
       case 'confirm':
         return (

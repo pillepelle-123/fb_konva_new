@@ -190,12 +190,60 @@ function EditorContent() {
                 specialPagesConfig: tempBook?.specialPagesConfig ?? tempBook?.special_pages_config ?? null,
                 layoutStrategy: tempBook?.layoutStrategy ?? null,
                 layoutRandomMode: tempBook?.layoutRandomMode ?? tempBook?.layout_random_mode ?? null,
-                assistedLayouts: tempBook?.assistedLayouts ?? tempBook?.assisted_layouts ?? null
+                assistedLayouts: tempBook?.assistedLayouts ?? tempBook?.assisted_layouts ?? null,
+                groupChatEnabled: tempBook?.wizardGroupChatEnabled ?? false
               })
             });
             
             if (response.ok) {
               const newBook = await response.json();
+              const wizardFriends = tempBook?.wizardFriends || [];
+              const wizardFriendInvites = tempBook?.wizardFriendInvites || [];
+              
+              if (wizardFriends.length > 0) {
+                try {
+                  await Promise.all(
+                    wizardFriends.map((friend: any) =>
+                      fetch(`${apiUrl}/books/${newBook.id}/friends`, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          Authorization: `Bearer ${token}`,
+                        },
+                        body: JSON.stringify({
+                          friendId: friend.id,
+                          role: friend.book_role || friend.role || 'author',
+                          page_access_level: friend.pageAccessLevel || 'own_page',
+                          editor_interaction_level: friend.editorInteractionLevel || 'full_edit',
+                        }),
+                      }),
+                    ),
+                  );
+                } catch (friendError) {
+                  console.warn('Failed to add wizard friends to book:', friendError);
+                }
+              }
+
+              if (wizardFriendInvites.length > 0) {
+                for (const invite of wizardFriendInvites) {
+                  try {
+                    await fetch(`${apiUrl}/invitations/send`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`,
+                      },
+                      body: JSON.stringify({
+                        name: invite.name,
+                        email: invite.email,
+                        bookId: newBook.id,
+                      }),
+                    });
+                  } catch (inviteError) {
+                    console.warn('Failed to send wizard invitation:', inviteError);
+                  }
+                }
+              }
               
               // WICHTIG: Lade die Seiten aus der DB, um die korrekten IDs zu bekommen
               // Dann setze die Elemente aus dem temporären Buch

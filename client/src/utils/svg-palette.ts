@@ -398,11 +398,13 @@ function buildAutoSlotColors(
     ) || backgroundBase
   );
 
-  const backgroundColor = toHexWithAlpha(backgroundBase, slotOpacities?.background ?? 0.95);
-  const surfaceColor = toHexWithAlpha(
-    mixHexColors(surfaceBase, backgroundBase, 0.25),
-    slotOpacities?.surface ?? 0.75
-  );
+  const backgroundAlpha = slotOpacities?.background ?? 1;
+  const surfaceAlpha = slotOpacities?.surface ?? 1;
+
+  const backgroundColor =
+    backgroundAlpha >= 1 ? ensureHash(surfaceBase) : toHexWithAlpha(surfaceBase, backgroundAlpha);
+  const surfaceColor =
+    surfaceAlpha >= 1 ? ensureHash(surfaceBase) : toHexWithAlpha(surfaceBase, surfaceAlpha);
   const accentColor = toHexWithAlpha(
     mixHexColors(accentBase, backgroundBase, 0.5),
     slotOpacities?.accent ?? 0.6

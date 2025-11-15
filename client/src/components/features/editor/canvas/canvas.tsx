@@ -288,6 +288,39 @@ export default function Canvas() {
   const [alertPosition, setAlertPosition] = useState<{ x: number; y: number } | null>(null);
   const [snapGuidelines, setSnapGuidelines] = useState<SnapGuideline[]>([]);
   
+  // Update canvas container size when its bounding box changes
+  useEffect(() => {
+    const updateSize = () => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      setContainerSize({ width: rect.width, height: rect.height });
+    };
+
+    updateSize();
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined' && containerRef.current) {
+      resizeObserver = new ResizeObserver((entries) => {
+        const entry = entries[0];
+        if (entry) {
+          const { width, height } = entry.contentRect;
+          setContainerSize({ width, height });
+        }
+      });
+      resizeObserver.observe(containerRef.current);
+    } else {
+      window.addEventListener('resize', updateSize);
+    }
+
+    return () => {
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      } else {
+        window.removeEventListener('resize', updateSize);
+      }
+    };
+  }, []);
+
   // Background image cache for preloading
   const [backgroundImageCache, setBackgroundImageCache] = useState<Map<string, BackgroundImageEntry>>(new Map());
   const backgroundImageCacheRef = useRef<Map<string, BackgroundImageEntry>>(new Map());
@@ -399,11 +432,11 @@ export default function Canvas() {
           ? PAGE_TYPE_LABELS[page.pageType] ?? page.pageType
           : null;
       const labelSegments = [];
-      if (specialName) {
-        labelSegments.push(specialName);
-      }
       if (numberLabel) {
         labelSegments.push(numberLabel);
+      }
+      if (specialName) {
+        labelSegments.push(specialName);
       }
       const label = labelSegments.length ? labelSegments.join(' · ') : 'Page';
       const layoutLabel =
@@ -484,7 +517,7 @@ export default function Canvas() {
     ),
     []
   );
-  const handlePreviewClick = useCallback(() => {
+  const switchToPartnerPage = useCallback(() => {
     if (!partnerInfo) return;
     const targetPageNumber = partnerInfo.page.pageNumber ?? partnerInfo.index + 1;
     if (targetPageNumber === 3 || (totalPages > 0 && targetPageNumber === totalPages)) {
@@ -492,6 +525,26 @@ export default function Canvas() {
     }
     dispatch({ type: 'SET_ACTIVE_PAGE', payload: partnerInfo.index });
   }, [dispatch, partnerInfo, totalPages]);
+
+  const handlePreviewCanvasClick = useCallback(
+    (evt?: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+      if (evt?.evt instanceof MouseEvent && evt.evt.button !== 0) {
+        return;
+      }
+      switchToPartnerPage();
+    },
+    [switchToPartnerPage]
+  );
+
+  const handlePreviewBadgeClick = useCallback(
+    (evt?: React.MouseEvent<HTMLButtonElement>) => {
+      if (evt && evt.button !== 0) {
+        return;
+      }
+      switchToPartnerPage();
+    },
+    [switchToPartnerPage]
+  );
 
   const clampStagePosition = useCallback((pos: { x: number; y: number }, scaleOverride?: number) => {
     const appliedZoom = scaleOverride ?? zoom;
@@ -2249,13 +2302,6 @@ export default function Canvas() {
   ]);
 
   useEffect(() => {
-    const updateSize = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        setContainerSize({ width: rect.width, height: rect.height });
-      }
-    };
-    
     const handleClickOutside = () => {
       setContextMenu({ x: 0, y: 0, visible: false });
     };
@@ -2330,8 +2376,6 @@ export default function Canvas() {
       setShowImageModal(true);
     };
     
-    updateSize();
-    window.addEventListener('resize', updateSize);
     window.addEventListener('click', handleClickOutside);
     window.addEventListener('changePage', handlePageChange as EventListener);
     window.addEventListener('brushDone', handleBrushDone as EventListener);
@@ -2340,7 +2384,6 @@ export default function Canvas() {
     window.addEventListener('openImageModal', handleOpenImageModal as EventListener);
     
     return () => {
-      window.removeEventListener('resize', updateSize);
       window.removeEventListener('click', handleClickOutside);
       window.removeEventListener('changePage', handlePageChange as EventListener);
       window.removeEventListener('brushDone', handleBrushDone as EventListener);
@@ -2835,22 +2878,7 @@ export default function Canvas() {
             )}
             {/* Background Layer */}
             {renderBackground(currentPage, activePageOffsetX)}
-            {partnerPage && previewPageOffsetX !== null && (
-              <Group opacity={0.3} listening={false}>
-                {renderBackground(partnerPage, previewPageOffsetX)}
-              </Group>
-            )}
-            {partnerPage && previewPageOffsetX !== null && (
-              <Rect
-                x={previewPageOffsetX}
-                y={pageOffsetY}
-                width={canvasWidth}
-                height={canvasHeight}
-                fill="#EEEEEE"
-                opacity={0.8}
-                listening={false}
-              />
-            )}
+            {partnerPage && previewPageOffsetX !== null && renderBackground(partnerPage, previewPageOffsetX)}
             
             {/* Canvas elements */}
             <Group x={activePageOffsetX} y={pageOffsetY}>
@@ -3132,7 +3160,7 @@ export default function Canvas() {
                 y={pageOffsetY}
                 listening={false}
                 name="no-print preview-page"
-                opacity={0.7}
+                opacity={1}
               >
                 {partnerPage.elements.map(element => (
                   <Group key={`preview-${element.id}`}>
@@ -3152,13 +3180,13 @@ export default function Canvas() {
                 y={pageOffsetY}
                 width={canvasWidth}
                 height={canvasHeight}
-                fill={previewTargetLocked ? undefined : 'transparent'}
-                fillPatternImage={previewTargetLocked ? lockedPreviewPattern : undefined}
+                fill="rgba(255, 255, 255, 0.4)"
+                fillPatternImage={undefined}
                 fillPatternRepeat="repeat"
-                opacity={previewTargetLocked ? 0.5 : 1}
-                onClick={previewTargetLocked ? undefined : handlePreviewClick}
-                onTap={previewTargetLocked ? undefined : handlePreviewClick}
-                listening={!previewTargetLocked}
+                opacity={1}
+                onClick={handlePreviewCanvasClick}
+                onTap={handlePreviewCanvasClick}
+                listening={true}
               />
             )}
             
@@ -3423,7 +3451,7 @@ export default function Canvas() {
           >
             <button
               type="button"
-              onClick={previewTargetLocked ? undefined : handlePreviewClick}
+              onClick={previewTargetLocked ? undefined : handlePreviewBadgeClick}
               disabled={previewTargetLocked}
               style={createBadgeStyle(false, previewTargetLocked)}
             >
@@ -3441,7 +3469,7 @@ export default function Canvas() {
               top: previewLockBadgeScreen.y - 20,
               borderRadius: 44,
               backgroundColor: '#ffffff',
-              border: '3px solid #E5E7EB',
+              border: '1px solid #E5E7EB',
               boxShadow: '0 20px 45px rgba(15,23,42,0.08)',
             }}
           >

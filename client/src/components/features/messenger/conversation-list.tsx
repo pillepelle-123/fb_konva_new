@@ -1,19 +1,10 @@
 import { useState } from 'react';
-import { useAuth } from '../../../context/auth-context';
 import { Button } from '../../ui/primitives/button';
 import { MessageCircle, Plus } from 'lucide-react';
 import NewConversationModal from './new-conversation-modal';
 import ProfilePicture from '../../features/users/profile-picture';
-import { MessageSquare } from 'lucide-react';
-
-interface Conversation {
-  id: number;
-  friend_id: number;
-  friend_name: string;
-  last_message: string;
-  last_message_time: string;
-  unread_count: number;
-}
+import { MessagesSquare, BookOpen } from 'lucide-react';
+import type { Conversation } from './types';
 
 interface ConversationListProps {
   conversations: Conversation[];
@@ -30,7 +21,8 @@ export default function ConversationList({
 }: ConversationListProps) {
   const [showNewConversation, setShowNewConversation] = useState(false);
 
-  const formatTime = (timestamp: string) => {
+  const formatTime = (timestamp?: string | null) => {
+    if (!timestamp) return '';
     const date = new Date(timestamp);
     const now = new Date();
     const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
@@ -46,7 +38,7 @@ export default function ConversationList({
     <div className="h-full flex flex-col ">
       <div className="p-4 border-b flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center space-x-2">
-          <MessageSquare className="h-6 w-6" />
+          <MessagesSquare className="h-6 w-6" />
           <span>Messenger</span>
         </h1>
         <Button
@@ -66,39 +58,84 @@ export default function ConversationList({
             <p className="text-sm">Start a new conversation with a friend</p>
           </div>
         ) : (
-          conversations.map((conversation) => (
-            <div
-              key={conversation.id}
-              onClick={() => onConversationSelect(conversation.id)}
-              className={`p-4 border-b cursor-pointer hover:bg-muted transition-colors ${
-                selectedConversation === conversation.id ? 'bg-muted' : ''
-              }`}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-3">
-                  <ProfilePicture name={conversation.friend_name} size="sm" userId={conversation.friend_id} />
-                  <h3 className="font-medium">{conversation.friend_name}</h3>
-                </div>
-                <div className="flex items-center gap-2">
-                  {conversation.last_message_time && (
-                    <span className="text-xs text-muted-foreground">
-                      {formatTime(conversation.last_message_time)}
-                    </span>
-                  )}
-                  {conversation.unread_count > 0 && (
-                    <div className="bg-highlight text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                      {conversation.unread_count}
+          conversations.map((conversation) => {
+            const isBookChat = conversation.is_group && Boolean(conversation.book_id);
+            const isDisabled = isBookChat && !conversation.active;
+            const displayName = isBookChat
+              ? conversation.title || (conversation.book_name ? conversation.book_name : 'Book Chat')
+              : conversation.direct_partner?.name || 'Conversation';
+            const lastMessagePreview = conversation.last_message
+              ? conversation.is_group && conversation.last_message_sender_name
+                ? `${conversation.last_message_sender_name}: ${conversation.last_message}`
+                : conversation.last_message
+              : null;
+
+            const handleRowClick = () => {
+              if (isDisabled) return;
+              onConversationSelect(conversation.id);
+            };
+
+            return (
+              <div
+                key={conversation.id}
+                onClick={handleRowClick}
+                className={`p-4 border-b transition-colors ${
+                  selectedConversation === conversation.id ? 'bg-muted' : 'hover:bg-muted cursor-pointer'
+                } ${isDisabled ? 'opacity-70' : ''}`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-3">
+                    {isBookChat ? (
+                      <div className="h-10 w-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                        <BookOpen className="h-5 w-5" />
+                      </div>
+                    ) : (
+                      <ProfilePicture
+                        name={conversation.direct_partner?.name || 'Friend'}
+                        size="sm"
+                        userId={conversation.direct_partner?.id}
+                      />
+                    )}
+                    <div>
+                      <h3 className="font-medium">{displayName}</h3>
+                      {isBookChat && conversation.book_name && (
+                        <p className="text-xs text-muted-foreground">Book: {conversation.book_name}</p>
+                      )}
                     </div>
-                  )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {conversation.last_message_time && (
+                      <span className="text-xs text-muted-foreground">
+                        {formatTime(conversation.last_message_time)}
+                      </span>
+                    )}
+                    {conversation.unread_count > 0 && (
+                      <div className="bg-highlight text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                        {conversation.unread_count}
+                      </div>
+                    )}
+                    {isDisabled && (
+                      <Button
+                        variant="outline"
+                        size="xs"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onConversationSelect(conversation.id);
+                        }}
+                      >
+                        Disabled
+                      </Button>
+                    )}
+                  </div>
                 </div>
+                {lastMessagePreview && (
+                  <p className="text-sm text-muted-foreground truncate">
+                    {lastMessagePreview}
+                  </p>
+                )}
               </div>
-              {conversation.last_message && (
-                <p className="text-sm text-muted-foreground truncate">
-                  {conversation.last_message}
-                </p>
-              )}
-            </div>
-          ))
+            );
+          })
         )}
       </div>
       

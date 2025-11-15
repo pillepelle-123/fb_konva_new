@@ -34,6 +34,8 @@ import { getFontSize, getFontColor, getFontFamily } from '../../../../utils/font
 import { getBackgroundColor, getBackgroundOpacity, getBackgroundEnabled } from '../../../../utils/background-utils';
 import { getTextAlign, getParagraphSpacing, getPadding } from '../../../../utils/format-utils';
 import { getRuledLinesTheme } from '../../../../utils/theme-utils';
+import ChatWindow from '../../messenger/chat-window';
+import type { Conversation } from '../../messenger/types';
 
 
 
@@ -95,6 +97,16 @@ interface ToolSettingsContentProps {
   onBackgroundImageSelect?: (imageId: string | null) => void;
   onApplyBackgroundImage?: () => void;
   isBackgroundApplyDisabled?: boolean;
+  isBookChatAvailable?: boolean;
+  onOpenBookChat?: () => void;
+  showBookChatPanel?: boolean;
+  onCloseBookChat?: () => void;
+  bookChatConversation?: Conversation | null;
+  bookChatLoading?: boolean;
+  bookChatError?: string | null;
+  onRetryBookChat?: () => void;
+  bookChatShouldFocusInput?: boolean;
+  onChatInputFocused?: () => void;
 }
 
 export function ToolSettingsContent({
@@ -131,7 +143,17 @@ export function ToolSettingsContent({
   selectedBackgroundImageId,
   onBackgroundImageSelect,
   onApplyBackgroundImage,
-  isBackgroundApplyDisabled
+  isBackgroundApplyDisabled,
+  isBookChatAvailable = false,
+  onOpenBookChat,
+  showBookChatPanel = false,
+  onCloseBookChat,
+  bookChatConversation,
+  bookChatLoading = false,
+  bookChatError,
+  onRetryBookChat,
+  bookChatShouldFocusInput = false,
+  onChatInputFocused
 }: ToolSettingsContentProps) {
   const { state, dispatch } = useEditor();
   const { user } = useAuth();
@@ -148,6 +170,62 @@ export function ToolSettingsContent({
   };
 
   const shouldShowPanel = activeTool !== 'pan' && (state.selectedElementIds.length > 0 || activeTool === 'select');
+
+  if (showBookChatPanel) {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex items-center justify-between mb-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onCloseBookChat?.()}
+            className="px-2 h-8"
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Zurück
+          </Button>
+          <span className="text-sm font-semibold">Buch-Chat</span>
+          <div className="w-14" />
+        </div>
+        <div className="flex-1 min-h-0 rounded-lg border border-border/50 bg-muted/40 p-2">
+          {bookChatLoading ? (
+            <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+              Chat wird geladen...
+            </div>
+          ) : bookChatError ? (
+            <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-4">
+              <p className="text-sm text-destructive">{bookChatError}</p>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => onCloseBookChat?.()}>
+                  Schließen
+                </Button>
+                {onRetryBookChat && (
+                  <Button size="sm" onClick={onRetryBookChat}>
+                    Erneut versuchen
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : bookChatConversation ? (
+            <div className="h-full flex flex-col">
+              <ChatWindow
+                conversationId={bookChatConversation.id}
+                conversationMeta={bookChatConversation}
+                onMessageSent={() => {}}
+                shouldFocusInput={bookChatShouldFocusInput}
+                onInputFocused={onChatInputFocused}
+                variant="embedded"
+              />
+            </div>
+          ) : (
+            <div className="h-full flex items-center justify-center text-sm text-muted-foreground text-center px-4">
+              Kein Chat verfügbar.
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   const renderColorSelectorForTool = (colorType: string) => {
     const settings = toolSettings[activeTool] || {};
@@ -833,6 +911,8 @@ export function ToolSettingsContent({
           onBackgroundImageSelect={onBackgroundImageSelect}
           onApplyBackgroundImage={onApplyBackgroundImage}
           isBackgroundApplyDisabled={isBackgroundApplyDisabled}
+          isBookChatAvailable={isBookChatAvailable}
+          onOpenBookChat={onOpenBookChat}
         />
       );
     }
@@ -944,7 +1024,7 @@ export function ToolSettingsContent({
   };
 
   return (
-    <div className="flex-1 overflow-y-auto scrollbar-hide p-2 border min-h-0">
+    <div className="flex-1 overflow-y-auto scrollbar-hide p-2 min-h-0">
       {shouldShowPanel ? renderToolSettings() : (
         <div className="text-xs text-muted-foreground">
           Select a tool or element to view settings.

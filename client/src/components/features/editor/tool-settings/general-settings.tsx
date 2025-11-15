@@ -1,7 +1,7 @@
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import { Button } from '../../../ui/primitives/button';
-import { ChevronLeft, Settings, Palette, Image, PaintBucket, CircleHelp, LayoutPanelLeft, Paintbrush2, SwatchBook, ArrowDown, ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight } from 'lucide-react';
+import { ChevronLeft, Settings, Palette, Image, PaintBucket, CircleHelp, LayoutPanelLeft, Paintbrush2, SwatchBook, ArrowDown, ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight, MessagesSquare } from 'lucide-react';
 import { RadioGroup } from '../../../ui/primitives/radio-group';
 import { ButtonGroup } from '../../../ui/composites/button-group';
 import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
@@ -52,6 +52,8 @@ interface GeneralSettingsProps {
   onBackgroundImageSelect?: (imageId: string | null) => void;
   onApplyBackgroundImage?: () => void;
   isBackgroundApplyDisabled?: boolean;
+  isBookChatAvailable?: boolean;
+  onOpenBookChat?: () => void;
 }
 
 export function GeneralSettings({
@@ -76,7 +78,9 @@ export function GeneralSettings({
   selectedBackgroundImageId,
   onBackgroundImageSelect,
   onApplyBackgroundImage,
-  isBackgroundApplyDisabled
+  isBackgroundApplyDisabled,
+  isBookChatAvailable = false,
+  onOpenBookChat
 }: GeneralSettingsProps) {
   const { state, dispatch, canEditSettings } = useEditor();
   const { user } = useAuth();
@@ -1363,6 +1367,7 @@ export function GeneralSettings({
   
   // Check if user can access page-related settings (Background and Page Theme for full_edit and full_edit_with_settings)
   const canAccessPageSettings = state.editorInteractionLevel === 'full_edit' || state.editorInteractionLevel === 'full_edit_with_settings';
+  const canShowBookChatButton = Boolean(isBookChatAvailable && onOpenBookChat && canAccessAnySettings);
 
   // Get active templates for Book Settings (no page = book level)
   const bookActiveTemplates = getActiveTemplateIds(undefined, state.currentBook);
@@ -1453,6 +1458,17 @@ export function GeneralSettings({
             <div>
               <Label variant="xs" className="text-muted-foreground mb-2 block">Book Settings</Label>
               <div className="space-y-1">
+                {canShowBookChatButton && (
+                  <Button
+                    variant="ghost_hover"
+                    size="sm"
+                    onClick={() => onOpenBookChat?.()}
+                    className="w-full justify-start"
+                  >
+                    <MessagesSquare className="h-4 w-4 mr-2" />
+                    Chat
+                  </Button>
+                )}
                 <Button
                   variant="ghost_hover"
                   size="sm"

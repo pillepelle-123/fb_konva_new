@@ -1,6 +1,13 @@
 const express = require('express');
 const { Pool } = require('pg');
 const { authenticateToken } = require('../middleware/auth');
+const {
+  createOrUpdateBookConversation,
+  addUsersToBookConversation,
+  removeUsersFromBookConversation,
+  setBookConversationActive,
+  syncGroupChatForBook,
+} = require('../services/book-chats');
 
 const router = express.Router();
 
@@ -357,6 +364,8 @@ router.get('/:id', authenticateToken, async (req, res) => {
       layoutStrategy: book.layout_strategy,
       layoutRandomMode: book.layout_random_mode,
       assistedLayouts,
+      groupChatEnabled: Boolean(book.group_chat_enabled),
+      group_chat_enabled: Boolean(book.group_chat_enabled),
       questions: questions,
       answers: allAnswers,
       pageAssignments: pageAssignments,
@@ -1412,8 +1421,9 @@ router.post('/', authenticateToken, async (req, res) => {
         special_pages_config,
         layout_strategy,
         layout_random_mode,
-        assisted_layouts
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
+        assisted_layouts,
+        group_chat_enabled
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
       [
         name,
         userId,
@@ -1429,7 +1439,8 @@ router.post('/', authenticateToken, async (req, res) => {
         req.body.specialPagesConfig ? JSON.stringify(req.body.specialPagesConfig) : null,
         req.body.layoutStrategy || null,
         req.body.layoutRandomMode || null,
-        req.body.assistedLayouts ? JSON.stringify(req.body.assistedLayouts) : null
+        req.body.assistedLayouts ? JSON.stringify(req.body.assistedLayouts) : null,
+        req.body.groupChatEnabled ?? false,
       ]
     );
 
@@ -1477,6 +1488,20 @@ router.post('/', authenticateToken, async (req, res) => {
       [bookId, userId, 'owner', 'all_pages', 'full_edit_with_settings']
     );
 
+    try {
+      await createOrUpdateBookConversation({
+        bookId,
+        title: name,
+        participantIds: [userId],
+        metadata: {
+          createdBy: userId,
+          createdVia: 'book_creation',
+        },
+      });
+    } catch (chatError) {
+      console.error(`Failed to create messenger chat for book ${bookId}:`, chatError);
+    }
+
     // console.log(`Created book ${bookId} and added owner ${userId} to book_friends`);
     res.json(result.rows[0]);
   } catch (error) {
@@ -1497,12 +1522,20 @@ router.put('/:id/archive', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    await pool.query(
-      'UPDATE public.books SET archived = NOT archived, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
+    const updateResult = await pool.query(
+      'UPDATE public.books SET archived = NOT archived, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING archived',
       [bookId]
     );
 
-    res.json({ success: true });
+    const archived = updateResult.rows[0]?.archived ?? false;
+
+    try {
+      await setBookConversationActive(bookId, !archived);
+    } catch (chatError) {
+      console.error(`Failed to update chat state for archived book ${bookId}:`, chatError);
+    }
+
+    res.json({ success: true, archived });
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -1577,6 +1610,18 @@ router.post('/:id/collaborators', authenticateToken, async (req, res) => {
       [bookId, collaboratorId, 'author', 'own_page', 'full_edit']
     );
 
+    try {
+      await addUsersToBookConversation({
+        bookId,
+        bookTitle: book.rows[0]?.name,
+        userIds: [collaboratorId],
+        metadata: { addedBy: userId },
+      });
+      await syncGroupChatForBook(bookId);
+    } catch (chatError) {
+      console.error(`Failed to sync collaborator ${collaboratorId} with chat for book ${bookId}:`, chatError);
+    }
+
     // console.log('Collaborator added successfully:', { collaboratorName, result: result.rows[0] });
     res.json({ success: true, collaborator: result.rows[0] });
   } catch (error) {
@@ -1647,6 +1692,19 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
         [book_role || role, finalPageAccessLevel, finalEditorInteractionLevel, bookId, userToAdd]
       );
       // console.log('Friend permissions updated:', result.rows[0]);
+
+      try {
+        await addUsersToBookConversation({
+          bookId,
+          bookTitle: bookAccess.rows[0]?.name,
+          userIds: [userToAdd],
+          metadata: { addedBy: userId },
+        });
+        await syncGroupChatForBook(bookId);
+      } catch (chatError) {
+        console.error(`Failed to sync existing friend ${userToAdd} with chat for book ${bookId}:`, chatError);
+      }
+
       return res.json({ success: true, friend: result.rows[0] });
     }
 
@@ -1664,6 +1722,18 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
       'INSERT INTO public.book_friends (book_id, user_id, book_role, page_access_level, editor_interaction_level) VALUES ($1, $2, $3, $4, $5) RETURNING *',
       [bookId, userToAdd, book_role || role, finalPageAccessLevel, finalEditorInteractionLevel]
     );
+
+    try {
+      await addUsersToBookConversation({
+        bookId,
+        bookTitle: bookAccess.rows[0]?.name,
+        userIds: [userToAdd],
+        metadata: { addedBy: userId },
+      });
+      await syncGroupChatForBook(bookId);
+    } catch (chatError) {
+      console.error(`Failed to sync new friend ${userToAdd} with chat for book ${bookId}:`, chatError);
+    }
 
     // console.log('Friend added successfully:', result.rows[0]);
     res.json({ success: true, friend: result.rows[0] });
@@ -1690,6 +1760,12 @@ router.delete('/:id/collaborators/:userId', authenticateToken, async (req, res) 
       'DELETE FROM public.book_friends WHERE book_id = $1 AND user_id = $2',
       [bookId, collaboratorId]
     );
+
+    try {
+      await removeUsersFromBookConversation(bookId, [collaboratorId]);
+    } catch (chatError) {
+      console.error(`Failed to remove collaborator ${collaboratorId} from chat for book ${bookId}:`, chatError);
+    }
 
     res.json({ success: true });
   } catch (error) {
@@ -2032,6 +2108,12 @@ router.delete('/:id/friends/:friendId', authenticateToken, async (req, res) => {
       'DELETE FROM public.book_friends WHERE book_id = $1 AND user_id = $2',
       [bookId, friendId]
     );
+
+    try {
+      await removeUsersFromBookConversation(bookId, [friendId]);
+    } catch (chatError) {
+      console.error(`Failed to remove friend ${friendId} from chat for book ${bookId}:`, chatError);
+    }
 
     res.json({ success: true });
   } catch (error) {

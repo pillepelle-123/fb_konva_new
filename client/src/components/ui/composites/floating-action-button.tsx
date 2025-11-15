@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button } from '../primitives/button';
 import { BookPlus } from 'lucide-react';
-import CreateBookDialog from '../../features/books/create-book-dialog';
+import CreationWizard from '../../features/books/creation/creation-wizard';
 import { Tooltip } from './tooltip';
 
 export default function FloatingActionButton() {
@@ -20,7 +20,7 @@ export default function FloatingActionButton() {
         </Button>
       </Tooltip>
       
-      <CreateBookDialog 
+      <CreationWizard
         open={createBookOpen} 
         onOpenChange={setCreateBookOpen}
         onSuccess={() => {}} 

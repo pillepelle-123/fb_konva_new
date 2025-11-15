@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Button } from '../ui/primitives/button';
-import { MessageSquare, IdCard, Settings, UserStar, LogOut } from 'lucide-react';
+import { MessagesSquare, IdCard, Settings, UserStar, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/auth-context';
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -32,7 +32,7 @@ export default function NavigationSubMenu({ onClose }: NavigationSubMenuProps) {
           size="sm"
           className="w-full justify-start space-x-2 py-6 rounded-none text-foreground hover:bg-muted"
         >
-          <MessageSquare className="h-5 w-5" />
+          <MessagesSquare className="h-5 w-5" />
           <span>Messenger</span>
         </Button>
       </Link>

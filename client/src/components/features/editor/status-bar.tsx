@@ -18,7 +18,7 @@ type StatusBarSection = 'details' | 'pages';
 
 export function StatusBar() {
   const { state, dispatch, getVisiblePages, ensurePagesLoaded } = useEditor();
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [activeSection, setActiveSection] = useState<StatusBarSection>('pages');
 
   const visiblePages = useMemo(() => getVisiblePages(), [getVisiblePages]);
@@ -232,11 +232,11 @@ export function StatusBar() {
           </Tabs>
 
           {!isExpanded && (
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 min-w-0">
               {activeSection === 'details' ? (
                 renderDetailsContent(true)
               ) : (
-                <div className="overflow-hidden">
+                <div className="max-w-full">
                   {renderPageExplorer('micro')}
                 </div>
               )}

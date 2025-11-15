@@ -3,11 +3,11 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/composites/card';
-import { BookOpen, Users, FileText, Plus, ArrowRight, Calendar, MessageSquare, HelpCircle, TrendingUp, Activity, Mail, Star, BookPlus, CircleQuestionMark, Home, LayoutDashboard } from 'lucide-react';
+import { BookOpen, Users, FileText, Plus, ArrowRight, Calendar, MessageSquare, HelpCircle, TrendingUp, Activity, Mail, Star, BookPlus, CircleQuestionMark, LayoutDashboard } from 'lucide-react';
 import FloatingActionButton from '../../components/ui/composites/floating-action-button';
 import { ChartContainer } from '../../components/ui/chart';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
-import CreateBookDialog from '../../components/features/books/create-book-dialog';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell } from 'recharts';
+import CreationWizard from '../../components/features/books/creation/creation-wizard';
 import ProfilePicture from '../../components/features/users/profile-picture';
 
 interface DashboardData {
@@ -506,7 +506,7 @@ export default function Dashboard() {
       
       <FloatingActionButton />
       
-      <CreateBookDialog 
+      <CreationWizard
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
         onSuccess={() => {

@@ -1,28 +1,85 @@
 const express = require('express');
 const { Pool } = require('pg');
 const { authenticateToken: auth } = require('../middleware/auth');
+const {
+  getBookConversation,
+  createOrUpdateBookConversation,
+  addUsersToBookConversation,
+} = require('../services/book-chats');
 
 const router = express.Router();
+const url = new URL(process.env.DATABASE_URL);
+const schema = url.searchParams.get('schema') || 'public';
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL
 });
+
+pool.on('connect', (client) => {
+  client.query(`SET search_path TO ${schema}`);
+});
+
+async function assertConversationParticipant(conversationId, userId) {
+  const participant = await pool.query(
+    'SELECT joined_at FROM public.conversation_participants WHERE conversation_id = $1 AND user_id = $2',
+    [conversationId, userId]
+  );
+
+  if (participant.rows.length === 0) {
+    throw Object.assign(new Error('Not authorized for this conversation'), { statusCode: 403 });
+  }
+
+  return participant.rows[0];
+}
 
 // Get conversations for current user
 router.get('/conversations', auth, async (req, res) => {
   try {
     const query = `
-      SELECT DISTINCT c.id, c.updated_at,
-        u.id as friend_id, u.name as friend_name,
-        (SELECT content FROM public.messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message,
-        (SELECT created_at FROM public.messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message_time,
-        (SELECT COUNT(*) FROM public.messages m 
-         LEFT JOIN public.message_read_status mrs ON m.id = mrs.message_id AND mrs.user_id = $1
-         WHERE m.conversation_id = c.id AND m.sender_id != $1 AND mrs.id IS NULL) as unread_count
+      WITH last_messages AS (
+        SELECT DISTINCT ON (conversation_id)
+          conversation_id,
+          id,
+          content,
+          sender_id,
+          created_at
+        FROM public.messages
+        ORDER BY conversation_id, created_at DESC
+      )
+      SELECT 
+        c.id,
+        c.title,
+        c.book_id,
+        c.is_group,
+        c.active,
+        b.name AS book_name,
+        lm.content AS last_message,
+        lm.created_at AS last_message_time,
+        lm.sender_id AS last_message_sender_id,
+        u_lm.name AS last_message_sender_name,
+        (
+          SELECT COUNT(*) FROM public.messages m 
+          LEFT JOIN public.message_read_status mrs ON m.id = mrs.message_id AND mrs.user_id = $1
+          WHERE m.conversation_id = c.id AND m.sender_id != $1 AND mrs.id IS NULL
+        ) AS unread_count,
+        (
+          SELECT json_agg(json_build_object('id', u.id, 'name', u.name))
+          FROM public.conversation_participants cp_all
+          JOIN public.users u ON cp_all.user_id = u.id
+          WHERE cp_all.conversation_id = c.id
+        ) AS participants,
+        (
+          SELECT json_build_object('id', u.id, 'name', u.name)
+          FROM public.conversation_participants cp_other
+          JOIN public.users u ON cp_other.user_id = u.id
+          WHERE cp_other.conversation_id = c.id AND cp_other.user_id != $1
+          LIMIT 1
+        ) AS direct_partner
       FROM public.conversations c
-      JOIN public.conversation_participants cp ON c.id = cp.conversation_id
-      JOIN public.conversation_participants cp2 ON c.id = cp2.conversation_id AND cp2.user_id != $1
-      JOIN public.users u ON cp2.user_id = u.id
-      WHERE cp.user_id = $1
+      JOIN public.conversation_participants cp_self ON c.id = cp_self.conversation_id AND cp_self.user_id = $1
+      LEFT JOIN public.books b ON c.book_id = b.id
+      LEFT JOIN last_messages lm ON lm.conversation_id = c.id
+      LEFT JOIN public.users u_lm ON u_lm.id = lm.sender_id
       ORDER BY c.updated_at DESC
     `;
     
@@ -75,6 +132,14 @@ router.post('/conversations', auth, async (req, res) => {
 // Get messages for a conversation
 router.get('/conversations/:id/messages', auth, async (req, res) => {
   try {
+    let participant;
+    try {
+      participant = await assertConversationParticipant(req.params.id, req.user.id);
+    } catch (error) {
+      const status = error.statusCode || 500;
+      return res.status(status).json({ error: status === 403 ? 'Not authorized' : 'Failed to fetch messages' });
+    }
+
     const query = `
       SELECT m.id, m.content, m.created_at, m.sender_id,
         u.name as sender_name,
@@ -83,10 +148,11 @@ router.get('/conversations/:id/messages', auth, async (req, res) => {
       JOIN public.users u ON m.sender_id = u.id
       LEFT JOIN public.message_read_status mrs ON m.id = mrs.message_id AND mrs.user_id = $2
       WHERE m.conversation_id = $1
+        AND m.created_at >= $3
       ORDER BY m.created_at ASC
     `;
     
-    const result = await pool.query(query, [req.params.id, req.user.id]);
+    const result = await pool.query(query, [req.params.id, req.user.id, participant.joined_at]);
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching messages:', error);
@@ -178,6 +244,129 @@ router.get('/unread-count', auth, async (req, res) => {
   } catch (error) {
     console.error('Error fetching unread count:', error);
     res.status(500).json({ error: 'Failed to fetch unread count' });
+  }
+});
+
+// Add users to an existing conversation
+router.post('/conversations/:id/users', auth, async (req, res) => {
+  const { userIds } = req.body;
+
+  if (!Array.isArray(userIds) || userIds.length === 0) {
+    return res.status(400).json({ error: 'userIds array is required' });
+  }
+
+  try {
+    await assertConversationParticipant(req.params.id, req.user.id);
+
+    const added = [];
+    for (const userId of userIds) {
+      if (!Number.isInteger(userId)) continue;
+
+      await pool.query(
+        `
+          INSERT INTO public.conversation_participants (conversation_id, user_id)
+          VALUES ($1, $2)
+          ON CONFLICT (conversation_id, user_id) DO NOTHING
+        `,
+        [req.params.id, userId]
+      );
+      added.push(userId);
+    }
+
+    res.json({ success: true, added });
+  } catch (error) {
+    const status = error.statusCode || 500;
+    console.error('Error adding users to conversation:', error);
+    res.status(status).json({ error: status === 403 ? 'Not authorized' : 'Failed to add users' });
+  }
+});
+
+// Remove user from conversation
+router.delete('/conversations/:id/users/:userId', auth, async (req, res) => {
+  try {
+    await assertConversationParticipant(req.params.id, req.user.id);
+
+    await pool.query(
+      `
+        DELETE FROM public.conversation_participants
+        WHERE conversation_id = $1 AND user_id = $2
+      `,
+      [req.params.id, req.params.userId]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    const status = error.statusCode || 500;
+    console.error('Error removing user from conversation:', error);
+    res.status(status).json({ error: status === 403 ? 'Not authorized' : 'Failed to remove user' });
+  }
+});
+
+// Get or create book conversation metadata for the requesting user
+router.get('/books/:bookId/conversation', auth, async (req, res) => {
+  try {
+    const bookId = Number(req.params.bookId);
+    if (Number.isNaN(bookId)) {
+      return res.status(400).json({ error: 'Invalid book id' });
+    }
+
+    const bookResult = await pool.query(
+      `
+        SELECT b.id, b.name, b.owner_id,
+          CASE
+            WHEN b.owner_id = $2 THEN TRUE
+            WHEN EXISTS (
+              SELECT 1 FROM public.book_friends bf
+              WHERE bf.book_id = b.id AND bf.user_id = $2
+            ) THEN TRUE
+            ELSE FALSE
+          END AS has_access
+        FROM public.books b
+        WHERE b.id = $1
+      `,
+      [bookId, req.user.id]
+    );
+
+    if (bookResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Book not found' });
+    }
+
+    const book = bookResult.rows[0];
+    if (!book.has_access) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    let conversation = await getBookConversation(bookId);
+
+    if (!conversation) {
+      const participantsResult = await pool.query(
+        'SELECT user_id FROM public.book_friends WHERE book_id = $1',
+        [bookId]
+      );
+      const participantIds = [
+        book.owner_id,
+        ...participantsResult.rows.map((row) => row.user_id),
+      ].filter(Boolean);
+
+      conversation = await createOrUpdateBookConversation({
+        bookId,
+        title: book.name,
+        participantIds,
+        metadata: { createdVia: 'book_conversation_lookup' },
+      });
+    } else {
+      await addUsersToBookConversation({
+        bookId,
+        bookTitle: conversation.title || book.name,
+        userIds: [req.user.id],
+      });
+      conversation = await getBookConversation(bookId);
+    }
+
+    res.json({ conversation });
+  } catch (error) {
+    console.error('Error fetching book conversation:', error);
+    res.status(500).json({ error: 'Failed to fetch book conversation' });
   }
 });
 

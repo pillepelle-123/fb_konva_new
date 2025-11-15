@@ -1,4 +1,4 @@
-import { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
+import { useState, useEffect, useImperativeHandle, forwardRef, useCallback } from 'react';
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import { ToolSettingsContainer } from './tool-settings-container';
@@ -12,6 +12,7 @@ import PagePreviewOverlay from '../preview/page-preview-overlay';
 import { SquareMousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile } from 'lucide-react';
 import { getBackgroundImagesWithUrl } from '../../../../data/templates/background-images';
 import { applyBackgroundImageTemplate } from '../../../../utils/background-image-utils';
+import type { Conversation } from '../../messenger/types';
 
 
 const TOOL_ICONS = {
@@ -63,6 +64,61 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
   const [showThemeOverlay, setShowThemeOverlay] = useState(false);
   const [showPaletteOverlay, setShowPaletteOverlay] = useState(false);
   const [showBookPaletteOverlay, setShowBookPaletteOverlay] = useState(false);
+  const [showBookChatPanel, setShowBookChatPanel] = useState(false);
+  const [bookChatConversation, setBookChatConversation] = useState<Conversation | null>(null);
+  const [bookChatLoading, setBookChatLoading] = useState(false);
+  const [bookChatError, setBookChatError] = useState<string | null>(null);
+  const [bookChatShouldFocusInput, setBookChatShouldFocusInput] = useState(false);
+  const isBookChatAvailable = Boolean(
+    (state.currentBook as any)?.groupChatEnabled ?? (state.currentBook as any)?.group_chat_enabled
+  );
+
+  const fetchBookChatConversation = useCallback(async () => {
+    if (!state.currentBook?.id || !token) {
+      return null;
+    }
+    setBookChatLoading(true);
+    setBookChatError(null);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/messenger/books/${state.currentBook.id}/conversation`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch conversation');
+      }
+      const data = await response.json();
+      setBookChatConversation(data.conversation);
+      return data.conversation as Conversation;
+    } catch (error) {
+      console.error('Error fetching book chat conversation:', error);
+      setBookChatError('Chat konnte nicht geladen werden.');
+      return null;
+    } finally {
+      setBookChatLoading(false);
+    }
+  }, [state.currentBook?.id, token]);
+
+  const handleOpenBookChat = useCallback(() => {
+    if (!isBookChatAvailable) {
+      return;
+    }
+    setShowBookChatPanel(true);
+    setBookChatShouldFocusInput(true);
+    if (!bookChatConversation || bookChatConversation.book_id !== state.currentBook?.id) {
+      fetchBookChatConversation();
+    }
+  }, [isBookChatAvailable, bookChatConversation, state.currentBook?.id, fetchBookChatConversation]);
+
+  const handleCloseBookChat = useCallback(() => {
+    setShowBookChatPanel(false);
+  }, []);
+
+  useEffect(() => {
+    setShowBookChatPanel(false);
+    setBookChatConversation(null);
+    setBookChatError(null);
+  }, [state.currentBook?.id]);
   
   // State for background image selection
   const [selectedBackgroundImageId, setSelectedBackgroundImageId] = useState<string | null>(null);
@@ -336,7 +392,17 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
             onOpenThemes={() => setShowThemeOverlay(true)}
             onOpenPalettes={() => setShowPaletteOverlay(true)}
             onApplyBackgroundImage={handleApplyBackgroundImage}
-            isBackgroundApplyDisabled={isBackgroundApplyDisabled}
+          isBackgroundApplyDisabled={isBackgroundApplyDisabled}
+          isBookChatAvailable={isBookChatAvailable}
+          onOpenBookChat={handleOpenBookChat}
+          showBookChatPanel={showBookChatPanel}
+          onCloseBookChat={handleCloseBookChat}
+          bookChatConversation={bookChatConversation}
+          bookChatLoading={bookChatLoading}
+          bookChatError={bookChatError}
+          onRetryBookChat={fetchBookChatConversation}
+          bookChatShouldFocusInput={bookChatShouldFocusInput}
+          onChatInputFocused={() => setBookChatShouldFocusInput(false)}
           />
         )}
       </ToolSettingsContainer>

@@ -37,6 +37,7 @@ CREATE TABLE books (
   layout_strategy VARCHAR(50),
   layout_random_mode VARCHAR(50),
   assisted_layouts JSONB,
+  group_chat_enabled BOOLEAN NOT NULL DEFAULT FALSE,
   archived BOOLEAN DEFAULT FALSE,
   admin_state VARCHAR(50) NOT NULL DEFAULT 'active',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -269,9 +270,20 @@ CREATE INDEX idx_page_assignments_user_id ON page_assignments(user_id);
 
 CREATE TABLE conversations (
     id SERIAL PRIMARY KEY,
+    title VARCHAR(255),
+    book_id INTEGER REFERENCES books(id) ON DELETE CASCADE,
+    is_group BOOLEAN NOT NULL DEFAULT FALSE,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    metadata JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(book_id) CONSTRAINT conversations_book_id_unique
 );
+
+-- Conversation Indexes
+CREATE INDEX IF NOT EXISTS idx_conversations_book_id ON public.conversations(book_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_active ON public.conversations(active);
+CREATE INDEX IF NOT EXISTS idx_conversations_is_group ON public.conversations(is_group);
 
 CREATE TABLE conversation_participants (
     id SERIAL PRIMARY KEY,
@@ -306,6 +318,7 @@ CREATE INDEX idx_messages_sender_id ON messages(sender_id);
 CREATE INDEX idx_messages_created_at ON messages(created_at);
 CREATE INDEX idx_message_read_status_message_id ON message_read_status(message_id);
 CREATE INDEX idx_message_read_status_user_id ON message_read_status(user_id);
+
 
 
 -- ###############################################################

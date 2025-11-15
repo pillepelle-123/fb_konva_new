@@ -3,28 +3,30 @@ import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from '../../../context/auth-context';
 import { useEditor } from '../../../context/editor-context';
 import { Button } from '../../ui/primitives/button';
-import { Plus, Trash2, Info, UserRoundX, Send, SquarePen, Save, X, MessageCircleQuestion, Library } from 'lucide-react';
-import List from '../../shared/list';
-import CompactList from '../../shared/list';
+import { UserRoundX } from 'lucide-react';
+import CompactList from '../../shared/compact-list';
 import ProfilePicture from '../users/profile-picture';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../ui/composites/tabs';
 import { SelectInput } from '../../ui/primitives/select-input';
 import { Tooltip } from '../../ui/composites/tooltip';
 import { Switch } from '../../ui/primitives/switch';
-import { Card, CardContent, CardHeader } from '../../ui/composites/card';
-import { Input } from '../../ui/primitives/input';
+import { Card, CardContent } from '../../ui/composites/card';
 import InviteUserDialog from './invite-user-dialog';
 import UnsavedChangesDialog from '../../ui/overlays/unsaved-changes-dialog';
 import QuestionPoolModal from '../questions/question-pool-modal';
+import { PagesAssignmentsTab } from './book-manager-tabs/pages-assignments-tab';
+import { FriendsTab } from './book-manager-tabs/friends-tab';
+import { QuestionsAnswersTab } from './book-manager-tabs/questions-answers-tab';
+import { BookSettingsTab } from './book-manager-tabs/book-settings-tab';
 
-interface User {
+export interface User {
   id: number;
   name: string;
   email: string;
   role?: string;
 }
 
-interface BookFriend {
+export interface BookFriend {
   id: number;
   name: string;
   email: string;
@@ -34,7 +36,7 @@ interface BookFriend {
   editorInteractionLevel?: 'no_access' | 'answer_only' | 'full_edit' | 'full_edit_with_settings';
 }
 
-interface Question {
+export interface Question {
   id: string;
   question_text: string;
   created_at: string;
@@ -43,7 +45,7 @@ interface Question {
   answers?: Answer[];
 }
 
-interface Answer {
+export interface Answer {
   id: string;
   user_id: number;
   answer_text: string;
@@ -880,285 +882,60 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
         </TabsList>
         
         <TabsContent value="pages-assignments" className="space-y-4">
-          <div className="space-y-4">
-            {assignedUser ? (
-              <div className="p-4 border-2 border-primary/20 rounded-lg bg-primary/5">
-                <p className="text-sm font-medium mb-3">Currently assigned to page {currentPage}:</p>
-                <div className="flex items-center gap-3 p-3 border rounded-lg bg-background relative">
-                  <ProfilePicture key={assignedUser.id} name={assignedUser.name} size="sm" userId={assignedUser.id} variant='withColoredBorder'/>
-                  <div className="flex-1">
-                    <p className="font-medium text-sm">{assignedUser.name} <span className="text-muted-foreground font-normal">({assignedUser.email})</span></p>
-                  </div>
-                  <Tooltip content="Remove Assignment">
-                    <Button 
-                      variant="destructive" 
-                      size="sm"
-                      onClick={handleRemoveAssignment}
-                      className="h-8 w-8 p-0"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </Tooltip>
-                </div>
-              </div>
-            ) : (
-              <p className="text-center text-muted-foreground py-4">
-                No user assigned to page {currentPage}
-              </p>
-            )}
-
-            {allBookCollaborators.filter(friend => friend.id !== assignedUser?.id).length > 0 ? (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Book Friends:</p>
-                <div className="overflow-y-auto">
-                  <CompactList
-                    items={allBookCollaborators.filter(friend => friend.id !== assignedUser?.id)}
-                    keyExtractor={(user) => user.id.toString()}
-                    renderItem={renderBookFriend}
-                    itemsPerPage={15}
-                  />
-                </div>
-              </div>
-            ) : (
-              <p className="text-center text-muted-foreground py-4">
-                No friends in this book
-              </p>
-            )}
-          </div>
+          <PagesAssignmentsTab
+            assignedUser={assignedUser}
+            currentPage={currentPage}
+            onRemoveAssignment={handleRemoveAssignment}
+            collaborators={allBookCollaborators}
+            renderBookFriend={renderBookFriend}
+          />
         </TabsContent>
         
         <TabsContent value="friends" className="space-y-4">
-          <div className="space-y-4">
-            <div className="flex gap-2 justify-end">
-              <Button 
-                variant="outline" 
-                onClick={() => setShowAddUser(true)}
-                className=""
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Friend
-              </Button>
-              <Button 
-                onClick={() => setShowInviteDialog(true)}
-                className=" bg-[hsl(var(--highlight))] hover:bg-[hsl(var(--highlight))]/90"
-              >
-                <Send className="h-4 w-4 mr-2" />
-                Invite Friend
-              </Button>
-            </div>
-            {allBookCollaborators.length > 0 ? (
-              <div className="space-y-4">
-                
-                <div className="overflow-y-auto">
-                  <List
-                    items={allBookCollaborators}
-                    keyExtractor={(friend) => friend.id.toString()}
-                    renderItem={renderBookParticipant}
-                    itemsPerPage={15}
-                  />
-                </div>
-              </div>
-            ) : (
-              <p className="text-center text-muted-foreground py-4">
-                No friends in this book
-              </p>
-            )}
-          </div>
+          <FriendsTab
+            friends={allBookCollaborators}
+            onAddFriend={() => setShowAddUser(true)}
+            onInviteFriend={() => setShowInviteDialog(true)}
+            renderBookParticipant={renderBookParticipant}
+          />
         </TabsContent>
 
         <TabsContent value="questions-answers" className="space-y-4 flex-1 flex flex-col">
-          <div className="flex-1 overflow-auto space-y-6">
-            {questionsLoading ? (
-              <div className="flex items-center justify-center h-32">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-              </div>
-            ) : (
-              <>
-                {/* Add Question Form */}
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold">Add New Question</h3>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowQuestionPool(true)}
-                      >
-                        <Library className="h-4 w-4 mr-2" />
-                        Browse Question Pool
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <form onSubmit={handleAddQuestion} className="flex gap-2">
-                      <Input
-                        type="text"
-                        value={newQuestion}
-                        onChange={(e) => setNewQuestion(e.target.value)}
-                        placeholder="Enter new question..."
-                        className="flex-1"
-                      />
-                      <Button type="submit">
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Question
-                      </Button>
-                    </form>
-                  </CardContent>
-                </Card>
-
-                {/* Questions List */}
-                {questions.length === 0 ? (
-                  <Card>
-                    <CardContent className="text-center py-12">
-                      <MessageCircleQuestion className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-medium mb-2">No questions yet</h3>
-                      <p className="text-muted-foreground">Add your first question above to get started.</p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="space-y-4">
-                    {questions.map((question) => (
-                      <Card key={question.id}>
-                        <CardContent className="p-6">
-                          <div className="space-y-4">
-                            {/* Question Header */}
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                {editingId === question.id && !question.question_pool_id ? (
-                                  <div className="space-y-3">
-                                    <Input
-                                      ref={editInputRef}
-                                      type="text"
-                                      value={editText}
-                                      onChange={(e) => setEditText(e.target.value)}
-                                      className="text-lg font-medium"
-                                    />
-                                    <div className="flex gap-2">
-                                      <Button size="sm" onClick={() => handleEditQuestion(question.id)}>
-                                        <Save className="h-4 w-4 mr-2" />
-                                        Save
-                                      </Button>
-                                      <Button variant="outline" size="sm" onClick={cancelEdit}>
-                                        <X className="h-4 w-4 mr-2" />
-                                        Cancel
-                                      </Button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <>
-                                    <h4 className="text-lg font-medium text-foreground mb-2">
-                                      {question.question_text}
-                                      {question.question_pool_id && (
-                                        <span className="ml-2 px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800 border border-purple-200">
-                                          From Pool
-                                        </span>
-                                      )}
-                                    </h4>
-                                    <p className="text-sm text-muted-foreground">
-                                      Created: {new Date(question.created_at).toLocaleDateString()}
-                                      {question.updated_at && (
-                                        <> • Updated: {new Date(question.updated_at).toLocaleDateString()}</>
-                                      )}
-                                    </p>
-                                  </>
-                                )}
-                              </div>
-                              
-                              {editingId !== question.id && !question.question_pool_id && (
-                                <div className="flex gap-2 ml-4">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => startEdit(question)}
-                                  >
-                                    <SquarePen className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setShowDeleteConfirm(question.id)}
-                                    className="text-destructive hover:text-destructive"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Answers */}
-                            {editingId !== question.id && (
-                              <div className="border-t pt-4">
-                                <h5 className="text-sm font-medium text-muted-foreground mb-3">
-                                  Answers ({question.answers?.length || 0})
-                                </h5>
-                                {question.answers && question.answers.length > 0 ? (
-                                  <div className="space-y-3">
-                                    {question.answers.map((answer) => (
-                                      <div key={answer.id} className="bg-muted/30 rounded-lg p-3">
-                                        <div className="flex items-start justify-between mb-2">
-                                          <span className="text-sm font-medium">{answer.user_name}</span>
-                                          <span className="text-xs text-muted-foreground">{answer.user_email}</span>
-                                        </div>
-                                        <p className="text-sm">{answer.answer_text || <em className="text-muted-foreground">No answer provided</em>}</p>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <p className="text-sm text-muted-foreground italic">No answers yet</p>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+          <QuestionsAnswersTab
+            questionsLoading={questionsLoading}
+            questions={questions}
+            editingId={editingId}
+            editText={editText}
+            editInputRef={editInputRef}
+            newQuestion={newQuestion}
+            onNewQuestionChange={setNewQuestion}
+            onAddQuestion={handleAddQuestion}
+            onBrowseQuestionPool={() => setShowQuestionPool(true)}
+            onStartEdit={startEdit}
+            onEditQuestion={handleEditQuestion}
+            onCancelEdit={cancelEdit}
+            onDeleteQuestionRequest={(id) => setShowDeleteConfirm(id)}
+            onEditTextChange={setEditText}
+          />
         </TabsContent>
 
         <TabsContent value="book-settings" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <h3 className="text-lg font-semibold">Page Settings</h3>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Page Size</label>
-                <SelectInput
-                  value={tempState.bookSettings.pageSize}
-                  onChange={(value) => setTempState(prev => ({
-                    ...prev,
-                    bookSettings: { ...prev.bookSettings, pageSize: value }
-                  }))}
-                  className="w-full"
-                >
-                  <option value="A4">A4 (210 × 297 mm)</option>
-                  <option value="Letter">Letter (8.5 × 11 in)</option>
-                  <option value="Legal">Legal (8.5 × 14 in)</option>
-                  <option value="A5">A5 (148 × 210 mm)</option>
-                  <option value="Square">Square (210 × 210 mm)</option>
-                </SelectInput>
-              </div>
-              
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Orientation</label>
-                <SelectInput
-                  value={tempState.bookSettings.orientation}
-                  onChange={(value) => setTempState(prev => ({
-                    ...prev,
-                    bookSettings: { ...prev.bookSettings, orientation: value }
-                  }))}
-                  className="w-full"
-                >
-                  <option value="portrait">Portrait</option>
-                  <option value="landscape">Landscape</option>
-                </SelectInput>
-              </div>
-            </CardContent>
-          </Card>
+          <BookSettingsTab
+            pageSize={tempState.bookSettings.pageSize}
+            orientation={tempState.bookSettings.orientation}
+            onPageSizeChange={(value) =>
+              setTempState((prev) => ({
+                ...prev,
+                bookSettings: { ...prev.bookSettings, pageSize: value },
+              }))
+            }
+            onOrientationChange={(value) =>
+              setTempState((prev) => ({
+                ...prev,
+                bookSettings: { ...prev.bookSettings, orientation: value },
+              }))
+            }
+          />
         </TabsContent>
       </Tabs>
       

@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../ui/primitives/button';
-import { Book, BookUser, Home, Archive, LogOut, User, Menu, Image, IdCard, Settings, ChevronDown, Bell, MessageSquare, Users, LayoutDashboard, LibraryBig } from 'lucide-react';
+import { Book, BookUser, Home, Archive, LogOut, User, Menu, Image, IdCard, Settings, ChevronDown, Bell, MessagesSquare, Users, LayoutDashboard, LibraryBig } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import ProfilePicture from '../features/users/profile-picture';
 import { Popover, PopoverTrigger, PopoverContent } from '../ui/overlays/popover';
@@ -471,7 +471,7 @@ export default function Navigation() {
                         variant="ghost"
                         className="w-full justify-start space-x-2 text-white hover:bg-white/10 hover:text-white"
                       >
-                        <MessageSquare className="h-4 w-4" />
+                        <MessagesSquare className="h-4 w-4" />
                         <span>Messenger</span>
                       </Button>
                     </Link>
