@@ -183,7 +183,14 @@ function EditorContent() {
                 bookTheme: tempBook?.bookTheme || tempBook?.themeId || 'default',
                 themeId: tempBook?.themeId || tempBook?.bookTheme || 'default',
                 layoutTemplateId: tempBook?.layoutTemplateId || null,
-                colorPaletteId: tempBook?.colorPaletteId || null
+                colorPaletteId: tempBook?.colorPaletteId || null,
+                minPages: tempBook?.minPages ?? tempBook?.min_pages ?? null,
+                maxPages: tempBook?.maxPages ?? tempBook?.max_pages ?? null,
+                pagePairingEnabled: tempBook?.pagePairingEnabled ?? tempBook?.page_pairing_enabled ?? false,
+                specialPagesConfig: tempBook?.specialPagesConfig ?? tempBook?.special_pages_config ?? null,
+                layoutStrategy: tempBook?.layoutStrategy ?? null,
+                layoutRandomMode: tempBook?.layoutRandomMode ?? tempBook?.layout_random_mode ?? null,
+                assistedLayouts: tempBook?.assistedLayouts ?? tempBook?.assisted_layouts ?? null
               })
             });
             
@@ -218,6 +225,13 @@ function EditorContent() {
                   themeId: tempBook?.themeId || newBook.themeId || newBook.theme_id,
                   colorPaletteId: tempBook?.colorPaletteId || tempBook?.palette?.id || newBook.colorPaletteId || newBook.color_palette_id,
                   layoutTemplateId: tempBook?.layoutTemplateId || tempBook?.selectedTemplateId || newBook.layoutTemplateId || newBook.layout_template_id,
+                  minPages: tempBook?.minPages ?? newBook.minPages ?? newBook.min_pages ?? null,
+                  maxPages: tempBook?.maxPages ?? newBook.maxPages ?? newBook.max_pages ?? null,
+                  pagePairingEnabled: tempBook?.pagePairingEnabled ?? newBook.pagePairingEnabled ?? newBook.page_pairing_enabled ?? false,
+                  specialPagesConfig: tempBook?.specialPagesConfig ?? newBook.specialPagesConfig ?? newBook.special_pages_config ?? null,
+                  layoutStrategy: tempBook?.layoutStrategy ?? newBook.layoutStrategy ?? newBook.layout_strategy ?? 'same',
+                  layoutRandomMode: tempBook?.layoutRandomMode ?? newBook.layoutRandomMode ?? newBook.layout_random_mode ?? 'single',
+                  assistedLayouts: tempBook?.assistedLayouts ?? newBook.assistedLayouts ?? newBook.assisted_layouts ?? null,
                   pages: tempBook.pages.map((page: any, index: number) => {
                     const dbPage = dbBook?.pages?.[index];
                     const pageId = dbPage?.id;

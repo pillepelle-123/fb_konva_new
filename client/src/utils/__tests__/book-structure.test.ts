@@ -80,5 +80,29 @@ describe('book-structure utilities', () => {
     expect(orderedTypes[0]).toBe('back-cover');
     expect(orderedTypes[1]).toBe('front-cover');
   });
+
+  it('assigns consistent pair ids for cover, intro and outro spreads', () => {
+    const pages: Page[] = [
+      createPage({ pageNumber: 1, pageType: 'front-cover' }),
+      createPage({ pageNumber: 2, pageType: 'inner-front' }),
+      createPage({ pageNumber: 3, pageType: 'last-page' }),
+      createPage({ pageNumber: 4, pageType: 'inner-back' })
+    ];
+
+    const ensured = ensureSpecialPages(pages);
+    const coverPairs = ensured
+      .filter((page) => page.pageType && ['front-cover', 'back-cover'].includes(page.pageType))
+      .map((page) => page.pagePairId);
+    const introPairs = ensured
+      .filter((page) => page.pageType && ['inner-front', 'first-page'].includes(page.pageType))
+      .map((page) => page.pagePairId);
+    const outroPairs = ensured
+      .filter((page) => page.pageType && ['last-page', 'inner-back'].includes(page.pageType))
+      .map((page) => page.pagePairId);
+
+    expect(new Set(coverPairs).size).toBe(1);
+    expect(new Set(introPairs).size).toBe(1);
+    expect(new Set(outroPairs).size).toBe(1);
+  });
 });
 

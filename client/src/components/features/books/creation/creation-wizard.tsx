@@ -17,6 +17,7 @@ import { pageTemplates as builtinPageTemplates } from '../../../../data/template
 import { mirrorTemplate } from '../../../../utils/layout-mirroring';
 import { generateSequentialPairId } from '../../../../utils/book-structure';
 import { applyMirroredLayout, applyRandomLayout } from '../../../../utils/layout-variations';
+import { deriveLayoutStrategyFlags } from '../../../../utils/layout-strategy';
 import { BasicInfoStep } from './steps/basic-info-step';
 import { StartModeStep } from './steps/start-mode-step';
 import { LayoutPickerStep } from './steps/layout-picker-step';
@@ -513,12 +514,11 @@ export function CreationWizard({ open, onOpenChange, onSuccess }: CreationWizard
     const nextPageId = () => pageIdSeed++;
     let pairCounter = 0;
     const nextPairId = () => generateSequentialPairId(pairCounter++);
-    const shouldMirrorRightBackground =
-      wizardState.layoutStrategy === 'mirrored' ||
-      (wizardState.layoutStrategy === 'random' && wizardState.randomMode === 'pair');
-    const shouldRandomizeBackground = wizardState.layoutStrategy === 'random';
-    const shouldMirrorRightLayouts = shouldMirrorRightBackground;
-    const shouldRandomizeLayouts = wizardState.layoutStrategy === 'random';
+    const strategyFlags = deriveLayoutStrategyFlags(wizardState.layoutStrategy, wizardState.randomMode);
+    const shouldMirrorRightBackground = strategyFlags.mirrorRightBackground;
+    const shouldRandomizeBackground = strategyFlags.randomizeBackground;
+    const shouldMirrorRightLayouts = strategyFlags.mirrorRightLayouts;
+    const shouldRandomizeLayouts = strategyFlags.randomizeLayouts;
     const seededRandom = (seed: number) => {
       const x = Math.sin(seed) * 10000;
       return x - Math.floor(x);

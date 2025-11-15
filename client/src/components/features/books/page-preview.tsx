@@ -5,6 +5,7 @@ import ProfilePicture from '../users/profile-picture';
 import { useEditor, getPagePreviewCacheId } from '../../../context/editor-context';
 import { generatePagePreview } from '../../../utils/page-preview-generator';
 import type { Page, Book } from '../../../context/editor-context';
+import { getLayoutVariationLabel, getBackgroundVariationLabel } from '../../../utils/layout-variation-labels';
 
 const PAGE_LABELS: Record<string, string> = {
   'front-cover': 'Front Cover',
@@ -15,15 +16,7 @@ const PAGE_LABELS: Record<string, string> = {
   'last-page': 'Last Page'
 };
 
-const LAYOUT_VARIATION_LABELS: Record<string, string> = {
-  mirrored: 'Mirrored layout',
-  randomized: 'Remixed layout'
-};
-
-const BACKGROUND_VARIATION_LABELS: Record<string, string> = {
-  mirrored: 'Mirrored background',
-  randomized: 'Remixed background'
-};
+type PagePreviewVariant = 'default' | 'compact';
 
 interface PagePreviewProps {
   bookId?: number;
@@ -33,9 +26,18 @@ interface PagePreviewProps {
   isActive?: boolean;
   page?: Page;
   book?: Book;
+  variant?: PagePreviewVariant;
 }
 
-export default function PagePreview({ pageId, pageNumber, assignedUser, isActive, page: pageProp, book: bookProp }: PagePreviewProps) {
+export default function PagePreview({
+  pageId,
+  pageNumber,
+  assignedUser,
+  isActive,
+  page: pageProp,
+  book: bookProp,
+  variant = 'default'
+}: PagePreviewProps) {
   const { state } = useEditor();
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const lastGeneratedCacheIdRef = useRef<number | null>(null);
@@ -47,16 +49,16 @@ export default function PagePreview({ pageId, pageNumber, assignedUser, isActive
   const previewUrl = cachedPreview?.dataUrl ?? localPreview;
   const specialLabel = pageData?.pageType ? PAGE_LABELS[pageData.pageType] : null;
   const isPrintable = pageData?.isPrintable !== false;
-  const layoutVariation = pageData?.layoutVariation;
-  const backgroundVariation = pageData?.backgroundVariation;
-  const layoutVariationLabel =
-    layoutVariation && layoutVariation !== 'normal'
-      ? LAYOUT_VARIATION_LABELS[layoutVariation] ?? `Layout: ${layoutVariation}`
-      : null;
-  const backgroundVariationLabel =
-    backgroundVariation && backgroundVariation !== 'normal'
-      ? BACKGROUND_VARIATION_LABELS[backgroundVariation] ?? `Background: ${backgroundVariation}`
-      : null;
+  const layoutVariationLabel = getLayoutVariationLabel(pageData?.layoutVariation);
+  const backgroundVariationLabel = getBackgroundVariationLabel(pageData?.backgroundVariation);
+  const isCompact = variant === 'compact';
+  const previewWidth = isCompact ? 140 : 200;
+  const previewHeight = isCompact ? 190 : 280;
+  const containerClasses = isCompact ? 'w-14 h-18' : 'w-16 h-20';
+  const specialLabelClass = isCompact ? 'text-[8px] px-1.5 py-0.5' : 'text-[10px] px-2 py-0.5';
+  const iconSizeClass = isCompact ? 'h-5 w-5' : 'h-6 w-6';
+  const profileBadgeSize = isCompact ? 'w-6 h-6 -top-2.5 -right-2' : 'w-8 h-8 -top-3 -right-2';
+  const pageNumberBadgeClass = isCompact ? 'h-4 w-4 text-[10px] -bottom-1.5' : 'h-5 w-5 text-xs -bottom-2';
 
   useEffect(() => {
     if (cachedPreview?.dataUrl) {
@@ -82,7 +84,12 @@ export default function PagePreview({ pageId, pageNumber, assignedUser, isActive
     }
 
     let cancelled = false;
-    generatePagePreview({ page: pageData, book: bookData, previewWidth: 200, previewHeight: 280 })
+    generatePagePreview({
+      page: pageData,
+      book: bookData,
+      previewWidth,
+      previewHeight
+    })
       .then((dataUrl) => {
         if (!cancelled) {
           lastGeneratedCacheIdRef.current = cacheId;
@@ -99,33 +106,37 @@ export default function PagePreview({ pageId, pageNumber, assignedUser, isActive
     return () => {
       cancelled = true;
     };
-  }, [cachedPreview?.dataUrl, pageData, bookData, cacheId]);
+  }, [cachedPreview?.dataUrl, pageData, bookData, cacheId, previewWidth, previewHeight]);
 
   const borderClass = isActive ? 'border-ring' : 'border-border';
 
   return (
-    <div className={`w-16 h-20 bg-muted border-2 ${borderClass} rounded-lg flex items-center justify-center relative overflow-visible`}>
+    <div
+      className={`${containerClasses} bg-muted border-2 ${borderClass} rounded-lg flex items-center justify-center relative overflow-visible`}
+    >
       {specialLabel && (
-        <span className="absolute -top-2 left-0 bg-blue-500 text-white text-[10px] px-2 py-0.5 rounded-full shadow">
+        <span
+          className={`absolute -top-2 left-0 bg-blue-500 text-white rounded-full shadow ${specialLabelClass}`}
+        >
           {specialLabel}
         </span>
       )}
       {previewUrl ? (
-        <img 
-          src={previewUrl} 
+        <img
+          src={previewUrl}
           alt={`Page ${pageNumber} preview`}
           className="w-full h-full object-contain"
           style={{ backgroundColor: '#fff' }}
         />
       ) : (
-        <FileText className="h-6 w-6 text-muted-foreground" />
+        <FileText className={`${iconSizeClass} text-muted-foreground`} />
       )}
       {!isPrintable && (
         <div className="absolute inset-0 bg-black/60 rounded-lg text-[10px] text-white flex items-center justify-center text-center px-1">
           Not printable
         </div>
       )}
-      {(layoutVariationLabel || backgroundVariationLabel) && (
+      {!isCompact && (layoutVariationLabel || backgroundVariationLabel) && (
         <div className="absolute bottom-1 left-1 right-1 flex flex-col items-start gap-1 pointer-events-none">
           {layoutVariationLabel && (
             <span className="text-[8px] px-1 py-px rounded bg-white/90 text-blue-800 border border-blue-200 shadow-sm">
@@ -142,10 +153,10 @@ export default function PagePreview({ pageId, pageNumber, assignedUser, isActive
       
       {/* Profile picture badge at top-right */}
       {assignedUser && (
-        <div className="absolute -top-3 -right-2 w-8 h-8 rounded-full">
-          <ProfilePicture 
-            name={assignedUser.name} 
-            size="sm" 
+        <div className={`absolute ${profileBadgeSize} rounded-full`}>
+          <ProfilePicture
+            name={assignedUser.name}
+            size={isCompact ? 'xs' : 'sm'}
             userId={assignedUser.id}
             className="w-full h-full"
             variant="withColoredBorder"
@@ -156,7 +167,7 @@ export default function PagePreview({ pageId, pageNumber, assignedUser, isActive
       {/* Page number badge at bottom center */}
       <Badge 
         variant="secondary" 
-        className="h-5 w-5 absolute -bottom-2 left-1/2 transform -translate-x-1/2 text-xs border bg-white text-primary border-border p-1 flex items-center justify-center"
+        className={`${pageNumberBadgeClass} absolute left-1/2 transform -translate-x-1/2 border bg-white text-primary border-border p-1 flex items-center justify-center`}
       >
         {pageNumber}
       </Badge>

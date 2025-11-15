@@ -121,7 +121,7 @@ import { convertTemplateToElements } from '../utils/template-to-elements';
 import { applyLayoutTemplateWithPreservation, validateTemplateCompatibility } from '../utils/content-preservation';
 import { calculatePageDimensions } from '../utils/template-utils';
 import { pageTemplates } from '../data/templates/page-templates';
-import { colorPalettes } from '../data/templates/color-palettes';
+import { colorPalettes, getPalettePartColor } from '../data/templates/color-palettes';
 import { getGlobalTheme, getThemePageBackgroundColors, getThemePaletteId } from '../utils/global-themes';
 import type { PageTemplate, ColorPalette } from '../types/template-types';
 import { applyBackgroundImageTemplate } from '../utils/background-image-utils';
@@ -136,6 +136,7 @@ import {
   generateSequentialPairId
 } from '../utils/book-structure';
 import { applyMirroredLayout, applyRandomLayout, createSeededRNG } from '../utils/layout-variations';
+import { deriveLayoutStrategyFlags, derivePageLayoutVariation } from '../utils/layout-strategy';
 
 // Function to extract theme structure from current book state
 function logThemeStructure(book: Book | null) {
@@ -612,6 +613,7 @@ function buildSpreadPlanForBook(book: Book, canvasSize: { width: number; height:
   };
   const layoutStrategy = book.layoutStrategy ?? 'same';
   const randomMode = book.layoutRandomMode ?? 'single';
+  const strategyFlags = deriveLayoutStrategyFlags(layoutStrategy, randomMode);
   const rng = createSeededRNG(Math.max(1, Date.now()));
 
   const templatePool = pageTemplates.length ? pageTemplates : fallbackTemplate ? [fallbackTemplate] : [];
@@ -646,19 +648,13 @@ function buildSpreadPlanForBook(book: Book, canvasSize: { width: number; height:
       break;
   }
 
-  const shouldRandomizeLayouts = layoutStrategy === 'random';
-  const shouldMirrorRightLayouts =
-    layoutStrategy === 'mirrored' || (layoutStrategy === 'random' && randomMode === 'pair');
-  const shouldRandomizeBackground = layoutStrategy === 'random';
-  const shouldMirrorRightBackground =
-    layoutStrategy === 'mirrored' || (layoutStrategy === 'random' && randomMode === 'pair');
+  const shouldRandomizeLayouts = strategyFlags.randomizeLayouts;
+  const shouldMirrorRightLayouts = strategyFlags.mirrorRightLayouts;
+  const shouldRandomizeBackground = strategyFlags.randomizeBackground;
+  const shouldMirrorRightBackground = strategyFlags.mirrorRightBackground;
 
-  const leftVariation: LayoutVariationKind = shouldRandomizeLayouts ? 'randomized' : 'normal';
-  const rightVariation: LayoutVariationKind = shouldMirrorRightLayouts
-    ? 'mirrored'
-    : shouldRandomizeLayouts
-      ? 'randomized'
-      : 'normal';
+  const leftVariation: LayoutVariationKind = derivePageLayoutVariation(strategyFlags, 'left');
+  const rightVariation: LayoutVariationKind = derivePageLayoutVariation(strategyFlags, 'right');
 
   const baseSeed = Math.max(1, Math.floor(rng() * 1_000_000));
   const leftSeed = baseSeed;
@@ -3759,6 +3755,34 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             cloneEntireBook: Boolean(paletteApplyToAll)
           });
       const updatedBookApplyPalette = { ...savedApplyPaletteState.currentBook! };
+      const palettePart = (
+        part: string,
+        fallbackSlot: keyof ColorPalette['colors'],
+        fallbackColor: string
+      ) =>
+        getPalettePartColor(appliedPalette, part, fallbackSlot, fallbackColor) || fallbackColor;
+      const paletteParts = {
+        pageBackground: palettePart('pageBackground', 'background', appliedPalette.colors.background),
+        pagePatternForeground: palettePart('pagePatternForeground', 'primary', appliedPalette.colors.primary),
+        pagePatternBackground: palettePart('pagePatternBackground', 'background', appliedPalette.colors.background),
+        qnaQuestionText: palettePart('qnaQuestionText', 'text', appliedPalette.colors.text),
+        qnaQuestionBackground: palettePart('qnaQuestionBackground', 'surface', appliedPalette.colors.surface),
+        qnaQuestionBorder: palettePart('qnaQuestionBorder', 'secondary', appliedPalette.colors.secondary),
+        qnaAnswerText: palettePart('qnaAnswerText', 'text', appliedPalette.colors.text),
+        qnaAnswerBackground: palettePart('qnaAnswerBackground', 'surface', appliedPalette.colors.surface),
+        qnaAnswerBorder: palettePart('qnaAnswerBorder', 'primary', appliedPalette.colors.primary),
+        qnaAnswerRuledLines: palettePart('qnaAnswerRuledLines', 'primary', appliedPalette.colors.primary),
+        qnaBorder: palettePart('qnaBorder', 'primary', appliedPalette.colors.primary),
+        qnaBackground: palettePart('qnaBackground', 'surface', appliedPalette.colors.surface),
+        freeTextText: palettePart('freeTextText', 'text', appliedPalette.colors.text),
+        freeTextBorder: palettePart('freeTextBorder', 'secondary', appliedPalette.colors.secondary),
+        freeTextBackground: palettePart('freeTextBackground', 'surface', appliedPalette.colors.surface),
+        freeTextRuledLines: palettePart('freeTextRuledLines', 'accent', appliedPalette.colors.accent),
+        shapeStroke: palettePart('shapeStroke', 'primary', appliedPalette.colors.primary),
+        shapeFill: palettePart('shapeFill', 'surface', appliedPalette.colors.surface || appliedPalette.colors.accent),
+        lineStroke: palettePart('lineStroke', 'primary', appliedPalette.colors.primary),
+        brushStroke: palettePart('brushStroke', 'primary', appliedPalette.colors.primary)
+      };
       
       const applyPaletteToPage = (page: Page, pageIndex?: number) => {
         if (paletteApplyToAll && page.colorPaletteId) {
@@ -3771,7 +3795,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         if (currentBackground.type === 'color') {
           updatedBackground = {
             ...currentBackground,
-            value: appliedPalette.colors.background
+            value: paletteParts.pageBackground
           };
         } else if (currentBackground.type === 'pattern') {
           // For pattern backgrounds:
@@ -3779,8 +3803,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           // patternForegroundColor = color of the space between patterns - update from palette
           updatedBackground = {
             ...currentBackground,
-            patternBackgroundColor: appliedPalette.colors.primary,
-            patternForegroundColor: appliedPalette.colors.background
+            patternBackgroundColor: paletteParts.pagePatternForeground,
+            patternForegroundColor: paletteParts.pagePatternBackground
           };
         } else {
           // For 'image' type, preserve everything - color palette doesn't affect image backgrounds
@@ -3796,26 +3820,26 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             // Apply palette colors based on element type - always override manual colors
             if (element.type === 'text' || element.textType) {
               // Update font color in nested font object if it exists
-              if (element.font) {
-                updates.font = { ...element.font, fontColor: appliedPalette.colors.text };
-              }
+            if (element.font) {
+              updates.font = { ...element.font, fontColor: paletteParts.freeTextText };
+            }
               // Update QnA specific nested settings
               if (element.questionSettings) {
                 updates.questionSettings = {
                   ...element.questionSettings,
                   font: element.questionSettings.font ? 
-                    { ...element.questionSettings.font, fontColor: appliedPalette.colors.text } : 
-                    { fontColor: appliedPalette.colors.text },
-                  fontColor: appliedPalette.colors.text
+                  { ...element.questionSettings.font, fontColor: paletteParts.freeTextText } : 
+                  { fontColor: paletteParts.freeTextText },
+                fontColor: paletteParts.freeTextText
                 };
               }
               if (element.answerSettings) {
                 updates.answerSettings = {
                   ...element.answerSettings,
                   font: element.answerSettings.font ? 
-                    { ...element.answerSettings.font, fontColor: appliedPalette.colors.text } : 
-                    { fontColor: appliedPalette.colors.text },
-                  fontColor: appliedPalette.colors.text
+                  { ...element.answerSettings.font, fontColor: paletteParts.freeTextText } : 
+                  { fontColor: paletteParts.freeTextText },
+                fontColor: paletteParts.freeTextText
                 };
               }
               
@@ -3825,27 +3849,27 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                 const currentBackground = element.textSettings?.background || {};
                 updates.textSettings = {
                   ...element.textSettings,
-                  fontColor: appliedPalette.colors.text,
+                fontColor: paletteParts.freeTextText,
                   font: element.textSettings?.font ? 
-                    { ...element.textSettings.font, fontColor: appliedPalette.colors.text } : 
-                    { fontColor: appliedPalette.colors.text },
+                  { ...element.textSettings.font, fontColor: paletteParts.freeTextText } : 
+                  { fontColor: paletteParts.freeTextText },
                   border: {
                     ...currentBorder,
-                    borderColor: appliedPalette.colors.primary,
+                  borderColor: paletteParts.freeTextBorder,
                     enabled: currentBorder.enabled !== undefined ? currentBorder.enabled : true
                   },
-                  borderColor: appliedPalette.colors.primary,
+                borderColor: paletteParts.freeTextBorder,
                   background: {
                     ...currentBackground,
-                    backgroundColor: appliedPalette.colors.accent,
+                  backgroundColor: paletteParts.freeTextBackground,
                     enabled: currentBackground.enabled !== undefined ? currentBackground.enabled : true
                   },
-                  backgroundColor: appliedPalette.colors.accent,
+                backgroundColor: paletteParts.freeTextBackground,
                   ruledLines: element.textSettings?.ruledLines ? {
                     ...element.textSettings.ruledLines,
-                    lineColor: appliedPalette.colors.primary
+                  lineColor: paletteParts.freeTextRuledLines
                   } : undefined,
-                  ruledLinesColor: appliedPalette.colors.primary
+                ruledLinesColor: paletteParts.freeTextRuledLines
                 };
               }
               
@@ -3899,12 +3923,12 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                 
                 updates.questionSettings = {
                   ...element.questionSettings,
-                  fontColor: appliedPalette.colors.text,
-                  font: { ...element.questionSettings?.font, fontColor: appliedPalette.colors.text },
+                  fontColor: paletteParts.qnaQuestionText,
+                  font: { ...element.questionSettings?.font, fontColor: paletteParts.qnaQuestionText },
                   border: borderEnabled ? {
                     ...existingQuestionBorder,
                     enabled: true,
-                    borderColor: appliedPalette.colors.primary,
+                    borderColor: paletteParts.qnaQuestionBorder,
                     borderWidth: existingQuestionBorder.borderWidth ?? 2,
                     borderOpacity: existingQuestionBorder.borderOpacity ?? 1
                   } : {
@@ -3914,7 +3938,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                   background: backgroundEnabled ? {
                     ...existingQuestionBackground,
                     enabled: true,
-                    backgroundColor: appliedPalette.colors.accent,
+                    backgroundColor: paletteParts.qnaQuestionBackground,
                     backgroundOpacity: existingQuestionBackground.backgroundOpacity ?? 0.3
                   } : {
                     ...existingQuestionBackground,
@@ -3923,12 +3947,12 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                 };
                 updates.answerSettings = {
                   ...element.answerSettings,
-                  fontColor: appliedPalette.colors.text,
-                  font: { ...element.answerSettings?.font, fontColor: appliedPalette.colors.text },
+                  fontColor: paletteParts.qnaAnswerText,
+                  font: { ...element.answerSettings?.font, fontColor: paletteParts.qnaAnswerText },
                   border: borderEnabled ? {
                     ...existingAnswerBorder,
                     enabled: true,
-                    borderColor: appliedPalette.colors.primary,
+                    borderColor: paletteParts.qnaAnswerBorder,
                     borderWidth: existingAnswerBorder.borderWidth ?? 2,
                     borderOpacity: existingAnswerBorder.borderOpacity ?? 1
                   } : {
@@ -3938,27 +3962,27 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                   background: backgroundEnabled ? {
                     ...existingAnswerBackground,
                     enabled: true,
-                    backgroundColor: appliedPalette.colors.accent,
+                    backgroundColor: paletteParts.qnaAnswerBackground,
                     backgroundOpacity: existingAnswerBackground.backgroundOpacity ?? 0.3
                   } : {
                     ...existingAnswerBackground,
                     enabled: false
                   },
-                  ruledLines: { ...element.answerSettings?.ruledLines, lineColor: appliedPalette.colors.primary }
+                  ruledLines: { ...element.answerSettings?.ruledLines, lineColor: paletteParts.qnaAnswerRuledLines }
                 };
               }
               
               // Update border colors - only if border is enabled (for non-qna_inline elements, check existing enabled state)
               if (element.textType === 'qna_inline') {
                 if (borderEnabled) {
-                  updates.border = { ...element.border, borderColor: appliedPalette.colors.primary, enabled: true };
+                  updates.border = { ...element.border, borderColor: paletteParts.qnaBorder, enabled: true };
                 } else {
                   updates.border = { ...element.border, enabled: false };
                 }
                 
                 // Update background colors - only if background is enabled
                 if (backgroundEnabled) {
-                  updates.background = { ...element.background, backgroundColor: appliedPalette.colors.accent, enabled: true };
+                  updates.background = { ...element.background, backgroundColor: paletteParts.qnaBackground, enabled: true };
                 } else {
                   updates.background = { ...element.background, enabled: false };
                 }
@@ -3968,31 +3992,36 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                 const currentBackgroundEnabled = element.background?.enabled !== false;
                 
                 if (currentBorderEnabled) {
-                  updates.border = { ...element.border, borderColor: appliedPalette.colors.primary, enabled: true };
+                  updates.border = { ...element.border, borderColor: paletteParts.freeTextBorder, enabled: true };
                 } else {
                   updates.border = { ...element.border, enabled: false };
                 }
                 
                 if (currentBackgroundEnabled) {
-                  updates.background = { ...element.background, backgroundColor: appliedPalette.colors.accent, enabled: true };
+                  updates.background = { ...element.background, backgroundColor: paletteParts.freeTextBackground, enabled: true };
                 } else {
                   updates.background = { ...element.background, enabled: false };
                 }
               }
 
-              // Update direct font color properties
-              updates.fontColor = appliedPalette.colors.text;
-              updates.fill = appliedPalette.colors.text;
-              updates.borderColor = appliedPalette.colors.primary;
-              updates.backgroundColor = appliedPalette.colors.accent;
+            // Update direct font color properties
+            updates.fontColor = paletteParts.freeTextText;
+            updates.fill = paletteParts.freeTextText;
+            updates.borderColor = paletteParts.freeTextBorder;
+            updates.backgroundColor = paletteParts.freeTextBackground;
             }
             
             // Apply stroke color to shapes and lines
-            if (element.type === 'line' || element.type === 'circle' || element.type === 'rect' || 
+          if (element.type === 'line' || element.type === 'circle' || element.type === 'rect' || 
                 element.type === 'heart' || element.type === 'star' || element.type === 'triangle' ||
                 element.type === 'polygon' || element.type === 'speech-bubble' || element.type === 'dog' ||
                 element.type === 'cat' || element.type === 'smiley' || element.type === 'brush') {
-              updates.stroke = appliedPalette.colors.primary;
+            const strokeColor = element.type === 'brush'
+              ? paletteParts.brushStroke
+              : element.type === 'line'
+                ? paletteParts.lineStroke
+                : paletteParts.shapeStroke;
+            updates.stroke = strokeColor;
             }
             
             // Apply fill color to filled shapes - apply even if fill is missing or transparent
@@ -4004,7 +4033,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
               // Only apply fill if element had a fill (not transparent) before
               // But during reset, we want to apply palette colors
               if (element.fill && element.fill !== 'transparent') {
-                updates.fill = appliedPalette.colors.accent;
+                updates.fill = paletteParts.shapeFill;
               }
               // If element doesn't have fill or has transparent, don't change it
               // (respects the element's original fill state)
@@ -5597,16 +5626,19 @@ function applyThemeAndPaletteToPage(
   const palette = pagePaletteId ? colorPalettes.find(p => p.id === pagePaletteId) : undefined;
   let updatedBackground = page.background;
   if (palette && page.background) {
+    const pageBgColor = getPalettePartColor(palette, 'pageBackground', 'background', palette.colors.background) || palette.colors.background;
+    const patternForeground = getPalettePartColor(palette, 'pagePatternForeground', 'primary', palette.colors.primary) || palette.colors.primary;
+    const patternBackground = getPalettePartColor(palette, 'pagePatternBackground', 'background', palette.colors.background) || palette.colors.background;
     if (page.background.type === 'color') {
       updatedBackground = {
         ...page.background,
-        value: palette.colors.background
+        value: pageBgColor
       };
     } else if (page.background.type === 'pattern') {
       updatedBackground = {
         ...page.background,
-        patternBackgroundColor: palette.colors.primary,
-        patternForegroundColor: palette.colors.background
+        patternBackgroundColor: patternForeground,
+        patternForegroundColor: patternBackground
       };
     }
   }

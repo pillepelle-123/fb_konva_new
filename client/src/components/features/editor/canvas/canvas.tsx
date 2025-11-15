@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+import type { CSSProperties } from 'react';
 import { Layer, Rect, Group, Text, Image as KonvaImage, Circle } from 'react-konva';
 import Konva from 'konva';
 import { v4 as uuidv4 } from 'uuid';
@@ -21,14 +22,15 @@ import QuestionsManagerDialog from '../questions-manager-dialog';
 
 import { getToolDefaults, TOOL_DEFAULTS } from '../../../../utils/tool-defaults';
 import { Alert, AlertDescription } from '../../../ui/composites/alert';
-import { Badge } from '../../../ui/composites/badge';
 import { snapPosition, type SnapGuideline } from '../../../../utils/snapping';
 
 import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
 import type { PageBackground } from '../../../../context/editor-context';
 import { createPreviewImage, resolveBackgroundImageUrl } from '../../../../utils/background-image-utils';
+import { getPalettePartColor } from '../../../../data/templates/color-palettes';
 import { colorPalettes } from '../../../../data/templates/color-palettes';
 import { getThemePaletteId, getGlobalTheme } from '../../../../utils/global-themes';
+import { getLayoutVariationLabel, getBackgroundVariationLabel } from '../../../../utils/layout-variation-labels';
 
 function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
   return (
@@ -106,15 +108,40 @@ const PAGE_TYPE_LABELS: Record<string, string> = {
   'last-page': 'Last Page'
 };
 
-const LAYOUT_VARIATION_LABELS: Record<string, string> = {
-  mirrored: 'Mirrored layout',
-  randomized: 'Remixed layout'
+type PageBadgeMeta = {
+  label: string;
+  layoutLabel: string | null;
+  backgroundLabel: string | null;
 };
 
-const BACKGROUND_VARIATION_LABELS: Record<string, string> = {
-  mirrored: 'Mirrored background',
-  randomized: 'Remixed background'
-};
+const ACTIVE_BADGE_COLOR = '#304050';
+const ACTIVE_BADGE_TEXT = '#f8fafc';
+const INACTIVE_BADGE_COLOR = '#FFFFFF';
+const INACTIVE_BADGE_TEXT = '#1f2937';
+const INACTIVE_BADGE_BORDER = '#cbd5f5';
+
+const createBadgeStyle = (isActive: boolean, disabled?: boolean): CSSProperties => ({
+  backgroundColor: isActive ? ACTIVE_BADGE_COLOR : INACTIVE_BADGE_COLOR,
+  color: isActive ? ACTIVE_BADGE_TEXT : INACTIVE_BADGE_TEXT,
+  border: `1px solid ${isActive ? ACTIVE_BADGE_COLOR : INACTIVE_BADGE_BORDER}`,
+  borderRadius: 9999,
+  padding: '6px 12px',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '8px',
+  flexWrap: 'wrap',
+  fontSize: '12px',
+  fontWeight: 600,
+  boxShadow: '0 10px 25px rgba(15, 23, 42, 0.12)',
+  cursor: !isActive && !disabled ? 'pointer' : 'default',
+  opacity: disabled ? 0.75 : 1
+});
+
+const createMetaTextStyle = (isActive: boolean): CSSProperties => ({
+  fontSize: '11px',
+  fontWeight: 500,
+  opacity: isActive ? 0.9 : 0.75
+});
 
 type BackgroundImageEntry = {
   full: HTMLImageElement;
@@ -335,18 +362,6 @@ export default function Canvas() {
     return patternCanvas;
   }, []);
   const pageSize = state.currentBook?.pageSize || 'A4';
-  const specialPageLabel =
-    currentPage?.pageType && currentPage.pageType !== 'content'
-      ? PAGE_TYPE_LABELS[currentPage.pageType] ?? currentPage.pageType
-      : null;
-  const layoutVariationLabel =
-    currentPage?.layoutVariation && currentPage.layoutVariation !== 'normal'
-      ? LAYOUT_VARIATION_LABELS[currentPage.layoutVariation] ?? `Layout: ${currentPage.layoutVariation}`
-      : null;
-  const backgroundVariationLabel =
-    currentPage?.backgroundVariation && currentPage.backgroundVariation !== 'normal'
-      ? BACKGROUND_VARIATION_LABELS[currentPage.backgroundVariation] ?? `Background: ${currentPage.backgroundVariation}`
-      : null;
 
   const getPaletteForPage = (page?: typeof currentPage) => {
     // Get page color palette (or book color palette if page.colorPaletteId is null)
@@ -368,7 +383,50 @@ export default function Canvas() {
     return { paletteId: effectivePaletteId, palette };
   };
 
+  const buildPageBadgeMeta = useCallback(
+    (page?: typeof currentPage | null): PageBadgeMeta | null => {
+      if (!page) return null;
+      const pageIndex =
+        state.currentBook?.pages?.findIndex((entry) => entry.id === page.id) ?? -1;
+      const derivedPageNumber =
+        page.pageNumber ?? (pageIndex >= 0 ? pageIndex + 1 : null);
+      const numberLabel =
+        derivedPageNumber && derivedPageNumber > 0
+          ? `Page ${derivedPageNumber}`
+          : null;
+      const specialName =
+        page.pageType && page.pageType !== 'content'
+          ? PAGE_TYPE_LABELS[page.pageType] ?? page.pageType
+          : null;
+      const labelSegments = [];
+      if (specialName) {
+        labelSegments.push(specialName);
+      }
+      if (numberLabel) {
+        labelSegments.push(numberLabel);
+      }
+      const label = labelSegments.length ? labelSegments.join(' · ') : 'Page';
+      const layoutLabel =
+        page.layoutVariation && page.layoutVariation !== 'normal'
+          ? getLayoutVariationLabel(page.layoutVariation)
+          : null;
+      const backgroundLabel =
+        page.backgroundVariation && page.backgroundVariation !== 'normal'
+          ? getBackgroundVariationLabel(page.backgroundVariation)
+          : null;
+      return { label, layoutLabel, backgroundLabel };
+    },
+    [state.currentBook?.pages]
+  );
   const { paletteId: activePaletteId, palette: activePalette } = getPaletteForPage(currentPage);
+  const activePageBadgeMeta = useMemo(
+    () => buildPageBadgeMeta(currentPage),
+    [buildPageBadgeMeta, currentPage]
+  );
+  const previewPageBadgeMeta = useMemo(
+    () => buildPageBadgeMeta(partnerPage),
+    [buildPageBadgeMeta, partnerPage]
+  );
   const orientation = state.currentBook?.orientation || 'portrait';
   
   const dimensions = PAGE_DIMENSIONS[pageSize as keyof typeof PAGE_DIMENSIONS];
@@ -380,6 +438,27 @@ export default function Canvas() {
   const activePageOffsetX = partnerInfo && !isActiveLeft ? canvasWidth + spreadGapCanvas : 0;
   const previewPageOffsetX = partnerInfo ? (isActiveLeft ? canvasWidth + spreadGapCanvas : 0) : null;
   const pageOffsetY = 0;
+  const BADGE_VERTICAL_SCREEN_GAP = 32;
+  const getBadgeScreenPosition = useCallback(
+    (offsetX: number | null) => {
+      if (offsetX === null) return null;
+      const centerScreenX = stagePos.x + (offsetX + canvasWidth / 2) * zoom;
+      const pageTopScreenY = stagePos.y + pageOffsetY * zoom;
+      return {
+        x: centerScreenX,
+        y: pageTopScreenY - BADGE_VERTICAL_SCREEN_GAP
+      };
+    },
+    [stagePos.x, stagePos.y, canvasWidth, pageOffsetY, zoom]
+  );
+  const activePageBadgePosition = useMemo(
+    () => getBadgeScreenPosition(activePageOffsetX),
+    [getBadgeScreenPosition, activePageOffsetX]
+  );
+  const previewPageBadgePosition = useMemo(
+    () => getBadgeScreenPosition(previewPageOffsetX),
+    [getBadgeScreenPosition, previewPageOffsetX]
+  );
   const previewLockBadgeScreen = useMemo(() => {
     if (!partnerPage || !previewTargetLocked || previewPageOffsetX === null) {
       return null;
@@ -391,6 +470,20 @@ export default function Canvas() {
       y: stagePos.y + centerY * zoom
     };
   }, [partnerPage, previewTargetLocked, previewPageOffsetX, canvasWidth, canvasHeight, pageOffsetY, stagePos.x, stagePos.y, zoom]);
+  const renderBadgeSegments = useCallback(
+    (meta: PageBadgeMeta, isActive: boolean) => (
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ fontWeight: 600 }}>{meta.label}</span>
+        {meta.layoutLabel && (
+          <span style={createMetaTextStyle(isActive)}>{meta.layoutLabel}</span>
+        )}
+        {meta.backgroundLabel && (
+          <span style={createMetaTextStyle(isActive)}>{meta.backgroundLabel}</span>
+        )}
+      </div>
+    ),
+    []
+  );
   const handlePreviewClick = useCallback(() => {
     if (!partnerInfo) return;
     const targetPageNumber = partnerInfo.page.pageNumber ?? partnerInfo.index + 1;
@@ -1811,6 +1904,13 @@ export default function Canvas() {
     const transformOffsetY = (backgroundTransform?.offsetRatioY ?? 0) * canvasHeight;
     const mirrorBackground = Boolean(backgroundTransform?.mirror);
     const { paletteId, palette } = getPaletteForPage(page);
+    const normalizedPalette = palette || undefined;
+    const paletteBackgroundColor =
+      getPalettePartColor(normalizedPalette, 'pageBackground', 'background', '#ffffff') || '#ffffff';
+    const palettePatternStroke =
+      getPalettePartColor(normalizedPalette, 'pagePatternForeground', 'primary', '#666666') || '#666666';
+    const palettePatternFill =
+      getPalettePartColor(normalizedPalette, 'pagePatternBackground', 'background', 'transparent') || 'transparent';
     
     if (!background) return null;
 
@@ -1835,8 +1935,8 @@ export default function Canvas() {
       if (pattern) {
         // patternBackgroundColor = color of the pattern itself (dots, lines)
         // patternForegroundColor = color of the space between patterns
-        const patternColor = background.patternBackgroundColor || '#666';
-        const spaceColor = background.patternForegroundColor || 'transparent';
+        const patternColor = background.patternBackgroundColor || palettePatternStroke;
+        const spaceColor = background.patternForegroundColor || palettePatternFill;
         const patternScale = Math.pow(1.5, (background.patternSize || 1) - 1);
         
         const patternTile = createPatternTile(pattern, patternColor, patternScale, background.patternStrokeWidth || 1);
@@ -1907,7 +2007,9 @@ export default function Canvas() {
       
       // Check if this is a template background that needs background color
       const hasBackgroundColor = (background as any).backgroundColorEnabled && (background as any).backgroundColor;
-      const fallbackColor = hasBackgroundColor ? ((background as any).backgroundColor || '#ffffff') : '#ffffff';
+      const baseBackgroundColor = hasBackgroundColor
+        ? (background as any).backgroundColor || paletteBackgroundColor
+        : paletteBackgroundColor;
 
     const cacheEntry =
       imageUrl ? backgroundImageCache.get(imageUrl) || backgroundImageCacheRef.current.get(imageUrl) || null : null;
@@ -1924,7 +2026,7 @@ export default function Canvas() {
             y={pageOffsetY}
             width={canvasWidth}
             height={canvasHeight}
-            fill={fallbackColor}
+            fill={baseBackgroundColor}
             opacity={opacity}
             listening={false}
           />
@@ -1991,24 +2093,20 @@ export default function Canvas() {
           );
 
           // If background color is enabled, wrap in Group with background color
-          if (hasBackgroundColor) {
-            return (
-              <Group listening={false}>
-                <Rect
-                  x={offsetX}
-                  y={pageOffsetY}
-                  width={canvasWidth}
-                  height={canvasHeight}
-                  fill={fallbackColor}
-                  opacity={opacity}
-                  listening={false}
-                />
-                {imageElement}
-              </Group>
-            );
-          }
-
-          return imageElement;
+          return (
+            <Group listening={false}>
+              <Rect
+                x={offsetX}
+                y={pageOffsetY}
+                width={canvasWidth}
+                height={canvasHeight}
+                fill={baseBackgroundColor}
+                opacity={opacity}
+                listening={false}
+              />
+              {imageElement}
+            </Group>
+          );
         }
       } else if (background.imageSize === 'stretch') {
         fillPatternScaleX = canvasWidth / imageWidth;
@@ -2026,111 +2124,39 @@ export default function Canvas() {
       }
       
       // If background color is enabled, render it behind the image
-      if (hasBackgroundColor) {
-        return (
-          <Group listening={false}>
-            {/* Background color layer */}
-            <Rect
-              x={offsetX}
-              y={pageOffsetY}
-              width={canvasWidth}
-              height={canvasHeight}
-              fill={fallbackColor}
-              opacity={opacity}
-              listening={false}
-            />
-            {/* Image layer */}
-            <Rect
-              x={offsetX}
-              y={pageOffsetY}
-              width={canvasWidth}
-              height={canvasHeight}
-              fillPatternImage={displayImage}
-              fillPatternScaleX={fillPatternScaleX}
-              fillPatternScaleY={fillPatternScaleY}
-              fillPatternOffsetX={fillPatternOffsetX}
-              fillPatternOffsetY={fillPatternOffsetY}
-              fillPatternRepeat={fillPatternRepeat}
-              opacity={opacity}
-              listening={false}
-            />
-          </Group>
-        );
-      }
-      
       return (
-        <Rect
-          x={offsetX}
-          y={pageOffsetY}
-          width={canvasWidth}
-          height={canvasHeight}
-          fillPatternImage={displayImage}
-          fillPatternScaleX={fillPatternScaleX}
-          fillPatternScaleY={fillPatternScaleY}
-          fillPatternOffsetX={fillPatternOffsetX}
-          fillPatternOffsetY={fillPatternOffsetY}
-          fillPatternRepeat={fillPatternRepeat}
-          opacity={opacity}
-          listening={false}
-        />
+        <Group listening={false}>
+          <Rect
+            x={offsetX}
+            y={pageOffsetY}
+            width={canvasWidth}
+            height={canvasHeight}
+            fill={baseBackgroundColor}
+            opacity={opacity}
+            listening={false}
+          />
+          <Rect
+            x={offsetX}
+            y={pageOffsetY}
+            width={canvasWidth}
+            height={canvasHeight}
+            fillPatternImage={displayImage}
+            fillPatternScaleX={fillPatternScaleX}
+            fillPatternScaleY={fillPatternScaleY}
+            fillPatternOffsetX={fillPatternOffsetX}
+            fillPatternOffsetY={fillPatternOffsetY}
+            fillPatternRepeat={fillPatternRepeat}
+            opacity={opacity}
+            listening={false}
+          />
+        </Group>
       );
     }
     
     return null;
   };
 
-  const renderPageBadge = (
-    page: typeof currentPage | null | undefined,
-    offsetX: number,
-    isPreview: boolean,
-    currentZoom: number
-  ) => {
-    if (!page) return null;
-    const label = page.pageNumber ? `${page.pageNumber}` : '—';
-    const effectiveZoom = currentZoom || 1;
-    const screenDiameter = 30;
-    const screenGap = 14;
-    const screenFont = 12;
-    const screenStrokeWidth = 3;
-    const diameter = screenDiameter / effectiveZoom;
-    const radius = diameter / 2;
-    const verticalGap = screenGap / effectiveZoom;
-    const centerX = offsetX + canvasWidth / 2;
-    const centerY = pageOffsetY - radius - verticalGap;
-    const strokeWidth = screenStrokeWidth / effectiveZoom;
-    const fontSize = screenFont / effectiveZoom;
-    return (
-      <Group
-        listening={false}
-        name="no-print page-number-badge"
-        opacity={isPreview ? 0.75 : 1}
-      >
-        <Circle
-          x={centerX}
-          y={centerY}
-          radius={radius}
-          fill="white"
-          stroke="#E5E7EB"
-          strokeWidth={strokeWidth}
-          listening={false}
-        />
-        <Text
-          x={centerX - radius}
-          y={centerY - radius}
-          width={diameter}
-          height={diameter}
-          text={label}
-          fontSize={fontSize}
-          fontStyle="600"
-          fontFamily="Inter, system-ui, sans-serif"
-          fill="#6B7280"
-          align="center"
-          verticalAlign="middle"
-          listening={false}
-        />
-      </Group>
-    );
-  };
+  
 
   // Preload background images when page changes or background is updated
   useEffect(() => {
@@ -2786,25 +2812,6 @@ export default function Canvas() {
           activeTool={state.activeTool}
           stylePainterActive={state.stylePainterActive}
         >
-        {(specialPageLabel || layoutVariationLabel || backgroundVariationLabel) && (
-          <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none z-10">
-            {specialPageLabel && (
-              <Badge variant="secondary" className="bg-white/90 border border-border/60 text-foreground shadow-sm px-3 py-1">
-                {specialPageLabel}
-              </Badge>
-            )}
-            {layoutVariationLabel && (
-              <Badge variant="outline" className="bg-white/90 border-blue-200 text-blue-800 px-2 py-0.5 shadow-sm">
-                {layoutVariationLabel}
-              </Badge>
-            )}
-            {backgroundVariationLabel && (
-              <Badge variant="outline" className="bg-white/90 border-purple-200 text-purple-800 px-2 py-0.5 shadow-sm">
-                {backgroundVariationLabel}
-              </Badge>
-            )}
-          </div>
-        )}
         <CanvasStage
           ref={stageRef}
           width={containerSize.width}
@@ -2826,9 +2833,6 @@ export default function Canvas() {
             {partnerPage && previewPageOffsetX !== null && (
               <CanvasPageEditArea width={canvasWidth} height={canvasHeight} x={previewPageOffsetX} y={pageOffsetY} />
             )}
-            {renderPageBadge(currentPage, activePageOffsetX, false, zoom)}
-            {partnerPage && previewPageOffsetX !== null && renderPageBadge(partnerPage, previewPageOffsetX, true, zoom)}
-            
             {/* Background Layer */}
             {renderBackground(currentPage, activePageOffsetX)}
             {partnerPage && previewPageOffsetX !== null && (
@@ -3392,6 +3396,41 @@ export default function Canvas() {
             />
           </Layer>
         </CanvasStage>
+        {activePageBadgeMeta && activePageBadgePosition && (
+          <div
+            className="absolute z-20"
+            style={{
+              left: activePageBadgePosition.x,
+              top: activePageBadgePosition.y,
+              transform: 'translate(-50%, -100%)',
+              pointerEvents: 'none'
+            }}
+          >
+            <div style={createBadgeStyle(true)}>
+              {renderBadgeSegments(activePageBadgeMeta, true)}
+            </div>
+          </div>
+        )}
+        {previewPageBadgeMeta && previewPageBadgePosition && (
+          <div
+            className="absolute z-20"
+            style={{
+              left: previewPageBadgePosition.x,
+              top: previewPageBadgePosition.y,
+              transform: 'translate(-50%, -100%)',
+              pointerEvents: previewTargetLocked ? 'none' : 'auto'
+            }}
+          >
+            <button
+              type="button"
+              onClick={previewTargetLocked ? undefined : handlePreviewClick}
+              disabled={previewTargetLocked}
+              style={createBadgeStyle(false, previewTargetLocked)}
+            >
+              {renderBadgeSegments(previewPageBadgeMeta, false)}
+            </button>
+          </div>
+        )}
         {previewLockBadgeScreen && (
           <div
             className="pointer-events-none absolute z-20 flex items-center justify-center"
@@ -3411,7 +3450,7 @@ export default function Canvas() {
                 fontSize: 12,
                 fontWeight: 600,
                 fontFamily: 'Inter, system-ui, sans-serif',
-                color: '#0f172a',
+                color: '#64748b',
               }}
             >
               Not editable

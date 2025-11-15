@@ -5,7 +5,7 @@ import ProfilePictureEditor from './profile-picture-editor';
 
 interface ProfilePictureProps {
   name: string;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
   className?: string;
   userId?: number;
   editable?: boolean;
@@ -37,7 +37,8 @@ function getConsistentColor(name: string): string {
   return colors[Math.abs(hash) % colors.length];
 }
 
-const sizeMap = {
+const sizeMap: Record<'xs' | 'sm' | 'md' | 'lg', { class: string; pixels: number }> = {
+  xs: { class: 'w-6 h-6', pixels: 32 },
   sm: { class: 'w-10 h-10', pixels: 32 },
   md: { class: 'w-24 h-24', pixels: 96 },
   lg: { class: 'w-48 h-48', pixels: 192 },
@@ -65,7 +66,7 @@ export default function ProfilePicture({ name, size = 'md', className = '', user
       });
       if (response.ok) {
         const userData = await response.json();
-        const pictureField = size === 'sm' ? 'profile_picture_32' : 'profile_picture_192';
+        const pictureField = size === 'lg' || size === 'md' ? 'profile_picture_192' : 'profile_picture_32';
         if (userData[pictureField]) {
           const baseUrl = apiUrl.replace('/api', '');
           setProfileImageUrl(`${baseUrl}/uploads/profile_pictures/${userId}/${userData[pictureField]}`);

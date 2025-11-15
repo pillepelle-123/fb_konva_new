@@ -13,6 +13,7 @@ export interface ColorPalette {
     text: string;
     surface: string; // Added for compatibility with global-palettes usage
   };
+  parts?: Record<string, keyof ColorPalette['colors']>;
   contrast: 'AA' | 'AAA';
 }
 

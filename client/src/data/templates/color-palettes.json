@@ -12,7 +12,29 @@
         "text": "#212121",
         "surface": "#F5F5F5"
       },
-      "contrast": "AAA"
+      "contrast": "AAA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "sunset",
@@ -25,7 +47,29 @@
         "text": "#2E2E2E",
         "surface": "#FFECB3"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "ocean",
@@ -38,7 +82,29 @@
         "text": "#1A1A1A",
         "surface": "#BBDEFB"
       },
-      "contrast": "AAA"
+      "contrast": "AAA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "forest",
@@ -51,7 +117,29 @@
         "text": "#2E2E2E",
         "surface": "#C8E6C9"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "pastel",
@@ -64,7 +152,29 @@
         "text": "#212121",
         "surface": "#F5F5F5"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "monochrome",
@@ -77,7 +187,29 @@
         "text": "#212121",
         "surface": "#F5F5F5"
       },
-      "contrast": "AAA"
+      "contrast": "AAA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "vibrant",
@@ -90,7 +222,29 @@
         "text": "#1A1A1A",
         "surface": "#FFE0B2"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "earth",
@@ -103,7 +257,29 @@
         "text": "#3E2723",
         "surface": "#D7CCC8"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "candy",
@@ -116,7 +292,29 @@
         "text": "#1A1A1A",
         "surface": "#F8BBD9"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "vintage",
@@ -129,7 +327,29 @@
         "text": "#2F1B14",
         "surface": "#E8DCC6"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "modern",
@@ -142,7 +362,29 @@
         "text": "#263238",
         "surface": "#E0E0E0"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "lavender",
@@ -155,7 +397,29 @@
         "text": "#1A1A1A",
         "surface": "#E1BEE7"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "mint",
@@ -168,7 +432,29 @@
         "text": "#1A1A1A",
         "surface": "#B2DFDB"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "coral",
@@ -181,7 +467,29 @@
         "text": "#1A1A1A",
         "surface": "#FFCCBC"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "sky",
@@ -194,7 +502,29 @@
         "text": "#1A1A1A",
         "surface": "#B3E5FC"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "autumn",
@@ -207,7 +537,29 @@
         "text": "#1A1A1A",
         "surface": "#FFE082"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "rose",
@@ -220,7 +572,29 @@
         "text": "#1A1A1A",
         "surface": "#F48FB1"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "sage",
@@ -233,7 +607,29 @@
         "text": "#1A1A1A",
         "surface": "#DCEDC8"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "slate",
@@ -246,7 +642,29 @@
         "text": "#1A1A1A",
         "surface": "#CFD8DC"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "energetic-mood",
@@ -259,7 +677,29 @@
         "text": "#1A1A1A",
         "surface": "#FFF9C4"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "calm-mood",
@@ -272,7 +712,29 @@
         "text": "#1A1A1A",
         "surface": "#C8E6C9"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "mysterious-mood",
@@ -285,7 +747,29 @@
         "text": "#FFFFFF",
         "surface": "#16213E"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "warm-mood",
@@ -298,7 +782,29 @@
         "text": "#1A1A1A",
         "surface": "#FFE082"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "elegant-mood",
@@ -311,7 +817,29 @@
         "text": "#1A1A1A",
         "surface": "#F5F5F5"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "neutral-harmony",
@@ -324,7 +852,29 @@
         "text": "#1f2937",
         "surface": "#f4f1de"
       },
-      "contrast": "AAA"
+      "contrast": "AAA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "warm-earth",
@@ -337,7 +887,29 @@
         "text": "#654321",
         "surface": "#f5deb3"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "vibrant-rainbow",
@@ -350,7 +922,29 @@
         "text": "#ff6b35",
         "surface": "#fff3e0"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "vintage-sepia",
@@ -363,7 +957,29 @@
         "text": "#8b4513",
         "surface": "#f5deb3"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "dark-neon",
@@ -376,7 +992,29 @@
         "text": "#00ffff",
         "surface": "#1a1a1a"
       },
-      "contrast": "AAA"
+      "contrast": "AAA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "leather",
@@ -389,7 +1027,29 @@
         "text": "#332217",
         "surface": "#f5deb3"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "lavender-dream",
@@ -402,7 +1062,29 @@
         "text": "#2E2E2E",
         "surface": "#d4d2e1"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "poppy-flowers",
@@ -415,7 +1097,29 @@
         "text": "#332217",
         "surface": "#f5deb3"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "sketchy",
@@ -428,7 +1132,29 @@
         "text": "#212121",
         "surface": "#FFFFFF"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "primary",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     },
     {
       "id": "custom",
@@ -441,9 +1167,29 @@
         "text": "#2E2E2E",
         "surface": "#C8E6C9"
       },
-      "contrast": "AA"
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "surface",
+        "pagePatternForeground": "primary",
+        "pagePatternBackground": "background",
+        "qnaBorder": "primary",
+        "qnaBackground": "surface",
+        "qnaQuestionText": "text",
+        "qnaQuestionBackground": "surface",
+        "qnaQuestionBorder": "secondary",
+        "qnaAnswerText": "text",
+        "qnaAnswerBackground": "surface",
+        "qnaAnswerBorder": "primary",
+        "qnaAnswerRuledLines": "primary",
+        "freeTextText": "text",
+        "freeTextBorder": "secondary",
+        "freeTextBackground": "surface",
+        "freeTextRuledLines": "accent",
+        "shapeStroke": "primary",
+        "shapeFill": "surface",
+        "lineStroke": "primary",
+        "brushStroke": "primary"
+      }
     }
-    
   ]
 }
-

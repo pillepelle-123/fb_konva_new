@@ -126,6 +126,8 @@ router.get('/', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     const books = await pool.query(`
       SELECT DISTINCT b.id, b.name, b.page_size, b.orientation, b.owner_id, b.created_at, b.updated_at,
+        b.min_pages, b.max_pages, b.page_pairing_enabled, b.special_pages_config,
+        b.layout_strategy, b.layout_random_mode, b.assisted_layouts,
         COALESCE((SELECT COUNT(*) FROM public.pages WHERE book_id = b.id), 0) as page_count,
         COALESCE((SELECT COUNT(*) FROM public.book_friends WHERE book_id = b.id), 0) as collaborator_count,
         bf.book_role
@@ -138,6 +140,8 @@ router.get('/', authenticateToken, async (req, res) => {
     res.json(books.rows.map(book => {
       const isOwner = book.owner_id === userId;
       const userRole = isOwner ? 'owner' : book.book_role;
+      const specialPagesConfig = parseJsonField(book.special_pages_config);
+      const assistedLayouts = parseJsonField(book.assisted_layouts);
       
       return {
         id: book.id,
@@ -149,7 +153,14 @@ router.get('/', authenticateToken, async (req, res) => {
         isOwner: isOwner,
         userRole: userRole,
         created_at: book.created_at,
-        updated_at: book.updated_at
+        updated_at: book.updated_at,
+        minPages: book.min_pages,
+        maxPages: book.max_pages,
+        pagePairingEnabled: book.page_pairing_enabled,
+        specialPagesConfig,
+        layoutStrategy: book.layout_strategy,
+        layoutRandomMode: book.layout_random_mode,
+        assistedLayouts
       };
     }));
   } catch (error) {
@@ -163,7 +174,9 @@ router.get('/archived', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     const books = await pool.query(`
-      SELECT DISTINCT b.id, b.name, b.page_size, b.orientation, b.owner_id, b.created_at, bf.book_role
+      SELECT DISTINCT b.id, b.name, b.page_size, b.orientation, b.owner_id, b.created_at, bf.book_role,
+        b.min_pages, b.max_pages, b.page_pairing_enabled, b.special_pages_config,
+        b.layout_strategy, b.layout_random_mode, b.assisted_layouts
       FROM public.books b
       LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $1
       WHERE (b.owner_id = $1 OR bf.user_id = $1) AND b.archived = TRUE
@@ -173,6 +186,8 @@ router.get('/archived', authenticateToken, async (req, res) => {
     res.json(books.rows.map(book => {
       const isOwner = book.owner_id === userId;
       const userRole = isOwner ? 'owner' : book.book_role;
+      const specialPagesConfig = parseJsonField(book.special_pages_config);
+      const assistedLayouts = parseJsonField(book.assisted_layouts);
       
       return {
         id: book.id,
@@ -181,7 +196,14 @@ router.get('/archived', authenticateToken, async (req, res) => {
         orientation: book.orientation,
         isOwner: isOwner,
         userRole: userRole,
-        createdAt: book.created_at
+        createdAt: book.created_at,
+        minPages: book.min_pages,
+        maxPages: book.max_pages,
+        pagePairingEnabled: book.page_pairing_enabled,
+        specialPagesConfig,
+        layoutStrategy: book.layout_strategy,
+        layoutRandomMode: book.layout_random_mode,
+        assistedLayouts
       };
     }));
   } catch (error) {

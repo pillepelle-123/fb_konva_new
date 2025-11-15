@@ -73,27 +73,39 @@ export function PageNavigation({
   };
 
   const getNextEditablePage = (start: number, direction: 'prev' | 'next'): number => {
+    const normalizePairStart = (value: number) => {
+      if (value < 1) return 1;
+      return value % 2 === 0 ? value - 1 : value;
+    };
+
     if (direction === 'prev') {
-      for (let page = start; page >= 1; page -= 2) {
-        if (!isRestrictedPage(page) && page >= 1) {
-          return page;
+      for (let pairStart = normalizePairStart(start); pairStart >= 1; pairStart -= 2) {
+        const leftPage = pairStart;
+        const rightPage = pairStart + 1;
+
+        if (leftPage >= 1 && !isRestrictedPage(leftPage)) {
+          return leftPage;
+        }
+
+        if (rightPage <= totalPages && !isRestrictedPage(rightPage)) {
+          return rightPage;
         }
       }
       return 1;
     } else {
-      let page = start;
-      while (page <= totalPages && isRestrictedPage(page)) {
-        page += 1;
-      }
-      for (; page <= totalPages; page += 2) {
-        if (!isRestrictedPage(page) && page <= totalPages) {
-          return page;
+      for (let pairStart = normalizePairStart(start); pairStart <= totalPages; pairStart += 2) {
+        const leftPage = pairStart;
+        const rightPage = pairStart + 1;
+
+        if (leftPage <= totalPages && !isRestrictedPage(leftPage)) {
+          return leftPage;
+        }
+
+        if (rightPage <= totalPages && !isRestrictedPage(rightPage)) {
+          return rightPage;
         }
       }
-      if (!isRestrictedPage(totalPages)) {
-        return totalPages;
-      }
-      return Math.max(1, getNextEditablePage(totalPages - 1, 'prev'));
+      return totalPages;
     }
   };
 
