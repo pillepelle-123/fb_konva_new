@@ -934,6 +934,14 @@ function getAllPageIndexes(state: EditorState): number[] {
   return state.currentBook ? state.currentBook.pages.map((_, index) => index) : [];
 }
 
+function isLayoutProtectedPage(page: Page | undefined, pageIndex: number): boolean {
+  if (!page) return false;
+  const pageNumber = typeof page.pageNumber === 'number' && !Number.isNaN(page.pageNumber)
+    ? page.pageNumber
+    : pageIndex + 1;
+  return pageNumber === 1 || pageNumber === 2;
+}
+
 function collectPageCacheIds(book: Book | null | undefined): number[] {
   if (!book || !book.pages) return [];
   return book.pages
@@ -3319,6 +3327,10 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (!state.currentBook) return state;
       const { pageIndex, template, skipHistory: applyTemplateSkipHistory } = action.payload as any;
       const targetTemplateIndex = typeof pageIndex === 'number' ? pageIndex : state.activePageIndex;
+      const targetPageTemplateOriginal = state.currentBook.pages[targetTemplateIndex];
+      if (!targetPageTemplateOriginal || isLayoutProtectedPage(targetPageTemplateOriginal, targetTemplateIndex)) {
+        return state;
+      }
       const savedTemplateState = applyTemplateSkipHistory
         ? state
         : saveToHistory(state, 'Apply Template', {
@@ -3359,6 +3371,13 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case 'APPLY_TEMPLATE':
       if (!state.currentBook) return state;
       const { template: applyTemplate, pageIndex: applyPageIndex, applyToAllPages, skipHistory } = action.payload as any;
+      if (!applyToAllPages) {
+        const targetIndex = applyPageIndex ?? state.activePageIndex;
+        const targetPage = state.currentBook.pages[targetIndex];
+        if (!targetPage || isLayoutProtectedPage(targetPage, targetIndex)) {
+          return state;
+        }
+      }
       const affectedApplyIndexes = applyToAllPages ? getAllPageIndexes(state) : [applyPageIndex ?? state.activePageIndex];
       const baseState = skipHistory
         ? state
@@ -3369,8 +3388,11 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const updatedBookApplyTemplate = { ...baseState.currentBook! };
       
       if (applyToAllPages) {
-        // Apply to all pages
-        updatedBookApplyTemplate.pages = updatedBookApplyTemplate.pages.map(page => {
+        // Apply to all pages except protected ones
+        updatedBookApplyTemplate.pages = updatedBookApplyTemplate.pages.map((page, index) => {
+          if (isLayoutProtectedPage(page, index)) {
+            return page;
+          }
           const newElements = convertTemplateToElements(applyTemplate);
           return {
             ...page,
@@ -3417,6 +3439,13 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case 'APPLY_LAYOUT_TEMPLATE':
       if (!state.currentBook) return state;
       const { template: layoutTemplate, pageIndex: layoutPageIndex, applyToAllPages: layoutApplyToAll, skipHistory: layoutSkipHistory } = action.payload;
+      if (!layoutApplyToAll) {
+        const targetIndex = layoutPageIndex ?? state.activePageIndex;
+        const targetPage = state.currentBook.pages[targetIndex];
+        if (!targetPage || isLayoutProtectedPage(targetPage, targetIndex)) {
+          return state;
+        }
+      }
       const affectedLayoutIndexes = layoutApplyToAll ? getAllPageIndexes(state) : [layoutPageIndex ?? state.activePageIndex];
       const savedLayoutState = layoutSkipHistory
         ? state
@@ -3427,6 +3456,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const updatedBookLayout = { ...savedLayoutState.currentBook! };
       
       const applyLayoutToPage = (page: Page, pageIdx: number) => {
+        if (isLayoutProtectedPage(page, pageIdx)) {
+          return page;
+        }
         // Berechne Canvas-Größe für diese Seite
         const pageSize = updatedBookLayout.pageSize || 'A4';
         const orientation = updatedBookLayout.orientation || 'portrait';

@@ -271,7 +271,6 @@ export default function Canvas() {
   const GUIDELINE_OFFSET = 15; // Increased for better snapping detection
 
   const currentPage = state.currentBook?.pages[state.activePageIndex];
-  const isPrintablePage = currentPage?.isPrintable !== false;
   const partnerInfo = useMemo(() => {
     if (!state.currentBook) return null;
     const pages = state.currentBook.pages;
@@ -294,6 +293,47 @@ export default function Canvas() {
   }, [state.currentBook, state.activePageIndex]);
   const partnerPage = partnerInfo?.page ?? null;
   const hasPartnerPage = Boolean(partnerPage);
+  const totalPages = state.currentBook?.pages.length ?? 0;
+  const activePageNumber = currentPage?.pageNumber ?? state.activePageIndex + 1;
+  const isOwnerUser = Boolean(state.currentBook?.owner_id && user?.id === state.currentBook.owner_id);
+  const isPublisherUser = isOwnerUser || state.userRole === 'publisher';
+  const isCoverPage = activePageNumber === 1 || activePageNumber === 2;
+  const isReverseCoverPage =
+    activePageNumber === 3 || (totalPages > 0 && activePageNumber === totalPages);
+  const canEditCoverForUser = isPublisherUser && isCoverPage;
+  const shouldBlockCanvasRendering =
+    !canEditCoverForUser && (isReverseCoverPage || currentPage?.isPrintable === false);
+  const isPreviewTargetLocked = useCallback(
+    (info?: { page: typeof currentPage; index: number }) => {
+      if (!info || !info.page) return false;
+      const targetPageNumber = info.page.pageNumber ?? info.index + 1;
+      if (targetPageNumber === 3) return true;
+      if (totalPages > 0 && targetPageNumber === totalPages) return true;
+      return false;
+    },
+    [totalPages]
+  );
+  const previewTargetLocked = isPreviewTargetLocked(partnerInfo ?? undefined);
+  const lockedPreviewPattern = useMemo(() => {
+    if (typeof document === 'undefined') return null;
+    const size = 256;
+    const patternCanvas = document.createElement('canvas');
+    patternCanvas.width = size;
+    patternCanvas.height = size;
+    const ctx = patternCanvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.strokeStyle = '#c7cdd6';
+    ctx.lineWidth = 12;
+    ctx.beginPath();
+    ctx.moveTo(-size * 0.25, size);
+    ctx.lineTo(size * 0.75, 0);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(size * 0.25, size);
+    ctx.lineTo(size * 1.25, 0);
+    ctx.stroke();
+    return patternCanvas;
+  }, []);
   const pageSize = state.currentBook?.pageSize || 'A4';
   const specialPageLabel =
     currentPage?.pageType && currentPage.pageType !== 'content'
@@ -340,10 +380,25 @@ export default function Canvas() {
   const activePageOffsetX = partnerInfo && !isActiveLeft ? canvasWidth + spreadGapCanvas : 0;
   const previewPageOffsetX = partnerInfo ? (isActiveLeft ? canvasWidth + spreadGapCanvas : 0) : null;
   const pageOffsetY = 0;
+  const previewLockBadgeScreen = useMemo(() => {
+    if (!partnerPage || !previewTargetLocked || previewPageOffsetX === null) {
+      return null;
+    }
+    const centerX = previewPageOffsetX + canvasWidth / 2;
+    const centerY = pageOffsetY + canvasHeight / 2;
+    return {
+      x: stagePos.x + centerX * zoom,
+      y: stagePos.y + centerY * zoom
+    };
+  }, [partnerPage, previewTargetLocked, previewPageOffsetX, canvasWidth, canvasHeight, pageOffsetY, stagePos.x, stagePos.y, zoom]);
   const handlePreviewClick = useCallback(() => {
     if (!partnerInfo) return;
+    const targetPageNumber = partnerInfo.page.pageNumber ?? partnerInfo.index + 1;
+    if (targetPageNumber === 3 || (totalPages > 0 && targetPageNumber === totalPages)) {
+      return;
+    }
     dispatch({ type: 'SET_ACTIVE_PAGE', payload: partnerInfo.index });
-  }, [dispatch, partnerInfo]);
+  }, [dispatch, partnerInfo, totalPages]);
 
   const clampStagePosition = useCallback((pos: { x: number; y: number }, scaleOverride?: number) => {
     const appliedZoom = scaleOverride ?? zoom;
@@ -2703,13 +2758,19 @@ export default function Canvas() {
     dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
   };
 
-  if (!isPrintablePage) {
+  if (!currentPage || shouldBlockCanvasRendering) {
+    const messageTitle = isReverseCoverPage
+      ? 'This page cannot be edited'
+      : 'This page is not printable';
+    const messageBody = isReverseCoverPage
+      ? 'This side of the cover is intentionally left blank so the spread lines up correctly.'
+      : 'This side of the spread is intentionally left blank. Use the opposite page to add your content.';
     return (
       <CanvasPageContainer assignedUser={state.pageAssignments[state.activePageIndex + 1] || null}>
         <div className="flex flex-col items-center justify-center w-full h-full bg-muted/40 border border-dashed border-muted rounded-xl text-center px-8 py-10 space-y-3">
-          <h2 className="text-xl font-semibold text-foreground">This page is not printable</h2>
+          <h2 className="text-xl font-semibold text-foreground">{messageTitle}</h2>
           <p className="text-sm text-muted-foreground max-w-md">
-            This side of the spread is intentionally left blank. Use the opposite page to add your content.
+            {messageBody}
           </p>
         </div>
       </CanvasPageContainer>
@@ -3087,10 +3148,13 @@ export default function Canvas() {
                 y={pageOffsetY}
                 width={canvasWidth}
                 height={canvasHeight}
-                fill="transparent"
-                onClick={handlePreviewClick}
-                onTap={handlePreviewClick}
-                listening
+                fill={previewTargetLocked ? undefined : 'transparent'}
+                fillPatternImage={previewTargetLocked ? lockedPreviewPattern : undefined}
+                fillPatternRepeat="repeat"
+                opacity={previewTargetLocked ? 0.5 : 1}
+                onClick={previewTargetLocked ? undefined : handlePreviewClick}
+                onTap={previewTargetLocked ? undefined : handlePreviewClick}
+                listening={!previewTargetLocked}
               />
             )}
             
@@ -3328,6 +3392,32 @@ export default function Canvas() {
             />
           </Layer>
         </CanvasStage>
+        {previewLockBadgeScreen && (
+          <div
+            className="pointer-events-none absolute z-20 flex items-center justify-center"
+            style={{
+              width: 120,
+              height: 40,
+              left: previewLockBadgeScreen.x - 60,
+              top: previewLockBadgeScreen.y - 20,
+              borderRadius: 44,
+              backgroundColor: '#ffffff',
+              border: '3px solid #E5E7EB',
+              boxShadow: '0 20px 45px rgba(15,23,42,0.08)',
+            }}
+          >
+            <span
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                fontFamily: 'Inter, system-ui, sans-serif',
+                color: '#0f172a',
+              }}
+            >
+              Not editable
+            </span>
+          </div>
+        )}
         
         <ContextMenu
           x={contextMenu.x}

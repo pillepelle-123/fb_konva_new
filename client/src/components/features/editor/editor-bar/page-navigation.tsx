@@ -18,8 +18,6 @@ interface PageNavigationProps {
 export function PageNavigation({
   currentPage,
   totalPages,
-  onPrevPage,
-  onNextPage,
   onGoToPage,
   canGoPrev,
   canGoNext,
@@ -38,11 +36,17 @@ export function PageNavigation({
     setInputValue(value);
   };
 
+  const handleForbiddenInput = () => {
+    setInputValue(currentPage.toString());
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       const pageNum = parseInt(inputValue);
-      if (pageNum >= 1 && pageNum <= totalPages) {
+      if (pageNum >= 1 && pageNum <= totalPages && !isRestrictedPage(pageNum)) {
         onGoToPage(pageNum);
+      } else {
+        handleForbiddenInput();
       }
       setIsEditing(false);
     } else if (e.key === 'Escape') {
@@ -53,23 +57,59 @@ export function PageNavigation({
 
   const handleBlur = () => {
     const pageNum = parseInt(inputValue);
-    if (pageNum >= 1 && pageNum <= totalPages) {
+    if (pageNum >= 1 && pageNum <= totalPages && !isRestrictedPage(pageNum)) {
       onGoToPage(pageNum);
+    } else {
+      handleForbiddenInput();
     }
     setIsEditing(false);
     setInputValue(currentPage.toString());
   };
 
+  const isRestrictedPage = (page: number) => {
+    if (page === 3) return true;
+    if (totalPages > 0 && page === totalPages) return true;
+    return false;
+  };
+
+  const getNextEditablePage = (start: number, direction: 'prev' | 'next'): number => {
+    if (direction === 'prev') {
+      for (let page = start; page >= 1; page -= 2) {
+        if (!isRestrictedPage(page) && page >= 1) {
+          return page;
+        }
+      }
+      return 1;
+    } else {
+      let page = start;
+      while (page <= totalPages && isRestrictedPage(page)) {
+        page += 1;
+      }
+      for (; page <= totalPages; page += 2) {
+        if (!isRestrictedPage(page) && page <= totalPages) {
+          return page;
+        }
+      }
+      if (!isRestrictedPage(totalPages)) {
+        return totalPages;
+      }
+      return Math.max(1, getNextEditablePage(totalPages - 1, 'prev'));
+    }
+  };
+
   const handlePrevPair = () => {
     if (!canGoPrev) return;
-    const target = Math.max(1, currentPage - 2);
-    onGoToPage(target);
+    const nextPage = getNextEditablePage(currentPage - 2, 'prev');
+    onGoToPage(nextPage);
   };
 
   const handleNextPair = () => {
     if (!canGoNext) return;
-    const target = Math.min(totalPages, currentPage + 2);
-    onGoToPage(target);
+    let nextPage = getNextEditablePage(currentPage + 2, 'next');
+    if (isRestrictedPage(nextPage)) {
+      nextPage = getNextEditablePage(nextPage - 1, 'prev');
+    }
+    onGoToPage(nextPage);
   };
   return (
     <div className="flex items-center gap-1 md:gap-2">
@@ -121,7 +161,7 @@ export function PageNavigation({
           variant="outline"
           size="sm"
           onClick={handleNextPair}
-          disabled={!canGoNext}
+          disabled={!canGoNext || currentPage >= totalPages - 1}
           className="h-8 w-8 p-0 md:h-9 md:w-9"
         >
           <ChevronRight className="h-3 w-3 md:h-4 md:w-4" />
