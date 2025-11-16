@@ -1,18 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Users, CheckCircle2, Palette, Layout, Sparkles, ChevronRight, Star, Info, AlertCircle, CopyPlus } from 'lucide-react';
+import { Plus, Users, CheckCircle2, Palette, Layout, Sparkles, ChevronRight, Star, Info, Book, PaintbrushVertical, BookCheck, GalleryHorizontal, LayoutGrid } from 'lucide-react';
 import { Button } from '../../components/ui/primitives/button';
+import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
 import { FormField } from '../../components/ui/layout/form-field';
 import { Badge } from '../../components/ui/composites/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, type CarouselApi } from '../../components/ui/composites/carousel';
 import { colorPalettes } from '../../data/templates/color-palettes';
 import { pageTemplates as builtinPageTemplates } from '../../data/templates/page-templates';
 import themesData from '../../data/templates/themes.json';
 import { apiService } from '../../services/api';
 import type { PageTemplate } from '../../types/template-types';
 import { LayoutTemplatePreview } from '../../components/features/editor/templates/layout-selector';
-import MiniKonvaPreview from '../../components/features/editor/preview/mini-konva-preview';
+import MiniEditorCanvas from '../../components/features/editor/preview/mini-editor-canvas';
 import { mirrorTemplate } from '../../utils/layout-mirroring';
+import { getThemePaletteId } from '../../utils/global-themes';
 
 type Friend = {
   id: number;
@@ -53,12 +56,13 @@ type WizardState = {
     pickLeftRight: boolean;
     randomizeLayout: boolean;
     themeId: string;
-    paletteId: string;
+    paletteId: string | null; // null means "Theme's Default Palette"
   };
   team: {
     selectedFriends: Friend[];
     invites: InviteDraft[];
     enableGroupChat: boolean;
+    pagesPerUser: 1 | 2 | 3;
   };
   questions: {
     selectedDefaults: string[];
@@ -100,12 +104,13 @@ const initialState: WizardState = {
     pickLeftRight: false,
     randomizeLayout: false,
     themeId: 'default',
-    paletteId: 'default',
+    paletteId: null, // null = "Theme's Default Palette"
   },
   team: {
     selectedFriends: [],
     invites: [],
     enableGroupChat: false,
+    pagesPerUser: 1,
   },
   questions: {
     selectedDefaults: [],
@@ -153,16 +158,7 @@ export default function BookCreatePage() {
     }));
   };
 
-  const summaryData = useMemo(() => ({
-    name: wizardState.basic.name,
-    pageSize: wizardState.basic.pageSize,
-    orientation: wizardState.basic.orientation,
-    template: wizardState.design.layoutTemplate?.name ?? 'Not selected',
-    theme: wizardState.design.themeId,
-    palette: wizardState.design.paletteId,
-    friends: wizardState.team.selectedFriends.length,
-    questions: wizardState.questions.selectedDefaults.length + wizardState.questions.custom.length,
-  }), [wizardState]);
+  // summaryData previously fed a side card; no longer used in the new layout
 
   const handleBookWizard = () => {
     if (!wizardState.basic.name.trim()) return;
@@ -226,6 +222,12 @@ export default function BookCreatePage() {
     if (!wizardState.basic.name) return;
     setIsSubmitting(true);
     try {
+      // Calculate initial page count based on pagesPerUser and selected friends
+      const numUsers = wizardState.team.selectedFriends.length;
+      const specialPages = 4; // Front Cover, Back Cover, Inner Front, Inner Back
+      const calculatedPages = (wizardState.team.pagesPerUser || 1) * numUsers - specialPages;
+      const initialPageCount = Math.max(24, calculatedPages);
+
       const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/books`, {
         method: 'POST',
         headers: {
@@ -238,7 +240,7 @@ export default function BookCreatePage() {
           orientation: wizardState.basic.orientation,
           bookTheme: wizardState.design.themeId,
           themeId: wizardState.design.themeId,
-          colorPaletteId: wizardState.design.paletteId,
+          colorPaletteId: wizardState.design.paletteId, // null means "Theme's Default Palette"
           layoutTemplateId: wizardState.design.pickLeftRight 
             ? (wizardState.design.leftLayoutTemplate?.id ?? wizardState.design.layoutTemplate?.id ?? null)
             : (wizardState.design.layoutTemplate?.id ?? null),
@@ -255,6 +257,7 @@ export default function BookCreatePage() {
               : wizardState.design.randomizeLayout 
                 ? 'random' 
                 : 'same',
+          initialPageCount,
         }),
       });
 
@@ -263,6 +266,232 @@ export default function BookCreatePage() {
       }
 
       const newBook = await response.json();
+
+      // Build full set of pages according to totalPages and selected layout/theme/palette
+      const totalPages = initialPageCount;
+
+      const baseTemplate = wizardState.design.layoutTemplate || null;
+      const leftResolved = wizardState.design.pickLeftRight
+        ? (wizardState.design.leftLayoutTemplate || baseTemplate)
+        : (baseTemplate || null);
+      const rightResolved = wizardState.design.pickLeftRight
+        ? (wizardState.design.rightLayoutTemplate || baseTemplate)
+        : (wizardState.design.mirrorLayout && baseTemplate ? mirrorTemplate(baseTemplate) : baseTemplate || null);
+
+      // Helper: background object from theme pageSettings
+      const buildBackground = (themeKey: string) => {
+        const themeDict = themesData as unknown as Record<string, unknown>;
+        const themeEntry = (themeDict[themeKey] ?? themeDict['default']) as Record<string, unknown>;
+        const pageSettings = (themeEntry?.pageSettings as Record<string, unknown>) || {};
+        const bgImage = pageSettings?.['backgroundImage'] as Record<string, unknown> | undefined;
+        const bgPattern = pageSettings?.['backgroundPattern'] as Record<string, unknown> | undefined;
+        if ((bgImage?.['enabled'] as boolean) === true) {
+          return {
+            type: 'image',
+            opacity: (pageSettings['backgroundOpacity'] as number) ?? 1,
+            value: undefined,
+            backgroundImageTemplateId: bgImage?.['templateId'],
+            imageSize: (bgImage?.['size'] === 'contain') ? 'contain' : (bgImage?.['size'] === 'cover' ? 'cover' : 'cover'),
+            imageRepeat: Boolean(bgImage?.['repeat']),
+            imagePosition: (bgImage?.['position'] as string) || 'top-left',
+            imageContainWidthPercent: (bgImage?.['width'] as number) || 100,
+            applyPalette: true,
+          };
+        }
+        if ((bgPattern?.['enabled'] as boolean) === true) {
+          return {
+            type: 'pattern',
+            value: (bgPattern?.['style'] as string) || 'dots',
+            opacity: (pageSettings['backgroundOpacity'] as number) ?? 1,
+            patternBackgroundColor: undefined,
+            patternForegroundColor: undefined,
+            patternSize: (bgPattern?.['size'] as number) ?? 20,
+            patternStrokeWidth: (bgPattern?.['strokeWidth'] as number) ?? 1,
+            patternBackgroundOpacity: (bgPattern?.['patternBackgroundOpacity'] as number) ?? 0.3,
+          };
+        }
+        return {
+          type: 'color',
+          value: '#ffffff',
+          opacity: (pageSettings['backgroundOpacity'] as number) ?? 1,
+        };
+      };
+
+      // Helper: convert PageTemplate → elements (text + placeholders)
+      const mapTemplateToElements = (tpl: PageTemplate | null) => {
+        if (!tpl) return [] as Array<Record<string, unknown>>;
+        type TB = {
+          position?: { x: number; y: number };
+          size?: { width: number; height: number };
+          layoutVariant?: string;
+          questionPosition?: string;
+          questionWidth?: number;
+          format?: { textAlign?: string; padding?: number };
+          padding?: number;
+          paragraphSpacing?: string;
+          cornerRadius?: number;
+        };
+        const textEls =
+          ((tpl.textboxes as unknown as TB[]) || []).map((tb, idx: number) => ({
+            id: `tb-${idx}-${Math.random().toString(36).slice(2)}`,
+            type: 'text',
+            textType: 'qna_inline' as const,
+            x: tb.position?.x ?? 0,
+            y: tb.position?.y ?? 0,
+            width: tb.size?.width ?? 0,
+            height: tb.size?.height ?? 0,
+            layoutVariant: tb.layoutVariant ?? 'inline',
+            questionPosition: tb.questionPosition ?? 'left',
+            questionWidth: tb.questionWidth ?? 40,
+            padding: tb?.format?.padding ?? tb?.padding ?? 8,
+            format: { textAlign: tb?.format?.textAlign ?? 'left', paragraphSpacing: tb?.paragraphSpacing ?? 'small' },
+            paragraphSpacing: tb?.paragraphSpacing ?? 'small',
+            cornerRadius: tb?.cornerRadius ?? 8,
+          })) as Array<Record<string, unknown>>;
+        type ImgEl = {
+          type: string;
+          position?: { x: number; y: number };
+          size?: { width: number; height: number };
+          style?: { cornerRadius?: number };
+        };
+        const imgEls =
+          ((tpl.elements as unknown as ImgEl[]) || [])
+            .filter((el) => el.type === 'image')
+            .map((el, idx: number) => ({
+              id: `ph-${idx}-${Math.random().toString(36).slice(2)}`,
+              type: 'placeholder' as const,
+              x: el.position?.x ?? 0,
+              y: el.position?.y ?? 0,
+              width: el.size?.width ?? 0,
+              height: el.size?.height ?? 0,
+              cornerRadius: el?.style?.cornerRadius ?? 0,
+            })) as Array<Record<string, unknown>>;
+        return [...textEls, ...imgEls];
+      };
+
+      const background = buildBackground(wizardState.design.themeId);
+      const pages: Array<Record<string, unknown>> = [];
+      
+      // Generate pagePairId for pages
+      // Pages are paired: (1,2), (3,4), (5,6), ..., (totalPages-1, totalPages)
+      // Special pages get their own pair IDs based on their spread type
+      const getPagePairId = (pageNumber: number, pageType: string) => {
+        if (pageType === 'back-cover' || pageType === 'front-cover') {
+          return 'spread-cover';
+        }
+        if (pageType === 'inner-front') {
+          // Inner Front (page 3) pairs with the first content page (page 4)
+          return 'spread-intro-0';
+        }
+        if (pageType === 'inner-back') {
+          // Inner Back (last page) pairs with the last content page (totalPages - 1)
+          return 'spread-outro-last';
+        }
+        // Regular content pages: pair them starting from page 4
+        // Page 4-5: spread-content-0, Page 6-7: spread-content-1, etc.
+        // But the last content page (totalPages - 1) pairs with Inner Back (totalPages)
+        if (pageNumber === totalPages - 1) {
+          // Last content page pairs with Inner Back
+          return 'spread-outro-last';
+        }
+        // Content pages: pair them starting from page 4
+        // Page 4-5: spread-content-0, Page 6-7: spread-content-1, etc.
+        // But page 4 pairs with Inner Front (page 3)
+        if (pageNumber === 4) {
+          return 'spread-intro-0';
+        }
+        // For pages 5 onwards (except the last content page):
+        // Page 5: spread-content-0 (pairs with page 6 if it exists, otherwise standalone)
+        // Page 6-7: spread-content-1, Page 8-9: spread-content-2, etc.
+        const contentPageIndex = pageNumber - 4; // Page 5 -> 1, Page 6 -> 2, Page 7 -> 3, etc.
+        const pairIndex = Math.floor((contentPageIndex - 1) / 2); // Page 5-6 -> 0, Page 7-8 -> 1, etc.
+        return `spread-content-${pairIndex}`;
+      };
+      
+      for (let i = 1; i <= totalPages; i++) {
+        // Page mapping per requirement:
+        // 1: Back Cover (NO layout template, but can have theme/background)
+        // 2: Front Cover (NO layout template, but can have theme/background)
+        // 3: Inner Front (NO layout/theme/background - plain white)
+        // 4..(totalPages-1): Content (apply layout/theme/background)
+        // totalPages: Inner Back (NO layout/theme/background - plain white)
+        const isBackCover = i === 1;
+        const isFrontCover = i === 2;
+        const isInnerFront = i === 3;
+        const isInnerBack = i === totalPages;
+
+        const pageType = isBackCover
+          ? 'back-cover'
+          : isFrontCover
+            ? 'front-cover'
+            : isInnerFront
+              ? 'inner-front'
+              : isInnerBack
+                ? 'inner-back'
+                : 'content';
+
+        // Back Cover and Front Cover: NO layout template (no elements), but can have theme/background
+        // Inner Front and Inner Back: NO layout, NO theme, NO background (plain white)
+        // All other pages (including page 4): apply layout/theme/background
+        const shouldHaveLayoutTemplate = !isBackCover && !isFrontCover && !isInnerFront && !isInnerBack;
+        const shouldHaveThemeAndBackground = !isInnerFront && !isInnerBack;
+        
+        const isRightPage = i % 2 === 0 ? false : true; // odd pages right, even left (spread)
+        const templateForPage = shouldHaveLayoutTemplate ? (isRightPage ? rightResolved : leftResolved) : null;
+
+        pages.push({
+          pageNumber: i,
+          elements: shouldHaveLayoutTemplate ? mapTemplateToElements(templateForPage) : [],
+          layoutTemplateId: templateForPage ? templateForPage.id : null,
+          // Explicitly set themeId to null for Inner Front and Inner Back to prevent inheritance
+          themeId: shouldHaveThemeAndBackground ? undefined : null,
+          colorPaletteId: shouldHaveThemeAndBackground 
+            ? wizardState.design.paletteId // null means "Theme's Default Palette"
+            : null,
+          pageType,
+          pagePairId: getPagePairId(i, pageType),
+          isPrintable: true,
+          isLocked: false,
+          // Only mark back-cover, front-cover, inner-front, inner-back as special
+          // "content" pages (including page 4) are NOT special
+          isSpecialPage: pageType === 'back-cover' || pageType === 'front-cover' || pageType === 'inner-front' || pageType === 'inner-back',
+          layoutVariation: shouldHaveLayoutTemplate && (wizardState.design.mirrorLayout && isRightPage && !wizardState.design.pickLeftRight) ? 'mirrored' : 'normal',
+          // Explicitly set background to null (not undefined) for Inner Front and Inner Back to prevent inheritance
+          background: shouldHaveThemeAndBackground ? background : null,
+          backgroundTransform: shouldHaveLayoutTemplate && (wizardState.design.mirrorLayout && isRightPage && !wizardState.design.pickLeftRight) ? { mirror: true } : null,
+        });
+      }
+
+      // Persist full book including generated pages
+      await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/books/${newBook.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          name: wizardState.basic.name,
+          pageSize: wizardState.basic.pageSize,
+          orientation: wizardState.basic.orientation,
+          bookTheme: wizardState.design.themeId,
+          themeId: wizardState.design.themeId,
+          colorPaletteId: wizardState.design.paletteId, // null means "Theme's Default Palette"
+          layoutTemplateId: wizardState.design.layoutTemplate?.id ?? null,
+          pagePairingEnabled: true,
+          specialPagesConfig: {
+            cover: { locked: true, printable: false },
+          },
+          layoutStrategy: wizardState.design.pickLeftRight
+            ? 'paired'
+            : wizardState.design.mirrorLayout
+              ? 'mirrored'
+              : wizardState.design.randomizeLayout
+                ? 'random'
+                : 'same',
+          pages,
+          onlyModifiedPages: false,
+        }),
+      });
 
       // Attach collaborators
       await Promise.all(
@@ -355,35 +584,42 @@ export default function BookCreatePage() {
 
   return (
     <div className="w-full min-h-screen bg-muted/20">
-      <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
         <StepNavigation
           steps={stepConfig}
           activeStepIndex={activeStepIndex}
           onStepClick={setActiveStepIndex}
           wizardState={wizardState}
         />
-        {/* Always-on mini Konva preview */}
-        <div className="mt-4">
-          <MiniKonvaPreview
-            pageSize={wizardState.basic.pageSize}
-            orientation={wizardState.basic.orientation}
-            themeId={wizardState.design.themeId}
-            paletteId={wizardState.design.paletteId}
-            baseTemplate={wizardState.design.layoutTemplate ?? null}
-            pickLeftRight={wizardState.design.pickLeftRight}
-            leftTemplate={wizardState.design.leftLayoutTemplate ?? null}
-            rightTemplate={wizardState.design.rightLayoutTemplate ?? null}
-            mirrorRight={wizardState.design.mirrorLayout && !wizardState.design.pickLeftRight}
-          />
-        </div>
-        
-        <div className="flex flex-col gap-6 lg:flex-row mt-6">
-          <div className="flex-1 space-y-6">
+
+        {/* Hauptbereich unterhalb des Steppers: Layout abhängig vom aktuellen Schritt */}
+        {currentStepId === 'design' || currentStepId === 'review' ? (
+          <div className="mt-6 grid grid-cols-1 lg:grid-cols-5 gap-6">
+            {/* Left: Controls (60%) */}
+            <div className="lg:col-span-3">
+              {currentStep}
+            </div>
+
+            {/* Right: Live mini editor canvas (40%) */}
+            <div className="lg:col-span-2">
+              <MiniEditorCanvas
+                pageSize={wizardState.basic.pageSize}
+                orientation={wizardState.basic.orientation}
+                themeId={wizardState.design.themeId}
+                paletteId={wizardState.design.paletteId ?? getThemePaletteId(wizardState.design.themeId) ?? 'default'}
+                baseTemplate={wizardState.design.layoutTemplate ?? null}
+                pickLeftRight={wizardState.design.pickLeftRight}
+                leftTemplate={wizardState.design.leftLayoutTemplate ?? null}
+                rightTemplate={wizardState.design.rightLayoutTemplate ?? null}
+                mirrorRight={wizardState.design.mirrorLayout && !wizardState.design.pickLeftRight}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="mt-6">
             {currentStep}
           </div>
-
-          <BookSummaryCard summary={summaryData} />
-        </div>
+        )}
       </div>
 
       <Dialog open={customQuestionDialogOpen} onOpenChange={setCustomQuestionDialogOpen}>
@@ -437,47 +673,73 @@ function StepNavigation({
   return (
     <div className="w-full">
       <div className="rounded-2xl bg-white shadow-sm border p-4">
-        <div className="mb-4">
-          <p className="text-sm font-semibold text-primary">Book wizard</p>
-          <p className="text-xs text-muted-foreground">
-            Follow the steps to set up your collaborative book.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex w-full items-start gap-2">
           {steps.map((step, index) => {
             const isActive = index === activeStepIndex;
             const isCompleted = index < activeStepIndex;
             const isAccessible = canAccessStep(index);
-            return (
+
+            const icon = (() => {
+              switch (step.id) {
+                case 'basic': return <Book className="h-4 w-4" />;
+                case 'design': return <PaintbrushVertical className="h-4 w-4" />;
+                case 'team': return <Users className="h-4 w-4" />;
+                case 'review': return <BookCheck className="h-4 w-4" />;
+                default: return <DotIcon />;
+              }
+            })();
+
+            const StepDot = () => (
               <button
-                key={step.id}
+                type="button"
                 onClick={() => isAccessible && onStepClick(index)}
                 disabled={!isAccessible}
-                className={`px-4 py-2 rounded-lg flex items-center gap-2 transition ${
-                  isActive ? 'bg-primary text-primary-foreground' : 
-                  isCompleted ? 'bg-primary/10 text-primary' : 
-                  isAccessible ? 'bg-muted/40 hover:bg-muted/60' : 
-                  'bg-muted/20 text-muted-foreground cursor-not-allowed opacity-50'
-                }`}
+                className={`z-10 inline-flex h-9 w-9 items-center justify-center rounded-full transition
+                  ${isActive || isCompleted ? 'bg-primary text-primary-foreground' : 'border border-input bg-background text-foreground'}
+                  ${isAccessible ? 'hover:bg-muted' : 'opacity-50 cursor-not-allowed'}
+                  ${isActive ? 'ring-2 ring-ring ring-offset-2 ring-offset-background' : ''}
+                `}
+                aria-label={step.label}
+                title={step.label}
               >
-                {isCompleted ? (
-                  <CheckCircle2 className="h-4 w-4" />
-                ) : (
-                  <div className={`h-4 w-4 rounded-full border-2 ${isActive ? 'border-primary-foreground' : 'border-current'}`} />
-                )}
-                <span className="text-sm font-semibold">{step.label}</span>
-                {'optional' in step && step.optional && (
-                  <Badge variant="outline" className="text-[10px] bg-transparent">
-                    Optional
-                  </Badge>
-                )}
+                {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : icon}
               </button>
+            );
+
+            const showSeparator = index !== steps.length - 1;
+
+            return (
+              <div key={step.id} className="relative flex w-full flex-col items-center justify-center">
+                {/* Dot button */}
+                <StepDot />
+
+                {/* Separator line */}
+                {showSeparator && (
+                  <div className="absolute left-[calc(50%+20px)] right-[calc(-50%+10px)] top-5 h-0.5 rounded-full bg-muted" />
+                )}
+
+                {/* Labels */}
+                <div className="mt-5 flex flex-col items-center text-center">
+                  <span className={`text-sm font-semibold transition lg:text-base ${isActive ? 'text-primary' : ''}`}>
+                    {step.label}
+                  </span>
+                  {'optional' in step && step.optional && (
+                    <span className={`text-xs transition ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>
+                      Optional
+                    </span>
+                  )}
+                </div>
+              </div>
             );
           })}
         </div>
       </div>
     </div>
   );
+}
+
+function DotIcon() {
+  return <div className="h-1.5 w-1.5 rounded-full bg-current" />;
 }
 
 function BasicStep({
@@ -496,82 +758,82 @@ function BasicStep({
   const hasBookName = wizardState.basic.name.trim().length > 0;
 
   return (
-    <div className="rounded-2xl bg-white shadow-sm border p-6 space-y-8">
-      <div>
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold">Basic setup</h2>
+    <div className="space-y-6">
+      <div className="rounded-2xl bg-white shadow-sm border p-6 space-y-8">
+        <div>
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold">Basic setup</h2>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Name your book, select size & orientation, then choose how to start.
+          </p>
         </div>
-        <p className="text-sm text-muted-foreground">
-          Name your book, select size & orientation, then choose how to start.
-        </p>
-      </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <FormField label="Book name">
-          <input
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            value={wizardState.basic.name}
-            onChange={(e) => onChange({ name: e.target.value })}
-            placeholder="E.g. Class of 2025"
-          />
-        </FormField>
-        <FormField label="Orientation">
-          <div className="flex gap-2">
-            {['portrait', 'landscape'].map((option) => (
-              <Button
-                key={option}
-                variant={wizardState.basic.orientation === option ? 'default' : 'outline'}
-                className="flex-1"
-                onClick={() => onChange({ orientation: option as WizardState['basic']['orientation'] })}
-              >
-                {option.charAt(0).toUpperCase() + option.slice(1)}
-              </Button>
-            ))}
-          </div>
-        </FormField>
-        <FormField label="Page size">
-          <div className="flex gap-2">
-            {['A4', 'A5'].map((size) => (
-              <Button
-                key={size}
-                variant={wizardState.basic.pageSize === size ? 'default' : 'outline'}
-                className="flex-1"
-                onClick={() => onChange({ pageSize: size as WizardState['basic']['pageSize'] })}
-              >
-                {size}
-              </Button>
-            ))}
-          </div>
-        </FormField>
+        <div className="grid gap-4 md:grid-cols-2">
+          <FormField label="Book name">
+            <input
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              value={wizardState.basic.name}
+              onChange={(e) => onChange({ name: e.target.value })}
+              placeholder="E.g. Class of 2025"
+            />
+          </FormField>
+          <FormField label="Orientation">
+            <div className="flex gap-2">
+              {['portrait', 'landscape'].map((option) => (
+                <Button
+                  key={option}
+                  variant={wizardState.basic.orientation === option ? 'default' : 'outline'}
+                  className="flex-1"
+                  onClick={() => onChange({ orientation: option as WizardState['basic']['orientation'] })}
+                >
+                  {option.charAt(0).toUpperCase() + option.slice(1)}
+                </Button>
+              ))}
+            </div>
+          </FormField>
+          <FormField label="Page size">
+            <div className="flex gap-2">
+              {['A4', 'A5'].map((size) => (
+                <Button
+                  key={size}
+                  variant={wizardState.basic.pageSize === size ? 'default' : 'outline'}
+                  className="flex-1"
+                  onClick={() => onChange({ pageSize: size as WizardState['basic']['pageSize'] })}
+                >
+                  {size}
+                </Button>
+              ))}
+            </div>
+          </FormField>
+        </div>
       </div>
 
       <div className="space-y-3">
-        <p className="text-sm font-semibold flex items-center gap-2">
-          Quick start
-          <Badge variant="outline" className="text-[10px]">Recommended</Badge>
-        </p>
         <div className="grid gap-4 md:grid-cols-2">
-          <button
+          <Button
             onClick={onBookWizard}
             disabled={!hasBookName || isSubmitting}
-            className={`rounded-xl border p-4 text-left transition hover:shadow-sm ${
-              !hasBookName || isSubmitting ? 'border-border bg-muted/20 opacity-50 cursor-not-allowed' : 'border-border bg-card hover:border-primary'
-            }`}
+            variant="highlight"
+            size="lg"
+            className="h-auto py-6 px-6 flex flex-col items-start text-left"
           >
-            <p className="font-semibold">Book Wizard</p>
-            <p className="text-xs text-muted-foreground">Continue through the wizard to customize your book</p>
-          </button>
-          <button
+            <div className="flex items-center gap-2 mb-1">
+              <Sparkles className="h-5 w-5" />
+              <p className="font-semibold text-base">Book Wizard</p>
+            </div>
+            <p className="text-xs opacity-90">Continue through the wizard to customize your book</p>
+          </Button>
+          <Button
             onClick={onBlankCanvas}
             disabled={!hasBookName || isSubmitting}
-            className={`rounded-xl border p-4 text-left transition hover:shadow-sm ${
-              !hasBookName || isSubmitting ? 'border-border bg-muted/20 opacity-50 cursor-not-allowed' : 'border-border bg-card hover:border-primary'
-            }`}
+            variant="outline"
+            className="h-auto py-6 px-6 flex flex-col items-start text-left"
           >
-            <p className="font-semibold">Blank Canvas</p>
-            <p className="text-xs text-muted-foreground">Create a book with 24 blank pages and start editing</p>
-          </button>
+            <p className="font-semibold mb-1">Blank Canvas</p>
+            <p className="text-xs text-muted-foreground">Skip the wizard, create a book with blank pages and start editing</p>
+          </Button>
         </div>
       </div>
     </div>
@@ -585,10 +847,12 @@ function DesignStep({
   wizardState: WizardState;
   onChange: (data: Partial<WizardState['design']>) => void;
 }) {
-  const [selectingSide, setSelectingSide] = useState<'left' | 'right' | null>(null);
+  const [paletteCarouselApi, setPaletteCarouselApi] = useState<CarouselApi>();
+  const [themeViewMode, setThemeViewMode] = useState<'carousel' | 'grid'>('carousel');
+  const [paletteViewMode, setPaletteViewMode] = useState<'carousel' | 'grid'>('carousel');
 
   const themeEntries = useMemo(() => {
-    return Object.entries(themesData as Record<string, { name: string; description: string; palette?: string }>).slice(0, 6).map(([id, theme]) => ({
+    return Object.entries(themesData as Record<string, { name: string; description: string; palette?: string }>).map(([id, theme]) => ({
       id,
       name: theme.name ?? id,
       description: theme.description ?? 'Custom theme',
@@ -596,166 +860,151 @@ function DesignStep({
     }));
   }, []);
 
-  const selectedPalette = colorPalettes.find((p) => p.id === wizardState.design.paletteId) ?? colorPalettes[0];
-  const selectedTemplate = wizardState.design.layoutTemplate;
-  const leftTemplate = wizardState.design.leftLayoutTemplate || wizardState.design.layoutTemplate;
-  const rightTemplate = wizardState.design.pickLeftRight 
-    ? wizardState.design.rightLayoutTemplate || wizardState.design.layoutTemplate
-    : wizardState.design.mirrorLayout && wizardState.design.layoutTemplate
-      ? mirrorTemplate(wizardState.design.layoutTemplate)
-      : wizardState.design.layoutTemplate;
+  // Get theme's default palette ID for current theme
+  const currentThemePaletteId = useMemo(() => {
+    return getThemePaletteId(wizardState.design.themeId) ?? 'default';
+  }, [wizardState.design.themeId]);
+
+  // Build palette list with "Theme's Default Palette" as first entry
+  const paletteEntries = useMemo(() => {
+    const themePalette = colorPalettes.find(p => p.id === currentThemePaletteId);
+    const otherPalettes = colorPalettes.filter(p => p.id !== currentThemePaletteId);
+    
+    // First entry: "Theme's Default Palette" (virtual entry)
+    const themeDefaultEntry = {
+      id: null as string | null, // null indicates "Theme's Default Palette"
+      name: themePalette?.name || 'Default', // Show actual palette name
+      subtitle: "Theme's Default Palette", // Show as subtitle
+      colors: themePalette?.colors || colorPalettes[0].colors,
+      isThemeDefault: true,
+    };
+    
+    return [themeDefaultEntry, ...otherPalettes];
+  }, [currentThemePaletteId]);
+
+  // Function to select Theme's Default Palette and scroll to it
+  const handleSelectThemeDefaultPalette = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent theme selection when clicking the palette button
+    onChange({ paletteId: null });
+    // Scroll to first item (Theme's Default Palette) - index 0
+    if (paletteCarouselApi) {
+      paletteCarouselApi.scrollTo(0);
+    }
+  };
+
+  // Derived template/palette (previously used in Layout Preview; no longer rendered here)
+  // Kept minimal for potential future validation, currently unused.
 
   return (
     <div className="flex flex-col lg:flex-row gap-6">
-      {/* Overall Preview - Left Side */}
-      <div className="w-full lg:w-80 flex-shrink-0">
-        <div className="rounded-2xl bg-white shadow-sm border p-4 sticky lg:top-24">
-          <p className="text-sm font-semibold mb-3">Layout Preview</p>
-          {leftTemplate || rightTemplate ? (
-            <div className="space-y-3">
-              <div className="flex gap-2 items-start">
-                <div className="flex-1">
-                  <div className="text-[10px] text-muted-foreground mb-1">Left Page</div>
-                  {leftTemplate ? (
-                    <LayoutTemplatePreview 
-                      template={leftTemplate} 
-                      showLegend={false}
-                      showItemLabels={false}
-                      className="w-full"
-                    />
-                  ) : (
-                    <div className="rounded-lg border border-dashed border-gray-200 bg-slate-50 aspect-[210/297] flex items-center justify-center text-[10px] text-muted-foreground">
-                      Select left
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1">
-                  <div className="text-[10px] text-muted-foreground mb-1">Right Page</div>
-                  {rightTemplate ? (
-                    <LayoutTemplatePreview 
-                      template={rightTemplate} 
-                      showLegend={false}
-                      showItemLabels={false}
-                      className="w-full"
-                    />
-                  ) : (
-                    <div className="rounded-lg border border-dashed border-gray-200 bg-slate-50 aspect-[210/297] flex items-center justify-center text-[10px] text-muted-foreground">
-                      Select right
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {wizardState.design.pickLeftRight ? (
-                  <>
-                    <p className="font-medium">Left: {leftTemplate?.name || 'Not selected'}</p>
-                    <p className="font-medium mt-1">Right: {rightTemplate?.name || 'Not selected'}</p>
-                  </>
-                ) : (
-                  <>
-                    <p className="font-medium">{selectedTemplate?.name || 'Not selected'}</p>
-                    {wizardState.design.mirrorLayout && <p className="text-[10px] mt-1">Right page mirrored</p>}
-                  </>
-                )}
-                <p className="mt-1">Palette: {selectedPalette.name}</p>
-              </div>
+      {/* Left pane (replaces old Layout Preview) — Design workspace (1/3) */}
+      <div className="w-full lg:w-1/3 flex-shrink-0">
+        <div className="rounded-2xl bg-white shadow-sm border p-4 sticky lg:top-24 space-y-6">
+          <div>
+            <div className="flex items-center gap-2">
+              <Layout className="h-5 w-5 text-primary" />
+              <h2 className="text-sm font-semibold">Layout</h2>
             </div>
-          ) : (
-            <div className="text-sm text-muted-foreground text-center py-8">
-              Select a layout to see preview
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 rounded-2xl bg-white shadow-sm border p-6 space-y-8">
-        <div>
-          <div className="flex items-center gap-2">
-            <Layout className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold">Design workspace</h2>
+            <p className="text-xs text-muted-foreground mt-3">
+              Choose layout templates and toggle mirrored/paired spreads.
+            </p>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Choose layout templates, toggle mirrored/randomized spreads, then pick a theme with palette recommendations.
-          </p>
-        </div>
 
-        <section className="space-y-3">
-          <div className="flex items-center gap-2 text-sm font-semibold">
-            Layout templates
-            <Badge variant="outline" className="text-[10px]">Inline controls</Badge>
-          </div>
-          {wizardState.design.pickLeftRight && (
-            <div className="mb-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
-              <p className="text-xs font-semibold mb-2">Selecting for: {selectingSide === 'left' ? 'Left Page' : selectingSide === 'right' ? 'Right Page' : 'Choose a side'}</p>
-              <div className="flex gap-2">
-                <Button
-                  variant={selectingSide === 'left' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setSelectingSide('left')}
-                >
-                  Select Left
-                </Button>
-                <Button
-                  variant={selectingSide === 'right' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setSelectingSide('right')}
-                >
-                  Select Right
-                </Button>
-              </div>
-            </div>
-          )}
-          <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-4">
+          {/* Layout templates (compact grid) */}
+          <div className="grid gap-3 grid-cols-2">
             {featuredTemplates.map((template) => {
               const isSelectedLeft = wizardState.design.leftLayoutTemplate?.id === template.id;
               const isSelectedRight = wizardState.design.rightLayoutTemplate?.id === template.id;
               const isSelected = !wizardState.design.pickLeftRight && wizardState.design.layoutTemplate?.id === template.id;
-              const isSelecting = selectingSide !== null && (isSelectedLeft || isSelectedRight);
+              
+              const handleLeftCheckboxChange = (checked: boolean) => {
+                if (checked) {
+                  // Wenn bereits ein anderes Template für Left ausgewählt ist, wird es ersetzt
+                  onChange({ leftLayoutTemplate: template });
+                } else {
+                  // Wenn dieses Template für Left deaktiviert wird
+                  onChange({ leftLayoutTemplate: null });
+                }
+              };
+
+              const handleRightCheckboxChange = (checked: boolean) => {
+                if (checked) {
+                  // Wenn bereits ein anderes Template für Right ausgewählt ist, wird es ersetzt
+                  onChange({ rightLayoutTemplate: template });
+                } else {
+                  // Wenn dieses Template für Right deaktiviert wird
+                  onChange({ rightLayoutTemplate: null });
+                }
+              };
+
               return (
-                <button
+                <div
                   key={template.id}
-                  onClick={() => {
-                    if (wizardState.design.pickLeftRight) {
-                      if (selectingSide === 'left') {
-                        onChange({ leftLayoutTemplate: template, layoutTemplate: template });
-                        setSelectingSide(null);
-                      } else if (selectingSide === 'right') {
-                        onChange({ rightLayoutTemplate: template });
-                        setSelectingSide(null);
-                      } else {
-                        // No side selected, ask user to choose
-                        return;
-                      }
-                    } else {
-                      onChange({ layoutTemplate: template, leftLayoutTemplate: null, rightLayoutTemplate: null });
-                    }
-                  }}
                   className={`rounded-xl border p-2 transition hover:shadow-sm aspect-[3/4] flex items-center justify-center relative ${
-                    isSelected || isSelecting ? 'border-primary bg-primary/5 ring-2 ring-primary' : 
-                    isSelectedLeft ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-300' :
-                    isSelectedRight ? 'border-purple-500 bg-purple-50 ring-2 ring-purple-300' :
+                    isSelected ? 'border-primary bg-primary/5 ring-2 ring-primary' : 
+                    isSelectedLeft || isSelectedRight ? 'border-primary/50 bg-primary/5' :
                     'border-border bg-card'
                   }`}
-                  title={template.name}
                 >
-                  <div className="w-full max-w-[60px]">
-                    <LayoutTemplatePreview 
-                      template={template} 
-                      showLegend={false}
-                      showItemLabels={false}
-                    />
-                  </div>
-                  {isSelectedLeft && (
-                    <span className="absolute top-1 left-1 bg-blue-500 text-white text-[8px] px-1 rounded">L</span>
+                  <button
+                    onClick={() => {
+                      if (!wizardState.design.pickLeftRight) {
+                        onChange({ layoutTemplate: template, leftLayoutTemplate: null, rightLayoutTemplate: null });
+                      }
+                    }}
+                    className="w-full h-full flex items-center justify-center"
+                    title={template.name}
+                  >
+                    <div className="w-full max-w-[60px]">
+                      <LayoutTemplatePreview 
+                        template={template} 
+                        showLegend={false}
+                        showItemLabels={false}
+                      />
+                    </div>
+                  </button>
+                  
+                  {/* Checkboxen nur anzeigen, wenn "Pick Left & Right" aktiv ist */}
+                  {wizardState.design.pickLeftRight && (
+                    <>
+                      {/* L-Checkbox oben links */}
+                      <div 
+                        className="absolute top-1 left-1 z-10"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <CheckboxPrimitive.Root
+                          checked={isSelectedLeft}
+                          onCheckedChange={handleLeftCheckboxChange}
+                          className="h-5 w-5 shrink-0 rounded-sm border border-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground flex items-center justify-center"
+                        >
+                          <CheckboxPrimitive.Indicator className="flex items-center justify-center text-current text-[10px] font-semibold">
+                            L
+                          </CheckboxPrimitive.Indicator>
+                        </CheckboxPrimitive.Root>
+                      </div>
+                      {/* R-Checkbox oben rechts */}
+                      <div 
+                        className="absolute top-1 right-1 z-10"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <CheckboxPrimitive.Root
+                          checked={isSelectedRight}
+                          onCheckedChange={handleRightCheckboxChange}
+                          className="h-5 w-5 shrink-0 rounded-sm border border-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground flex items-center justify-center"
+                        >
+                          <CheckboxPrimitive.Indicator className="flex items-center justify-center text-current text-[10px] font-semibold">
+                            R
+                          </CheckboxPrimitive.Indicator>
+                        </CheckboxPrimitive.Root>
+                      </div>
+                    </>
                   )}
-                  {isSelectedRight && (
-                    <span className="absolute top-1 right-1 bg-purple-500 text-white text-[8px] px-1 rounded">R</span>
-                  )}
-                </button>
+                </div>
               );
             })}
           </div>
+
+          {/* Toggles */}
           <div className="flex flex-wrap gap-2">
             <TogglePill
               active={wizardState.design.mirrorLayout && !wizardState.design.pickLeftRight}
@@ -780,11 +1029,6 @@ function DesignStep({
                   leftLayoutTemplate: newPickLeftRight ? wizardState.design.layoutTemplate || null : null,
                   rightLayoutTemplate: newPickLeftRight ? null : null,
                 });
-                if (newPickLeftRight) {
-                  setSelectingSide('left');
-                } else {
-                  setSelectingSide(null);
-                }
               }}
             />
             <TogglePill
@@ -793,56 +1037,243 @@ function DesignStep({
               onClick={() => onChange({ randomizeLayout: !wizardState.design.randomizeLayout })}
             />
           </div>
-        </section>
+        </div>
+      </div>
 
-      <section className="space-y-3">
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          Themes & palette recommendations
-        </div>
-        <div className="grid gap-3 md:grid-cols-2">
-          {themeEntries.map((theme) => (
-            <button
-              key={theme.id}
-              onClick={() => onChange({ themeId: theme.id })}
-              className={`rounded-xl border p-4 text-left transition hover:shadow-sm ${
-                wizardState.design.themeId === theme.id ? 'border-primary bg-primary/5' : 'border-border bg-card'
-              }`}
-            >
-              <p className="font-semibold flex items-center gap-2">
-                <Palette className="h-4 w-4 text-primary" />
-                {theme.name}
-              </p>
-              <p className="text-xs text-muted-foreground">{theme.description}</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {[
-                  theme.paletteId,
-                  ...colorPalettes
-                    .filter((palette) => palette.id !== theme.paletteId)
-                    .slice(0, 2)
-                    .map((palette) => palette.id),
-                ].map((paletteId) => {
-                  const palette = colorPalettes.find((p) => p.id === paletteId) ?? colorPalettes[0];
-                  return (
-                    <button
-                      key={`${theme.id}-${palette.id}`}
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onChange({ paletteId: palette.id, themeId: theme.id });
-                      }}
-                      className={`px-2 py-1 rounded-full border text-xs ${
-                        wizardState.design.paletteId === palette.id ? 'border-primary text-primary' : 'border-border text-muted-foreground'
-                      }`}
-                    >
-                      {palette.name}
-                    </button>
-                  );
-                })}
-              </div>
-            </button>
-          ))}
-        </div>
-      </section>
+      {/* Right pane (where Design workspace was) — Theme & Color Palette (2/3) */}
+      <div className="w-full lg:w-2/3 min-w-0 rounded-2xl bg-white shadow-sm border p-6 space-y-8">
+        <section className="space-y-4">
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            Theme & Color Palette
+          </div>
+
+          {/* Theme carousel */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm">Themes</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="xxs"
+                onClick={() => setThemeViewMode(themeViewMode === 'carousel' ? 'grid' : 'carousel')}
+                className="h-6 w-6 p-0"
+                title={themeViewMode === 'carousel' ? 'Show all Themes in Grid' : 'Themes Carousel'}
+              >
+                {themeViewMode === 'carousel' ? (
+                  <LayoutGrid className="h-5 w-5" />
+                ) : (
+                  <GalleryHorizontal className="h-5 w-5" />
+                )}
+              </Button>
+            </div>
+            <div className="relative">
+              {themeViewMode === 'carousel' ? (
+                <Carousel
+                  opts={{
+                    align: "start",
+                    loop: true,
+                  }}
+                  className="w-full"
+                >
+                  <CarouselContent className="-ml-2">
+                    {themeEntries.map((theme) => {
+                      const isActive = wizardState.design.themeId === theme.id;
+                      return (
+                        <CarouselItem key={theme.id} className="pl-2 basis-full">
+                          <button
+                            type="button"
+                            onClick={() => onChange({ themeId: theme.id })}
+                            className={`w-full rounded-xl border p-4 pl-10 text-left transition hover:shadow-sm ${
+                              isActive ? 'border-primary bg-primary/5' : 'border-border bg-card'
+                            }`}
+                            title={theme.name}
+                          >
+                            <p className="font-semibold flex items-center gap-2">
+                              <Palette className="h-4 w-4 text-primary" />
+                              {theme.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">{theme.description}</p>
+                            <div className="mt-3 flex items-center gap-2">
+                              <span className="text-[10px] text-muted-foreground">Default palette:</span>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="xxs"
+                                onClick={handleSelectThemeDefaultPalette}
+                                className="h-auto px-1.5 py-0.5 text-[11px] font-medium"
+                                title="Select Theme's Default Palette"
+                              >
+                                {theme.paletteId}
+                              </Button>
+                            </div>
+                          </button>
+                        </CarouselItem>
+                      );
+                    })}
+                  </CarouselContent>
+                  <CarouselPrevious />
+                  <CarouselNext />
+                </Carousel>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto scrollbar-thin pr-2">
+                  {themeEntries.map((theme) => {
+                    const isActive = wizardState.design.themeId === theme.id;
+                    return (
+                      <button
+                        key={theme.id}
+                        type="button"
+                        onClick={() => onChange({ themeId: theme.id })}
+                        className={`rounded-xl border p-3 text-left transition hover:shadow-sm ${
+                          isActive ? 'border-primary bg-primary/5' : 'border-border bg-card'
+                        }`}
+                        title={theme.name}
+                      >
+                        <p className="font-semibold text-xs flex items-center gap-1.5">
+                          <Palette className="h-3 w-3 text-primary" />
+                          {theme.name}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{theme.description}</p>
+                        <div className="mt-2 flex items-center gap-1.5">
+                          <span className="text-[9px] text-muted-foreground">Default:</span>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="xxs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSelectThemeDefaultPalette(e);
+                            }}
+                            className="h-auto px-1 py-0.5 text-[10px] font-medium"
+                          >
+                            {theme.paletteId}
+                          </Button>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Palette carousel */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm">Color Palettes</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="xxs"
+                onClick={() => setPaletteViewMode(paletteViewMode === 'carousel' ? 'grid' : 'carousel')}
+                className="h-6 w-6 p-0"
+                title={paletteViewMode === 'carousel' ? 'Show all Color Palettes in Grid' : 'Color Palettes Carousel'}
+              >
+                {paletteViewMode === 'carousel' ? (
+                  <LayoutGrid className="h-5 w-5" />
+                ) : (
+                  <GalleryHorizontal className="h-5 w-5" />
+                )}
+              </Button>
+            </div>
+            <div className="relative">
+              {paletteViewMode === 'carousel' ? (
+                <Carousel
+                  opts={{
+                    align: "start",
+                    loop: true,
+                  }}
+                  className="w-full"
+                  setApi={setPaletteCarouselApi}
+                >
+                  <CarouselContent className="-ml-2">
+                    {paletteEntries.map((palette) => {
+                      // Check if this is the active palette
+                      // null paletteId means "Theme's Default Palette"
+                      const isActive = palette.id === null 
+                        ? wizardState.design.paletteId === null
+                        : wizardState.design.paletteId === palette.id;
+                      const colorValues = Object.values(palette.colors || {});
+                      const hasSubtitle = 'subtitle' in palette && palette.subtitle;
+                      return (
+                        <CarouselItem key={palette.id ?? 'theme-default'} className="pl-2 basis-full">
+                          <button
+                            type="button"
+                            onClick={() => onChange({ paletteId: palette.id })}
+                            className={`w-full rounded-xl border p-4 pl-10 text-left transition hover:shadow-sm ${
+                              isActive ? 'border-primary bg-primary/5' : 'border-border bg-card'
+                            }`}
+                            title={palette.name}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex flex-col">
+                                <p className="font-semibold">{palette.name}</p>
+                                {hasSubtitle && (
+                                  <p className="text-xs text-muted-foreground mt-0.5">{palette.subtitle}</p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="mt-3 flex items-center gap-1">
+                              {colorValues.map((hex, idx) => (
+                                <span
+                                  key={`${palette.id ?? 'theme-default'}-${idx}`}
+                                  className="inline-block h-4 w-4 rounded border"
+                                  style={{ backgroundColor: hex as string }}
+                                  title={hex as string}
+                                />
+                              ))}
+                            </div>
+                          </button>
+                        </CarouselItem>
+                      );
+                    })}
+                  </CarouselContent>
+                  <CarouselPrevious />
+                  <CarouselNext />
+                </Carousel>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto scrollbar-thin pr-2">
+                  {paletteEntries.map((palette) => {
+                    const isActive = palette.id === null 
+                      ? wizardState.design.paletteId === null
+                      : wizardState.design.paletteId === palette.id;
+                    const colorValues = Object.values(palette.colors || {});
+                    const hasSubtitle = 'subtitle' in palette && palette.subtitle;
+                    return (
+                      <button
+                        key={palette.id ?? 'theme-default'}
+                        type="button"
+                        onClick={() => onChange({ paletteId: palette.id })}
+                        className={`rounded-xl border p-3 text-left transition hover:shadow-sm ${
+                          isActive ? 'border-primary bg-primary/5' : 'border-border bg-card'
+                        }`}
+                        title={palette.name}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex flex-col">
+                            <p className="font-semibold text-xs">{palette.name}</p>
+                            {hasSubtitle && (
+                              <p className="text-[10px] text-muted-foreground mt-0.5">{palette.subtitle}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="mt-2 flex items-center gap-1">
+                          {colorValues.map((hex, idx) => (
+                            <span
+                              key={`${palette.id ?? 'theme-default'}-${idx}`}
+                              className="inline-block h-3 w-3 rounded border"
+                              style={{ backgroundColor: hex as string }}
+                              title={hex as string}
+                            />
+                          ))}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );
@@ -902,96 +1333,122 @@ function TeamContentStep({
   };
 
   return (
-    <div className="rounded-2xl bg-white shadow-sm border p-6 space-y-8">
-      <div className="flex items-center gap-2">
-        <Users className="h-5 w-5 text-primary" />
-        <div>
-          <h2 className="text-lg font-semibold">Team & Content (optional)</h2>
-          <p className="text-sm text-muted-foreground">Invite collaborators and prep the questions they’ll answer.</p>
-        </div>
-      </div>
-
-      <section className="space-y-4">
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          Collaborators
-          <Badge variant="outline" className="text-[10px]">Optional</Badge>
-        </div>
-        <div className="rounded-xl border p-4 space-y-3">
-          <p className="text-sm text-muted-foreground">Select friends to invite (they’ll receive access after the book is created).</p>
-          <div className="flex flex-wrap gap-2">
-            {availableFriends.map((friend) => (
-              <Button
-                key={friend.id}
-                variant={wizardState.team.selectedFriends.some((f) => f.id === friend.id) ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => addFriend(friend)}
-              >
-                {friend.name}
-              </Button>
-            ))}
+    <div className="space-y-6">
+      <div className="rounded-2xl bg-white shadow-sm border p-6">
+        <div className="flex items-center gap-2 mb-6">
+          <Users className="h-5 w-5 text-primary" />
+          <div>
+            <h2 className="text-lg font-semibold">Team & Content (optional)</h2>
+            <p className="text-sm text-muted-foreground">Invite collaborators and prep the questions they'll answer.</p>
           </div>
-          {wizardState.team.selectedFriends.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-semibold">Selected</p>
+        </div>
+
+        {/* Two columns side by side */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Left: Collaborators */}
+          <div className="rounded-xl bg-white shadow-sm border p-4 space-y-4">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              Collaborators
+              <Badge variant="outline" className="text-[10px]">Optional</Badge>
+            </div>
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">Select friends to invite (they'll receive access after the book is created).</p>
               <div className="flex flex-wrap gap-2">
-                {wizardState.team.selectedFriends.map((friend) => (
-                  <Badge key={friend.id} variant="secondary" className="flex items-center gap-2">
+                {availableFriends.map((friend) => (
+                  <Button
+                    key={friend.id}
+                    variant={wizardState.team.selectedFriends.some((f) => f.id === friend.id) ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => addFriend(friend)}
+                  >
                     {friend.name}
-                    <button onClick={() => removeFriend(friend.id)} className="text-xs text-muted-foreground hover:text-foreground">×</button>
-                  </Badge>
+                  </Button>
                 ))}
               </div>
-            </div>
-          )}
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="group-chat"
-              checked={wizardState.team.enableGroupChat}
-              onChange={(e) => onTeamChange({ enableGroupChat: e.target.checked })}
-            />
-            <label htmlFor="group-chat" className="text-sm text-muted-foreground">
-              Enable messenger group chat for collaborators
-            </label>
-          </div>
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          Question set
-          <Badge variant="outline" className="text-[10px]">Optional</Badge>
-        </div>
-        <div className="rounded-xl border p-4 space-y-3">
-          <p className="text-sm text-muted-foreground">Select from our curated prompts or add your own.</p>
-          <div className="space-y-2">
-            {curatedQuestions.map((question) => (
-              <label key={question.id} className="flex items-start gap-2 text-sm">
+              {wizardState.team.selectedFriends.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold">Selected</p>
+                  <div className="flex flex-wrap gap-2">
+                    {wizardState.team.selectedFriends.map((friend) => (
+                      <Badge key={friend.id} variant="secondary" className="flex items-center gap-2">
+                        {friend.name}
+                        <button onClick={() => removeFriend(friend.id)} className="text-xs text-muted-foreground hover:text-foreground">×</button>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
-                  checked={selectedQuestionIds.includes(question.id)}
-                  onChange={() => toggleQuestion(question.id)}
+                  id="group-chat"
+                  checked={wizardState.team.enableGroupChat}
+                  onChange={(e) => onTeamChange({ enableGroupChat: e.target.checked })}
                 />
-                <span>{question.text}</span>
-              </label>
-            ))}
-          </div>
-          <Button variant="outline" size="sm" onClick={openCustomQuestionModal} className="mt-2">
-            <Plus className="h-4 w-4 mr-2" />
-            Add custom question
-          </Button>
-          {wizardState.questions.custom.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-semibold">Custom questions</p>
-              <ul className="text-sm text-muted-foreground list-disc pl-4">
-                {wizardState.questions.custom.map((question) => (
-                  <li key={question.id}>{question.text}</li>
-                ))}
-              </ul>
+                <label htmlFor="group-chat" className="text-sm text-muted-foreground">
+                  Enable messenger group chat for collaborators
+                </label>
+              </div>
+
+              <div className="mt-3">
+                <p className="text-sm font-semibold">Number of pages per user</p>
+                <div className="flex gap-2 mt-2">
+                  {[1, 2, 3].map((n) => (
+                    <Button
+                      key={n}
+                      variant={wizardState.team.pagesPerUser === n ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => onTeamChange({ pagesPerUser: n as 1 | 2 | 3 })}
+                    >
+                      {n}
+                    </Button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Total pages = pages per user × number of selected users − 4 special pages (min. 24)
+                </p>
+              </div>
             </div>
-          )}
+          </div>
+
+          {/* Right: Question set */}
+          <div className="rounded-xl bg-white shadow-sm border p-4 space-y-4">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              Question set
+              <Badge variant="outline" className="text-[10px]">Optional</Badge>
+            </div>
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">Select from our curated prompts or add your own.</p>
+              <div className="space-y-2">
+                {curatedQuestions.map((question) => (
+                  <label key={question.id} className="flex items-start gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={selectedQuestionIds.includes(question.id)}
+                      onChange={() => toggleQuestion(question.id)}
+                    />
+                    <span>{question.text}</span>
+                  </label>
+                ))}
+              </div>
+              <Button variant="outline" size="sm" onClick={openCustomQuestionModal} className="mt-2">
+                <Plus className="h-4 w-4 mr-2" />
+                Add custom question
+              </Button>
+              {wizardState.questions.custom.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold">Custom questions</p>
+                  <ul className="text-sm text-muted-foreground list-disc pl-4">
+                    {wizardState.questions.custom.map((question) => (
+                      <li key={question.id}>{question.text}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      </section>
+      </div>
     </div>
   );
 }
@@ -1076,51 +1533,5 @@ function ReviewSection({
   );
 }
 
-function BookSummaryCard({
-  summary,
-}: {
-  summary: {
-    name: string;
-    pageSize: string;
-    orientation: string;
-    template: string;
-    theme: string;
-    palette: string;
-    friends: number;
-    questions: number;
-  };
-}) {
-  return (
-    <div className="w-full lg:w-64">
-      <div className="rounded-2xl bg-white shadow-sm border p-5 space-y-4 lg:sticky">
-        <div className="flex items-center gap-2">
-          <CopyPlus className="h-5 w-5 text-primary" />
-          <div>
-            <p className="text-sm font-semibold">Book summary</p>
-            <p className="text-xs text-muted-foreground">Auto-updated as you go</p>
-          </div>
-        </div>
-        <SummaryRow label="Name" value={summary.name} />
-        <SummaryRow label="Format" value={`${summary.pageSize} • ${summary.orientation}`} />
-        <SummaryRow label="Layout" value={summary.template} />
-        <SummaryRow label="Theme" value={`${summary.theme} • ${summary.palette}`} />
-        <SummaryRow label="Collaborators" value={`${summary.friends}`} />
-        <SummaryRow label="Questions" value={`${summary.questions}`} />
-        <div className="rounded-md bg-muted/40 border px-3 py-2 text-xs text-muted-foreground flex items-center gap-2">
-          <AlertCircle className="h-4 w-4 text-primary" />
-          You can revisit these settings later.
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SummaryRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-xs text-muted-foreground uppercase tracking-wide">{label}</p>
-      <p className="text-sm font-semibold">{value || '—'}</p>
-    </div>
-  );
-}
+// BookSummaryCard removed in the new layout
 

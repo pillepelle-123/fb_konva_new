@@ -12,8 +12,9 @@ const PAGE_LABELS: Record<string, string> = {
   'back-cover': 'Back Cover',
   'inner-front': 'Inner Front',
   'inner-back': 'Inner Back',
-  'first-page': 'First Page',
-  'last-page': 'Last Page'
+  // 'first-page' and 'last-page' are regular content pages, not special
+  // 'first-page': 'First Page',
+  // 'last-page': 'Last Page'
 };
 
 type PagePreviewVariant = 'default' | 'compact';

@@ -48,12 +48,22 @@ export function PaletteSelector({ onBack, title, isBookLevel = false, previewPos
     : (bookThemePaletteId ? colorPalettes.find(p => p.id === bookThemePaletteId) || null : null);
   
   // Determine if we should use theme default palette (when no explicit palette is set)
-  const shouldUseThemePalette = !currentPaletteId && !!themePalette;
+  // For book level: if bookPaletteId is null, use theme palette
+  // For page level: default to Book Color Palette (not Theme's Default Palette)
+  const shouldUseThemePalette = isBookLevel 
+    ? (!bookPaletteId && !!themePalette)
+    : (!currentPaletteId && !!themePalette && pagePaletteOverrideId === themePaletteId);
   const [selectedPalette, setSelectedPalette] = useState<ColorPalette | null>(
-    currentPalette || (shouldUseThemePalette ? themePalette : null)
+    isBookLevel
+      ? (bookPalette || (shouldUseThemePalette ? themePalette : null))
+      : (currentPalette || (shouldUseThemePalette ? themePalette : bookPalette || null))
   );
   const [useThemePalette, setUseThemePalette] = useState<boolean>(shouldUseThemePalette);
-  const [useBookPalette, setUseBookPalette] = useState<boolean>(!isBookLevel && !pagePaletteOverrideId && !shouldUseThemePalette);
+  const [useBookPalette, setUseBookPalette] = useState<boolean>(
+    isBookLevel 
+      ? false // Book level doesn't use "Book Color Palette" option
+      : (pagePaletteOverrideId === null) // Page level: use Book Color Palette if no override
+  );
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);

@@ -732,6 +732,7 @@ export interface EditorState {
   activePageIndex: number;
   activeTool: 'select' | 'text' | 'question' | 'answer' | 'qna' | 'qna2' | 'qna_inline' | 'free_text' | 'image' | 'line' | 'circle' | 'rect' | 'brush' | 'pan' | 'zoom' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley' | 'triangle' | 'polygon' | 'pipette';
   selectedElementIds: string[];
+  isMiniPreview?: boolean;
   selectedGroupedElement?: { groupId: string; elementId: string };
   user?: { id: number; role: string } | null;
   userRole?: 'author' | 'publisher' | null;
@@ -4170,7 +4171,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
   }
 }
 
-const EditorContext = createContext<{
+export const EditorContext = createContext<{
   state: EditorState;
   dispatch: React.Dispatch<EditorAction>;
   saveBook: () => Promise<void>;
@@ -4708,14 +4709,21 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         const pageThemeId = page.themeId;
         const pageInheritsTheme = !hasThemeIdOwnProperty || pageThemeId === undefined || pageThemeId === null;
         
+        // Inner Front and Inner Back should NEVER inherit theme or background - they must remain plain white
+        const isInnerFrontOrBack = resolvedPageType === 'inner-front' || resolvedPageType === 'inner-back';
+        
         // If page inherits book theme, recalculate background from book theme
         // EXCEPT: Preserve custom image backgrounds (direct uploads without templateId)
+        // EXCEPT: Inner Front and Inner Back must remain plain white
         let resolvedBackground = page.background;
         const isCustomImageBackground = page.background?.type === 'image' && 
                                         !page.background?.backgroundImageTemplateId &&
                                         page.background?.value;
         
-        if (pageInheritsTheme && bookThemeId && !isCustomImageBackground) {
+        // Force null background for Inner Front and Inner Back
+        if (isInnerFrontOrBack) {
+          resolvedBackground = null;
+        } else if (pageInheritsTheme && bookThemeId && !isCustomImageBackground) {
           const theme = getGlobalTheme(bookThemeId);
           if (theme) {
             // Get effective palette for this page (page palette > book palette > theme palette)

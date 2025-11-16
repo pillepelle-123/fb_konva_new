@@ -29,8 +29,7 @@ import type { PageBackground } from '../../../../context/editor-context';
 import { createPreviewImage, resolveBackgroundImageUrl } from '../../../../utils/background-image-utils';
 import { getPalettePartColor } from '../../../../data/templates/color-palettes';
 import { colorPalettes } from '../../../../data/templates/color-palettes';
-import { getThemePaletteId, getGlobalTheme } from '../../../../utils/global-themes';
-import { getLayoutVariationLabel, getBackgroundVariationLabel } from '../../../../utils/layout-variation-labels';
+import { getThemePaletteId } from '../../../../utils/global-themes';
 
 function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
   return (
@@ -104,14 +103,13 @@ const PAGE_TYPE_LABELS: Record<string, string> = {
   'back-cover': 'Back Cover',
   'inner-front': 'Inner Front',
   'inner-back': 'Inner Back',
-  'first-page': 'First Page',
-  'last-page': 'Last Page'
+  // 'first-page' and 'last-page' are regular content pages, not special
+  // 'first-page': 'First Page',
+  // 'last-page': 'Last Page'
 };
 
 type PageBadgeMeta = {
   label: string;
-  layoutLabel: string | null;
-  backgroundLabel: string | null;
 };
 
 const ACTIVE_BADGE_COLOR = '#304050';
@@ -427,8 +425,12 @@ export default function Canvas() {
         derivedPageNumber && derivedPageNumber > 0
           ? `Page ${derivedPageNumber}`
           : null;
+      // Only show special page labels for actual special pages (not first-page/last-page)
       const specialName =
-        page.pageType && page.pageType !== 'content'
+        page.pageType && 
+        page.pageType !== 'content' && 
+        page.pageType !== 'first-page' && 
+        page.pageType !== 'last-page'
           ? PAGE_TYPE_LABELS[page.pageType] ?? page.pageType
           : null;
       const labelSegments = [];
@@ -439,15 +441,7 @@ export default function Canvas() {
         labelSegments.push(specialName);
       }
       const label = labelSegments.length ? labelSegments.join(' · ') : 'Page';
-      const layoutLabel =
-        page.layoutVariation && page.layoutVariation !== 'normal'
-          ? getLayoutVariationLabel(page.layoutVariation)
-          : null;
-      const backgroundLabel =
-        page.backgroundVariation && page.backgroundVariation !== 'normal'
-          ? getBackgroundVariationLabel(page.backgroundVariation)
-          : null;
-      return { label, layoutLabel, backgroundLabel };
+      return { label };
     },
     [state.currentBook?.pages]
   );
@@ -507,12 +501,6 @@ export default function Canvas() {
     (meta: PageBadgeMeta, isActive: boolean) => (
       <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
         <span style={{ fontWeight: 600 }}>{meta.label}</span>
-        {meta.layoutLabel && (
-          <span style={createMetaTextStyle(isActive)}>{meta.layoutLabel}</span>
-        )}
-        {meta.backgroundLabel && (
-          <span style={createMetaTextStyle(isActive)}>{meta.backgroundLabel}</span>
-        )}
       </div>
     ),
     []
@@ -584,45 +572,78 @@ export default function Canvas() {
       
       if (state.selectedElementIds.length > 0) {
         const selectedNodes = state.selectedElementIds.map(id => {
-          let node = stage.findOne(`#${id}`);
-          if (!node) {
-            const allNodes = stage.find('*');
-            node = allNodes.find(n => n.id() === id);
-          }
-          
-          // For text elements, select the entire group
-          if (node && node.getClassName() === 'Group') {
-            const element = currentPage?.elements.find(el => el.id === id);
-            if (element?.type === 'text') {
-              return node; // Select the group itself for text elements
+          try {
+            let node = stage.findOne(`#${id}`);
+            if (!node) {
+              const allNodes = stage.find('*');
+              node = allNodes.find(n => n.id() === id);
             }
+            
+            // For text elements, select the entire group
+            if (node && node.getClassName() === 'Group') {
+              const element = currentPage?.elements.find(el => el.id === id);
+              if (element?.type === 'text') {
+                return node; // Select the group itself for text elements
+              }
+            }
+            
+            return node;
+          } catch {
+            return null;
           }
-          
-          return node;
-        }).filter(node => {
+        }).filter((node): node is Konva.Node => {
           // Verify node is valid and still attached to the stage
-          if (!node || !node.getStage()) return false;
+          if (!node) return false;
           try {
             // Check if node has a parent (is still in the scene graph)
-            return node.getParent() !== null;
+            return node.getStage() !== null && node.getParent() !== null;
           } catch {
             return false;
           }
         });
         
         if (selectedNodes.length > 0) {
-          transformer.nodes(selectedNodes);
-          transformer.forceUpdate();
-          transformer.moveToTop();
-          transformer.getLayer()?.batchDraw();
+          try {
+            transformer.nodes(selectedNodes);
+            transformer.forceUpdate();
+            transformer.moveToTop();
+            const layer = transformer.getLayer();
+            if (layer) {
+              layer.batchDraw();
+            }
+          } catch (error) {
+            // Silently handle transformer update errors (nodes may have been destroyed)
+            console.debug('Transformer update error:', error);
+            // Clear selection if update fails
+            try {
+              transformer.nodes([]);
+              transformer.getLayer()?.batchDraw();
+            } catch {
+              // Ignore cleanup errors
+            }
+          }
         } else {
           // No valid nodes found, clear selection
-          transformer.nodes([]);
-          transformer.getLayer()?.batchDraw();
+          try {
+            transformer.nodes([]);
+            const layer = transformer.getLayer();
+            if (layer) {
+              layer.batchDraw();
+            }
+          } catch {
+            // Ignore cleanup errors
+          }
         }
       } else {
-        transformer.nodes([]);
-        transformer.getLayer()?.batchDraw();
+        try {
+          transformer.nodes([]);
+          const layer = transformer.getLayer();
+          if (layer) {
+            layer.batchDraw();
+          }
+        } catch {
+          // Ignore cleanup errors
+        }
       }
     }
   }, [state.selectedElementIds, isDragging, currentPage]);
@@ -632,18 +653,37 @@ export default function Canvas() {
     if (transformerRef.current && state.selectedElementIds.length > 0) {
       const transformer = transformerRef.current;
       setTimeout(() => {
-        if (transformer) {
+        if (!transformerRef.current) return;
+        
+        try {
           const nodes = transformer.nodes();
           // Filter out undefined or invalid nodes
-          const validNodes = nodes.filter(node => node && node.getStage());
+          const validNodes = nodes.filter((node): node is Konva.Node => {
+            if (!node) return false;
+            try {
+              return node.getStage() !== null && node.getParent() !== null;
+            } catch {
+              return false;
+            }
+          });
+          
           if (validNodes.length > 0 && validNodes.length === nodes.length) {
             transformer.forceUpdate();
-            transformer.getLayer()?.batchDraw();
+            const layer = transformer.getLayer();
+            if (layer) {
+              layer.batchDraw();
+            }
           } else if (validNodes.length !== nodes.length) {
             // Some nodes are invalid, update the transformer with only valid nodes
             transformer.nodes(validNodes);
-            transformer.getLayer()?.batchDraw();
+            const layer = transformer.getLayer();
+            if (layer) {
+              layer.batchDraw();
+            }
           }
+        } catch (error) {
+          // Silently handle transformer update errors (nodes may have been destroyed)
+          console.debug('Transformer update error:', error);
         }
       }, 10);
     }
@@ -657,29 +697,52 @@ export default function Canvas() {
       
       // Small delay to ensure Konva nodes have updated positions
       const timer = setTimeout(() => {
+        // Check if transformer and stage are still valid
+        if (!transformerRef.current || !stageRef.current) return;
+        
         const selectedNodes = state.selectedElementIds.map(id => {
-          let node = stage.findOne(`#${id}`);
-          if (!node) {
-            const allNodes = stage.find('*');
-            node = allNodes.find(n => n.id() === id);
+          try {
+            let node = stage.findOne(`#${id}`);
+            if (!node) {
+              const allNodes = stage.find('*');
+              node = allNodes.find(n => n.id() === id);
+            }
+            return node;
+          } catch {
+            return null;
           }
-          return node;
-        }).filter(node => node && node.getStage());
+        }).filter(node => {
+          if (!node) return false;
+          try {
+            return node.getStage() && node.getParent() !== null;
+          } catch {
+            return false;
+          }
+        });
         
         if (selectedNodes.length > 0) {
           // Verify all nodes are valid before updating
-          const validNodes = selectedNodes.filter(node => {
+          const validNodes = selectedNodes.filter((node): node is Konva.Node => {
+            if (!node) return false;
             try {
-              return node && node.getStage() && node.getParent();
+              return node.getStage() !== null && node.getParent() !== null;
             } catch {
               return false;
             }
           });
           
-          if (validNodes.length > 0) {
-            transformer.nodes(validNodes);
-            transformer.forceUpdate();
-            transformer.getLayer()?.batchDraw();
+          if (validNodes.length > 0 && transformerRef.current) {
+            try {
+              transformer.nodes(validNodes);
+              transformer.forceUpdate();
+              const layer = transformer.getLayer();
+              if (layer) {
+                layer.batchDraw();
+              }
+            } catch (error) {
+              // Silently handle transformer update errors (nodes may have been destroyed)
+              console.debug('Transformer update error:', error);
+            }
           }
         }
       }, 0);
@@ -1958,8 +2021,6 @@ export default function Canvas() {
     const mirrorBackground = Boolean(backgroundTransform?.mirror);
     const { paletteId, palette } = getPaletteForPage(page);
     const normalizedPalette = palette || undefined;
-    const paletteBackgroundColor =
-      getPalettePartColor(normalizedPalette, 'pageBackground', 'background', '#ffffff') || '#ffffff';
     const palettePatternStroke =
       getPalettePartColor(normalizedPalette, 'pagePatternForeground', 'primary', '#666666') || '#666666';
     const palettePatternFill =
@@ -2060,6 +2121,7 @@ export default function Canvas() {
       
       // Check if this is a template background that needs background color
       const hasBackgroundColor = (background as any).backgroundColorEnabled && (background as any).backgroundColor;
+      const paletteBackgroundColor = getPalettePartColor(normalizedPalette, 'pageBackground', 'background', '#ffffff') || '#ffffff';
       const baseBackgroundColor = hasBackgroundColor
         ? (background as any).backgroundColor || paletteBackgroundColor
         : paletteBackgroundColor;
@@ -3174,7 +3236,7 @@ export default function Canvas() {
                 ))}
               </Group>
             )}
-            {partnerPage && previewPageOffsetX !== null && (
+            {partnerPage && previewPageOffsetX !== null && !state.isMiniPreview && (
               <Rect
                 x={previewPageOffsetX}
                 y={pageOffsetY}
@@ -3424,7 +3486,7 @@ export default function Canvas() {
             />
           </Layer>
         </CanvasStage>
-        {activePageBadgeMeta && activePageBadgePosition && (
+        {!state.isMiniPreview && activePageBadgeMeta && activePageBadgePosition && (
           <div
             className="absolute z-20"
             style={{
@@ -3439,7 +3501,7 @@ export default function Canvas() {
             </div>
           </div>
         )}
-        {previewPageBadgeMeta && previewPageBadgePosition && (
+        {!state.isMiniPreview && previewPageBadgeMeta && previewPageBadgePosition && (
           <div
             className="absolute z-20"
             style={{
@@ -3459,7 +3521,7 @@ export default function Canvas() {
             </button>
           </div>
         )}
-        {previewLockBadgeScreen && (
+        {!state.isMiniPreview && previewLockBadgeScreen && (
           <div
             className="pointer-events-none absolute z-20 flex items-center justify-center"
             style={{

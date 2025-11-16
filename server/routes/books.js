@@ -122,7 +122,6 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
       })
     });
   } catch (error) {
-    console.error('Dashboard error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -171,7 +170,6 @@ router.get('/', authenticateToken, async (req, res) => {
       };
     }));
   } catch (error) {
-    console.error('Books fetch error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -214,7 +212,6 @@ router.get('/archived', authenticateToken, async (req, res) => {
       };
     }));
   } catch (error) {
-    console.error('Archived books fetch error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -382,7 +379,6 @@ router.get('/:id', authenticateToken, async (req, res) => {
             try {
               pageData = JSON.parse(page.elements);
             } catch (e) {
-              console.error('Failed to parse page.elements:', e);
               pageData = {};
             }
           } else {
@@ -394,15 +390,12 @@ router.get('/:id', authenticateToken, async (req, res) => {
         const metadataSource = { ...pageData, ...page };
         const pageMeta = normalizePageMetadata(metadataSource);
         const backgroundTransform = pageMeta.backgroundTransform;
-      //console.log(`Page ${page.id} has ${elements.length} elements`);
         
         // Update answer elements with actual answer text from assigned users
         const updatedElements = elements.map(element => {
-        //console.log(`Element type: ${element.textType}, questionId: ${element.questionId}`);
           if (element.textType === 'answer') {
             // Find the user assigned to this page
             const pageAssignment = pageAssignments.find(pa => pa.page_id === page.id);
-          //console.log(`Page ${page.id}: assignment found:`, pageAssignment);
             if (pageAssignment) {
               // If answer element has no questionId, find question on same page
               let questionId = element.questionId;
@@ -410,7 +403,6 @@ router.get('/:id', authenticateToken, async (req, res) => {
                 const questionElement = elements.find(el => el.textType === 'question' && el.questionId);
                 if (questionElement) {
                   questionId = questionElement.questionId;
-                  // console.log(`Found question ${questionId} for answer element`);
                 }
               }
               
@@ -419,7 +411,6 @@ router.get('/:id', authenticateToken, async (req, res) => {
                 const assignedUserAnswer = allAnswers.find(a => 
                   a.question_id === questionId && a.user_id === pageAssignment.user_id
                 );
-              //console.log(`Answer found for question ${questionId}:`, assignedUserAnswer);
                 if (assignedUserAnswer) {
                   return {
                     ...element,
@@ -470,7 +461,6 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
     res.json(response);
   } catch (error) {
-    console.error('Book fetch error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -631,8 +621,6 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
                   element.answerId = existingAnswer.rows[0].id;
                   elementsUpdated = true;
                 }
-              } else {
-                console.log(`Skipping answer creation for non-existent question: ${element.questionId}`);
               }
             }
           }
@@ -664,7 +652,6 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Author save error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -678,24 +665,14 @@ router.put('/:id', authenticateToken, async (req, res) => {
     const bookId = req.params.id;
     const userId = req.user.id;
     const { name, pageSize, orientation, pages, onlyModifiedPages } = req.body;
-
-    console.log('PUT /books/:id payload summary:', {
-      bookId,
-      userId,
-      hasPages: Array.isArray(pages),
-      pageCount: Array.isArray(pages) ? pages.length : 0,
-      firstPageElements: Array.isArray(pages) && pages[0]?.elements ? (Array.isArray(pages[0].elements) ? pages[0].elements.length : 'not-array') : 'none'
-    });
     
     // Prevent duplicate save operations
     const saveKey = `${userId}-${bookId}`;
     if (ongoingSaves.has(saveKey)) {
-      // console.log(`Duplicate save request detected for user ${userId}, book ${bookId} - ignoring`);
       return res.status(409).json({ error: 'Save already in progress' });
     }
     
     ongoingSaves.add(saveKey);
-    // console.log(`Starting save operation for user ${userId}, book ${bookId}`);
 
     // Check if user has access to this book
     const bookAccess = await pool.query(`
@@ -776,12 +753,6 @@ router.put('/:id', authenticateToken, async (req, res) => {
       const allPageIds = [];
       
       for (const page of pagesToProcess) {
-        console.log('Processing page payload:', {
-          pageId: page.id,
-          pageNumber: page.pageNumber,
-          elementsType: Array.isArray(page.elements) ? 'array' : typeof page.elements,
-          elementsLength: Array.isArray(page.elements) ? page.elements.length : page.elements?.elements?.length,
-        });
         let pageId;
         
         // Only skip if the page was already processed AND it has a valid database ID
@@ -797,15 +768,12 @@ router.put('/:id', authenticateToken, async (req, res) => {
             const currentPageNumber = existingPageCheck.rows[0].page_number;
             // Only skip if the page already has the target pageNumber
             if (Math.abs(currentPageNumber) === page.pageNumber) {
-              console.log('Skipping already processed page with same pageNumber:', { pageId: page.id, pageNumber: page.pageNumber });
               // Still add to allPageIds to prevent deletion
               if (page.id && typeof page.id === 'number' && Number.isInteger(page.id) && page.id > 0 && page.id < 2147483647) {
                 allPageIds.push(page.id);
               }
               continue;
             }
-            // If pageNumber is different, we should update it
-            console.log('Page was processed but pageNumber changed, updating:', { pageId: page.id, currentPageNumber, targetPageNumber: page.pageNumber });
           }
         }
         
@@ -851,11 +819,6 @@ router.put('/:id', authenticateToken, async (req, res) => {
           
           // Ensure elements is always an array
           const pageElements = Array.isArray(page.elements) ? page.elements : (page.elements?.elements || []);
-          console.log('Updating existing page', {
-            pageId: page.id,
-            elementsType: Array.isArray(page.elements) ? 'array' : typeof page.elements,
-            elementsLength: Array.isArray(page.elements) ? page.elements.length : (Array.isArray(page.elements?.elements) ? page.elements.elements.length : 'n/a')
-          });
           const pageMeta = normalizePageMetadata(page);
           const completePageData = {
             id: page.id,
@@ -932,7 +895,6 @@ router.put('/:id', authenticateToken, async (req, res) => {
             if (processedPageIds.has(existingPageId)) {
               // This page was already processed, so we should use it but not update it
               // This ensures it's added to allPageIds and won't be deleted
-              console.warn(`Page with pageNumber ${page.pageNumber} already exists and was processed. Using existing page without update.`);
               shouldUpdateExisting = false;
             } else {
               // Page exists and hasn't been processed yet, so we can update it
@@ -1012,7 +974,6 @@ router.put('/:id', authenticateToken, async (req, res) => {
             if (existingPageId) {
               // A page with this page_number exists but we can't update it
               // This shouldn't happen, but if it does, we need to skip this page
-              console.error(`Cannot insert page with pageNumber ${page.pageNumber}: page exists but cannot be updated.`);
               continue;
             }
             // Ensure elements is always an array
@@ -1119,9 +1080,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
           } else {
             storedSummary = typeof storedElements;
           }
-          console.log('After page upsert:', { pageId, storedSummary });
         } catch (debugError) {
-          console.warn('Failed to verify stored page elements:', debugError);
+          // Failed to verify stored page elements
         }
 
         // Remove existing question associations for this page
@@ -1137,14 +1097,12 @@ router.put('/:id', authenticateToken, async (req, res) => {
         const pageAssignmentFromState = req.body.pageAssignments && req.body.pageAssignments[page.pageNumber];
         if (pageAssignmentFromState) {
           pageAssignment = { rows: [{ user_id: pageAssignmentFromState.userId }] };
-        //console.log(`Using page assignment from state: user ${pageAssignmentFromState.userId}`);
         } else {
           // Fallback to database
           pageAssignment = await pool.query(
             'SELECT user_id FROM public.page_assignments WHERE page_id = $1',
             [pageId]
           );
-        //console.log(`Using page assignment from database:`, pageAssignment.rows);
         }
         
         // Add new question associations and create answer placeholders
@@ -1152,11 +1110,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
         const elements = Array.isArray(page.elements) ? page.elements : (page.elements?.elements || []);
         let elementsUpdated = false;
         
-      //console.log(`Processing ${elements.length} elements for page ${pageId}`);
-        
         for (const element of elements) {
-        //console.log(`Element: type=${element.textType}, questionId=${element.questionId}`);
-          
           if (element.textType === 'question' && element.questionId) {
             // Check if question exists before creating association
             const questionExists = await pool.query(
@@ -1174,7 +1128,6 @@ router.put('/:id', authenticateToken, async (req, res) => {
             // Create answer placeholder for question (assigned user needs to answer)
             if (pageAssignment.rows.length > 0) {
               const assignedUserId = pageAssignment.rows[0].user_id;
-            //console.log(`Creating answer placeholder for question ${element.questionId}, user ${assignedUserId}`);
               
               // Check if question exists before creating answer
               const questionExists = await pool.query(
@@ -1193,19 +1146,13 @@ router.put('/:id', authenticateToken, async (req, res) => {
                     'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3) ON CONFLICT (user_id, question_id) DO NOTHING',
                     [element.questionId, assignedUserId, '']
                   );
-                //console.log(`Created answer placeholder for question ${element.questionId}`);
-                } else {
-                //console.log(`Answer already exists for question ${element.questionId}`);
                 }
-              } else {
-                console.log(`Skipping answer creation for non-existent question: ${element.questionId}`);
               }
             }
           }
           
           // Create answer placeholders for answer elements
           if (element.textType === 'answer' && element.questionId && pageAssignment.rows.length > 0) {
-          //console.log(`Processing answer element with questionId: ${element.questionId}`);
             const assignedUserId = pageAssignment.rows[0].user_id;
             
             // Check if question exists before creating answer
@@ -1228,14 +1175,10 @@ router.put('/:id', authenticateToken, async (req, res) => {
                 
                 element.answerId = newAnswer.rows[0].id;
                 elementsUpdated = true;
-              //console.log(`Created answer with ID: ${newAnswer.rows[0].id}`);
               } else {
                 element.answerId = existingAnswer.rows[0].id;
                 elementsUpdated = true;
-              //console.log(`Using existing answer ID: ${existingAnswer.rows[0].id}`);
               }
-            } else {
-              console.log(`Skipping answer element for non-existent question: ${element.questionId}`);
             }
           }
         }
@@ -1263,10 +1206,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
                   'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3)',
                   [questionElement.questionId, assignedUserId, '']
                 );
-              //console.log(`Created answer placeholder for question ${questionElement.questionId}, user ${assignedUserId}`);
               }
-            } else {
-              console.log(`Skipping answer placeholder for non-existent question: ${questionElement.questionId}`);
             }
           }
         }
@@ -1300,7 +1240,6 @@ router.put('/:id', authenticateToken, async (req, res) => {
       // Delete pages that are no longer in the pages array (only if saving all pages)
       if (!onlyModifiedPages && allPageIds.length > 0) {
         const placeholders = allPageIds.map((_, i) => `$${i + 2}`).join(',');
-        // console.log(`Preserving all pages: ${allPageIds.join(', ')}`);
         await pool.query(
           `DELETE FROM public.pages WHERE book_id = $1 AND id NOT IN (${placeholders})`,
           [bookId, ...allPageIds]
@@ -1374,10 +1313,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
                       'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3)',
                       [questionElement.questionId, assignedUserId, '']
                     );
-                  //console.log(`Created answer placeholder for reassigned page: question ${questionElement.questionId}, user ${assignedUserId}`);
                   }
-                } else {
-                  console.log(`Skipping answer placeholder for non-existent question in reassignment: ${questionElement.questionId}`);
                 }
               }
             }
@@ -1388,13 +1324,11 @@ router.put('/:id', authenticateToken, async (req, res) => {
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Book update error:', error);
     res.status(500).json({ error: 'Server error' });
   } finally {
     // Always remove the save key when done
     const saveKey = `${req.user.id}-${req.params.id}`;
     ongoingSaves.delete(saveKey);
-    // console.log(`Completed save operation for user ${req.user.id}, book ${req.params.id}`);
   }
 });
 
@@ -1499,13 +1433,11 @@ router.post('/', authenticateToken, async (req, res) => {
         },
       });
     } catch (chatError) {
-      console.error(`Failed to create messenger chat for book ${bookId}:`, chatError);
+      // Failed to create messenger chat
     }
 
-    // console.log(`Created book ${bookId} and added owner ${userId} to book_friends`);
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Book creation error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -1532,7 +1464,7 @@ router.put('/:id/archive', authenticateToken, async (req, res) => {
     try {
       await setBookConversationActive(bookId, !archived);
     } catch (chatError) {
-      console.error(`Failed to update chat state for archived book ${bookId}:`, chatError);
+      // Failed to update chat state
     }
 
     res.json({ success: true, archived });
@@ -1566,8 +1498,6 @@ router.post('/:id/collaborators', authenticateToken, async (req, res) => {
     const bookId = req.params.id;
     const { email } = req.body;
     const userId = req.user.id;
-
-    // console.log('Adding collaborator by email:', { bookId, email });
 
     // Check if user is owner
     const book = await pool.query('SELECT * FROM public.books WHERE id = $1 AND owner_id = $2', [bookId, userId]);
@@ -1619,13 +1549,11 @@ router.post('/:id/collaborators', authenticateToken, async (req, res) => {
       });
       await syncGroupChatForBook(bookId);
     } catch (chatError) {
-      console.error(`Failed to sync collaborator ${collaboratorId} with chat for book ${bookId}:`, chatError);
+      // Failed to sync collaborator with chat
     }
 
-    // console.log('Collaborator added successfully:', { collaboratorName, result: result.rows[0] });
     res.json({ success: true, collaborator: result.rows[0] });
   } catch (error) {
-    console.error('Add collaborator error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -1637,8 +1565,6 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
     const { friendId, userId: targetUserId, role = 'author', book_role, page_access_level, editor_interaction_level } = req.body;
     const userId = req.user.id;
     const userToAdd = friendId || targetUserId;
-
-    // console.log('Adding friend to book:', { bookId, userToAdd, role: book_role || role, page_access_level, editor_interaction_level });
 
     // Check if user has access to manage this book
     const bookAccess = await pool.query(`
@@ -1667,7 +1593,6 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
         'INSERT INTO public.friendships (user_id, friend_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
         [userToAdd, userId]
       );
-      // console.log(`Auto-created friendship between ${userId} and ${userToAdd}`);
     }
 
     // Check if user is already in book_friends
@@ -1691,7 +1616,6 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
         'UPDATE public.book_friends SET book_role = $1, page_access_level = $2, editor_interaction_level = $3 WHERE book_id = $4 AND user_id = $5 RETURNING *',
         [book_role || role, finalPageAccessLevel, finalEditorInteractionLevel, bookId, userToAdd]
       );
-      // console.log('Friend permissions updated:', result.rows[0]);
 
       try {
         await addUsersToBookConversation({
@@ -1702,7 +1626,7 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
         });
         await syncGroupChatForBook(bookId);
       } catch (chatError) {
-        console.error(`Failed to sync existing friend ${userToAdd} with chat for book ${bookId}:`, chatError);
+        // Failed to sync existing friend with chat
       }
 
       return res.json({ success: true, friend: result.rows[0] });
@@ -1732,13 +1656,11 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
       });
       await syncGroupChatForBook(bookId);
     } catch (chatError) {
-      console.error(`Failed to sync new friend ${userToAdd} with chat for book ${bookId}:`, chatError);
+      // Failed to sync new friend with chat
     }
 
-    // console.log('Friend added successfully:', result.rows[0]);
     res.json({ success: true, friend: result.rows[0] });
   } catch (error) {
-    console.error('Add friend to book error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -1764,7 +1686,7 @@ router.delete('/:id/collaborators/:userId', authenticateToken, async (req, res) 
     try {
       await removeUsersFromBookConversation(bookId, [collaboratorId]);
     } catch (chatError) {
-      console.error(`Failed to remove collaborator ${collaboratorId} from chat for book ${bookId}:`, chatError);
+      // Failed to remove collaborator from chat
     }
 
     res.json({ success: true });
@@ -1797,7 +1719,6 @@ router.get('/:id/questions', authenticateToken, async (req, res) => {
 
     res.json(questions.rows);
   } catch (error) {
-    console.error('Questions fetch error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -1833,7 +1754,6 @@ router.get('/:id/questions-with-pages', authenticateToken, async (req, res) => {
 
     res.json(questions.rows);
   } catch (error) {
-    console.error('Questions with pages fetch error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -1863,7 +1783,6 @@ router.post('/:id/questions', authenticateToken, async (req, res) => {
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Question create error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -1894,7 +1813,6 @@ router.get('/:id/answers', authenticateToken, async (req, res) => {
 
     res.json(answers.rows);
   } catch (error) {
-    console.error('User answers fetch error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -1948,7 +1866,6 @@ router.get('/:id/user-role', authenticateToken, async (req, res) => {
       editor_interaction_level: collaborator.rows[0].editor_interaction_level
     });
   } catch (error) {
-    console.error('User role fetch error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -1984,10 +1901,8 @@ router.get('/:id/friends', authenticateToken, async (req, res) => {
       editorInteractionLevel: friend.editor_interaction_level
     }));
 
-    // console.log(`Found ${friendsWithCorrectFields.length} friends for book ${bookId}:`, friendsWithCorrectFields);
     res.json(friendsWithCorrectFields);
   } catch (error) {
-    console.error('Friends fetch error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -2027,7 +1942,6 @@ router.put('/:id/friends/:friendId/role', authenticateToken, async (req, res) =>
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Role update error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -2038,8 +1952,6 @@ router.put('/:id/friends/bulk-update', authenticateToken, async (req, res) => {
     const bookId = req.params.id;
     const { friends } = req.body;
     const userId = req.user.id;
-
-    // console.log('Bulk updating book friends:', { bookId, friendsCount: friends.length, friends });
 
     // Check if user is owner or publisher
     const bookAccess = await pool.query(`
@@ -2054,8 +1966,6 @@ router.put('/:id/friends/bulk-update', authenticateToken, async (req, res) => {
 
     // Update each friend's permissions
     for (const friend of friends) {
-      // console.log('Updating friend:', friend);
-      
       // Automatically set permissions for publishers
       let finalPageAccessLevel = friend.page_access_level;
       let finalEditorInteractionLevel = friend.editor_interaction_level;
@@ -2069,12 +1979,10 @@ router.put('/:id/friends/bulk-update', authenticateToken, async (req, res) => {
         'UPDATE public.book_friends SET book_role = $1, page_access_level = $2, editor_interaction_level = $3 WHERE book_id = $4 AND user_id = $5 RETURNING *',
         [friend.book_role, finalPageAccessLevel, finalEditorInteractionLevel, bookId, friend.user_id]
       );
-      // console.log('Update result:', result.rows[0]);
     }
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Bulk permissions update error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -2112,12 +2020,11 @@ router.delete('/:id/friends/:friendId', authenticateToken, async (req, res) => {
     try {
       await removeUsersFromBookConversation(bookId, [friendId]);
     } catch (chatError) {
-      console.error(`Failed to remove friend ${friendId} from chat for book ${bookId}:`, chatError);
+      // Failed to remove friend from chat
     }
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Friend removal error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -2159,7 +2066,6 @@ router.put('/:id/page-order', authenticateToken, async (req, res) => {
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Page order update error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

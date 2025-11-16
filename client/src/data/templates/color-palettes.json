@@ -1134,7 +1134,7 @@
       },
       "contrast": "AA",
       "parts": {
-        "pageBackground": "primary",
+        "pageBackground": "background",
         "pagePatternForeground": "primary",
         "pagePatternBackground": "background",
         "qnaBorder": "primary",

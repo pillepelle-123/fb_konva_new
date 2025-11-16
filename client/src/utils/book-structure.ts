@@ -198,8 +198,9 @@ export function ensureSpecialPages(pages: Page[]): Page[] {
   ensurePageType('back-cover', 'cover');
   ensurePageType('front-cover', 'cover');
   ensurePageType('inner-front', 'intro');
-  ensurePageType('first-page', 'intro');
-  ensurePageType('last-page', 'outro');
+  // Do NOT automatically create 'first-page' and 'last-page' - they are regular content pages
+  // ensurePageType('first-page', 'intro');
+  // ensurePageType('last-page', 'outro');
   ensurePageType('inner-back', 'outro');
 
   const orderedPages = sortPagesByBookStructure(updatedPages);
