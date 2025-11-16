@@ -11,6 +11,7 @@ import themesData from '../../data/templates/themes.json';
 import { apiService } from '../../services/api';
 import type { PageTemplate } from '../../types/template-types';
 import { LayoutTemplatePreview } from '../../components/features/editor/templates/layout-selector';
+import MiniKonvaPreview from '../../components/features/editor/preview/mini-konva-preview';
 import { mirrorTemplate } from '../../utils/layout-mirroring';
 
 type Friend = {
@@ -361,6 +362,20 @@ export default function BookCreatePage() {
           onStepClick={setActiveStepIndex}
           wizardState={wizardState}
         />
+        {/* Always-on mini Konva preview */}
+        <div className="mt-4">
+          <MiniKonvaPreview
+            pageSize={wizardState.basic.pageSize}
+            orientation={wizardState.basic.orientation}
+            themeId={wizardState.design.themeId}
+            paletteId={wizardState.design.paletteId}
+            baseTemplate={wizardState.design.layoutTemplate ?? null}
+            pickLeftRight={wizardState.design.pickLeftRight}
+            leftTemplate={wizardState.design.leftLayoutTemplate ?? null}
+            rightTemplate={wizardState.design.rightLayoutTemplate ?? null}
+            mirrorRight={wizardState.design.mirrorLayout && !wizardState.design.pickLeftRight}
+          />
+        </div>
         
         <div className="flex flex-col gap-6 lg:flex-row mt-6">
           <div className="flex-1 space-y-6">
