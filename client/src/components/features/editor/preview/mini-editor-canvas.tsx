@@ -24,15 +24,18 @@ export default function MiniEditorCanvas(props: MiniEditorCanvasProps) {
     );
   }, []);
 
+  const isModal = props.className?.includes('h-full');
+  const containerHeight = isModal ? '100%' : 360;
+
   return (
     <div className={`rounded-2xl bg-white shadow-sm border p-4 ${props.className ?? ''}`}>
-      <div className="text-sm font-semibold mb-3">Live Preview</div>
+      {!isModal && <div className="text-sm font-semibold mb-3">Live Preview</div>}
       <div
         className="w-full mini-editor-preview"
         style={{
           width: '100%',
           // Keep a stable aspect that fits both A4/A5 portrait spreads; Canvas auto-fits
-          height: 360,
+          height: containerHeight,
           overflow: 'hidden',
           borderRadius: 12,
           // Fully disable interactions (mouse, wheel, keyboard) in the mini preview

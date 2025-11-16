@@ -38,8 +38,8 @@ const ITEM_STYLE: Record<
   { background: string; border: string; label: string }
 > = {
   qna_inline: {
-    background: 'rgba(59, 130, 246, 0.65)', // blue
-    border: '#1d4ed8',
+    background: 'rgba(60, 60, 60, 0.65)', // blue
+    border: '#EEEEEE',
     label: 'Q&A Inline'
   },
   qna: {
@@ -77,8 +77,8 @@ function normalizeTemplateItems(template: PageTemplate): TemplateItem[] {
         id: `textbox-${index}`,
         type: ITEM_STYLE[type] ? type : ('other' as const),
         position: {
-          x: textbox.position.x ?? 0,
-          y: textbox.position.y ?? 0
+          x: textbox.position.x + 300 ?? 0,
+          y: textbox.position.y + 300 ?? 0
         },
         size: {
           width: textbox.size.width ?? 0,
@@ -92,8 +92,8 @@ function normalizeTemplateItems(template: PageTemplate): TemplateItem[] {
       id: `element-${index}`,
       type: element.type === 'image' ? ('image' as const) : ('other' as const),
       position: {
-        x: element.position.x ?? 0,
-        y: element.position.y ?? 0
+        x: element.position.x + 300 ?? 0,
+        y: element.position.y + 300 ?? 0
       },
       size: {
         width: element.size.width ?? 0,
@@ -122,13 +122,13 @@ export function LayoutTemplatePreview({
   return (
     <div className={`flex flex-col gap-2 ${className ?? ''}`}>
       <div className="relative w-full rounded-lg border border-gray-200 bg-slate-50 shadow-inner aspect-[210/297] overflow-hidden">
-        <div className="absolute inset-2 rounded-md border border-dashed border-slate-300 bg-white" />
+        <div className="absolute inset-1 rounded-md border border-dashed border-slate-300 bg-white" />
         {items.map((item) => {
           const styleConfig = ITEM_STYLE[item.type] ?? ITEM_STYLE.other;
-          const widthPercent = (item.size.width / PAGE_WIDTH) * 100;
-          const heightPercent = (item.size.height / PAGE_HEIGHT) * 100;
-          const leftPercent = (item.position.x / PAGE_WIDTH) * 100;
-          const topPercent = (item.position.y / PAGE_HEIGHT) * 100;
+          const widthPercent = (item.size.width / PAGE_WIDTH) * 80;
+          const heightPercent = (item.size.height / PAGE_HEIGHT) * 80;
+          const leftPercent = (item.position.x / PAGE_WIDTH) * 80;
+          const topPercent = (item.position.y / PAGE_HEIGHT) * 80;
 
           return (
             <div
@@ -141,7 +141,7 @@ export function LayoutTemplatePreview({
                 height: `${heightPercent}%`,
                 backgroundColor: styleConfig.background,
                 border: `1.5px solid ${styleConfig.border}`,
-                borderRadius: 6,
+                borderRadius: 2,
                 boxShadow: '0 2px 4px rgba(15, 23, 42, 0.15)',
                 letterSpacing: '0.02em'
               }}

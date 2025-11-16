@@ -1,83 +1,22 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Users, CheckCircle2, Palette, Layout, Sparkles, ChevronRight, Star, Info, Book, PaintbrushVertical, BookCheck, GalleryHorizontal, LayoutGrid } from 'lucide-react';
+import { CheckCircle2, Book, PaintbrushVertical, BookCheck, Users } from 'lucide-react';
 import { Button } from '../../components/ui/primitives/button';
-import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
-import { FormField } from '../../components/ui/layout/form-field';
-import { Badge } from '../../components/ui/composites/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
-import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, type CarouselApi } from '../../components/ui/composites/carousel';
-import { colorPalettes } from '../../data/templates/color-palettes';
+import { FormField } from '../../components/ui/layout/form-field';
+import { apiService } from '../../services/api';
 import { pageTemplates as builtinPageTemplates } from '../../data/templates/page-templates';
 import themesData from '../../data/templates/themes.json';
-import { apiService } from '../../services/api';
-import type { PageTemplate } from '../../types/template-types';
-import { LayoutTemplatePreview } from '../../components/features/editor/templates/layout-selector';
 import MiniEditorCanvas from '../../components/features/editor/preview/mini-editor-canvas';
 import { mirrorTemplate } from '../../utils/layout-mirroring';
 import { getThemePaletteId } from '../../utils/global-themes';
-
-type Friend = {
-  id: number;
-  name: string;
-  email?: string;
-  role?: string;
-};
-
-type InviteDraft = {
-  id: string;
-  name: string;
-  email: string;
-};
-
-type QuestionChoice = {
-  id: string;
-  text: string;
-};
-
-type CustomQuestion = {
-  id: string;
-  text: string;
-};
-
-type WizardState = {
-  basic: {
-    name: string;
-    pageSize: 'A4' | 'A5';
-    orientation: 'portrait' | 'landscape';
-    presetId: string | null;
-    startMode: 'preset' | 'assistant' | 'custom';
-  };
-  design: {
-    layoutTemplate?: PageTemplate | null;
-    leftLayoutTemplate?: PageTemplate | null;
-    rightLayoutTemplate?: PageTemplate | null;
-    mirrorLayout: boolean;
-    pickLeftRight: boolean;
-    randomizeLayout: boolean;
-    themeId: string;
-    paletteId: string | null; // null means "Theme's Default Palette"
-  };
-  team: {
-    selectedFriends: Friend[];
-    invites: InviteDraft[];
-    enableGroupChat: boolean;
-    pagesPerUser: 1 | 2 | 3;
-  };
-  questions: {
-    selectedDefaults: string[];
-    custom: CustomQuestion[];
-  };
-};
-
-const curatedQuestions: QuestionChoice[] = [
-  { id: 'nickname', text: 'What is your nickname?' },
-  { id: 'favoriteColor', text: 'What is your favorite color?' },
-  { id: 'dreamJob', text: 'What is your dream job?' },
-  { id: 'bestMemory', text: 'Share your favorite memory with me.' },
-  { id: 'hiddenTalent', text: 'Do you have a hidden talent?' },
-];
-
+import { BasicInfoStep } from '../../components/features/books/create/basic-info-step';
+import { DesignStep } from '../../components/features/books/create/design-step';
+import { TeamContentStep } from '../../components/features/books/create/team-content-step';
+import { ReviewStep } from '../../components/features/books/create/review-step';
+import type { WizardState, Friend } from '../../components/features/books/create/types';
+import { curatedQuestions as curatedQuestionsList } from '../../components/features/books/create/types';
+import type { PageTemplate } from '../../types/template-types';
 
 const stepConfig = [
   { id: 'basic', label: 'Basic Info & Start', description: 'Name, size, and quick presets' },
@@ -125,6 +64,7 @@ export default function BookCreatePage() {
   const [customQuestionDialogOpen, setCustomQuestionDialogOpen] = useState(false);
   const [customQuestionDraft, setCustomQuestionDraft] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -518,7 +458,7 @@ export default function BookCreatePage() {
 
       // Create curated questions
       for (const questionId of wizardState.questions.selectedDefaults) {
-        const question = curatedQuestions.find((q) => q.id === questionId);
+        const question = curatedQuestionsList.find((q) => q.id === questionId);
         if (question) {
           await apiService.createQuestion(newBook.id, question.text);
         }
@@ -541,7 +481,7 @@ export default function BookCreatePage() {
     switch (currentStepId) {
       case 'basic':
         return (
-          <BasicStep
+          <BasicInfoStep
             wizardState={wizardState}
             onChange={(data) => updateWizard('basic', data)}
             onBookWizard={handleBookWizard}
@@ -602,17 +542,23 @@ export default function BookCreatePage() {
 
             {/* Right: Live mini editor canvas (40%) */}
             <div className="lg:col-span-2">
-              <MiniEditorCanvas
-                pageSize={wizardState.basic.pageSize}
-                orientation={wizardState.basic.orientation}
-                themeId={wizardState.design.themeId}
-                paletteId={wizardState.design.paletteId ?? getThemePaletteId(wizardState.design.themeId) ?? 'default'}
-                baseTemplate={wizardState.design.layoutTemplate ?? null}
-                pickLeftRight={wizardState.design.pickLeftRight}
-                leftTemplate={wizardState.design.leftLayoutTemplate ?? null}
-                rightTemplate={wizardState.design.rightLayoutTemplate ?? null}
-                mirrorRight={wizardState.design.mirrorLayout && !wizardState.design.pickLeftRight}
-              />
+              <div 
+                onClick={() => setPreviewModalOpen(true)}
+                className="cursor-pointer transition-opacity hover:opacity-90"
+                title="Click to view larger preview"
+              >
+                <MiniEditorCanvas
+                  pageSize={wizardState.basic.pageSize}
+                  orientation={wizardState.basic.orientation}
+                  themeId={wizardState.design.themeId}
+                  paletteId={wizardState.design.paletteId ?? getThemePaletteId(wizardState.design.themeId) ?? 'default'}
+                  baseTemplate={wizardState.design.layoutTemplate ?? null}
+                  pickLeftRight={wizardState.design.pickLeftRight}
+                  leftTemplate={wizardState.design.leftLayoutTemplate ?? null}
+                  rightTemplate={wizardState.design.rightLayoutTemplate ?? null}
+                  mirrorRight={wizardState.design.mirrorLayout && !wizardState.design.pickLeftRight}
+                />
+              </div>
             </div>
           </div>
         ) : (
@@ -643,6 +589,45 @@ export default function BookCreatePage() {
               <Button onClick={handleAddCustomQuestion}>
                 Add question
               </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Preview Modal */}
+      <Dialog open={previewModalOpen} onOpenChange={setPreviewModalOpen}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden p-6">
+          <DialogHeader>
+            <DialogTitle>Live Preview</DialogTitle>
+          </DialogHeader>
+          <div className="w-full mt-4" style={{ height: 'calc(90vh - 120px)', overflow: 'hidden' }}>
+            <div
+              className="w-full h-full rounded-lg overflow-hidden"
+              style={{
+                pointerEvents: 'none',
+              }}
+            >
+              <style>
+                {`
+                  .preview-modal div.absolute.z-20 { display: none !important; }
+                  .preview-modal .pointer-events-none.absolute.z-20 { display: none !important; }
+                  .preview-modal .mini-editor-preview { height: 100% !important; }
+                `}
+              </style>
+              <div className="preview-modal w-full h-full">
+                <MiniEditorCanvas
+                  pageSize={wizardState.basic.pageSize}
+                  orientation={wizardState.basic.orientation}
+                  themeId={wizardState.design.themeId}
+                  paletteId={wizardState.design.paletteId ?? getThemePaletteId(wizardState.design.themeId) ?? 'default'}
+                  baseTemplate={wizardState.design.layoutTemplate ?? null}
+                  pickLeftRight={wizardState.design.pickLeftRight}
+                  leftTemplate={wizardState.design.leftLayoutTemplate ?? null}
+                  rightTemplate={wizardState.design.rightLayoutTemplate ?? null}
+                  mirrorRight={wizardState.design.mirrorLayout && !wizardState.design.pickLeftRight}
+                  className="border-0 shadow-none p-0 h-full"
+                />
+              </div>
             </div>
           </div>
         </DialogContent>
@@ -740,797 +725,6 @@ function StepNavigation({
 
 function DotIcon() {
   return <div className="h-1.5 w-1.5 rounded-full bg-current" />;
-}
-
-function BasicStep({
-  wizardState,
-  onChange,
-  onBookWizard,
-  onBlankCanvas,
-  isSubmitting,
-}: {
-  wizardState: WizardState;
-  onChange: (data: Partial<WizardState['basic']>) => void;
-  onBookWizard: () => void;
-  onBlankCanvas: () => void;
-  isSubmitting: boolean;
-}) {
-  const hasBookName = wizardState.basic.name.trim().length > 0;
-
-  return (
-    <div className="space-y-6">
-      <div className="rounded-2xl bg-white shadow-sm border p-6 space-y-8">
-        <div>
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold">Basic setup</h2>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Name your book, select size & orientation, then choose how to start.
-          </p>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <FormField label="Book name">
-            <input
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={wizardState.basic.name}
-              onChange={(e) => onChange({ name: e.target.value })}
-              placeholder="E.g. Class of 2025"
-            />
-          </FormField>
-          <FormField label="Orientation">
-            <div className="flex gap-2">
-              {['portrait', 'landscape'].map((option) => (
-                <Button
-                  key={option}
-                  variant={wizardState.basic.orientation === option ? 'default' : 'outline'}
-                  className="flex-1"
-                  onClick={() => onChange({ orientation: option as WizardState['basic']['orientation'] })}
-                >
-                  {option.charAt(0).toUpperCase() + option.slice(1)}
-                </Button>
-              ))}
-            </div>
-          </FormField>
-          <FormField label="Page size">
-            <div className="flex gap-2">
-              {['A4', 'A5'].map((size) => (
-                <Button
-                  key={size}
-                  variant={wizardState.basic.pageSize === size ? 'default' : 'outline'}
-                  className="flex-1"
-                  onClick={() => onChange({ pageSize: size as WizardState['basic']['pageSize'] })}
-                >
-                  {size}
-                </Button>
-              ))}
-            </div>
-          </FormField>
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        <div className="grid gap-4 md:grid-cols-2">
-          <Button
-            onClick={onBookWizard}
-            disabled={!hasBookName || isSubmitting}
-            variant="highlight"
-            size="lg"
-            className="h-auto py-6 px-6 flex flex-col items-start text-left"
-          >
-            <div className="flex items-center gap-2 mb-1">
-              <Sparkles className="h-5 w-5" />
-              <p className="font-semibold text-base">Book Wizard</p>
-            </div>
-            <p className="text-xs opacity-90">Continue through the wizard to customize your book</p>
-          </Button>
-          <Button
-            onClick={onBlankCanvas}
-            disabled={!hasBookName || isSubmitting}
-            variant="outline"
-            className="h-auto py-6 px-6 flex flex-col items-start text-left"
-          >
-            <p className="font-semibold mb-1">Blank Canvas</p>
-            <p className="text-xs text-muted-foreground">Skip the wizard, create a book with blank pages and start editing</p>
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DesignStep({
-  wizardState,
-  onChange,
-}: {
-  wizardState: WizardState;
-  onChange: (data: Partial<WizardState['design']>) => void;
-}) {
-  const [paletteCarouselApi, setPaletteCarouselApi] = useState<CarouselApi>();
-  const [themeViewMode, setThemeViewMode] = useState<'carousel' | 'grid'>('carousel');
-  const [paletteViewMode, setPaletteViewMode] = useState<'carousel' | 'grid'>('carousel');
-
-  const themeEntries = useMemo(() => {
-    return Object.entries(themesData as Record<string, { name: string; description: string; palette?: string }>).map(([id, theme]) => ({
-      id,
-      name: theme.name ?? id,
-      description: theme.description ?? 'Custom theme',
-      paletteId: theme.palette ?? 'default',
-    }));
-  }, []);
-
-  // Get theme's default palette ID for current theme
-  const currentThemePaletteId = useMemo(() => {
-    return getThemePaletteId(wizardState.design.themeId) ?? 'default';
-  }, [wizardState.design.themeId]);
-
-  // Build palette list with "Theme's Default Palette" as first entry
-  const paletteEntries = useMemo(() => {
-    const themePalette = colorPalettes.find(p => p.id === currentThemePaletteId);
-    const otherPalettes = colorPalettes.filter(p => p.id !== currentThemePaletteId);
-    
-    // First entry: "Theme's Default Palette" (virtual entry)
-    const themeDefaultEntry = {
-      id: null as string | null, // null indicates "Theme's Default Palette"
-      name: themePalette?.name || 'Default', // Show actual palette name
-      subtitle: "Theme's Default Palette", // Show as subtitle
-      colors: themePalette?.colors || colorPalettes[0].colors,
-      isThemeDefault: true,
-    };
-    
-    return [themeDefaultEntry, ...otherPalettes];
-  }, [currentThemePaletteId]);
-
-  // Function to select Theme's Default Palette and scroll to it
-  const handleSelectThemeDefaultPalette = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent theme selection when clicking the palette button
-    onChange({ paletteId: null });
-    // Scroll to first item (Theme's Default Palette) - index 0
-    if (paletteCarouselApi) {
-      paletteCarouselApi.scrollTo(0);
-    }
-  };
-
-  // Derived template/palette (previously used in Layout Preview; no longer rendered here)
-  // Kept minimal for potential future validation, currently unused.
-
-  return (
-    <div className="flex flex-col lg:flex-row gap-6">
-      {/* Left pane (replaces old Layout Preview) — Design workspace (1/3) */}
-      <div className="w-full lg:w-1/3 flex-shrink-0">
-        <div className="rounded-2xl bg-white shadow-sm border p-4 sticky lg:top-24 space-y-6">
-          <div>
-            <div className="flex items-center gap-2">
-              <Layout className="h-5 w-5 text-primary" />
-              <h2 className="text-sm font-semibold">Layout</h2>
-            </div>
-            <p className="text-xs text-muted-foreground mt-3">
-              Choose layout templates and toggle mirrored/paired spreads.
-            </p>
-          </div>
-
-          {/* Layout templates (compact grid) */}
-          <div className="grid gap-3 grid-cols-2">
-            {featuredTemplates.map((template) => {
-              const isSelectedLeft = wizardState.design.leftLayoutTemplate?.id === template.id;
-              const isSelectedRight = wizardState.design.rightLayoutTemplate?.id === template.id;
-              const isSelected = !wizardState.design.pickLeftRight && wizardState.design.layoutTemplate?.id === template.id;
-              
-              const handleLeftCheckboxChange = (checked: boolean) => {
-                if (checked) {
-                  // Wenn bereits ein anderes Template für Left ausgewählt ist, wird es ersetzt
-                  onChange({ leftLayoutTemplate: template });
-                } else {
-                  // Wenn dieses Template für Left deaktiviert wird
-                  onChange({ leftLayoutTemplate: null });
-                }
-              };
-
-              const handleRightCheckboxChange = (checked: boolean) => {
-                if (checked) {
-                  // Wenn bereits ein anderes Template für Right ausgewählt ist, wird es ersetzt
-                  onChange({ rightLayoutTemplate: template });
-                } else {
-                  // Wenn dieses Template für Right deaktiviert wird
-                  onChange({ rightLayoutTemplate: null });
-                }
-              };
-
-              return (
-                <div
-                  key={template.id}
-                  className={`rounded-xl border p-2 transition hover:shadow-sm aspect-[3/4] flex items-center justify-center relative ${
-                    isSelected ? 'border-primary bg-primary/5 ring-2 ring-primary' : 
-                    isSelectedLeft || isSelectedRight ? 'border-primary/50 bg-primary/5' :
-                    'border-border bg-card'
-                  }`}
-                >
-                  <button
-                    onClick={() => {
-                      if (!wizardState.design.pickLeftRight) {
-                        onChange({ layoutTemplate: template, leftLayoutTemplate: null, rightLayoutTemplate: null });
-                      }
-                    }}
-                    className="w-full h-full flex items-center justify-center"
-                    title={template.name}
-                  >
-                    <div className="w-full max-w-[60px]">
-                      <LayoutTemplatePreview 
-                        template={template} 
-                        showLegend={false}
-                        showItemLabels={false}
-                      />
-                    </div>
-                  </button>
-                  
-                  {/* Checkboxen nur anzeigen, wenn "Pick Left & Right" aktiv ist */}
-                  {wizardState.design.pickLeftRight && (
-                    <>
-                      {/* L-Checkbox oben links */}
-                      <div 
-                        className="absolute top-1 left-1 z-10"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <CheckboxPrimitive.Root
-                          checked={isSelectedLeft}
-                          onCheckedChange={handleLeftCheckboxChange}
-                          className="h-5 w-5 shrink-0 rounded-sm border border-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground flex items-center justify-center"
-                        >
-                          <CheckboxPrimitive.Indicator className="flex items-center justify-center text-current text-[10px] font-semibold">
-                            L
-                          </CheckboxPrimitive.Indicator>
-                        </CheckboxPrimitive.Root>
-                      </div>
-                      {/* R-Checkbox oben rechts */}
-                      <div 
-                        className="absolute top-1 right-1 z-10"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <CheckboxPrimitive.Root
-                          checked={isSelectedRight}
-                          onCheckedChange={handleRightCheckboxChange}
-                          className="h-5 w-5 shrink-0 rounded-sm border border-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground flex items-center justify-center"
-                        >
-                          <CheckboxPrimitive.Indicator className="flex items-center justify-center text-current text-[10px] font-semibold">
-                            R
-                          </CheckboxPrimitive.Indicator>
-                        </CheckboxPrimitive.Root>
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Toggles */}
-          <div className="flex flex-wrap gap-2">
-            <TogglePill
-              active={wizardState.design.mirrorLayout && !wizardState.design.pickLeftRight}
-              label="Mirror right page"
-              onClick={() => {
-                onChange({ 
-                  mirrorLayout: !wizardState.design.mirrorLayout,
-                  pickLeftRight: false,
-                  leftLayoutTemplate: null,
-                  rightLayoutTemplate: null,
-                });
-              }}
-            />
-            <TogglePill
-              active={wizardState.design.pickLeftRight}
-              label="Pick Left & Right"
-              onClick={() => {
-                const newPickLeftRight = !wizardState.design.pickLeftRight;
-                onChange({ 
-                  pickLeftRight: newPickLeftRight,
-                  mirrorLayout: false,
-                  leftLayoutTemplate: newPickLeftRight ? wizardState.design.layoutTemplate || null : null,
-                  rightLayoutTemplate: newPickLeftRight ? null : null,
-                });
-              }}
-            />
-            <TogglePill
-              active={wizardState.design.randomizeLayout}
-              label="Randomize spreads"
-              onClick={() => onChange({ randomizeLayout: !wizardState.design.randomizeLayout })}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Right pane (where Design workspace was) — Theme & Color Palette (2/3) */}
-      <div className="w-full lg:w-2/3 min-w-0 rounded-2xl bg-white shadow-sm border p-6 space-y-8">
-        <section className="space-y-4">
-          <div className="flex items-center gap-2 text-sm font-semibold">
-            Theme & Color Palette
-          </div>
-
-          {/* Theme carousel */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Themes</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="xxs"
-                onClick={() => setThemeViewMode(themeViewMode === 'carousel' ? 'grid' : 'carousel')}
-                className="h-6 w-6 p-0"
-                title={themeViewMode === 'carousel' ? 'Show all Themes in Grid' : 'Themes Carousel'}
-              >
-                {themeViewMode === 'carousel' ? (
-                  <LayoutGrid className="h-5 w-5" />
-                ) : (
-                  <GalleryHorizontal className="h-5 w-5" />
-                )}
-              </Button>
-            </div>
-            <div className="relative">
-              {themeViewMode === 'carousel' ? (
-                <Carousel
-                  opts={{
-                    align: "start",
-                    loop: true,
-                  }}
-                  className="w-full"
-                >
-                  <CarouselContent className="-ml-2">
-                    {themeEntries.map((theme) => {
-                      const isActive = wizardState.design.themeId === theme.id;
-                      return (
-                        <CarouselItem key={theme.id} className="pl-2 basis-full">
-                          <button
-                            type="button"
-                            onClick={() => onChange({ themeId: theme.id })}
-                            className={`w-full rounded-xl border p-4 pl-10 text-left transition hover:shadow-sm ${
-                              isActive ? 'border-primary bg-primary/5' : 'border-border bg-card'
-                            }`}
-                            title={theme.name}
-                          >
-                            <p className="font-semibold flex items-center gap-2">
-                              <Palette className="h-4 w-4 text-primary" />
-                              {theme.name}
-                            </p>
-                            <p className="text-xs text-muted-foreground">{theme.description}</p>
-                            <div className="mt-3 flex items-center gap-2">
-                              <span className="text-[10px] text-muted-foreground">Default palette:</span>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="xxs"
-                                onClick={handleSelectThemeDefaultPalette}
-                                className="h-auto px-1.5 py-0.5 text-[11px] font-medium"
-                                title="Select Theme's Default Palette"
-                              >
-                                {theme.paletteId}
-                              </Button>
-                            </div>
-                          </button>
-                        </CarouselItem>
-                      );
-                    })}
-                  </CarouselContent>
-                  <CarouselPrevious />
-                  <CarouselNext />
-                </Carousel>
-              ) : (
-                <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto scrollbar-thin pr-2">
-                  {themeEntries.map((theme) => {
-                    const isActive = wizardState.design.themeId === theme.id;
-                    return (
-                      <button
-                        key={theme.id}
-                        type="button"
-                        onClick={() => onChange({ themeId: theme.id })}
-                        className={`rounded-xl border p-3 text-left transition hover:shadow-sm ${
-                          isActive ? 'border-primary bg-primary/5' : 'border-border bg-card'
-                        }`}
-                        title={theme.name}
-                      >
-                        <p className="font-semibold text-xs flex items-center gap-1.5">
-                          <Palette className="h-3 w-3 text-primary" />
-                          {theme.name}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{theme.description}</p>
-                        <div className="mt-2 flex items-center gap-1.5">
-                          <span className="text-[9px] text-muted-foreground">Default:</span>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="xxs"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSelectThemeDefaultPalette(e);
-                            }}
-                            className="h-auto px-1 py-0.5 text-[10px] font-medium"
-                          >
-                            {theme.paletteId}
-                          </Button>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Palette carousel */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Color Palettes</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="xxs"
-                onClick={() => setPaletteViewMode(paletteViewMode === 'carousel' ? 'grid' : 'carousel')}
-                className="h-6 w-6 p-0"
-                title={paletteViewMode === 'carousel' ? 'Show all Color Palettes in Grid' : 'Color Palettes Carousel'}
-              >
-                {paletteViewMode === 'carousel' ? (
-                  <LayoutGrid className="h-5 w-5" />
-                ) : (
-                  <GalleryHorizontal className="h-5 w-5" />
-                )}
-              </Button>
-            </div>
-            <div className="relative">
-              {paletteViewMode === 'carousel' ? (
-                <Carousel
-                  opts={{
-                    align: "start",
-                    loop: true,
-                  }}
-                  className="w-full"
-                  setApi={setPaletteCarouselApi}
-                >
-                  <CarouselContent className="-ml-2">
-                    {paletteEntries.map((palette) => {
-                      // Check if this is the active palette
-                      // null paletteId means "Theme's Default Palette"
-                      const isActive = palette.id === null 
-                        ? wizardState.design.paletteId === null
-                        : wizardState.design.paletteId === palette.id;
-                      const colorValues = Object.values(palette.colors || {});
-                      const hasSubtitle = 'subtitle' in palette && palette.subtitle;
-                      return (
-                        <CarouselItem key={palette.id ?? 'theme-default'} className="pl-2 basis-full">
-                          <button
-                            type="button"
-                            onClick={() => onChange({ paletteId: palette.id })}
-                            className={`w-full rounded-xl border p-4 pl-10 text-left transition hover:shadow-sm ${
-                              isActive ? 'border-primary bg-primary/5' : 'border-border bg-card'
-                            }`}
-                            title={palette.name}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex flex-col">
-                                <p className="font-semibold">{palette.name}</p>
-                                {hasSubtitle && (
-                                  <p className="text-xs text-muted-foreground mt-0.5">{palette.subtitle}</p>
-                                )}
-                              </div>
-                            </div>
-                            <div className="mt-3 flex items-center gap-1">
-                              {colorValues.map((hex, idx) => (
-                                <span
-                                  key={`${palette.id ?? 'theme-default'}-${idx}`}
-                                  className="inline-block h-4 w-4 rounded border"
-                                  style={{ backgroundColor: hex as string }}
-                                  title={hex as string}
-                                />
-                              ))}
-                            </div>
-                          </button>
-                        </CarouselItem>
-                      );
-                    })}
-                  </CarouselContent>
-                  <CarouselPrevious />
-                  <CarouselNext />
-                </Carousel>
-              ) : (
-                <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto scrollbar-thin pr-2">
-                  {paletteEntries.map((palette) => {
-                    const isActive = palette.id === null 
-                      ? wizardState.design.paletteId === null
-                      : wizardState.design.paletteId === palette.id;
-                    const colorValues = Object.values(palette.colors || {});
-                    const hasSubtitle = 'subtitle' in palette && palette.subtitle;
-                    return (
-                      <button
-                        key={palette.id ?? 'theme-default'}
-                        type="button"
-                        onClick={() => onChange({ paletteId: palette.id })}
-                        className={`rounded-xl border p-3 text-left transition hover:shadow-sm ${
-                          isActive ? 'border-primary bg-primary/5' : 'border-border bg-card'
-                        }`}
-                        title={palette.name}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex flex-col">
-                            <p className="font-semibold text-xs">{palette.name}</p>
-                            {hasSubtitle && (
-                              <p className="text-[10px] text-muted-foreground mt-0.5">{palette.subtitle}</p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="mt-2 flex items-center gap-1">
-                          {colorValues.map((hex, idx) => (
-                            <span
-                              key={`${palette.id ?? 'theme-default'}-${idx}`}
-                              className="inline-block h-3 w-3 rounded border"
-                              style={{ backgroundColor: hex as string }}
-                              title={hex as string}
-                            />
-                          ))}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-      </div>
-    </div>
-  );
-}
-
-function TogglePill({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`px-3 py-1 rounded-full border text-xs font-medium transition ${
-        active ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-muted/40'
-      }`}
-    >
-      {label}
-    </button>
-  );
-}
-
-function TeamContentStep({
-  wizardState,
-  onTeamChange,
-  onQuestionChange,
-  availableFriends,
-  openCustomQuestionModal,
-}: {
-  wizardState: WizardState;
-  onTeamChange: (data: Partial<WizardState['team']>) => void;
-  onQuestionChange: (data: Partial<WizardState['questions']>) => void;
-  availableFriends: Friend[];
-  openCustomQuestionModal: () => void;
-}) {
-  const selectedQuestionIds = wizardState.questions.selectedDefaults;
-
-  const toggleQuestion = (id: string) => {
-    if (selectedQuestionIds.includes(id)) {
-      onQuestionChange({
-        selectedDefaults: selectedQuestionIds.filter((q) => q !== id),
-      });
-    } else {
-      onQuestionChange({
-        selectedDefaults: [...selectedQuestionIds, id],
-      });
-    }
-  };
-
-  const addFriend = (friend: Friend) => {
-    if (wizardState.team.selectedFriends.some((f) => f.id === friend.id)) return;
-    onTeamChange({
-      selectedFriends: [...wizardState.team.selectedFriends, friend],
-    });
-  };
-
-  const removeFriend = (friendId: number) => {
-    onTeamChange({
-      selectedFriends: wizardState.team.selectedFriends.filter((friend) => friend.id !== friendId),
-    });
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="rounded-2xl bg-white shadow-sm border p-6">
-        <div className="flex items-center gap-2 mb-6">
-          <Users className="h-5 w-5 text-primary" />
-          <div>
-            <h2 className="text-lg font-semibold">Team & Content (optional)</h2>
-            <p className="text-sm text-muted-foreground">Invite collaborators and prep the questions they'll answer.</p>
-          </div>
-        </div>
-
-        {/* Two columns side by side */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left: Collaborators */}
-          <div className="rounded-xl bg-white shadow-sm border p-4 space-y-4">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              Collaborators
-              <Badge variant="outline" className="text-[10px]">Optional</Badge>
-            </div>
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">Select friends to invite (they'll receive access after the book is created).</p>
-              <div className="flex flex-wrap gap-2">
-                {availableFriends.map((friend) => (
-                  <Button
-                    key={friend.id}
-                    variant={wizardState.team.selectedFriends.some((f) => f.id === friend.id) ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => addFriend(friend)}
-                  >
-                    {friend.name}
-                  </Button>
-                ))}
-              </div>
-              {wizardState.team.selectedFriends.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold">Selected</p>
-                  <div className="flex flex-wrap gap-2">
-                    {wizardState.team.selectedFriends.map((friend) => (
-                      <Badge key={friend.id} variant="secondary" className="flex items-center gap-2">
-                        {friend.name}
-                        <button onClick={() => removeFriend(friend.id)} className="text-xs text-muted-foreground hover:text-foreground">×</button>
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="group-chat"
-                  checked={wizardState.team.enableGroupChat}
-                  onChange={(e) => onTeamChange({ enableGroupChat: e.target.checked })}
-                />
-                <label htmlFor="group-chat" className="text-sm text-muted-foreground">
-                  Enable messenger group chat for collaborators
-                </label>
-              </div>
-
-              <div className="mt-3">
-                <p className="text-sm font-semibold">Number of pages per user</p>
-                <div className="flex gap-2 mt-2">
-                  {[1, 2, 3].map((n) => (
-                    <Button
-                      key={n}
-                      variant={wizardState.team.pagesPerUser === n ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => onTeamChange({ pagesPerUser: n as 1 | 2 | 3 })}
-                    >
-                      {n}
-                    </Button>
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Total pages = pages per user × number of selected users − 4 special pages (min. 24)
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Right: Question set */}
-          <div className="rounded-xl bg-white shadow-sm border p-4 space-y-4">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              Question set
-              <Badge variant="outline" className="text-[10px]">Optional</Badge>
-            </div>
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">Select from our curated prompts or add your own.</p>
-              <div className="space-y-2">
-                {curatedQuestions.map((question) => (
-                  <label key={question.id} className="flex items-start gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={selectedQuestionIds.includes(question.id)}
-                      onChange={() => toggleQuestion(question.id)}
-                    />
-                    <span>{question.text}</span>
-                  </label>
-                ))}
-              </div>
-              <Button variant="outline" size="sm" onClick={openCustomQuestionModal} className="mt-2">
-                <Plus className="h-4 w-4 mr-2" />
-                Add custom question
-              </Button>
-              {wizardState.questions.custom.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold">Custom questions</p>
-                  <ul className="text-sm text-muted-foreground list-disc pl-4">
-                    {wizardState.questions.custom.map((question) => (
-                      <li key={question.id}>{question.text}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ReviewStep({
-  wizardState,
-  onEdit,
-  onSubmit,
-  isSubmitting,
-}: {
-  wizardState: WizardState;
-  onEdit: (id: typeof stepConfig[number]['id']) => void;
-  onSubmit: () => void;
-  isSubmitting: boolean;
-}) {
-  return (
-    <div className="rounded-2xl bg-white shadow-sm border p-6 space-y-6">
-      <div className="flex items-center gap-2">
-        <Star className="h-5 w-5 text-primary" />
-        <div>
-          <h2 className="text-lg font-semibold">Review & finalize</h2>
-          <p className="text-sm text-muted-foreground">Make sure everything looks good before creating the book.</p>
-        </div>
-      </div>
-
-      <ReviewSection
-        title="Basics"
-        description={`${wizardState.basic.name} • ${wizardState.basic.pageSize} • ${wizardState.basic.orientation}`}
-        onEdit={() => onEdit('basic')}
-      />
-      <ReviewSection
-        title="Design"
-        description={`${wizardState.design.layoutTemplate?.name ?? 'Not selected'}, Theme ${wizardState.design.themeId}, Palette ${wizardState.design.paletteId}`}
-        onEdit={() => onEdit('design')}
-      />
-      <ReviewSection
-        title="Team & Content"
-        description={`${wizardState.team.selectedFriends.length} collaborators • ${wizardState.questions.selectedDefaults.length + wizardState.questions.custom.length} questions`}
-        onEdit={() => onEdit('team')}
-        optional
-      />
-
-      <div className="rounded-xl border border-dashed p-4 flex items-center gap-3 bg-muted/40 text-sm text-muted-foreground">
-        <Info className="h-4 w-4 text-primary" />
-        You can still invite more friends or tweak questions later inside the editor.
-      </div>
-
-      <Button onClick={onSubmit} disabled={isSubmitting}>
-        {isSubmitting ? 'Creating book...' : 'Create book and open editor'}
-      </Button>
-    </div>
-  );
-}
-
-function ReviewSection({
-  title,
-  description,
-  onEdit,
-  optional,
-}: {
-  title: string;
-  description: string;
-  onEdit: () => void;
-  optional?: boolean;
-}) {
-  return (
-    <div className="rounded-xl border p-4 flex items-center justify-between">
-      <div>
-        <p className="text-sm font-semibold flex items-center gap-2">
-          {title}
-          {optional && (
-            <Badge variant="outline" className="text-[10px]">Optional</Badge>
-          )}
-        </p>
-        <p className="text-sm text-muted-foreground">{description}</p>
-      </div>
-      <Button variant="ghost" size="sm" onClick={onEdit}>
-        Edit
-        <ChevronRight className="h-4 w-4 ml-1" />
-      </Button>
-    </div>
-  );
 }
 
 // BookSummaryCard removed in the new layout
