@@ -13,6 +13,7 @@ import Dashboard from './pages/dashboard/index'
 import BooksList from './pages/books/index'
 import BookArchive from './pages/books/archive'
 import AnswerForm from './pages/books/answer_form'
+import BookCreatePage from './pages/books/create'
 import ImagesList from './pages/images/index'
 import QuestionsList from './pages/questions/index'
 import BookManagerPage from './pages/books/manager'
@@ -66,6 +67,7 @@ function AppContent() {
           <Route path="/invitations/respond" element={<InvitationResponse />} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/books" element={<ProtectedRoute><BooksList /></ProtectedRoute>} />
+          <Route path="/books/create" element={<ProtectedRoute><BookCreatePage /></ProtectedRoute>} />
           <Route path="/books/archive" element={<ProtectedRoute><BookArchive /></ProtectedRoute>} />
           <Route path="/images" element={<ProtectedRoute><ImagesList /></ProtectedRoute>} />
           <Route path="/questions/:bookId" element={<ProtectedRoute><BookAccessGuard><QuestionsList /></BookAccessGuard></ProtectedRoute>} />

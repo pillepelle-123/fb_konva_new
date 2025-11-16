@@ -141,6 +141,14 @@ export default function BooksList() {
               <BookPlus className="h-6 w-6" />
               <span>Create a Book</span>
             </Button>
+            <Button 
+              onClick={() => navigate('/books/create')} 
+              className="space-x-2 mt-2"
+              style={{ backgroundColor: 'hsl(var(--ring))', color: 'hsl(var(--primary-foreground))' }}
+            >
+              <BookPlus className="h-6 w-6" />
+              <span>Create a Book (new)</span>
+            </Button>
             
           </div>
         </div>
