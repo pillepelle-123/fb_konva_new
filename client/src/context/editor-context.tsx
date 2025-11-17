@@ -4810,13 +4810,28 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
               );
               
               // CRITICAL: Preserve existing element properties that shouldn't be overridden
-              // (like position, size, content, etc.) but update theme-related properties
+              // (like position, size, content, rotation, scaleX, scaleY, etc.) but update theme-related properties
+              // Extract rotation, scaleX, and scaleY before applying themeDefaults to prevent them from being overwritten
+              // Always preserve these explicitly, even if they're 0/1, as these are valid values
+              // Use typeof check to ensure we preserve 0/1 as valid values
+              const preservedRotation = typeof element.rotation === 'number' ? element.rotation : 0;
+              // For shapes (non-text, non-image elements), preserve scaleX and scaleY
+              // For images and text, scale is converted to width/height, so we don't need to preserve scaleX/scaleY
+              const isShape = element.type !== 'text' && element.type !== 'image' && !element.textType;
+              const preservedScaleX = isShape && typeof element.scaleX === 'number' ? element.scaleX : undefined;
+              const preservedScaleY = isShape && typeof element.scaleY === 'number' ? element.scaleY : undefined;
               const updatedElement = {
                 ...element,
                 // Apply theme defaults (includes palette colors via getToolDefaults)
                 ...themeDefaults,
                 // Ensure theme is set to bookThemeId
-                theme: bookThemeId
+                theme: bookThemeId,
+                // Always preserve rotation explicitly (rotation is not a theme property)
+                // This ensures rotation is saved even when it's 0
+                rotation: preservedRotation,
+                // Preserve scaleX and scaleY for shapes (not for images/text which use width/height)
+                ...(preservedScaleX !== undefined ? { scaleX: preservedScaleX } : {}),
+                ...(preservedScaleY !== undefined ? { scaleY: preservedScaleY } : {})
               };
               
               // For qna_inline elements, we need special handling similar to SET_BOOK_THEME

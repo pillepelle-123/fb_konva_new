@@ -226,7 +226,9 @@ export default function Canvas() {
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
   const [isMovingGroup, setIsMovingGroup] = useState(false);
+  const isMovingGroupRef = useRef(false);
   const [groupMoveStart, setGroupMoveStart] = useState<{ x: number; y: number } | null>(null);
+  const groupMoveStartRef = useRef<{ x: number; y: number } | null>(null);
   const [lastClickTime, setLastClickTime] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -581,17 +583,15 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
               node = allNodes.find(n => n.id() === id);
             }
             
-            // For image elements, find the Image node inside the Group
+            // For image elements, select the Group directly (not the Image node)
+            // This ensures rotation is applied to the Group, so the frame rotates with the image
             // For text elements, select the entire group
             if (node && node.getClassName() === 'Group') {
               const element = currentPage?.elements.find(el => el.id === id);
               if (element?.type === 'image') {
-                // Find the Image node inside the Group
-                const groupNode = node as Konva.Group;
-                const imageNode = groupNode.findOne('Image');
-                if (imageNode) {
-                  return imageNode; // Select the Image node directly for image elements
-                }
+                // Select the Group directly for image elements (not the Image node)
+                // This ensures rotation is applied to the Group, so the frame rotates with the image
+                return node;
               } else if (element?.type === 'text') {
                 return node; // Select the group itself for text elements
               }
@@ -718,15 +718,14 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
               node = allNodes.find(n => n.id() === id);
             }
             
-            // For image elements, find the Image node inside the Group
+            // For image elements, select the Group directly (not the Image node)
+            // This ensures rotation is applied to the Group, so the frame rotates with the image
             if (node && node.getClassName() === 'Group') {
               const element = currentPage?.elements.find(el => el.id === id);
               if (element?.type === 'image') {
-                const groupNode = node as Konva.Group;
-                const imageNode = groupNode.findOne('Image');
-                if (imageNode) {
-                  return imageNode; // Select the Image node directly for image elements
-                }
+                // Select the Group directly for image elements (not the Image node)
+                // This ensures rotation is applied to the Group, so the frame rotates with the image
+                return node;
               }
             }
             
@@ -887,8 +886,19 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       const y = (pos.y - stagePos.y) / zoom;
       
       // Check if clicking on background (stage or page boundary)
-      const isBackgroundClick = e.target === e.target.getStage() || 
-        (e.target.getClassName() === 'Rect' && !e.target.id());
+      // A Rect without an ID could be a hit-area Rect inside a Group, so check parent
+      let isBackgroundClick = e.target === e.target.getStage();
+      if (!isBackgroundClick && e.target.getClassName() === 'Rect' && !e.target.id()) {
+        // Check if this Rect is inside a Group (element) - if so, it's not a background click
+        const parent = e.target.getParent();
+        if (parent && parent.getClassName() === 'Group' && parent.id()) {
+          // This Rect is inside a Group with an ID, so it's an element click
+          isBackgroundClick = false;
+        } else {
+          // This Rect has no parent Group with ID, so it's a background Rect
+          isBackgroundClick = true;
+        }
+      }
       
       if (isBackgroundClick) {
         // Check if double-click is within selected elements bounds
@@ -914,6 +924,18 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         setIsSelecting(true);
         setSelectionStart({ x, y });
         setSelectionRect({ x, y, width: 0, height: 0, visible: true });
+      } else {
+        // Clicked on an element - if multiple elements are selected, start group move
+        if (state.selectedElementIds.length > 1 && e.evt.button === 0) {
+          // Always start group move if multiple elements are selected and we clicked on an element
+          // (not on background)
+          const startPos = { x, y };
+          setIsMovingGroup(true);
+          isMovingGroupRef.current = true;
+          setGroupMoveStart(startPos);
+          groupMoveStartRef.current = startPos;
+          dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Move Elements' });
+        }
       }
     } else {
       // Handle element creation for other tools
@@ -1028,33 +1050,44 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           type: previewTextbox?.type || 'text' 
         });
       }
-    } else if (isMovingGroup && groupMoveStart) {
+    } else if ((isMovingGroup || isMovingGroupRef.current) && (groupMoveStart || groupMoveStartRef.current)) {
       // Move entire selection
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
+        // Convert to page coordinates (same calculation as in handleMouseDown)
         const x = (pos.x - stagePos.x) / zoom;
         const y = (pos.y - stagePos.y) / zoom;
-        const deltaX = x - groupMoveStart.x;
-        const deltaY = y - groupMoveStart.y;
+        const start = groupMoveStartRef.current || groupMoveStart;
+        if (!start) return;
         
-        // Update all selected elements
-        state.selectedElementIds.forEach(elementId => {
-          const element = currentPage?.elements.find(el => el.id === elementId);
-          if (element) {
-            dispatch({
-              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-              payload: {
-                id: elementId,
-                updates: {
-                  x: element.x + deltaX,
-                  y: element.y + deltaY
+        const deltaX = x - start.x;
+        const deltaY = y - start.y;
+        
+        // Update all selected elements - use absolute position calculation
+        // Store initial positions on first move to avoid accumulation errors
+        if (Math.abs(deltaX) > 0.1 || Math.abs(deltaY) > 0.1) {
+          state.selectedElementIds.forEach(elementId => {
+            const element = currentPage?.elements.find(el => el.id === elementId);
+            if (element) {
+              // Calculate new position based on initial position + total delta
+              dispatch({
+                type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                payload: {
+                  id: elementId,
+                  updates: {
+                    x: element.x + deltaX,
+                    y: element.y + deltaY
+                  }
                 }
-              }
-            });
-          }
-        });
-        
-        setGroupMoveStart({ x, y });
+              });
+            }
+          });
+          
+          // Update groupMoveStart to current position for next delta calculation
+          const newStart = { x, y };
+          setGroupMoveStart(newStart);
+          groupMoveStartRef.current = newStart;
+        }
       }
     } else if (isSelecting && selectionStart) {
       // Update selection rectangle
@@ -1457,9 +1490,11 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       setIsDrawingTextbox(false);
       setTextboxStart(null);
       setPreviewTextbox(null);
-    } else if (isMovingGroup) {
+    } else if (isMovingGroup || isMovingGroupRef.current) {
       setIsMovingGroup(false);
+      isMovingGroupRef.current = false;
       setGroupMoveStart(null);
+      groupMoveStartRef.current = null;
     } else if (isSelecting) {
       const selectedIds = getElementsInSelection();
       
@@ -3262,6 +3297,13 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                       return;
                     }
                     
+                    // If multiple elements are selected, stop individual drag
+                    // Group move is already started in handleMouseDown
+                    if (state.selectedElementIds.length > 1) {
+                      e.target.stopDrag();
+                      return;
+                    }
+                    
                     dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Move Element' });
                     
                     // For question-answer pairs, check if elements are already selected
@@ -3607,36 +3649,55 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
               }}
               onTransform={() => {
                 // Handle image crop updates directly here for real-time updates
+                // For image elements, transfer scale from Group to Image node during resize
+                // This ensures the resize logic in image.tsx works correctly
                 const transformer = transformerRef.current;
                 if (transformer) {
                   const nodes = transformer.nodes();
                   nodes.forEach(node => {
-                    const elementId = node.id();
-                    const element = currentPage?.elements.find(el => el.id === elementId);
-                    
-                    // Handle image elements: Der direkte Event-Listener auf dem Group in image.tsx
-                    // übernimmt die Transformation. Hier nur noch Custom Events dispatchen.
-                    // Keine direkte Manipulation des Image-Nodes mehr, um Konflikte zu vermeiden.
+                    // For image elements, the Transformer is on the Group, but resize should affect the Image node
+                    if (node.getClassName() === 'Group') {
+                      const groupNode = node as Konva.Group;
+                      const elementId = groupNode.id();
+                      const element = currentPage?.elements.find(el => el.id === elementId);
+                      
+                      if (element?.type === 'image') {
+                        const imageNode = groupNode.findOne('Image') as Konva.Image;
+                        if (imageNode) {
+                          // For image elements, calculate effective size from Group scale
+                          // DO NOT reset Group scale during transform - this causes conflicts with Transformer
+                          // DO NOT modify Image node during transform - let React-Konva handle it via props
+                          // Only update the size state so crop can be recalculated
+                          const groupScaleX = groupNode.scaleX();
+                          const groupScaleY = groupNode.scaleY();
+                          
+                          // Calculate effective dimensions based on element's stored size and Group scale
+                          // The Transformer calculates scale relative to the element's stored size
+                          const baseWidth = element.width || 150;
+                          const baseHeight = element.height || 100;
+                          const effectiveWidth = Math.max(5, baseWidth * groupScaleX);
+                          const effectiveHeight = Math.max(5, baseHeight * groupScaleY);
+                          
+                          // Dispatch custom event with effective size so image.tsx can update crop
+                          // The crop will be calculated based on effective size
+                          // The visual size is controlled by Group scale, which React-Konva handles automatically
+                          window.dispatchEvent(new CustomEvent('imageTransform', {
+                            detail: {
+                              elementId,
+                              width: effectiveWidth,
+                              height: effectiveHeight
+                            }
+                          }));
+                        }
+                      }
+                    }
                   });
                   
                   // Dispatch custom events for components that might need them
                   state.selectedElementIds.forEach(elementId => {
-                    const node = nodes.find(n => n.id() === elementId);
-                    if (node) {
-                      const currentWidth = node.width() * node.scaleX();
-                      const currentHeight = node.height() * node.scaleY();
-                      window.dispatchEvent(new CustomEvent('transform', {
-                        detail: { 
-                          elementId,
-                          width: currentWidth,
-                          height: currentHeight
-                        }
-                      }));
-                    } else {
-                      window.dispatchEvent(new CustomEvent('transform', {
-                        detail: { elementId }
-                      }));
-                    }
+                    window.dispatchEvent(new CustomEvent('transform', {
+                      detail: { elementId }
+                    }));
                   });
                 } else {
                   state.selectedElementIds.forEach(elementId => {
@@ -3660,20 +3721,10 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                 // Handle all selected nodes, not just the target
                 const nodes = transformerRef.current?.nodes() || [];
                 nodes.forEach(node => {
-                  // For image elements, the node is the Image node, but we need the Group for position
-                  // For other elements, the node is the Group
-                  let elementId: string | undefined;
-                  let groupNode: Konva.Node | null = null;
-                  
-                  if (node.getClassName() === 'Image') {
-                    // Image node - find the parent Group
-                    groupNode = node.getParent();
-                    elementId = groupNode?.id();
-                  } else {
-                    // Group node
-                    groupNode = node;
-                    elementId = node.id();
-                  }
+                  // For all elements, the Transformer is now on the Group (not the Image node)
+                  // So node is always the Group
+                  const groupNode = node;
+                  const elementId = node.id();
                   
                   if (!elementId || !groupNode) return;
                   
@@ -3683,21 +3734,56 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                     
                     // For text and image elements, convert scale to width/height changes
                     if (element.type === 'text' || element.type === 'image') {
-                      // For image elements, get size from Image node, position from Group
-                      if (element.type === 'image' && node.getClassName() === 'Image') {
-                        const imageNode = node as Konva.Image;
-                        const scaleX = imageNode.scaleX();
-                        const scaleY = imageNode.scaleY();
+                      // For image elements, the Transformer is now on the Group, not the Image node
+                      // We need to get size from Image node, but position and rotation from Group
+                      if (element.type === 'image' && node.getClassName() === 'Group') {
+                        const groupNode = node as Konva.Group;
+                        const imageNode = groupNode.findOne('Image') as Konva.Image;
                         
-                        updates.width = Math.max(20, (imageNode.width() || element.width || 150) * scaleX);
-                        updates.height = Math.max(20, (imageNode.height() || element.height || 100) * scaleY);
-                        updates.x = groupNode.x();
-                        updates.y = groupNode.y();
-                        updates.rotation = groupNode.rotation();
-                        
-                        // Reset scale to 1 on Image node
-                        imageNode.scaleX(1);
-                        imageNode.scaleY(1);
+                        if (imageNode) {
+                          // For image elements, scale was converted to size during onTransform
+                          // Get the final size from the size state (via element.width/height which should be updated)
+                          // But during transformEnd, element.width/height might not be updated yet,
+                          // so we need to calculate from Group scale
+                          const groupScaleX = groupNode.scaleX();
+                          const groupScaleY = groupNode.scaleY();
+                          const baseWidth = element.width || 150;
+                          const baseHeight = element.height || 100;
+                          
+                          // Calculate final dimensions from Group scale
+                          const finalWidth = Math.max(20, baseWidth * groupScaleX);
+                          const finalHeight = Math.max(20, baseHeight * groupScaleY);
+                          
+                          // Get rotation from Group node (Transformer is on Group now)
+                          const groupRotation = groupNode.rotation();
+                          
+                          updates.width = finalWidth;
+                          updates.height = finalHeight;
+                          updates.x = groupNode.x();
+                          updates.y = groupNode.y();
+                          // Always save rotation, even if it's 0 - explicitly set to ensure it's saved
+                          updates.rotation = typeof groupRotation === 'number' ? groupRotation : 0;
+                          
+                          // Reset scale to 1 on Group (scale was converted to width/height)
+                          groupNode.scaleX(1);
+                          groupNode.scaleY(1);
+                          // Also ensure Image node scale is 1 (should already be 1, but be safe)
+                          imageNode.scaleX(1);
+                          imageNode.scaleY(1);
+                        } else {
+                          // Fallback: use Group node if Image node not found
+                          const scaleX = groupNode.scaleX();
+                          const scaleY = groupNode.scaleY();
+                          
+                          updates.width = Math.max(20, (element.width || 150) * scaleX);
+                          updates.height = Math.max(20, (element.height || 100) * scaleY);
+                          updates.x = groupNode.x();
+                          updates.y = groupNode.y();
+                          updates.rotation = typeof groupNode.rotation() === 'number' ? groupNode.rotation() : 0;
+                          
+                          groupNode.scaleX(1);
+                          groupNode.scaleY(1);
+                        }
                       } else {
                         // For text elements, use Group node
                         const scaleX = node.scaleX();
@@ -3714,11 +3800,17 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                         node.scaleY(1);
                       }
                     } else {
+                      // For shapes and other elements, preserve scaleX and scaleY
+                      // Always save scaleX/scaleY explicitly, even if they're 1, to ensure they're persisted
+                      const nodeScaleX = node.scaleX();
+                      const nodeScaleY = node.scaleY();
+                      const nodeRotation = node.rotation();
+                      
                       updates.x = node.x();
                       updates.y = node.y();
-                      updates.scaleX = node.scaleX();
-                      updates.scaleY = node.scaleY();
-                      updates.rotation = node.rotation();
+                      updates.scaleX = typeof nodeScaleX === 'number' ? nodeScaleX : 1;
+                      updates.scaleY = typeof nodeScaleY === 'number' ? nodeScaleY : 1;
+                      updates.rotation = typeof nodeRotation === 'number' ? nodeRotation : 0;
                     }
                     
                     dispatch({

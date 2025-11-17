@@ -31,3 +31,4 @@ CREATE INDEX IF NOT EXISTS idx_conversations_is_group
   ON public.conversations(is_group);
 
 
+

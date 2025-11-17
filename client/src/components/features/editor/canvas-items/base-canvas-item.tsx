@@ -114,6 +114,13 @@ export default function BaseCanvasItem({
   const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (isInsideGroup) return; // Don't handle mousedown for grouped elements
     if (state.activeTool === 'select' && e.evt.button === 0) {
+      // If multiple elements are selected, don't stop event propagation
+      // This allows the Stage's handleMouseDown to handle group movement
+      if (state.selectedElementIds.length > 1) {
+        // Don't stop event - let it bubble to Stage for group move handling
+        return;
+      }
+      
       e.cancelBubble = true;
       // For regular elements, select on mouseDown if not already selected
       // Skip for question-answer pairs as they use onClick for sequential selection
@@ -150,8 +157,8 @@ export default function BaseCanvasItem({
       y={element.y}
       scaleX={(element.textType === 'question' || element.textType === 'answer') ? 1 : (element.scaleX || 1)}
       scaleY={(element.textType === 'question' || element.textType === 'answer') ? 1 : (element.scaleY || 1)}
-      rotation={element.rotation || 0}
-      draggable={state.activeTool === 'select' && !isMovingGroup && !isInsideGroup && state.editorInteractionLevel !== 'answer_only'}
+      rotation={typeof element.rotation === 'number' ? element.rotation : 0}
+      draggable={state.activeTool === 'select' && !isMovingGroup && !isInsideGroup && state.editorInteractionLevel !== 'answer_only' && state.selectedElementIds.length <= 1}
       onMouseDown={handleMouseDown}
       onClick={handleClick}
       onDblClick={handleDoubleClick}

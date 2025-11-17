@@ -113,6 +113,8 @@ export default function Image(props: CanvasItemProps) {
   const imageRef = useRef<Konva.Image>(null);
   // State für die aktuelle Größe - genau wie in der React-Konva-Lösung
   const [size, setSize] = useState({ width: element.width || 150, height: element.height || 100 });
+  // Ref to track if we're currently transforming to avoid frame size issues during resize
+  const isTransformingRef = useRef(false);
 
   const handleDoubleClick = () => {
     if (element.type === 'placeholder') {
@@ -169,6 +171,7 @@ export default function Image(props: CanvasItemProps) {
   const handleTransform = () => {
     if (!imageRef.current) return;
     
+    isTransformingRef.current = true;
     const node = imageRef.current;
     const scaleX = node.scaleX();
     const scaleY = node.scaleY();
@@ -189,10 +192,57 @@ export default function Image(props: CanvasItemProps) {
     return getCrop(image, size, clipPosition);
   }, [image, size, element.imageClipPosition]);
 
-  // Update size when element dimensions change
+  // Update size when element dimensions change (but not during active transformation)
+  // Also include rotation in dependencies to ensure frame updates correctly when rotation changes
   useEffect(() => {
-    setSize({ width: element.width || 150, height: element.height || 100 });
-  }, [element.width, element.height]);
+    if (!isTransformingRef.current) {
+      setSize({ width: element.width || 150, height: element.height || 100 });
+    }
+  }, [element.width, element.height, element.rotation]);
+  
+  // Listen for imageTransform event from canvas to update size during resize
+  // This is needed because the Transformer is now on the Group, not the Image node
+  useEffect(() => {
+    const handleImageTransform = (e: CustomEvent) => {
+      if (e.detail?.elementId === element.id) {
+        isTransformingRef.current = true;
+        // Update size state - this will trigger crop recalculation via useMemo
+        // The size is calculated from Group scale in canvas.tsx
+        // DO NOT modify Image node directly - let React-Konva handle it via width/height props
+        setSize({
+          width: e.detail.width,
+          height: e.detail.height
+        });
+      }
+    };
+    
+    // Listen for imageTransform event from canvas
+    window.addEventListener('imageTransform', handleImageTransform as EventListener);
+    
+    return () => {
+      window.removeEventListener('imageTransform', handleImageTransform as EventListener);
+    };
+  }, [element.id]);
+  
+  // Reset transformation flag after transform ends
+  useEffect(() => {
+    const handleTransformEnd = (e: CustomEvent) => {
+      if (e.detail?.elementId === element.id) {
+        // Small delay to ensure state updates are processed before resetting flag
+        // This prevents race conditions between rotation and resize operations
+        setTimeout(() => {
+          isTransformingRef.current = false;
+        }, 0);
+      }
+    };
+    
+    // Listen for transformEnd event from canvas
+    window.addEventListener('transformEnd', handleTransformEnd as EventListener);
+    
+    return () => {
+      window.removeEventListener('transformEnd', handleTransformEnd as EventListener);
+    };
+  }, [element.id]);
 
   return (
     <BaseCanvasItem {...props} onDoubleClick={handleDoubleClick}>
@@ -251,8 +301,8 @@ export default function Image(props: CanvasItemProps) {
             <KonvaImage
               ref={imageRef}
               image={image}
-              width={size.width}
-              height={size.height}
+              width={element.width || 150}
+              height={element.height || 100}
               cornerRadius={element.cornerRadius || 0}
               opacity={element.imageOpacity !== undefined ? element.imageOpacity : 1}
               listening={false}
@@ -291,6 +341,11 @@ export default function Image(props: CanvasItemProps) {
               return null;
             }
             
+            // Get current frame dimensions - use size during transformation, element dimensions otherwise
+            // This ensures the frame matches the image size exactly and rotates correctly
+            const frameWidth = size.width;
+            const frameHeight = size.height;
+            
             // Use theme renderer for consistent frame rendering
             // Pass zoom to generatePath and getStrokeProps for proper scaling
             // Use strokeScaleEnabled={false} so zoom is handled manually (consistent with themed-shape.tsx)
@@ -302,8 +357,8 @@ export default function Image(props: CanvasItemProps) {
                 id: element.id + '-frame',
                 x: 0,
                 y: 0,
-                width: element.width,
-                height: element.height,
+                width: frameWidth,
+                height: frameHeight,
                 cornerRadius: cornerRadius,
                 stroke: stroke,
                 strokeWidth: strokeWidth,
@@ -335,8 +390,8 @@ export default function Image(props: CanvasItemProps) {
             // Manually scale strokeWidth with zoom (consistent with themed-shape.tsx)
             return (
               <Rect
-                width={element.width}
-                height={element.height}
+                width={frameWidth}
+                height={frameHeight}
                 fill="transparent"
                 stroke={stroke}
                 strokeWidth={strokeWidth * zoom}
