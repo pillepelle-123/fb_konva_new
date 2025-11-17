@@ -111,8 +111,8 @@ export default function Image(props: CanvasItemProps) {
   const { token } = useAuth();
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const imageRef = useRef<Konva.Image>(null);
-  const [transformSize, setTransformSize] = useState<{ width: number; height: number } | null>(null);
-  const isTransformingRef = useRef(false);
+  // State für die aktuelle Größe - genau wie in der React-Konva-Lösung
+  const [size, setSize] = useState({ width: element.width || 150, height: element.height || 100 });
 
   const handleDoubleClick = () => {
     if (element.type === 'placeholder') {
@@ -164,82 +164,35 @@ export default function Image(props: CanvasItemProps) {
     }
   }, [element.type, element.src, token]);
 
-  // Höre auf Transform-Events, um die Crop-Eigenschaften während der Transformation dynamisch zu aktualisieren
-  useEffect(() => {
-    const handleTransformStart = (e: CustomEvent) => {
-      if (e.detail.elementId === element.id) {
-        isTransformingRef.current = true;
-      }
-    };
+  // onTransform Handler direkt auf dem Image-Node - genau wie in der React-Konva-Lösung
+  // Basierend auf: https://konvajs.org/docs/sandbox/Scale_Image_To_Fit.html
+  const handleTransform = () => {
+    if (!imageRef.current) return;
     
-    const handleTransform = (e: CustomEvent) => {
-      if (e.detail.elementId === element.id && image && imageRef.current) {
-        // Use size from event detail if available, otherwise calculate from node
-        let currentWidth: number;
-        let currentHeight: number;
-        
-        if (e.detail.width !== undefined && e.detail.height !== undefined) {
-          currentWidth = e.detail.width;
-          currentHeight = e.detail.height;
-        } else {
-          const node = imageRef.current;
-          currentWidth = node.width() * node.scaleX();
-          currentHeight = node.height() * node.scaleY();
-        }
-        
-        setTransformSize({ width: currentWidth, height: currentHeight });
-        
-        // Aktualisiere die Crop-Eigenschaften direkt auf dem Node für nahtlose Transformation
-        // Das Bild behält seine ursprüngliche Größe, aber die Crop-Eigenschaften werden basierend
-        // auf der skalierten Größe berechnet
-        const node = imageRef.current;
-        const clipPosition: ClipPosition = (element.imageClipPosition as ClipPosition) || 'center-middle';
-        const crop = getCrop(image, { width: currentWidth, height: currentHeight }, clipPosition);
-        
-        // Setze die Crop-Eigenschaften direkt auf dem Node
-        node.cropX(crop.cropX);
-        node.cropY(crop.cropY);
-        node.cropWidth(crop.cropWidth);
-        node.cropHeight(crop.cropHeight);
-        
-        // Force redraw
-        node.getLayer()?.batchDraw();
-      }
-    };
-    
-    const handleTransformEnd = (e: CustomEvent) => {
-      if (e.detail.elementId === element.id) {
-        isTransformingRef.current = false;
-        setTransformSize(null);
-      }
-    };
-    
-    window.addEventListener('transformStart', handleTransformStart as EventListener);
-    window.addEventListener('transform', handleTransform as EventListener);
-    window.addEventListener('transformEnd', handleTransformEnd as EventListener);
-    
-    return () => {
-      window.removeEventListener('transformStart', handleTransformStart as EventListener);
-      window.removeEventListener('transform', handleTransform as EventListener);
-      window.removeEventListener('transformEnd', handleTransformEnd as EventListener);
-    };
-  }, [element.id, image, element.imageClipPosition]);
+    const node = imageRef.current;
+    const scaleX = node.scaleX();
+    const scaleY = node.scaleY();
 
-  // Berechne die Crop-Eigenschaften für das Bild, damit es ohne Verzerrung skaliert wird
-  // Verwende transformSize während der Transformation, sonst element.width/height
-  const cropProps = useMemo(() => {
-    if (!image || element.type !== 'image') {
-      return null;
-    }
+    // Reset scale to 1 and update width/height - genau wie in der Konva.js-Lösung
+    node.scaleX(1);
+    node.scaleY(1);
+    setSize({
+      width: Math.max(5, node.width() * scaleX),
+      height: Math.max(5, node.height() * scaleY),
+    });
+  };
 
+  // Crop wird über useMemo berechnet, genau wie in der React-Konva-Lösung
+  const crop = useMemo(() => {
+    if (!image) return null;
     const clipPosition: ClipPosition = (element.imageClipPosition as ClipPosition) || 'center-middle';
-    const size = transformSize || { width: element.width, height: element.height };
-    return getCrop(
-      image,
-      size,
-      clipPosition
-    );
-  }, [image, element.width, element.height, element.type, element.imageClipPosition, transformSize]);
+    return getCrop(image, size, clipPosition);
+  }, [image, size, element.imageClipPosition]);
+
+  // Update size when element dimensions change
+  useEffect(() => {
+    setSize({ width: element.width || 150, height: element.height || 100 });
+  }, [element.width, element.height]);
 
   return (
     <BaseCanvasItem {...props} onDoubleClick={handleDoubleClick}>
@@ -298,48 +251,18 @@ export default function Image(props: CanvasItemProps) {
             <KonvaImage
               ref={imageRef}
               image={image}
-              width={element.width}
-              height={element.height}
+              width={size.width}
+              height={size.height}
               cornerRadius={element.cornerRadius || 0}
               opacity={element.imageOpacity !== undefined ? element.imageOpacity : 1}
               listening={false}
-              {...(cropProps ? {
-                cropX: cropProps.cropX,
-                cropY: cropProps.cropY,
-                cropWidth: cropProps.cropWidth,
-                cropHeight: cropProps.cropHeight,
+              onTransform={handleTransform}
+              {...(crop ? {
+                cropX: crop.cropX,
+                cropY: crop.cropY,
+                cropWidth: crop.cropWidth,
+                cropHeight: crop.cropHeight,
               } : {})}
-              onTransform={() => {
-                // Wichtig: Reset scale und aktualisiere width/height während der Transformation
-                // Basierend auf: https://konvajs.org/docs/sandbox/Scale_Image_To_Fit.html
-                if (imageRef.current && image) {
-                  const node = imageRef.current;
-                  const scaleX = node.scaleX();
-                  const scaleY = node.scaleY();
-                  
-                  // Reset scale to 1 and update width/height based on scaled size
-                  const newWidth = Math.max(5, node.width() * scaleX);
-                  const newHeight = Math.max(5, node.height() * scaleY);
-                  
-                  node.setAttrs({
-                    scaleX: 1,
-                    scaleY: 1,
-                    width: newWidth,
-                    height: newHeight,
-                  });
-                  
-                  // Apply crop with new size
-                  const clipPosition: ClipPosition = (element.imageClipPosition as ClipPosition) || 'center-middle';
-                  const crop = getCrop(image, { width: newWidth, height: newHeight }, clipPosition);
-                  
-                  node.setAttrs({
-                    cropX: crop.cropX,
-                    cropY: crop.cropY,
-                    cropWidth: crop.cropWidth,
-                    cropHeight: crop.cropHeight,
-                  });
-                }
-              }}
             />
           )}
           {!image && (

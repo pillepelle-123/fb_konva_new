@@ -31,7 +31,6 @@ import { getPalettePartColor } from '../../../../data/templates/color-palettes';
 import { colorPalettes } from '../../../../data/templates/color-palettes';
 import { getThemePaletteId } from '../../../../utils/global-themes';
 import { BOOK_PAGE_DIMENSIONS, DEFAULT_BOOK_ORIENTATION, DEFAULT_BOOK_PAGE_SIZE } from '../../../../constants/book-formats';
-import { getCrop } from '../canvas-items/image';
 
 function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
   return (
@@ -582,10 +581,18 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
               node = allNodes.find(n => n.id() === id);
             }
             
+            // For image elements, find the Image node inside the Group
             // For text elements, select the entire group
             if (node && node.getClassName() === 'Group') {
               const element = currentPage?.elements.find(el => el.id === id);
-              if (element?.type === 'text') {
+              if (element?.type === 'image') {
+                // Find the Image node inside the Group
+                const groupNode = node as Konva.Group;
+                const imageNode = groupNode.findOne('Image');
+                if (imageNode) {
+                  return imageNode; // Select the Image node directly for image elements
+                }
+              } else if (element?.type === 'text') {
                 return node; // Select the group itself for text elements
               }
             }
@@ -710,6 +717,19 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
               const allNodes = stage.find('*');
               node = allNodes.find(n => n.id() === id);
             }
+            
+            // For image elements, find the Image node inside the Group
+            if (node && node.getClassName() === 'Group') {
+              const element = currentPage?.elements.find(el => el.id === id);
+              if (element?.type === 'image') {
+                const groupNode = node as Konva.Group;
+                const imageNode = groupNode.findOne('Image');
+                if (imageNode) {
+                  return imageNode; // Select the Image node directly for image elements
+                }
+              }
+            }
+            
             return node;
           } catch {
             return null;
@@ -3586,11 +3606,20 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                 });
               }}
               onTransform={() => {
-                // Dispatch custom events for components that might need them
-                // Note: Image elements handle transform directly via onTransform handler on the Image component
+                // Handle image crop updates directly here for real-time updates
                 const transformer = transformerRef.current;
                 if (transformer) {
                   const nodes = transformer.nodes();
+                  nodes.forEach(node => {
+                    const elementId = node.id();
+                    const element = currentPage?.elements.find(el => el.id === elementId);
+                    
+                    // Handle image elements: Der direkte Event-Listener auf dem Group in image.tsx
+                    // übernimmt die Transformation. Hier nur noch Custom Events dispatchen.
+                    // Keine direkte Manipulation des Image-Nodes mehr, um Konflikte zu vermeiden.
+                  });
+                  
+                  // Dispatch custom events for components that might need them
                   state.selectedElementIds.forEach(elementId => {
                     const node = nodes.find(n => n.id() === elementId);
                     if (node) {
@@ -3631,25 +3660,59 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                 // Handle all selected nodes, not just the target
                 const nodes = transformerRef.current?.nodes() || [];
                 nodes.forEach(node => {
-                  const elementId = node.id();
+                  // For image elements, the node is the Image node, but we need the Group for position
+                  // For other elements, the node is the Group
+                  let elementId: string | undefined;
+                  let groupNode: Konva.Node | null = null;
+                  
+                  if (node.getClassName() === 'Image') {
+                    // Image node - find the parent Group
+                    groupNode = node.getParent();
+                    elementId = groupNode?.id();
+                  } else {
+                    // Group node
+                    groupNode = node;
+                    elementId = node.id();
+                  }
+                  
+                  if (!elementId || !groupNode) return;
+                  
                   const element = currentPage?.elements.find(el => el.id === elementId);
                   if (element) {
                     const updates: any = {};
                     
                     // For text and image elements, convert scale to width/height changes
                     if (element.type === 'text' || element.type === 'image') {
-                      const scaleX = node.scaleX();
-                      const scaleY = node.scaleY();
-                      
-                      updates.width = Math.max(element.type === 'text' ? 50 : 20, (element.width || 150) * scaleX);
-                      updates.height = Math.max(element.type === 'text' ? 20 : 20, (element.height || 50) * scaleY);
-                      updates.x = node.x();
-                      updates.y = node.y();
-                      updates.rotation = node.rotation();
-                      
-                      // Reset scale to 1
-                      node.scaleX(1);
-                      node.scaleY(1);
+                      // For image elements, get size from Image node, position from Group
+                      if (element.type === 'image' && node.getClassName() === 'Image') {
+                        const imageNode = node as Konva.Image;
+                        const scaleX = imageNode.scaleX();
+                        const scaleY = imageNode.scaleY();
+                        
+                        updates.width = Math.max(20, (imageNode.width() || element.width || 150) * scaleX);
+                        updates.height = Math.max(20, (imageNode.height() || element.height || 100) * scaleY);
+                        updates.x = groupNode.x();
+                        updates.y = groupNode.y();
+                        updates.rotation = groupNode.rotation();
+                        
+                        // Reset scale to 1 on Image node
+                        imageNode.scaleX(1);
+                        imageNode.scaleY(1);
+                      } else {
+                        // For text elements, use Group node
+                        const scaleX = node.scaleX();
+                        const scaleY = node.scaleY();
+                        
+                        updates.width = Math.max(50, (element.width || 150) * scaleX);
+                        updates.height = Math.max(20, (element.height || 50) * scaleY);
+                        updates.x = node.x();
+                        updates.y = node.y();
+                        updates.rotation = node.rotation();
+                        
+                        // Reset scale to 1
+                        node.scaleX(1);
+                        node.scaleY(1);
+                      }
                     } else {
                       updates.x = node.x();
                       updates.y = node.y();
