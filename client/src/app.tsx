@@ -46,6 +46,9 @@ function AppContent() {
   const [serverMessage, setServerMessage] = useState('')
   const location = useLocation()
   const isEditorRoute = location.pathname.startsWith('/editor/')
+  const isBookCreateRoute = location.pathname === '/books/create'
+  // Routes that manage their own scrolling should use overflow-hidden
+  const shouldHideOverflow = isEditorRoute || isBookCreateRoute
 
   useEffect(() => {
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
@@ -59,7 +62,7 @@ function AppContent() {
   return (
     <PageContainer>
       <Navigation />
-      <main className={`flex-1 min-h-0 ${isEditorRoute ? 'overflow-hidden' : 'overflow-auto'} w-full`}>
+      <main className={`flex-1 min-h-0 ${shouldHideOverflow ? 'overflow-hidden' : 'overflow-auto'} w-full`}>
         <Routes>
           <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Home serverMessage={serverMessage} />} />
           <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <Login />} />

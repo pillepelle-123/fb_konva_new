@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '../../../ui/primitives/button';
-import { RotateCcw, SwatchBook, Check, X, Eye } from 'lucide-react';
+import { RotateCcw, Check, X, Eye, Palette } from 'lucide-react';
 import { Label } from '../../../ui/primitives/label';
 import { getAllCategories, getPalettesByCategory, colorPalettes } from '../../../../data/templates/color-palettes';
 import type { ColorPalette } from '../../../../types/template-types';
@@ -851,7 +851,7 @@ export function PaletteSelector({ onBack, title, isBookLevel = false, previewPos
     <SelectorListSection
       title={
         <>
-          <SwatchBook className="h-4 w-4" />
+          <Palette className="h-4 w-4" />
           {title}
         </>
       }

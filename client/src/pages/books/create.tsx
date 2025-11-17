@@ -476,50 +476,111 @@ export default function BookCreatePage() {
     }
   })();
 
+  const canAccessStep = (index: number) => {
+    if (index === 0) return true; // Basic step always accessible
+    if (index === 1) return wizardState.basic.name.trim().length > 0; // Design step needs book name
+    if (index === 2) return wizardState.basic.name.trim().length > 0 && wizardState.design.layoutTemplate !== null; // Team step needs basic + design
+    if (index === 3) return wizardState.basic.name.trim().length > 0 && wizardState.design.layoutTemplate !== null; // Review step needs basic + design
+    return false;
+  };
+
+  const canGoBack = activeStepIndex > 0;
+  const canGoNext = activeStepIndex < stepConfig.length - 1 && canAccessStep(activeStepIndex + 1);
+
+  const handleBack = () => {
+    if (canGoBack) {
+      setActiveStepIndex(activeStepIndex - 1);
+    }
+  };
+
+  const handleNext = () => {
+    if (canGoNext) {
+      setActiveStepIndex(activeStepIndex + 1);
+    }
+  };
+
   return (
-    <div className="w-full min-h-screen bg-muted/20">
-      <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
-        <StepNavigation
-          steps={stepConfig}
-          activeStepIndex={activeStepIndex}
-          onStepClick={setActiveStepIndex}
-          wizardState={wizardState}
-        />
+    <div className="w-full h-screen bg-muted/20 flex flex-col overflow-hidden">
+      {/* Scrollable Content Area */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-7xl px-4 py-8 pt-0 lg:px-8">
+          {/* Hauptbereich: Layout abhängig vom aktuellen Schritt */}
+          {currentStepId === 'design' || currentStepId === 'review' ? (
+            <div className="mt-6 grid grid-cols-1 lg:grid-cols-5 gap-6">
+              {/* Left: Controls (60%) */}
+              <div className="lg:col-span-3">
+                {currentStep}
+              </div>
 
-        {/* Hauptbereich unterhalb des Steppers: Layout abhängig vom aktuellen Schritt */}
-        {currentStepId === 'design' || currentStepId === 'review' ? (
-          <div className="mt-6 grid grid-cols-1 lg:grid-cols-5 gap-6">
-            {/* Left: Controls (60%) */}
-            <div className="lg:col-span-3">
-              {currentStep}
-            </div>
-
-            {/* Right: Live mini editor canvas (40%) */}
-            <div className="lg:col-span-2">
-              <div 
-                onClick={() => setPreviewModalOpen(true)}
-                className="cursor-pointer transition-opacity hover:opacity-90"
-                title="Click to view larger preview"
-              >
-                <MiniEditorCanvas
-                  pageSize={wizardState.basic.pageSize}
-                  orientation={wizardState.basic.orientation}
-                  themeId={wizardState.design.themeId}
-                  paletteId={wizardState.design.paletteId ?? getThemePaletteId(wizardState.design.themeId) ?? 'default'}
-                  baseTemplate={wizardState.design.layoutTemplate ?? null}
-                  pickLeftRight={wizardState.design.pickLeftRight}
-                  leftTemplate={wizardState.design.leftLayoutTemplate ?? null}
-                  rightTemplate={wizardState.design.rightLayoutTemplate ?? null}
-                  mirrorRight={wizardState.design.mirrorLayout && !wizardState.design.pickLeftRight}
-                />
+              {/* Right: Live mini editor canvas (40%) */}
+              <div className="lg:col-span-2">
+                <div 
+                  onClick={() => setPreviewModalOpen(true)}
+                  className="cursor-pointer transition-opacity hover:opacity-90"
+                  title="Click to view larger preview"
+                >
+                  <MiniEditorCanvas
+                    pageSize={wizardState.basic.pageSize}
+                    orientation={wizardState.basic.orientation}
+                    themeId={wizardState.design.themeId}
+                    paletteId={wizardState.design.paletteId ?? getThemePaletteId(wizardState.design.themeId) ?? 'default'}
+                    baseTemplate={wizardState.design.layoutTemplate ?? null}
+                    pickLeftRight={wizardState.design.pickLeftRight}
+                    leftTemplate={wizardState.design.leftLayoutTemplate ?? null}
+                    rightTemplate={wizardState.design.rightLayoutTemplate ?? null}
+                    mirrorRight={wizardState.design.mirrorLayout && !wizardState.design.pickLeftRight}
+                  />
+                </div>
               </div>
             </div>
+          ) : (
+            <div className="mt-6">
+              {currentStep}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Navigation Footer - Fixed at bottom */}
+      <div className="w-full border-t bg-background fixed bottom-0 left-0 right-0 z-10">
+        <div className="mx-auto max-w-7xl px-4 pb-1 pt-2 lg:px-8">
+          <div className="flex items-center justify-between gap-4">
+            {/* Back button - hidden on Basic Info step but retains width */}
+            <div className="min-w-[100px]">
+              {currentStepId !== 'basic' && (
+                <Button
+                  variant="outline"
+                  onClick={handleBack}
+                  disabled={!canGoBack}
+                  className="w-full"
+                >
+                  Back
+                </Button>
+              )}
+            </div>
+            {/* Step Navigation - always visible, consistent width */}
+            <div className="flex-1">
+              <StepNavigation
+                steps={stepConfig}
+                activeStepIndex={activeStepIndex}
+                onStepClick={setActiveStepIndex}
+                wizardState={wizardState}
+              />
+            </div>
+            {/* Next button / Create Book button - hidden on Basic Info step but retains width */}
+            <div className="min-w-[100px]">
+              {currentStepId !== 'basic' && (
+                <Button
+                  onClick={currentStepId === 'review' ? handleSubmit : handleNext}
+                  disabled={currentStepId === 'review' ? isSubmitting : !canGoNext}
+                  className="w-full"
+                >
+                  {currentStepId === 'review' ? (isSubmitting ? 'Creating...' : 'Create Book') : 'Next'}
+                </Button>
+              )}
+            </div>
           </div>
-        ) : (
-          <div className="mt-6">
-            {currentStep}
-          </div>
-        )}
+        </div>
       </div>
 
       <Dialog open={customQuestionDialogOpen} onOpenChange={setCustomQuestionDialogOpen}>
@@ -554,7 +615,7 @@ export default function BookCreatePage() {
           <DialogHeader className="flex-shrink-0">
             <DialogTitle>Live Preview</DialogTitle>
           </DialogHeader>
-          <div className="w-full mt-4 flex-1 min-h-0" style={{ overflow: 'auto', position: 'relative' }}>
+          <div className="w-full  mt-4 flex-1 min-h-0" style={{ overflow: 'auto', position: 'relative' }}>
             <div
               className="w-full h-full rounded-lg"
               style={{
@@ -611,7 +672,7 @@ function StepNavigation({
 
   return (
     <div className="w-full">
-      <div className="rounded-2xl bg-white shadow-sm border p-4">
+      {/* <div className="rounded-2xl bg-white shadow-sm border p-1 pt-2"> */}
         <div className="flex w-full items-start gap-2">
           {steps.map((step, index) => {
             const isActive = index === activeStepIndex;
@@ -658,22 +719,22 @@ function StepNavigation({
                 )}
 
                 {/* Labels */}
-                <div className="mt-5 flex flex-col items-center text-center">
-                  <span className={`text-sm font-semibold transition lg:text-base ${isActive ? 'text-primary' : ''}`}>
+                <div className="mt-1 flex flex-col items-center text-center">
+                  <span className={`text-sm font-semibold transition ${isActive ? 'text-primary' : ''}`}>
                     {step.label}
                   </span>
-                  {'optional' in step && step.optional && (
+                  {/* {'optional' in step && step.optional && (
                     <span className={`text-xs transition ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>
                       Optional
                     </span>
-                  )}
+                  )} */}
                 </div>
               </div>
             );
           })}
         </div>
       </div>
-    </div>
+    // </div>
   );
 }
 

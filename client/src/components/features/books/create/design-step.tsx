@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
-import { Palette, Layout, GalleryHorizontal, LayoutGrid, Filter } from 'lucide-react';
+import { Palette, GalleryHorizontal, LayoutGrid, Filter, LayoutPanelLeft, PaintbrushVertical, PanelLeftRightDashed, ArrowLeftRight, Dices } from 'lucide-react';
 import { Button } from '../../../ui/primitives/button';
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, type CarouselApi } from '../../../ui/composites/carousel';
+import { Select, SelectTrigger, SelectContent, SelectItem } from '../../../ui/primitives/select';
+import { Tooltip } from '../../../ui/composites/tooltip';
 import { colorPalettes } from '../../../../data/templates/color-palettes';
 import { pageTemplates as builtinPageTemplates } from '../../../../data/templates/page-templates';
 import themesData from '../../../../data/templates/themes.json';
@@ -17,16 +19,18 @@ interface DesignStepProps {
   onChange: (data: Partial<WizardState['design']>) => void;
 }
 
-function TogglePill({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function TogglePill({ label, icon, active, onClick }: { label: string; icon: React.ReactNode; active: boolean; onClick: () => void }) {
   return (
-    <button
-      onClick={onClick}
-      className={`px-3 py-1 rounded-full border text-xs font-medium transition ${
-        active ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-muted/40'
-      }`}
-    >
-      {label}
-    </button>
+    <Tooltip content={label} side="bottom">
+      <button
+        onClick={onClick}
+        className={`px-3 py-1 rounded-full border text-xs font-medium transition flex items-center justify-center ${
+          active ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-muted/40'
+        }`}
+      >
+        {icon}
+      </button>
+    </Tooltip>
   );
 }
 
@@ -103,42 +107,85 @@ export function DesignStep({
     <div className="flex flex-col lg:flex-row gap-6">
       {/* Left pane (replaces old Layout Preview) — Design workspace (1/3) */}
       <div className="w-full lg:w-1/3 flex-shrink-0">
-        <div className="rounded-2xl bg-white shadow-sm border p-4 sticky lg:top-24 space-y-6">
-          <div>
-            <div className="flex items-center gap-2">
-              <Layout className="h-5 w-5 text-primary" />
-              <h2 className="text-sm font-semibold">Layout</h2>
+        <div className="rounded-2xl bg-white shadow-sm border p-3 sticky lg:top-24 flex flex-col h-[calc(90vh-120px)]">
+          <div className="flex-shrink-0">
+            {/* <div className="flex items-center gap-2 text-foreground"> */}
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <LayoutPanelLeft className="h-5 w-5" />
+              Layout
             </div>
-            <p className="text-xs text-muted-foreground mt-3">
+            {/* <p className="text-xs text-muted-foreground mt-3">
               Choose layout templates and toggle mirrored/paired spreads.
-            </p>
+            </p> */}
           </div>
 
-          {/* Category filter */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Filter className="h-3 w-3" />
-              <span>Filter by category</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
+          <div className="flex-shrink-0 space-y-3 mt-3">
+            {/* Category filter */}
+            <Select
+              value={categoryFilter}
+              onValueChange={(value) => setCategoryFilter(value as CategoryFilter)}
+            >
+              <SelectTrigger className="h-7 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <Filter className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-muted-foreground">Category:</span>
+                  <span>
+                    {categoryFilter === 'all' 
+                      ? 'All' 
+                      : categoryFilter.charAt(0).toUpperCase() + categoryFilter.slice(1)}
+                  </span>
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                {availableCategories.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category.charAt(0).toUpperCase() + category.slice(1)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Toggles */}
+            <div className="flex flex-wrap gap-2">
               <TogglePill
-                active={categoryFilter === 'all'}
-                label="All"
-                onClick={() => setCategoryFilter('all')}
+                active={wizardState.design.mirrorLayout && !wizardState.design.pickLeftRight}
+                label="Mirror right page"
+                icon={<PanelLeftRightDashed className="h-4 w-4" />}
+                onClick={() => {
+                  onChange({ 
+                    mirrorLayout: !wizardState.design.mirrorLayout,
+                    pickLeftRight: false,
+                    leftLayoutTemplate: null,
+                    rightLayoutTemplate: null,
+                  });
+                }}
               />
-              {availableCategories.map((category) => (
-                <TogglePill
-                  key={category}
-                  active={categoryFilter === category}
-                  label={category.charAt(0).toUpperCase() + category.slice(1)}
-                  onClick={() => setCategoryFilter(category as CategoryFilter)}
-                />
-              ))}
+              <TogglePill
+                active={wizardState.design.pickLeftRight}
+                label="Pick Left & Right"
+                icon={<ArrowLeftRight className="h-4 w-4" />}
+                onClick={() => {
+                  const newPickLeftRight = !wizardState.design.pickLeftRight;
+                  onChange({ 
+                    pickLeftRight: newPickLeftRight,
+                    mirrorLayout: false,
+                    leftLayoutTemplate: newPickLeftRight ? wizardState.design.layoutTemplate || null : null,
+                    rightLayoutTemplate: newPickLeftRight ? null : null,
+                  });
+                }}
+              />
+              <TogglePill
+                active={wizardState.design.randomizeLayout}
+                label="Randomize spreads"
+                icon={<Dices className="h-4 w-4" />}
+                onClick={() => onChange({ randomizeLayout: !wizardState.design.randomizeLayout })}
+              />
             </div>
           </div>
 
           {/* Layout templates (compact grid with scroll) */}
-          <div className="max-h-[400px] overflow-y-auto scrollbar-thin pr-1">
+          <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin pr-1 mt-3">
             <div className="grid gap-3 grid-cols-2 p-1">
               {filteredTemplates.map((template) => {
               const isSelectedLeft = wizardState.design.leftLayoutTemplate?.id === template.id;
@@ -232,69 +279,45 @@ export function DesignStep({
             })}
             </div>
           </div>
-
-          {/* Toggles */}
-          <div className="flex flex-wrap gap-2">
-            <TogglePill
-              active={wizardState.design.mirrorLayout && !wizardState.design.pickLeftRight}
-              label="Mirror right page"
-              onClick={() => {
-                onChange({ 
-                  mirrorLayout: !wizardState.design.mirrorLayout,
-                  pickLeftRight: false,
-                  leftLayoutTemplate: null,
-                  rightLayoutTemplate: null,
-                });
-              }}
-            />
-            <TogglePill
-              active={wizardState.design.pickLeftRight}
-              label="Pick Left & Right"
-              onClick={() => {
-                const newPickLeftRight = !wizardState.design.pickLeftRight;
-                onChange({ 
-                  pickLeftRight: newPickLeftRight,
-                  mirrorLayout: false,
-                  leftLayoutTemplate: newPickLeftRight ? wizardState.design.layoutTemplate || null : null,
-                  rightLayoutTemplate: newPickLeftRight ? null : null,
-                });
-              }}
-            />
-            <TogglePill
-              active={wizardState.design.randomizeLayout}
-              label="Randomize spreads"
-              onClick={() => onChange({ randomizeLayout: !wizardState.design.randomizeLayout })}
-            />
-          </div>
         </div>
       </div>
 
       {/* Right pane (where Design workspace was) — Theme & Color Palette (2/3) */}
-      <div className="w-full lg:w-2/3 min-w-0 rounded-2xl bg-white shadow-sm border p-4 space-y-8">
-        <section className="space-y-4">
-          <div className="flex items-center gap-2 text-sm font-semibold">
-            Theme & Color Palette
+      <div className="w-full lg:w-2/3 min-w-0 space-y-4">
+        {/* Themes container */}
+        <div className="rounded-2xl bg-white shadow-sm border p-3 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <PaintbrushVertical
+                className="h-5 w-5"
+              />
+              Themes
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="xxs"
+              onClick={() => {
+                const newMode = themeViewMode === 'carousel' ? 'grid' : 'carousel';
+                setThemeViewMode(newMode);
+                // If switching to grid, ensure palette is in carousel mode
+                if (newMode === 'grid') {
+                  setPaletteViewMode('carousel');
+                }
+              }}
+              className="h-6 w-6 p-0"
+              title={themeViewMode === 'carousel' ? 'Show all Themes in Grid' : 'Themes Carousel'}
+            >
+              {themeViewMode === 'carousel' ? (
+                <LayoutGrid className="h-5 w-5" />
+              ) : (
+                <GalleryHorizontal className="h-5 w-5" />
+              )}
+            </Button>
           </div>
 
           {/* Theme carousel */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Themes</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="xxs"
-                onClick={() => setThemeViewMode(themeViewMode === 'carousel' ? 'grid' : 'carousel')}
-                className="h-6 w-6 p-0"
-                title={themeViewMode === 'carousel' ? 'Show all Themes in Grid' : 'Themes Carousel'}
-              >
-                {themeViewMode === 'carousel' ? (
-                  <LayoutGrid className="h-5 w-5" />
-                ) : (
-                  <GalleryHorizontal className="h-5 w-5" />
-                )}
-              </Button>
-            </div>
             <div className="relative">
               {themeViewMode === 'carousel' ? (
                 <Carousel
@@ -384,26 +407,40 @@ export function DesignStep({
               )}
             </div>
           </div>
+        </div>
+
+        {/* Color Palette container */}
+        <div className="rounded-2xl bg-white shadow-sm border p-3 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <Palette className="h-5 w-5" />
+              Color Palette
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="xxs"
+              onClick={() => {
+                const newMode = paletteViewMode === 'carousel' ? 'grid' : 'carousel';
+                setPaletteViewMode(newMode);
+                // If switching to grid, ensure theme is in carousel mode
+                if (newMode === 'grid') {
+                  setThemeViewMode('carousel');
+                }
+              }}
+              className="h-6 w-6 p-0"
+              title={paletteViewMode === 'carousel' ? 'Show all Color Palettes in Grid' : 'Color Palettes Carousel'}
+            >
+              {paletteViewMode === 'carousel' ? (
+                <LayoutGrid className="h-5 w-5" />
+              ) : (
+                <GalleryHorizontal className="h-5 w-5" />
+              )}
+            </Button>
+          </div>
 
           {/* Palette carousel */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Color Palettes</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="xxs"
-                onClick={() => setPaletteViewMode(paletteViewMode === 'carousel' ? 'grid' : 'carousel')}
-                className="h-6 w-6 p-0"
-                title={paletteViewMode === 'carousel' ? 'Show all Color Palettes in Grid' : 'Color Palettes Carousel'}
-              >
-                {paletteViewMode === 'carousel' ? (
-                  <LayoutGrid className="h-5 w-5" />
-                ) : (
-                  <GalleryHorizontal className="h-5 w-5" />
-                )}
-              </Button>
-            </div>
             <div className="relative">
               {paletteViewMode === 'carousel' ? (
                 <Carousel
@@ -502,7 +539,7 @@ export function DesignStep({
               )}
             </div>
           </div>
-        </section>
+        </div>
       </div>
     </div>
   );

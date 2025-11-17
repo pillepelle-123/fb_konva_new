@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { SwatchBook } from 'lucide-react';
+import { Palette } from 'lucide-react';
 import { Label } from '../../../ui/primitives/label';
 import { getAllCategories, getPalettesByCategory, colorPalettes } from '../../../../data/templates/color-palettes';
 import type { ColorPalette } from '../../../../types/template-types';
@@ -91,7 +91,7 @@ export function WizardPaletteSelector({
     <div className={`p-4 ${previewPosition === 'right' ? 'w-1/2 border-r border-gray-200' : 'border-b border-gray-200'}`}>
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium flex items-center gap-2">
-          <SwatchBook className="h-4 w-4" />
+          <Palette className="h-4 w-4" />
           Color Palettes
         </h3>
       </div>

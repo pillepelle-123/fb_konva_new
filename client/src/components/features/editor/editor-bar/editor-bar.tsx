@@ -140,19 +140,19 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
     if (state.hasUnsavedChanges) {
       setShowCloseConfirm(true);
     } else {
-      window.history.back();
+      navigate('/books');
     }
   };
 
   const handleExitWithoutSaving = () => {
     setShowCloseConfirm(false);
-    window.history.back();
+    navigate('/books');
   };
 
   const handleExitWithSaving = async () => {
     setShowCloseConfirm(false);
     await handleSave();
-    window.history.back();
+    navigate('/books');
   };
 
   const handlePrevPage = () => {

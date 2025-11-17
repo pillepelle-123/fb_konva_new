@@ -120,7 +120,11 @@ export function BasicInfoStep({
             <div className="md:col-span-2">
               <FormField label="Book name">
                 <input
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className={`w-full rounded-md border bg-background px-3 py-2 text-sm transition-all ${
+                    !hasBookName 
+                      ? 'border-input animate-pulse-input' 
+                      : 'border-input'
+                  }`}
                   value={wizardState.basic.name}
                   onChange={(e) => onChange({ name: e.target.value })}
                   placeholder="E.g. Class of 2025"
@@ -306,6 +310,22 @@ export function BasicInfoStep({
         
         .animate-pulse-button {
           animation: pulse-button 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse-input {
+          0% {
+            box-shadow: 0 0 0 0 hsl(var(--muted-foreground) / 0.7);
+          }
+          50% {
+            box-shadow: 0 0 0 8px hsl(var(--muted-foreground) / 0);
+          }
+          100% {
+            box-shadow: 0 0 0 0 hsl(var(--muted-foreground) / 0);
+          }
+        }
+
+        .animate-pulse-input {
+          animation: pulse-input 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
 
         .speech-bubble {

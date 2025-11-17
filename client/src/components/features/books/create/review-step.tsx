@@ -54,7 +54,7 @@ export function ReviewStep({
   isSubmitting,
 }: ReviewStepProps) {
   return (
-    <div className="rounded-2xl bg-white shadow-sm border p-6 space-y-6">
+    <div className="rounded-2xl bg-white shadow-sm border p-6 space-y-3">
       <div className="flex items-center gap-2">
         <Star className="h-5 w-5 text-primary" />
         <div>

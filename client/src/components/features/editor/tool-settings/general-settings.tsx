@@ -1,7 +1,7 @@
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import { Button } from '../../../ui/primitives/button';
-import { ChevronLeft, Settings, Palette, Image, PaintBucket, CircleHelp, LayoutPanelLeft, Paintbrush2, SwatchBook, ArrowDown, ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight, MessagesSquare } from 'lucide-react';
+import { ChevronLeft, Settings, Image, PaintBucket, CircleHelp, LayoutPanelLeft, Paintbrush2, Palette, ArrowDown, ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight, MessagesSquare } from 'lucide-react';
 import { RadioGroup } from '../../../ui/primitives/radio-group';
 import { ButtonGroup } from '../../../ui/composites/button-group';
 import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
@@ -1526,7 +1526,7 @@ export function GeneralSettings({
               }}
               className="w-full justify-start"
             >
-              <SwatchBook className="h-4 w-4 mr-2" />
+              <Palette className="h-4 w-4 mr-2" />
               <span className="flex-1 text-left">Book Color Palette</span>
               {bookPalette && (
                 <div className="ml-2 flex h-4 w-16 rounded overflow-hidden shrink-0 border border-gray-200">
@@ -1628,7 +1628,7 @@ export function GeneralSettings({
                     className={`w-full justify-start ${!canAccessPageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
                     disabled={!canAccessPageSettings}
                   >
-                    <SwatchBook className="h-4 w-4 mr-2" />
+                    <Palette className="h-4 w-4 mr-2" />
                     <span className="flex-1 text-left">Color Palette</span>
                     {pageInheritsPalette ? (
                       // When inheriting, show bookPalette (which includes theme palette if book.colorPaletteId is null)
