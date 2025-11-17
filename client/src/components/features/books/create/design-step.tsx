@@ -6,10 +6,9 @@ import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious
 import { colorPalettes } from '../../../../data/templates/color-palettes';
 import { pageTemplates as builtinPageTemplates } from '../../../../data/templates/page-templates';
 import themesData from '../../../../data/templates/themes.json';
-import { LayoutTemplatePreview } from '../../editor/templates/layout-selector';
+import { LayoutTemplatePreview } from '../../editor/templates/layout-template-preview';
 import { getThemePaletteId } from '../../../../utils/global-themes';
 import type { WizardState } from './types';
-import type { PageTemplate } from '../../../../types/template-types';
 
 type CategoryFilter = 'all' | 'structured' | 'playful' | 'creative' | 'minimal';
 
@@ -140,7 +139,7 @@ export function DesignStep({
 
           {/* Layout templates (compact grid with scroll) */}
           <div className="max-h-[400px] overflow-y-auto scrollbar-thin pr-1">
-            <div className="grid gap-3 grid-cols-2">
+            <div className="grid gap-3 grid-cols-2 p-1">
               {filteredTemplates.map((template) => {
               const isSelectedLeft = wizardState.design.leftLayoutTemplate?.id === template.id;
               const isSelectedRight = wizardState.design.rightLayoutTemplate?.id === template.id;

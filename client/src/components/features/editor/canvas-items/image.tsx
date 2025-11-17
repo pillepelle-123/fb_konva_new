@@ -1,15 +1,118 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Rect, Image as KonvaImage, Group, Line, Path } from 'react-konva';
+import Konva from 'konva';
 import BaseCanvasItem from './base-canvas-item';
 import type { CanvasItemProps } from './base-canvas-item';
 import { getThemeRenderer } from '../../../../utils/themes';
 import type { CanvasElement } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 
+type ClipPosition = 
+  | 'left-top' 
+  | 'left-middle' 
+  | 'left-bottom'
+  | 'center-top' 
+  | 'center-middle' 
+  | 'center-bottom'
+  | 'right-top' 
+  | 'right-middle' 
+  | 'right-bottom';
+
+interface CropResult {
+  cropX: number;
+  cropY: number;
+  cropWidth: number;
+  cropHeight: number;
+}
+
+/**
+ * Berechnet die Crop-Eigenschaften für ein Bild, damit es ohne Verzerrung in den verfügbaren Bereich passt.
+ * Basierend auf: https://konvajs.org/docs/sandbox/Scale_Image_To_Fit.html
+ */
+export function getCrop(
+  image: HTMLImageElement, 
+  size: { width: number; height: number }, 
+  clipPosition: ClipPosition = 'center-middle'
+): CropResult {
+  const width = size.width;
+  const height = size.height;
+  const aspectRatio = width / height;
+
+  let newWidth: number;
+  let newHeight: number;
+
+  const imageRatio = image.width / image.height;
+
+  if (aspectRatio >= imageRatio) {
+    // Container ist breiter als das Bild (relativ)
+    newWidth = image.width;
+    newHeight = image.width / aspectRatio;
+  } else {
+    // Container ist höher als das Bild (relativ)
+    newWidth = image.height * aspectRatio;
+    newHeight = image.height;
+  }
+
+  let x = 0;
+  let y = 0;
+
+  switch (clipPosition) {
+    case 'left-top':
+      x = 0;
+      y = 0;
+      break;
+    case 'left-middle':
+      x = 0;
+      y = (image.height - newHeight) / 2;
+      break;
+    case 'left-bottom':
+      x = 0;
+      y = image.height - newHeight;
+      break;
+    case 'center-top':
+      x = (image.width - newWidth) / 2;
+      y = 0;
+      break;
+    case 'center-middle':
+      x = (image.width - newWidth) / 2;
+      y = (image.height - newHeight) / 2;
+      break;
+    case 'center-bottom':
+      x = (image.width - newWidth) / 2;
+      y = image.height - newHeight;
+      break;
+    case 'right-top':
+      x = image.width - newWidth;
+      y = 0;
+      break;
+    case 'right-middle':
+      x = image.width - newWidth;
+      y = (image.height - newHeight) / 2;
+      break;
+    case 'right-bottom':
+      x = image.width - newWidth;
+      y = image.height - newHeight;
+      break;
+    default:
+      x = (image.width - newWidth) / 2;
+      y = (image.height - newHeight) / 2;
+  }
+
+  return {
+    cropX: x,
+    cropY: y,
+    cropWidth: newWidth,
+    cropHeight: newHeight,
+  };
+}
+
 export default function Image(props: CanvasItemProps) {
   const { element, zoom = 1 } = props;
   const { token } = useAuth();
   const [image, setImage] = useState<HTMLImageElement | null>(null);
+  const imageRef = useRef<Konva.Image>(null);
+  const [transformSize, setTransformSize] = useState<{ width: number; height: number } | null>(null);
+  const isTransformingRef = useRef(false);
 
   const handleDoubleClick = () => {
     if (element.type === 'placeholder') {
@@ -60,6 +163,83 @@ export default function Image(props: CanvasItemProps) {
       setImage(null);
     }
   }, [element.type, element.src, token]);
+
+  // Höre auf Transform-Events, um die Crop-Eigenschaften während der Transformation dynamisch zu aktualisieren
+  useEffect(() => {
+    const handleTransformStart = (e: CustomEvent) => {
+      if (e.detail.elementId === element.id) {
+        isTransformingRef.current = true;
+      }
+    };
+    
+    const handleTransform = (e: CustomEvent) => {
+      if (e.detail.elementId === element.id && image && imageRef.current) {
+        // Use size from event detail if available, otherwise calculate from node
+        let currentWidth: number;
+        let currentHeight: number;
+        
+        if (e.detail.width !== undefined && e.detail.height !== undefined) {
+          currentWidth = e.detail.width;
+          currentHeight = e.detail.height;
+        } else {
+          const node = imageRef.current;
+          currentWidth = node.width() * node.scaleX();
+          currentHeight = node.height() * node.scaleY();
+        }
+        
+        setTransformSize({ width: currentWidth, height: currentHeight });
+        
+        // Aktualisiere die Crop-Eigenschaften direkt auf dem Node für nahtlose Transformation
+        // Das Bild behält seine ursprüngliche Größe, aber die Crop-Eigenschaften werden basierend
+        // auf der skalierten Größe berechnet
+        const node = imageRef.current;
+        const clipPosition: ClipPosition = (element.imageClipPosition as ClipPosition) || 'center-middle';
+        const crop = getCrop(image, { width: currentWidth, height: currentHeight }, clipPosition);
+        
+        // Setze die Crop-Eigenschaften direkt auf dem Node
+        node.cropX(crop.cropX);
+        node.cropY(crop.cropY);
+        node.cropWidth(crop.cropWidth);
+        node.cropHeight(crop.cropHeight);
+        
+        // Force redraw
+        node.getLayer()?.batchDraw();
+      }
+    };
+    
+    const handleTransformEnd = (e: CustomEvent) => {
+      if (e.detail.elementId === element.id) {
+        isTransformingRef.current = false;
+        setTransformSize(null);
+      }
+    };
+    
+    window.addEventListener('transformStart', handleTransformStart as EventListener);
+    window.addEventListener('transform', handleTransform as EventListener);
+    window.addEventListener('transformEnd', handleTransformEnd as EventListener);
+    
+    return () => {
+      window.removeEventListener('transformStart', handleTransformStart as EventListener);
+      window.removeEventListener('transform', handleTransform as EventListener);
+      window.removeEventListener('transformEnd', handleTransformEnd as EventListener);
+    };
+  }, [element.id, image, element.imageClipPosition]);
+
+  // Berechne die Crop-Eigenschaften für das Bild, damit es ohne Verzerrung skaliert wird
+  // Verwende transformSize während der Transformation, sonst element.width/height
+  const cropProps = useMemo(() => {
+    if (!image || element.type !== 'image') {
+      return null;
+    }
+
+    const clipPosition: ClipPosition = (element.imageClipPosition as ClipPosition) || 'center-middle';
+    const size = transformSize || { width: element.width, height: element.height };
+    return getCrop(
+      image,
+      size,
+      clipPosition
+    );
+  }, [image, element.width, element.height, element.type, element.imageClipPosition, transformSize]);
 
   return (
     <BaseCanvasItem {...props} onDoubleClick={handleDoubleClick}>
@@ -113,15 +293,53 @@ export default function Image(props: CanvasItemProps) {
         </>
       ) : (
         <>
-          {/* Image with opacity */}
+          {/* Image with opacity and crop for proper scaling */}
           {image && (
             <KonvaImage
+              ref={imageRef}
               image={image}
               width={element.width}
               height={element.height}
               cornerRadius={element.cornerRadius || 0}
               opacity={element.imageOpacity !== undefined ? element.imageOpacity : 1}
               listening={false}
+              {...(cropProps ? {
+                cropX: cropProps.cropX,
+                cropY: cropProps.cropY,
+                cropWidth: cropProps.cropWidth,
+                cropHeight: cropProps.cropHeight,
+              } : {})}
+              onTransform={() => {
+                // Wichtig: Reset scale und aktualisiere width/height während der Transformation
+                // Basierend auf: https://konvajs.org/docs/sandbox/Scale_Image_To_Fit.html
+                if (imageRef.current && image) {
+                  const node = imageRef.current;
+                  const scaleX = node.scaleX();
+                  const scaleY = node.scaleY();
+                  
+                  // Reset scale to 1 and update width/height based on scaled size
+                  const newWidth = Math.max(5, node.width() * scaleX);
+                  const newHeight = Math.max(5, node.height() * scaleY);
+                  
+                  node.setAttrs({
+                    scaleX: 1,
+                    scaleY: 1,
+                    width: newWidth,
+                    height: newHeight,
+                  });
+                  
+                  // Apply crop with new size
+                  const clipPosition: ClipPosition = (element.imageClipPosition as ClipPosition) || 'center-middle';
+                  const crop = getCrop(image, { width: newWidth, height: newHeight }, clipPosition);
+                  
+                  node.setAttrs({
+                    cropX: crop.cropX,
+                    cropY: crop.cropY,
+                    cropWidth: crop.cropWidth,
+                    cropHeight: crop.cropHeight,
+                  });
+                }
+              }}
             />
           )}
           {!image && (

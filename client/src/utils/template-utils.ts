@@ -17,6 +17,15 @@ const PAGE_DIMENSIONS = {
 // Konvertierung mm zu Pixel (bei 300 DPI: 1mm = 11.81px)
 const MM_TO_PX = 11.811;
 
+/**
+ * @deprecated Diese Funktion wird nicht mehr verwendet. 
+ * Verwende stattdessen `convertTemplateToElements` aus `template-to-elements.ts`.
+ * 
+ * Die Wrapper-Funktion `applyTemplateToPage` in `editor-context.tsx` verwendet bereits
+ * `convertTemplateToElements` über die `APPLY_TEMPLATE_TO_PAGE` Action.
+ * 
+ * @see convertTemplateToElements in template-to-elements.ts
+ */
 export function applyTemplateToPage(
   template: PageTemplate, 
   pageIndex: number, 

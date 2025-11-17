@@ -3,6 +3,7 @@ import type { Book, Page, CanvasElement } from '../context/editor-context';
 import { convertTemplateToElements } from './template-to-elements';
 import { pageTemplates } from '../data/templates/page-templates';
 import { colorPalettes } from '../data/templates/color-palettes';
+import { calculatePageDimensions } from './template-utils';
 
 /**
  * Wizard data structure for book creation
@@ -73,6 +74,9 @@ export async function applyTemplateToAllPages(
     
     const book: Book = await bookResponse.json();
     
+    // Berechne Canvas-Größe basierend auf Buch-Seitengröße und Orientierung
+    const canvasSize = calculatePageDimensions(book.pageSize || 'A4', book.orientation || 'portrait');
+    
     // Apply template to each page
     const updatedPages = book.pages.map(page => {
       // Create template with custom palette
@@ -81,8 +85,8 @@ export async function applyTemplateToAllPages(
         colorPalette: palette.colors
       };
       
-      // Convert template to elements
-      const templateElements = convertTemplateToElements(templateWithPalette);
+      // Convert template to elements (mit canvasSize für Skalierung)
+      const templateElements = convertTemplateToElements(templateWithPalette, canvasSize);
       
       // Update page background
       const updatedPage: Page = {

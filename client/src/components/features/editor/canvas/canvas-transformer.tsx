@@ -7,6 +7,7 @@ interface CanvasTransformerProps {
   onDragMove?: (e: Konva.KonvaEventObject<DragEvent>) => void;
   onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
   onTransformStart?: (e: Konva.KonvaEventObject<Event>) => void;
+  onTransform?: (e: Konva.KonvaEventObject<Event>) => void;
   onTransformEnd: (e: Konva.KonvaEventObject<Event>) => void;
   boundBoxFunc?: (oldBox: any, newBox: any) => any;
   rotationSnaps?: number[];
@@ -20,6 +21,7 @@ const CanvasTransformer = forwardRef<Konva.Transformer, CanvasTransformerProps>(
   onDragMove,
   onDragEnd,
   onTransformStart,
+  onTransform,
   onTransformEnd,
   boundBoxFunc,
   rotationSnaps,
@@ -44,6 +46,7 @@ const CanvasTransformer = forwardRef<Konva.Transformer, CanvasTransformerProps>(
       onDragMove={onDragMove}
       onDragEnd={onDragEnd}
       onTransformStart={onTransformStart}
+      onTransform={onTransform}
       onTransformEnd={onTransformEnd}
     />
   );

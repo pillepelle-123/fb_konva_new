@@ -16,7 +16,8 @@ import { TeamContentStep } from '../../components/features/books/create/team-con
 import { ReviewStep } from '../../components/features/books/create/review-step';
 import type { WizardState, Friend } from '../../components/features/books/create/types';
 import { curatedQuestions as curatedQuestionsList } from '../../components/features/books/create/types';
-import type { PageTemplate } from '../../types/template-types';
+import { convertTemplateToElements } from '../../utils/template-to-elements';
+import { calculatePageDimensions } from '../../utils/template-utils';
 
 const stepConfig = [
   { id: 'basic', label: 'Basic Info & Start', description: 'Name, size, and quick presets' },
@@ -162,6 +163,9 @@ export default function BookCreatePage() {
     if (!wizardState.basic.name) return;
     setIsSubmitting(true);
     try {
+      // Berechne Canvas-Größe für die Template-Konvertierung
+      const canvasSize = calculatePageDimensions(wizardState.basic.pageSize, wizardState.basic.orientation);
+      
       // Calculate initial page count based on pagesPerUser and selected friends
       const numUsers = wizardState.team.selectedFriends.length;
       const specialPages = 4; // Front Cover, Back Cover, Inner Front, Inner Back
@@ -257,58 +261,6 @@ export default function BookCreatePage() {
         };
       };
 
-      // Helper: convert PageTemplate → elements (text + placeholders)
-      const mapTemplateToElements = (tpl: PageTemplate | null) => {
-        if (!tpl) return [] as Array<Record<string, unknown>>;
-        type TB = {
-          position?: { x: number; y: number };
-          size?: { width: number; height: number };
-          layoutVariant?: string;
-          questionPosition?: string;
-          questionWidth?: number;
-          format?: { textAlign?: string; padding?: number };
-          padding?: number;
-          paragraphSpacing?: string;
-          cornerRadius?: number;
-        };
-        const textEls =
-          ((tpl.textboxes as unknown as TB[]) || []).map((tb, idx: number) => ({
-            id: `tb-${idx}-${Math.random().toString(36).slice(2)}`,
-            type: 'text',
-            textType: 'qna_inline' as const,
-            x: tb.position?.x ?? 0,
-            y: tb.position?.y ?? 0,
-            width: tb.size?.width ?? 0,
-            height: tb.size?.height ?? 0,
-            layoutVariant: tb.layoutVariant ?? 'inline',
-            questionPosition: tb.questionPosition ?? 'left',
-            questionWidth: tb.questionWidth ?? 40,
-            padding: tb?.format?.padding ?? tb?.padding ?? 8,
-            format: { textAlign: tb?.format?.textAlign ?? 'left', paragraphSpacing: tb?.paragraphSpacing ?? 'small' },
-            paragraphSpacing: tb?.paragraphSpacing ?? 'small',
-            cornerRadius: tb?.cornerRadius ?? 8,
-          })) as Array<Record<string, unknown>>;
-        type ImgEl = {
-          type: string;
-          position?: { x: number; y: number };
-          size?: { width: number; height: number };
-          style?: { cornerRadius?: number };
-        };
-        const imgEls =
-          ((tpl.elements as unknown as ImgEl[]) || [])
-            .filter((el) => el.type === 'image')
-            .map((el, idx: number) => ({
-              id: `ph-${idx}-${Math.random().toString(36).slice(2)}`,
-              type: 'placeholder' as const,
-              x: el.position?.x ?? 0,
-              y: el.position?.y ?? 0,
-              width: el.size?.width ?? 0,
-              height: el.size?.height ?? 0,
-              cornerRadius: el?.style?.cornerRadius ?? 0,
-            })) as Array<Record<string, unknown>>;
-        return [...textEls, ...imgEls];
-      };
-
       const background = buildBackground(wizardState.design.themeId);
       const pages: Array<Record<string, unknown>> = [];
       
@@ -376,12 +328,14 @@ export default function BookCreatePage() {
         const shouldHaveLayoutTemplate = !isBackCover && !isFrontCover && !isInnerFront && !isInnerBack;
         const shouldHaveThemeAndBackground = !isInnerFront && !isInnerBack;
         
-        const isRightPage = i % 2 === 0 ? false : true; // odd pages right, even left (spread)
+        // In the editor UI odd-numbered pages render on the left, even on the right.
+        // Mirror logic must therefore treat even pages as right-hand pages.
+        const isRightPage = i % 2 === 0;
         const templateForPage = shouldHaveLayoutTemplate ? (isRightPage ? rightResolved : leftResolved) : null;
 
         pages.push({
           pageNumber: i,
-          elements: shouldHaveLayoutTemplate ? mapTemplateToElements(templateForPage) : [],
+          elements: shouldHaveLayoutTemplate ? convertTemplateToElements(templateForPage, canvasSize) : [],
           layoutTemplateId: templateForPage ? templateForPage.id : null,
           // Explicitly set themeId to null for Inner Front and Inner Back to prevent inheritance
           themeId: shouldHaveThemeAndBackground ? undefined : null,
@@ -596,15 +550,15 @@ export default function BookCreatePage() {
 
       {/* Preview Modal */}
       <Dialog open={previewModalOpen} onOpenChange={setPreviewModalOpen}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden p-6">
-          <DialogHeader>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden p-6 flex flex-col">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle>Live Preview</DialogTitle>
           </DialogHeader>
-          <div className="w-full mt-4" style={{ height: 'calc(90vh - 120px)', overflow: 'hidden' }}>
+          <div className="w-full mt-4 flex-1 min-h-0" style={{ overflow: 'auto', position: 'relative' }}>
             <div
-              className="w-full h-full rounded-lg overflow-hidden"
+              className="w-full h-full rounded-lg"
               style={{
-                pointerEvents: 'none',
+                position: 'relative',
               }}
             >
               <style>

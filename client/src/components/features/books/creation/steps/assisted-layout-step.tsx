@@ -1,5 +1,6 @@
 import type { PageTemplate } from '../../../../../types/template-types';
-import { LayoutSelector, LayoutTemplatePreview } from '../../../editor/templates/layout-selector';
+import { LayoutSelector } from '../../../editor/templates/layout-selector';
+import { LayoutTemplatePreview } from '../../../editor/templates/layout-template-preview';
 import { mirrorTemplate } from '../../../../../utils/layout-mirroring';
 
 interface AssistedLayoutStepProps {

@@ -15,6 +15,7 @@ interface CanvasStageProps {
   onContextMenu: (e: Konva.KonvaEventObject<PointerEvent>) => void;
   onWheel: (e: Konva.KonvaEventObject<WheelEvent>) => void;
   children: React.ReactNode;
+  style?: React.CSSProperties;
 }
 
 const CanvasStage = forwardRef<Konva.Stage, CanvasStageProps>(({
@@ -29,8 +30,13 @@ const CanvasStage = forwardRef<Konva.Stage, CanvasStageProps>(({
   onMouseUp,
   onContextMenu,
   onWheel,
-  children
+  children,
+  style
 }, ref) => {
+  // Use provided cursor style if available, otherwise use default logic
+  const defaultCursor = activeTool === 'pan' ? 'grab' : (activeTool === 'select' ? 'default' : (activeTool === 'pipette' ? 'crosshair' : 'crosshair'));
+  const cursor = style?.cursor || defaultCursor;
+  
   return (
     <Stage
       ref={ref}
@@ -52,8 +58,9 @@ const CanvasStage = forwardRef<Konva.Stage, CanvasStageProps>(({
       x={stagePos.x}
       y={stagePos.y}
       style={{ 
-        cursor: activeTool === 'pan' ? 'grab' : (activeTool === 'select' ? 'default' : (activeTool === 'pipette' ? 'crosshair' : 'crosshair')),
-        backgroundColor: '#F9FAFB' 
+        cursor,
+        backgroundColor: '#F9FAFB',
+        ...style
       }}
     >
       {children}

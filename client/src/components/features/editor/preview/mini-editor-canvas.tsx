@@ -25,22 +25,35 @@ export default function MiniEditorCanvas(props: MiniEditorCanvasProps) {
     );
   }, []);
 
+  // Trigger fitToView when modal opens (when className changes to include h-full)
+  useEffect(() => {
+    const isModal = props.className?.includes('h-full');
+    if (isModal) {
+      // Dispatch event to trigger fitToView in Canvas component
+      // Use a small delay to ensure the container has rendered
+      const timeoutId = setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('triggerFitToView'));
+      }, 100);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [props.className]);
+
   const isModal = props.className?.includes('h-full');
   const containerHeight = isModal ? '100%' : 360;
 
   return (
-    <div className={`rounded-2xl bg-white shadow-sm border p-4 ${props.className ?? ''}`}>
+    <div className={`rounded-2xl bg-white shadow-sm border p-4 ${props.className ?? ''} ${isModal ? 'h-full flex flex-col' : ''}`}>
       {!isModal && <div className="text-sm font-semibold mb-3">Live Preview</div>}
       <div
-        className="w-full mini-editor-preview"
+        className={`w-full mini-editor-preview ${isModal ? 'flex-1 min-h-0' : ''}`}
         style={{
           width: '100%',
           // Keep a stable aspect that fits both A4/A5 portrait spreads; Canvas auto-fits
           height: containerHeight,
-          overflow: 'hidden',
+          overflow: isModal ? 'hidden' : 'hidden',
           borderRadius: 12,
-          // Fully disable interactions (mouse, wheel, keyboard) in the mini preview
-          pointerEvents: 'none',
+          // Enable interactions in modal, disable in regular mini preview
+          pointerEvents: isModal ? 'auto' : 'none',
         }}
       >
         {/* Hide Canvas HTML badges and lock banner inside the mini preview */}
@@ -60,6 +73,7 @@ export default function MiniEditorCanvas(props: MiniEditorCanvasProps) {
           leftTemplate={props.leftTemplate}
           rightTemplate={props.rightTemplate}
           mirrorRight={props.mirrorRight}
+          allowInteractions={isModal}
         >
           <Canvas />
         </EditorPreviewProvider>

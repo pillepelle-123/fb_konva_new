@@ -4,6 +4,8 @@ import type { PageTemplate } from '../../../../types/template-types';
 import themesData from '../../../../data/templates/themes.json';
 import { mirrorTemplate } from '../../../../utils/layout-mirroring';
 import type { BookOrientation, BookPageSize } from '../../../../constants/book-formats';
+import { convertTemplateToElements } from '../../../../utils/template-to-elements';
+import { calculatePageDimensions } from '../../../../utils/template-utils';
 
 type PreviewProviderProps = {
   children: React.ReactNode;
@@ -16,65 +18,8 @@ type PreviewProviderProps = {
   leftTemplate?: PageTemplate | null;
   rightTemplate?: PageTemplate | null;
   mirrorRight: boolean;
+  allowInteractions?: boolean;
 };
-
-// Helper: map PageTemplate -> editor page elements (simplified)
-function mapTemplateToElements(template: PageTemplate | null) {
-  if (!template) return [];
-  const PAGE_WIDTH = 2480;
-  const PAGE_HEIGHT = 3508;
-
-  const textboxes =
-    template.textboxes?.map((tb, i) => {
-      const x = tb.position.x ?? 0;
-      const y = tb.position.y ?? 0;
-      const w = tb.size.width ?? 0;
-      const h = tb.size.height ?? 0;
-      return {
-        id: `tb-${i}`,
-        type: 'text',
-        textType: tb.type || 'qna_inline',
-        x,
-        y,
-        width: w,
-        height: h,
-        // layout/meta
-        layoutVariant: tb.layoutVariant ?? 'inline',
-        questionPosition: tb.questionPosition ?? 'left',
-        questionWidth: tb.questionWidth ?? 40,
-        padding: tb.padding ?? tb.format?.padding ?? 8,
-        format: { textAlign: tb.format?.textAlign ?? 'left' },
-        paragraphSpacing: tb.paragraphSpacing ?? 'small',
-        cornerRadius: tb.cornerRadius ?? 8,
-      };
-    }) ?? [];
-
-  const images =
-    template.elements
-      ?.filter((el) => el.type === 'image')
-      .map((el, i) => ({
-        id: `img-${i}`,
-        type: 'placeholder',
-        x: el.position.x ?? 0,
-        y: el.position.y ?? 0,
-        width: el.size.width ?? 0,
-        height: el.size.height ?? 0,
-      })) ?? [];
-
-  // Clamp within page bounds
-  const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
-  const clampRect = (x: number, y: number, w: number, h: number) => ({
-    x: clamp(x, 0, PAGE_WIDTH - 1),
-    y: clamp(y, 0, PAGE_HEIGHT - 1),
-    width: clamp(w, 1, PAGE_WIDTH),
-    height: clamp(h, 1, PAGE_HEIGHT),
-  });
-
-  return [...textboxes, ...images].map((el) => {
-    const rect = clampRect(el.x, el.y, el.width, el.height);
-    return { ...el, ...rect };
-  });
-}
 
 export function EditorPreviewProvider({
   children,
@@ -87,6 +32,7 @@ export function EditorPreviewProvider({
   leftTemplate,
   rightTemplate,
   mirrorRight,
+  allowInteractions = false,
 }: PreviewProviderProps) {
   const state = useMemo(() => {
     // Resolve theme background for pages
@@ -144,8 +90,16 @@ export function EditorPreviewProvider({
       return baseTemplate ?? null;
     })();
 
-    const leftElements = mapTemplateToElements(leftResolved);
-    const rightElements = mapTemplateToElements(rightResolved);
+    // Berechne Canvas-Größe für die Preview
+    const canvasSize = calculatePageDimensions(pageSize, orientation);
+    
+    // Verwende die zentrale convertTemplateToElements Funktion
+    const leftElements = leftResolved 
+      ? convertTemplateToElements(leftResolved, canvasSize)
+      : [];
+    const rightElements = rightResolved 
+      ? convertTemplateToElements(rightResolved, canvasSize)
+      : [];
 
     // Minimal book for editor
     const book = {
@@ -189,19 +143,20 @@ export function EditorPreviewProvider({
       selectedElementIds: [] as string[],
       isMiniPreview: true,
       hoveredElementId: null as string | null,
-      editorInteractionLevel: 'no_access' as const,
+      // Allow pan/zoom in modal, block all interactions in regular preview
+      editorInteractionLevel: allowInteractions ? 'answer_only' as const : 'no_access' as const,
       magneticSnapping: false,
       toolSettings: {},
       pageAssignments: {} as Record<number, any>,
       tempQuestions: {} as Record<string, string>,
       tempAnswers: {} as Record<string, Record<string, { text: string }>>,
       userRole: 'viewer',
-      // no-op helpers used by Canvas
-      canAccessEditor: () => false,
+      // Allow access for pan/zoom in modal, block for regular preview
+      canAccessEditor: () => allowInteractions,
       canEditCanvas: () => false,
       getAnswerText: (_qid: string, _uid: string) => '',
     };
-  }, [pageSize, orientation, themeId, paletteId, baseTemplate, pickLeftRight, leftTemplate, rightTemplate, mirrorRight]);
+  }, [pageSize, orientation, themeId, paletteId, baseTemplate, pickLeftRight, leftTemplate, rightTemplate, mirrorRight, allowInteractions]);
 
   // No-op dispatch
   const dispatch = () => {};

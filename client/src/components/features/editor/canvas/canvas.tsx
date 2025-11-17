@@ -31,6 +31,7 @@ import { getPalettePartColor } from '../../../../data/templates/color-palettes';
 import { colorPalettes } from '../../../../data/templates/color-palettes';
 import { getThemePaletteId } from '../../../../utils/global-themes';
 import { BOOK_PAGE_DIMENSIONS, DEFAULT_BOOK_ORIENTATION, DEFAULT_BOOK_PAGE_SIZE } from '../../../../constants/book-formats';
+import { getCrop } from '../canvas-items/image';
 
 function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
   return (
@@ -235,6 +236,7 @@ export default function Canvas() {
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [hasPanned, setHasPanned] = useState(false);
+  const [hasManualZoom, setHasManualZoom] = useState(false);
   const [isDrawingLine, setIsDrawingLine] = useState(false);
   const [lineStart, setLineStart] = useState<{ x: number; y: number } | null>(null);
   const [previewLine, setPreviewLine] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
@@ -765,12 +767,10 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       dispatch({ type: 'TOGGLE_STYLE_PAINTER' });
     }
     
-    // Block all interactions for no_access level
-    if (!canAccessEditor()) return;
-    
-    // For answer_only level, only allow panning
+    // For answer_only level, allow panning only with right-click (button 2)
     if (state.editorInteractionLevel === 'answer_only') {
-      if (e.evt.button === 2 || state.activeTool === 'pan') {
+      // Only allow panning with right-click for view-only mode
+      if (e.evt.button === 2) {
         setIsPanning(true);
         setHasPanned(false);
         const pos = e.target.getStage()?.getPointerPosition();
@@ -780,6 +780,9 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       }
       return;
     }
+    
+    // Block all interactions for no_access level
+    if (!canAccessEditor()) return;
     
     // Block canvas editing for non-full-edit levels
     if (!canEditCanvas()) return;
@@ -1100,10 +1103,12 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     }
     
     // For answer_only users, only allow panning
+    // Always stop panning when mouse button is released, regardless of which button
     if (state.editorInteractionLevel === 'answer_only') {
       if (isPanning) {
         setIsPanning(false);
         setPanStart({ x: 0, y: 0 });
+        setHasPanned(false);
       }
       return;
     }
@@ -1609,6 +1614,15 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; visible: boolean }>({ x: 0, y: 0, visible: false });
 
   const handleContextMenu = (e: Konva.KonvaEventObject<PointerEvent>) => {
+    // For answer_only in mini preview, prevent context menu but don't start panning here
+    // Panning should only be started in handleMouseDown to ensure proper cleanup in handleMouseUp
+    if (state.editorInteractionLevel === 'answer_only' && state.isMiniPreview) {
+      e.evt.preventDefault();
+      // Don't start panning here - let handleMouseDown handle it
+      // This ensures handleMouseUp can properly stop panning
+      return;
+    }
+    
     e.evt.preventDefault();
     
     // Exit Style Painter mode on right-click anywhere
@@ -1904,9 +1918,29 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
   };
 
   const handleWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
+    // Allow wheel events for answer_only (view-only mode) and full access
+    if (state.editorInteractionLevel === 'no_access') {
+      return;
+    }
+    
+    // For mini previews with interactions, allow normal scrolling when no modifier keys
+    // Only prevent default and handle canvas interactions when modifier keys are pressed
+    if (state.isMiniPreview && !e.evt.ctrlKey && !e.evt.shiftKey) {
+      // Allow normal scrolling in modal - don't prevent default
+      return;
+    }
+    
     e.evt.preventDefault();
     
-    if (e.evt.ctrlKey) {
+    if (e.evt.shiftKey) {
+      // Horizontal scroll with Shift + mousewheel
+      setStagePos(
+        clampStagePosition({
+          x: stagePos.x - e.evt.deltaY,
+          y: stagePos.y
+        }, zoom)
+      );
+    } else if (e.evt.ctrlKey) {
       // Zoom with Ctrl + mousewheel
       const stage = stageRef.current;
       if (!stage) return;
@@ -1931,6 +1965,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       };
       
       setZoom(clampedScale);
+      setHasManualZoom(true); // Mark that user has manually zoomed
       setStagePos(clampStagePosition(newPos, clampedScale));
     } else {
       // Pan with two-finger touchpad (mousewheel without Ctrl)
@@ -1938,7 +1973,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         clampStagePosition({
           x: stagePos.x - e.evt.deltaX,
           y: stagePos.y - e.evt.deltaY
-        })
+        }, zoom)
       );
     }
   };
@@ -2865,28 +2900,71 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
   // Auto-fit when entering the canvas editor or when container size changes
   useEffect(() => {
     if (state.isMiniPreview) {
-      // For mini previews, always fit to view, especially when dimensions change
-      // Use a small delay to ensure container has rendered and has correct dimensions
-      const timeoutId = setTimeout(() => {
-        fitToView();
-      }, 50);
-      return () => clearTimeout(timeoutId);
+      // For mini previews, only fit to view initially or when dimensions change
+      // Don't auto-fit if user has manually zoomed
+      if (!hasManualZoom) {
+        const timeoutId = setTimeout(() => {
+          fitToView();
+        }, 50);
+        return () => clearTimeout(timeoutId);
+      }
+      return;
     }
     const hasInitialZoom = zoom !== 0.8; // 0.8 is the initial zoom value
     if (!hasInitialZoom) {
       fitToView();
     }
-  }, [fitToView, state.isMiniPreview, zoom, canvasWidth, canvasHeight, hasPartnerPage]);
+  }, [fitToView, state.isMiniPreview, zoom, canvasWidth, canvasHeight, hasPartnerPage, hasManualZoom]);
 
-  // For mini previews, also react to container size changes
+  // For mini previews, also react to container size changes (but only if user hasn't manually zoomed)
   useEffect(() => {
-    if (state.isMiniPreview && containerSize.width > 0 && containerSize.height > 0) {
+    if (state.isMiniPreview && containerSize.width > 0 && containerSize.height > 0 && !hasManualZoom) {
       const timeoutId = setTimeout(() => {
         fitToView();
       }, 50);
       return () => clearTimeout(timeoutId);
     }
-  }, [fitToView, state.isMiniPreview, containerSize.width, containerSize.height]);
+  }, [fitToView, state.isMiniPreview, containerSize.width, containerSize.height, hasManualZoom]);
+
+  // Listen for fitToView trigger events (e.g., when modal opens)
+  useEffect(() => {
+    if (!state.isMiniPreview) return;
+    
+    const handleTriggerFitToView = () => {
+      if (!hasManualZoom) {
+        // Reset manual zoom flag when modal opens to allow auto-fit
+        setHasManualZoom(false);
+        setTimeout(() => {
+          fitToView();
+        }, 100);
+      }
+    };
+    
+    window.addEventListener('triggerFitToView', handleTriggerFitToView);
+    return () => {
+      window.removeEventListener('triggerFitToView', handleTriggerFitToView);
+    };
+  }, [state.isMiniPreview, hasManualZoom, fitToView]);
+
+  // Global mouseup listener to stop panning when mouse is released outside canvas
+  // This is especially important for right-click panning in answer_only mode
+  useEffect(() => {
+    if (state.editorInteractionLevel !== 'answer_only' || !state.isMiniPreview) return;
+    
+    const handleGlobalMouseUp = (e: MouseEvent) => {
+      // Stop panning if it's active, regardless of where the mouse is released
+      if (isPanning) {
+        setIsPanning(false);
+        setPanStart({ x: 0, y: 0 });
+        setHasPanned(false);
+      }
+    };
+    
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => {
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, [state.editorInteractionLevel, state.isMiniPreview, isPanning]);
 
   const handleImageSelect = (imageId: number, imageUrl: string) => {
     // If we have a pending element ID, update the existing placeholder element
@@ -2990,6 +3068,8 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           pageId={currentPage?.id} 
           activeTool={state.activeTool}
           stylePainterActive={state.stylePainterActive}
+          isMiniPreview={state.isMiniPreview}
+          editorInteractionLevel={state.editorInteractionLevel}
         >
         <CanvasStage
           ref={stageRef}
@@ -3004,7 +3084,11 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           onMouseUp={handleMouseUp}
           onContextMenu={handleContextMenu}
           onWheel={handleWheel}
-          style={{ cursor: state.stylePainterActive ? 'url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTkuMDYgMTEuOUwxMi4wNiA4LjlMMTUuMDYgMTEuOUwxMi4wNiAxNC45TDkuMDYgMTEuOVoiIGZpbGw9IiMwMDAiLz4KPHA+YXRoIGQ9Ik0xMi4wNiA4LjlMMTUuMDYgNS45TDE4LjA2IDguOUwxNS4wNiAxMS45TDEyLjA2IDguOVoiIGZpbGw9IiMwMDAiLz4KPC9zdmc+") 12 12, auto' : undefined }}
+          style={{ 
+            cursor: state.isMiniPreview && state.editorInteractionLevel === 'answer_only' 
+              ? 'default' 
+              : (state.stylePainterActive ? 'url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTkuMDYgMTEuOUwxMi4wNiA4LjlMMTUuMDYgMTEuOUwxMi4wNiAxNC45TDkuMDYgMTEuOVoiIGZpbGw9IiMwMDAiLz4KPHA+YXRoIGQ9Ik0xMi4wNiA4LjlMMTUuMDYgNS45TDE4LjA2IDguOUwxNS4wNiAxMS45TDEyLjA2IDguOVoiIGZpbGw9IiMwMDAiLz4KPC9zdmc+") 12 12, auto' : undefined)
+          }}
         >
           <Layer>
             {/* Page boundary */}
@@ -3360,7 +3444,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
             <CanvasTransformer
               key={state.selectedElementIds.length === 1 ? `${state.selectedElementIds[0]}-${currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.width}-${currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.height}` : 'multi'}
               ref={transformerRef}
-              keepRatio={state.selectedElementIds.length === 1 && currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.type === 'image'}
+              keepRatio={false}
               rotationSnaps={[0, 90, 180, 270]}
               rotationSnapTolerance={5}
               onDragStart={() => {
@@ -3500,6 +3584,38 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                     detail: { elementId }
                   }));
                 });
+              }}
+              onTransform={() => {
+                // Dispatch custom events for components that might need them
+                // Note: Image elements handle transform directly via onTransform handler on the Image component
+                const transformer = transformerRef.current;
+                if (transformer) {
+                  const nodes = transformer.nodes();
+                  state.selectedElementIds.forEach(elementId => {
+                    const node = nodes.find(n => n.id() === elementId);
+                    if (node) {
+                      const currentWidth = node.width() * node.scaleX();
+                      const currentHeight = node.height() * node.scaleY();
+                      window.dispatchEvent(new CustomEvent('transform', {
+                        detail: { 
+                          elementId,
+                          width: currentWidth,
+                          height: currentHeight
+                        }
+                      }));
+                    } else {
+                      window.dispatchEvent(new CustomEvent('transform', {
+                        detail: { elementId }
+                      }));
+                    }
+                  });
+                } else {
+                  state.selectedElementIds.forEach(elementId => {
+                    window.dispatchEvent(new CustomEvent('transform', {
+                      detail: { elementId }
+                    }));
+                  });
+                }
               }}
               onTransformEnd={(e) => {
                 // Dispatch custom events for each selected element
