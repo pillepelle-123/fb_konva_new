@@ -17,3 +17,4 @@
 - ✅ Archive the book and confirm the conversation list entry shows a “Disabled” button; opening the chat shows the inactive banner and disables the composer.
 - ✅ Unarchive the book and verify the conversation automatically becomes active again and the composer is re-enabled.
 
+

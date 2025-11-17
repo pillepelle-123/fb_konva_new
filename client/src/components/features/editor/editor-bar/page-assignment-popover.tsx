@@ -3,7 +3,10 @@ import { useAuth } from '../../../../context/auth-context';
 import { useEditor } from '../../../../context/editor-context';
 import { Popover, PopoverContent, PopoverTrigger } from '../../../ui/overlays/popover';
 import ProfilePicture from '../../users/profile-picture';
-import { CircleUser } from 'lucide-react';
+import { Plus, Send, X } from 'lucide-react';
+import { Button } from '../../../ui/primitives/button';
+import { Tooltip } from '../../../ui/composites/tooltip';
+import InviteUserDialog from '../../books/invite-user-dialog';
 
 interface BookFriend {
   id: number;
@@ -28,6 +31,7 @@ export default function PageAssignmentPopover({
   const { user } = useAuth();
   const { state: editorState, checkUserQuestionConflicts, getQuestionText } = useEditor();
   const [open, setOpen] = useState(false);
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
 
   // Use bookFriends from editor state instead of fetching
   // Ensure current user is included if not already in the list
@@ -86,6 +90,12 @@ export default function PageAssignmentPopover({
     setOpen(false);
   };
 
+  const handleInvite = (name: string, email: string) => {
+    // TODO: Implement invite functionality
+    console.log('Invite user:', name, email);
+    setInviteDialogOpen(false);
+  };
+
   const assignedUser = editorState.pageAssignments[currentPage];
 
   return (
@@ -99,24 +109,12 @@ export default function PageAssignmentPopover({
             Assign Page {currentPage}
           </div>
           
-          {assignedUser && (
-            <div 
-              className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer"
-              onClick={() => handleAssignUser(null)}
-            >
-              <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-                <CircleUser className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <span className="text-sm text-muted-foreground">Remove assignment</span>
-            </div>
-          )}
-          
           <div className="max-h-48 overflow-y-auto space-y-1">
             {allFriends.map((friend) => (
               <div
                 key={friend.id}
-                className={`flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer ${
-                  assignedUser?.id === friend.id ? 'bg-primary/10' : ''
+                className={`flex items-center gap-2 p-2 rounded-md cursor-pointer ${
+                  assignedUser?.id === friend.id ? 'bg-primary/10' : 'hover:bg-secondary'
                 }`}
                 onClick={() => handleAssignUser(friend)}
               >
@@ -131,7 +129,22 @@ export default function PageAssignmentPopover({
                   <p className="text-sm font-medium truncate">{friend.name}</p>
                 </div>
                 {assignedUser?.id === friend.id && (
-                  <div className="w-2 h-2 bg-primary rounded-full"></div>
+                  <>
+                    {/* <div className="w-2 h-2 bg-primary rounded-full"></div> */}
+                    <Tooltip content="Remove Assignment">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 flex-shrink-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAssignUser(null);
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </Tooltip>
+                  </>
                 )}
               </div>
             ))}
@@ -141,8 +154,41 @@ export default function PageAssignmentPopover({
               </div>
             )}
           </div>
+          
+          {/* Action buttons */}
+          <div className="flex gap-2 pt-2 border-t">
+            {/* <Tooltip side='bottom' content="Add Friend"> */}
+              <Button
+                variant="outline"
+                size="default"
+                className="flex-1"
+                onClick={() => {
+                  // No action for now
+                }}
+              >
+                <Plus className="h-4" />
+                <span className="ml-2">Add</span>
+              </Button>
+            {/* </Tooltip> */}
+            {/* <Tooltip side='bottom' content="Invite Friend"> */}
+              <Button
+                variant="highlight"
+                size="default"
+                className="flex-1 "
+                onClick={() => setInviteDialogOpen(true)}
+              >
+                <Send className="h-4" /> 
+                <span className="ml-2">Invite</span>
+              </Button>
+            {/* </Tooltip> */}
+          </div>
         </div>
       </PopoverContent>
+      <InviteUserDialog
+        open={inviteDialogOpen}
+        onOpenChange={setInviteDialogOpen}
+        onInvite={handleInvite}
+      />
     </Popover>
   );
 }

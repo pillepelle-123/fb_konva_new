@@ -1,11 +1,12 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { EditorPreviewProvider } from './editor-preview-provider';
 import Canvas from '../canvas/canvas';
 import type { PageTemplate } from '../../../../types/template-types';
+import type { BookOrientation, BookPageSize } from '../../../../constants/book-formats';
 
 type MiniEditorCanvasProps = {
-  pageSize: 'A4' | 'A5';
-  orientation: 'portrait' | 'landscape';
+  pageSize: BookPageSize;
+  orientation: BookOrientation;
   themeId: string;
   paletteId: string;
   baseTemplate: PageTemplate | null;

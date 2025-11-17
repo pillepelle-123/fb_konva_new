@@ -1,4 +1,5 @@
 import type { PageTemplate } from '../../../types/template-types';
+import type { BookOrientation, BookPageSize } from '../../../../constants/book-formats';
 
 export type Friend = {
   id: number;
@@ -21,8 +22,8 @@ export type CustomQuestion = {
 export type WizardState = {
   basic: {
     name: string;
-    pageSize: 'A4' | 'A5';
-    orientation: 'portrait' | 'landscape';
+    pageSize: BookPageSize;
+    orientation: BookOrientation;
     presetId: string | null;
     startMode: 'preset' | 'assistant' | 'custom';
   };

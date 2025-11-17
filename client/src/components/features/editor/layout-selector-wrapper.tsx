@@ -32,7 +32,16 @@ export function LayoutSelectorWrapper({ onBack, title, isBookLevel = false }: La
   const bookLayout = bookLayoutId
     ? pageTemplates.find((t: PageTemplate) => t.id === bookLayoutId) || null
     : null;
-  const pageHasCustomLayout = !isBookLevel && !!currentPage?.layoutTemplateId;
+  
+  // CRITICAL: Check if page has its own layoutTemplateId (not inherited from book)
+  // Use Object.prototype.hasOwnProperty to check if layoutTemplateId exists as an own property
+  // This distinguishes between "inheriting book layout" (no layoutTemplateId) and 
+  // "explicitly set to same layout" (has layoutTemplateId, even if matching bookLayoutId)
+  const hasLayoutTemplateIdOwnProperty = currentPage 
+    ? Object.prototype.hasOwnProperty.call(currentPage, 'layoutTemplateId')
+    : false;
+  const layoutTemplateIdValue = currentPage?.layoutTemplateId;
+  const pageHasCustomLayout = !isBookLevel && hasLayoutTemplateIdOwnProperty && layoutTemplateIdValue !== undefined && layoutTemplateIdValue !== null;
   
   const [selectedLayout, setSelectedLayout] = useState<PageTemplate | null>(
     isBookLevel ? currentLayout : pageHasCustomLayout ? currentLayout : bookLayout

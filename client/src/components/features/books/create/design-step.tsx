@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Palette, Layout, GalleryHorizontal, LayoutGrid } from 'lucide-react';
+import { Palette, Layout, GalleryHorizontal, LayoutGrid, Filter } from 'lucide-react';
 import { Button } from '../../../ui/primitives/button';
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, type CarouselApi } from '../../../ui/composites/carousel';
@@ -9,8 +9,9 @@ import themesData from '../../../../data/templates/themes.json';
 import { LayoutTemplatePreview } from '../../editor/templates/layout-selector';
 import { getThemePaletteId } from '../../../../utils/global-themes';
 import type { WizardState } from './types';
+import type { PageTemplate } from '../../../../types/template-types';
 
-const featuredTemplates = builtinPageTemplates.slice(0, 6);
+type CategoryFilter = 'all' | 'structured' | 'playful' | 'creative' | 'minimal';
 
 interface DesignStepProps {
   wizardState: WizardState;
@@ -37,6 +38,26 @@ export function DesignStep({
   const [paletteCarouselApi, setPaletteCarouselApi] = useState<CarouselApi>();
   const [themeViewMode, setThemeViewMode] = useState<'carousel' | 'grid'>('carousel');
   const [paletteViewMode, setPaletteViewMode] = useState<'carousel' | 'grid'>('carousel');
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
+
+  // Get all available categories
+  const availableCategories = useMemo(() => {
+    const categories = new Set<string>();
+    builtinPageTemplates.forEach(template => {
+      if (template.category) {
+        categories.add(template.category);
+      }
+    });
+    return Array.from(categories).sort();
+  }, []);
+
+  // Filter templates by category
+  const filteredTemplates = useMemo(() => {
+    if (categoryFilter === 'all') {
+      return builtinPageTemplates;
+    }
+    return builtinPageTemplates.filter(template => template.category === categoryFilter);
+  }, [categoryFilter]);
 
   const themeEntries = useMemo(() => {
     return Object.entries(themesData as Record<string, { name: string; description: string; palette?: string }>).map(([id, theme]) => ({
@@ -94,9 +115,33 @@ export function DesignStep({
             </p>
           </div>
 
-          {/* Layout templates (compact grid) */}
-          <div className="grid gap-3 grid-cols-2">
-            {featuredTemplates.map((template) => {
+          {/* Category filter */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Filter className="h-3 w-3" />
+              <span>Filter by category</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              <TogglePill
+                active={categoryFilter === 'all'}
+                label="All"
+                onClick={() => setCategoryFilter('all')}
+              />
+              {availableCategories.map((category) => (
+                <TogglePill
+                  key={category}
+                  active={categoryFilter === category}
+                  label={category.charAt(0).toUpperCase() + category.slice(1)}
+                  onClick={() => setCategoryFilter(category as CategoryFilter)}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Layout templates (compact grid with scroll) */}
+          <div className="max-h-[400px] overflow-y-auto scrollbar-thin pr-1">
+            <div className="grid gap-3 grid-cols-2">
+              {filteredTemplates.map((template) => {
               const isSelectedLeft = wizardState.design.leftLayoutTemplate?.id === template.id;
               const isSelectedRight = wizardState.design.rightLayoutTemplate?.id === template.id;
               const isSelected = !wizardState.design.pickLeftRight && wizardState.design.layoutTemplate?.id === template.id;
@@ -186,6 +231,7 @@ export function DesignStep({
                 </div>
               );
             })}
+            </div>
           </div>
 
           {/* Toggles */}

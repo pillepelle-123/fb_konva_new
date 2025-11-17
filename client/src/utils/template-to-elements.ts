@@ -14,6 +14,7 @@ interface TemplateTextbox {
   layoutVariant?: string; // 'inline' | 'block' | undefined
   questionSettings?: Record<string, unknown>;
   answerSettings?: Record<string, unknown>;
+  rotation?: number;
 }
 
 interface TemplateElement {
@@ -22,6 +23,7 @@ interface TemplateElement {
   size: { width: number; height: number };
   style?: ShapeStyle;
   shapeType?: string;
+  rotation?: number;
 }
 
 export function convertTemplateTextboxToElement(
@@ -89,6 +91,11 @@ export function convertTemplateTextboxToElement(
     }
   }
   
+  // Apply rotation if specified
+  if (textbox.rotation !== undefined) {
+    styledElement.rotation = textbox.rotation;
+  }
+  
   // Apply only primary layout properties from questionSettings/answerSettings
   // Only fontSize is a layout property; all other properties (fontFamily, fontColor, etc.) come from themes
   if (isQnaInline && textbox.questionSettings) {
@@ -149,7 +156,8 @@ export function convertTemplateImageSlotToElement(imageSlot: TemplateElement): C
     height: imageSlot.size.height,
     fill: '#e5e7eb',
     stroke: '#9ca3af',
-    strokeWidth: 2
+    strokeWidth: 2,
+    rotation: imageSlot.rotation !== undefined ? imageSlot.rotation : 0
   };
 }
 
@@ -211,7 +219,7 @@ export function convertTemplateToElements(template: PageTemplate, canvasSize?: {
   
   // Convert textboxes (highest z-index)
   templateToUse.textboxes.forEach(textbox => {
-    // Pass layoutVariant, questionSettings, answerSettings, questionPosition, questionWidth to the conversion function
+    // Pass layoutVariant, questionSettings, answerSettings, questionPosition, questionWidth, rotation to the conversion function
     const textboxWithVariant: TemplateTextbox & { questionPosition?: string; questionWidth?: number } = {
       type: textbox.type,
       position: textbox.position,
@@ -221,7 +229,8 @@ export function convertTemplateToElements(template: PageTemplate, canvasSize?: {
       questionSettings: textbox.questionSettings,
       answerSettings: textbox.answerSettings,
       questionPosition: (textbox as any).questionPosition,
-      questionWidth: (textbox as any).questionWidth
+      questionWidth: (textbox as any).questionWidth,
+      rotation: (textbox as any).rotation
     };
     
     // Layout templates no longer have colorPalette - use default palette for initial element creation

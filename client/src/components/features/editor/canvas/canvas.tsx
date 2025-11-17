@@ -30,6 +30,7 @@ import { createPreviewImage, resolveBackgroundImageUrl } from '../../../../utils
 import { getPalettePartColor } from '../../../../data/templates/color-palettes';
 import { colorPalettes } from '../../../../data/templates/color-palettes';
 import { getThemePaletteId } from '../../../../utils/global-themes';
+import { BOOK_PAGE_DIMENSIONS, DEFAULT_BOOK_ORIENTATION, DEFAULT_BOOK_PAGE_SIZE } from '../../../../constants/book-formats';
 
 function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
   return (
@@ -89,14 +90,6 @@ function CanvasPageContainer({ children, assignedUser }: { children: React.React
     </div>
   );
 }
-
-const PAGE_DIMENSIONS = {
-  A4: { width: 2480, height: 3508 },
-  A5: { width: 1748, height: 2480 },
-  A3: { width: 3508, height: 4961 },
-  Letter: { width: 2550, height: 3300 },
-  Square: { width: 2480, height: 2480 }
-};
 
 const PAGE_TYPE_LABELS: Record<string, string> = {
   'front-cover': 'Front Cover',
@@ -392,8 +385,6 @@ export default function Canvas() {
     ctx.stroke();
     return patternCanvas;
   }, []);
-  const pageSize = state.currentBook?.pageSize || 'A4';
-
   const getPaletteForPage = (page?: typeof currentPage) => {
     // Get page color palette (or book color palette if page.colorPaletteId is null)
     const pageColorPaletteId = page?.colorPaletteId ?? null;
@@ -454,9 +445,10 @@ export default function Canvas() {
     () => buildPageBadgeMeta(partnerPage),
     [buildPageBadgeMeta, partnerPage]
   );
-  const orientation = state.currentBook?.orientation || 'portrait';
+const orientation = state.currentBook?.orientation || DEFAULT_BOOK_ORIENTATION;
   
-  const dimensions = PAGE_DIMENSIONS[pageSize as keyof typeof PAGE_DIMENSIONS];
+const pageSize = state.currentBook?.pageSize || DEFAULT_BOOK_PAGE_SIZE;
+const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMENSIONS];
   const canvasWidth = orientation === 'landscape' ? dimensions.height : dimensions.width;
   const canvasHeight = orientation === 'landscape' ? dimensions.width : dimensions.height;
   const spreadGapCanvas = hasPartnerPage ? canvasWidth * 0.05 : 0;
@@ -538,6 +530,15 @@ export default function Canvas() {
     const appliedZoom = scaleOverride ?? zoom;
     const contentWidth = spreadWidthCanvas * appliedZoom;
     const contentHeight = canvasHeight * appliedZoom;
+    
+    // For mini previews, always center and don't clamp to avoid cutting off pages
+    if (state.isMiniPreview) {
+      return {
+        x: (containerSize.width - contentWidth) / 2,
+        y: (containerSize.height - contentHeight) / 2
+      };
+    }
+    
     const marginX = Math.min(400, containerSize.width);
     const marginY = Math.min(300, containerSize.height);
 
@@ -561,7 +562,7 @@ export default function Canvas() {
     }
 
     return { x: clampedX, y: clampedY };
-  }, [canvasHeight, containerSize.height, containerSize.width, spreadWidthCanvas, zoom]);
+  }, [canvasHeight, containerSize.height, containerSize.width, spreadWidthCanvas, zoom, state.isMiniPreview]);
 
   useEffect(() => {
     if (isDragging) return; // Don't update transformer during drag
@@ -2783,15 +2784,72 @@ export default function Canvas() {
     const containerWidth = containerRect.width;
     const containerHeight = containerRect.height;
     
-    // Calculate zoom to fit the entire spread with some padding
-    const padding = 40;
-    const availableWidth = containerWidth - padding * 2;
-    const availableHeight = containerHeight - padding * 2;
+    // Skip if container has no dimensions
+    if (containerWidth <= 0 || containerHeight <= 0) return;
     
+    // Get orientation to adjust padding and safety margins
+    const orientation = state.currentBook?.orientation || 'portrait';
+    const isLandscape = orientation === 'landscape';
+    
+    // For mini previews, use orientation-specific padding
+    // Landscape needs more aggressive padding to prevent clipping
+    // Portrait can use less padding to avoid over-zooming
+    let minPadding: number;
+    let safetyMargin: number;
+    if (state.isMiniPreview) {
+      if (isLandscape) {
+        // Landscape: more padding and aggressive safety margin to prevent clipping
+        minPadding = 80;
+        safetyMargin = 0.80; // 20% reduction
+      } else {
+        // Portrait: less padding and smaller safety margin to avoid over-zooming
+        minPadding = 40;
+        safetyMargin = 0.95; // 5% reduction
+      }
+    } else {
+      minPadding = 10;
+      safetyMargin = 1.0;
+    }
+    
+    // Calculate spread dimensions (two pages side by side with gap)
     const spreadWidth = canvasWidth * (hasPartnerPage ? 2 : 1) + (hasPartnerPage ? canvasWidth * 0.05 : 0);
-    const scaleX = availableWidth / spreadWidth;
-    const scaleY = availableHeight / canvasHeight;
-    const optimalZoom = Math.min(scaleX, scaleY, 1); // Don't zoom in beyond 100%
+    
+    // Calculate scale factors to fit required dimensions into container
+    const scaleX = (containerWidth - minPadding * 2) / spreadWidth;
+    const scaleY = (containerHeight - minPadding * 2) / canvasHeight;
+    
+    // For mini previews, allow zooming out below 1 to ensure everything fits with padding
+    // For regular editor, limit to 1 (100%) to prevent zooming out too far
+    let optimalZoom: number;
+    if (state.isMiniPreview) {
+      // No upper limit for mini previews - allow any zoom level to fit content
+      // Use the smaller scale to ensure everything fits
+      optimalZoom = Math.min(scaleX, scaleY);
+      
+      // Apply orientation-specific safety margin
+      optimalZoom = optimalZoom * safetyMargin;
+      
+      // For landscape, do an additional check to ensure padding is sufficient
+      if (isLandscape) {
+        const testSpreadWidth = spreadWidth * optimalZoom;
+        const testPageHeight = canvasHeight * optimalZoom;
+        const testPaddingX = (containerWidth - testSpreadWidth) / 2;
+        const testPaddingY = (containerHeight - testPageHeight) / 2;
+        
+        // If padding is still too small for landscape, recalculate with even more aggressive reduction
+        if (testPaddingX < minPadding || testPaddingY < minPadding) {
+          const safeScaleX = (containerWidth - minPadding * 2.5) / spreadWidth;
+          const safeScaleY = (containerHeight - minPadding * 2.5) / canvasHeight;
+          optimalZoom = Math.min(safeScaleX, safeScaleY) * 0.85; // Extra 15% safety margin for landscape
+        }
+      }
+    } else {
+      // Regular editor: limit to 100% max zoom
+      optimalZoom = Math.min(scaleX, scaleY, 1);
+    }
+    
+    // Ensure zoom is never negative or zero
+    optimalZoom = Math.max(optimalZoom, 0.01);
     
     // Center the spread in the container
     const scaledSpreadWidth = spreadWidth * optimalZoom;
@@ -2802,17 +2860,33 @@ export default function Canvas() {
     
     setZoom(optimalZoom);
     setStagePos(clampStagePosition({ x: centerX, y: centerY }, optimalZoom));
-  }, [canvasWidth, canvasHeight, clampStagePosition, hasPartnerPage]);
+  }, [canvasWidth, canvasHeight, clampStagePosition, hasPartnerPage, state.isMiniPreview, state.currentBook?.orientation]);
 
   // Auto-fit when entering the canvas editor or when container size changes
   useEffect(() => {
-    // Only auto-fit on initial load, not on every container size change
-    // This prevents zoom reset when settings panel updates cause re-renders
+    if (state.isMiniPreview) {
+      // For mini previews, always fit to view, especially when dimensions change
+      // Use a small delay to ensure container has rendered and has correct dimensions
+      const timeoutId = setTimeout(() => {
+        fitToView();
+      }, 50);
+      return () => clearTimeout(timeoutId);
+    }
     const hasInitialZoom = zoom !== 0.8; // 0.8 is the initial zoom value
     if (!hasInitialZoom) {
       fitToView();
     }
-  }, [fitToView]);
+  }, [fitToView, state.isMiniPreview, zoom, canvasWidth, canvasHeight, hasPartnerPage]);
+
+  // For mini previews, also react to container size changes
+  useEffect(() => {
+    if (state.isMiniPreview && containerSize.width > 0 && containerSize.height > 0) {
+      const timeoutId = setTimeout(() => {
+        fitToView();
+      }, 50);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [fitToView, state.isMiniPreview, containerSize.width, containerSize.height]);
 
   const handleImageSelect = (imageId: number, imageUrl: string) => {
     // If we have a pending element ID, update the existing placeholder element

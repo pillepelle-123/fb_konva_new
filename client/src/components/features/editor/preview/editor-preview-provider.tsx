@@ -3,11 +3,12 @@ import { EditorContext } from '../../../../context/editor-context';
 import type { PageTemplate } from '../../../../types/template-types';
 import themesData from '../../../../data/templates/themes.json';
 import { mirrorTemplate } from '../../../../utils/layout-mirroring';
+import type { BookOrientation, BookPageSize } from '../../../../constants/book-formats';
 
 type PreviewProviderProps = {
   children: React.ReactNode;
-  pageSize: 'A4' | 'A5';
-  orientation: 'portrait' | 'landscape';
+  pageSize: BookPageSize;
+  orientation: BookOrientation;
   themeId: string;
   paletteId: string;
   baseTemplate: PageTemplate | null;
