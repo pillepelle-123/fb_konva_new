@@ -1,14 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEditor } from '../../../../context/editor-context';
 import type { Page } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import PDFExportModal from '../pdf-export-modal';
 import { BookPreviewModal } from '../preview/book-preview-modal';
-import StackedAvatarGroup from '../../../shared/cards/stacked-avatar-group';
-import { Toast } from '../../../ui/overlays/toast';
-
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '../../../ui/composites/accordion-horizontal';
+import { Modal } from '../../../ui/overlays/modal';
+import BookManagerContent from '../../books/book-manager-content';
+import { Button } from '../../../ui/primitives/button';
+import { toast } from 'sonner';
 
 import { FloatingActionButtons } from '../floating-action-buttons';
 import { PageNavigation } from './page-navigation';
@@ -19,10 +19,7 @@ import UndoRedoControls from './undo-redo-controls';
 import UnsavedChangesDialog from '../../../ui/overlays/unsaved-changes-dialog';
 import ConfirmationDialog from '../../../ui/overlays/confirmation-dialog';
 import AlertDialog from '../../../ui/overlays/alert-dialog';
-import { LayoutGrid, Settings, Palette, Divide, Book, CircleUser, BookOpen } from 'lucide-react';
-import PagePreview from '../../books/page-preview';
-import { Button } from '../../../ui/primitives/button';
-import { X } from 'lucide-react';
+import { Settings, CircleUser, X } from 'lucide-react';
 import { Tooltip } from '../../../ui/composites/tooltip';
 import { EditorBarContainer } from './editor-bar-container';
 
@@ -58,18 +55,33 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
   const [isSaving, setIsSaving] = useState(false);
   const [showPDFModal, setShowPDFModal] = useState(false);
   const [showBookPreview, setShowBookPreview] = useState(initialPreviewOpen);
+  const [showBookManager, setShowBookManager] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showAlert, setShowAlert] = useState<{ title: string; message: string } | null>(null);
 
   const [showPagesSubmenu, setShowPagesSubmenu] = useState(false);
-  const [showSaveToast, setShowSaveToast] = useState(false);
 
   useEffect(() => {
     if (initialPreviewOpen) {
       setShowBookPreview(true);
     }
   }, [initialPreviewOpen]);
+
+  const [bookManagerTab, setBookManagerTab] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    const handleOpenBookManager = (event: Event) => {
+      const customEvent = event as CustomEvent<{ tab?: string }>;
+      setBookManagerTab(customEvent.detail?.tab);
+      setShowBookManager(true);
+    };
+
+    window.addEventListener('openBookManager', handleOpenBookManager);
+    return () => {
+      window.removeEventListener('openBookManager', handleOpenBookManager);
+    };
+  }, []);
 
   if (!state.currentBook) return null;
 
@@ -128,7 +140,7 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
     setIsSaving(true);
     try {
       await saveBook();
-      setShowSaveToast(true);
+      toast.success('Book saved sucrgrgrgcessfully');
     } catch (error) {
       setShowAlert({ title: 'Save Failed', message: 'Failed to save book. Please try again.' });
     } finally {
@@ -343,7 +355,7 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
                     onClick={() => {
                       dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
                       dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [] });
-                      window.dispatchEvent(new CustomEvent('openManager'));
+                      setShowBookManager(true);
                     }}
                   >
                     <Settings className="h-5 w-5" />
@@ -384,6 +396,18 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
         isOpen={showBookPreview}
         onClose={() => setShowBookPreview(false)}
       />
+
+      {state.currentBook && (
+        <BookManagerModal
+          isOpen={showBookManager}
+          onClose={() => {
+            setShowBookManager(false);
+            setBookManagerTab(undefined);
+          }}
+          bookId={state.currentBook.id}
+          initialTab={bookManagerTab}
+        />
+      )}
       
       <UnsavedChangesDialog
         open={showCloseConfirm}
@@ -411,14 +435,35 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
         message={showAlert?.message || ''}
         onClose={() => setShowAlert(null)}
       />
-      
-
-      <Toast 
-        message="Book saved successfully" 
-        isVisible={showSaveToast} 
-        onClose={() => setShowSaveToast(false)} 
-      />
     </>
+  );
+}
+
+function BookManagerModal({ isOpen, onClose, bookId, initialTab }: { isOpen: boolean; onClose: () => void; bookId: number; initialTab?: string }) {
+  const [actions, setActions] = useState<React.ReactNode>(null);
+  
+  // Memoize the callback to prevent infinite loops
+  const handleActionsReady = useCallback((newActions: React.ReactNode) => {
+    setActions(newActions);
+  }, []);
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Book Manager"
+      size="lg"
+      closeOnBackdrop={false}
+      actions={actions}
+    >
+      <BookManagerContent 
+        bookId={bookId} 
+        onClose={onClose}
+        hideActions={true}
+        onActionsReady={handleActionsReady}
+        initialTab={initialTab}
+      />
+    </Modal>
   );
 }
 

@@ -178,6 +178,62 @@ async function removeUsersFromBookConversation(bookId, userIds = []) {
   await removeParticipants(conversation.id, userIds);
 }
 
+async function syncGroupChatForBook(bookId) {
+  if (!bookId) {
+    return;
+  }
+
+  // Get all users who are friends/collaborators of the book
+  const bookFriendsResult = await pool.query(
+    `
+      SELECT user_id
+      FROM public.book_friends
+      WHERE book_id = $1
+    `,
+    [bookId]
+  );
+
+  const bookUserIds = bookFriendsResult.rows.map(row => row.user_id);
+  
+  if (!bookUserIds.length) {
+    return;
+  }
+
+  // Get or create the conversation for this book
+  let conversation = await getBookConversation(bookId);
+  
+  if (!conversation) {
+    // Get book title for conversation
+    const bookResult = await pool.query(
+      'SELECT name FROM public.books WHERE id = $1',
+      [bookId]
+    );
+    
+    const bookTitle = bookResult.rows[0]?.name || `Chat for Book ${bookId}`;
+    
+    // Create the conversation
+    conversation = await createOrUpdateBookConversation({
+      bookId,
+      title: bookTitle,
+      participantIds: bookUserIds,
+      metadata: {},
+    });
+  } else {
+    // Get current participants
+    const currentParticipantIds = await getConversationParticipantIds(conversation.id);
+    
+    // Find users who are not yet participants
+    const missingUserIds = bookUserIds.filter(
+      userId => !currentParticipantIds.includes(userId)
+    );
+    
+    // Add missing users
+    if (missingUserIds.length > 0) {
+      await addParticipants(conversation.id, missingUserIds);
+    }
+  }
+}
+
 module.exports = {
   getBookConversation,
   createOrUpdateBookConversation,
@@ -187,5 +243,6 @@ module.exports = {
   setBookConversationActive,
   addUsersToBookConversation,
   removeUsersFromBookConversation,
+  syncGroupChatForBook,
 };
 

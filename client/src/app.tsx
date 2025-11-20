@@ -6,6 +6,7 @@ import { SocketProvider } from './context/socket-context'
 import PageContainer from './components/layouts/page-container'
 import Navigation from './components/layouts/navigation'
 import { AdminRoute } from './admin'
+import { Toaster } from './components/ui/sonner'
 
 import Login from './pages/auth/login'
 import Register from './pages/auth/register'
@@ -87,6 +88,7 @@ function AppContent() {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
+      <Toaster />
     </PageContainer>
   )
 }

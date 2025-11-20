@@ -12,10 +12,11 @@ interface User {
 interface FriendsSearchCardProps {
   user: User;
   onAddFriend: (userId: number) => void;
+  onSelectFriend?: (user: User) => void;
   isAlreadyFriend?: boolean;
 }
 
-export default function FriendsSearchCard({ user, onAddFriend, isAlreadyFriend }: FriendsSearchCardProps) {
+export default function FriendsSearchCard({ user, onAddFriend, onSelectFriend, isAlreadyFriend }: FriendsSearchCardProps) {
   return (
     <Card className="border shadow-sm">
       <CardContent className="p-4">
@@ -28,9 +29,19 @@ export default function FriendsSearchCard({ user, onAddFriend, isAlreadyFriend }
             </div>
           </div>
           {isAlreadyFriend ? (
-            <div className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded">
-              Already friends
-            </div>
+            onSelectFriend ? (
+              <Button
+                size="sm"
+                onClick={() => onSelectFriend(user)}
+                className="space-x-2"
+              >
+                <span>Select</span>
+              </Button>
+            ) : (
+              <div className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded">
+                Already friends
+              </div>
+            )
           ) : (
             <Button
               size="sm"

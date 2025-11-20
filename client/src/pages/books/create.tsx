@@ -68,22 +68,23 @@ export default function BookCreatePage() {
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchFriends = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-        const response = await fetch(`${apiUrl}/friendships/friends`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (response.ok) {
-          const friends = await response.json();
-          setAvailableFriends(friends);
-        }
-      } catch (error) {
-        console.warn('Failed to load friends:', error);
+  const fetchFriends = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/friendships/friends`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const friends = await response.json();
+        setAvailableFriends(friends);
       }
-    };
+    } catch (error) {
+      console.warn('Failed to load friends:', error);
+    }
+  };
+
+  useEffect(() => {
     fetchFriends();
   }, []);
 
@@ -110,6 +111,47 @@ export default function BookCreatePage() {
     if (!wizardState.basic.name.trim()) return;
     setIsSubmitting(true);
     try {
+      const initialPageCount = 24;
+
+      // Helper: background object from theme pageSettings
+      const buildBackground = (themeKey: string) => {
+        const themeDict = themesData as unknown as Record<string, unknown>;
+        const themeEntry = (themeDict[themeKey] ?? themeDict['default']) as Record<string, unknown>;
+        const pageSettings = (themeEntry?.pageSettings as Record<string, unknown>) || {};
+        const bgImage = pageSettings?.['backgroundImage'] as Record<string, unknown> | undefined;
+        const bgPattern = pageSettings?.['backgroundPattern'] as Record<string, unknown> | undefined;
+        if ((bgImage?.['enabled'] as boolean) === true) {
+          return {
+            type: 'image',
+            opacity: (pageSettings['backgroundOpacity'] as number) ?? 1,
+            value: undefined,
+            backgroundImageTemplateId: bgImage?.['templateId'],
+            imageSize: (bgImage?.['size'] === 'contain') ? 'contain' : (bgImage?.['size'] === 'cover' ? 'cover' : 'cover'),
+            imageRepeat: Boolean(bgImage?.['repeat']),
+            imagePosition: (bgImage?.['position'] as string) || 'top-left',
+            imageContainWidthPercent: (bgImage?.['width'] as number) || 100,
+            applyPalette: true,
+          };
+        }
+        if ((bgPattern?.['enabled'] as boolean) === true) {
+          return {
+            type: 'pattern',
+            value: (bgPattern?.['style'] as string) || 'dots',
+            opacity: (pageSettings['backgroundOpacity'] as number) ?? 1,
+            patternBackgroundColor: undefined,
+            patternForegroundColor: undefined,
+            patternSize: (bgPattern?.['size'] as number) ?? 20,
+            patternStrokeWidth: (bgPattern?.['strokeWidth'] as number) ?? 1,
+            patternBackgroundOpacity: (bgPattern?.['patternBackgroundOpacity'] as number) ?? 0.3,
+          };
+        }
+        return {
+          type: 'color',
+          value: '#ffffff',
+          opacity: (pageSettings['backgroundOpacity'] as number) ?? 1,
+        };
+      };
+
       const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/books`, {
         method: 'POST',
         headers: {
@@ -129,7 +171,7 @@ export default function BookCreatePage() {
             cover: { locked: true, printable: false },
           },
           layoutStrategy: 'same',
-          initialPageCount: 24,
+          initialPageCount,
         }),
       });
 
@@ -138,6 +180,102 @@ export default function BookCreatePage() {
       }
 
       const newBook = await response.json();
+
+      // Build full set of pages: 24 pages total
+      // 1: Back Cover, 2: Front Cover, 3: Inner Front, 4-23: Content, 24: Inner Back
+      const totalPages = initialPageCount;
+      const background = buildBackground('default');
+      const pages: Array<Record<string, unknown>> = [];
+      
+      // Generate pagePairId for pages (same logic as handleSubmit)
+      const getPagePairId = (pageNumber: number, pageType: string) => {
+        if (pageType === 'back-cover' || pageType === 'front-cover') {
+          return 'spread-cover';
+        }
+        if (pageType === 'inner-front') {
+          return 'spread-intro-0';
+        }
+        if (pageType === 'inner-back') {
+          return 'spread-outro-last';
+        }
+        if (pageNumber === totalPages - 1) {
+          return 'spread-outro-last';
+        }
+        if (pageNumber === 4) {
+          return 'spread-intro-0';
+        }
+        const contentPageIndex = pageNumber - 4;
+        const pairIndex = Math.floor((contentPageIndex - 1) / 2);
+        return `spread-content-${pairIndex}`;
+      };
+      
+      for (let i = 1; i <= totalPages; i++) {
+        const isBackCover = i === 1;
+        const isFrontCover = i === 2;
+        const isInnerFront = i === 3;
+        const isInnerBack = i === totalPages;
+
+        const pageType = isBackCover
+          ? 'back-cover'
+          : isFrontCover
+            ? 'front-cover'
+            : isInnerFront
+              ? 'inner-front'
+              : isInnerBack
+                ? 'inner-back'
+                : 'content';
+
+        // Blank Canvas: NO layout template for ANY page (all pages are blank)
+        // Back Cover and Front Cover: can have theme/background
+        // Inner Front and Inner Back: NO theme, NO background (plain white)
+        // Content pages: can have theme/background, but NO layout template
+        const shouldHaveLayoutTemplate = false; // Always false for Blank Canvas
+        const shouldHaveThemeAndBackground = !isInnerFront && !isInnerBack;
+
+        pages.push({
+          pageNumber: i,
+          elements: [], // No elements for Blank Canvas
+          layoutTemplateId: null,
+          // Explicitly set themeId to null for Inner Front and Inner Back to prevent inheritance
+          themeId: shouldHaveThemeAndBackground ? undefined : null,
+          colorPaletteId: shouldHaveThemeAndBackground ? 'default' : null,
+          pageType,
+          pagePairId: getPagePairId(i, pageType),
+          isPrintable: true,
+          isLocked: false,
+          isSpecialPage: pageType === 'back-cover' || pageType === 'front-cover' || pageType === 'inner-front' || pageType === 'inner-back',
+          layoutVariation: 'normal',
+          // Explicitly set background to null (not undefined) for Inner Front and Inner Back to prevent inheritance
+          background: shouldHaveThemeAndBackground ? background : null,
+          backgroundTransform: null,
+        });
+      }
+
+      // Persist full book including generated pages
+      await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/books/${newBook.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          name: wizardState.basic.name,
+          pageSize: wizardState.basic.pageSize,
+          orientation: wizardState.basic.orientation,
+          bookTheme: 'default',
+          themeId: 'default',
+          colorPaletteId: 'default',
+          layoutTemplateId: null,
+          pagePairingEnabled: true,
+          specialPagesConfig: {
+            cover: { locked: true, printable: false },
+          },
+          layoutStrategy: 'same',
+          pages,
+          onlyModifiedPages: false,
+        }),
+      });
+
       navigate(`/editor/${newBook.id}`);
     } catch (error) {
       console.error(error);
@@ -387,25 +525,49 @@ export default function BookCreatePage() {
         }),
       });
 
-      // Attach collaborators
+      // Attach collaborators (existing friends)
       await Promise.all(
-        wizardState.team.selectedFriends.map(async (friend) => {
+        wizardState.team.selectedFriends
+          .filter((friend) => friend.id > 0) // Only add existing friends (id > 0), not temporary invites (id === -1)
+          .map(async (friend) => {
+            try {
+              await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/books/${newBook.id}/friends`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${localStorage.getItem('token')}`,
+                },
+                body: JSON.stringify({
+                  friendId: friend.id,
+                  book_role: 'author',
+                  page_access_level: 'own_page',
+                  editor_interaction_level: 'full_edit',
+                }),
+              });
+            } catch (error) {
+              console.warn('Failed to add friend', friend.id, error);
+            }
+          }),
+      );
+
+      // Send invitations for new users (these will generate invitation URLs with tokens)
+      await Promise.all(
+        wizardState.team.invites.map(async (invite) => {
           try {
-            await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/books/${newBook.id}/friends`, {
+            await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/invitations/send`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${localStorage.getItem('token')}`,
               },
               body: JSON.stringify({
-                friendId: friend.id,
-                book_role: 'author',
-                page_access_level: 'own_page',
-                editor_interaction_level: 'full_edit',
+                name: invite.name,
+                email: invite.email,
+                bookId: newBook.id,
               }),
             });
           } catch (error) {
-            console.warn('Failed to add friend', friend.id, error);
+            console.warn('Failed to send invitation', invite.email, error);
           }
         }),
       );

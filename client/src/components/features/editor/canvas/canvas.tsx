@@ -1066,23 +1066,23 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         // Update all selected elements - use absolute position calculation
         // Store initial positions on first move to avoid accumulation errors
         if (Math.abs(deltaX) > 0.1 || Math.abs(deltaY) > 0.1) {
-          state.selectedElementIds.forEach(elementId => {
-            const element = currentPage?.elements.find(el => el.id === elementId);
-            if (element) {
+        state.selectedElementIds.forEach(elementId => {
+          const element = currentPage?.elements.find(el => el.id === elementId);
+          if (element) {
               // Calculate new position based on initial position + total delta
-              dispatch({
-                type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                payload: {
-                  id: elementId,
-                  updates: {
-                    x: element.x + deltaX,
-                    y: element.y + deltaY
-                  }
+            dispatch({
+              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+              payload: {
+                id: elementId,
+                updates: {
+                  x: element.x + deltaX,
+                  y: element.y + deltaY
                 }
-              });
-            }
-          });
-          
+              }
+            });
+          }
+        });
+        
           // Update groupMoveStart to current position for next delta calculation
           const newStart = { x, y };
           setGroupMoveStart(newStart);
@@ -3786,18 +3786,18 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                         }
                       } else {
                         // For text elements, use Group node
-                        const scaleX = node.scaleX();
-                        const scaleY = node.scaleY();
-                        
+                      const scaleX = node.scaleX();
+                      const scaleY = node.scaleY();
+                      
                         updates.width = Math.max(50, (element.width || 150) * scaleX);
                         updates.height = Math.max(20, (element.height || 50) * scaleY);
-                        updates.x = node.x();
-                        updates.y = node.y();
-                        updates.rotation = node.rotation();
-                        
-                        // Reset scale to 1
-                        node.scaleX(1);
-                        node.scaleY(1);
+                      updates.x = node.x();
+                      updates.y = node.y();
+                      updates.rotation = node.rotation();
+                      
+                      // Reset scale to 1
+                      node.scaleX(1);
+                      node.scaleY(1);
                       }
                     } else {
                       // For shapes and other elements, preserve scaleX and scaleY

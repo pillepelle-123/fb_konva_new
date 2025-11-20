@@ -17,9 +17,10 @@ interface FindFriendsDialogProps {
   onOpenChange: (open: boolean) => void;
   friends: User[];
   onFriendAdded: () => void;
+  onSelectFriend?: (user: User) => void;
 }
 
-export default function FindFriendsDialog({ open, onOpenChange, friends, onFriendAdded }: FindFriendsDialogProps) {
+export default function FindFriendsDialog({ open, onOpenChange, friends, onFriendAdded, onSelectFriend }: FindFriendsDialogProps) {
   const { token, user } = useAuth();
   const [searchText, setSearchText] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
@@ -99,6 +100,7 @@ export default function FindFriendsDialog({ open, onOpenChange, friends, onFrien
                   key={user.id}
                   user={user}
                   onAddFriend={handleAddFriend}
+                  onSelectFriend={onSelectFriend}
                   isAlreadyFriend={isAlreadyFriend}
                 />
               );

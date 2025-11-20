@@ -22,14 +22,14 @@ interface DesignStepProps {
 function TogglePill({ label, icon, active, onClick }: { label: string; icon: React.ReactNode; active: boolean; onClick: () => void }) {
   return (
     <Tooltip content={label} side="bottom">
-      <button
-        onClick={onClick}
+    <button
+      onClick={onClick}
         className={`px-3 py-1 rounded-full border text-xs font-medium transition flex items-center justify-center ${
-          active ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-muted/40'
-        }`}
-      >
+        active ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-muted/40'
+      }`}
+    >
         {icon}
-      </button>
+    </button>
     </Tooltip>
   );
 }
@@ -107,7 +107,7 @@ export function DesignStep({
     <div className="flex flex-col lg:flex-row gap-6">
       {/* Left pane (replaces old Layout Preview) — Design workspace (1/3) */}
       <div className="w-full lg:w-1/3 flex-shrink-0">
-        <div className="rounded-2xl bg-white shadow-sm border p-3 sticky lg:top-24 flex flex-col h-[calc(90vh-120px)]">
+        <div className="rounded-2xl bg-white shadow-sm border p-3 flex flex-col" style={{ height: '508px' }}>
           <div className="flex-shrink-0">
             {/* <div className="flex items-center gap-2 text-foreground"> */}
             <div className="flex items-center gap-2 text-sm font-semibold">
@@ -120,7 +120,7 @@ export function DesignStep({
           </div>
 
           <div className="flex-shrink-0 space-y-3 mt-3">
-            {/* Category filter */}
+          {/* Category filter */}
             <Select
               value={categoryFilter}
               onValueChange={(value) => setCategoryFilter(value as CategoryFilter)}
@@ -134,7 +134,7 @@ export function DesignStep({
                       ? 'All' 
                       : categoryFilter.charAt(0).toUpperCase() + categoryFilter.slice(1)}
                   </span>
-                </div>
+            </div>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All</SelectItem>
@@ -175,12 +175,12 @@ export function DesignStep({
                   });
                 }}
               />
-              <TogglePill
+                <TogglePill
                 active={wizardState.design.randomizeLayout}
                 label="Randomize spreads"
                 icon={<Dices className="h-4 w-4" />}
                 onClick={() => onChange({ randomizeLayout: !wizardState.design.randomizeLayout })}
-              />
+                />
             </div>
           </div>
 
@@ -287,16 +287,16 @@ export function DesignStep({
         {/* Themes container */}
         <div className="rounded-2xl bg-white shadow-sm border p-3 space-y-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <PaintbrushVertical
-                className="h-5 w-5"
-              />
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            <PaintbrushVertical
+              className="h-5 w-5"
+            />
               Themes
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="xxs"
+          </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="xxs"
               onClick={() => {
                 const newMode = themeViewMode === 'carousel' ? 'grid' : 'carousel';
                 setThemeViewMode(newMode);
@@ -305,16 +305,16 @@ export function DesignStep({
                   setPaletteViewMode('carousel');
                 }
               }}
-              className="h-6 w-6 p-0"
-              title={themeViewMode === 'carousel' ? 'Show all Themes in Grid' : 'Themes Carousel'}
-            >
-              {themeViewMode === 'carousel' ? (
-                <LayoutGrid className="h-5 w-5" />
-              ) : (
-                <GalleryHorizontal className="h-5 w-5" />
-              )}
-            </Button>
-          </div>
+                className="h-6 w-6 p-0"
+                title={themeViewMode === 'carousel' ? 'Show all Themes in Grid' : 'Themes Carousel'}
+              >
+                {themeViewMode === 'carousel' ? (
+                  <LayoutGrid className="h-5 w-5" />
+                ) : (
+                  <GalleryHorizontal className="h-5 w-5" />
+                )}
+              </Button>
+            </div>
 
           {/* Theme carousel */}
           <div className="space-y-2">
@@ -406,20 +406,20 @@ export function DesignStep({
                 </div>
               )}
             </div>
+            </div>
           </div>
-        </div>
 
         {/* Color Palette container */}
         <div className="rounded-2xl bg-white shadow-sm border p-3 space-y-4">
-          <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <Palette className="h-5 w-5" />
               Color Palette
             </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="xxs"
+              <Button
+                type="button"
+                variant="ghost"
+                size="xxs"
               onClick={() => {
                 const newMode = paletteViewMode === 'carousel' ? 'grid' : 'carousel';
                 setPaletteViewMode(newMode);
@@ -428,16 +428,16 @@ export function DesignStep({
                   setThemeViewMode('carousel');
                 }
               }}
-              className="h-6 w-6 p-0"
-              title={paletteViewMode === 'carousel' ? 'Show all Color Palettes in Grid' : 'Color Palettes Carousel'}
-            >
-              {paletteViewMode === 'carousel' ? (
-                <LayoutGrid className="h-5 w-5" />
-              ) : (
-                <GalleryHorizontal className="h-5 w-5" />
-              )}
-            </Button>
-          </div>
+                className="h-6 w-6 p-0"
+                title={paletteViewMode === 'carousel' ? 'Show all Color Palettes in Grid' : 'Color Palettes Carousel'}
+              >
+                {paletteViewMode === 'carousel' ? (
+                  <LayoutGrid className="h-5 w-5" />
+                ) : (
+                  <GalleryHorizontal className="h-5 w-5" />
+                )}
+              </Button>
+            </div>
 
           {/* Palette carousel */}
           <div className="space-y-2">

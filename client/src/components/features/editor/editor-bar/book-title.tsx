@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Pen } from 'lucide-react';
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 
@@ -10,6 +11,7 @@ interface BookTitleProps {
 export function BookTitle({ title, readOnly = false }: BookTitleProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(title);
+  const [isHovered, setIsHovered] = useState(false);
   const { state, dispatch } = useEditor();
   const { token } = useAuth();
 
@@ -55,12 +57,24 @@ export function BookTitle({ title, readOnly = false }: BookTitleProps) {
           autoFocus
         />
       ) : (
-        <h1 
-          className={`text-sm md:text-lg text-foreground whitespace-nowrap ${readOnly ? '' : 'cursor-pointer hover:text-primary'}`}
-          onClick={readOnly ? undefined : () => { setEditName(title); setIsEditing(true); }}
+        <div 
+          className="inline-flex items-center gap-2"
+          onMouseEnter={() => !readOnly && setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
         >
-          {title}
-        </h1>
+          <h1 
+            className={`text-sm md:text-lg text-foreground whitespace-nowrap ${readOnly ? '' : 'cursor-pointer hover:text-primary'}`}
+            onClick={readOnly ? undefined : () => { setEditName(title); setIsEditing(true); }}
+          >
+            {title}
+            
+          </h1>
+          {!readOnly && (
+            <Pen 
+              className={`h-3 w-3 text-muted-foreground transition-opacity ${isHovered ? 'opacity-100' : 'opacity-0'}`}
+            />
+          )}
+        </div>
       )}
     </div>
   );

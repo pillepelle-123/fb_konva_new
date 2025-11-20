@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
 import { Card, CardContent } from '../../components/ui/composites/card';
-import { Input } from '../../components/ui/primitives/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
 import FriendGrid from '../../components/features/friends/friend-grid';
 import FindFriendsDialog from '../../components/features/friends/find-friends-dialog';
+import InviteUserDialog from '../../components/features/books/invite-user-dialog';
 import { Contact, UserSearch, UserPlus, Users } from 'lucide-react';
 import FloatingActionButton from '../../components/ui/composites/floating-action-button';
 
@@ -22,11 +22,13 @@ export default function FriendsList() {
   const [loading, setLoading] = useState(true);
   const [showRoleModal, setShowRoleModal] = useState<Friend | null>(null);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState<Friend | null>(null);
-  const [showCollaboratorModal, setShowCollaboratorModal] = useState(false);
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
   const [showFindFriendsDialog, setShowFindFriendsDialog] = useState(false);
+  const [inviteError, setInviteError] = useState<string | undefined>();
 
   useEffect(() => {
     fetchFriends();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchFriends = async () => {
@@ -46,7 +48,7 @@ export default function FriendsList() {
     }
   };
 
-  const handleRoleChange = async (friendId: number, newRole: string) => {
+  const handleRoleChange = async (_friendId: number, _newRole: string) => {
     // TODO: Implement global friend role change
     setShowRoleModal(null);
   };
@@ -65,6 +67,38 @@ export default function FriendsList() {
       console.error('Error removing friend:', error);
     }
     setShowRemoveConfirm(null);
+  };
+
+  const handleInviteFriend = async (name: string, email: string) => {
+    setInviteError(undefined);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const requestBody: { email: string; name?: string } = { email };
+      if (name.trim()) {
+        requestBody.name = name.trim();
+      }
+      
+      const response = await fetch(`${apiUrl}/friends/invite`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(requestBody)
+      });
+      
+      if (response.ok) {
+        fetchFriends();
+        setShowInviteDialog(false);
+        setInviteError(undefined);
+      } else {
+        const error = await response.json();
+        setInviteError(error.error || 'Failed to invite friend. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error inviting friend:', error);
+      setInviteError('Failed to invite friend. Please try again.');
+    }
   };
 
   if (loading) {
@@ -101,7 +135,7 @@ export default function FriendsList() {
               <UserSearch className="h-4 w-4" />
               <span>Find Friends</span>
             </Button>
-            <Button variant={'highlight'} onClick={() => setShowCollaboratorModal(true)} className="space-x-2">
+            <Button variant={'highlight'} onClick={() => setShowInviteDialog(true)} className="space-x-2">
               <UserPlus className="h-4 w-4" />
               <span>Invite new Friends</span>
             </Button>
@@ -201,74 +235,18 @@ export default function FriendsList() {
         />
 
         {/* Add Friend Dialog */}
-        <Dialog open={showCollaboratorModal} onOpenChange={setShowCollaboratorModal}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Invite Friend</DialogTitle>
-              <DialogDescription>
-                Invite a friend to join your network.
-              </DialogDescription>
-            </DialogHeader>
-            <CollaboratorModal onClose={() => setShowCollaboratorModal(false)} onSuccess={fetchFriends} />
-          </DialogContent>
-        </Dialog>
+        <InviteUserDialog
+          open={showInviteDialog}
+          onOpenChange={(open) => {
+            setShowInviteDialog(open);
+            if (!open) setInviteError(undefined);
+          }}
+          onInvite={handleInviteFriend}
+          errorMessage={inviteError}
+        />
       </div>
       
       <FloatingActionButton />
     </div>
-  );
-}
-
-function CollaboratorModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
-  const { token } = useAuth();
-  const [email, setEmail] = useState('');
-
-  const handleAddCollaborator = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/friends/invite`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ email })
-      });
-      if (response.ok) {
-        setEmail('');
-        onSuccess();
-        onClose();
-      } else {
-        const error = await response.json();
-        console.error('Error inviting friend:', error.error);
-      }
-    } catch (error) {
-      console.error('Error inviting friend:', error);
-    }
-  };
-
-  return (
-    <form onSubmit={handleAddCollaborator} className="space-y-4">
-      <div className="space-y-2">
-        <label htmlFor="email" className="text-sm font-medium">Add Friend by Email</label>
-        <Input
-          id="email"
-          type="email"
-          placeholder="user@example.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-      </div>
-      <div className="flex justify-end space-x-2 pt-4">
-        <Button type="button" variant="outline" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button type="submit">
-          Invite Friend
-        </Button>
-      </div>
-    </form>
   );
 }

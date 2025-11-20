@@ -22,7 +22,9 @@ pool.on('connect', (client) => {
 
 const profileStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const userDir = path.join(__dirname, '../uploads/profile_pictures', req.user.id.toString());
+    // Use the same uploads directory as configured in server/index.js (root/uploads)
+    const uploadsDir = process.env.UPLOADS_DIR || path.join(__dirname, '..', '..', 'uploads');
+    const userDir = path.join(uploadsDir, 'profile_pictures', req.user.id.toString());
     if (!fs.existsSync(userDir)) {
       fs.mkdirSync(userDir, { recursive: true });
     }

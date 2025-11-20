@@ -23,8 +23,18 @@ router.post('/send', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Inviter or book not found' });
     }
 
+    // Generate name from email if not provided
+    let userName = name;
+    if (!userName || userName.trim() === '') {
+      const emailPart = email.split('@')[0];
+      // Remove special characters and keep only alphanumeric characters
+      const cleanedName = emailPart.replace(/[^a-zA-Z0-9]/g, '');
+      // Capitalize first letter
+      userName = cleanedName.charAt(0).toUpperCase() + cleanedName.slice(1).toLowerCase();
+    }
+    
     // Check if user already exists
-    const existingUser = await pool.query('SELECT id, registered FROM public.users WHERE email = $1', [email]);
+    const existingUser = await pool.query('SELECT id, registered, name, email FROM public.users WHERE email = $1', [email]);
     
     let userId;
     if (existingUser.rows.length > 0) {
@@ -40,19 +50,51 @@ router.post('/send', authenticateToken, async (req, res) => {
           'INSERT INTO public.book_friends (book_id, user_id, book_role, page_access_level, editor_interaction_level) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING',
           [bookId, userId, 'author', 'all_pages', 'answer_only']
         );
-        return res.json({ message: 'User already registered and added to book' });
+        
+        // Get invitation token (may be null for registered users)
+        const tokenResult = await pool.query('SELECT invitation_token FROM public.users WHERE id = $1', [userId]);
+        const invitationToken = tokenResult.rows[0]?.invitation_token;
+        
+        if (invitationToken) {
+          const inviteUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/invitations/respond?token=${invitationToken}`;
+          console.log('\n=== INVITATION LINK ===');
+          console.log(`Invitee: ${existingUser.rows[0].name} (${email})`);
+          console.log(`Book: ${bookResult.rows[0].name}`);
+          console.log(`Link: ${inviteUrl}`);
+          console.log('=====================\n');
+        }
+        
+        return res.json({ 
+          message: 'User already registered and added to book',
+          userId: userId,
+          user: {
+            id: userId,
+            name: existingUser.rows[0].name,
+            email: existingUser.rows[0].email
+          }
+        });
       } else {
-        // Update invited_by for existing temporary user
-        await pool.query(
-          'UPDATE public.users SET invited_by = $1 WHERE id = $2 AND invited_by IS NULL',
-          [inviterId, userId]
-        );
+        // Update invited_by and name for existing temporary user (update name if it's empty or just email-based)
+        const currentName = existingUser.rows[0].name;
+        const shouldUpdateName = !currentName || currentName.trim() === '' || currentName === email.split('@')[0];
+        
+        if (shouldUpdateName) {
+          await pool.query(
+            'UPDATE public.users SET invited_by = $1, name = $2 WHERE id = $3',
+            [inviterId, userName, userId]
+          );
+        } else {
+          await pool.query(
+            'UPDATE public.users SET invited_by = $1 WHERE id = $2 AND invited_by IS NULL',
+            [inviterId, userId]
+          );
+        }
       }
     } else {
       // Create temporary user with invitation token
       const newUser = await pool.query(
         'INSERT INTO public.users (name, email, password_hash, registered, invitation_token, invited_by) VALUES ($1, $2, $3, $4, gen_random_uuid(), $5) RETURNING id, invitation_token',
-        [name, email, '', false, inviterId]
+        [userName, email, '', false, inviterId]
       );
       userId = newUser.rows[0].id;
     }
@@ -65,19 +107,28 @@ router.post('/send', authenticateToken, async (req, res) => {
 
     await syncGroupChatForBook(bookId);
 
-    // Get invitation token
-    const tokenResult = await pool.query('SELECT invitation_token FROM public.users WHERE id = $1', [userId]);
+    // Get invitation token and user info
+    const tokenResult = await pool.query('SELECT invitation_token, name, email FROM public.users WHERE id = $1', [userId]);
     const invitationToken = tokenResult.rows[0].invitation_token;
+    const finalUserName = tokenResult.rows[0].name; // Use the name from database (may have been generated from email)
     
     // Log invitation link to console instead of sending email
     const inviteUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/invitations/respond?token=${invitationToken}`;
     console.log('\n=== INVITATION LINK ===');
-    console.log(`Invitee: ${name} (${email})`);
+    console.log(`Invitee: ${finalUserName} (${email})`);
     console.log(`Book: ${bookResult.rows[0].name}`);
     console.log(`Link: ${inviteUrl}`);
     console.log('=====================\n');
 
-    res.json({ message: 'Invitation created successfully (check console for link)' });
+    res.json({ 
+      message: 'Invitation created successfully (check console for link)',
+      userId: userId,
+      user: {
+        id: userId,
+        name: finalUserName,
+        email: tokenResult.rows[0].email
+      }
+    });
   } catch (error) {
     console.error('Error sending invitation:', error);
     res.status(500).json({ error: 'Failed to send invitation' });

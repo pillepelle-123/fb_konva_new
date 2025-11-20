@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from '../../../context/auth-context';
 import { useEditor } from '../../../context/editor-context';
@@ -57,6 +57,9 @@ interface BookManagerContentProps {
   bookId: number | string;
   onClose: () => void;
   isStandalone?: boolean;
+  hideActions?: boolean;
+  onActionsReady?: (actions: React.ReactNode) => void;
+  initialTab?: string;
 }
 
 interface TempState {
@@ -73,24 +76,22 @@ interface TempState {
   };
 }
 
-export default function BookManagerContent({ bookId, onClose, isStandalone = false }: BookManagerContentProps) {
+export default function BookManagerContent({ bookId, onClose, isStandalone = false, hideActions = false, onActionsReady, initialTab }: BookManagerContentProps) {
   const { token, user } = useAuth();
   
-  // Try to use editor context if available, otherwise work standalone
-  let state = null;
-  let dispatch = null;
-  let checkUserQuestionConflicts = null;
-  
+  // Always call useEditor hook (React hooks must be called unconditionally)
+  // But only use it if not in standalone mode
+  let editorContext: ReturnType<typeof useEditor> | null = null;
   try {
-    if (!isStandalone) {
-      const editor = useEditor();
-      state = editor.state;
-      dispatch = editor.dispatch;
-      checkUserQuestionConflicts = editor.checkUserQuestionConflicts;
-    }
+    editorContext = useEditor();
   } catch {
     // Editor context not available in standalone mode
+    editorContext = null;
   }
+  
+  const state = !isStandalone && editorContext ? editorContext.state : null;
+  const dispatch = !isStandalone && editorContext ? editorContext.dispatch : null;
+  const checkUserQuestionConflicts = !isStandalone && editorContext ? editorContext.checkUserQuestionConflicts : null;
 
   const [tempState, setTempState] = useState<TempState>({
     bookFriends: [],
@@ -125,7 +126,7 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
   const [removeConfirm, setRemoveConfirm] = useState<{ show: boolean; user: BookFriend | null }>({ show: false, user: null });
   const [showInviteDialog, setShowInviteDialog] = useState(false);
   const [inviteError, setInviteError] = useState<string>('');
-  const [activeTab, setActiveTab] = useState('pages-assignments');
+  const [activeTab, setActiveTab] = useState(initialTab || 'pages-assignments');
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [questionsLoading, setQuestionsLoading] = useState(true);
@@ -136,7 +137,7 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
   const [showQuestionPool, setShowQuestionPool] = useState(false);
   const editInputRef = useRef<HTMLInputElement>(null);
 
-  const currentPage = state?.activePageIndex + 1 || 1;
+  const currentPage = (state?.activePageIndex !== undefined ? state.activePageIndex + 1 : 1);
   const assignedUser = tempState.hasRemovedAssignment ? null : (tempState.pendingAssignment !== null ? tempState.pendingAssignment : state?.pageAssignments?.[currentPage]);
   
   const hasChanges = () => {
@@ -239,24 +240,43 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
     );
   };
   
-  const handleSave = async () => {
-    if (isStandalone) {
-      // Save directly to database in standalone mode
-      await saveToDatabase();
-    } else {
-      // Save to editor context in editor mode
-      await saveToEditorContext();
+  const saveToEditorContext = useCallback(async () => {
+    if (!state || !dispatch) {
+      console.error('saveToEditorContext: state or dispatch is missing');
+      return;
     }
-    onClose();
-  };
-  
-  const saveToEditorContext = async () => {
-    if (!state || !dispatch) return;
+    
+    // CRITICAL: Use the latest tempState value by accessing it directly
+    // This ensures we always have the current state, not a stale closure
+    const currentTempState = tempState;
     
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    
+    // Update book settings first (if changed)
+    if (state.currentBook && (currentTempState.bookSettings.pageSize !== state.currentBook.pageSize || currentTempState.bookSettings.orientation !== state.currentBook.orientation)) {
+      try {
+        await fetch(`${apiUrl}/books/${bookId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            pageSize: currentTempState.bookSettings.pageSize,
+            orientation: currentTempState.bookSettings.orientation
+          })
+        });
+        dispatch({ type: 'UPDATE_BOOK_SETTINGS', payload: currentTempState.bookSettings });
+      } catch (error) {
+        console.error('Error updating book settings:', error);
+      }
+    }
+    
+    // Update book friends and permissions
     const existingFriendIds = new Set((state.bookFriends || []).map(f => f.id));
-    const newFriends = tempState.bookFriends.filter(f => !existingFriendIds.has(f.id));
+    const newFriends = currentTempState.bookFriends.filter(f => !existingFriendIds.has(f.id));
 
+    // Add new friends to book
     for (const friend of newFriends) {
       try {
         await fetch(`${apiUrl}/books/${bookId}/friends`, {
@@ -267,9 +287,9 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
           },
           body: JSON.stringify({
             friendId: friend.id,
-            book_role: 'author',
-            page_access_level: 'own_page',
-            editor_interaction_level: 'full_edit'
+            book_role: currentTempState.pendingPermissions[friend.id]?.book_role || friend.book_role || 'author',
+            page_access_level: currentTempState.pendingPermissions[friend.id]?.pageAccessLevel || friend.pageAccessLevel || 'own_page',
+            editor_interaction_level: currentTempState.pendingPermissions[friend.id]?.editorInteractionLevel || friend.editorInteractionLevel || 'full_edit'
           })
         });
       } catch (error) {
@@ -277,15 +297,18 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
       }
     }
     
-    // Save page assignment changes
-    if (tempState.pendingAssignment !== null || tempState.hasRemovedAssignment) {
-      const updatedAssignments = { ...state.pageAssignments };
-      if (tempState.hasRemovedAssignment) {
-        delete updatedAssignments[currentPage];
-      } else {
-        updatedAssignments[currentPage] = tempState.pendingAssignment;
+    // Remove friends from book
+    for (const friendId of currentTempState.removedFriends) {
+      try {
+        await fetch(`${apiUrl}/books/${bookId}/friends/${friendId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+      } catch (error) {
+        console.error('Error removing friend:', error);
       }
-      dispatch({ type: 'SET_PAGE_ASSIGNMENTS', payload: updatedAssignments });
     }
     
     // Update book friends with all local changes and pending permissions
@@ -296,44 +319,178 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
     
     // Add existing friends from state (excluding removed ones)
     currentBookFriends.forEach(friend => {
-      if (!tempState.removedFriends.has(friend.id)) {
+      if (!currentTempState.removedFriends.has(friend.id)) {
         allFriends.set(friend.id, friend);
       }
     });
     
     // Add/update with local bookFriends (includes newly added users)
-    tempState.bookFriends.forEach(friend => {
-      if (!tempState.removedFriends.has(friend.id)) {
+    currentTempState.bookFriends.forEach(friend => {
+      if (!currentTempState.removedFriends.has(friend.id)) {
         const existing = allFriends.get(friend.id);
         allFriends.set(friend.id, {
           ...existing,
           ...friend,
           // Apply pending permissions if any
-          book_role: tempState.pendingPermissions[friend.id]?.book_role || friend.book_role || existing?.book_role || 'author',
-          pageAccessLevel: tempState.pendingPermissions[friend.id]?.pageAccessLevel || friend.pageAccessLevel || existing?.pageAccessLevel || 'own_page',
-          editorInteractionLevel: tempState.pendingPermissions[friend.id]?.editorInteractionLevel || friend.editorInteractionLevel || existing?.editorInteractionLevel || 'full_edit'
+          book_role: currentTempState.pendingPermissions[friend.id]?.book_role || friend.book_role || existing?.book_role || 'author',
+          pageAccessLevel: currentTempState.pendingPermissions[friend.id]?.pageAccessLevel || friend.pageAccessLevel || existing?.pageAccessLevel || 'own_page',
+          editorInteractionLevel: currentTempState.pendingPermissions[friend.id]?.editorInteractionLevel || friend.editorInteractionLevel || existing?.editorInteractionLevel || 'full_edit'
         });
       }
     });
     
     const updatedBookFriends = Array.from(allFriends.values());
+    
+    // Update permissions for all friends via bulk-update
+    if (updatedBookFriends.length > 0) {
+      try {
+        const friendsWithPermissions = updatedBookFriends.map(friend => ({
+          user_id: friend.id,
+          role: friend.role,
+          book_role: currentTempState.pendingPermissions[friend.id]?.book_role || friend.book_role || 'author',
+          page_access_level: currentTempState.pendingPermissions[friend.id]?.pageAccessLevel || friend.pageAccessLevel || 'own_page',
+          editor_interaction_level: currentTempState.pendingPermissions[friend.id]?.editorInteractionLevel || friend.editorInteractionLevel || 'full_edit'
+        }));
+        
+        await fetch(`${apiUrl}/books/${bookId}/friends/bulk-update`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ friends: friendsWithPermissions })
+        });
+      } catch (error) {
+        console.error('Error updating friend permissions:', error);
+      }
+    }
+    
+    // Update state with new book friends
     dispatch({ type: 'SET_BOOK_FRIENDS', payload: updatedBookFriends });
     
-    // Update temp questions
-    Object.entries(tempState.tempQuestions).forEach(([questionId, text]) => {
-      dispatch({ type: 'UPDATE_TEMP_QUESTION', payload: { questionId, text } });
-    });
-    
-    // Remove deleted questions from editor state
-    tempState.deletedQuestions.forEach(questionId => {
-      dispatch({ type: 'DELETE_TEMP_QUESTION', payload: { questionId } });
-    });
-    
-    // Update book settings
-    if (state.currentBook && (tempState.bookSettings.pageSize !== state.currentBook.pageSize || tempState.bookSettings.orientation !== state.currentBook.orientation)) {
-      dispatch({ type: 'UPDATE_BOOK_SETTINGS', payload: tempState.bookSettings });
+    // Save page assignment changes
+    if (currentTempState.pendingAssignment !== null || currentTempState.hasRemovedAssignment) {
+      const currentPageNumber = (state.activePageIndex !== undefined ? state.activePageIndex + 1 : 1);
+      const updatedAssignments = { ...state.pageAssignments };
+      if (currentTempState.hasRemovedAssignment) {
+        delete updatedAssignments[currentPageNumber];
+      } else {
+        updatedAssignments[currentPageNumber] = currentTempState.pendingAssignment;
+      }
+      
+      // Update state first
+      dispatch({ type: 'SET_PAGE_ASSIGNMENTS', payload: updatedAssignments });
+      
+      // Save to database
+      try {
+        const assignments = Object.entries(updatedAssignments)
+          .filter(([_, assignedUser]) => assignedUser !== null)
+          .map(([pageNumber, assignedUser]) => ({
+            pageNumber: parseInt(pageNumber),
+            userId: assignedUser?.id || null
+          }));
+        
+        await fetch(`${apiUrl}/page-assignments/book/${bookId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ assignments })
+        });
+      } catch (error) {
+        console.error('Error saving page assignments:', error);
+      }
     }
-  };
+    
+    // Save questions to database
+    for (const [questionId, questionText] of Object.entries(currentTempState.tempQuestions)) {
+      if (questionText && questionText.trim()) {
+        try {
+          // Parse question data (might be JSON with poolId or plain text)
+          let textToSave = questionText;
+          let questionPoolId = null;
+          try {
+            const parsed = JSON.parse(questionText);
+            if (parsed.text) {
+              textToSave = parsed.text;
+              questionPoolId = parsed.poolId || null;
+            }
+          } catch {
+            // Not JSON, use as plain text
+          }
+          
+          // Update editor state FIRST (before DB save)
+          // This ensures UI updates immediately
+          dispatch({ type: 'UPDATE_TEMP_QUESTION', payload: { questionId, text: textToSave, questionPoolId } });
+          
+          await fetch(`${apiUrl}/questions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              id: questionId,
+              bookId: bookId,
+              questionText: textToSave,
+              questionPoolId: questionPoolId
+            })
+          });
+        } catch (error) {
+          console.error('Error saving question:', error);
+        }
+      }
+    }
+    
+    // Delete questions from database
+    for (const questionId of currentTempState.deletedQuestions) {
+      try {
+        await fetch(`${apiUrl}/questions/${questionId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        // Remove from editor state
+        dispatch({ type: 'DELETE_TEMP_QUESTION', payload: { questionId } });
+      } catch (error) {
+        console.error('Error deleting question:', error);
+      }
+    }
+    
+    // CRITICAL: Reload all questions from database and sync with editor state
+    // This ensures that questions-manager-dialog shows all questions correctly
+    // and that textboxes display updated question text
+    try {
+      const questionsResponse = await fetch(`${apiUrl}/books/${bookId}/questions`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (questionsResponse.ok) {
+        const questionsData = await questionsResponse.json();
+        
+        // Update editor state with ALL questions from database
+        // This ensures consistency between DB and editor state
+        questionsData.forEach((q: { id: string; question_text: string; question_pool_id?: number | null }) => {
+          const questionText = q.question_text;
+          const questionPoolId = q.question_pool_id || undefined;
+          
+          // Always update to ensure editor state matches database
+          dispatch({ 
+            type: 'UPDATE_TEMP_QUESTION', 
+            payload: { 
+              questionId: q.id, 
+              text: questionText, 
+              questionPoolId 
+            } 
+          });
+        });
+      }
+    } catch (error) {
+      console.error('Error reloading questions:', error);
+      // Don't throw - this is not critical for saving
+    }
+  }, [tempState, state, dispatch, bookId, token]);
   
   const saveToDatabase = async () => {
     try {
@@ -372,7 +529,7 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
           });
         } catch (error) {
           // Ignore 409 errors (friend already exists)
-          if (!error.message?.includes('409')) {
+          if (!(error instanceof Error && error.message?.includes('409'))) {
             console.error('Error adding friend:', error);
           }
         }
@@ -399,18 +556,36 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
       // Save questions
       for (const [questionId, questionText] of Object.entries(tempState.tempQuestions)) {
         if (questionText && questionText.trim()) {
-          await fetch(`${apiUrl}/questions`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              id: questionId,
-              bookId: bookId,
-              questionText: questionText
-            })
-          });
+          try {
+            // Parse question data (might be JSON with poolId or plain text)
+            let textToSave = questionText;
+            let questionPoolId = null;
+            try {
+              const parsed = JSON.parse(questionText);
+              if (parsed.text) {
+                textToSave = parsed.text;
+                questionPoolId = parsed.poolId || null;
+              }
+            } catch {
+              // Not JSON, use as plain text
+            }
+            
+            await fetch(`${apiUrl}/questions`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                id: questionId,
+                bookId: bookId,
+                questionText: textToSave,
+                questionPoolId: questionPoolId
+              })
+            });
+          } catch (error) {
+            console.error('Error saving question:', error);
+          }
         }
       }
       
@@ -427,13 +602,30 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
     }
   };
   
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     if (hasChanges()) {
       setShowUnsavedDialog(true);
     } else {
       onClose();
     }
-  };
+  }, [hasChanges, onClose]);
+  
+  const handleSave = useCallback(async () => {
+    try {
+      if (isStandalone) {
+        // Save directly to database in standalone mode
+        await saveToDatabase();
+      } else {
+        // Save to editor context in editor mode
+        await saveToEditorContext();
+      }
+      // Only close after all saves are complete
+      onClose();
+    } catch (error) {
+      console.error('Error saving book manager changes:', error);
+      // Don't close on error - let user see the error
+    }
+  }, [isStandalone, onClose, saveToDatabase, saveToEditorContext]);
   
   const handleSaveAndExit = async () => {
     await handleSave();
@@ -544,7 +736,7 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
             });
           }
         });
-        
+
         setQuestions(Array.from(questionsMap.values()));
       }
     } catch (error) {
@@ -602,6 +794,42 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
     setEditingId(null);
     setEditText('');
   };
+
+  // Use refs to store the latest functions to avoid dependency issues
+  const handleCancelRef = useRef(handleCancel);
+  const handleSaveRef = useRef(handleSave);
+  
+  // Update refs when functions change
+  useEffect(() => {
+    handleCancelRef.current = handleCancel;
+    handleSaveRef.current = handleSave;
+  }, [handleCancel, handleSave]);
+
+  // Expose actions to parent component
+  // Use useLayoutEffect to avoid infinite loops and ensure actions are set before render
+  useLayoutEffect(() => {
+    if (onActionsReady) {
+      const actions = (
+        <>
+          <Button variant="outline" onClick={() => handleCancelRef.current()}>
+            Cancel
+          </Button>
+          <Button onClick={() => handleSaveRef.current()}>
+            Save and Close
+          </Button>
+        </>
+      );
+      onActionsReady(actions);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onActionsReady]);
+
+  // Set initial tab when component mounts or initialTab changes
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   useEffect(() => {
     fetchAllFriends();
@@ -744,9 +972,6 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
   };
 
   const handleAddFriend = (friend: User) => {
-    console.log('Adding friend:', friend);
-    console.log('Current bookFriends before:', tempState.bookFriends);
-    
     // Add to local book friends with default permissions
     const newFriend = {
       ...friend,
@@ -756,14 +981,10 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
       editorInteractionLevel: 'full_edit' as const
     };
     
-    setTempState(prev => {
-      const updated = { 
-        ...prev, 
-        bookFriends: [...prev.bookFriends, newFriend]
-      };
-      console.log('Updated bookFriends:', updated.bookFriends);
-      return updated;
-    });
+    setTempState(prev => ({
+      ...prev, 
+      bookFriends: [...prev.bookFriends, newFriend]
+    }));
     setShowAddUser(false);
     setActiveTab('friends');
   };
@@ -872,8 +1093,8 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
   }
 
   return (
-    <div className="p-6 h-full flex flex-col">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+    <div className="h-full flex flex-col min-h-0">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
         <TabsList className="grid w-full grid-cols-4" variant='bootstrap'>
           <TabsTrigger value="pages-assignments">Pages & Assignments</TabsTrigger>
           <TabsTrigger value="friends">Friends</TabsTrigger>
@@ -939,14 +1160,16 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
         </TabsContent>
       </Tabs>
       
-      <div className="flex gap-2 pt-6 border-t mt-6 justify-end">
-        <Button variant="outline" onClick={handleCancel}>
-          Cancel
-        </Button>
-        <Button onClick={handleSave}>
-          Save and Close
-        </Button>
-      </div>
+      {!hideActions && (
+        <div className="flex gap-2 pt-6 border-t mt-6 justify-end flex-shrink-0">
+          <Button variant="outline" onClick={handleCancel}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave}>
+            Save and Close
+          </Button>
+        </div>
+      )}
       
       {conflictAlert.show && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">

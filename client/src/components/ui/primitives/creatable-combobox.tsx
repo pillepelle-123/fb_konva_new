@@ -1,12 +1,14 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Check, ChevronsUpDown, Loader2, Plus, X } from 'lucide-react'
-import { Button, Input, Popover, PopoverContent, PopoverTrigger } from '../../../components/ui'
+import { Button, Input, Popover, PopoverContent, PopoverTrigger } from '../index'
 import { cn } from '../../../lib/utils'
+import ProfilePicture from '../../features/users/profile-picture'
 
 export interface CreatableComboboxOption {
   value: string
   label: string
   description?: string
+  userId?: number
 }
 
 export interface CreatableComboboxProps {
@@ -28,6 +30,7 @@ export interface CreatableComboboxProps {
  * Radix/Popover basierte Combobox mit Suchfeld und "Create"-Funktion.
  * Nutzt synchronen oder asynchronen `onCreateOption`-Callback, um neue Optionen zu erzeugen.
  * Der Parent ist verantwortlich, die `options`-Liste nach erfolgreichem Create zu aktualisieren.
+ * Die "Create"-Option erscheint als Listeneintrag, sobald Text eingegeben wurde.
  */
 export function CreatableCombobox({
   options,
@@ -63,6 +66,12 @@ export function CreatableCombobox({
     () => normalizedOptions.find((option) => option.value === value) || null,
     [normalizedOptions, value],
   )
+
+  const showCreateOption = useMemo(() => {
+    if (!onCreateOption) return false
+    const trimmedSearch = search.trim()
+    return trimmedSearch.length > 0
+  }, [onCreateOption, search])
 
   const handleSelect = useCallback(
     (optionValue: string) => {
@@ -141,7 +150,7 @@ export function CreatableCombobox({
             autoFocus
           />
           <div className="max-h-64 overflow-auto rounded-md border bg-background">
-            {filteredOptions.length > 0 ? (
+            {filteredOptions.length > 0 || showCreateOption ? (
               <ul className="py-1">
                 {filteredOptions.map((option) => {
                   const isSelected = option.value === selectedOption?.value
@@ -155,33 +164,51 @@ export function CreatableCombobox({
                         )}
                         onClick={() => handleSelect(option.value)}
                       >
-                        <span className="flex flex-col">
-                          <span>{option.label}</span>
-                          {option.description ? (
-                            <span className="text-xs text-muted-foreground">{option.description}</span>
-                          ) : null}
-                        </span>
-                        {isSelected ? <Check className="h-4 w-4" /> : null}
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <ProfilePicture
+                            name={option.label}
+                            size="xs"
+                            userId={option.userId}
+                            variant="withColoredBorder"
+                            className="flex-shrink-0"
+                          />
+                          <span className="flex flex-col min-w-0">
+                            <span className="truncate">{option.label}</span>
+                            {option.description ? (
+                              <span className="text-xs text-muted-foreground truncate">{option.description}</span>
+                            ) : null}
+                          </span>
+                        </div>
+                        {isSelected ? <Check className="h-4 w-4 flex-shrink-0" /> : null}
                       </button>
                     </li>
                   )
                 })}
+                {showCreateOption && (
+                  <li>
+                    <button
+                      type="button"
+                      disabled={isCreating}
+                      className={cn(
+                        'flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted',
+                        isCreating && 'opacity-50 cursor-not-allowed',
+                      )}
+                      onClick={handleCreate}
+                    >
+                      {isCreating ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Plus className="h-4 w-4" />
+                      )}
+                      <span>{createLabel(search.trim())}</span>
+                    </button>
+                  </li>
+                )}
               </ul>
             ) : (
               <div className="px-3 py-6 text-center text-sm text-muted-foreground">{emptyLabel}</div>
             )}
           </div>
-          {onCreateOption ? (
-            <Button
-              type="button"
-              disabled={!search.trim() || isCreating}
-              onClick={handleCreate}
-              className="w-full justify-center gap-2"
-            >
-              {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              <span>{createLabel(search.trim() || '')}</span>
-            </Button>
-          ) : null}
         </div>
       </PopoverContent>
     </Popover>

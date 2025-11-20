@@ -5,7 +5,7 @@ import { useAuth } from '../../../context/auth-context';
 import { useEditor } from '../../../context/editor-context';
 
 export default function QuestionDialogHandler() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const { state } = useEditor();
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
   const [currentElementId, setCurrentElementId] = useState<string | null>(null);
@@ -47,7 +47,7 @@ export default function QuestionDialogHandler() {
             setShowQuestionDialog(false);
             setCurrentElementId(null);
           }}
-          token={user.token || ''}
+          token={token || ''}
           onClose={() => setShowQuestionDialog(false)}
         />
       </DialogContent>

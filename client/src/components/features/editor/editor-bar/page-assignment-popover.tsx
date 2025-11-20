@@ -7,6 +7,7 @@ import { Plus, Send, X } from 'lucide-react';
 import { Button } from '../../../ui/primitives/button';
 import { Tooltip } from '../../../ui/composites/tooltip';
 import InviteUserDialog from '../../books/invite-user-dialog';
+import FindFriendsDialog from '../../friends/find-friends-dialog';
 
 interface BookFriend {
   id: number;
@@ -28,10 +29,11 @@ export default function PageAssignmentPopover({
   bookId, 
   onAssignUser 
 }: PageAssignmentPopoverProps) {
-  const { user } = useAuth();
-  const { state: editorState, checkUserQuestionConflicts, getQuestionText } = useEditor();
+  const { user, token } = useAuth();
+  const { state: editorState, dispatch, checkUserQuestionConflicts, getQuestionText } = useEditor();
   const [open, setOpen] = useState(false);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [findFriendsDialogOpen, setFindFriendsDialogOpen] = useState(false);
 
   // Use bookFriends from editor state instead of fetching
   // Ensure current user is included if not already in the list
@@ -90,10 +92,137 @@ export default function PageAssignmentPopover({
     setOpen(false);
   };
 
-  const handleInvite = (name: string, email: string) => {
-    // TODO: Implement invite functionality
-    console.log('Invite user:', name, email);
-    setInviteDialogOpen(false);
+  const handleSelectFriend = async (selectedUser: { id: number; name: string; email: string }) => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      
+      // Check if user is already in bookFriends
+      const isInBook = bookFriends.some(f => f.id === selectedUser.id);
+      
+      if (!isInBook) {
+        // Add friend to book first
+        const addToBookResponse = await fetch(`${apiUrl}/books/${bookId}/friends`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            friendId: selectedUser.id,
+            book_role: 'author',
+            page_access_level: 'own_page',
+            editor_interaction_level: 'full_edit'
+          })
+        });
+        
+        if (!addToBookResponse.ok) {
+          console.error('Failed to add friend to book');
+          return;
+        }
+        
+        // Refresh bookFriends list
+        const friendsResponse = await fetch(`${apiUrl}/books/${bookId}/friends`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (friendsResponse.ok) {
+          const updatedBookFriends = await friendsResponse.json();
+          dispatch({ type: 'SET_BOOK_FRIENDS', payload: updatedBookFriends });
+        }
+      }
+      
+      // Create BookFriend object
+      const bookFriend: BookFriend = {
+        id: selectedUser.id,
+        name: selectedUser.name,
+        email: selectedUser.email,
+        role: 'author'
+      };
+      
+      // Assign user to page
+      handleAssignUser(bookFriend);
+      setFindFriendsDialogOpen(false);
+      setOpen(false);
+    } catch (error) {
+      console.error('Error selecting friend:', error);
+    }
+  };
+
+  const handleInvite = async (name: string, email: string) => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const requestBody: { name: string; email: string; bookId: number } = { name, email, bookId };
+      
+      const response = await fetch(`${apiUrl}/invitations/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(requestBody)
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        const newUser = result.user;
+        
+        if (newUser) {
+          // Refresh bookFriends list and update editor context
+          const friendsResponse = await fetch(`${apiUrl}/books/${bookId}/friends`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          
+          if (friendsResponse.ok) {
+            const bookFriends = await friendsResponse.json();
+            // Update editor context with new bookFriends
+            dispatch({ type: 'SET_BOOK_FRIENDS', payload: bookFriends });
+            
+            // Create BookFriend object from the new user
+            const newBookFriend: BookFriend = {
+              id: newUser.id,
+              name: newUser.name,
+              email: newUser.email,
+              role: 'author' // Default role for invited users
+            };
+            
+            // Save page assignment to database immediately
+            const assignmentResponse = await fetch(`${apiUrl}/page-assignments`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                pageNumber: currentPage,
+                userId: newUser.id,
+                bookId: bookId
+              })
+            });
+            
+            if (assignmentResponse.ok) {
+              // Update local state with the assignment
+              const updatedAssignments = { ...editorState.pageAssignments };
+              updatedAssignments[currentPage] = newBookFriend;
+              dispatch({ type: 'SET_PAGE_ASSIGNMENTS', payload: updatedAssignments });
+              
+              // Also call onAssignUser to update parent component
+              onAssignUser(newBookFriend);
+            } else {
+              console.error('Failed to assign page to new user');
+            }
+          }
+        }
+        
+        setInviteDialogOpen(false);
+      } else {
+        const error = await response.json();
+        console.error('Error inviting user:', error);
+        // TODO: Show error message to user
+      }
+    } catch (error) {
+      console.error('Error inviting user:', error);
+      // TODO: Show error message to user
+    }
   };
 
   const assignedUser = editorState.pageAssignments[currentPage];
@@ -163,7 +292,7 @@ export default function PageAssignmentPopover({
                 size="default"
                 className="flex-1"
                 onClick={() => {
-                  // No action for now
+                  setFindFriendsDialogOpen(true);
                 }}
               >
                 <Plus className="h-4" />
@@ -188,6 +317,23 @@ export default function PageAssignmentPopover({
         open={inviteDialogOpen}
         onOpenChange={setInviteDialogOpen}
         onInvite={handleInvite}
+      />
+      <FindFriendsDialog
+        open={findFriendsDialogOpen}
+        onOpenChange={setFindFriendsDialogOpen}
+        friends={bookFriends.map(f => ({ id: f.id, name: f.name, email: f.email }))}
+        onFriendAdded={async () => {
+          // Refresh bookFriends list after friend is added
+          const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+          const friendsResponse = await fetch(`${apiUrl}/books/${bookId}/friends`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (friendsResponse.ok) {
+            const updatedBookFriends = await friendsResponse.json();
+            dispatch({ type: 'SET_BOOK_FRIENDS', payload: updatedBookFriends });
+          }
+        }}
+        onSelectFriend={handleSelectFriend}
       />
     </Popover>
   );

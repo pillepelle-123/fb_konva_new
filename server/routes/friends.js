@@ -20,7 +20,7 @@ pool.on('connect', (client) => {
 // Invite user by email (creates user if doesn't exist)
 router.post('/invite', authenticateToken, async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, name } = req.body;
     const userId = req.user.id;
     
     // Check if user already exists
@@ -32,9 +32,12 @@ router.post('/invite', authenticateToken, async (req, res) => {
       const bcrypt = require('bcryptjs');
       const hashedPassword = await bcrypt.hash(tempPassword, 10);
       
+      // Use provided name or derive from email
+      const userName = name || email.split('@')[0];
+      
       user = await pool.query(
-        'INSERT INTO public.users (email, name, password) VALUES ($1, $2, $3) RETURNING id',
-        [email, email.split('@')[0], hashedPassword]
+        'INSERT INTO public.users (email, name, password_hash) VALUES ($1, $2, $3) RETURNING id',
+        [email, userName, hashedPassword]
       );
     }
     

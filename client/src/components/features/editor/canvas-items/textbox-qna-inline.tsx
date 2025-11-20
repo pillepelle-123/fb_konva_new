@@ -252,6 +252,9 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
   const elementHeight = element.height;
   const elementQuestionWidth = element.questionWidth;
   
+  // Get current question text to detect changes
+  const currentQuestionText = element.questionId ? state.tempQuestions[element.questionId] : null;
+  
   useEffect(() => {
     // Simulate the resize process to force proper re-calculation of ruled lines
     setIsResizing(true);
@@ -274,6 +277,13 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
   useEffect(() => {
     setRefreshKey(prev => prev + 1);
   }, [activeSection, individualSettings, state.selectedElementIds]);
+  
+  // Force refresh when question text changes (e.g., after editing in book-manager)
+  useEffect(() => {
+    if (element.questionId) {
+      setRefreshKey(prev => prev + 1);
+    }
+  }, [element.questionId, currentQuestionText]);
 
 
 
@@ -1097,6 +1107,22 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
         stage.draw();
       };
       
+      // Listen for closeQuillEditor event - defined here so it's in scope for later cleanup
+      const handleCloseQuillEditor = () => {
+        closeModal();
+      };
+      window.addEventListener('closeQuillEditor', handleCloseQuillEditor);
+      
+      // Store reference to handler for later cleanup
+      (modal as any).__closeQuillEditorHandler = handleCloseQuillEditor;
+      
+      // Update closeModal to also remove the event listener
+      const originalCloseModal = closeModal;
+      closeModal = () => {
+        window.removeEventListener('closeQuillEditor', handleCloseQuillEditor);
+        originalCloseModal();
+      };
+      
       cancelBtn.onclick = closeModal;
       
       buttonContainer.appendChild(cancelBtn);
@@ -1330,10 +1356,15 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
         window.addEventListener(uniqueEventName, handleQuestionSelected);
         
         // Cleanup function to remove the event listener when modal closes
-        const originalCloseModal = closeModal;
+        const previousCloseModal = closeModal;
         closeModal = () => {
           window.removeEventListener(uniqueEventName, handleQuestionSelected);
-          originalCloseModal();
+          // Also remove closeQuillEditor listener
+          const closeQuillEditorHandler = (modal as any).__closeQuillEditorHandler;
+          if (closeQuillEditorHandler) {
+            window.removeEventListener('closeQuillEditor', closeQuillEditorHandler);
+          }
+          previousCloseModal();
         };
         
         // Update cancel button to use new closeModal

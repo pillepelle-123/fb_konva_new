@@ -296,6 +296,19 @@ export default function TextboxFreeText(props: CanvasItemProps) {
         stage.draw();
       };
       
+      // Listen for closeQuillEditor event
+      const handleCloseQuillEditor = () => {
+        closeModal();
+      };
+      window.addEventListener('closeQuillEditor', handleCloseQuillEditor);
+      
+      // Update closeModal to also remove the event listener
+      const originalCloseModal = closeModal;
+      closeModal = () => {
+        window.removeEventListener('closeQuillEditor', handleCloseQuillEditor);
+        originalCloseModal();
+      };
+      
       cancelBtn.onclick = closeModal;
       
       buttonContainer.appendChild(cancelBtn);

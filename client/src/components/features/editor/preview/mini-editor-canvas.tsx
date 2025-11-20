@@ -39,7 +39,7 @@ export default function MiniEditorCanvas(props: MiniEditorCanvasProps) {
   }, [props.className]);
 
   const isModal = props.className?.includes('h-full');
-  const containerHeight = isModal ? '100%' : 360;
+  const containerHeight = isModal ? '100%' : 442;
 
   return (
     <div className={`rounded-2xl bg-white shadow-sm border p-4 ${props.className ?? ''} ${isModal ? 'h-full flex flex-col' : ''}`}>

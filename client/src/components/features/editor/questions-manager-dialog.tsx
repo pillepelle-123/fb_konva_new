@@ -1,12 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Button } from '../../ui/primitives/button';
 import { Card, CardContent } from '../../ui/composites/card';
 import { Input } from '../../ui/primitives/input';
 import { DialogDescription, DialogHeader, DialogTitle, Dialog, DialogContent, DialogFooter } from '../../ui/overlays/dialog';
-import { useAuth } from '../../../context/auth-context';
 import { useEditor } from '../../../context/editor-context';
-import { Plus, Edit, Trash2, Save, Calendar, MessageCircleQuestionMark, Library } from 'lucide-react';
+import { Plus, Calendar, MessageCircleQuestionMark, Library, Settings } from 'lucide-react';
 import { apiService } from '../../../services/api';
 import QuestionPoolModal from '../questions/question-pool-modal';
 
@@ -35,20 +34,15 @@ export default function QuestionsManagerDialog({
   token,
   onClose
 }: QuestionsManagerDialogProps) {
-  const { user } = useAuth();
-  const { state, dispatch, isQuestionAvailableForUser, validateQuestionSelection } = useEditor();
+  const { state, dispatch, validateQuestionSelection } = useEditor();
   
   const [userRole, setUserRole] = useState<string | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [userAnswers, setUserAnswers] = useState<Set<string>>(new Set());
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editText, setEditText] = useState('');
   const [newQuestion, setNewQuestion] = useState('');
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showQuestionPool, setShowQuestionPool] = useState(false);
-  const editInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const fetchUserRole = async () => {
@@ -88,10 +82,13 @@ export default function QuestionsManagerDialog({
     return null;
   }
 
+  // Serialize tempQuestions to detect changes
+  const tempQuestionsString = JSON.stringify(state.tempQuestions || {});
+  
   useEffect(() => {
     fetchQuestions();
     fetchUserAnswers();
-  }, [bookId, state.tempQuestions]);
+  }, [bookId, tempQuestionsString]);
 
   useEffect(() => {
     // Re-render when page assignments change
@@ -108,12 +105,12 @@ export default function QuestionsManagerDialog({
       const data = await apiService.getQuestions(bookId as number);
       
       // Add questions from React state that aren't in database yet
-      const tempQuestions = Object.entries(state.tempQuestions).map(([id, questionData]) => {
+      const tempQuestions = Object.entries(state.tempQuestions || {}).map(([id, questionData]: [string, unknown]) => {
         // Parse question data (might be JSON with poolId or plain text)
-        let questionText = questionData;
+        let questionText = questionData as string;
         let questionPoolId = null;
         try {
-          const parsed = JSON.parse(questionData);
+          const parsed = JSON.parse(questionData as string);
           if (parsed.text) {
             questionText = parsed.text;
             questionPoolId = parsed.poolId || null;
@@ -134,7 +131,7 @@ export default function QuestionsManagerDialog({
       
       // Filter out temp questions that are already in database
       const newTempQuestions = tempQuestions.filter(tempQ => 
-        !data.some(dbQ => dbQ.id === tempQ.id)
+        !data.some((dbQ: { id: string }) => dbQ.id === tempQ.id)
       );
       
       setQuestions([...newTempQuestions, ...data]);
@@ -153,7 +150,7 @@ export default function QuestionsManagerDialog({
     
     try {
       const answers = await apiService.getUserAnswers(bookId as number);
-      const answeredQuestionIds = new Set(answers.map((answer: any) => answer.question_id));
+      const answeredQuestionIds = new Set<string>(answers.map((answer: { question_id: string }) => answer.question_id));
       setUserAnswers(answeredQuestionIds);
     } catch (error) {
       console.error('Error fetching user answers:', error);
@@ -177,6 +174,38 @@ export default function QuestionsManagerDialog({
     setNewQuestion('');
   };
 
+  const handleManageQuestions = () => {
+    // Close all open QuillEditor modals by multiple methods
+    // Method 1: Find modals by backdrop-filter style
+    const quillModalsByStyle = document.querySelectorAll('div[style*="backdrop-filter:blur(2px)"]');
+    quillModalsByStyle.forEach((modal) => {
+      if (modal.parentNode === document.body) {
+        document.body.removeChild(modal);
+      }
+    });
+    
+    // Method 2: Find modals by z-index:10000
+    const quillModalsByZIndex = document.querySelectorAll('div[style*="z-index:10000"]');
+    quillModalsByZIndex.forEach((modal) => {
+      if (modal.parentNode === document.body && modal.querySelector('h2')) {
+        const header = modal.querySelector('h2');
+        if (header && (header.textContent === 'Frage Antwort' || header.textContent === 'Free Text')) {
+          document.body.removeChild(modal);
+        }
+      }
+    });
+    
+    // Method 3: Dispatch event to close QuillEditor modals
+    window.dispatchEvent(new CustomEvent('closeQuillEditor'));
+    
+    // Close the questions dialog
+    onClose();
+    // Dispatch event to open book manager modal with questions tab
+    window.dispatchEvent(new CustomEvent('openBookManager', {
+      detail: { tab: 'questions-answers' }
+    }));
+  };
+
   const handleQuestionFromPool = (poolQuestion: any) => {
     // Create new question from pool
     const questionId = uuidv4();
@@ -197,51 +226,6 @@ export default function QuestionsManagerDialog({
     
     // Select the question immediately
     onQuestionSelect?.(questionId, poolQuestion.question_text);
-  };
-
-  const handleEditQuestion = (questionId: string) => {
-    if (!editText.trim()) return;
-
-    // Edit question in state
-    setQuestions(prev => prev.map(q => 
-      q.id === questionId 
-        ? { ...q, question_text: editText, updated_at: new Date().toISOString() }
-        : q
-    ));
-    
-    // Update the temp questions state to immediately update textboxes on canvas
-    dispatch({ type: 'UPDATE_TEMP_QUESTION', payload: { questionId, text: editText } });
-    
-    setEditingId(null);
-    setEditText('');
-  };
-
-  const handleDeleteQuestion = (questionId: string) => {
-    setShowDeleteConfirm(questionId);
-  };
-
-  const handleConfirmDelete = () => {
-    if (!showDeleteConfirm) return;
-    
-    // Delete question from state
-    setQuestions(prev => prev.filter(q => q.id !== showDeleteConfirm));
-    setShowDeleteConfirm(null);
-  };
-
-  const startEdit = (question: Question) => {
-    setEditingId(question.id);
-    setEditText(question.question_text);
-  };
-
-  useEffect(() => {
-    if (editingId && editInputRef.current) {
-      editInputRef.current.focus();
-    }
-  }, [editingId]);
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    setEditText('');
   };
 
   const formatDate = (dateString: string) => {
@@ -358,6 +342,15 @@ export default function QuestionsManagerDialog({
                 <Button 
                   type="button" 
                   variant="outline" 
+                  onClick={handleManageQuestions}
+                  className="space-x-2"
+                >
+                  <Settings className="h-4 w-4" />
+                  <span>Manage Questions</span>
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="outline" 
                   onClick={() => setShowQuestionPool(true)}
                   className="space-x-2"
                 >
@@ -388,21 +381,23 @@ export default function QuestionsManagerDialog({
                     
                     if (!isAvailable) {
                       return (
-                        <div key={question.id} className="p-4 opacity-50 bg-muted/20">
-                          <div className="space-y-1">
-                            <div className="flex items-start justify-between mb-2">
-                              <p className="text-foreground leading-relaxed flex-1 line-through">
-                                {question.question_text}
-                              </p>
-                              {unavailableReason && (
-                                <span className="ml-2 px-2 py-1 text-xs rounded-full bg-destructive/10 text-destructive border border-destructive/20">
-                                  {unavailableReason}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                              <Calendar className="h-3 w-3" />
-                              <span>Created {formatDate(question.created_at)}</span>
+                        <div key={question.id} className="p-4 bg-muted/20">
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-1 flex-1 opacity-50">
+                              <div className="flex items-start justify-between mb-2">
+                                <p className="text-foreground leading-relaxed flex-1 line-through">
+                                  {question.question_text}
+                                </p>
+                                {unavailableReason && (
+                                  <span className="ml-2 px-2 py-1 text-xs rounded-full bg-destructive/10 text-destructive border border-destructive/20">
+                                    {unavailableReason}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                                <Calendar className="h-3 w-3" />
+                                <span>Created {formatDate(question.created_at)}</span>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -411,111 +406,60 @@ export default function QuestionsManagerDialog({
                     
                     return (
                       <div key={question.id} className="p-4 hover:bg-muted/50 transition-colors">
-                        {editingId === question.id ? (
-                          <div className="space-y-3">
-                            <Input
-                              ref={editInputRef}
-                              type="text"
-                              value={editText}
-                              onChange={(e) => setEditText(e.target.value)}
-                              className="w-full"
-                            />
-                            <div className="flex gap-2 justify-end">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={cancelEdit}
-                              >
-                                Cancel
-                              </Button>
-                              <Button
-                                size="sm"
-                                onClick={() => handleEditQuestion(question.id)}
-                                className="space-x-2"
-                              >
-                                <Save className="h-4 w-4" />
-                                <span>Save</span>
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-start justify-between">
-                            <div 
-                              className="space-y-1 flex-1 cursor-pointer hover:bg-muted/30 p-2 rounded"
-                              onClick={(e) => {
-                                const target = e.target as HTMLElement;
-                                if (target.closest('button')) return;
-                                
-                                if (!isAvailable) return;
-                                
-                                // Validate question selection
-                                const currentPageNumber = state.activePageIndex + 1;
-                                const validation = validateQuestionSelection(question.id, currentPageNumber);
-                                
-                                if (!validation.valid) {
-                                  // Show validation error
-                                  alert(validation.reason || 'This question cannot be selected.');
-                                  return;
-                                }
-                                
-                                onQuestionSelect?.(question.id, question.question_text);
-                              }}
-                            >
-                              <div className="flex items-start justify-between mb-2">
-                                <p className="text-foreground leading-relaxed flex-1">
-                                  {question.question_text}
-                                  {question.isNew && (
-                                    <span className="ml-2 px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 border border-blue-200">
-                                      New
-                                    </span>
-                                  )}
-                                  {question.question_pool_id && (
-                                    <span className="ml-2 px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800 border border-purple-200">
-                                      From Pool
-                                    </span>
-                                  )}
-                                </p>
-                                {userAnswers.has(question.id) && (
-                                  <span className="ml-2 px-2 py-1 text-xs rounded-full bg-ring/10 text-ring border border-ring/20">
-                                    Answered by you
+                        <div className="flex items-start justify-between">
+                          <div 
+                            className="space-y-1 flex-1 cursor-pointer hover:bg-muted/30 p-2 rounded"
+                            onClick={(e) => {
+                              const target = e.target as HTMLElement;
+                              if (target.closest('button')) return;
+                              
+                              if (!isAvailable) return;
+                              
+                              // Validate question selection
+                              const currentPageNumber = state.activePageIndex + 1;
+                              const validation = validateQuestionSelection(question.id, currentPageNumber);
+                              
+                              if (!validation.valid) {
+                                // Show validation error
+                                alert((validation as { valid: boolean; reason?: string }).reason || 'This question cannot be selected.');
+                                return;
+                              }
+                              
+                              onQuestionSelect?.(question.id, question.question_text);
+                            }}
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <p className="text-foreground leading-relaxed flex-1">
+                                {question.question_text}
+                                {question.isNew && (
+                                  <span className="ml-2 px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                                    New
                                   </span>
                                 )}
-                              </div>
-                              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                                <Calendar className="h-3 w-3" />
-                                <span>Created {formatDate(question.created_at)}</span>
-                                {question.updated_at && (
-                                  <>
-                                    <span>|</span>
-                                    <span>Updated {formatDate(question.updated_at)}</span>
-                                  </>
+                                {question.question_pool_id && (
+                                  <span className="ml-2 px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                                    From Pool
+                                  </span>
                                 )}
-                              </div>
+                              </p>
+                              {userAnswers.has(question.id) && (
+                                <span className="ml-2 px-2 py-1 text-xs rounded-full bg-ring/10 text-ring border border-ring/20">
+                                  Answered by you
+                                </span>
+                              )}
                             </div>
-                            {!question.question_pool_id && (
-                              <div className="flex gap-2 ml-4">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => startEdit(question)}
-                                  className="space-x-2"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                  <span>Edit</span>
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteQuestion(question.id)}
-                                  className="space-x-2 text-destructive hover:text-destructive"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  <span>Delete</span>
-                                </Button>
-                              </div>
-                            )}
+                            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                              <Calendar className="h-3 w-3" />
+                              <span>Created {formatDate(question.created_at)}</span>
+                              {question.updated_at && (
+                                <>
+                                  <span>|</span>
+                                  <span>Updated {formatDate(question.updated_at)}</span>
+                                </>
+                              )}
+                            </div>
                           </div>
-                        )}
+                        </div>
                       </div>
                     );
                   })}
@@ -525,25 +469,6 @@ export default function QuestionsManagerDialog({
         </Card>
       </div>
 
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg mb-2">Delete Question</h3>
-            <p className="text-gray-600 mb-4">
-              Are you sure you want to delete this question? This action cannot be undone.
-            </p>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setShowDeleteConfirm(null)} className="flex-1">
-                Cancel
-              </Button>
-              <Button variant="destructive" onClick={handleConfirmDelete} className="flex-1">
-                Delete Question
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-      
       <Dialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
         <DialogContent>
           <DialogHeader>
