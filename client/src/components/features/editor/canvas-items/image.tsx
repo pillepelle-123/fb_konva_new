@@ -115,6 +115,8 @@ export default function Image(props: CanvasItemProps) {
   const [size, setSize] = useState({ width: element.width || 150, height: element.height || 100 });
   // Ref to track if we're currently transforming to avoid frame size issues during resize
   const isTransformingRef = useRef(false);
+  // State to track if we're currently transforming (for hiding frame)
+  const [isTransforming, setIsTransforming] = useState(false);
 
   const handleDoubleClick = () => {
     if (element.type === 'placeholder') {
@@ -206,6 +208,7 @@ export default function Image(props: CanvasItemProps) {
     const handleImageTransform = (e: CustomEvent) => {
       if (e.detail?.elementId === element.id) {
         isTransformingRef.current = true;
+        setIsTransforming(true);
         // Update size state - this will trigger crop recalculation via useMemo
         // The size is calculated from Group scale in canvas.tsx
         // DO NOT modify Image node directly - let React-Konva handle it via width/height props
@@ -232,6 +235,7 @@ export default function Image(props: CanvasItemProps) {
         // This prevents race conditions between rotation and resize operations
         setTimeout(() => {
           isTransformingRef.current = false;
+          setIsTransforming(false);
         }, 0);
       }
     };
@@ -327,7 +331,7 @@ export default function Image(props: CanvasItemProps) {
           )}
           
           {/* Frame around image */}
-          {image && (() => {
+          {image && !isTransforming && (() => {
             const frameEnabled = element.frameEnabled !== undefined 
               ? element.frameEnabled 
               : (element.strokeWidth || 0) > 0;

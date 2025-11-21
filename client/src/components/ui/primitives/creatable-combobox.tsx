@@ -167,7 +167,7 @@ export function CreatableCombobox({
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                           <ProfilePicture
                             name={option.label}
-                            size="xs"
+                            size="sm"
                             userId={option.userId}
                             variant="withColoredBorder"
                             className="flex-shrink-0"

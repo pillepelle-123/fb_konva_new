@@ -7,7 +7,7 @@ import { Plus, Send, X } from 'lucide-react';
 import { Button } from '../../../ui/primitives/button';
 import { Tooltip } from '../../../ui/composites/tooltip';
 import InviteUserDialog from '../../books/invite-user-dialog';
-import FindFriendsDialog from '../../friends/find-friends-dialog';
+import SelectFriendDialog from '../../friends/select-friend-dialog';
 
 interface BookFriend {
   id: number;
@@ -318,22 +318,11 @@ export default function PageAssignmentPopover({
         onOpenChange={setInviteDialogOpen}
         onInvite={handleInvite}
       />
-      <FindFriendsDialog
+      <SelectFriendDialog
         open={findFriendsDialogOpen}
         onOpenChange={setFindFriendsDialogOpen}
-        friends={bookFriends.map(f => ({ id: f.id, name: f.name, email: f.email }))}
-        onFriendAdded={async () => {
-          // Refresh bookFriends list after friend is added
-          const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-          const friendsResponse = await fetch(`${apiUrl}/books/${bookId}/friends`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (friendsResponse.ok) {
-            const updatedBookFriends = await friendsResponse.json();
-            dispatch({ type: 'SET_BOOK_FRIENDS', payload: updatedBookFriends });
-          }
-        }}
         onSelectFriend={handleSelectFriend}
+        excludeUserIds={bookFriends.map(f => f.id)}
       />
     </Popover>
   );

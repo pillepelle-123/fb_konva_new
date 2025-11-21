@@ -32,13 +32,26 @@ export default function FindFriendsDialog({ open, onOpenChange, friends, onFrien
     setLoading(true);
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/users/search?q=${encodeURIComponent(searchText)}`, {
+      
+      // Use the friendships/search endpoint which already filters out existing friendships
+      const response = await fetch(`${apiUrl}/friendships/search?query=${encodeURIComponent(searchText)}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      
       if (response.ok) {
         const data = await response.json();
         const filteredResults = data.filter((searchUser: User) => searchUser.id !== user?.id);
         setSearchResults(filteredResults);
+      } else {
+        // Fallback to users/search if friendships/search doesn't work
+        const fallbackResponse = await fetch(`${apiUrl}/users/search?q=${encodeURIComponent(searchText)}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (fallbackResponse.ok) {
+          const data = await fallbackResponse.json();
+          const filteredResults = data.filter((searchUser: User) => searchUser.id !== user?.id);
+          setSearchResults(filteredResults);
+        }
       }
     } catch (error) {
       console.error('Error searching users:', error);
@@ -58,13 +71,41 @@ export default function FindFriendsDialog({ open, onOpenChange, friends, onFrien
         },
         body: JSON.stringify({ friendId: userId })
       });
-      if (response.ok) {
-        setSearchResults(searchResults.filter(user => user.id !== userId));
-        onFriendAdded();
-        onOpenChange(false);
+      
+      if (!response.ok) {
+        let errorMessage = `HTTP ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorData.message || errorMessage;
+          
+          // If friendship already exists, treat it as success and refresh the list
+          if (errorMessage === 'Friendship already exists' || errorMessage.includes('already exists')) {
+            // Remove from search results and refresh friends list
+            setSearchResults(searchResults.filter(user => user.id !== userId));
+            onFriendAdded();
+            return;
+          }
+        } catch (e) {
+          // If response is not JSON, try to get text
+          try {
+            const text = await response.text();
+            errorMessage = text || errorMessage;
+          } catch (e2) {
+            // Ignore
+          }
+        }
+        console.error('Error adding friend:', errorMessage);
+        alert(`Fehler beim Hinzufügen des Freundes: ${errorMessage}`);
+        return;
       }
+      
+      const result = await response.json();
+      setSearchResults(searchResults.filter(user => user.id !== userId));
+      onFriendAdded();
+      onOpenChange(false);
     } catch (error) {
       console.error('Error adding friend:', error);
+      alert(`Fehler beim Hinzufügen des Freundes: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
     }
   };
 

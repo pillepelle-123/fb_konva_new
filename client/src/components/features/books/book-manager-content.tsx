@@ -250,68 +250,12 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
     // This ensures we always have the current state, not a stale closure
     const currentTempState = tempState;
     
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-    
-    // Update book settings first (if changed)
+    // Update book settings in state only (not in database)
     if (state.currentBook && (currentTempState.bookSettings.pageSize !== state.currentBook.pageSize || currentTempState.bookSettings.orientation !== state.currentBook.orientation)) {
-      try {
-        await fetch(`${apiUrl}/books/${bookId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            pageSize: currentTempState.bookSettings.pageSize,
-            orientation: currentTempState.bookSettings.orientation
-          })
-        });
-        dispatch({ type: 'UPDATE_BOOK_SETTINGS', payload: currentTempState.bookSettings });
-      } catch (error) {
-        console.error('Error updating book settings:', error);
-      }
+      dispatch({ type: 'UPDATE_BOOK_SETTINGS', payload: currentTempState.bookSettings });
     }
     
-    // Update book friends and permissions
-    const existingFriendIds = new Set((state.bookFriends || []).map(f => f.id));
-    const newFriends = currentTempState.bookFriends.filter(f => !existingFriendIds.has(f.id));
-
-    // Add new friends to book
-    for (const friend of newFriends) {
-      try {
-        await fetch(`${apiUrl}/books/${bookId}/friends`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            friendId: friend.id,
-            book_role: currentTempState.pendingPermissions[friend.id]?.book_role || friend.book_role || 'author',
-            page_access_level: currentTempState.pendingPermissions[friend.id]?.pageAccessLevel || friend.pageAccessLevel || 'own_page',
-            editor_interaction_level: currentTempState.pendingPermissions[friend.id]?.editorInteractionLevel || friend.editorInteractionLevel || 'full_edit'
-          })
-        });
-      } catch (error) {
-        console.error('Error adding friend:', error);
-      }
-    }
-    
-    // Remove friends from book
-    for (const friendId of currentTempState.removedFriends) {
-      try {
-        await fetch(`${apiUrl}/books/${bookId}/friends/${friendId}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-      } catch (error) {
-        console.error('Error removing friend:', error);
-      }
-    }
-    
-    // Update book friends with all local changes and pending permissions
+    // Update book friends in state only (not in database)
     const currentBookFriends = state.bookFriends || [];
     
     // Merge local bookFriends with current state, applying pending permissions
@@ -341,156 +285,66 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
     
     const updatedBookFriends = Array.from(allFriends.values());
     
-    // Update permissions for all friends via bulk-update
-    if (updatedBookFriends.length > 0) {
-      try {
-        const friendsWithPermissions = updatedBookFriends.map(friend => ({
-          user_id: friend.id,
-          role: friend.role,
-          book_role: currentTempState.pendingPermissions[friend.id]?.book_role || friend.book_role || 'author',
-          page_access_level: currentTempState.pendingPermissions[friend.id]?.pageAccessLevel || friend.pageAccessLevel || 'own_page',
-          editor_interaction_level: currentTempState.pendingPermissions[friend.id]?.editorInteractionLevel || friend.editorInteractionLevel || 'full_edit'
-        }));
-        
-        await fetch(`${apiUrl}/books/${bookId}/friends/bulk-update`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ friends: friendsWithPermissions })
-        });
-      } catch (error) {
-        console.error('Error updating friend permissions:', error);
+    // Update state with new book friends (not in database)
+    dispatch({ type: 'SET_BOOK_FRIENDS', payload: updatedBookFriends });
+    
+    const originalAssignments = state.pageAssignments || {};
+    const updatedAssignments = { ...originalAssignments };
+    let assignmentsChanged = false;
+    
+    // Entferne sämtliche Seitenzuweisungen für gelöschte Freunde
+    if (currentTempState.removedFriends.size > 0) {
+      for (const [pageNumber, assignedUser] of Object.entries(updatedAssignments)) {
+        if (assignedUser && currentTempState.removedFriends.has(assignedUser.id)) {
+          delete updatedAssignments[pageNumber];
+          assignmentsChanged = true;
+        }
       }
     }
     
-    // Update state with new book friends
-    dispatch({ type: 'SET_BOOK_FRIENDS', payload: updatedBookFriends });
-    
-    // Save page assignment changes
+    // Save page assignment changes for current page
     if (currentTempState.pendingAssignment !== null || currentTempState.hasRemovedAssignment) {
       const currentPageNumber = (state.activePageIndex !== undefined ? state.activePageIndex + 1 : 1);
-      const updatedAssignments = { ...state.pageAssignments };
+      assignmentsChanged = true;
       if (currentTempState.hasRemovedAssignment) {
         delete updatedAssignments[currentPageNumber];
       } else {
         updatedAssignments[currentPageNumber] = currentTempState.pendingAssignment;
       }
-      
-      // Update state first
-      dispatch({ type: 'SET_PAGE_ASSIGNMENTS', payload: updatedAssignments });
-      
-      // Save to database
-      try {
-        const assignments = Object.entries(updatedAssignments)
-          .filter(([_, assignedUser]) => assignedUser !== null)
-          .map(([pageNumber, assignedUser]) => ({
-            pageNumber: parseInt(pageNumber),
-            userId: assignedUser?.id || null
-          }));
-        
-        await fetch(`${apiUrl}/page-assignments/book/${bookId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ assignments })
-        });
-      } catch (error) {
-        console.error('Error saving page assignments:', error);
-      }
     }
     
-    // Save questions to database
+    if (assignmentsChanged) {
+      // Update state only (not in database)
+      dispatch({ type: 'SET_PAGE_ASSIGNMENTS', payload: updatedAssignments });
+    }
+    
+    // Update questions in state only (not in database)
     for (const [questionId, questionText] of Object.entries(currentTempState.tempQuestions)) {
       if (questionText && questionText.trim()) {
+        // Parse question data (might be JSON with poolId or plain text)
+        let textToSave = questionText;
+        let questionPoolId = null;
         try {
-          // Parse question data (might be JSON with poolId or plain text)
-          let textToSave = questionText;
-          let questionPoolId = null;
-          try {
-            const parsed = JSON.parse(questionText);
-            if (parsed.text) {
-              textToSave = parsed.text;
-              questionPoolId = parsed.poolId || null;
-            }
-          } catch {
-            // Not JSON, use as plain text
+          const parsed = JSON.parse(questionText);
+          if (parsed.text) {
+            textToSave = parsed.text;
+            questionPoolId = parsed.poolId || null;
           }
-          
-          // Update editor state FIRST (before DB save)
-          // This ensures UI updates immediately
-          dispatch({ type: 'UPDATE_TEMP_QUESTION', payload: { questionId, text: textToSave, questionPoolId } });
-          
-          await fetch(`${apiUrl}/questions`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              id: questionId,
-              bookId: bookId,
-              questionText: textToSave,
-              questionPoolId: questionPoolId
-            })
-          });
-        } catch (error) {
-          console.error('Error saving question:', error);
+        } catch {
+          // Not JSON, use as plain text
         }
+        
+        // Update editor state only (not in database)
+        dispatch({ type: 'UPDATE_TEMP_QUESTION', payload: { questionId, text: textToSave, questionPoolId } });
       }
     }
     
-    // Delete questions from database
+    // Mark questions for deletion in state only (not in database)
     for (const questionId of currentTempState.deletedQuestions) {
-      try {
-        await fetch(`${apiUrl}/questions/${questionId}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        // Remove from editor state
-        dispatch({ type: 'DELETE_TEMP_QUESTION', payload: { questionId } });
-      } catch (error) {
-        console.error('Error deleting question:', error);
-      }
+      // Remove from editor state
+      dispatch({ type: 'DELETE_TEMP_QUESTION', payload: { questionId } });
     }
-    
-    // CRITICAL: Reload all questions from database and sync with editor state
-    // This ensures that questions-manager-dialog shows all questions correctly
-    // and that textboxes display updated question text
-    try {
-      const questionsResponse = await fetch(`${apiUrl}/books/${bookId}/questions`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (questionsResponse.ok) {
-        const questionsData = await questionsResponse.json();
-        
-        // Update editor state with ALL questions from database
-        // This ensures consistency between DB and editor state
-        questionsData.forEach((q: { id: string; question_text: string; question_pool_id?: number | null }) => {
-          const questionText = q.question_text;
-          const questionPoolId = q.question_pool_id || undefined;
-          
-          // Always update to ensure editor state matches database
-          dispatch({ 
-            type: 'UPDATE_TEMP_QUESTION', 
-            payload: { 
-              questionId: q.id, 
-              text: questionText, 
-              questionPoolId 
-            } 
-          });
-        });
-      }
-    } catch (error) {
-      console.error('Error reloading questions:', error);
-      // Don't throw - this is not critical for saving
-    }
-  }, [tempState, state, dispatch, bookId, token]);
+  }, [tempState, state, dispatch]);
   
   const saveToDatabase = async () => {
     try {
@@ -676,69 +530,100 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
     
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/books/${bookId}/questions`, {
-        headers: { Authorization: `Bearer ${token}` }
+      
+      // Fetch questions and answers in parallel
+      const [questionsResponse, answersResponse] = await Promise.all([
+        fetch(`${apiUrl}/books/${bookId}/questions`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        fetch(`${apiUrl}/answers/book/${bookId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      ]);
+      
+      let questionsData = [];
+      let answersData = [];
+      
+      if (questionsResponse.ok) {
+        questionsData = await questionsResponse.json();
+      }
+      
+      if (answersResponse.ok) {
+        answersData = await answersResponse.json();
+      }
+      
+      // Create a map of answers by question_id
+      const answersByQuestionId = new Map<string, Answer[]>();
+      answersData.forEach((answer: { question_id: string; id: string; user_id: number; answer_text?: string; user_name?: string; user_email?: string }) => {
+        const questionId = answer.question_id;
+        if (!answersByQuestionId.has(questionId)) {
+          answersByQuestionId.set(questionId, []);
+        }
+        answersByQuestionId.get(questionId)!.push({
+          id: answer.id,
+          user_id: answer.user_id,
+          answer_text: answer.answer_text || '',
+          user_name: answer.user_name || 'Unknown',
+          user_email: answer.user_email || ''
+        });
       });
       
-      if (response.ok) {
-        const questionsData = await response.json();
+      // Filter out deleted questions
+      const filteredQuestions = questionsData.filter((q: Question) => !tempState.deletedQuestions.has(q.id));
+      
+      // Create a map to avoid duplicates
+      const questionsMap = new Map();
+      
+      // Add API questions first
+      filteredQuestions.forEach((q: Question) => {
+        const tempQuestionData = tempState.tempQuestions[q.id];
+        let questionText = q.question_text;
         
-        // Filter out deleted questions
-        const filteredQuestions = questionsData.filter(q => !tempState.deletedQuestions.has(q.id));
+        // Check if there's an updated text in temp state
+        if (tempQuestionData) {
+          try {
+            const parsed = JSON.parse(tempQuestionData);
+            questionText = parsed.text || tempQuestionData;
+          } catch {
+            questionText = tempQuestionData;
+          }
+        }
         
-        // Create a map to avoid duplicates
-        const questionsMap = new Map();
-        
-        // Add API questions first
-        filteredQuestions.forEach(q => {
-          const tempQuestionData = tempState.tempQuestions[q.id];
-          let questionText = q.question_text;
-          
-          // Check if there's an updated text in temp state
-          if (tempQuestionData) {
-            try {
-              const parsed = JSON.parse(tempQuestionData);
-              questionText = parsed.text || tempQuestionData;
-            } catch {
-              questionText = tempQuestionData;
+        questionsMap.set(q.id, {
+          ...q,
+          question_text: questionText,
+          answers: answersByQuestionId.get(q.id) || []
+        });
+      });
+      
+      // Add temp questions (only if not already in API questions)
+      Object.entries(tempState.tempQuestions).forEach(([id, questionData]) => {
+        if (!questionsMap.has(id)) {
+          // Parse question data (might be JSON with poolId or plain text)
+          let questionText = questionData;
+          let questionPoolId = null;
+          try {
+            const parsed = JSON.parse(questionData);
+            if (parsed.text) {
+              questionText = parsed.text;
+              questionPoolId = parsed.poolId || null;
             }
+          } catch {
+            // Not JSON, use as plain text
           }
           
-          questionsMap.set(q.id, {
-            ...q,
-            question_text: questionText
+          questionsMap.set(id, {
+            id,
+            question_text: questionText,
+            question_pool_id: questionPoolId,
+            created_at: new Date().toISOString(),
+            updated_at: null,
+            answers: answersByQuestionId.get(id) || []
           });
-        });
-        
-        // Add temp questions (only if not already in API questions)
-        Object.entries(tempState.tempQuestions).forEach(([id, questionData]) => {
-          if (!questionsMap.has(id)) {
-            // Parse question data (might be JSON with poolId or plain text)
-            let questionText = questionData;
-            let questionPoolId = null;
-            try {
-              const parsed = JSON.parse(questionData);
-              if (parsed.text) {
-                questionText = parsed.text;
-                questionPoolId = parsed.poolId || null;
-              }
-            } catch {
-              // Not JSON, use as plain text
-            }
-            
-            questionsMap.set(id, {
-              id,
-              question_text: questionText,
-              question_pool_id: questionPoolId,
-              created_at: new Date().toISOString(),
-              updated_at: null,
-              answers: []
-            });
-          }
-        });
+        }
+      });
 
-        setQuestions(Array.from(questionsMap.values()));
-      }
+      setQuestions(Array.from(questionsMap.values()));
     } catch (error) {
       console.error('Error fetching questions:', error);
     } finally {

@@ -35,14 +35,30 @@ router.post('/', authenticateToken, async (req, res) => {
     const { friendId } = req.body;
     const userId = req.user.id;
     
-    if (userId === friendId) {
+    // Validate friendId
+    if (friendId === undefined || friendId === null) {
+      return res.status(400).json({ error: 'friendId is required' });
+    }
+    
+    const friendIdNum = typeof friendId === 'number' ? friendId : parseInt(friendId, 10);
+    if (isNaN(friendIdNum) || friendIdNum <= 0) {
+      return res.status(400).json({ error: 'friendId must be a valid positive number' });
+    }
+    
+    if (userId === friendIdNum) {
       return res.status(400).json({ error: 'Cannot add yourself as friend' });
+    }
+    
+    // Check if user exists
+    const userCheck = await pool.query('SELECT id FROM public.users WHERE id = $1', [friendIdNum]);
+    if (userCheck.rows.length === 0) {
+      return res.status(400).json({ error: 'User not found' });
     }
     
     // Check if friendship already exists
     const existing = await pool.query(
       'SELECT id FROM public.friendships WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)',
-      [userId, friendId]
+      [userId, friendIdNum]
     );
     
     if (existing.rows.length > 0) {
@@ -51,13 +67,13 @@ router.post('/', authenticateToken, async (req, res) => {
     
     await pool.query(
       'INSERT INTO public.friendships (user_id, friend_id, created_at) VALUES ($1, $2, NOW())',
-      [userId, friendId]
+      [userId, friendIdNum]
     );
     
     res.json({ success: true });
   } catch (error) {
     console.error('Error adding friend:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error', details: error.message });
   }
 });
 

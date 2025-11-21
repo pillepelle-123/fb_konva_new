@@ -4564,6 +4564,9 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         // If no pages are modified, still send book metadata update
         const bookPayload = {
           ...state.currentBook,
+          // Include book settings (pageSize, orientation) from state
+          pageSize: state.currentBook.pageSize,
+          orientation: state.currentBook.orientation,
           pages: modifiedPages.length > 0 ? modifiedPages : state.currentBook.pages,
           onlyModifiedPages: modifiedPages.length > 0 && modifiedPages.length < state.currentBook.pages.length // Flag to indicate partial save
         };

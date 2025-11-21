@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/composites/card';
-import { BookOpen, Users, FileText, Plus, ArrowRight, Calendar, MessageSquare, HelpCircle, TrendingUp, Activity, Mail, Star, BookPlus, CircleQuestionMark, LayoutDashboard } from 'lucide-react';
+import { BookOpen, Users, FileText, Plus, ArrowRight, Calendar, MessageSquare, HelpCircle, TrendingUp, Activity, Mail, Star, BookPlus, MessageCircleQuestionMark, LayoutDashboard } from 'lucide-react';
 import FloatingActionButton from '../../components/ui/composites/floating-action-button';
 import { ChartContainer } from '../../components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell } from 'recharts';
@@ -418,7 +418,7 @@ export default function Dashboard() {
                 </Button>
               </Link>
               <Button className="flex-1 min-w-[200px] h-auto py-4 px-6 justify-start space-x-3" variant="outline">
-                <CircleQuestionMark className="h-5 w-5" />
+                <MessageCircleQuestionMark className="h-5 w-5" />
                 <div className="text-left">
                   <div className="font-medium">Manage Questions</div>
                   <div className="text-sm text-muted-foreground">Organize content</div>

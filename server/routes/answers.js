@@ -157,15 +157,21 @@ router.get('/book/:bookId', authenticateToken, async (req, res) => {
 
     let answers;
     if (userRole === 'author') {
-      // For authors, return only their own answers
+      // For authors, return only their own answers with user information
       answers = await pool.query(
-        'SELECT * FROM public.answers WHERE user_id = $1 AND question_id = ANY($2::uuid[])',
+        `SELECT a.*, u.name as user_name, u.email as user_email 
+         FROM public.answers a
+         JOIN public.users u ON a.user_id = u.id
+         WHERE a.user_id = $1 AND a.question_id = ANY($2::uuid[])`,
         [userId, questionIds]
       );
     } else {
-      // For owners and publishers, return all answers for all users
+      // For owners and publishers, return all answers for all users with user information
       answers = await pool.query(
-        'SELECT * FROM public.answers WHERE question_id = ANY($1::uuid[])',
+        `SELECT a.*, u.name as user_name, u.email as user_email 
+         FROM public.answers a
+         JOIN public.users u ON a.user_id = u.id
+         WHERE a.question_id = ANY($1::uuid[])`,
         [questionIds]
       );
     }

@@ -526,7 +526,7 @@ export default function BookCreatePage() {
       });
 
       // Attach collaborators (existing friends)
-      await Promise.all(
+      const addedFriends = await Promise.all(
         wizardState.team.selectedFriends
           .filter((friend) => friend.id > 0) // Only add existing friends (id > 0), not temporary invites (id === -1)
           .map(async (friend) => {
@@ -544,11 +544,82 @@ export default function BookCreatePage() {
                   editor_interaction_level: 'full_edit',
                 }),
               });
+              return friend;
             } catch (error) {
               console.warn('Failed to add friend', friend.id, error);
+              return null;
             }
           }),
       );
+
+      // Create page assignments based on user order and pagesPerUser
+      const validFriends = addedFriends.filter((f): f is Friend => f !== null);
+      if (validFriends.length > 0 && wizardState.team.pagesPerUser) {
+        const pagesPerUser = wizardState.team.pagesPerUser;
+        const assignments: Array<{ pageNumber: number; userId: number }> = [];
+        
+        // Content pages start from page 5 (page 4 is paired with Inner Front)
+        // Content pages end at totalPages - 1 (last page is Inner Back)
+        const firstContentPage = 5;
+        const lastContentPage = totalPages - 1;
+        
+        let currentPage = firstContentPage;
+        
+        for (const friend of validFriends) {
+          if (pagesPerUser === 1) {
+            // Assign one page per user
+            if (currentPage <= lastContentPage) {
+              assignments.push({ pageNumber: currentPage, userId: friend.id });
+              currentPage++;
+            }
+          } else if (pagesPerUser === 2) {
+            // Assign page pairs (odd, even) per user
+            // Always start with an odd page number to ensure pairs
+            if (currentPage <= lastContentPage) {
+              // Ensure we start with an odd page
+              const oddPage = currentPage % 2 === 0 ? currentPage + 1 : currentPage;
+              const evenPage = oddPage + 1;
+              
+              if (oddPage <= lastContentPage) {
+                assignments.push({ pageNumber: oddPage, userId: friend.id });
+              }
+              if (evenPage <= lastContentPage) {
+                assignments.push({ pageNumber: evenPage, userId: friend.id });
+              }
+              
+              // Move to next odd page after the pair
+              currentPage = evenPage + 1;
+            }
+          } else if (pagesPerUser === 3) {
+            // Assign 3 consecutive pages per user
+            for (let i = 0; i < 3 && currentPage <= lastContentPage; i++) {
+              assignments.push({ pageNumber: currentPage, userId: friend.id });
+              currentPage++;
+            }
+          }
+        }
+        
+        // Save page assignments via bulk update endpoint
+        if (assignments.length > 0) {
+          try {
+            await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/page-assignments/book/${newBook.id}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${localStorage.getItem('token')}`,
+              },
+              body: JSON.stringify({
+                assignments: assignments.map(a => ({
+                  pageNumber: a.pageNumber,
+                  userId: a.userId,
+                })),
+              }),
+            });
+          } catch (error) {
+            console.warn('Failed to create page assignments:', error);
+          }
+        }
+      }
 
       // Send invitations for new users (these will generate invitation URLs with tokens)
       await Promise.all(
@@ -858,7 +929,9 @@ function StepNavigation({
                 disabled={!isAccessible}
                 className={`z-10 inline-flex h-9 w-9 items-center justify-center rounded-full transition
                   ${isActive || isCompleted ? 'bg-primary text-primary-foreground' : 'border border-input bg-background text-foreground'}
-                  ${isAccessible ? 'hover:bg-muted' : 'opacity-50 cursor-not-allowed'}
+                  ${isAccessible 
+                    ? (isActive || isCompleted ? 'hover:bg-primary/80' : 'hover:bg-muted')
+                    : 'opacity-50 cursor-not-allowed'}
                   ${isActive ? 'ring-2 ring-ring ring-offset-2 ring-offset-background' : ''}
                 `}
                 aria-label={step.label}

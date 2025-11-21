@@ -1,8 +1,10 @@
 import { useState, useMemo } from 'react';
-import { Plus, Users } from 'lucide-react';
+import { Plus, Users, MessageCircleQuestionMark, X } from 'lucide-react';
 import { Button } from '../../../ui/primitives/button';
 import { Badge } from '../../../ui/composites/badge';
 import { CreatableCombobox, type CreatableComboboxOption } from '../../../ui/primitives/creatable-combobox';
+import { SortableList } from '../../../ui/composites/sortable-list';
+import ProfilePicture from '../../users/profile-picture';
 import InviteUserDialog from '../invite-user-dialog';
 import { useAuth } from '../../../../context/auth-context';
 import { curatedQuestions } from './types';
@@ -72,6 +74,12 @@ export function TeamContentStep({
   const removeFriend = (friendId: number) => {
     onTeamChange({
       selectedFriends: wizardState.team.selectedFriends.filter((friend) => friend.id !== friendId),
+    });
+  };
+
+  const handleSortEnd = (newFriends: Friend[]) => {
+    onTeamChange({
+      selectedFriends: newFriends,
     });
   };
 
@@ -179,120 +187,142 @@ export function TeamContentStep({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl bg-white shadow-sm border p-6">
-        <div className="flex items-center gap-2 mb-6">
-          <Users className="h-5 w-5 text-primary" />
-          <div>
-            <h2 className="text-lg font-semibold">Team & Content (optional)</h2>
-            <p className="text-sm text-muted-foreground">Invite collaborators and prep the questions they'll answer.</p>
-          </div>
-        </div>
-
-        {/* Two columns side by side */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Two columns side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
           {/* Left: Collaborators */}
-          <div className="rounded-xl bg-white shadow-sm border p-4 space-y-4">
-            <div className="flex items-center gap-2 text-sm font-semibold">
+          <div className="rounded-xl bg-white shadow-sm border p-4 flex flex-col overflow-hidden" style={{ maxHeight: 'calc(100vh - 200px)' }}>
+            <div className="flex items-center gap-2 text-sm font-semibold flex-shrink-0 mb-4">
+              <Users className="h-5 w-5" />
               Collaborators
               <Badge variant="outline" className="text-[10px]">Optional</Badge>
             </div>
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">Select friends to invite (they'll receive access after the book is created).</p>
-              <CreatableCombobox
-                options={friendOptions}
-                value={undefined}
-                onChange={handleSelectFriend}
-                onCreateOption={handleCreateFriend}
-                placeholder="Search or invite friend..."
-                inputPlaceholder="Search friends..."
-                emptyLabel="No friends found"
-                createLabel={(search) => `Invite ${search}`}
-                allowClear={false}
-              />
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+              <div className="flex-shrink-0 space-y-3 mb-3">
+                <p className="text-sm text-muted-foreground">Select friends to invite (they'll receive access after the book is created).</p>
+                <CreatableCombobox
+                  options={friendOptions}
+                  value={undefined}
+                  onChange={handleSelectFriend}
+                  onCreateOption={handleCreateFriend}
+                  placeholder="Search or invite friend..."
+                  inputPlaceholder="Search friends..."
+                  emptyLabel="No friends found"
+                  createLabel={(search) => `Invite ${search}`}
+                  allowClear={false}
+                />
+              </div>
               {wizardState.team.selectedFriends.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold">Selected</p>
-                  <div className="flex flex-wrap gap-2">
-                    {wizardState.team.selectedFriends.map((friend) => (
-                      <Badge key={friend.id} variant="secondary" className="flex items-center gap-2">
-                        {friend.name}
-                        <button onClick={() => removeFriend(friend.id)} className="text-xs text-muted-foreground hover:text-foreground">×</button>
-                      </Badge>
-                    ))}
+                <div className="flex-1 min-h-0 flex flex-col overflow-hidden mb-3">
+                  <p className="text-xs font-semibold flex-shrink-0 mb-2">Selected</p>
+                  <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                    <SortableList
+                      items={wizardState.team.selectedFriends}
+                      onSortEnd={handleSortEnd}
+                      renderItem={(friend) => (
+                        <div className="rounded-lg border bg-card p-3 flex items-center justify-between hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center gap-2">
+                            <ProfilePicture
+                              name={friend.name}
+                              size="sm"
+                              userId={friend.id > 0 ? friend.id : undefined}
+                              editable={false}
+                            />
+                            <div>
+                              <p className="text-sm font-medium">{friend.name}</p>
+                              {friend.email && (
+                                <p className="text-xs text-muted-foreground">{friend.email}</p>
+                              )}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => removeFriend(friend.id)}
+                            className="text-muted-foreground hover:text-foreground transition-colors p-1"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
+                    />
                   </div>
                 </div>
               )}
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="group-chat"
-                  checked={wizardState.team.enableGroupChat}
-                  onChange={(e) => onTeamChange({ enableGroupChat: e.target.checked })}
-                />
-                <label htmlFor="group-chat" className="text-sm text-muted-foreground">
-                  Enable messenger group chat for collaborators
-                </label>
-              </div>
-
-              <div className="mt-3">
-                <p className="text-sm font-semibold">Number of pages per user</p>
-                <div className="flex gap-2 mt-2">
-                  {[1, 2, 3].map((n) => (
-                    <Button
-                      key={n}
-                      variant={wizardState.team.pagesPerUser === n ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => onTeamChange({ pagesPerUser: n as 1 | 2 | 3 })}
-                    >
-                      {n}
-                    </Button>
-                  ))}
+              <div className="flex-shrink-0 space-y-3 border-t pt-3">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="group-chat"
+                    checked={wizardState.team.enableGroupChat}
+                    onChange={(e) => onTeamChange({ enableGroupChat: e.target.checked })}
+                  />
+                  <label htmlFor="group-chat" className="text-sm text-muted-foreground">
+                    Enable messenger group chat for collaborators
+                  </label>
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Total pages = pages per user × number of selected users − 4 special pages (min. 24)
-                </p>
+
+                <div>
+                  <p className="text-sm font-semibold">Number of pages per user</p>
+                  <div className="flex gap-2 mt-2">
+                    {[1, 2, 3].map((n) => (
+                      <Button
+                        key={n}
+                        variant={wizardState.team.pagesPerUser === n ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => onTeamChange({ pagesPerUser: n as 1 | 2 | 3 })}
+                      >
+                        {n}
+                      </Button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Total pages = pages per user × number of selected users − 4 special pages (min. 24)
+                  </p>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Right: Question set */}
-          <div className="rounded-xl bg-white shadow-sm border p-4 space-y-4">
-            <div className="flex items-center gap-2 text-sm font-semibold">
+          <div className="rounded-xl bg-white shadow-sm border p-4 flex flex-col overflow-hidden" style={{ maxHeight: 'calc(100vh - 200px)' }}>
+            <div className="flex items-center gap-2 text-sm font-semibold flex-shrink-0 mb-4">
+              <MessageCircleQuestionMark className="h-5 w-5" />
               Question set
               <Badge variant="outline" className="text-[10px]">Optional</Badge>
             </div>
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">Select from our curated prompts or add your own.</p>
-              <div className="space-y-2">
-                {curatedQuestions.map((question) => (
-                  <label key={question.id} className="flex items-start gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={selectedQuestionIds.includes(question.id)}
-                      onChange={() => toggleQuestion(question.id)}
-                    />
-                    <span>{question.text}</span>
-                  </label>
-                ))}
-              </div>
-              <Button variant="outline" size="sm" onClick={openCustomQuestionModal} className="mt-2">
-                <Plus className="h-4 w-4 mr-2" />
-                Add custom question
-              </Button>
-              {wizardState.questions.custom.length > 0 && (
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+              <p className="text-sm text-muted-foreground flex-shrink-0 mb-3">Select from our curated prompts or add your own.</p>
+              <div className="flex-1 min-h-0 overflow-y-auto pr-1 mb-3">
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold">Custom questions</p>
-                  <ul className="text-sm text-muted-foreground list-disc pl-4">
-                    {wizardState.questions.custom.map((question) => (
-                      <li key={question.id}>{question.text}</li>
-                    ))}
-                  </ul>
+                  {curatedQuestions.map((question) => (
+                    <label key={question.id} className="flex items-start gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={selectedQuestionIds.includes(question.id)}
+                        onChange={() => toggleQuestion(question.id)}
+                      />
+                      <span>{question.text}</span>
+                    </label>
+                  ))}
                 </div>
-              )}
+              </div>
+              <div className="flex-shrink-0 space-y-2 border-t pt-3">
+                <Button variant="outline" size="sm" onClick={openCustomQuestionModal}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add custom question
+                </Button>
+                {wizardState.questions.custom.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold">Custom questions</p>
+                    <ul className="text-sm text-muted-foreground list-disc pl-4">
+                      {wizardState.questions.custom.map((question) => (
+                        <li key={question.id}>{question.text}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
       <InviteUserDialog
         open={inviteDialogOpen}
