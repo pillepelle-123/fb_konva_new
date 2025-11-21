@@ -3,6 +3,7 @@ import { Button } from '../../../ui/primitives/button';
 import { Input } from '../../../ui/primitives/input';
 import { ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
 import { Tooltip } from '../../../ui/composites/tooltip';
+import { useEditor } from '../../../../context/editor-context';
 
 interface PageNavigationProps {
   currentPage: number;
@@ -25,6 +26,7 @@ export function PageNavigation({
 }: PageNavigationProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [inputValue, setInputValue] = useState(currentPage.toString());
+  const { state } = useEditor();
 
   const handlePageClick = () => {
     setIsEditing(true);
@@ -67,9 +69,12 @@ export function PageNavigation({
   };
 
   const isRestrictedPage = (page: number) => {
-    if (page === 3) return true;
-    if (totalPages > 0 && page === totalPages) return true;
-    return false;
+    const lastPageNumber =
+      state.pagePagination?.totalPages ??
+      (state.currentBook?.pages.length
+        ? Math.max(...state.currentBook.pages.map((p) => p.pageNumber ?? 0))
+        : totalPages);
+    return page === 3 || (lastPageNumber > 0 && page === lastPageNumber);
   };
 
   const getNextEditablePage = (start: number, direction: 'prev' | 'next'): number => {

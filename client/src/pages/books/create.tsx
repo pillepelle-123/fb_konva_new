@@ -15,7 +15,11 @@ import { DesignStep } from '../../components/features/books/create/design-step';
 import { TeamContentStep } from '../../components/features/books/create/team-content-step';
 import { ReviewStep } from '../../components/features/books/create/review-step';
 import type { WizardState, Friend } from '../../components/features/books/create/types';
-import { curatedQuestions as curatedQuestionsList } from '../../components/features/books/create/types';
+import {
+  curatedQuestions as curatedQuestionsList,
+  getDefaultTeamAssignmentState,
+  DEFAULT_ASSIGNMENT_PAGE_COUNT,
+} from '../../components/features/books/create/types';
 import { convertTemplateToElements } from '../../utils/template-to-elements';
 import { calculatePageDimensions } from '../../utils/template-utils';
 
@@ -51,6 +55,9 @@ const initialState: WizardState = {
     invites: [],
     enableGroupChat: false,
     pagesPerUser: 1,
+    friendFacingPages: false,
+    autoAssign: false,
+    assignmentState: getDefaultTeamAssignmentState(),
   },
   questions: {
     selectedDefaults: [],
@@ -225,11 +232,13 @@ export default function BookCreatePage() {
                 ? 'inner-back'
                 : 'content';
 
+        const isInnerPage = isInnerFront || isInnerBack;
+        const isPrintedPage = !isInnerPage;
+
         // Blank Canvas: NO layout template for ANY page (all pages are blank)
         // Back Cover and Front Cover: can have theme/background
         // Inner Front and Inner Back: NO theme, NO background (plain white)
         // Content pages: can have theme/background, but NO layout template
-        const shouldHaveLayoutTemplate = false; // Always false for Blank Canvas
         const shouldHaveThemeAndBackground = !isInnerFront && !isInnerBack;
 
         pages.push({
@@ -241,8 +250,8 @@ export default function BookCreatePage() {
           colorPaletteId: shouldHaveThemeAndBackground ? 'default' : null,
           pageType,
           pagePairId: getPagePairId(i, pageType),
-          isPrintable: true,
-          isLocked: false,
+          isPrintable: isPrintedPage,
+          isLocked: isInnerPage,
           isSpecialPage: pageType === 'back-cover' || pageType === 'front-cover' || pageType === 'inner-front' || pageType === 'inner-back',
           layoutVariation: 'normal',
           // Explicitly set background to null (not undefined) for Inner Front and Inner Back to prevent inheritance
@@ -308,7 +317,9 @@ export default function BookCreatePage() {
       const numUsers = wizardState.team.selectedFriends.length;
       const specialPages = 4; // Front Cover, Back Cover, Inner Front, Inner Back
       const calculatedPages = (wizardState.team.pagesPerUser || 1) * numUsers - specialPages;
-      const initialPageCount = Math.max(24, calculatedPages);
+      const plannedPages = wizardState.team.assignmentState?.totalPages ?? DEFAULT_ASSIGNMENT_PAGE_COUNT;
+      const normalizeToEven = (value: number) => (value % 2 === 0 ? value : value + 1);
+      const initialPageCount = normalizeToEven(Math.max(DEFAULT_ASSIGNMENT_PAGE_COUNT, calculatedPages, plannedPages));
 
       const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/books`, {
         method: 'POST',
@@ -460,6 +471,9 @@ export default function BookCreatePage() {
                 ? 'inner-back'
                 : 'content';
 
+        const isInnerPage = isInnerFront || isInnerBack;
+        const isPrintedPage = !isInnerPage;
+
         // Back Cover and Front Cover: NO layout template (no elements), but can have theme/background
         // Inner Front and Inner Back: NO layout, NO theme, NO background (plain white)
         // All other pages (including page 4): apply layout/theme/background
@@ -482,8 +496,8 @@ export default function BookCreatePage() {
             : null,
           pageType,
           pagePairId: getPagePairId(i, pageType),
-          isPrintable: true,
-          isLocked: false,
+          isPrintable: isPrintedPage,
+          isLocked: isInnerPage,
           // Only mark back-cover, front-cover, inner-front, inner-back as special
           // "content" pages (including page 4) are NOT special
           isSpecialPage: pageType === 'back-cover' || pageType === 'front-cover' || pageType === 'inner-front' || pageType === 'inner-back',
@@ -552,55 +566,27 @@ export default function BookCreatePage() {
           }),
       );
 
-      // Create page assignments based on user order and pagesPerUser
+      // Create page assignments based on wizard configuration
       const validFriends = addedFriends.filter((f): f is Friend => f !== null);
-      if (validFriends.length > 0 && wizardState.team.pagesPerUser) {
-        const pagesPerUser = wizardState.team.pagesPerUser;
-        const assignments: Array<{ pageNumber: number; userId: number }> = [];
-        
-        // Content pages start from page 5 (page 4 is paired with Inner Front)
-        // Content pages end at totalPages - 1 (last page is Inner Back)
-        const firstContentPage = 5;
-        const lastContentPage = totalPages - 1;
-        
-        let currentPage = firstContentPage;
-        
-        for (const friend of validFriends) {
-          if (pagesPerUser === 1) {
-            // Assign one page per user
-            if (currentPage <= lastContentPage) {
-              assignments.push({ pageNumber: currentPage, userId: friend.id });
-              currentPage++;
-            }
-          } else if (pagesPerUser === 2) {
-            // Assign page pairs (odd, even) per user
-            // Always start with an odd page number to ensure pairs
-            if (currentPage <= lastContentPage) {
-              // Ensure we start with an odd page
-              const oddPage = currentPage % 2 === 0 ? currentPage + 1 : currentPage;
-              const evenPage = oddPage + 1;
-              
-              if (oddPage <= lastContentPage) {
-                assignments.push({ pageNumber: oddPage, userId: friend.id });
-              }
-              if (evenPage <= lastContentPage) {
-                assignments.push({ pageNumber: evenPage, userId: friend.id });
-              }
-              
-              // Move to next odd page after the pair
-              currentPage = evenPage + 1;
-            }
-          } else if (pagesPerUser === 3) {
-            // Assign 3 consecutive pages per user
-            for (let i = 0; i < 3 && currentPage <= lastContentPage; i++) {
-              assignments.push({ pageNumber: currentPage, userId: friend.id });
-              currentPage++;
-            }
-          }
-        }
-        
-        // Save page assignments via bulk update endpoint
-        if (assignments.length > 0) {
+      const validFriendIds = new Set(validFriends.map((friend) => friend.id));
+      const existingAssignments = Object.entries(wizardState.team.assignmentState?.pageAssignments ?? {}).map(
+        ([page, userId]) => ({
+          pageNumber: Number(page),
+          userId: Number(userId),
+        }),
+      );
+
+      const hasManualAssignments = existingAssignments.length > 0;
+
+      if (hasManualAssignments) {
+        const filteredAssignments = existingAssignments.filter(
+          (assignment) =>
+            assignment.pageNumber > 2 &&
+            assignment.pageNumber < totalPages &&
+            validFriendIds.has(assignment.userId),
+        );
+
+        if (filteredAssignments.length > 0) {
           try {
             await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/page-assignments/book/${newBook.id}`, {
               method: 'PUT',
@@ -609,10 +595,70 @@ export default function BookCreatePage() {
                 Authorization: `Bearer ${localStorage.getItem('token')}`,
               },
               body: JSON.stringify({
-                assignments: assignments.map(a => ({
-                  pageNumber: a.pageNumber,
-                  userId: a.userId,
-                })),
+                assignments: filteredAssignments,
+              }),
+            });
+          } catch (error) {
+            console.warn('Failed to create page assignments:', error);
+          }
+        }
+      } else if (validFriends.length > 0 && wizardState.team.pagesPerUser) {
+        const pagesPerUser = wizardState.team.pagesPerUser;
+        const assignments: Array<{ pageNumber: number; userId: number }> = [];
+
+        const firstContentPage = 5;
+        const lastContentPage = totalPages - 1;
+        let currentPage = firstContentPage;
+
+        const ensureOddStart = (page: number) => (page % 2 === 0 ? page + 1 : page);
+
+        for (const friend of validFriends) {
+          if (pagesPerUser === 1) {
+            if (currentPage <= lastContentPage) {
+              assignments.push({ pageNumber: currentPage, userId: friend.id });
+              currentPage++;
+            }
+          } else if (pagesPerUser === 2) {
+            if (currentPage <= lastContentPage) {
+              const oddPage = ensureOddStart(currentPage);
+              const evenPage = oddPage + 1;
+              if (oddPage <= lastContentPage) assignments.push({ pageNumber: oddPage, userId: friend.id });
+              if (evenPage <= lastContentPage) assignments.push({ pageNumber: evenPage, userId: friend.id });
+              currentPage = evenPage + 1;
+            }
+          } else if (pagesPerUser === 3) {
+            for (let i = 0; i < 3 && currentPage <= lastContentPage; i++) {
+              assignments.push({ pageNumber: currentPage, userId: friend.id });
+              currentPage++;
+            }
+          } else if (pagesPerUser === 4) {
+            if (currentPage <= lastContentPage) {
+              const startPage = ensureOddStart(currentPage);
+              for (let i = 0; i < 4; i++) {
+                const pageNumber = startPage + i;
+                if (pageNumber <= lastContentPage) {
+                  assignments.push({ pageNumber, userId: friend.id });
+                }
+              }
+              currentPage = startPage + 4;
+            }
+          }
+        }
+
+        const filteredAssignments = assignments.filter(
+          (assignment) => assignment.pageNumber > 2 && assignment.pageNumber < totalPages,
+        );
+
+        if (filteredAssignments.length > 0) {
+          try {
+            await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/page-assignments/book/${newBook.id}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${localStorage.getItem('token')}`,
+              },
+              body: JSON.stringify({
+                assignments: filteredAssignments,
               }),
             });
           } catch (error) {

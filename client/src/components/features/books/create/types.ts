@@ -12,7 +12,20 @@ export type InviteDraft = {
   id: string;
   name: string;
   email: string;
+  tempFriendId?: number;
 };
+
+export type TeamAssignmentState = {
+  totalPages: number;
+  pageAssignments: Record<number, number>;
+};
+
+export const DEFAULT_ASSIGNMENT_PAGE_COUNT = 24;
+
+export const getDefaultTeamAssignmentState = (): TeamAssignmentState => ({
+  totalPages: DEFAULT_ASSIGNMENT_PAGE_COUNT,
+  pageAssignments: {},
+});
 
 export type CustomQuestion = {
   id: string;
@@ -41,7 +54,10 @@ export type WizardState = {
     selectedFriends: Friend[];
     invites: InviteDraft[];
     enableGroupChat: boolean;
-    pagesPerUser: 1 | 2 | 3;
+    pagesPerUser: 1 | 2 | 3 | 4;
+    friendFacingPages: boolean;
+    autoAssign: boolean;
+    assignmentState: TeamAssignmentState;
   };
   questions: {
     selectedDefaults: string[];

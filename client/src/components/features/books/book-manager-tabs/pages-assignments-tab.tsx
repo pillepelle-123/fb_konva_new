@@ -4,6 +4,7 @@ import CompactList from '../../../shared/list';
 import ProfilePicture from '../../users/profile-picture';
 import { Trash2 } from 'lucide-react';
 import type { BookFriend } from '../book-manager-content';
+import type { Page } from '../../../../context/editor-context';
 
 interface PagesAssignmentsTabProps {
   assignedUser: BookFriend | null;
@@ -11,6 +12,7 @@ interface PagesAssignmentsTabProps {
   onRemoveAssignment: () => void;
   collaborators: BookFriend[];
   renderBookFriend: (friend: BookFriend) => React.ReactNode;
+  currentPageType?: Page['pageType'];
 }
 
 export function PagesAssignmentsTab({
@@ -19,10 +21,19 @@ export function PagesAssignmentsTab({
   onRemoveAssignment,
   collaborators,
   renderBookFriend,
+  currentPageType,
 }: PagesAssignmentsTabProps) {
-  const availableCollaborators = assignedUser
+  const isCoverPage =
+    currentPageType === 'back-cover' ||
+    currentPageType === 'front-cover' ||
+    currentPage === 1 ||
+    currentPage === 2;
+
+  const availableCollaborators = assignedUser && !isCoverPage
     ? collaborators.filter((friend) => friend.id !== assignedUser.id)
-    : collaborators;
+    : isCoverPage
+      ? []
+      : collaborators;
 
   return (
     <div className="space-y-4">
@@ -51,10 +62,14 @@ export function PagesAssignmentsTab({
           </div>
         </div>
       ) : (
-        <p className="text-center text-muted-foreground py-4">No user assigned to page {currentPage}</p>
+        <p className="text-center text-muted-foreground py-4">
+          {isCoverPage ? 'Cover pages cannot be assigned to collaborators.' : `No user assigned to page ${currentPage}`}
+        </p>
       )}
 
-      {availableCollaborators.length > 0 ? (
+      {isCoverPage ? (
+        <p className="text-center text-muted-foreground py-4">Assignments are disabled on Back Cover and Front Cover.</p>
+      ) : availableCollaborators.length > 0 ? (
         <div className="space-y-2">
           <p className="text-sm font-medium">Book Friends:</p>
           <div className="overflow-y-auto">

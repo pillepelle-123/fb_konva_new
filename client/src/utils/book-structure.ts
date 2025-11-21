@@ -25,6 +25,10 @@ export const SPECIAL_PAGE_CONFIG: Record<
   'content': { locked: false, printable: true, spread: 'content', order: 99 }
 };
 
+const COVER_PAIR_ID = 'spread-cover';
+const INTRO_PAIR_ID = 'spread-intro-0';
+const OUTRO_PAIR_ID = 'spread-outro-last';
+
 export function getSpecialPageConfig(pageType?: Page['pageType']) {
   if (!pageType) return null;
   return SPECIAL_PAGE_CONFIG[pageType] ?? null;
@@ -75,6 +79,93 @@ export function cloneCanvasElements(elements: CanvasElement[]): CanvasElement[] 
     ...JSON.parse(JSON.stringify(element)),
     id: uuidv4()
   }));
+}
+
+export type PageMetadata = {
+  pageNumber: number;
+  pageType: NonNullable<Page['pageType']>;
+  pagePairId: string;
+  isSpecial: boolean;
+  isEditable: boolean;
+  isSelectable: boolean;
+  isLocked: boolean;
+  canAssignUser: boolean;
+  canAddQna: boolean;
+  isPlaceholder: boolean;
+};
+
+function deriveFallbackPageType(pageNumber: number, totalPages: number): NonNullable<Page['pageType']> {
+  if (pageNumber === 1) return 'back-cover';
+  if (pageNumber === 2) return 'front-cover';
+  if (pageNumber === 3) return 'inner-front';
+  if (pageNumber === totalPages) return 'inner-back';
+  return 'content';
+}
+
+function deriveFallbackPairId(
+  pageNumber: number,
+  totalPages: number,
+  pageType: NonNullable<Page['pageType']>
+): string {
+  if (pageType === 'back-cover' || pageType === 'front-cover') {
+    return COVER_PAIR_ID;
+  }
+  if (pageType === 'inner-front' || pageType === 'first-page' || pageNumber === 4) {
+    return INTRO_PAIR_ID;
+  }
+  if (pageType === 'inner-back' || pageType === 'last-page' || pageNumber >= totalPages - 1) {
+    return OUTRO_PAIR_ID;
+  }
+  const offset = Math.max(0, pageNumber - 5);
+  const pairIndex = Math.floor(offset / 2);
+  return `spread-content-${pairIndex}`;
+}
+
+export function buildPageMetadataMap(
+  pages: Page[],
+  totalPagesOverride?: number
+): Record<number, PageMetadata> {
+  const pageMap = new Map<number, Page>();
+  pages.forEach((page, index) => {
+    const number = page.pageNumber ?? index + 1;
+    pageMap.set(number, page);
+  });
+
+  const totalPages = totalPagesOverride ?? pages.length;
+  if (totalPages <= 0) {
+    return {};
+  }
+
+  const metadata: Record<number, PageMetadata> = {};
+  for (let pageNumber = 1; pageNumber <= totalPages; pageNumber++) {
+    const page = pageMap.get(pageNumber);
+    metadata[pageNumber] = computePageMetadataEntry(pageNumber, totalPages, page);
+  }
+  return metadata;
+}
+
+export function computePageMetadataEntry(pageNumber: number, totalPages: number, page?: Page): PageMetadata {
+  const fallbackType = deriveFallbackPageType(pageNumber, totalPages);
+  const pageType = (page?.pageType as NonNullable<Page['pageType']>) ?? fallbackType;
+  const isSpecial = pageType !== 'content';
+  const isEditable = !(pageType === 'inner-front' || pageType === 'inner-back');
+  const isSelectable = isEditable;
+  const pairId = page?.pagePairId ?? deriveFallbackPairId(pageNumber, totalPages, pageType);
+  const canAssignUser = isEditable && !(pageType === 'back-cover' || pageType === 'front-cover');
+  const canAddQna = canAssignUser;
+
+  return {
+    pageNumber,
+    pageType,
+    pagePairId: pairId,
+    isSpecial,
+    isEditable,
+    isSelectable,
+    isLocked: !isEditable,
+    canAssignUser,
+    canAddQna,
+    isPlaceholder: page?.isPlaceholder ?? true
+  };
 }
 
 export function getPairBounds(pages: Page[], index: number) {
@@ -201,9 +292,37 @@ export function ensureSpecialPages(pages: Page[]): Page[] {
   // Do NOT automatically create 'first-page' and 'last-page' - they are regular content pages
   // ensurePageType('first-page', 'intro');
   // ensurePageType('last-page', 'outro');
-  ensurePageType('inner-back', 'outro');
+  // 'inner-back' wird nicht über ensurePageType hinzugefügt, da immer die bestehende letzte Seite
+  // als Inner Back markiert werden soll (siehe weiter unten).
 
   const orderedPages = sortPagesByBookStructure(updatedPages);
+
+  const enforceInnerBackConfig = (page: Page): Page => {
+    const config = SPECIAL_PAGE_CONFIG['inner-back'];
+    return {
+      ...page,
+      pageType: 'inner-back',
+      isSpecialPage: true,
+      isLocked: config.locked,
+      isPrintable: config.printable,
+      pagePairId: page.pagePairId ?? ensurePairIdForSpread('outro')
+    };
+  };
+
+  if (orderedPages.length > 0) {
+    const lastIndex = orderedPages.length - 1;
+    const innerBackIndex = orderedPages.findIndex((page) => page.pageType === 'inner-back');
+
+    if (innerBackIndex === -1) {
+      const newInnerBack = createSpecialPage('inner-back', ensurePairIdForSpread('outro'));
+      orderedPages.push(enforceInnerBackConfig(newInnerBack));
+    } else if (innerBackIndex !== lastIndex) {
+      const [innerBackPage] = orderedPages.splice(innerBackIndex, 1);
+      orderedPages.push(enforceInnerBackConfig(innerBackPage));
+    } else {
+      orderedPages[lastIndex] = enforceInnerBackConfig(orderedPages[lastIndex]);
+    }
+  }
   return orderedPages.map((page, index) => ({
     ...page,
     pageNumber: index + 1

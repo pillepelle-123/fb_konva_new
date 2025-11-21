@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react';
+import { createContext, useContext, useReducer, useCallback, useEffect, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from './auth-context';
@@ -126,7 +126,10 @@ import { getGlobalTheme, getThemePageBackgroundColors, getThemePaletteId } from 
 import type { PageTemplate, ColorPalette } from '../types/template-types';
 import { applyBackgroundImageTemplate } from '../utils/background-image-utils';
 import { generatePagePreview } from '../utils/page-preview-generator';
+import type { PageMetadata } from '../utils/book-structure';
 import {
+  buildPageMetadataMap,
+  computePageMetadataEntry,
   cloneCanvasElements,
   clonePageBackground,
   collectPairIds,
@@ -1033,6 +1036,322 @@ function ensurePageArrayLength(pages: Page[], totalPages: number): Page[] {
   return result;
 }
 
+type PageNormalizationOptions = {
+  book: Book;
+  bookThemeId: string | null;
+  bookColorPaletteId: string | null;
+  effectiveBookPaletteId: string | null;
+  bookPalette: ColorPalette | null;
+  pageIndexOffset?: number;
+};
+
+function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): Page[] {
+  const {
+    book,
+    bookThemeId,
+    bookColorPaletteId,
+    effectiveBookPaletteId,
+    bookPalette,
+    pageIndexOffset = 0
+  } = options;
+
+  return (rawPages ?? []).map((page: any, index: number) => {
+    const fallbackNumber = pageIndexOffset + index + 1;
+    const pageNumber = page.pageNumber ?? page.page_number ?? fallbackNumber;
+    const resolvedPageType = page.pageType ?? page.page_type ?? 'content';
+    const resolvedPagePairId = page.pagePairId ?? page.page_pair_id ?? undefined;
+    const resolvedIsSpecial = page.isSpecialPage ?? page.is_special_page ?? (resolvedPageType !== 'content');
+    const resolvedIsLocked = page.isLocked ?? page.is_locked ?? false;
+    const resolvedIsPrintableValue = page.isPrintable ?? page.is_printable;
+    const resolvedIsPrintable = resolvedIsPrintableValue === undefined ? true : resolvedIsPrintableValue;
+    const resolvedLayoutVariation = page.layoutVariation ?? page.layout_variation ?? 'normal';
+    const resolvedBackgroundVariation = page.backgroundVariation ?? page.background_variation ?? 'normal';
+    const resolvedBackgroundTransform =
+      page.backgroundTransform ??
+      parseJsonField<Page['backgroundTransform']>(page.background_transform) ??
+      undefined;
+
+    const hasThemeIdOwnProperty = Object.prototype.hasOwnProperty.call(page, 'themeId');
+    const pageThemeId = page.themeId;
+    const pageInheritsTheme = !hasThemeIdOwnProperty || pageThemeId === undefined || pageThemeId === null;
+
+    const isInnerFrontOrBack = resolvedPageType === 'inner-front' || resolvedPageType === 'inner-back';
+
+    let resolvedBackground = page.background;
+    const isCustomImageBackground =
+      page.background?.type === 'image' &&
+      !page.background?.backgroundImageTemplateId &&
+      page.background?.value;
+
+    if (isInnerFrontOrBack) {
+      resolvedBackground = null;
+    } else if (pageInheritsTheme && bookThemeId && !isCustomImageBackground) {
+      const theme = getGlobalTheme(bookThemeId);
+      if (theme) {
+        const pageColorPaletteId = page.colorPaletteId || effectiveBookPaletteId;
+        const pagePalette = pageColorPaletteId ? colorPalettes.find((p) => p.id === pageColorPaletteId) : null;
+        const pageColors = getThemePageBackgroundColors(bookThemeId, pagePalette || bookPalette || undefined);
+        const backgroundOpacity = theme.pageSettings.backgroundOpacity ?? page.background?.opacity ?? 1;
+
+        const backgroundImageConfig = theme.pageSettings.backgroundImage;
+        if (backgroundImageConfig?.enabled && backgroundImageConfig.templateId) {
+          const imageBackground = applyBackgroundImageTemplate(backgroundImageConfig.templateId, {
+            imageSize: backgroundImageConfig.size,
+            imageRepeat: backgroundImageConfig.repeat,
+            imagePosition: backgroundImageConfig.position,
+            imageWidth: backgroundImageConfig.width,
+            opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
+            backgroundColor: pageColors.backgroundColor
+          });
+
+          if (imageBackground) {
+            resolvedBackground = {
+              ...imageBackground,
+              pageTheme: bookThemeId
+            };
+          }
+        } else if (theme.pageSettings.backgroundPattern?.enabled) {
+          resolvedBackground = {
+            type: 'pattern',
+            value: theme.pageSettings.backgroundPattern.style,
+            opacity: backgroundOpacity,
+            pageTheme: bookThemeId,
+            patternSize: theme.pageSettings.backgroundPattern.size,
+            patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
+            patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity,
+            patternForegroundColor: pageColors.backgroundColor,
+            patternBackgroundColor: pageColors.patternBackgroundColor
+          };
+        } else {
+          resolvedBackground = {
+            type: 'color',
+            value: pageColors.backgroundColor,
+            opacity: backgroundOpacity,
+            pageTheme: bookThemeId
+          };
+        }
+      }
+    } else if (isCustomImageBackground && pageInheritsTheme) {
+      resolvedBackground = {
+        ...page.background,
+        pageTheme: bookThemeId || page.background?.pageTheme
+      };
+    }
+
+    let resolvedElements = page.elements || [];
+    if (pageInheritsTheme && bookThemeId && resolvedElements.length > 0) {
+      const theme = getGlobalTheme(bookThemeId);
+      if (theme) {
+        const pageColorPaletteId = page.colorPaletteId || effectiveBookPaletteId;
+        const bookThemePaletteIdForElements = !bookColorPaletteId ? getThemePaletteId(bookThemeId) : null;
+        const effectiveBookColorPaletteId = bookColorPaletteId || bookThemePaletteIdForElements;
+        const pageLayoutTemplateId = page.layoutTemplateId || book.layoutTemplateId || null;
+        const bookLayoutTemplateId = book.layoutTemplateId || null;
+
+        resolvedElements = resolvedElements.map((element: any) => {
+          const toolType = element.textType || element.type;
+          const themeDefaults = getToolDefaults(
+            toolType as any,
+            bookThemeId,
+            bookThemeId,
+            element,
+            undefined,
+            pageLayoutTemplateId,
+            bookLayoutTemplateId,
+            pageColorPaletteId,
+            effectiveBookColorPaletteId
+          );
+
+          const preservedRotation = typeof element.rotation === 'number' ? element.rotation : 0;
+          const isShape = element.type !== 'text' && element.type !== 'image' && !element.textType;
+          const preservedScaleX = isShape && typeof element.scaleX === 'number' ? element.scaleX : undefined;
+          const preservedScaleY = isShape && typeof element.scaleY === 'number' ? element.scaleY : undefined;
+          const updatedElement = {
+            ...element,
+            ...themeDefaults,
+            theme: bookThemeId,
+            rotation: preservedRotation,
+            ...(preservedScaleX !== undefined ? { scaleX: preservedScaleX } : {}),
+            ...(preservedScaleY !== undefined ? { scaleY: preservedScaleY } : {})
+          };
+
+          if (element.textType === 'qna_inline') {
+            const themeDefaultsForQna = getToolDefaults(
+              'qna_inline',
+              bookThemeId,
+              bookThemeId,
+              element,
+              undefined,
+              pageLayoutTemplateId,
+              bookLayoutTemplateId,
+              pageColorPaletteId,
+              effectiveBookColorPaletteId
+            );
+
+            const effectivePaletteForElement = pageColorPaletteId || effectiveBookColorPaletteId
+              ? colorPalettes.find((p) => p.id === (pageColorPaletteId || effectiveBookColorPaletteId))
+              : null;
+
+            const questionBorderEnabled = themeDefaultsForQna.questionSettings?.border?.enabled ??
+              themeDefaultsForQna.questionSettings?.borderEnabled ??
+              themeDefaultsForQna.answerSettings?.border?.enabled ??
+              themeDefaultsForQna.answerSettings?.borderEnabled ??
+              true;
+            const answerBorderEnabled = themeDefaultsForQna.answerSettings?.border?.enabled ??
+              themeDefaultsForQna.answerSettings?.borderEnabled ??
+              themeDefaultsForQna.questionSettings?.border?.enabled ??
+              themeDefaultsForQna.questionSettings?.borderEnabled ??
+              true;
+            const borderEnabled = questionBorderEnabled !== false && answerBorderEnabled !== false;
+
+            const questionBackgroundEnabled = themeDefaultsForQna.questionSettings?.background?.enabled ??
+              themeDefaultsForQna.questionSettings?.backgroundEnabled ??
+              themeDefaultsForQna.answerSettings?.background?.enabled ??
+              themeDefaultsForQna.answerSettings?.backgroundEnabled ??
+              true;
+            const answerBackgroundEnabled = themeDefaultsForQna.answerSettings?.background?.enabled ??
+              themeDefaultsForQna.answerSettings?.backgroundEnabled ??
+              themeDefaultsForQna.questionSettings?.background?.enabled ??
+              themeDefaultsForQna.questionSettings?.backgroundEnabled ??
+              true;
+            const backgroundEnabled = questionBackgroundEnabled !== false && answerBackgroundEnabled !== false;
+
+            const existingQuestionBorder = updatedElement.questionSettings?.border || {};
+            const existingAnswerBorder = updatedElement.answerSettings?.border || {};
+            const existingQuestionBackground = updatedElement.questionSettings?.background || {};
+            const existingAnswerBackground = updatedElement.answerSettings?.background || {};
+
+            const borderColor =
+              effectivePaletteForElement?.colors.primary ||
+              themeDefaultsForQna.questionSettings?.border?.borderColor ||
+              themeDefaultsForQna.borderColor ||
+              '#000000';
+            const backgroundColor =
+              effectivePaletteForElement?.colors.accent ||
+              themeDefaultsForQna.questionSettings?.background?.backgroundColor ||
+              themeDefaultsForQna.backgroundColor ||
+              'transparent';
+            const textColor =
+              effectivePaletteForElement?.colors.text ||
+              themeDefaultsForQna.questionSettings?.fontColor ||
+              themeDefaultsForQna.fontColor ||
+              '#1f2937';
+
+            updatedElement.questionSettings = {
+              ...updatedElement.questionSettings,
+              ...themeDefaultsForQna.questionSettings,
+              fontColor: textColor,
+              font: { ...updatedElement.questionSettings?.font, fontColor: textColor },
+              border: borderEnabled
+                ? {
+                    ...existingQuestionBorder,
+                    enabled: true,
+                    borderColor,
+                    borderWidth: existingQuestionBorder.borderWidth ??
+                      themeDefaultsForQna.questionSettings?.border?.borderWidth ??
+                      2,
+                    borderOpacity: existingQuestionBorder.borderOpacity ??
+                      themeDefaultsForQna.questionSettings?.border?.borderOpacity ??
+                      1
+                  }
+                : {
+                    ...existingQuestionBorder,
+                    enabled: false
+                  },
+              background: backgroundEnabled
+                ? {
+                    ...existingQuestionBackground,
+                    enabled: true,
+                    backgroundColor,
+                    backgroundOpacity: existingQuestionBackground.backgroundOpacity ??
+                      themeDefaultsForQna.questionSettings?.background?.backgroundOpacity ??
+                      0.3
+                  }
+                : {
+                    ...existingQuestionBackground,
+                    enabled: false
+                  }
+            };
+            updatedElement.answerSettings = {
+              ...updatedElement.answerSettings,
+              ...themeDefaultsForQna.answerSettings,
+              fontColor: textColor,
+              font: { ...updatedElement.answerSettings?.font, fontColor: textColor },
+              border: borderEnabled
+                ? {
+                    ...existingAnswerBorder,
+                    enabled: true,
+                    borderColor,
+                    borderWidth: existingAnswerBorder.borderWidth ??
+                      themeDefaultsForQna.answerSettings?.border?.borderWidth ??
+                      2,
+                    borderOpacity: existingAnswerBorder.borderOpacity ??
+                      themeDefaultsForQna.answerSettings?.border?.borderOpacity ??
+                      1
+                  }
+                : {
+                    ...existingAnswerBorder,
+                    enabled: false
+                  },
+              background: backgroundEnabled
+                ? {
+                    ...existingAnswerBackground,
+                    enabled: true,
+                    backgroundColor,
+                    backgroundOpacity: existingAnswerBackground.backgroundOpacity ??
+                      themeDefaultsForQna.answerSettings?.background?.backgroundOpacity ??
+                      0.3
+                  }
+                : {
+                    ...existingAnswerBackground,
+                    enabled: false
+                  }
+            };
+
+            if (borderEnabled) {
+              updatedElement.border = { ...updatedElement.border, borderColor, enabled: true };
+            } else {
+              updatedElement.border = { ...updatedElement.border, enabled: false };
+            }
+
+            if (backgroundEnabled) {
+              updatedElement.background = { ...updatedElement.background, backgroundColor, enabled: true };
+            } else {
+              updatedElement.background = { ...updatedElement.background, enabled: false };
+            }
+
+            if (themeDefaultsForQna.qnaIndividualSettings !== undefined) {
+              updatedElement.qnaIndividualSettings = themeDefaultsForQna.qnaIndividualSettings;
+            }
+          }
+
+          return updatedElement;
+        });
+      }
+    }
+
+    return {
+      ...page,
+      id: page.id ?? page.database_id ?? pageNumber,
+      pageNumber,
+      database_id: page.id ?? page.database_id,
+      isPlaceholder: false,
+      background: resolvedBackground,
+      elements: resolvedElements,
+      pageType: resolvedPageType,
+      pagePairId: resolvedPagePairId,
+      isSpecialPage: resolvedIsSpecial,
+      isLocked: resolvedIsLocked,
+      isPrintable: resolvedIsPrintable,
+      layoutVariation: resolvedLayoutVariation,
+      backgroundVariation: resolvedBackgroundVariation,
+      ...(resolvedBackgroundTransform ? { backgroundTransform: resolvedBackgroundTransform } : {}),
+      ...(hasThemeIdOwnProperty && pageThemeId !== undefined && pageThemeId !== null
+        ? { themeId: pageThemeId }
+        : {})
+    };
+  });
+}
 function saveToHistory(state: EditorState, actionName: string, options?: SaveHistoryOptions): EditorState {
   if (!state.currentBook) return state;
 
@@ -4199,6 +4518,8 @@ export const EditorContext = createContext<{
   getVisiblePages: () => Page[];
   getVisiblePageNumbers: () => number[];
   ensurePagesLoaded: (startIndex: number, endIndex: number) => Promise<void>;
+  pageMetadata: Record<number, PageMetadata>;
+  getPageMetadata: (pageNumber: number) => PageMetadata | undefined;
 } | undefined>(undefined);
 
 export const useEditor = () => {
@@ -4243,6 +4564,8 @@ export const useEditor = () => {
         getVisiblePages: () => [],
         getVisiblePageNumbers: () => [],
         ensurePagesLoaded: async () => {},
+        pageMetadata: {},
+        getPageMetadata: () => undefined,
       };
     }
     // In production, still throw to catch actual bugs
@@ -4429,6 +4752,33 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       }
     };
   }, [state.currentBook, state.pagePreviewVersions, state.pagePreviewCache]);
+
+  const derivedPageMetadata = useMemo(() => {
+    const pages = state.currentBook?.pages ?? [];
+    const totalPages = state.pagePagination?.totalPages ?? pages.length;
+    if (!pages.length && !totalPages) {
+      return {};
+    }
+    return buildPageMetadataMap(pages, totalPages);
+  }, [state.currentBook?.pages, state.pagePagination?.totalPages]);
+
+  const getPageMetadata = useCallback(
+    (pageNumber: number) => {
+      const entry = derivedPageMetadata[pageNumber];
+      if (entry) {
+        return entry;
+      }
+      const totalPages = state.pagePagination?.totalPages ?? state.currentBook?.pages.length ?? 0;
+      if (!totalPages) {
+        return undefined;
+      }
+      const page =
+        state.currentBook?.pages.find((p) => p.pageNumber === pageNumber) ??
+        undefined;
+      return computePageMetadataEntry(pageNumber, totalPages, page);
+    },
+    [derivedPageMetadata, state.pagePagination?.totalPages, state.currentBook?.pages]
+  );
 
   const saveBook = async () => {
     if (!state.currentBook) return;
@@ -4692,293 +5042,12 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       const effectiveBookPaletteId = bookColorPaletteId || bookThemePaletteId;
       const bookPalette = effectiveBookPaletteId ? colorPalettes.find(p => p.id === effectiveBookPaletteId) : null;
       
-      const normalizedLoadedPages = (book.pages ?? []).map((page: any, index: number) => {
-        const pageNumber = page.pageNumber ?? page.page_number ?? index + 1;
-        const resolvedPageType = page.pageType ?? page.page_type ?? 'content';
-        const resolvedPagePairId = page.pagePairId ?? page.page_pair_id ?? undefined;
-        const resolvedIsSpecial = page.isSpecialPage ?? page.is_special_page ?? (resolvedPageType !== 'content');
-        const resolvedIsLocked = page.isLocked ?? page.is_locked ?? false;
-        const resolvedIsPrintableValue = page.isPrintable ?? page.is_printable;
-        const resolvedIsPrintable = resolvedIsPrintableValue === undefined ? true : resolvedIsPrintableValue;
-        const resolvedLayoutVariation = page.layoutVariation ?? page.layout_variation ?? 'normal';
-        const resolvedBackgroundVariation = page.backgroundVariation ?? page.background_variation ?? 'normal';
-        const resolvedBackgroundTransform =
-          page.backgroundTransform ??
-          parseJsonField<Page['backgroundTransform']>(page.background_transform) ??
-          undefined;
-        
-        // CRITICAL: Check if page inherits book theme (no themeId as own property)
-        const hasThemeIdOwnProperty = Object.prototype.hasOwnProperty.call(page, 'themeId');
-        const pageThemeId = page.themeId;
-        const pageInheritsTheme = !hasThemeIdOwnProperty || pageThemeId === undefined || pageThemeId === null;
-        
-        // Inner Front and Inner Back should NEVER inherit theme or background - they must remain plain white
-        const isInnerFrontOrBack = resolvedPageType === 'inner-front' || resolvedPageType === 'inner-back';
-        
-        // If page inherits book theme, recalculate background from book theme
-        // EXCEPT: Preserve custom image backgrounds (direct uploads without templateId)
-        // EXCEPT: Inner Front and Inner Back must remain plain white
-        let resolvedBackground = page.background;
-        const isCustomImageBackground = page.background?.type === 'image' && 
-                                        !page.background?.backgroundImageTemplateId &&
-                                        page.background?.value;
-        
-        // Force null background for Inner Front and Inner Back
-        if (isInnerFrontOrBack) {
-          resolvedBackground = null;
-        } else if (pageInheritsTheme && bookThemeId && !isCustomImageBackground) {
-          const theme = getGlobalTheme(bookThemeId);
-          if (theme) {
-            // Get effective palette for this page (page palette > book palette > theme palette)
-            const pageColorPaletteId = page.colorPaletteId || effectiveBookPaletteId;
-            const pagePalette = pageColorPaletteId ? colorPalettes.find(p => p.id === pageColorPaletteId) : null;
-            const pageColors = getThemePageBackgroundColors(bookThemeId, pagePalette || bookPalette || undefined);
-            const backgroundOpacity = theme.pageSettings.backgroundOpacity ?? page.background?.opacity ?? 1;
-            
-            // Check if theme has background image
-            const backgroundImageConfig = theme.pageSettings.backgroundImage;
-            if (backgroundImageConfig?.enabled && backgroundImageConfig.templateId) {
-              const imageBackground = applyBackgroundImageTemplate(backgroundImageConfig.templateId, {
-                imageSize: backgroundImageConfig.size,
-                imageRepeat: backgroundImageConfig.repeat,
-                imagePosition: backgroundImageConfig.position, // CRITICAL: Pass position from theme
-                imageWidth: backgroundImageConfig.width, // CRITICAL: Pass width from theme
-                opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
-                backgroundColor: pageColors.backgroundColor
-              });
-              
-              if (imageBackground) {
-                resolvedBackground = {
-                  ...imageBackground,
-                  pageTheme: bookThemeId
-                };
-              }
-            } else if (theme.pageSettings.backgroundPattern?.enabled) {
-              resolvedBackground = {
-                type: 'pattern',
-                value: theme.pageSettings.backgroundPattern.style,
-                opacity: backgroundOpacity,
-                pageTheme: bookThemeId,
-                patternSize: theme.pageSettings.backgroundPattern.size,
-                patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
-                patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity,
-                patternForegroundColor: pageColors.backgroundColor,
-                patternBackgroundColor: pageColors.patternBackgroundColor
-              };
-            } else {
-              resolvedBackground = {
-                type: 'color',
-                value: pageColors.backgroundColor,
-                opacity: backgroundOpacity,
-                pageTheme: bookThemeId
-              };
-            }
-          }
-        } else if (isCustomImageBackground && pageInheritsTheme) {
-          // Preserve custom image background but update pageTheme for palette resolution
-          resolvedBackground = {
-            ...page.background,
-            pageTheme: bookThemeId
-          };
-        }
-        
-        // CRITICAL: If page inherits book theme, also update elements with book theme defaults
-        // Use the same logic as SET_BOOK_THEME to ensure consistency
-        let resolvedElements = page.elements || [];
-        if (pageInheritsTheme && bookThemeId && resolvedElements.length > 0) {
-          const theme = getGlobalTheme(bookThemeId);
-          if (theme) {
-            // Get effective palette for elements (same as background)
-            const pageColorPaletteId = page.colorPaletteId || effectiveBookPaletteId;
-            const bookThemePaletteIdForElements = !bookColorPaletteId ? getThemePaletteId(bookThemeId) : null;
-            const effectiveBookColorPaletteId = bookColorPaletteId || bookThemePaletteIdForElements;
-            const pageLayoutTemplateId = page.layoutTemplateId || book.layoutTemplateId || null;
-            const bookLayoutTemplateId = book.layoutTemplateId || null;
-            const effectivePaletteId = pageColorPaletteId || null;
-            
-            // Update elements with theme defaults and palette colors (same logic as SET_BOOK_THEME)
-            // NOTE: getToolDefaults already applies palette colors, so we don't need separate palette application
-            resolvedElements = resolvedElements.map((element: any, elementIndex: number) => {
-              const toolType = element.textType || element.type;
-              const themeDefaults = getToolDefaults(
-                toolType as any,
-                bookThemeId,
-                bookThemeId,
-                element,
-                undefined,
-                pageLayoutTemplateId,
-                bookLayoutTemplateId,
-                pageColorPaletteId,
-                effectiveBookColorPaletteId
-              );
-              
-              // CRITICAL: Preserve existing element properties that shouldn't be overridden
-              // (like position, size, content, rotation, scaleX, scaleY, etc.) but update theme-related properties
-              // Extract rotation, scaleX, and scaleY before applying themeDefaults to prevent them from being overwritten
-              // Always preserve these explicitly, even if they're 0/1, as these are valid values
-              // Use typeof check to ensure we preserve 0/1 as valid values
-              const preservedRotation = typeof element.rotation === 'number' ? element.rotation : 0;
-              // For shapes (non-text, non-image elements), preserve scaleX and scaleY
-              // For images and text, scale is converted to width/height, so we don't need to preserve scaleX/scaleY
-              const isShape = element.type !== 'text' && element.type !== 'image' && !element.textType;
-              const preservedScaleX = isShape && typeof element.scaleX === 'number' ? element.scaleX : undefined;
-              const preservedScaleY = isShape && typeof element.scaleY === 'number' ? element.scaleY : undefined;
-              const updatedElement = {
-                ...element,
-                // Apply theme defaults (includes palette colors via getToolDefaults)
-                ...themeDefaults,
-                // Ensure theme is set to bookThemeId
-                theme: bookThemeId,
-                // Always preserve rotation explicitly (rotation is not a theme property)
-                // This ensures rotation is saved even when it's 0
-                rotation: preservedRotation,
-                // Preserve scaleX and scaleY for shapes (not for images/text which use width/height)
-                ...(preservedScaleX !== undefined ? { scaleX: preservedScaleX } : {}),
-                ...(preservedScaleY !== undefined ? { scaleY: preservedScaleY } : {})
-              };
-              
-              // For qna_inline elements, we need special handling similar to SET_BOOK_THEME
-              if (element.textType === 'qna_inline') {
-                const originalElement = element;
-                const themeDefaultsForQna = getToolDefaults('qna_inline', bookThemeId, bookThemeId, originalElement, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, effectiveBookColorPaletteId);
-                
-                // Get effective palette for element
-                const effectivePaletteForElement = pageColorPaletteId || effectiveBookColorPaletteId 
-                  ? colorPalettes.find(p => p.id === (pageColorPaletteId || effectiveBookColorPaletteId)) 
-                  : null;
-                
-                // CRITICAL: For pages that inherit book theme, ALWAYS use theme defaults for border/background enabled state
-                // This ensures that when a book theme changes, all elements on inheriting pages get the new theme's defaults
-                // We don't check for explicit element settings here because the page inherits the book theme
-                const questionBorderEnabled = themeDefaultsForQna.questionSettings?.border?.enabled ?? 
-                                             themeDefaultsForQna.questionSettings?.borderEnabled ?? 
-                                             themeDefaultsForQna.answerSettings?.border?.enabled ?? 
-                                             themeDefaultsForQna.answerSettings?.borderEnabled ?? 
-                                             true;
-                const answerBorderEnabled = themeDefaultsForQna.answerSettings?.border?.enabled ?? 
-                                          themeDefaultsForQna.answerSettings?.borderEnabled ?? 
-                                          themeDefaultsForQna.questionSettings?.border?.enabled ?? 
-                                          themeDefaultsForQna.questionSettings?.borderEnabled ?? 
-                                          true;
-                const borderEnabled = questionBorderEnabled !== false && answerBorderEnabled !== false;
-                
-                const questionBackgroundEnabled = themeDefaultsForQna.questionSettings?.background?.enabled ?? 
-                                                 themeDefaultsForQna.questionSettings?.backgroundEnabled ?? 
-                                                 themeDefaultsForQna.answerSettings?.background?.enabled ?? 
-                                                 themeDefaultsForQna.answerSettings?.backgroundEnabled ?? 
-                                                 true;
-                const answerBackgroundEnabled = themeDefaultsForQna.answerSettings?.background?.enabled ?? 
-                                              themeDefaultsForQna.answerSettings?.backgroundEnabled ?? 
-                                              themeDefaultsForQna.questionSettings?.background?.enabled ?? 
-                                              themeDefaultsForQna.questionSettings?.backgroundEnabled ?? 
-                                              true;
-                const backgroundEnabled = questionBackgroundEnabled !== false && answerBackgroundEnabled !== false;
-                
-                // Get existing border/background settings or use defaults
-                const existingQuestionBorder = updatedElement.questionSettings?.border || {};
-                const existingAnswerBorder = updatedElement.answerSettings?.border || {};
-                const existingQuestionBackground = updatedElement.questionSettings?.background || {};
-                const existingAnswerBackground = updatedElement.answerSettings?.background || {};
-                
-                // Get colors from palette if available, otherwise use theme defaults
-                const borderColor = effectivePaletteForElement?.colors.primary || themeDefaultsForQna.questionSettings?.border?.borderColor || themeDefaultsForQna.borderColor || '#000000';
-                const backgroundColor = effectivePaletteForElement?.colors.accent || themeDefaultsForQna.questionSettings?.background?.backgroundColor || themeDefaultsForQna.backgroundColor || 'transparent';
-                const textColor = effectivePaletteForElement?.colors.text || themeDefaultsForQna.questionSettings?.fontColor || themeDefaultsForQna.fontColor || '#1f2937';
-                
-                updatedElement.questionSettings = {
-                  ...updatedElement.questionSettings,
-                  ...themeDefaultsForQna.questionSettings,
-                  fontColor: textColor,
-                  font: { ...updatedElement.questionSettings?.font, fontColor: textColor },
-                  border: borderEnabled ? {
-                    ...existingQuestionBorder,
-                    enabled: true,
-                    borderColor: borderColor,
-                    borderWidth: existingQuestionBorder.borderWidth ?? themeDefaultsForQna.questionSettings?.border?.borderWidth ?? 2,
-                    borderOpacity: existingQuestionBorder.borderOpacity ?? themeDefaultsForQna.questionSettings?.border?.borderOpacity ?? 1
-                  } : {
-                    ...existingQuestionBorder,
-                    enabled: false
-                  },
-                  background: backgroundEnabled ? {
-                    ...existingQuestionBackground,
-                    enabled: true,
-                    backgroundColor: backgroundColor,
-                    backgroundOpacity: existingQuestionBackground.backgroundOpacity ?? themeDefaultsForQna.questionSettings?.background?.backgroundOpacity ?? 0.3
-                  } : {
-                    ...existingQuestionBackground,
-                    enabled: false
-                  }
-                };
-                updatedElement.answerSettings = {
-                  ...updatedElement.answerSettings,
-                  ...themeDefaultsForQna.answerSettings,
-                  fontColor: textColor,
-                  font: { ...updatedElement.answerSettings?.font, fontColor: textColor },
-                  border: borderEnabled ? {
-                    ...existingAnswerBorder,
-                    enabled: true,
-                    borderColor: borderColor,
-                    borderWidth: existingAnswerBorder.borderWidth ?? themeDefaultsForQna.answerSettings?.border?.borderWidth ?? 2,
-                    borderOpacity: existingAnswerBorder.borderOpacity ?? themeDefaultsForQna.answerSettings?.border?.borderOpacity ?? 1
-                  } : {
-                    ...existingAnswerBorder,
-                    enabled: false
-                  },
-                  background: backgroundEnabled ? {
-                    ...existingAnswerBackground,
-                    enabled: true,
-                    backgroundColor: backgroundColor,
-                    backgroundOpacity: existingAnswerBackground.backgroundOpacity ?? themeDefaultsForQna.answerSettings?.background?.backgroundOpacity ?? 0.3
-                  } : {
-                    ...existingAnswerBackground,
-                    enabled: false
-                  }
-                };
-                
-                // Update border and background colors at top level
-                if (borderEnabled) {
-                  updatedElement.border = { ...updatedElement.border, borderColor: borderColor, enabled: true };
-                } else {
-                  updatedElement.border = { ...updatedElement.border, enabled: false };
-                }
-                
-                if (backgroundEnabled) {
-                  updatedElement.background = { ...updatedElement.background, backgroundColor: backgroundColor, enabled: true };
-                } else {
-                  updatedElement.background = { ...updatedElement.background, enabled: false };
-                }
-                
-                // Apply qnaIndividualSettings from theme defaults if available
-                if (themeDefaultsForQna.qnaIndividualSettings !== undefined) {
-                  updatedElement.qnaIndividualSettings = themeDefaultsForQna.qnaIndividualSettings;
-                }
-              }
-              
-              return updatedElement;
-            });
-          }
-        }
-        
-        return {
-          ...page,
-          id: page.id ?? page.database_id ?? pageNumber,
-          pageNumber,
-          database_id: page.id ?? page.database_id,
-          isPlaceholder: false,
-          background: resolvedBackground,
-          elements: resolvedElements,
-          pageType: resolvedPageType,
-          pagePairId: resolvedPagePairId,
-          isSpecialPage: resolvedIsSpecial,
-          isLocked: resolvedIsLocked,
-          isPrintable: resolvedIsPrintable,
-          layoutVariation: resolvedLayoutVariation,
-          backgroundVariation: resolvedBackgroundVariation,
-          ...(resolvedBackgroundTransform ? { backgroundTransform: resolvedBackgroundTransform } : {}),
-          // Only include themeId if page has explicit theme (not inheriting)
-          ...(hasThemeIdOwnProperty && pageThemeId !== undefined && pageThemeId !== null ? { themeId: pageThemeId } : {})
-        };
+      const normalizedLoadedPages = normalizeApiPages(book.pages ?? [], {
+        book,
+        bookThemeId,
+        bookColorPaletteId,
+        effectiveBookPaletteId,
+        bookPalette
       });
 
       const structuredPages = ensureSpecialPages(normalizedLoadedPages);
@@ -5324,6 +5393,20 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
 
     loadingPageChunksRef.current.add(chunkKey);
     try {
+      const currentBook = state.currentBook;
+      if (!currentBook) {
+        return;
+      }
+      const currentBookThemeId = currentBook.themeId || currentBook.bookTheme || null;
+      const currentBookColorPaletteId = currentBook.colorPaletteId || null;
+      const currentBookThemePaletteId = !currentBookColorPaletteId && currentBookThemeId
+        ? getThemePaletteId(currentBookThemeId)
+        : null;
+      const currentEffectivePaletteId = currentBook.colorPaletteId || currentBookThemePaletteId || null;
+      const currentBookPalette = currentEffectivePaletteId
+        ? colorPalettes.find((p) => p.id === currentEffectivePaletteId) || null
+        : null;
+
       const { book: partialBook, pagination } = await apiService.loadBook(state.currentBook.id, {
         pageOffset: chunkStart,
         pageLimit: chunkSize,
@@ -5335,16 +5418,13 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
-      const chunkPages: Page[] = rawPages.map((page: any, index: number) => {
-        const pageNumber = page.pageNumber ?? page.page_number ?? chunkStart + index + 1;
-        return {
-          ...page,
-          id: page.id ?? page.database_id ?? pageNumber,
-          pageNumber,
-          database_id: page.id ?? page.database_id,
-          elements: page.elements ?? [],
-          isPlaceholder: false
-        };
+      const chunkPages: Page[] = normalizeApiPages(rawPages, {
+        book: currentBook,
+        bookThemeId: currentBookThemeId,
+        bookColorPaletteId: currentBookColorPaletteId,
+        effectiveBookPaletteId: currentEffectivePaletteId,
+        bookPalette: currentBookPalette,
+        pageIndexOffset: chunkStart
       });
 
       const chunkLoadedRecord = chunkPages.reduce<Record<number, true>>((acc, page) => {
@@ -5515,6 +5595,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       getVisiblePages,
       getVisiblePageNumbers,
       ensurePagesLoaded,
+      pageMetadata: derivedPageMetadata,
+      getPageMetadata,
       applyTemplateToPage,
       applyCompleteTemplate,
       getWizardTemplateSelection,

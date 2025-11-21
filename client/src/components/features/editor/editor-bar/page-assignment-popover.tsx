@@ -34,6 +34,12 @@ export default function PageAssignmentPopover({
   const [open, setOpen] = useState(false);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [findFriendsDialogOpen, setFindFriendsDialogOpen] = useState(false);
+  const currentPageData = editorState.currentBook?.pages.find((page) => page.pageNumber === currentPage);
+  const isCoverPage =
+    currentPageData?.pageType === 'back-cover' ||
+    currentPageData?.pageType === 'front-cover' ||
+    currentPage === 1 ||
+    currentPage === 2;
 
   // Use bookFriends from editor state instead of fetching
   // Ensure current user is included if not already in the list
@@ -46,6 +52,10 @@ export default function PageAssignmentPopover({
     if (!userToAssign) {
       onAssignUser(null);
       setOpen(false);
+      return;
+    }
+
+    if (isCoverPage) {
       return;
     }
 
@@ -93,6 +103,10 @@ export default function PageAssignmentPopover({
   };
 
   const handleSelectFriend = async (selectedUser: { id: number; name: string; email: string }) => {
+    if (isCoverPage) {
+      return;
+    }
+
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       
@@ -149,6 +163,10 @@ export default function PageAssignmentPopover({
   };
 
   const handleInvite = async (name: string, email: string) => {
+    if (isCoverPage) {
+      return;
+    }
+
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const requestBody: { name: string; email: string; bookId: number } = { name, email, bookId };
@@ -238,79 +256,88 @@ export default function PageAssignmentPopover({
             Assign Page {currentPage}
           </div>
           
-          <div className="max-h-48 overflow-y-auto space-y-1">
-            {allFriends.map((friend) => (
-              <div
-                key={friend.id}
-                className={`flex items-center gap-2 p-2 rounded-md cursor-pointer ${
-                  assignedUser?.id === friend.id ? 'bg-primary/10' : 'hover:bg-secondary'
-                }`}
-                onClick={() => handleAssignUser(friend)}
-              >
-                <ProfilePicture 
-                  name={friend.name} 
-                  size="sm" 
-                  userId={friend.id} 
-                  variant="withColoredBorder"
-                  className="w-8 h-8"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{friend.name}</p>
-                </div>
-                {assignedUser?.id === friend.id && (
-                  <>
-                    {/* <div className="w-2 h-2 bg-primary rounded-full"></div> */}
-                    <Tooltip content="Remove Assignment">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 flex-shrink-0"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleAssignUser(null);
-                        }}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </Tooltip>
-                  </>
+          {isCoverPage ? (
+            <div className="text-sm text-muted-foreground px-2 py-3">
+              Cover pages cannot be assigned to collaborators.
+            </div>
+          ) : (
+            <>
+              <div className="max-h-48 overflow-y-auto space-y-1">
+                {allFriends.map((friend) => (
+                  <div
+                    key={friend.id}
+                    className={`flex items-center gap-2 p-2 rounded-md cursor-pointer ${
+                      assignedUser?.id === friend.id ? 'bg-primary/10' : 'hover:bg-secondary'
+                    }`}
+                    onClick={() => handleAssignUser(friend)}
+                  >
+                    <ProfilePicture 
+                      name={friend.name} 
+                      size="sm" 
+                      userId={friend.id} 
+                      variant="withColoredBorder"
+                      className="w-8 h-8"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{friend.name}</p>
+                    </div>
+                    {assignedUser?.id === friend.id && (
+                      <>
+                        <Tooltip content="Remove Assignment">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 flex-shrink-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAssignUser(null);
+                            }}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </Tooltip>
+                      </>
+                    )}
+                  </div>
+                ))}
+                {allFriends.length === 0 && (
+                  <div className="text-center py-4 text-sm text-muted-foreground">
+                    No friends in this book
+                  </div>
                 )}
               </div>
-            ))}
-            {allFriends.length === 0 && (
-              <div className="text-center py-4 text-sm text-muted-foreground">
-                No friends in this book
+              
+              {/* Action buttons */}
+              <div className="flex gap-2 pt-2 border-t">
+                <Button
+                  variant="outline"
+                  size="default"
+                  className="flex-1"
+                  disabled={isCoverPage}
+                  onClick={() => {
+                    if (isCoverPage) return;
+                    setFindFriendsDialogOpen(true);
+                  }}
+                >
+                  <Plus className="h-4" />
+                  <span className="ml-2">Add</span>
+                </Button>
+                <Button
+                  variant="highlight"
+                  size="default"
+                  className="flex-1 "
+                  disabled={isCoverPage}
+                  onClick={() => {
+                    if (isCoverPage) return;
+                    setInviteDialogOpen(true);
+                  }}
+                >
+                  <Send className="h-4" /> 
+                  <span className="ml-2">Invite</span>
+                </Button>
               </div>
-            )}
-          </div>
-          
-          {/* Action buttons */}
-          <div className="flex gap-2 pt-2 border-t">
-            {/* <Tooltip side='bottom' content="Add Friend"> */}
-              <Button
-                variant="outline"
-                size="default"
-                className="flex-1"
-                onClick={() => {
-                  setFindFriendsDialogOpen(true);
-                }}
-              >
-                <Plus className="h-4" />
-                <span className="ml-2">Add</span>
-              </Button>
-            {/* </Tooltip> */}
-            {/* <Tooltip side='bottom' content="Invite Friend"> */}
-              <Button
-                variant="highlight"
-                size="default"
-                className="flex-1 "
-                onClick={() => setInviteDialogOpen(true)}
-              >
-                <Send className="h-4" /> 
-                <span className="ml-2">Invite</span>
-              </Button>
-            {/* </Tooltip> */}
-          </div>
+            </>
+          )}
         </div>
       </PopoverContent>
       <InviteUserDialog

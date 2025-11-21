@@ -351,7 +351,11 @@ export default function Canvas() {
   const activePageNumber = currentPage?.pageNumber ?? state.activePageIndex + 1;
   const isOwnerUser = Boolean(state.currentBook?.owner_id && user?.id === state.currentBook.owner_id);
   const isPublisherUser = isOwnerUser || state.userRole === 'publisher';
-  const isCoverPage = activePageNumber === 1 || activePageNumber === 2;
+  const isCoverPage =
+    currentPage?.pageType === 'back-cover' ||
+    currentPage?.pageType === 'front-cover' ||
+    activePageNumber === 1 ||
+    activePageNumber === 2;
   const isReverseCoverPage =
     activePageNumber === 3 || (totalPages > 0 && activePageNumber === totalPages);
   const canEditCoverForUser = isPublisherUser && isCoverPage;
@@ -460,6 +464,20 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
   const activePageOffsetX = partnerInfo && !isActiveLeft ? canvasWidth + spreadGapCanvas : 0;
   const previewPageOffsetX = partnerInfo ? (isActiveLeft ? canvasWidth + spreadGapCanvas : 0) : null;
   const pageOffsetY = 0;
+  const showCoverRestrictionAlert = useCallback(
+    (message: string) => {
+      setAlertMessage(message);
+      setAlertPosition({
+        x: activePageOffsetX + canvasWidth / 2,
+        y: pageOffsetY + 60
+      });
+      setTimeout(() => {
+        setAlertMessage(null);
+        setAlertPosition(null);
+      }, 2500);
+    },
+    [activePageOffsetX, canvasWidth, pageOffsetY]
+  );
   const BADGE_VERTICAL_SCREEN_GAP = 32;
   const getBadgeScreenPosition = useCallback(
     (offsetX: number | null) => {
@@ -873,6 +891,10 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           (e.target.getClassName() === 'Rect' && !e.target.id());
         
         if (isBackgroundClick) {
+          if (state.activeTool === 'qna_inline' && isCoverPage) {
+            showCoverRestrictionAlert('Q&A inline elements cannot be placed on cover pages.');
+            return;
+          }
           setIsDrawingTextbox(true);
           setTextboxStart({ x, y });
           setPreviewTextbox({ x, y, width: 0, height: 0, type: state.activeTool });
@@ -1720,6 +1742,16 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
 
   const handleDuplicateItems = () => {
     if (!currentPage) return;
+    if (isCoverPage) {
+      const hasQnaInline = state.selectedElementIds.some((elementId) => {
+        const element = currentPage.elements.find((el) => el.id === elementId);
+        return element?.textType === 'qna_inline';
+      });
+      if (hasQnaInline) {
+        showCoverRestrictionAlert('Q&A inline elements cannot be placed on cover pages.');
+        return;
+      }
+    }
     
     // Create ID mapping for question-answer pairs
     const idMapping = new Map<string, string>();
@@ -1838,6 +1870,15 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     
     const x = (lastMousePos.x - stagePos.x) / zoom - activePageOffsetX;
     const y = (lastMousePos.y - stagePos.y) / zoom - pageOffsetY;
+
+    const filteredClipboard = isCoverPage ? clipboard.filter((element) => element.textType !== 'qna_inline') : clipboard;
+    if (isCoverPage && filteredClipboard.length < clipboard.length) {
+      showCoverRestrictionAlert('Q&A inline elements cannot be placed on cover pages.');
+    }
+    if (filteredClipboard.length === 0) {
+      setContextMenu({ x: 0, y: 0, visible: false });
+      return;
+    }
     
     // Create ID mapping for question-answer pairs
     const idMapping = new Map<string, string>();
@@ -1851,7 +1892,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     
     const newElementIds: string[] = [];
     
-    clipboard.forEach((element) => {
+    filteredClipboard.forEach((element) => {
       const newId = idMapping.get(element.id)!;
       newElementIds.push(newId);
       const pastedElement = {

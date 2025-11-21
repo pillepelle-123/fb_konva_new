@@ -138,6 +138,7 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
   const editInputRef = useRef<HTMLInputElement>(null);
 
   const currentPage = (state?.activePageIndex !== undefined ? state.activePageIndex + 1 : 1);
+  const currentPageMeta = state?.currentBook?.pages?.find((page) => page.pageNumber === currentPage);
   const assignedUser = tempState.hasRemovedAssignment ? null : (tempState.pendingAssignment !== null ? tempState.pendingAssignment : state?.pageAssignments?.[currentPage]);
   
   const hasChanges = () => {
@@ -994,6 +995,7 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
             onRemoveAssignment={handleRemoveAssignment}
             collaborators={allBookCollaborators}
             renderBookFriend={renderBookFriend}
+            currentPageType={currentPageMeta?.pageType}
           />
         </TabsContent>
         

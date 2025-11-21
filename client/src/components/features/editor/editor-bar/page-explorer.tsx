@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, FileText } from 'lucide-react';
 import { Button } from '../../../ui/primitives/button';
 import { ButtonGroup } from '../../../ui/composites/button-group';
@@ -7,6 +7,7 @@ import { Badge } from '../../../ui/composites/badge';
 import ProfilePicture from '../../users/profile-picture';
 // import PagePreview from '../../books/page-preview'; // Disabled but kept for future use
 import { useEditor } from '../../../../context/editor-context';
+import { computePageMetadataEntry } from '../../../../utils/book-structure';
 import type { Page } from '../../../../context/editor-context';
 
 type PagesSubmenuProps = {
@@ -34,7 +35,7 @@ export function PagesSubmenu({
   showHeader = true,
   compactLabelMode = 'default'
 }: PagesSubmenuProps) {
-  const { state, ensurePagesLoaded } = useEditor();
+  const { state, ensurePagesLoaded, getPageMetadata: resolvePageMetadata } = useEditor();
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const microScrollRef = useRef<HTMLDivElement | null>(null);
@@ -43,42 +44,51 @@ export function PagesSubmenu({
   const isMicro = viewMode === 'micro';
 
   // Get total pages from pagination or book pages length
-  const totalPages = state.pagePagination?.totalPages ?? book?.pages.length ?? 0;
-  
-  // Derive page metadata for all pages, even if not loaded yet
-  const getPageMetadata = useMemo(() => {
-    return (pageNumber: number): { pageType: Page['pageType']; pagePairId: string; isSpecial: boolean; isLocked: boolean; isNonEditable: boolean } => {
-      if (pageNumber === 1) {
-        return { pageType: 'back-cover', pagePairId: 'spread-cover', isSpecial: true, isLocked: false, isNonEditable: false };
+  const totalPages = Math.max(state.pagePagination?.totalPages ?? 0, book?.pages.length ?? 0);
+  const pagesByNumber = useMemo(() => {
+    const map = new Map<number, Page>();
+    book?.pages.forEach((page) => {
+      if (page.pageNumber) {
+        map.set(page.pageNumber, page);
       }
-      if (pageNumber === 2) {
-        return { pageType: 'front-cover', pagePairId: 'spread-cover', isSpecial: true, isLocked: false, isNonEditable: false };
+    });
+    return map;
+  }, [book?.pages]);
+
+  const getGroupingPairId = useCallback(
+    (pageNumber: number, metadata?: ReturnType<typeof resolvePageMetadata>) => {
+      const lastPageNumber =
+        state.pagePagination?.totalPages ??
+        (book?.pages.length ? Math.max(...book.pages.map((p) => p.pageNumber ?? 0)) : totalPages);
+      if (!metadata) {
+        return `spread-content-${Math.max(0, Math.floor(Math.max(0, pageNumber - 5) / 2))}`;
       }
-      if (pageNumber === 3) {
-        return { pageType: 'inner-front', pagePairId: 'spread-intro-0', isSpecial: true, isLocked: true, isNonEditable: true };
+      const { pageType } = metadata;
+      if (pageType === 'back-cover' || pageType === 'front-cover') {
+        return 'spread-cover';
       }
-      if (pageNumber === totalPages) {
-        return { pageType: 'inner-back', pagePairId: 'spread-outro-last', isSpecial: true, isLocked: true, isNonEditable: true };
+      if (pageType === 'inner-front' || pageNumber === 4) {
+        return 'spread-intro-0';
       }
-      // Regular content pages
-      if (pageNumber === 4) {
-        return { pageType: 'content', pagePairId: 'spread-intro-0', isSpecial: false, isLocked: false, isNonEditable: false };
+      if (pageType === 'inner-back' || (lastPageNumber > 0 && pageNumber >= lastPageNumber - 1)) {
+        return 'spread-outro-last';
       }
-      if (pageNumber === totalPages - 1) {
-        return { pageType: 'content', pagePairId: 'spread-outro-last', isSpecial: false, isLocked: false, isNonEditable: false };
-      }
-      // For pages 5 onwards (except last content page):
-      // Page 5-6: spread-content-0, Page 7-8: spread-content-1, etc.
-      const contentPageIndex = pageNumber - 4; // Page 5 -> 1, Page 6 -> 2, etc.
-      const pairIndex = Math.floor((contentPageIndex - 1) / 2); // Page 5-6 -> 0, Page 7-8 -> 1, etc.
-      return { pageType: 'content', pagePairId: `spread-content-${pairIndex}`, isSpecial: false, isLocked: false, isNonEditable: false };
-    };
-  }, [totalPages]);
+      const offset = Math.max(0, pageNumber - 5);
+      const pairIndex = Math.floor(offset / 2);
+      return `spread-content-${pairIndex}`;
+    },
+    [book?.pages, state.pagePagination?.totalPages, totalPages],
+  );
 
   // Create pair entries based on all pages (including placeholders)
   const pairEntries = useMemo(() => {
     if (!book || totalPages === 0) return [];
-    
+    const getMetadata = (pageNumber: number) => {
+      const base = resolvePageMetadata(pageNumber);
+      if (base) return base;
+      return computePageMetadataEntry(pageNumber, totalPages, pagesByNumber.get(pageNumber) ?? undefined);
+    };
+
     const entries: Array<{
       pairId: string;
       startIndex: number;
@@ -87,51 +97,45 @@ export function PagesSubmenu({
       isSpecial: boolean;
     }> = [];
     const seen = new Set<string>();
-    
-    // Iterate through all page numbers (1 to totalPages)
+
     for (let pageNumber = 1; pageNumber <= totalPages; pageNumber++) {
-      const metadata = getPageMetadata(pageNumber);
-      const pairId = metadata.pagePairId;
-      
+      const metadata = getMetadata(pageNumber);
+      if (!metadata) continue;
+      const pairId = getGroupingPairId(pageNumber, metadata);
       if (seen.has(pairId)) continue;
       seen.add(pairId);
-      
-      // Find all pages in this pair (by pageNumber)
+
       const pairPageNumbers: number[] = [];
       for (let pn = 1; pn <= totalPages; pn++) {
-        const pnMetadata = getPageMetadata(pn);
-        if (pnMetadata.pagePairId === pairId) {
+        const pnMetadata = getMetadata(pn);
+        if (getGroupingPairId(pn, pnMetadata) === pairId) {
           pairPageNumbers.push(pn);
         }
       }
-      
-      // Get actual page objects or create placeholders
+
       const pairPages: (Page | null)[] = pairPageNumbers.map((pn) => {
-        const actualPage = book.pages.find(p => p.pageNumber === pn);
+        const actualPage = pagesByNumber.get(pn) ?? null;
         if (actualPage) {
           return actualPage;
         }
-        // Create placeholder page with metadata
-        const metadata = getPageMetadata(pn);
+        const meta = getMetadata(pn);
         return {
           id: -pn, // Use negative number for placeholder IDs (consistent with createPlaceholderPage)
           pageNumber: pn,
           elements: [],
-          pageType: metadata.pageType,
-          pagePairId: metadata.pagePairId,
-          isSpecialPage: metadata.isSpecial,
-          isLocked: metadata.isNonEditable, // Only non-editable pages should be locked
+          pageType: meta?.pageType,
+          pagePairId: meta?.pagePairId ?? pairId,
+          isSpecialPage: meta?.isSpecial ?? false,
+          isLocked: meta ? !meta.isEditable : false,
           isPrintable: true,
           isPlaceholder: true,
         } as Page;
       });
-      
       const startIndex = pairPageNumbers[0] - 1; // Convert to 0-based index
-      // A pair is locked/non-editable only if it contains a non-editable page (page 3 or last page)
       const isPairNonEditable = pairPages.some((p) => {
         if (!p) return false;
-        const metadata = getPageMetadata(p.pageNumber);
-        return metadata.isNonEditable;
+        const meta = getMetadata(p.pageNumber);
+        return !(meta?.isEditable ?? true);
       });
       entries.push({
         pairId,
@@ -141,9 +145,8 @@ export function PagesSubmenu({
         isSpecial: pairPages.some((p) => p?.isSpecialPage ?? false)
       });
     }
-    
     return entries;
-  }, [book, totalPages, getPageMetadata]);
+  }, [book, totalPages, pagesByNumber, resolvePageMetadata, getGroupingPairId]);
 
   if (!book) {
     return null;
@@ -157,13 +160,15 @@ export function PagesSubmenu({
   const activePageId = activePage?.id ?? null;
   const activePageNumber = activePage?.pageNumber ?? (activePageIndex >= 0 ? activePageIndex + 1 : null);
   // Get pairId from metadata if page is not loaded yet
-  const fallbackPairId = activePageNumber ? getPageMetadata(activePageNumber).pagePairId : null;
+  const fallbackPairId = activePageNumber ? resolvePageMetadata(activePageNumber)?.pagePairId ?? null : null;
   const activePairId = activePage?.pagePairId ?? fallbackPairId;
 
   // Only Inner Front (page 3) and Inner Back (last page) are non-editable
   const isNonEditablePageNumber = (pageNumber: number) => {
-    const metadata = getPageMetadata(pageNumber);
-    return metadata.pageType === 'inner-front' || metadata.pageType === 'inner-back';
+    const lastPageNumber =
+      state.pagePagination?.totalPages ??
+      (book?.pages.length ? Math.max(...book.pages.map((p) => p.pageNumber ?? 0)) : totalPages);
+    return pageNumber === 3 || (lastPageNumber > 0 && pageNumber === lastPageNumber);
   };
 
   const handleDragStart = (e: React.DragEvent, index: number, isLocked: boolean) => {
