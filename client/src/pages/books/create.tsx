@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, Book, PaintbrushVertical, BookCheck, Users } from 'lucide-react';
+import { CheckCircle2, Book, PaintbrushVertical, BookCheck, Users, MessageCircleQuestionMark } from 'lucide-react';
 import { Button } from '../../components/ui/primitives/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
 import { FormField } from '../../components/ui/layout/form-field';
@@ -12,7 +12,8 @@ import { mirrorTemplate } from '../../utils/layout-mirroring';
 import { getThemePaletteId } from '../../utils/global-themes';
 import { BasicInfoStep } from '../../components/features/books/create/basic-info-step';
 import { DesignStep } from '../../components/features/books/create/design-step';
-import { TeamContentStep } from '../../components/features/books/create/team-content-step';
+import { TeamStep } from '../../components/features/books/create/team-step';
+import { QuestionsStep } from '../../components/features/books/create/questions-step';
 import { ReviewStep } from '../../components/features/books/create/review-step';
 import type { WizardState, Friend } from '../../components/features/books/create/types';
 import {
@@ -26,7 +27,8 @@ import { calculatePageDimensions } from '../../utils/template-utils';
 const stepConfig = [
   { id: 'basic', label: 'Basic Info & Start', description: 'Name, size, and quick presets' },
   { id: 'design', label: 'Design', description: 'Layouts, toggles, themes & palettes' },
-  { id: 'team', label: 'Team & Content', description: 'Collaborators and question pool', optional: true },
+  { id: 'team', label: 'Team', description: 'Collaborators & assignments', optional: true },
+  { id: 'questions', label: 'Questions', description: 'Curated prompts', optional: true },
   { id: 'review', label: 'Review', description: 'Double-check and create' },
 ] as const;
 
@@ -731,11 +733,17 @@ export default function BookCreatePage() {
         );
       case 'team':
         return (
-          <TeamContentStep
+          <TeamStep
             wizardState={wizardState}
             onTeamChange={(data) => updateWizard('team', data)}
-            onQuestionChange={(data) => updateWizard('questions', data)}
             availableFriends={availableFriends}
+          />
+        );
+      case 'questions':
+        return (
+          <QuestionsStep
+            wizardState={wizardState}
+            onQuestionChange={(data) => updateWizard('questions', data)}
             openCustomQuestionModal={() => setCustomQuestionDialogOpen(true)}
           />
         );
@@ -756,10 +764,15 @@ export default function BookCreatePage() {
   })();
 
   const canAccessStep = (index: number) => {
-    if (index === 0) return true; // Basic step always accessible
-    if (index === 1) return wizardState.basic.name.trim().length > 0; // Design step needs book name
-    if (index === 2) return wizardState.basic.name.trim().length > 0 && wizardState.design.layoutTemplate !== null; // Team step needs basic + design
-    if (index === 3) return wizardState.basic.name.trim().length > 0 && wizardState.design.layoutTemplate !== null; // Review step needs basic + design
+    const hasBasic = wizardState.basic.name.trim().length > 0;
+    const hasDesign = hasBasic && wizardState.design.layoutTemplate !== null;
+    if (index === 0) return true;
+    if (index === 1) return hasBasic;
+    const step = stepConfig[index];
+    if (!step) return false;
+    if (['team', 'questions', 'review'].includes(step.id)) {
+      return hasDesign;
+    }
     return false;
   };
 
@@ -942,10 +955,15 @@ function StepNavigation({
   wizardState: WizardState;
 }) {
   const canAccessStep = (index: number) => {
-    if (index === 0) return true; // Basic step always accessible
-    if (index === 1) return wizardState.basic.name.trim().length > 0; // Design step needs book name
-    if (index === 2) return wizardState.basic.name.trim().length > 0 && wizardState.design.layoutTemplate !== null; // Team step needs basic + design
-    if (index === 3) return wizardState.basic.name.trim().length > 0 && wizardState.design.layoutTemplate !== null; // Review step needs basic + design
+    const hasBasic = wizardState.basic.name.trim().length > 0;
+    const hasDesign = hasBasic && wizardState.design.layoutTemplate !== null;
+    if (index === 0) return true;
+    if (index === 1) return hasBasic;
+    const step = steps[index];
+    if (!step) return false;
+    if (['team', 'questions', 'review'].includes(step.id)) {
+    return hasDesign;
+    }
     return false;
   };
 
@@ -963,6 +981,7 @@ function StepNavigation({
                 case 'basic': return <Book className="h-4 w-4" />;
                 case 'design': return <PaintbrushVertical className="h-4 w-4" />;
                 case 'team': return <Users className="h-4 w-4" />;
+                case 'questions': return <MessageCircleQuestionMark className="h-4 w-4" />;
                 case 'review': return <BookCheck className="h-4 w-4" />;
                 default: return <DotIcon />;
               }

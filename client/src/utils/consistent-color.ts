@@ -15,3 +15,4 @@ export function getConsistentColor(name: string): string {
   return colors[Math.abs(hash) % colors.length];
 }
 
+
