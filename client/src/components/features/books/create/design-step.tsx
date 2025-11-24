@@ -106,8 +106,8 @@ export function DesignStep({
   return (
     <div className="flex flex-col lg:flex-row gap-6">
       {/* Left pane (replaces old Layout Preview) — Design workspace (1/3) */}
-      <div className="w-full lg:w-1/3 flex-shrink-0">
-        <div className="rounded-2xl bg-white shadow-sm border p-3 flex flex-col" style={{ height: '508px' }}>
+      <div className="w-full lg:w-1/3 flex-shrink-0 flex flex-col">
+        <div className="rounded-2xl bg-white shadow-sm border p-3 flex flex-col h-[600px]">
           <div className="flex-shrink-0">
             {/* <div className="flex items-center gap-2 text-foreground"> */}
             <div className="flex items-center gap-2 text-sm font-semibold">
@@ -283,10 +283,10 @@ export function DesignStep({
       </div>
 
       {/* Right pane (where Design workspace was) — Theme & Color Palette (2/3) */}
-      <div className="w-full lg:w-2/3 min-w-0 space-y-4">
+      <div className="w-full lg:w-2/3 min-w-0 flex flex-col space-y-4">
         {/* Themes container */}
-        <div className="rounded-2xl bg-white shadow-sm border p-3 space-y-4">
-          <div className="flex items-center justify-between">
+        <div className={`rounded-2xl bg-white shadow-sm border p-3 space-y-4 flex flex-col ${themeViewMode === 'carousel' ? 'h-auto' : 'max-h-[400px] overflow-hidden'}`}>
+          <div className="flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2 text-sm font-semibold">
             <PaintbrushVertical
               className="h-5 w-5"
@@ -317,7 +317,7 @@ export function DesignStep({
             </div>
 
           {/* Theme carousel */}
-          <div className="space-y-2">
+          <div className={`space-y-2 ${themeViewMode === 'carousel' ? '' : 'flex-1 min-h-0 overflow-y-auto scrollbar-thin'}`}>
             <div className="relative">
               {themeViewMode === 'carousel' ? (
                 <Carousel
@@ -367,7 +367,7 @@ export function DesignStep({
                   <CarouselNext />
                 </Carousel>
               ) : (
-                <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto scrollbar-thin pr-2">
+                <div className="grid grid-cols-2 gap-2 pr-2">
                   {themeEntries.map((theme) => {
                     const isActive = wizardState.design.themeId === theme.id;
                     return (
@@ -410,8 +410,8 @@ export function DesignStep({
           </div>
 
         {/* Color Palette container */}
-        <div className="rounded-2xl bg-white shadow-sm border p-3 space-y-4">
-            <div className="flex items-center justify-between">
+        <div className={`rounded-2xl bg-white shadow-sm border p-3 space-y-4 flex flex-col ${paletteViewMode === 'carousel' ? 'h-auto' : 'max-h-[400px] overflow-hidden'}`}>
+            <div className="flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <Palette className="h-5 w-5" />
               Color Palette
@@ -440,7 +440,7 @@ export function DesignStep({
             </div>
 
           {/* Palette carousel */}
-          <div className="space-y-2">
+          <div className={`space-y-2 ${paletteViewMode === 'carousel' ? '' : 'flex-1 min-h-0 overflow-y-auto scrollbar-thin'}`}>
             <div className="relative">
               {paletteViewMode === 'carousel' ? (
                 <Carousel
@@ -497,7 +497,7 @@ export function DesignStep({
                   <CarouselNext />
                 </Carousel>
               ) : (
-                <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto scrollbar-thin pr-2">
+                <div className="grid grid-cols-2 gap-2 pr-2">
                   {paletteEntries.map((palette) => {
                     const isActive = palette.id === null 
                       ? wizardState.design.paletteId === null

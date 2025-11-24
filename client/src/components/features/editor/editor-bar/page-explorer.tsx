@@ -43,8 +43,13 @@ export function PagesSubmenu({
   const isCompact = viewMode === 'compact';
   const isMicro = viewMode === 'micro';
 
-  // Get total pages from pagination or book pages length
-  const totalPages = Math.max(state.pagePagination?.totalPages ?? 0, book?.pages.length ?? 0);
+  // Get total pages from pagination (most accurate, comes from database)
+  // Fallback to max page number from loaded pages, then to book pages length
+  // Note: book?.pages.length only contains loaded pages, not the total count
+  // CRITICAL: Always prioritize pagePagination.totalPages as it comes from the database
+  const maxPageNumberFromBook = book?.pages.length ? Math.max(...book.pages.map(p => p.pageNumber ?? 0), 0) : 0;
+  const fallbackTotalPages = maxPageNumberFromBook || (book?.pages.length ?? 0);
+  const totalPages = state.pagePagination?.totalPages ?? fallbackTotalPages;
   const pagesByNumber = useMemo(() => {
     const map = new Map<number, Page>();
     book?.pages.forEach((page) => {
@@ -57,9 +62,21 @@ export function PagesSubmenu({
 
   const getGroupingPairId = useCallback(
     (pageNumber: number, metadata?: ReturnType<typeof resolvePageMetadata>) => {
-      const lastPageNumber =
-        state.pagePagination?.totalPages ??
-        (book?.pages.length ? Math.max(...book.pages.map((p) => p.pageNumber ?? 0)) : totalPages);
+      // CRITICAL: ALWAYS check totalPages FIRST, before ANY other logic
+      // This is the most important check - it ensures last pages are always correctly identified
+      if (totalPages > 0) {
+        // Last page (e.g., 64) and second-to-last page (e.g., 63) should be grouped together
+        if (pageNumber === totalPages || pageNumber === totalPages - 1) {
+          return 'spread-outro-last';
+        }
+        // Also check if pageNumber >= totalPages - 1 as a safety net
+        if (pageNumber >= totalPages - 1) {
+          return 'spread-outro-last';
+        }
+      }
+      
+      // Use totalPages directly (from pagination or calculated) instead of lastPageNumber
+      // This ensures correct grouping even when not all pages are loaded
       if (!metadata) {
         return `spread-content-${Math.max(0, Math.floor(Math.max(0, pageNumber - 5) / 2))}`;
       }
@@ -70,25 +87,66 @@ export function PagesSubmenu({
       if (pageType === 'inner-front' || pageNumber === 4) {
         return 'spread-intro-0';
       }
-      if (pageType === 'inner-back' || (lastPageNumber > 0 && pageNumber >= lastPageNumber - 1)) {
+      // Additional check for inner-back or last-page types
+      if (pageType === 'inner-back' || pageType === 'last-page') {
         return 'spread-outro-last';
       }
       const offset = Math.max(0, pageNumber - 5);
       const pairIndex = Math.floor(offset / 2);
       return `spread-content-${pairIndex}`;
     },
-    [book?.pages, state.pagePagination?.totalPages, totalPages],
+    [totalPages],
   );
 
   // Create pair entries based on all pages (including placeholders)
   const pairEntries = useMemo(() => {
     if (!book || totalPages === 0) return [];
     const getMetadata = (pageNumber: number) => {
-      const base = resolvePageMetadata(pageNumber);
-      if (base) return base;
-      return computePageMetadataEntry(pageNumber, totalPages, pagesByNumber.get(pageNumber) ?? undefined);
+      // CRITICAL: Always compute pageType and pagePairId based on totalPages, NOT from database
+      // This fixes cases where pages have incorrect pageType/pagePairId stored in database
+      const page = pagesByNumber.get(pageNumber) ?? undefined;
+      
+      // Compute correct pageType based on totalPages, ignoring database value
+      const correctPageType: NonNullable<Page['pageType']> = pageNumber === 1 ? 'back-cover'
+        : pageNumber === 2 ? 'front-cover'
+        : pageNumber === 3 ? 'inner-front'
+        : pageNumber === totalPages ? 'inner-back'
+        : 'content';
+      
+      // Create metadata with correct pageType - pass page with overridden pageType
+      const pageWithCorrectType = page ? { ...page, pageType: correctPageType } : undefined;
+      const metadata = computePageMetadataEntry(pageNumber, totalPages, pageWithCorrectType);
+      
+      // Override both pageType and pagePairId to ensure they're always computed correctly
+      if (metadata) {
+        // Use getGroupingPairId to compute the correct pairId, ignoring any pagePairId from database
+        const recomputedPairId = getGroupingPairId(pageNumber, { ...metadata, pageType: correctPageType });
+        return {
+          ...metadata,
+          pageType: correctPageType,
+          pagePairId: recomputedPairId,
+        };
+      }
+      return metadata;
     };
 
+    // First, collect all pairIds and their page numbers in order
+    const pairIdMap = new Map<string, number[]>();
+    
+    for (let pageNumber = 1; pageNumber <= totalPages; pageNumber++) {
+      const metadata = getMetadata(pageNumber);
+      if (!metadata) continue;
+      // CRITICAL: Always compute pairId directly, ignoring any pagePairId from metadata
+      // This ensures that the last pages (63, 64) always get 'spread-outro-last'
+      const pairId = getGroupingPairId(pageNumber, metadata);
+      
+      if (!pairIdMap.has(pairId)) {
+        pairIdMap.set(pairId, []);
+      }
+      pairIdMap.get(pairId)!.push(pageNumber);
+    }
+
+    // Convert to entries array, sorted by the first page number in each pair
     const entries: Array<{
       pairId: string;
       startIndex: number;
@@ -96,26 +154,39 @@ export function PagesSubmenu({
       isLocked: boolean;
       isSpecial: boolean;
     }> = [];
-    const seen = new Set<string>();
 
-    for (let pageNumber = 1; pageNumber <= totalPages; pageNumber++) {
-      const metadata = getMetadata(pageNumber);
-      if (!metadata) continue;
-      const pairId = getGroupingPairId(pageNumber, metadata);
-      if (seen.has(pairId)) continue;
-      seen.add(pairId);
-
-      const pairPageNumbers: number[] = [];
-      for (let pn = 1; pn <= totalPages; pn++) {
-        const pnMetadata = getMetadata(pn);
-        if (getGroupingPairId(pn, pnMetadata) === pairId) {
-          pairPageNumbers.push(pn);
-        }
+    // Convert map to array and sort by the minimum page number in each pair
+    // CRITICAL: Sort by minPageNumber to ensure correct order, especially for last pages
+    const sortedPairs = Array.from(pairIdMap.entries()).map(([pairId, pairPageNumbers]) => {
+      // Sort page numbers within the pair to ensure correct order
+      pairPageNumbers.sort((a, b) => a - b);
+      const minPageNumber = Math.min(...pairPageNumbers);
+      return { pairId, pairPageNumbers, minPageNumber };
+    }).sort((a, b) => {
+      // CRITICAL: Ensure 'spread-outro-last' ALWAYS comes last, regardless of page numbers
+      // This is the most important sorting rule
+      if (a.pairId === 'spread-outro-last' && b.pairId !== 'spread-outro-last') {
+        return 1; // a (spread-outro-last) comes after b
       }
+      if (b.pairId === 'spread-outro-last' && a.pairId !== 'spread-outro-last') {
+        return -1; // b (spread-outro-last) comes after a
+      }
+      // For all other pairs, sort by minPageNumber
+      return a.minPageNumber - b.minPageNumber;
+    });
 
+    for (const { pairId, pairPageNumbers } of sortedPairs) {
       const pairPages: (Page | null)[] = pairPageNumbers.map((pn) => {
         const actualPage = pagesByNumber.get(pn) ?? null;
         if (actualPage) {
+          // For loaded pages, ensure pagePairId matches the computed pairId
+          // This fixes cases where pagePairId from database might be incorrect
+          if (actualPage.pagePairId !== pairId) {
+            return {
+              ...actualPage,
+              pagePairId: pairId,
+            };
+          }
           return actualPage;
         }
         const meta = getMetadata(pn);
@@ -124,7 +195,7 @@ export function PagesSubmenu({
           pageNumber: pn,
           elements: [],
           pageType: meta?.pageType,
-          pagePairId: meta?.pagePairId ?? pairId,
+          pagePairId: pairId, // Always use the computed pairId, not from metadata
           isSpecialPage: meta?.isSpecial ?? false,
           isLocked: meta ? !meta.isEditable : false,
           isPrintable: true,
@@ -145,8 +216,9 @@ export function PagesSubmenu({
         isSpecial: pairPages.some((p) => p?.isSpecialPage ?? false)
       });
     }
-    return entries;
-  }, [book, totalPages, pagesByNumber, resolvePageMetadata, getGroupingPairId]);
+    // Sort entries by startIndex to ensure correct order
+    return entries.sort((a, b) => a.startIndex - b.startIndex);
+  }, [book, totalPages, pagesByNumber, getGroupingPairId]);
 
   if (!book) {
     return null;

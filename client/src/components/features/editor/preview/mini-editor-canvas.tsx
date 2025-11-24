@@ -39,18 +39,15 @@ export default function MiniEditorCanvas(props: MiniEditorCanvasProps) {
   }, [props.className]);
 
   const isModal = props.className?.includes('h-full');
-  const containerHeight = isModal ? '100%' : 442;
 
   return (
-    <div className={`rounded-2xl bg-white shadow-sm border p-4 ${props.className ?? ''} ${isModal ? 'h-full flex flex-col' : ''}`}>
-      {!isModal && <div className="text-sm font-semibold mb-3">Live Preview</div>}
+    <div className={`rounded-2xl bg-white shadow-sm border p-4 ${props.className ?? ''} h-full flex flex-col`}>
+      {!isModal && <div className="text-sm font-semibold mb-3 flex-shrink-0">Live Preview</div>}
       <div
-        className={`w-full mini-editor-preview ${isModal ? 'flex-1 min-h-0' : ''}`}
+        className="w-full mini-editor-preview flex-1 min-h-0"
         style={{
           width: '100%',
-          // Keep a stable aspect that fits both A4/A5 portrait spreads; Canvas auto-fits
-          height: containerHeight,
-          overflow: isModal ? 'hidden' : 'hidden',
+          overflow: 'hidden',
           borderRadius: 12,
           // Enable interactions in modal, disable in regular mini preview
           pointerEvents: isModal ? 'auto' : 'none',

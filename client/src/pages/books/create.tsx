@@ -316,12 +316,23 @@ export default function BookCreatePage() {
       const canvasSize = calculatePageDimensions(wizardState.basic.pageSize, wizardState.basic.orientation);
       
       // Calculate initial page count based on pagesPerUser and selected friends
+      // Use assignmentState.totalPages directly (already ensured to be even in team-step.tsx)
+      // but ensure it's at least the calculated minimum
       const numUsers = wizardState.team.selectedFriends.length;
       const specialPages = 4; // Front Cover, Back Cover, Inner Front, Inner Back
       const calculatedPages = (wizardState.team.pagesPerUser || 1) * numUsers - specialPages;
-      const plannedPages = wizardState.team.assignmentState?.totalPages ?? DEFAULT_ASSIGNMENT_PAGE_COUNT;
+      // Use assignmentState.totalPages directly - it's already ensured to be even in team-step.tsx
+      // and represents the actual totalPages value shown to the user
+      // Apply the same logic as team-step.tsx: ensureEvenTotalPages(Math.max(assignmentState.totalPages, DEFAULT_ASSIGNMENT_PAGE_COUNT))
       const normalizeToEven = (value: number) => (value % 2 === 0 ? value : value + 1);
-      const initialPageCount = normalizeToEven(Math.max(DEFAULT_ASSIGNMENT_PAGE_COUNT, calculatedPages, plannedPages));
+      const ensureEvenTotalPages = (value: number) => (value % 2 === 0 ? value : value + 1);
+      const plannedPages = wizardState.team.assignmentState?.totalPages ?? DEFAULT_ASSIGNMENT_PAGE_COUNT;
+      // Apply the same calculation as team-step.tsx to ensure consistency
+      const totalPagesFromTeamStep = ensureEvenTotalPages(Math.max(plannedPages, DEFAULT_ASSIGNMENT_PAGE_COUNT));
+      // Ensure it's at least the calculated minimum
+      const minRequiredPages = Math.max(DEFAULT_ASSIGNMENT_PAGE_COUNT, normalizeToEven(calculatedPages));
+      // Use the same calculation as team-step.tsx to ensure consistency
+      const initialPageCount = Math.max(totalPagesFromTeamStep, minRequiredPages);
 
       const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/books`, {
         method: 'POST',
@@ -792,23 +803,62 @@ export default function BookCreatePage() {
   };
 
   return (
-    <div className="w-full h-screen bg-muted/20 flex flex-col overflow-hidden">
+    <div className="w-full h-full bg-muted/20 flex overflow-hidden">
+      {/* Left Sidebar - Navigation */}
+      <div className="w-40 flex-shrink-0 border-r bg-background flex flex-col h-full">
+        <div className="flex-1 overflow-y-scroll overscroll-contain" style={{ minHeight: 0 }}>
+          <div className="py-4 px-2 pt-6">
+            <div className="space-y-2 pb-5">
+              <StepNavigation
+                steps={stepConfig}
+                activeStepIndex={activeStepIndex}
+                onStepClick={setActiveStepIndex}
+                wizardState={wizardState}
+              />
+            </div>
+            <div className="border-t p-2 space-y-2">
+              {currentStepId !== 'basic' && (
+                <Button
+                  variant="outline"
+                  onClick={handleBack}
+                  disabled={!canGoBack}
+                  className="w-full"
+                  size="sm"
+                >
+                  Back
+                </Button>
+              )}
+              {currentStepId !== 'basic' && (
+                <Button
+                  onClick={currentStepId === 'review' ? handleSubmit : handleNext}
+                  disabled={currentStepId === 'review' ? isSubmitting : !canGoNext}
+                  className="w-full"
+                  size="sm"
+                >
+                  {currentStepId === 'review' ? (isSubmitting ? 'Creating...' : 'Create') : 'Next'}
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Scrollable Content Area */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-7xl px-4 py-8 pt-0 lg:px-8">
+      <div className="flex-1 overflow-y-auto scrollbar">
+        <div className="mx-auto max-w-7xl px-4 py-8 pt-0 lg:px-8 h-full flex flex-col">
           {/* Hauptbereich: Layout abhängig vom aktuellen Schritt */}
           {currentStepId === 'design' || currentStepId === 'review' ? (
-            <div className="mt-6 grid grid-cols-1 lg:grid-cols-5 gap-6">
+            <div className="mt-6 grid grid-cols-1 lg:grid-cols-5 gap-6 flex-1 min-h-0 items-stretch">
               {/* Left: Controls (60%) */}
-              <div className="lg:col-span-3">
+              <div className="lg:col-span-3 flex flex-col min-h-0">
                 {currentStep}
               </div>
 
               {/* Right: Live mini editor canvas (40%) */}
-              <div className="lg:col-span-2">
+              <div className="lg:col-span-2 flex flex-col min-h-0">
                 <div 
                   onClick={() => setPreviewModalOpen(true)}
-                  className="cursor-pointer transition-opacity hover:opacity-90"
+                  className="cursor-pointer transition-opacity hover:opacity-90 h-[600px]"
                   title="Click to view larger preview"
                 >
                   <MiniEditorCanvas
@@ -830,48 +880,6 @@ export default function BookCreatePage() {
               {currentStep}
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Navigation Footer - Fixed at bottom */}
-      <div className="w-full border-t bg-background fixed bottom-0 left-0 right-0 z-10">
-        <div className="mx-auto max-w-7xl px-4 pb-1 pt-2 lg:px-8">
-          <div className="flex items-center justify-between gap-4">
-            {/* Back button - hidden on Basic Info step but retains width */}
-            <div className="min-w-[100px]">
-              {currentStepId !== 'basic' && (
-                <Button
-                  variant="outline"
-                  onClick={handleBack}
-                  disabled={!canGoBack}
-                  className="w-full"
-                >
-                  Back
-                </Button>
-              )}
-            </div>
-            {/* Step Navigation - always visible, consistent width */}
-            <div className="flex-1">
-              <StepNavigation
-                steps={stepConfig}
-                activeStepIndex={activeStepIndex}
-                onStepClick={setActiveStepIndex}
-                wizardState={wizardState}
-              />
-            </div>
-            {/* Next button / Create Book button - hidden on Basic Info step but retains width */}
-            <div className="min-w-[100px]">
-              {currentStepId !== 'basic' && (
-                <Button
-                  onClick={currentStepId === 'review' ? handleSubmit : handleNext}
-                  disabled={currentStepId === 'review' ? isSubmitting : !canGoNext}
-                  className="w-full"
-                >
-                  {currentStepId === 'review' ? (isSubmitting ? 'Creating...' : 'Create Book') : 'Next'}
-                </Button>
-              )}
-            </div>
-          </div>
         </div>
       </div>
 
@@ -968,73 +976,68 @@ function StepNavigation({
   };
 
   return (
-    <div className="w-full">
-      {/* <div className="rounded-2xl bg-white shadow-sm border p-1 pt-2"> */}
-        <div className="flex w-full items-start gap-2">
-          {steps.map((step, index) => {
-            const isActive = index === activeStepIndex;
-            const isCompleted = index < activeStepIndex;
-            const isAccessible = canAccessStep(index);
+    <div className="flex flex-col items-center gap-1">
+      {steps.map((step, index) => {
+        const isActive = index === activeStepIndex;
+        const isCompleted = index < activeStepIndex;
+        const isAccessible = canAccessStep(index);
 
-            const icon = (() => {
-              switch (step.id) {
-                case 'basic': return <Book className="h-4 w-4" />;
-                case 'design': return <PaintbrushVertical className="h-4 w-4" />;
-                case 'team': return <Users className="h-4 w-4" />;
-                case 'questions': return <MessageCircleQuestionMark className="h-4 w-4" />;
-                case 'review': return <BookCheck className="h-4 w-4" />;
-                default: return <DotIcon />;
-              }
-            })();
+        const icon = (() => {
+          switch (step.id) {
+            case 'basic': return <Book className="h-4 w-4" />;
+            case 'design': return <PaintbrushVertical className="h-4 w-4" />;
+            case 'team': return <Users className="h-4 w-4" />;
+            case 'questions': return <MessageCircleQuestionMark className="h-4 w-4" />;
+            case 'review': return <BookCheck className="h-4 w-4" />;
+            default: return <DotIcon />;
+          }
+        })();
 
-            const StepDot = () => (
-              <button
-                type="button"
-                onClick={() => isAccessible && onStepClick(index)}
-                disabled={!isAccessible}
-                className={`z-10 inline-flex h-9 w-9 items-center justify-center rounded-full transition
-                  ${isActive || isCompleted ? 'bg-primary text-primary-foreground' : 'border border-input bg-background text-foreground'}
-                  ${isAccessible 
-                    ? (isActive || isCompleted ? 'hover:bg-primary/80' : 'hover:bg-muted')
-                    : 'opacity-50 cursor-not-allowed'}
-                  ${isActive ? 'ring-2 ring-ring ring-offset-2 ring-offset-background' : ''}
-                `}
-                aria-label={step.label}
-                title={step.label}
-              >
-                {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : icon}
-              </button>
-            );
+        const showSeparator = index !== steps.length - 1;
 
-            const showSeparator = index !== steps.length - 1;
+        return (
+          <div key={step.id} className="relative flex flex-col items-center w-full">
+            {/* Dot button */}
+            <button
+              type="button"
+              onClick={() => isAccessible && onStepClick(index)}
+              disabled={!isAccessible}
+              className={`z-10 inline-flex h-9 w-9 items-center justify-center rounded-full transition
+                ${isActive || isCompleted ? 'bg-primary text-primary-foreground' : 'border border-input bg-background text-foreground'}
+                ${isAccessible 
+                  ? (isActive || isCompleted ? 'hover:bg-primary/80' : 'hover:bg-muted')
+                  : 'opacity-50 cursor-not-allowed'}
+                ${isActive ? 'ring-2 ring-ring ring-offset-2 ring-offset-background' : ''}
+              `}
+              aria-label={step.label}
+              title={step.label}
+            >
+              {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : icon}
+            </button>
 
-            return (
-              <div key={step.id} className="relative flex w-full flex-col items-center justify-center">
-                {/* Dot button */}
-                <StepDot />
 
-                {/* Separator line */}
-                {showSeparator && (
-                  <div className="absolute left-[calc(50%+20px)] right-[calc(-50%+10px)] top-5 h-0.5 rounded-full bg-muted" />
-                )}
 
-                {/* Labels */}
-                <div className="mt-1 flex flex-col items-center text-center">
-                  <span className={`text-sm font-semibold transition ${isActive ? 'text-primary' : ''}`}>
-                    {step.label}
-                  </span>
-                  {/* {'optional' in step && step.optional && (
-                    <span className={`text-xs transition ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>
-                      Optional
-                    </span>
-                  )} */}
-                </div>
+            {/* Labels */}
+            <div className="mt-1 flex flex-col items-center text-center w-full">
+              <span className={`text-xs font-semibold transition leading-tight ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>
+                {step.label}
+              </span>
+              {'optional' in step && step.optional && (
+                <span className={`text-[10px] transition mt-0.5 ${isActive ? 'text-primary/70' : 'text-muted-foreground'}`}>
+                  Optional
+                </span>
+              )}
+            </div>
+            {/* Separator circle */}
+            {showSeparator && (
+              <div className="mt-2 mb-2">
+                <div className="h-2.5 w-2.5 rounded-full border border-muted-foreground/30 bg-white" />
               </div>
-            );
-          })}
-        </div>
-      </div>
-    // </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

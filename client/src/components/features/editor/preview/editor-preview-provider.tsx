@@ -6,6 +6,8 @@ import { mirrorTemplate } from '../../../../utils/layout-mirroring';
 import type { BookOrientation, BookPageSize } from '../../../../constants/book-formats';
 import { convertTemplateToElements } from '../../../../utils/template-to-elements';
 import { calculatePageDimensions } from '../../../../utils/template-utils';
+import { getToolDefaults } from '../../../../utils/tool-defaults';
+import type { CanvasElement } from '../../../../context/editor-context';
 
 type PreviewProviderProps = {
   children: React.ReactNode;
@@ -93,13 +95,74 @@ export function EditorPreviewProvider({
     // Berechne Canvas-Größe für die Preview
     const canvasSize = calculatePageDimensions(pageSize, orientation);
     
+    // Helper function to apply theme defaults to elements
+    const applyThemeToElements = (elements: CanvasElement[]): CanvasElement[] => {
+      return elements.map((element) => {
+        const toolType = (element.textType || element.type) as any;
+        const themeDefaults = getToolDefaults(
+          toolType,
+          themeId,
+          themeId,
+          element,
+          undefined, // toolSettings
+          leftResolved?.id ?? null,
+          baseTemplate?.id ?? null,
+          paletteId,
+          paletteId
+        );
+        
+        // Merge theme defaults into element
+        const updatedElement: any = {
+          ...element,
+          ...themeDefaults,
+          theme: themeId,
+          // Preserve element-specific properties
+          id: element.id,
+          type: element.type,
+          textType: element.textType,
+          x: element.x,
+          y: element.y,
+          width: element.width,
+          height: element.height,
+        };
+        
+        // Handle nested settings for qna_inline
+        if (element.textType === 'qna_inline' && themeDefaults.questionSettings) {
+          updatedElement.questionSettings = {
+            ...(element.questionSettings || {}),
+            ...themeDefaults.questionSettings,
+          };
+        }
+        if (element.textType === 'qna_inline' && themeDefaults.answerSettings) {
+          updatedElement.answerSettings = {
+            ...(element.answerSettings || {}),
+            ...themeDefaults.answerSettings,
+          };
+        }
+        
+        // Handle nested settings for free_text
+        if (element.textType === 'free_text' && themeDefaults.textSettings) {
+          updatedElement.textSettings = {
+            ...(element.textSettings || {}),
+            ...themeDefaults.textSettings,
+          };
+        }
+        
+        return updatedElement;
+      });
+    };
+    
     // Verwende die zentrale convertTemplateToElements Funktion
-    const leftElements = leftResolved 
+    const leftElementsRaw = leftResolved 
       ? convertTemplateToElements(leftResolved, canvasSize)
       : [];
-    const rightElements = rightResolved 
+    const rightElementsRaw = rightResolved 
       ? convertTemplateToElements(rightResolved, canvasSize)
       : [];
+    
+    // Apply theme defaults to elements
+    const leftElements = applyThemeToElements(leftElementsRaw);
+    const rightElements = applyThemeToElements(rightElementsRaw);
 
     // Minimal book for editor
     const book = {

@@ -98,14 +98,14 @@ export function BasicInfoStep({
   const buttonDescriptions: Record<'wizard' | 'templates' | 'blank', string> = {
     wizard: 'Continue through the wizard to customize your book to your needs.',
     templates: '"Ready for use" templates that help you get started quickly.',
-    blank: 'Skip the wizard, create a book with blank pages and start editing.',
+    blank: 'Skip the wizard, create a book with 24 blank pages and start editing.',
   };
 
   const activeDescription = hoveredButton ? buttonDescriptions[hoveredButton] : 'Bewege den Mauszeiger über eine Option, um mehr zu erfahren.';
 
   return (
-    <div className="flex flex-row gap-6 ">
-      <div className="flex w-2/3 flex-col gap-4 rounded-2xl bg-white shadow-sm border p-4">
+    <div className="flex flex-row gap-6 h-full">
+      <div className="flex w-2/3 flex-col gap-4 rounded-2xl bg-white shadow-sm border p-4 flex-1 min-h-0">
         <div className="flex flex-col gap-2">
             {/* <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
@@ -266,7 +266,7 @@ export function BasicInfoStep({
             className="h-16 py-6 px-6 flex flex-col items-start text-left"
           >
             <p className="font-semibold mb-1">Blank Canvas</p>
-            <p className="text-xs text-muted-foreground">Skip the wizard, create a book with blank pages and start editing</p>
+            <p className="text-xs text-muted-foreground">Skip the wizard, create a book with 24 blank pages and start editing</p>
           </Button>
           <Button
             // onClick={onBlankCanvas}

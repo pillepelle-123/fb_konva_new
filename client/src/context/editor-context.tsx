@@ -4395,10 +4395,18 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       }
 
       const basePagination = action.payload.pagination ?? state.pagePagination;
-      const totalPages =
-        action.payload.pagination?.totalPages ??
-        basePagination?.totalPages ??
-        Math.max(state.currentBook.pages.length, incomingPages.length);
+      // Use pagination.totalPages from API if available (most accurate from database)
+      // Otherwise preserve existing totalPages, or calculate from max page number
+      const totalPagesFromPagination = action.payload.pagination?.totalPages ?? basePagination?.totalPages;
+      const maxPageNumberFromIncoming = incomingPages.reduce((max, page) => {
+        const pageNum = page.pageNumber ?? 0;
+        return Math.max(max, pageNum);
+      }, 0);
+      const maxPageNumberFromExisting = state.currentBook.pages.reduce((max, page) => {
+        const pageNum = page.pageNumber ?? 0;
+        return Math.max(max, pageNum);
+      }, 0);
+      const totalPages = totalPagesFromPagination ?? Math.max(maxPageNumberFromExisting, maxPageNumberFromIncoming, state.currentBook.pages.length);
 
       let updatedPages = state.currentBook.pages.slice();
       if (totalPages > updatedPages.length) {
@@ -4435,16 +4443,24 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         }
       });
 
-      const nextPagination = basePagination
+      // Always preserve paginationState if it exists, or create it if we have totalPages
+      // This ensures the page explorer always shows the correct total count
+      const nextPagination: PagePaginationState | undefined = basePagination || totalPagesFromPagination
         ? {
-            totalPages: Math.max(totalPages, updatedPages.length),
+            totalPages: totalPagesFromPagination ?? basePagination?.totalPages ?? totalPages,
             pageSize:
               action.payload.pagination?.pageSize ??
-              basePagination.pageSize ??
+              basePagination?.pageSize ??
               PAGE_CHUNK_SIZE,
             loadedPages: loadedRecords,
           }
-        : undefined;
+        : (totalPages > state.currentBook.pages.length
+            ? {
+                totalPages,
+                pageSize: PAGE_CHUNK_SIZE,
+                loadedPages: loadedRecords,
+              }
+            : undefined);
 
       const mergedState = {
         ...state,
@@ -5052,7 +5068,15 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
 
       const structuredPages = ensureSpecialPages(normalizedLoadedPages);
       const structuredCount = structuredPages.length;
-      const totalPages = Math.max(pagination?.totalPages ?? structuredCount, structuredCount);
+      // Get the maximum page number from loaded pages as a fallback
+      const maxPageNumber = structuredPages.reduce((max, page) => {
+        const pageNum = page.pageNumber ?? 0;
+        return Math.max(max, pageNum);
+      }, 0);
+      
+      // Use pagination.totalPages from API (most accurate, comes from database)
+      // Fallback to maxPageNumber from loaded pages, then to structuredCount
+      const totalPages = pagination?.totalPages ?? Math.max(maxPageNumber, structuredCount);
       const pagesWithPlaceholders =
         totalPages > structuredCount
           ? ensurePageArrayLength(structuredPages, totalPages)
@@ -5065,13 +5089,15 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         return acc;
       }, {});
 
+      // Always set paginationState if totalPages is known (from pagination or calculated),
+      // even if pagination is null. This ensures that the page explorer shows all pages, not just the loaded ones.
       const paginationState: PagePaginationState | undefined = pagination
         ? {
             totalPages,
             pageSize: pagination.limit || PAGE_CHUNK_SIZE,
             loadedPages: loadedRecords
           }
-        : (totalPages > structuredCount
+        : (totalPages > structuredCount || maxPageNumber > structuredCount
             ? {
                 totalPages,
                 pageSize: PAGE_CHUNK_SIZE,
