@@ -351,8 +351,7 @@ export default function Image(props: CanvasItemProps) {
             const frameHeight = size.height;
             
             // Use theme renderer for consistent frame rendering
-            // Pass zoom to generatePath and getStrokeProps for proper scaling
-            // Use strokeScaleEnabled={false} so zoom is handled manually (consistent with themed-shape.tsx)
+            // Page-Content-Element: Image frames scale with zoom and are printed in PDF
             const themeRenderer = getThemeRenderer(frameTheme);
             if (themeRenderer && frameTheme !== 'default') {
               // Create a temporary element-like object for generatePath
@@ -369,7 +368,7 @@ export default function Image(props: CanvasItemProps) {
                 fill: 'transparent'
               } as CanvasElement;
               
-              // Pass zoom to generatePath and getStrokeProps for proper scaling
+              // Generate path and stroke props (zoom handling via strokeScaleEnabled)
               const pathData = themeRenderer.generatePath(frameElement, zoom);
               const strokeProps = themeRenderer.getStrokeProps(frameElement, zoom);
               
@@ -381,7 +380,7 @@ export default function Image(props: CanvasItemProps) {
                     strokeWidth={strokeProps.strokeWidth || strokeWidth}
                     opacity={strokeOpacity}
                     fill="transparent"
-                    strokeScaleEnabled={false}
+                    strokeScaleEnabled={true}
                     listening={false}
                     lineCap="round"
                     lineJoin="round"
@@ -391,17 +390,17 @@ export default function Image(props: CanvasItemProps) {
             }
             
             // Fallback to simple Rect for default theme
-            // Manually scale strokeWidth with zoom (consistent with themed-shape.tsx)
+            // Page-Content-Element: Border scales with zoom via strokeScaleEnabled
             return (
               <Rect
                 width={frameWidth}
                 height={frameHeight}
                 fill="transparent"
                 stroke={stroke}
-                strokeWidth={strokeWidth * zoom}
+                strokeWidth={strokeWidth}
                 opacity={strokeOpacity}
                 cornerRadius={cornerRadius}
-                strokeScaleEnabled={false}
+                strokeScaleEnabled={true}
                 listening={false}
               />
             );

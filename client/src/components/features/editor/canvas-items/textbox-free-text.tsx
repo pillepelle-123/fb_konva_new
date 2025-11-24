@@ -483,6 +483,7 @@ export default function TextboxFreeText(props: CanvasItemProps) {
               const cornerRadius = element.cornerRadius ?? freeTextDefaults.cornerRadius ?? 0;
               const theme = textStyle.borderTheme || textStyle.border?.borderTheme || 'default';
               
+              // Page-Content-Element: Free text borders scale with zoom and are printed in PDF
               const themeRenderer = getThemeRenderer(theme);
               if (themeRenderer && theme !== 'default') {
                 // Create a temporary element-like object for generatePath
@@ -509,7 +510,7 @@ export default function TextboxFreeText(props: CanvasItemProps) {
                       strokeWidth={borderWidth}
                       opacity={borderOpacity}
                       fill="transparent"
-                      strokeScaleEnabled={false}
+                      strokeScaleEnabled={true}
                       listening={false}
                       lineCap="round"
                       lineJoin="round"
@@ -518,6 +519,8 @@ export default function TextboxFreeText(props: CanvasItemProps) {
                 }
               }
               
+              // Fallback to simple Rect for default theme
+              // Page-Content-Element: Border scales with zoom via strokeScaleEnabled
               return (
                 <Rect
                   width={element.width}
@@ -527,6 +530,7 @@ export default function TextboxFreeText(props: CanvasItemProps) {
                   strokeWidth={borderWidth}
                   opacity={borderOpacity}
                   cornerRadius={cornerRadius}
+                  strokeScaleEnabled={true}
                   listening={false}
                 />
               );
@@ -573,6 +577,8 @@ export default function TextboxFreeText(props: CanvasItemProps) {
             const align = textStyle.align || element.format?.textAlign || 'left';
             
             if (!userText) {
+              // UI-Helper-Element: Placeholder text does NOT scale with zoom and is NOT printed in PDF
+              // Rule: UI-Helper-Elemente must have name="no-print"
               return (
                 <Text
                   ref={textRef}

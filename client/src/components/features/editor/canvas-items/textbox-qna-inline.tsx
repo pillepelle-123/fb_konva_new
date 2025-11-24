@@ -769,6 +769,8 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
   };
 
   // Generate visual indication border for active section
+  // UI-Helper-Element: This indicator does NOT scale with zoom and is NOT printed in PDF
+  // Rule: UI-Helper-Elemente must have name="no-print" AND strokeScaleEnabled={false}
   const generateSectionIndicator = () => {
     // Only show indicator if element is selected and individual settings are enabled
     if (!state.selectedElementIds.includes(element.id) || !individualSettings) {
@@ -1507,6 +1509,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
           })()}
           
           {/* Border */}
+          {/* Page-Content-Element: QNA borders scale with zoom (strokeScaleEnabled={true}) and are printed in PDF */}
           {(() => {
             // Get default settings from tool defaults if not present
             // CRITICAL: Use element.theme if present (set during loadBook for pages that inherit book theme)
