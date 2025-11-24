@@ -185,56 +185,174 @@ export const exportBookToPDF = async (
         }
       }
       
-      // Increase stroke widths to compensate for PDF thinning - do this after adding to stage
-      const allElements = tempStage.find('Path, Line, Rect, Circle, Ellipse, Ring, Arc, RegularPolygon, Star, Shape');
-      allElements.forEach(element => {
-        const currentStrokeWidth = element.strokeWidth();
-        if (currentStrokeWidth) {
-          // Check if this is a ruled line
-          // Ruled lines are Path elements with listening={false} that are horizontal lines
-          // They are typically part of a Group that contains Text elements (qna_inline textboxes)
-          let isRuledLine = false;
+      // Calculate stroke width compensation so exported PDF matches on-screen appearance.
+      // jsPDF scales the rendered PNG to fit the PDF width, which thins strokes.
+      // Compensation factor = stageWidthPx / pdfWidthPx, where pdfWidthPx = pdfWidth(mm) * scaleFactor.
+      const pdfScaleFactor = (pdf as any)?.internal?.scaleFactor ?? 1;
+      const pdfWidthPx = pdfWidth * pdfScaleFactor;
+      const strokeScaleCompensation = pdfWidthPx > 0 ? pageContentWidth / pdfWidthPx : 1;
+      
+      if (strokeScaleCompensation !== 1) {
+        // Find all elements recursively to ensure we catch nested elements
+        const allElements = tempStage.find('Path, Line, Rect, Circle, Ellipse, Ring, Arc, RegularPolygon, Star, Shape') as Konva.Shape[];
+        console.log(`[PDF Export] Found ${allElements.length} elements with stroke, compensation factor: ${strokeScaleCompensation}`);
+        
+        // Count elements by type for debugging
+        const elementCounts: Record<string, number> = {};
+        allElements.forEach(el => {
+          const type = el.getClassName();
+          elementCounts[type] = (elementCounts[type] || 0) + 1;
+        });
+        console.log(`[PDF Export] Element counts by type:`, elementCounts);
+        allElements.forEach((element, index) => {
+          const className = element.getClassName();
+          const currentStrokeWidth = element.strokeWidth();
           
-          if (element.getClassName() === 'Path') {
-            const pathElement = element as Konva.Path;
-            const data = pathElement.data();
+          // Log ALL Path elements to see what we're missing
+          if (className === 'Path') {
+            console.log(`[PDF Export] Path element ${index}: strokeWidth=${currentStrokeWidth}, strokeScaleEnabled=${element.strokeScaleEnabled ? element.strokeScaleEnabled() : 'N/A'}`);
+          }
+          
+          if (currentStrokeWidth) {
+            const originalStrokeWidth = currentStrokeWidth;
             
-            // Check if this is a horizontal line (ruled line pattern: M x y L x2 y)
-            // Ruled lines have the pattern where start and end Y coordinates are the same
-            if (typeof data === 'string' && data.includes('M') && data.includes('L')) {
-              const match = data.match(/M\s+([\d.]+)\s+([\d.]+)\s+L\s+([\d.]+)\s+([\d.]+)/);
-              if (match) {
-                const startY = parseFloat(match[2]);
-                const endY = parseFloat(match[4]);
-                // If Y coordinates are the same (or very close), it's a horizontal line (ruled line)
-                if (Math.abs(startY - endY) < 0.1) {
-                  isRuledLine = true;
+            // Check if this is a ruled line
+            // Ruled lines are Path elements with:
+            // - strokeScaleEnabled=true (they scale with zoom)
+            // - strokeWidth <= 1.5 (very thin lines)
+            // - horizontal line pattern (M x y L x2 y with same Y)
+            // - in Groups that contain Text elements (qna_inline textboxes)
+            let isRuledLine = false;
+            
+            if (className === 'Path') {
+              const pathElement = element as Konva.Path;
+              const hasStrokeScaleEnabled = element.strokeScaleEnabled ? element.strokeScaleEnabled() : false;
+              
+              // Ruled lines have strokeScaleEnabled=true and very small strokeWidth
+              // Shapes/Lines have strokeScaleEnabled=false and larger strokeWidth
+              if (hasStrokeScaleEnabled && originalStrokeWidth <= 1.5) {
+                const data = pathElement.data();
+                
+                // Check if this is a horizontal line (ruled line pattern: M x y L x2 y)
+                // Ruled lines have the pattern where start and end Y coordinates are the same
+                if (typeof data === 'string' && data.includes('M') && data.includes('L')) {
+                  const match = data.match(/M\s+([\d.]+)\s+([\d.]+)\s+L\s+([\d.]+)\s+([\d.]+)/);
+                  if (match) {
+                    const startY = parseFloat(match[2]);
+                    const endY = parseFloat(match[4]);
+                    // If Y coordinates are the same (or very close), it's a horizontal line (ruled line)
+                    if (Math.abs(startY - endY) < 0.1) {
+                      isRuledLine = true;
+                    }
+                  }
+                }
+                
+                // Also check parent structure: ruled lines are in Groups that contain Text elements
+                if (!isRuledLine) {
+                  const parent = element.getParent();
+                  // Check if any ancestor group contains Text elements (qna_inline structure)
+                  let currentParent: any = parent;
+                  while (currentParent) {
+                    if (currentParent.findOne && currentParent.findOne('Text')) {
+                      isRuledLine = true;
+                      break;
+                    }
+                    currentParent = currentParent.getParent();
+                  }
                 }
               }
             }
             
-            // Also check parent structure: ruled lines are in Groups that contain Text elements
-            if (!isRuledLine) {
+            // Don't scale ruled lines, but log them for debugging
+            if (isRuledLine) {
+              if (className === 'Path') {
+                console.log(`[PDF Export] Ruled line skipped: Path element ${index}, strokeWidth=${originalStrokeWidth.toFixed(2)}`);
+              }
+              return;
+            }
+            
+            // Check element type to determine compensation
+            const isRect = className === 'Rect';
+            const isPath = className === 'Path';
+            
+            // Check if this is a QNA border by checking parent structure
+            // QNA borders are Rect or Path elements that are direct children of Groups containing Text elements
+            let isQNABorder = false;
+            if (isRect || isPath) {
               const parent = element.getParent();
-              const grandParent = parent?.getParent();
-              // Check if any ancestor group contains Text elements (qna_inline structure)
-              let currentParent: any = parent;
-              while (currentParent) {
-                if (currentParent.findOne && currentParent.findOne('Text')) {
-                  isRuledLine = true;
-                  break;
+              if (parent) {
+                // Check if parent or grandparent contains Text elements (qna_inline structure)
+                let currentParent: Konva.Node | null = parent;
+                while (currentParent) {
+                  const konvaParent = currentParent as Konva.Group;
+                  if (konvaParent.findOne && konvaParent.findOne('Text')) {
+                    // Check if this element is a border (Rect with transparent fill or Path with stroke)
+                    if (isRect) {
+                      const rect = element as Konva.Rect;
+                      const fill = rect.fill();
+                      if (fill === 'transparent' || fill === '') {
+                        isQNABorder = true;
+                        break;
+                      }
+                    } else if (isPath) {
+                      const path = element as Konva.Path;
+                      const fill = path.fill();
+                      if ((fill === 'transparent' || fill === '') && path.stroke()) {
+                        isQNABorder = true;
+                        break;
+                      }
+                    }
+                  }
+                  currentParent = currentParent.getParent();
                 }
-                currentParent = currentParent.getParent();
               }
             }
+            
+            // Also check if element has strokeScaleEnabled
+            const hasStrokeScaleEnabled = element.strokeScaleEnabled ? element.strokeScaleEnabled() : false;
+            
+            // ALL elements need to be INCREASED for PDF, but with different factors
+            // The issue is that PDF scaling makes everything thinner, regardless of strokeScaleEnabled
+            // IMPORTANT: Shapes and Lines are rendered as Path elements with strokeScaleEnabled={false}
+            // Strategy: All elements with strokeScaleEnabled={false} (except QNA borders) get high compensation
+            let newStrokeWidth = currentStrokeWidth;
+            let compensationType = 'none';
+            
+            if (isQNABorder) {
+              // QNA borders: They already scale with zoom, so they need minimal or even reduced compensation
+              // Use a smaller factor (0.3) to keep them from being too thick (user-adjusted value)
+              const qnaCompensation = strokeScaleCompensation * 0.24;
+              newStrokeWidth = currentStrokeWidth * qnaCompensation;
+              compensationType = 'QNA';
+            } else if (!hasStrokeScaleEnabled) {
+              // All elements WITHOUT strokeScaleEnabled (Shapes, Lines, etc.): Use same thickness as QNA borders
+              // This includes: Path elements (shapes/lines), Line elements, Rect elements (shape rectangles)
+              // Set to 0.3 to match QNA border thickness in PDF export (only affects PDF, not canvas)
+              const enhancedCompensation = strokeScaleCompensation * 0.24;
+              newStrokeWidth = currentStrokeWidth * enhancedCompensation;
+              compensationType = 'no-scale';
+            } else {
+              // Elements WITH strokeScaleEnabled={true} that are not QNA borders: Use same thickness as QNA borders
+              // Set to 0.3 to match QNA border thickness in PDF export (only affects PDF, not canvas)
+              const standardCompensation = strokeScaleCompensation * 0.24;
+              newStrokeWidth = currentStrokeWidth * standardCompensation;
+              compensationType = 'with-scale';
+            }
+            
+            // Apply the new stroke width
+            element.strokeWidth(newStrokeWidth);
+            
+            // Verify the stroke width was actually set
+            const verifyStrokeWidth = element.strokeWidth();
+            
+            // Debug logging for ALL elements - we need to find the missing shapes/lines
+            // Log all elements to see what we're actually finding
+            if (index < 30 || originalStrokeWidth > 15 || className === 'Path' || (className === 'Rect' && !isQNABorder)) {
+              console.log(`[PDF Export] Element ${index}: ${className}, strokeScaleEnabled=${hasStrokeScaleEnabled}, isQNABorder=${isQNABorder}, original=${originalStrokeWidth.toFixed(2)}, new=${newStrokeWidth.toFixed(2)}, verified=${verifyStrokeWidth.toFixed(2)}, type=${compensationType}`);
+            }
           }
-          
-          // Scale all elements except ruled lines
-          if (!isRuledLine) {
-            element.strokeWidth(currentStrokeWidth * 3.5);
-          }
-        }
-      });
+        });
+      }
       
       tempStage.draw();
     }

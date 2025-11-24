@@ -1309,7 +1309,7 @@ export function QnAInlineSettingsForm({
             })()}
             onChange={(value) => updateSharedSetting('borderWidth', value)}
             min={0}
-            max={20}
+            max={50}
             step={1}
           />
           

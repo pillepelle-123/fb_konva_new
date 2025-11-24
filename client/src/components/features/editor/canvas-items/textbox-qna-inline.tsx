@@ -733,6 +733,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               stroke={ruledLineColor}
               strokeWidth={ruledLineWidth}
               opacity={ruledLineOpacity}
+              strokeScaleEnabled={true}
               listening={false}
             />
           );
@@ -745,6 +746,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
             stroke={ruledLineColor}
             strokeWidth={ruledLineWidth}
             opacity={ruledLineOpacity}
+            strokeScaleEnabled={true}
             listening={false}
           />
         );
@@ -757,6 +759,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
           stroke={ruledLineColor}
           strokeWidth={ruledLineWidth}
           opacity={ruledLineOpacity}
+          strokeScaleEnabled={true}
           listening={false}
         />
       );
@@ -1564,7 +1567,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                       strokeWidth={borderWidth}
                       opacity={borderOpacity}
                       fill="transparent"
-                      strokeScaleEnabled={false}
+                      strokeScaleEnabled={true}
                       listening={false}
                       lineCap="round"
                       lineJoin="round"
@@ -1582,6 +1585,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                   strokeWidth={borderWidth}
                   opacity={borderOpacity}
                   cornerRadius={cornerRadius}
+                  strokeScaleEnabled={true}
                   listening={false}
                 />
               );

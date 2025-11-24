@@ -177,7 +177,7 @@ export default function ThemedShape(props: CanvasItemProps) {
             stroke={strokeProps.stroke}
             strokeWidth={strokeProps.strokeWidth * 1.5}
             fill="none"
-            strokeScaleEnabled={false}
+            strokeScaleEnabled={true}
             listening={false}
             lineCap="round"
             lineJoin="round"
@@ -196,7 +196,7 @@ export default function ThemedShape(props: CanvasItemProps) {
         stroke={finalStrokeColor}
         fill={finalFillColor}
         opacity={1}
-        strokeScaleEnabled={false}
+        strokeScaleEnabled={true}
         listening={false}
         perfectDrawEnabled={false}
       />

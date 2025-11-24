@@ -47,9 +47,11 @@ const defaultTheme: ThemeRenderer = {
     return generateComplexShapePath(element);
   },
   
-  getStrokeProps: (element: CanvasElement, zoom = 1) => ({
+  getStrokeProps: (element: CanvasElement, _zoom = 1) => ({
     stroke: element.stroke || '#1f2937',
-    strokeWidth: element.strokeWidth ? commonToActualStrokeWidth(element.strokeWidth, element.theme || 'default') * zoom : 0,
+    // strokeWidth is NOT multiplied by zoom here because strokeScaleEnabled={true} in themed-shape.tsx
+    // Konva will automatically scale the strokeWidth with zoom when strokeScaleEnabled={true}
+    strokeWidth: element.strokeWidth ? commonToActualStrokeWidth(element.strokeWidth, element.theme || 'default') : 0,
     fill: element.type === 'line' ? undefined : (element.fill !== 'transparent' ? element.fill : undefined)
   })
 };
@@ -123,9 +125,11 @@ const roughTheme: ThemeRenderer = {
     return defaultTheme.generatePath(element, zoom);
   },
   
-  getStrokeProps: (element: CanvasElement, zoom = 1) => ({
+  getStrokeProps: (element: CanvasElement, _zoom = 1) => ({
     stroke: element.stroke || '#1f2937',
-    strokeWidth: element.strokeWidth ? commonToActualStrokeWidth(element.strokeWidth, element.theme || 'rough') * zoom : 0,
+    // strokeWidth is NOT multiplied by zoom here because strokeScaleEnabled={true} in themed-shape.tsx
+    // Konva will automatically scale the strokeWidth with zoom when strokeScaleEnabled={true}
+    strokeWidth: element.strokeWidth ? commonToActualStrokeWidth(element.strokeWidth, element.theme || 'rough') : 0,
     fill: element.type === 'line' ? undefined : (element.fill !== 'transparent' ? element.fill : undefined)
   })
 };
@@ -189,8 +193,10 @@ const glowTheme: ThemeRenderer = {
     return defaultTheme.generatePath(element);
   },
   
-  getStrokeProps: (element: CanvasElement, zoom = 1) => {
-    const baseStrokeWidth = element.strokeWidth ? commonToActualStrokeWidth(element.strokeWidth, element.theme || 'glow') * zoom : 0;
+  getStrokeProps: (element: CanvasElement, _zoom = 1) => {
+    // strokeWidth is NOT multiplied by zoom here because strokeScaleEnabled={true} in themed-shape.tsx
+    // Konva will automatically scale the strokeWidth with zoom when strokeScaleEnabled={true}
+    const baseStrokeWidth = element.strokeWidth ? commonToActualStrokeWidth(element.strokeWidth, element.theme || 'glow') : 0;
     return {
       stroke: element.stroke || '#1f2937',
       strokeWidth: baseStrokeWidth * 2,
@@ -488,10 +494,12 @@ const zigzagTheme: ThemeRenderer = {
     return defaultTheme.generatePath(element, zoom);
   },
   
-  getStrokeProps: (element: CanvasElement, zoom = 1) => {
+  getStrokeProps: (element: CanvasElement, _zoom = 1) => {
     return {
       stroke: element.stroke || '#bf4d28',
-      strokeWidth: element.strokeWidth ? commonToActualStrokeWidth(element.strokeWidth, element.theme || 'zigzag') * zoom : 0,
+      // strokeWidth is NOT multiplied by zoom here because strokeScaleEnabled={true} in themed-shape.tsx
+      // Konva will automatically scale the strokeWidth with zoom when strokeScaleEnabled={true}
+      strokeWidth: element.strokeWidth ? commonToActualStrokeWidth(element.strokeWidth, element.theme || 'zigzag') : 0,
       fill: 'transparent',
       lineCap: 'round',
       lineJoin: 'round'
@@ -734,7 +742,7 @@ const wobblyTheme: ThemeRenderer = {
     return defaultTheme.generatePath(element, zoom);
   },
   
-  getStrokeProps: (element: CanvasElement, zoom = 1) => {
+  getStrokeProps: (element: CanvasElement, _zoom = 1) => {
     if (element.type === 'brush' || element.type === 'line' || element.type === 'rect' || element.type === 'circle' || element.type === 'triangle' || element.type === 'polygon') {
       return {
         stroke: 'transparent',
@@ -745,7 +753,9 @@ const wobblyTheme: ThemeRenderer = {
     
     return {
       stroke: element.stroke || '#1f2937',
-      strokeWidth: element.strokeWidth ? commonToActualStrokeWidth(element.strokeWidth, element.theme || 'wobbly') * zoom : 0,
+      // strokeWidth is NOT multiplied by zoom here because strokeScaleEnabled={true} in themed-shape.tsx
+      // Konva will automatically scale the strokeWidth with zoom when strokeScaleEnabled={true}
+      strokeWidth: element.strokeWidth ? commonToActualStrokeWidth(element.strokeWidth, element.theme || 'wobbly') : 0,
       fill: element.type === 'line' ? undefined : (element.fill !== 'transparent' ? element.fill : undefined)
     };
   }
