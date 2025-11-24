@@ -29,6 +29,7 @@ class ApiService {
     // Use the single endpoint that returns everything
     const response = await fetch(`${this.baseUrl}/books/${bookId}${query}`, { headers: this.getHeaders() });
     const data = await response.json();
+    const pagination = data.pagination || null;
     
     // Extract data from the response
     const book = {
@@ -49,7 +50,8 @@ class ApiService {
       specialPagesConfig: data.specialPagesConfig ?? data.special_pages_config ?? null,
       layoutStrategy: data.layoutStrategy ?? data.layout_strategy ?? null,
       layoutRandomMode: data.layoutRandomMode ?? data.layout_random_mode ?? null,
-      assistedLayouts: data.assistedLayouts ?? data.assisted_layouts ?? null
+      assistedLayouts: data.assistedLayouts ?? data.assisted_layouts ?? null,
+      totalPages: data.totalPages ?? pagination?.totalPages ?? null
     };
     
     const questions = data.questions || [];
@@ -57,7 +59,7 @@ class ApiService {
     const userRole = data.userRole;
     const pageAssignments = data.pageAssignments || [];
     
-    return { book, questions, answers, userRole, pageAssignments };
+    return { book, questions, answers, userRole, pageAssignments, pagination };
   }
 
   async saveBook(bookData: any, tempQuestions: Record<string, string>, tempAnswers: Record<string, Record<number, { text: string; answerId: string }>>, newQuestions: any[], pageAssignments: any, bookFriends: any[]) {
@@ -108,14 +110,16 @@ class ApiService {
     return response.ok ? response.json() : [];
   }
 
-  async createQuestion(bookId: number, questionText: string, questionId?: string) {
+  async createQuestion(bookId: number, questionText: string, questionId?: string, questionPoolId?: string | null, displayOrder?: number) {
     const response = await fetch(`${this.baseUrl}/questions`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ 
         id: questionId,
         bookId, 
-        questionText 
+        questionText,
+        questionPoolId: questionPoolId || null,
+        displayOrder
       })
     });
     return response.json();

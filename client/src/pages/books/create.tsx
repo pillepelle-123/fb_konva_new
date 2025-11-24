@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { v4 as uuidv4 } from 'uuid';
 import { CheckCircle2, Book, PaintbrushVertical, BookCheck, Users, MessageCircleQuestionMark } from 'lucide-react';
 import { Button } from '../../components/ui/primitives/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
@@ -17,7 +18,6 @@ import { QuestionsStep } from '../../components/features/books/create/questions-
 import { ReviewStep } from '../../components/features/books/create/review-step';
 import type { WizardState, Friend } from '../../components/features/books/create/types';
 import {
-  curatedQuestions as curatedQuestionsList,
   getDefaultTeamAssignmentState,
   DEFAULT_ASSIGNMENT_PAGE_COUNT,
 } from '../../components/features/books/create/types';
@@ -61,10 +61,11 @@ const initialState: WizardState = {
     autoAssign: false,
     assignmentState: getDefaultTeamAssignmentState(),
   },
-  questions: {
-    selectedDefaults: [],
-    custom: [],
-  },
+    questions: {
+      selectedDefaults: [],
+      custom: [],
+      orderedQuestions: [],
+    },
 };
 
 export default function BookCreatePage() {
@@ -298,10 +299,25 @@ export default function BookCreatePage() {
 
   const handleAddCustomQuestion = () => {
     if (!customQuestionDraft.trim()) return;
+    const customQuestionId = uuidv4(); // Use UUID instead of timestamp-based ID
+    const customQuestionText = customQuestionDraft.trim();
+    
+    // Add to orderedQuestions list
+    const newQuestion = {
+      id: customQuestionId,
+      text: customQuestionText,
+      type: 'custom' as const,
+      questionPoolId: null,
+    };
+    
     updateWizard('questions', {
+      orderedQuestions: [
+        ...(wizardState.questions.orderedQuestions || []),
+        newQuestion,
+      ],
       custom: [
         ...wizardState.questions.custom,
-        { id: `custom-${Date.now()}`, text: customQuestionDraft.trim() },
+        { id: customQuestionId, text: customQuestionText },
       ],
     });
     setCustomQuestionDraft('');
@@ -498,9 +514,11 @@ export default function BookCreatePage() {
         const isRightPage = i % 2 === 0;
         const templateForPage = shouldHaveLayoutTemplate ? (isRightPage ? rightResolved : leftResolved) : null;
 
+        const pageElements = shouldHaveLayoutTemplate ? convertTemplateToElements(templateForPage, canvasSize) : [];
+        
         pages.push({
           pageNumber: i,
-          elements: shouldHaveLayoutTemplate ? convertTemplateToElements(templateForPage, canvasSize) : [],
+          elements: pageElements,
           layoutTemplateId: templateForPage ? templateForPage.id : null,
           // Explicitly set themeId to null for Inner Front and Inner Back to prevent inheritance
           themeId: shouldHaveThemeAndBackground ? undefined : null,
@@ -519,6 +537,64 @@ export default function BookCreatePage() {
           background: shouldHaveThemeAndBackground ? background : null,
           backgroundTransform: shouldHaveLayoutTemplate && (wizardState.design.mirrorLayout && isRightPage && !wizardState.design.pickLeftRight) ? { mirror: true } : null,
         });
+      }
+
+      // Assign questions to qna_inline textboxes in order
+      const questionsToAssign = wizardState.questions.orderedQuestions || [];
+      if (questionsToAssign.length > 0) {
+        // Collect all qna_inline textboxes from content pages (page 4 to totalPages-1)
+        const qnaInlineTextboxes: Array<{ pageIndex: number; elementIndex: number; pageNumber: number }> = [];
+        for (let i = 0; i < pages.length; i++) {
+          const page = pages[i] as { pageNumber: number; elements: Array<{ textType?: string; questionId?: string }> };
+          // Only process content pages (page 4 to totalPages-1)
+          if (page.pageNumber >= 4 && page.pageNumber < totalPages) {
+            page.elements.forEach((element, elementIndex) => {
+              if (element.textType === 'qna_inline') {
+                qnaInlineTextboxes.push({
+                  pageIndex: i,
+                  elementIndex,
+                  pageNumber: page.pageNumber ?? (i + 1),
+                });
+              }
+            });
+          }
+        }
+
+        const pageAssignments = wizardState.team.assignmentState?.pageAssignments || {};
+        let currentAssignedUserId: number | undefined = undefined;
+        let questionIndexForUser = 0;
+        let fallbackQuestionIndex = 0;
+
+        // Assign questions per collaborator so each user gets the same set
+        qnaInlineTextboxes
+          .sort((a, b) => a.pageNumber - b.pageNumber)
+          .forEach(({ pageIndex, elementIndex, pageNumber }) => {
+            const page = pages[pageIndex] as { elements: Array<{ textType?: string; questionId?: string }> };
+            const assignedUserId = pageAssignments?.[pageNumber];
+
+            if (!page.elements[elementIndex]) {
+              return;
+            }
+
+            let questionToAssign;
+
+            if (assignedUserId) {
+              if (assignedUserId !== currentAssignedUserId) {
+                currentAssignedUserId = assignedUserId;
+                questionIndexForUser = 0;
+              }
+              questionToAssign = questionsToAssign[questionIndexForUser % questionsToAssign.length];
+              questionIndexForUser += 1;
+            } else {
+              // Fallback: keep sequential assignment for unassigned pages
+              questionToAssign = questionsToAssign[fallbackQuestionIndex % questionsToAssign.length];
+              fallbackQuestionIndex += 1;
+            }
+
+            if (questionToAssign) {
+              page.elements[elementIndex].questionId = questionToAssign.id;
+            }
+          });
       }
 
       // Persist full book including generated pages
@@ -702,17 +778,22 @@ export default function BookCreatePage() {
         }),
       );
 
-      // Create curated questions
-      for (const questionId of wizardState.questions.selectedDefaults) {
-        const question = curatedQuestionsList.find((q) => q.id === questionId);
-        if (question) {
-          await apiService.createQuestion(newBook.id, question.text);
-        }
+      // Create questions in order from orderedQuestions
+      const orderedQuestions = wizardState.questions.orderedQuestions || [];
+      for (let i = 0; i < orderedQuestions.length; i++) {
+        const question = orderedQuestions[i];
+        await apiService.createQuestion(
+          newBook.id,
+          question.text,
+          question.id,
+          question.questionPoolId || null,
+          i // display_order based on array index
+        );
       }
 
-      for (const custom of wizardState.questions.custom) {
-        await apiService.createQuestion(newBook.id, custom.text);
-      }
+      // Ensure questions are saved in database before navigating
+      // Add a small delay to ensure database consistency
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       navigate(`/editor/${newBook.id}`);
     } catch (error) {

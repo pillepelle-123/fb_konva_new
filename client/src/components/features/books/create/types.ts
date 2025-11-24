@@ -62,6 +62,13 @@ export type WizardState = {
   questions: {
     selectedDefaults: string[];
     custom: CustomQuestion[];
+    orderedQuestions: Array<{
+      id: string; // UUID for database
+      text: string;
+      type: 'curated' | 'custom';
+      questionPoolId?: string | null; // Always null - curated questions are not from question_pool table
+      curatedQuestionId?: string; // Original ID from curatedQuestions array (for reference only)
+    }>;
   };
 };
 

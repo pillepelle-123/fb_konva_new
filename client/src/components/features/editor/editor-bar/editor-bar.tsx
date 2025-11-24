@@ -157,7 +157,7 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
     setIsSaving(true);
     try {
       await saveBook();
-      toast.success('Book saved sucrgrgrgcessfully');
+      toast.success('Book saved successfully');
     } catch (error) {
       setShowAlert({ title: 'Save Failed', message: 'Failed to save book. Please try again.' });
     } finally {

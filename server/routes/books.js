@@ -289,7 +289,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
     let questions = [];
     if (!pagesOnly) {
       const questionsResult = await pool.query(
-        'SELECT * FROM public.questions WHERE book_id = $1',
+        'SELECT * FROM public.questions WHERE book_id = $1 ORDER BY display_order ASC NULLS LAST, created_at ASC',
         [bookId]
       );
       questions = questionsResult.rows;
@@ -367,6 +367,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
       answers: allAnswers,
       pageAssignments: pageAssignments,
       userRole: userRole,
+      totalPages,
       pages: pages.rows.map(page => {
         // Parse page.elements - it's JSONB, so it might be an object or need parsing
         let pageData = {};
@@ -450,10 +451,10 @@ router.get('/:id', authenticateToken, async (req, res) => {
       })
     };
 
-    // Add pagination info if pagination parameters were used
+    // Add pagination info only when using explicit limits
     if (pageLimit > 0 && pageOffset >= 0) {
       response.pagination = {
-        totalPages: totalPages,
+        totalPages,
         limit: pageLimit,
         offset: pageOffset
       };

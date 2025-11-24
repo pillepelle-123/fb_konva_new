@@ -205,7 +205,7 @@ const createPatternTile = (pattern: any, color: string, size: number, strokeWidt
 
 
 export default function Canvas() {
-  const { state, dispatch, getAnswerText, getQuestionAssignmentsForUser, undo, redo, canAccessEditor, canEditCanvas } = useEditor();
+  const { state, dispatch, getAnswerText, getQuestionAssignmentsForUser, undo, redo, canAccessEditor, canEditCanvas, ensurePagesLoaded } = useEditor();
   const { token, user } = useAuth();
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
@@ -345,6 +345,15 @@ export default function Canvas() {
     }
     return null;
   }, [state.currentBook, state.activePageIndex]);
+  useEffect(() => {
+    if (!state.currentBook) {
+      return;
+    }
+    ensurePagesLoaded?.(state.activePageIndex, state.activePageIndex + 1);
+    if (partnerInfo) {
+      ensurePagesLoaded?.(partnerInfo.index, partnerInfo.index + 1);
+    }
+  }, [state.currentBook, state.activePageIndex, partnerInfo, ensurePagesLoaded]);
   const partnerPage = partnerInfo?.page ?? null;
   const hasPartnerPage = Boolean(partnerPage);
   const totalPages = state.currentBook?.pages.length ?? 0;
@@ -359,8 +368,10 @@ export default function Canvas() {
   const isReverseCoverPage =
     activePageNumber === 3 || (totalPages > 0 && activePageNumber === totalPages);
   const canEditCoverForUser = isPublisherUser && isCoverPage;
+  // Only block rendering for reverse cover pages (page 3 or last page) if user is not a publisher
+  // Do not block based on isPrintable flag for regular content pages
   const shouldBlockCanvasRendering =
-    !canEditCoverForUser && (isReverseCoverPage || currentPage?.isPrintable === false);
+    !canEditCoverForUser && isReverseCoverPage;
   const isPreviewTargetLocked = useCallback(
     (info?: { page: typeof currentPage; index: number }) => {
       if (!info || !info.page) return false;

@@ -1045,6 +1045,49 @@ type PageNormalizationOptions = {
   pageIndexOffset?: number;
 };
 
+function isPlainObject(value: unknown): value is Record<string, any> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function cloneValue<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => cloneValue(item)) as unknown as T;
+  }
+  if (isPlainObject(value)) {
+    const result: Record<string, any> = {};
+    Object.keys(value).forEach((key) => {
+      result[key] = cloneValue((value as any)[key]);
+    });
+    return result as T;
+  }
+  return value;
+}
+
+function mergeElementDefaults<T extends Record<string, any>>(
+  target: T | undefined,
+  defaults: Partial<T> | undefined
+): T {
+  const base: Record<string, any> = target ? { ...target } : {};
+  if (!defaults) {
+    return base as T;
+  }
+
+  Object.keys(defaults).forEach((key) => {
+    const defaultValue = (defaults as any)[key];
+    if (defaultValue === undefined) {
+      return;
+    }
+    const existingValue = base[key];
+    if (existingValue === undefined) {
+      base[key] = cloneValue(defaultValue);
+    } else if (isPlainObject(defaultValue) && isPlainObject(existingValue)) {
+      base[key] = mergeElementDefaults(existingValue, defaultValue);
+    }
+  });
+
+  return base as T;
+}
+
 function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): Page[] {
   const {
     book,
@@ -1166,165 +1209,19 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
           const isShape = element.type !== 'text' && element.type !== 'image' && !element.textType;
           const preservedScaleX = isShape && typeof element.scaleX === 'number' ? element.scaleX : undefined;
           const preservedScaleY = isShape && typeof element.scaleY === 'number' ? element.scaleY : undefined;
+          // Preserve questionId and answerId from element (important for qna_inline elements)
+          const preservedQuestionId = element.questionId;
+          const preservedAnswerId = element.answerId;
+          const mergedElement = mergeElementDefaults(element, themeDefaults);
           const updatedElement = {
-            ...element,
-            ...themeDefaults,
+            ...mergedElement,
             theme: bookThemeId,
             rotation: preservedRotation,
             ...(preservedScaleX !== undefined ? { scaleX: preservedScaleX } : {}),
-            ...(preservedScaleY !== undefined ? { scaleY: preservedScaleY } : {})
+            ...(preservedScaleY !== undefined ? { scaleY: preservedScaleY } : {}),
+            ...(preservedQuestionId !== undefined ? { questionId: preservedQuestionId } : {}),
+            ...(preservedAnswerId !== undefined ? { answerId: preservedAnswerId } : {})
           };
-
-          if (element.textType === 'qna_inline') {
-            const themeDefaultsForQna = getToolDefaults(
-              'qna_inline',
-              bookThemeId,
-              bookThemeId,
-              element,
-              undefined,
-              pageLayoutTemplateId,
-              bookLayoutTemplateId,
-              pageColorPaletteId,
-              effectiveBookColorPaletteId
-            );
-
-            const effectivePaletteForElement = pageColorPaletteId || effectiveBookColorPaletteId
-              ? colorPalettes.find((p) => p.id === (pageColorPaletteId || effectiveBookColorPaletteId))
-              : null;
-
-            const questionBorderEnabled = themeDefaultsForQna.questionSettings?.border?.enabled ??
-              themeDefaultsForQna.questionSettings?.borderEnabled ??
-              themeDefaultsForQna.answerSettings?.border?.enabled ??
-              themeDefaultsForQna.answerSettings?.borderEnabled ??
-              true;
-            const answerBorderEnabled = themeDefaultsForQna.answerSettings?.border?.enabled ??
-              themeDefaultsForQna.answerSettings?.borderEnabled ??
-              themeDefaultsForQna.questionSettings?.border?.enabled ??
-              themeDefaultsForQna.questionSettings?.borderEnabled ??
-              true;
-            const borderEnabled = questionBorderEnabled !== false && answerBorderEnabled !== false;
-
-            const questionBackgroundEnabled = themeDefaultsForQna.questionSettings?.background?.enabled ??
-              themeDefaultsForQna.questionSettings?.backgroundEnabled ??
-              themeDefaultsForQna.answerSettings?.background?.enabled ??
-              themeDefaultsForQna.answerSettings?.backgroundEnabled ??
-              true;
-            const answerBackgroundEnabled = themeDefaultsForQna.answerSettings?.background?.enabled ??
-              themeDefaultsForQna.answerSettings?.backgroundEnabled ??
-              themeDefaultsForQna.questionSettings?.background?.enabled ??
-              themeDefaultsForQna.questionSettings?.backgroundEnabled ??
-              true;
-            const backgroundEnabled = questionBackgroundEnabled !== false && answerBackgroundEnabled !== false;
-
-            const existingQuestionBorder = updatedElement.questionSettings?.border || {};
-            const existingAnswerBorder = updatedElement.answerSettings?.border || {};
-            const existingQuestionBackground = updatedElement.questionSettings?.background || {};
-            const existingAnswerBackground = updatedElement.answerSettings?.background || {};
-
-            const borderColor =
-              effectivePaletteForElement?.colors.primary ||
-              themeDefaultsForQna.questionSettings?.border?.borderColor ||
-              themeDefaultsForQna.borderColor ||
-              '#000000';
-            const backgroundColor =
-              effectivePaletteForElement?.colors.accent ||
-              themeDefaultsForQna.questionSettings?.background?.backgroundColor ||
-              themeDefaultsForQna.backgroundColor ||
-              'transparent';
-            const textColor =
-              effectivePaletteForElement?.colors.text ||
-              themeDefaultsForQna.questionSettings?.fontColor ||
-              themeDefaultsForQna.fontColor ||
-              '#1f2937';
-
-            updatedElement.questionSettings = {
-              ...updatedElement.questionSettings,
-              ...themeDefaultsForQna.questionSettings,
-              fontColor: textColor,
-              font: { ...updatedElement.questionSettings?.font, fontColor: textColor },
-              border: borderEnabled
-                ? {
-                    ...existingQuestionBorder,
-                    enabled: true,
-                    borderColor,
-                    borderWidth: existingQuestionBorder.borderWidth ??
-                      themeDefaultsForQna.questionSettings?.border?.borderWidth ??
-                      2,
-                    borderOpacity: existingQuestionBorder.borderOpacity ??
-                      themeDefaultsForQna.questionSettings?.border?.borderOpacity ??
-                      1
-                  }
-                : {
-                    ...existingQuestionBorder,
-                    enabled: false
-                  },
-              background: backgroundEnabled
-                ? {
-                    ...existingQuestionBackground,
-                    enabled: true,
-                    backgroundColor,
-                    backgroundOpacity: existingQuestionBackground.backgroundOpacity ??
-                      themeDefaultsForQna.questionSettings?.background?.backgroundOpacity ??
-                      0.3
-                  }
-                : {
-                    ...existingQuestionBackground,
-                    enabled: false
-                  }
-            };
-            updatedElement.answerSettings = {
-              ...updatedElement.answerSettings,
-              ...themeDefaultsForQna.answerSettings,
-              fontColor: textColor,
-              font: { ...updatedElement.answerSettings?.font, fontColor: textColor },
-              border: borderEnabled
-                ? {
-                    ...existingAnswerBorder,
-                    enabled: true,
-                    borderColor,
-                    borderWidth: existingAnswerBorder.borderWidth ??
-                      themeDefaultsForQna.answerSettings?.border?.borderWidth ??
-                      2,
-                    borderOpacity: existingAnswerBorder.borderOpacity ??
-                      themeDefaultsForQna.answerSettings?.border?.borderOpacity ??
-                      1
-                  }
-                : {
-                    ...existingAnswerBorder,
-                    enabled: false
-                  },
-              background: backgroundEnabled
-                ? {
-                    ...existingAnswerBackground,
-                    enabled: true,
-                    backgroundColor,
-                    backgroundOpacity: existingAnswerBackground.backgroundOpacity ??
-                      themeDefaultsForQna.answerSettings?.background?.backgroundOpacity ??
-                      0.3
-                  }
-                : {
-                    ...existingAnswerBackground,
-                    enabled: false
-                  }
-            };
-
-            if (borderEnabled) {
-              updatedElement.border = { ...updatedElement.border, borderColor, enabled: true };
-            } else {
-              updatedElement.border = { ...updatedElement.border, enabled: false };
-            }
-
-            if (backgroundEnabled) {
-              updatedElement.background = { ...updatedElement.background, backgroundColor, enabled: true };
-            } else {
-              updatedElement.background = { ...updatedElement.background, enabled: false };
-            }
-
-            if (themeDefaultsForQna.qnaIndividualSettings !== undefined) {
-              updatedElement.qnaIndividualSettings = themeDefaultsForQna.qnaIndividualSettings;
-            }
-          }
-
           return updatedElement;
         });
       }
@@ -5046,10 +4943,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
 
   const loadBook = useCallback(async (bookId: number) => {
     try {
-      const { book, questions, answers, userRole, pageAssignments, pagination } = await apiService.loadBook(bookId, {
-        pageOffset: 0,
-        pageLimit: PAGE_CHUNK_SIZE
-      });
+      const { book, questions, answers, userRole, pageAssignments, pagination } = await apiService.loadBook(bookId);
 
       // Get book theme and palette for inheritance
       const bookThemeId = book.bookTheme || book.themeId || 'default';
@@ -5065,18 +4959,20 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         effectiveBookPaletteId,
         bookPalette
       });
-
-      const structuredPages = ensureSpecialPages(normalizedLoadedPages);
+      const totalPagesHint = book.totalPages ?? pagination?.totalPages ?? 0;
+      const hasCompleteBook = totalPagesHint > 0 && normalizedLoadedPages.length >= totalPagesHint;
+      const structuredPages = hasCompleteBook
+        ? ensureSpecialPages(normalizedLoadedPages)
+        : normalizedLoadedPages;
       const structuredCount = structuredPages.length;
-      // Get the maximum page number from loaded pages as a fallback
       const maxPageNumber = structuredPages.reduce((max, page) => {
         const pageNum = page.pageNumber ?? 0;
         return Math.max(max, pageNum);
       }, 0);
-      
-      // Use pagination.totalPages from API (most accurate, comes from database)
-      // Fallback to maxPageNumber from loaded pages, then to structuredCount
-      const totalPages = pagination?.totalPages ?? Math.max(maxPageNumber, structuredCount);
+      const totalPages =
+        book.totalPages ??
+        pagination?.totalPages ??
+        Math.max(maxPageNumber, structuredCount);
       const pagesWithPlaceholders =
         totalPages > structuredCount
           ? ensurePageArrayLength(structuredPages, totalPages)
@@ -5091,10 +4987,10 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
 
       // Always set paginationState if totalPages is known (from pagination or calculated),
       // even if pagination is null. This ensures that the page explorer shows all pages, not just the loaded ones.
-      const paginationState: PagePaginationState | undefined = pagination
+      const paginationState: PagePaginationState | undefined = (book.totalPages || pagination)
         ? {
             totalPages,
-            pageSize: pagination.limit || PAGE_CHUNK_SIZE,
+            pageSize: pagination?.limit || PAGE_CHUNK_SIZE,
             loadedPages: loadedRecords
           }
         : (totalPages > structuredCount || maxPageNumber > structuredCount

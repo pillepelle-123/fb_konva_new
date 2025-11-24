@@ -27,6 +27,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       theme={getTheme()}
       className="toaster group"
       position="bottom-center"
+      offset="64px"
       icons={{
         success: <CircleCheckIcon className="size-4" />,
         info: <InfoIcon className="size-4" />,

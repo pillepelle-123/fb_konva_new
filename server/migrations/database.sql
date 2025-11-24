@@ -92,6 +92,7 @@ CREATE TABLE questions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     book_id INTEGER REFERENCES books(id) ON DELETE CASCADE,
     question_text TEXT NOT NULL,
+    display_order INTEGER,
     question_pool_id INTEGER REFERENCES public.question_pool(id) ON DELETE SET NULL,
     created_by INTEGER REFERENCES users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -110,6 +111,7 @@ CREATE TABLE questions (
 
 CREATE INDEX IF NOT EXISTS idx_questions_book_id ON questions(book_id);
 CREATE INDEX IF NOT EXISTS idx_questions_question_pool_id ON public.questions(question_pool_id);
+CREATE INDEX IF NOT EXISTS idx_questions_display_order ON public.questions(display_order);
 
 -- Question Pages Junction Table
 

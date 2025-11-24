@@ -252,8 +252,13 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
   const elementHeight = element.height;
   const elementQuestionWidth = element.questionWidth;
   
-  // Get current question text to detect changes
-  const currentQuestionText = element.questionId ? state.tempQuestions[element.questionId] : null;
+  // Get current question text to detect changes - use useMemo to make it reactive
+  // Access the specific question from tempQuestions to ensure reactivity
+  const questionTextFromState = element.questionId ? state.tempQuestions[element.questionId] : null;
+  const currentQuestionText = useMemo(() => {
+    if (!element.questionId) return null;
+    return questionTextFromState || null;
+  }, [element.questionId, questionTextFromState]);
   
   useEffect(() => {
     // Simulate the resize process to force proper re-calculation of ruled lines
@@ -278,12 +283,19 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
     setRefreshKey(prev => prev + 1);
   }, [activeSection, individualSettings, state.selectedElementIds]);
   
-  // Force refresh when question text changes (e.g., after editing in book-manager)
+  // Force refresh when question text changes (e.g., after editing in book-manager or when questions are loaded)
   useEffect(() => {
     if (element.questionId) {
       setRefreshKey(prev => prev + 1);
     }
-  }, [element.questionId, currentQuestionText]);
+  }, [element.questionId, currentQuestionText, questionTextFromState]);
+
+  // Force refresh when active page changes to ensure questions are re-rendered for different users
+  useEffect(() => {
+    if (element.questionId) {
+      setRefreshKey(prev => prev + 1);
+    }
+  }, [element.questionId, state.activePageIndex, state.pageAssignments]);
 
 
 

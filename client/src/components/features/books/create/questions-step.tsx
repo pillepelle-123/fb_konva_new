@@ -1,8 +1,11 @@
 import { useMemo } from 'react';
-import { MessageCircleQuestionMark, Plus } from 'lucide-react';
+import { MessageCircleQuestionMark, Plus, X } from 'lucide-react';
+import { v4 as uuidv4 } from 'uuid';
+import { toast } from 'sonner';
 
 import { Button } from '../../../ui/primitives/button';
 import { Badge } from '../../../ui/composites/badge';
+import { SortableList } from '../../../ui/composites/sortable-list';
 import {
   curatedQuestions,
   type WizardState,
@@ -19,6 +22,7 @@ export function QuestionsStep({
   onQuestionChange,
   openCustomQuestionModal,
 }: QuestionsStepProps) {
+  const orderedQuestions = wizardState.questions.orderedQuestions || [];
   const selectedQuestionIds = wizardState.questions.selectedDefaults;
 
   // Calculate maximum number of questions that can be added
@@ -54,11 +58,82 @@ export function QuestionsStep({
     wizardState.team.pagesPerUser,
   ]);
 
+  const handleAddQuestion = (questionId: string, type: 'curated' | 'custom', text: string) => {
+    if (orderedQuestions.length >= maxQuestions) {
+      toast.error(`Maximum of ${maxQuestions} questions reached.`);
+      return;
+    }
+
+    // Curated questions don't have a question_pool_id (they're hardcoded, not from question_pool table)
+    // Custom questions also don't have a question_pool_id
+    const questionPoolId = null;
+    const newQuestion = {
+      id: uuidv4(), // Always use UUID for database compatibility
+      text,
+      type,
+      questionPoolId,
+      // Store the original curated question ID for reference
+      ...(type === 'curated' && { curatedQuestionId: questionId }),
+    };
+
+    const updatedOrderedQuestions = [...orderedQuestions, newQuestion];
+    const updatedSelectedDefaults = type === 'curated' 
+      ? [...selectedQuestionIds, questionId]
+      : selectedQuestionIds;
+    const updatedCustom = type === 'custom'
+      ? [...wizardState.questions.custom, { id: newQuestion.id, text }] // Use UUID from newQuestion
+      : wizardState.questions.custom;
+
+    onQuestionChange({
+      orderedQuestions: updatedOrderedQuestions,
+      selectedDefaults: updatedSelectedDefaults,
+      custom: updatedCustom,
+    });
+  };
+
+  const handleRemoveQuestion = (questionId: string) => {
+    const question = orderedQuestions.find(q => q.id === questionId);
+    if (!question) return;
+
+    const updatedOrderedQuestions = orderedQuestions.filter(q => q.id !== questionId);
+    const updatedSelectedDefaults = question.type === 'curated' && question.curatedQuestionId
+      ? selectedQuestionIds.filter(id => id !== question.curatedQuestionId)
+      : selectedQuestionIds;
+    const updatedCustom = question.type === 'custom'
+      ? wizardState.questions.custom.filter(q => q.id !== questionId)
+      : wizardState.questions.custom;
+
+    onQuestionChange({
+      orderedQuestions: updatedOrderedQuestions,
+      selectedDefaults: updatedSelectedDefaults,
+      custom: updatedCustom,
+    });
+  };
+
+  const handleSortEnd = (newOrderedQuestions: typeof orderedQuestions) => {
+    onQuestionChange({ orderedQuestions: newOrderedQuestions });
+  };
+
   const handleToggleQuestion = (questionId: string) => {
-    const nextSelection = selectedQuestionIds.includes(questionId)
-      ? selectedQuestionIds.filter((id) => id !== questionId)
-      : [...selectedQuestionIds, questionId];
-    onQuestionChange({ selectedDefaults: nextSelection });
+    const isInList = orderedQuestions.some(q => q.questionPoolId === questionId);
+    
+    if (isInList) {
+      // Remove from list
+      const question = orderedQuestions.find(q => q.questionPoolId === questionId);
+      if (question) {
+        handleRemoveQuestion(question.id);
+      }
+    } else {
+      // Add to list
+      const curatedQuestion = curatedQuestions.find(q => q.id === questionId);
+      if (curatedQuestion) {
+        handleAddQuestion(questionId, 'curated', curatedQuestion.text);
+      }
+    }
+  };
+
+  const isQuestionInList = (questionId: string) => {
+    return orderedQuestions.some(q => q.questionPoolId === questionId);
   };
 
   return (
@@ -83,30 +158,51 @@ export function QuestionsStep({
               <label key={question.id} className="flex items-start gap-2 text-sm">
                 <input
                   type="checkbox"
-                  checked={selectedQuestionIds.includes(question.id)}
+                  checked={isQuestionInList(question.id)}
                   onChange={() => handleToggleQuestion(question.id)}
+                  disabled={!isQuestionInList(question.id) && orderedQuestions.length >= maxQuestions}
                 />
-                <span>{question.text}</span>
+                <span className={!isQuestionInList(question.id) && orderedQuestions.length >= maxQuestions ? 'text-muted-foreground/50' : ''}>
+                  {question.text}
+                </span>
               </label>
             ))}
           </div>
         </div>
         <div className="flex-shrink-0 space-y-2 border-t pt-3">
-          <Button variant="outline" size="sm" onClick={openCustomQuestionModal}>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={openCustomQuestionModal}
+            disabled={orderedQuestions.length >= maxQuestions}
+          >
             <Plus className="h-4 w-4 mr-2" />
             Add custom question
           </Button>
-          {wizardState.questions.custom.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-semibold">Custom questions</p>
-              <ul className="text-sm text-muted-foreground list-disc pl-4">
-                {wizardState.questions.custom.map((question) => (
-                  <li key={question.id}>{question.text}</li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
+        
+        {/* SortableList of questions */}
+        {orderedQuestions.length > 0 && (
+          <div className="flex-shrink-0 border-t pt-3 mt-3">
+            <p className="text-xs font-semibold mb-2">Selected questions</p>
+            <SortableList
+              items={orderedQuestions}
+              onSortEnd={handleSortEnd}
+              renderItem={(question) => (
+                <div className="flex items-center justify-between w-full pr-2">
+                  <span className="text-sm flex-1">{question.text}</span>
+                  <button
+                    onClick={() => handleRemoveQuestion(question.id)}
+                    className="text-muted-foreground hover:text-destructive transition-colors p-1 rounded"
+                    aria-label={`Remove ${question.text}`}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
