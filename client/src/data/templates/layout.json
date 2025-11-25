@@ -8,12 +8,64 @@
       {
         "type": "qna_inline",
         "position": {
+          "x": 677.9639462170232,
+          "y": 180.02749635601128
+        },
+        "size": {
+          "width": 1686.8259716175778,
+          "height": 162.85819185066606
+        },
+        "layoutVariant": "inline",
+        "style": {
+          "format": {
+            "textAlign": "left",
+            "paragraphSpacing": "medium",
+            "padding": 15
+          }
+        },
+        "questionSettings": {
+          "fontSize": 18
+        },
+        "answerSettings": {
+          "fontSize": 18
+        },
+        "rotation": 0
+      },
+      {
+        "type": "qna_inline",
+        "position": {
           "x": 678.0570648285993,
           "y": 487.380610510819
         },
         "size": {
           "width": 1686.7328530060017,
           "height": 264.77720341274994
+        },
+        "layoutVariant": "inline",
+        "style": {
+          "format": {
+            "textAlign": "left",
+            "paragraphSpacing": "medium",
+            "padding": 15
+          }
+        },
+        "questionSettings": {
+          "fontSize": 18
+        },
+        "answerSettings": {
+          "fontSize": 18
+        },
+        "rotation": 0
+      },
+      {
+        "type": "qna_inline",
+        "position": {
+          "x": 111.98990769804121,
+          "y": 881.1578004406277
+        },
+        "size": {
+          "width": 2252.8000101365596,
+          "height": 162.85819185066535
         },
         "layoutVariant": "inline",
         "style": {
@@ -106,58 +158,6 @@
         },
         "answerSettings": {
           "fontSize": 16
-        },
-        "rotation": 0
-      },
-      {
-        "type": "qna_inline",
-        "position": {
-          "x": 677.9639462170232,
-          "y": 180.02749635601128
-        },
-        "size": {
-          "width": 1686.8259716175778,
-          "height": 162.85819185066606
-        },
-        "layoutVariant": "inline",
-        "style": {
-          "format": {
-            "textAlign": "left",
-            "paragraphSpacing": "medium",
-            "padding": 15
-          }
-        },
-        "questionSettings": {
-          "fontSize": 18
-        },
-        "answerSettings": {
-          "fontSize": 18
-        },
-        "rotation": 0
-      },
-      {
-        "type": "qna_inline",
-        "position": {
-          "x": 111.98990769804121,
-          "y": 881.1578004406277
-        },
-        "size": {
-          "width": 2252.8000101365596,
-          "height": 162.85819185066535
-        },
-        "layoutVariant": "inline",
-        "style": {
-          "format": {
-            "textAlign": "left",
-            "paragraphSpacing": "medium",
-            "padding": 15
-          }
-        },
-        "questionSettings": {
-          "fontSize": 18
-        },
-        "answerSettings": {
-          "fontSize": 18
         },
         "rotation": 0
       }

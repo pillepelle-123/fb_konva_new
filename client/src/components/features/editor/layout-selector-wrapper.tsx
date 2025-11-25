@@ -242,6 +242,31 @@ export function LayoutSelectorWrapper({ onBack, title, isBookLevel = false }: La
       }
     });
     
+    // Apply theme to all elements on the page after layout is applied
+    // This ensures newly added textboxes get the correct theme defaults (e.g., font family)
+    // Get theme from layout template (if it has one), otherwise use page/book theme
+    const layoutTheme = (selectedLayout as any).theme;
+    const currentPage = state.currentBook?.pages[state.activePageIndex];
+    const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+    const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme || 'default';
+    // Priority: layout theme > page theme > book theme
+    const themeToApply = layoutTheme || pageTheme || bookTheme;
+    
+    // Apply theme to elements - use setTimeout to ensure APPLY_LAYOUT_TEMPLATE has updated the state
+    if (themeToApply) {
+      setTimeout(() => {
+        dispatch({
+          type: 'APPLY_THEME_TO_ELEMENTS',
+          payload: {
+            pageIndex: state.activePageIndex,
+            themeId: themeToApply,
+            skipHistory: true,
+            preserveColors: true
+          }
+        });
+      }, 0);
+    }
+    
     dispatch({
       type: 'SAVE_TO_HISTORY',
       payload: `Apply Page Layout: ${selectedLayout.name}`

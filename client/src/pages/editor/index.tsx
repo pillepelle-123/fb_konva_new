@@ -463,6 +463,29 @@ function EditorContent() {
                       answers.forEach((a: any) => {
                         dispatch({ type: 'UPDATE_TEMP_ANSWER', payload: { questionId: a.question_id, text: a.answer_text, userId: a.user_id, answerId: a.id } });
                       });
+                      
+                      // Set questionOrder on qna_inline elements based on display_order
+                      const questionOrderMap = new Map<string, number>();
+                      questions.forEach((q: any) => {
+                        if (q.id && (q.display_order !== null && q.display_order !== undefined)) {
+                          questionOrderMap.set(q.id, q.display_order);
+                        }
+                      });
+                      
+                      if (questionOrderMap.size > 0 && dbBook?.pages) {
+                        dbBook.pages.forEach((page: any) => {
+                          if (page.elements) {
+                            page.elements.forEach((element: any) => {
+                              if (element.textType === 'qna_inline' && element.questionId) {
+                                const displayOrder = questionOrderMap.get(element.questionId);
+                                if (displayOrder !== undefined) {
+                                  element.questionOrder = displayOrder;
+                                }
+                              }
+                            });
+                          }
+                        });
+                      }
                     }
                     
                     // Load book friends

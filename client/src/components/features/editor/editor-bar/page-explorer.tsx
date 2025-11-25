@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, FileText } from 'lucide-react';
 import { Button } from '../../../ui/primitives/button';
 import { ButtonGroup } from '../../../ui/composites/button-group';
@@ -268,22 +268,85 @@ export function PagesSubmenu({
   };
 
   const handleWheelScroll = (
-    event: React.WheelEvent<HTMLDivElement>,
+    event: WheelEvent,
     targetRef: React.RefObject<HTMLDivElement | null>,
   ) => {
     if (!targetRef.current) return;
-    const { deltaY, deltaX } = event;
-    // Only hijack primarily vertical wheel gestures
-    if (Math.abs(deltaY) <= Math.abs(deltaX)) return;
+    const { deltaY } = event;
+    
+    // This function is only called for pure vertical gestures (deltaX === 0, deltaY !== 0)
+    // Check if the container can actually scroll horizontally
+    const container = targetRef.current;
+    const canScrollHorizontally = container.scrollWidth > container.clientWidth;
+    if (!canScrollHorizontally) {
+      // If container can't scroll, don't prevent default
+      return;
+    }
+    
+    // Convert vertical wheel to horizontal scroll
     event.preventDefault();
-    targetRef.current.scrollLeft += deltaY;
+    container.scrollLeft += deltaY;
   };
+
+  // Set up wheel event listeners with passive: false to allow preventDefault
+  // Only register for the container that's actually being used based on viewMode
+  // IMPORTANT: Only intercept pure vertical wheel gestures, let horizontal scrolling work normally
+  useEffect(() => {
+    if (isMicro) {
+      // For micro view, only register on microScrollRef
+      const microScrollContainer = microScrollRef.current;
+      if (!microScrollContainer) return;
+
+      const wheelHandler = (e: WheelEvent) => {
+        // CRITICAL: If there's ANY horizontal component, do NOTHING - let browser handle it
+        if (Math.abs(e.deltaX) > 0) {
+          return; // Let horizontal scrolling work normally
+        }
+        
+        // Only handle pure vertical wheel gestures (deltaX === 0, deltaY !== 0)
+        if (Math.abs(e.deltaY) > 0) {
+          handleWheelScroll(e, microScrollRef);
+        }
+      };
+      microScrollContainer.addEventListener('wheel', wheelHandler, { passive: false });
+
+      return () => {
+        microScrollContainer.removeEventListener('wheel', wheelHandler);
+      };
+    } else {
+      // For default/compact view, only register on scrollContainerRef
+      // TEMPORARILY DISABLED: Test if horizontal scrolling works without this listener
+      // If horizontal scrolling works, we can re-enable with better logic
+      /*
+      const scrollContainer = scrollContainerRef.current;
+      if (!scrollContainer) return;
+
+      const wheelHandler = (e: WheelEvent) => {
+        // CRITICAL: If there's ANY horizontal component, do NOTHING - let browser handle it
+        // This ensures trackpad horizontal scrolling and shift+wheel work correctly
+        if (Math.abs(e.deltaX) > 0) {
+          return; // Let horizontal scrolling work normally - don't interfere
+        }
+        
+        // Only handle pure vertical wheel gestures (deltaX === 0, deltaY !== 0)
+        // Convert vertical mouse wheel to horizontal scroll
+        if (Math.abs(e.deltaY) > 0) {
+          handleWheelScroll(e, scrollContainerRef);
+        }
+      };
+      scrollContainer.addEventListener('wheel', wheelHandler, { passive: false });
+
+      return () => {
+        scrollContainer.removeEventListener('wheel', wheelHandler);
+      };
+      */
+    }
+  }, [isMicro]);
 
   const scrollableContent = (
     <div
       ref={scrollContainerRef}
-      onWheel={(event) => handleWheelScroll(event, scrollContainerRef)}
-      className={`flex items-center flex-1 overflow-x-auto overflow-y-hidden scrollbar-thin ${isCompact ? 'py-1' : 'pb-1'}`}
+      className={`flex items-center w-full min-w-0 overflow-x-auto overflow-y-hidden scrollbar-thin ${isCompact ? 'py-1' : 'pb-1'}`}
     >
       <div className={`flex ${isCompact ? 'gap-3 py-1 pr-2' : 'gap-4 py-2 pr-4'}`}>
         {pairEntries.map((pair, index) => {
@@ -401,7 +464,6 @@ export function PagesSubmenu({
   const microContent = (
     <div
       ref={microScrollRef}
-      onWheel={(event) => handleWheelScroll(event, microScrollRef)}
       className="flex gap-2 overflow-x-auto overflow-y-hidden pb-1 scrollbar-thin"
     >
       {pairEntries.map((pair) => (
@@ -457,16 +519,30 @@ export function PagesSubmenu({
     ? microContent
     : canReorderPages && !isCompact
       ? (
-        <Tooltip content="Drag and drop to re-arrange pages" side="bottom">
-          {scrollableContent}
-        </Tooltip>
+        <div className="w-full min-w-0 page-explorer-tooltip-wrapper">
+          <Tooltip content="Drag and drop to re-arrange pages" side="bottom">
+            <div className="w-full min-w-0">
+              {scrollableContent}
+            </div>
+          </Tooltip>
+          <style>{`
+            .page-explorer-tooltip-wrapper > div[style*="display: inline-block"] {
+              display: flex !important;
+              width: 100% !important;
+            }
+            .page-explorer-tooltip-wrapper > div[style*="display: inline-block"] > div[style*="pointer-events: auto"] {
+              width: 100% !important;
+              min-width: 0 !important;
+            }
+          `}</style>
+        </div>
       )
       : scrollableContent;
 
   if (!showHeader) {
     return (
       <div
-        className={`${isCompact || isMicro ? 'px-2 py-1' : 'px-4 py-2'} w-full`}
+        className={`${isCompact || isMicro ? 'px-2 py-1' : 'px-4 py-2'} w-full min-w-0`}
         data-book-id={bookId}
       >
         {content}

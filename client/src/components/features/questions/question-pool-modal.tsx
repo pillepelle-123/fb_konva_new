@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { X, Search, Plus } from 'lucide-react';
+import { Search, Plus } from 'lucide-react';
 import { Button } from '../../ui/primitives/button';
 import { Input } from '../../ui/primitives/input';
 import { SelectInput } from '../../ui/primitives/select-input';
@@ -15,16 +14,30 @@ interface QuestionPoolItem {
   language: string;
 }
 
-interface QuestionPoolModalProps {
-  bookId: number;
-  onClose: () => void;
-  onQuestionsAdded: (questions: any[]) => void;
-  singleSelect?: boolean;
+interface QuestionPoolItem {
+  id: number;
+  question_text: string;
+  category: string | null;
+  language: string;
 }
 
-export default function QuestionPoolModal({ bookId, onClose, onQuestionsAdded, singleSelect = false }: QuestionPoolModalProps) {
-  // Don't use portal when inside Dialog component
-  const isInsideDialog = true;
+interface QuestionPoolModalProps {
+  bookId: number | string;
+  onClose: () => void;
+  onQuestionsAdded: (questions: QuestionPoolItem[]) => void;
+  singleSelect?: boolean;
+  alreadyAddedQuestionPoolIds?: Set<number>; // IDs of questions already added (for wizard mode)
+  maxAvailableSlots?: number; // Maximum number of questions that can still be added (for wizard mode)
+}
+
+export default function QuestionPoolModal({ 
+  bookId, 
+  onClose, 
+  onQuestionsAdded, 
+  singleSelect = false,
+  alreadyAddedQuestionPoolIds = new Set(),
+  maxAvailableSlots
+}: QuestionPoolModalProps) {
   const [questions, setQuestions] = useState<QuestionPoolItem[]>([]);
   const [filteredQuestions, setFilteredQuestions] = useState<QuestionPoolItem[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
@@ -41,7 +54,7 @@ export default function QuestionPoolModal({ bookId, onClose, onQuestionsAdded, s
 
   useEffect(() => {
     filterQuestions();
-  }, [questions, selectedCategory, searchTerm]);
+  }, [questions, selectedCategory, searchTerm]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadQuestions = async () => {
     try {
@@ -79,6 +92,11 @@ export default function QuestionPoolModal({ bookId, onClose, onQuestionsAdded, s
   };
 
   const toggleSelection = (id: number) => {
+    // Don't allow selection if question is already added
+    if (alreadyAddedQuestionPoolIds.has(id)) {
+      return;
+    }
+    
     if (singleSelect) {
       setSelectedIds(new Set([id]));
     } else {
@@ -86,6 +104,10 @@ export default function QuestionPoolModal({ bookId, onClose, onQuestionsAdded, s
       if (newSelected.has(id)) {
         newSelected.delete(id);
       } else {
+        // Check if we've reached the maximum available slots
+        if (maxAvailableSlots !== undefined && newSelected.size >= maxAvailableSlots) {
+          return; // Don't allow adding more than available slots
+        }
         newSelected.add(id);
       }
       setSelectedIds(newSelected);
@@ -104,8 +126,18 @@ export default function QuestionPoolModal({ bookId, onClose, onQuestionsAdded, s
           onQuestionsAdded([selectedQuestion]);
         }
       } else {
-        const createdQuestions = await apiService.addQuestionsFromPool(bookId, Array.from(selectedIds));
-        onQuestionsAdded(createdQuestions);
+        // Check if we're in wizard mode (bookId is not a valid number)
+        const isWizardMode = typeof bookId === 'string' || bookId === 0;
+        
+        if (isWizardMode) {
+          // In wizard mode, return the questions directly without API call
+          const selectedQuestions = questions.filter(q => selectedIds.has(q.id));
+          onQuestionsAdded(selectedQuestions);
+        } else {
+          // Normal mode: create questions via API
+          const createdQuestions = await apiService.addQuestionsFromPool(bookId as number, Array.from(selectedIds));
+          onQuestionsAdded(createdQuestions);
+        }
       }
       onClose();
     } catch (error) {
@@ -116,6 +148,16 @@ export default function QuestionPoolModal({ bookId, onClose, onQuestionsAdded, s
   };
 
   const handleQuestionClick = (id: number) => {
+    // Don't allow click if question is already added
+    if (alreadyAddedQuestionPoolIds.has(id)) {
+      return;
+    }
+    
+    // Don't allow click if we've reached the maximum available slots (for multi-select)
+    if (!singleSelect && maxAvailableSlots !== undefined && selectedIds.size >= maxAvailableSlots && !selectedIds.has(id)) {
+      return;
+    }
+    
     if (singleSelect) {
       const selectedQuestion = questions.find(q => q.id === id);
       if (selectedQuestion) {
@@ -161,7 +203,14 @@ export default function QuestionPoolModal({ bookId, onClose, onQuestionsAdded, s
           </div>
           <div className="flex items-center justify-between text-sm text-muted-foreground">
             <span>{filteredQuestions.length} questions available</span>
-            <span>{selectedIds.size} selected</span>
+            <div className="flex items-center gap-2">
+              <span>{selectedIds.size} selected</span>
+              {maxAvailableSlots !== undefined && (
+                <span className="text-xs">
+                  (max {maxAvailableSlots} can be added)
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -176,36 +225,62 @@ export default function QuestionPoolModal({ bookId, onClose, onQuestionsAdded, s
               No questions found
             </div>
           ) : (
-            <div className="space-y-3">
-              {filteredQuestions.map(question => (
-                <Card
-                  key={question.id}
-                  className={`cursor-pointer transition-colors hover:border-primary hover:bg-primary/5 ${
-                    selectedIds.has(question.id) ? 'border-primary bg-primary/5' : ''
-                  }`}
-                  onClick={() => handleQuestionClick(question.id)}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-3">
-                      {!singleSelect && (
-                        <Checkbox
-                          checked={selectedIds.has(question.id)}
-                          onCheckedChange={() => toggleSelection(question.id)}
-                          className="mt-1"
-                        />
-                      )}
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">{question.question_text}</p>
-                        {question.category && (
-                          <span className="inline-block mt-2 px-2 py-1 text-xs bg-muted rounded">
-                            {question.category}
-                          </span>
+            <div className="space-y-2">
+              {filteredQuestions.map(question => {
+                const isAlreadyAdded = alreadyAddedQuestionPoolIds.has(question.id);
+                const isSelected = selectedIds.has(question.id);
+                const isSlotLimitReached = maxAvailableSlots !== undefined && !isSelected && selectedIds.size >= maxAvailableSlots;
+                const isDisabled = isAlreadyAdded || isSlotLimitReached;
+                
+                return (
+                  <Card
+                    key={question.id}
+                    className={`transition-colors ${
+                      isDisabled
+                        ? 'opacity-50 cursor-not-allowed bg-muted/30' 
+                        : isSelected 
+                          ? 'cursor-pointer border-primary bg-primary/5 hover:border-primary hover:bg-primary/5' 
+                          : 'cursor-pointer hover:border-primary hover:bg-primary/5'
+                    }`}
+                    onClick={() => !isDisabled && handleQuestionClick(question.id)}
+                  >
+                    <CardContent className="p-3">
+                      <div className="flex items-center gap-3">
+                        {!singleSelect && (
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => !isDisabled && toggleSelection(question.id)}
+                            disabled={isDisabled}
+                            className="flex-shrink-0"
+                          />
                         )}
+                        <div className="flex-1 flex items-center justify-between gap-2 min-w-0">
+                          <p className={`text-sm font-medium flex-1 min-w-0 ${isAlreadyAdded ? 'line-through text-muted-foreground' : ''}`}>
+                            {question.question_text}
+                          </p>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {question.category && (
+                              <span className="inline-block px-2 py-0.5 text-xs bg-muted rounded whitespace-nowrap">
+                                {question.category}
+                              </span>
+                            )}
+                            {isAlreadyAdded && (
+                              <span className="inline-block px-2 py-0.5 text-xs bg-muted text-muted-foreground rounded whitespace-nowrap">
+                                Already added
+                              </span>
+                            )}
+                            {isSlotLimitReached && !isAlreadyAdded && (
+                              <span className="inline-block px-2 py-0.5 text-xs bg-muted text-muted-foreground rounded whitespace-nowrap">
+                                Limit reached
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </div>

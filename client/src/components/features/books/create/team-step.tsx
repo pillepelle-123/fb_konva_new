@@ -872,29 +872,42 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
                       </span>
                     </span>
                   </label>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 w-full">
                     <Tooltip content="Remove all page assignments from collaborators." side="bottom">
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => setShowResetAssignmentDialog(true)}
                         disabled={Object.keys(assignmentState.pageAssignments).length === 0}
-                        className="flex-1"
                       >
                         Reset Assignment
                       </Button>
                     </Tooltip>
-                    <Tooltip content="Automatically distribute all collaborators to pages in above order." side="bottom">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleAutoAssign}
-                        disabled={selectedFriends.length === 0}
-                        className="flex-1"
-                      >
-                        Auto-assign
-                      </Button>
-                    </Tooltip>
+                    <div className="flex-1 min-w-0 auto-assign-button-container" style={{ display: 'flex' }}>
+                      <Tooltip content="Automatically distribute all collaborators to pages in above order." side="bottom">
+                        <Button
+                          variant="highlight"
+                          size="sm"
+                          onClick={handleAutoAssign}
+                          disabled={selectedFriends.length === 0}
+                          className="flex-1"
+                        >
+                          Auto-assign
+                        </Button>
+                      </Tooltip>
+                      <style>{`
+                        .auto-assign-button-container > div.relative.inline-block,
+                        .auto-assign-button-container > div[class*="relative"][style*="display: inline-block"] {
+                          display: flex !important;
+                          width: 100% !important;
+                          flex: 1 !important;
+                        }
+                        .auto-assign-button-container > div > div[style*="pointer-events: auto"] {
+                          width: 100% !important;
+                          display: flex !important;
+                        }
+                      `}</style>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -918,7 +931,7 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
                 friendFacingPages={wizardState.team.friendFacingPages}
                 assignmentState={assignmentState}
                 onTeamChange={onTeamChange}
-                onShowResetAddedPagesDialog={() => setShowResetAddedPagesDialog(true)}
+                onShowRemoveAddedPagesDialog={() => setShowResetAddedPagesDialog(true)}
                 pageAssignments={assignmentState.pageAssignments}
                 onRemoveUnassignedPages={handleRemoveUnassignedPages}
               />
@@ -1101,7 +1114,7 @@ interface BookTimelineProps {
   maxPages?: number;
   assignmentState: TeamAssignmentState;
   onTeamChange: (data: Partial<WizardState['team']>) => void;
-  onShowResetAddedPagesDialog: () => void;
+  onShowRemoveAddedPagesDialog: () => void;
   pageAssignments: Record<number, number>;
   onRemoveUnassignedPages: () => void;
 }
@@ -1122,7 +1135,7 @@ function BookTimeline({
   maxPages = 96,
   assignmentState,
   onTeamChange,
-  onShowResetAddedPagesDialog,
+  onShowRemoveAddedPagesDialog: onShowRemoveAddedPagesDialog,
   pageAssignments,
   onRemoveUnassignedPages,
 }: BookTimelineProps) {
@@ -1223,9 +1236,9 @@ function BookTimeline({
             <Button
               variant="outline"
               size="md"
-              onClick={onShowResetAddedPagesDialog}
+              onClick={onShowRemoveAddedPagesDialog}
               disabled={extraPages === 0}
-              title="Reset added pages"
+              title="Remove added pages"
             >
               <RotateCcw className="h-4 w-4" />
             </Button>

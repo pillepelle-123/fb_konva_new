@@ -42,6 +42,7 @@ export interface Question {
   created_at: string;
   updated_at: string | null;
   question_pool_id?: number | null;
+  display_order?: number | null;
   answers?: Answer[];
 }
 

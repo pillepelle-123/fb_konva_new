@@ -10,18 +10,19 @@ export default function QuestionDialogHandler() {
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
   const [currentElementId, setCurrentElementId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const handleOpenQuestionDialog = (event: CustomEvent) => {
-      const { elementId } = event.detail || {};
-      setCurrentElementId(elementId);
-      setShowQuestionDialog(true);
-    };
+  // Disabled: Now using QuestionSelectorModal in textbox-qna-inline.tsx
+  // useEffect(() => {
+  //   const handleOpenQuestionDialog = (event: CustomEvent) => {
+  //     const { elementId } = event.detail || {};
+  //     setCurrentElementId(elementId);
+  //     setShowQuestionDialog(true);
+  //   };
 
-    window.addEventListener('openQuestionDialog', handleOpenQuestionDialog as EventListener);
-    return () => {
-      window.removeEventListener('openQuestionDialog', handleOpenQuestionDialog as EventListener);
-    };
-  }, []);
+  //   window.addEventListener('openQuestionDialog', handleOpenQuestionDialog as EventListener);
+  //   return () => {
+  //     window.removeEventListener('openQuestionDialog', handleOpenQuestionDialog as EventListener);
+  //   };
+  // }, []);
 
   if (!showQuestionDialog || !state.currentBook || !user) {
     return null;

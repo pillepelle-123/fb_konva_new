@@ -593,6 +593,10 @@ export default function BookCreatePage() {
 
             if (questionToAssign) {
               page.elements[elementIndex].questionId = questionToAssign.id;
+              // Set questionOrder based on the question's position
+              if (questionToAssign.position !== undefined && questionToAssign.position !== null) {
+                page.elements[elementIndex].questionOrder = questionToAssign.position;
+              }
             }
           });
       }
@@ -780,14 +784,17 @@ export default function BookCreatePage() {
 
       // Create questions in order from orderedQuestions
       const orderedQuestions = wizardState.questions.orderedQuestions || [];
+      
       for (let i = 0; i < orderedQuestions.length; i++) {
         const question = orderedQuestions[i];
+        // Use position from question if available, otherwise use array index
+        const displayOrder = question.position !== undefined ? question.position : i;
         await apiService.createQuestion(
           newBook.id,
           question.text,
           question.id,
           question.questionPoolId || null,
-          i // display_order based on array index
+          displayOrder // Use position from question, or fallback to array index
         );
       }
 

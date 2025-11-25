@@ -1,11 +1,12 @@
-import { useMemo } from 'react';
-import { MessageCircleQuestionMark, Plus, X } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { MessageCircleQuestionMark } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-import { toast } from 'sonner';
+import { useAuth } from '../../../../context/auth-context';
 
-import { Button } from '../../../ui/primitives/button';
 import { Badge } from '../../../ui/composites/badge';
-import { SortableList } from '../../../ui/composites/sortable-list';
+import { Dialog, DialogContent } from '../../../ui/overlays/dialog';
+import { QuestionsManagerContent } from '../../editor/questions-manager-content';
+import QuestionPoolModal from '../../questions/question-pool-modal';
 import {
   curatedQuestions,
   type WizardState,
@@ -20,10 +21,12 @@ interface QuestionsStepProps {
 export function QuestionsStep({
   wizardState,
   onQuestionChange,
-  openCustomQuestionModal,
+  openCustomQuestionModal: _openCustomQuestionModal, // eslint-disable-line @typescript-eslint/no-unused-vars
 }: QuestionsStepProps) {
-  const orderedQuestions = wizardState.questions.orderedQuestions || [];
+  const { token } = useAuth();
+  const orderedQuestions = useMemo(() => wizardState.questions.orderedQuestions || [], [wizardState.questions.orderedQuestions]);
   const selectedQuestionIds = wizardState.questions.selectedDefaults;
+  const [showQuestionPool, setShowQuestionPool] = useState(false);
 
   // Calculate maximum number of questions that can be added
   const maxQuestions = useMemo(() => {
@@ -58,40 +61,14 @@ export function QuestionsStep({
     wizardState.team.pagesPerUser,
   ]);
 
-  const handleAddQuestion = (questionId: string, type: 'curated' | 'custom', text: string) => {
-    if (orderedQuestions.length >= maxQuestions) {
-      toast.error(`Maximum of ${maxQuestions} questions reached.`);
-      return;
-    }
-
-    // Curated questions don't have a question_pool_id (they're hardcoded, not from question_pool table)
-    // Custom questions also don't have a question_pool_id
-    const questionPoolId = null;
-    const newQuestion = {
-      id: uuidv4(), // Always use UUID for database compatibility
-      text,
-      type,
-      questionPoolId,
-      // Store the original curated question ID for reference
-      ...(type === 'curated' && { curatedQuestionId: questionId }),
-    };
-
-    const updatedOrderedQuestions = [...orderedQuestions, newQuestion];
-    const updatedSelectedDefaults = type === 'curated' 
-      ? [...selectedQuestionIds, questionId]
-      : selectedQuestionIds;
-    const updatedCustom = type === 'custom'
-      ? [...wizardState.questions.custom, { id: newQuestion.id, text }] // Use UUID from newQuestion
-      : wizardState.questions.custom;
-
-    onQuestionChange({
-      orderedQuestions: updatedOrderedQuestions,
-      selectedDefaults: updatedSelectedDefaults,
-      custom: updatedCustom,
-    });
+  const handleQuestionEdit = (questionId: string, newText: string) => {
+    const updated = orderedQuestions.map(q => 
+      q.id === questionId ? { ...q, text: newText } : q
+    );
+    onQuestionChange({ orderedQuestions: updated });
   };
 
-  const handleRemoveQuestion = (questionId: string) => {
+  const handleQuestionDelete = (questionId: string) => {
     const question = orderedQuestions.find(q => q.id === questionId);
     if (!question) return;
 
@@ -110,31 +87,66 @@ export function QuestionsStep({
     });
   };
 
-  const handleSortEnd = (newOrderedQuestions: typeof orderedQuestions) => {
-    onQuestionChange({ orderedQuestions: newOrderedQuestions });
+  const handleQuestionsFromPool = (poolQuestions: Array<{ id: number; question_text: string }>) => {
+    if (poolQuestions.length === 0) return;
+
+    const currentCount = orderedQuestions.length;
+    const remainingSlots = maxQuestions - currentCount;
+    
+    if (remainingSlots <= 0) {
+      return; // No more slots available
+    }
+
+    // Limit the number of questions to add based on maxQuestions
+    const questionsToAdd = poolQuestions.slice(0, remainingSlots);
+    
+    const newQuestions = questionsToAdd.map((poolQ, index) => ({
+      id: uuidv4(),
+      text: poolQ.question_text,
+      type: 'custom' as const,
+      questionPoolId: poolQ.id.toString(),
+      position: orderedQuestions.length + index, // Set position based on current count + index
+    }));
+
+    const updatedOrderedQuestions = [...orderedQuestions, ...newQuestions];
+    const updatedCustom = [
+      ...wizardState.questions.custom,
+      ...newQuestions.map(q => ({ id: q.id, text: q.text }))
+    ];
+
+    onQuestionChange({
+      orderedQuestions: updatedOrderedQuestions,
+      custom: updatedCustom,
+    });
+
+    setShowQuestionPool(false);
   };
 
-  const handleToggleQuestion = (questionId: string) => {
-    const isInList = orderedQuestions.some(q => q.questionPoolId === questionId);
-    
-    if (isInList) {
-      // Remove from list
-      const question = orderedQuestions.find(q => q.questionPoolId === questionId);
-      if (question) {
-        handleRemoveQuestion(question.id);
-      }
-    } else {
-      // Add to list
-      const curatedQuestion = curatedQuestions.find(q => q.id === questionId);
-      if (curatedQuestion) {
-        handleAddQuestion(questionId, 'curated', curatedQuestion.text);
-      }
+  const handleNavigate = (view: string) => {
+    if (view === 'pool') {
+      setShowQuestionPool(true);
     }
   };
 
-  const isQuestionInList = (questionId: string) => {
-    return orderedQuestions.some(q => q.questionPoolId === questionId);
-  };
+  // Get set of question pool IDs that are already added
+  const alreadyAddedQuestionPoolIds = useMemo(() => {
+    const ids = new Set<number>();
+    orderedQuestions.forEach(q => {
+      if (q.questionPoolId) {
+        const poolId = parseInt(q.questionPoolId);
+        if (!isNaN(poolId)) {
+          ids.add(poolId);
+        }
+      }
+    });
+    return ids;
+  }, [orderedQuestions]);
+
+  // Calculate available slots
+  const availableSlots = useMemo(() => {
+    const currentCount = orderedQuestions.length;
+    return maxQuestions - currentCount;
+  }, [orderedQuestions.length, maxQuestions]);
 
   return (
     <div className="rounded-xl bg-white shadow-sm border p-5 flex flex-col h-full">
@@ -149,61 +161,35 @@ export function QuestionsStep({
         )}
       </div>
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-        <p className="text-sm text-muted-foreground flex-shrink-0 mb-3">
-          Select from the curated prompts or add your own questions for collaborators.
-        </p>
-        <div className="flex-1 min-h-0 overflow-y-auto pr-1 mb-3">
-          <div className="space-y-2">
-            {curatedQuestions.map((question) => (
-              <label key={question.id} className="flex items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={isQuestionInList(question.id)}
-                  onChange={() => handleToggleQuestion(question.id)}
-                  disabled={!isQuestionInList(question.id) && orderedQuestions.length >= maxQuestions}
-                />
-                <span className={!isQuestionInList(question.id) && orderedQuestions.length >= maxQuestions ? 'text-muted-foreground/50' : ''}>
-                  {question.text}
-                </span>
-              </label>
-            ))}
-          </div>
-        </div>
-        <div className="flex-shrink-0 space-y-2 border-t pt-3">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={openCustomQuestionModal}
-            disabled={orderedQuestions.length >= maxQuestions}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add custom question
-          </Button>
-        </div>
-        
-        {/* SortableList of questions */}
-        {orderedQuestions.length > 0 && (
-          <div className="flex-shrink-0 border-t pt-3 mt-3">
-            <p className="text-xs font-semibold mb-2">Selected questions</p>
-            <SortableList
-              items={orderedQuestions}
-              onSortEnd={handleSortEnd}
-              renderItem={(question) => (
-                <div className="flex items-center justify-between w-full pr-2">
-                  <span className="text-sm flex-1">{question.text}</span>
-                  <button
-                    onClick={() => handleRemoveQuestion(question.id)}
-                    className="text-muted-foreground hover:text-destructive transition-colors p-1 rounded"
-                    aria-label={`Remove ${question.text}`}
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              )}
-            />
-          </div>
-        )}
+        <QuestionsManagerContent
+          bookId="temp_wizard"
+          bookName=""
+          token={token || ''}
+          mode="wizard"
+          maxQuestions={maxQuestions}
+          orderedQuestions={orderedQuestions}
+          curatedQuestions={curatedQuestions}
+          selectedDefaults={selectedQuestionIds}
+          onQuestionChange={onQuestionChange}
+          onQuestionEdit={handleQuestionEdit}
+          onQuestionDelete={handleQuestionDelete}
+          onNavigate={handleNavigate}
+        />
       </div>
+
+      {/* Question Pool Modal */}
+      <Dialog open={showQuestionPool} onOpenChange={setShowQuestionPool}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden">
+          <QuestionPoolModal
+            bookId={0} // Not used in wizard mode, but required by the component
+            onClose={() => setShowQuestionPool(false)}
+            onQuestionsAdded={handleQuestionsFromPool}
+            singleSelect={false} // Allow multi-select
+            alreadyAddedQuestionPoolIds={alreadyAddedQuestionPoolIds}
+            maxAvailableSlots={availableSlots}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

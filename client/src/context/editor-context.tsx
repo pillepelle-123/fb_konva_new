@@ -374,6 +374,7 @@ export interface CanvasElement {
   questionId?: string; // UUID - for both question and answer elements
   answerId?: string; // UUID - for answer elements
   questionElementId?: string; // Legacy - for linking answer to question element
+  questionOrder?: number; // Order/position of the question in orderedQuestions (for maintaining question order)
   src?: string;
   points?: number[];
   roughness?: number;
@@ -767,6 +768,8 @@ export interface EditorState {
   pagePreviewCache: Record<number, { dataUrl: string | null; version: number }>;
   pagePreviewVersions: Record<number, number>;
   modifiedPageIds: Set<number>; // Track which pages have been modified since last save
+  tempQuestions: Record<string, string>;
+  tempAnswers: Record<string, string>;
 }
 
 type EditorAction =
@@ -3689,7 +3692,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           orientation
         );
         
-        return {
+        // Set themeId on page if layout has a theme, so new textboxes use correct theme defaults
+        const updatedPage: Page = {
           ...page,
           elements: newElements,
           background: {
@@ -3697,6 +3701,13 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             pageTheme: layoutTemplate.theme
           }
         };
+        
+        // If layout has a theme, set it on the page so new textboxes use correct theme defaults
+        if (layoutTemplate.theme) {
+          updatedPage.themeId = layoutTemplate.theme;
+        }
+        
+        return updatedPage;
       };
       
       if (layoutApplyToAll) {
@@ -5010,6 +5021,30 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         dispatch({ type: 'UPDATE_TEMP_ANSWER', payload: { questionId: a.question_id, text: a.answer_text, userId: a.user_id, answerId: a.id } });
       });
       
+      // Create a map of questionId to display_order for setting questionOrder on elements
+      const questionOrderMap = new Map<string, number>();
+      questions.forEach((q: any) => {
+        if (q.id && (q.display_order !== null && q.display_order !== undefined)) {
+          questionOrderMap.set(q.id, q.display_order);
+        }
+      });
+      
+      // Set questionOrder on qna_inline elements based on display_order
+      // This must happen BEFORE the log, so the log shows the updated values
+      if (questionOrderMap.size > 0) {
+        pagesWithPlaceholders.forEach((page, pageIndex) => {
+          page.elements.forEach((element) => {
+            if (element.textType === 'qna_inline' && element.questionId) {
+              const displayOrder = questionOrderMap.get(element.questionId);
+              if (displayOrder !== undefined) {
+                // Always update questionOrder, even if it's the same value
+                element.questionOrder = displayOrder;
+              }
+            }
+          });
+        });
+      }
+      
       // Load editor settings and book friends
       const token = localStorage.getItem('token');
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -5056,6 +5091,9 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         ...book,
         pages: pagesWithPlaceholders
       };
+      
+      // Set questionOrder on elements (already done above, but ensure it's applied)
+      // The questionOrder is set in the loop above, so no additional logging needed
       
       dispatch({ type: 'SET_BOOK', payload: bookWithDatabaseIds, pagination: paginationState });
       

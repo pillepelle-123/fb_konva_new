@@ -19,6 +19,7 @@ import { Modal } from '../../../ui/overlays/modal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../ui/overlays/dialog';
 import ImagesContent from '../../images/images-content';
 import QuestionsManagerDialog from '../questions-manager-dialog';
+import { QuestionSelectorModal } from '../question-selector-modal';
 
 import { getToolDefaults, TOOL_DEFAULTS } from '../../../../utils/tool-defaults';
 import { Alert, AlertDescription } from '../../../ui/composites/alert';
@@ -252,6 +253,8 @@ export default function Canvas() {
   const [pendingImageElementId, setPendingImageElementId] = useState<string | null>(null);
   const [editingElement, setEditingElement] = useState<CanvasElement | null>(null);
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
+  const [showQuestionSelectorModal, setShowQuestionSelectorModal] = useState(false);
+  const [questionSelectorElementId, setQuestionSelectorElementId] = useState<string | null>(null);
   
   // Prevent authors from opening question dialog
   useEffect(() => {
@@ -1444,6 +1447,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           const pageColorPaletteId = currentPage?.colorPaletteId;
           const bookColorPaletteId = state.currentBook?.colorPaletteId;
           const qnaInlineDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
+          const themeFontFamily = qnaInlineDefaults.fontFamily || 'Arial, sans-serif';
           newElement = {
             id: uuidv4(),
             type: 'text',
@@ -1454,12 +1458,18 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
             text: '',
             fontSize: qnaInlineDefaults.fontSize,
             align: qnaInlineDefaults.align,
-            fontFamily: qnaInlineDefaults.fontFamily,
+            fontFamily: themeFontFamily,
             textType: 'qna_inline',
             paragraphSpacing: qnaInlineDefaults.paragraphSpacing,
             cornerRadius: qnaInlineDefaults.cornerRadius,
-            questionSettings: qnaInlineDefaults.questionSettings,
-            answerSettings: qnaInlineDefaults.answerSettings
+            questionSettings: {
+              ...qnaInlineDefaults.questionSettings,
+              fontFamily: qnaInlineDefaults.questionSettings?.fontFamily || themeFontFamily
+            },
+            answerSettings: {
+              ...qnaInlineDefaults.answerSettings,
+              fontFamily: qnaInlineDefaults.answerSettings?.fontFamily || themeFontFamily
+            }
           };
         } else if (previewTextbox.type === 'free_text') {
           const currentPage = state.currentBook?.pages[state.activePageIndex];
@@ -2778,12 +2788,10 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     
     const handleQuestionSelected = (event: CustomEvent) => {
       const { questionId, questionText } = event.detail;
-      // console.log('handleQuestionSelected called:', { questionId, questionText, selectedQuestionElementId });
             
       // Use the selectedQuestionElementId which is set when opening the dialog
       if (selectedQuestionElementId) {
         const element = currentPage?.elements.find(el => el.id === selectedQuestionElementId);
-        // console.log('Found element:', element);
                 
         if (element && (element.textType === 'qna' || element.textType === 'question' || element.textType === 'qna2' || element.textType === 'qna_inline')) {
           // Validate: Check if question already exists on this page (excluding current element)
@@ -2804,7 +2812,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
               }, 3000);
               return;
             }
-          }
+              }
           const fontColor = element.fontColor || element.fill || TOOL_DEFAULTS.qna.fontColor;          
           dispatch({
             type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
@@ -2816,7 +2824,6 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
               }
             }
           });
-          // console.log('Updated element with questionId:', questionId);
         }
       }
     };
@@ -2827,11 +2834,21 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         return;
       }
       const element = currentPage?.elements.find(el => el.id === event.detail.elementId);
-      // console.log('handleOpenQuestionModal - element found:', element);
       if (element && (element.textType === 'question' || element.textType === 'qna' || element.textType === 'qna2' || element.textType === 'qna_inline')) {
-        // console.log('Setting selectedQuestionElementId:', element.id);
         setSelectedQuestionElementId(element.id);
         setShowQuestionDialog(true);
+      }
+    };
+    
+    const handleOpenQuestionSelector = (event: CustomEvent) => {
+      // Prevent authors from opening question selector
+      if (!user || user.role === 'author') {
+        return;
+      }
+      const element = currentPage?.elements.find(el => el.id === event.detail.elementId);
+      if (element && element.textType === 'qna_inline') {
+        setQuestionSelectorElementId(element.id);
+        setShowQuestionSelectorModal(true);
       }
     };
     
@@ -2874,6 +2891,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     
     window.addEventListener('editText', handleTextEdit as EventListener);
     window.addEventListener('openQuestionModal', handleOpenQuestionModal as EventListener);
+    window.addEventListener('openQuestionDialog', handleOpenQuestionSelector as EventListener);
     window.addEventListener('findQuestionElement', handleFindQuestionElement as EventListener);
     window.addEventListener('questionSelected', handleQuestionSelected as EventListener);
     window.addEventListener('showAlert', handleShowAlert as EventListener);
@@ -2881,6 +2899,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     return () => {
       window.removeEventListener('editText', handleTextEdit as EventListener);
       window.removeEventListener('openQuestionModal', handleOpenQuestionModal as EventListener);
+      window.removeEventListener('openQuestionDialog', handleOpenQuestionSelector as EventListener);
       window.removeEventListener('findQuestionElement', handleFindQuestionElement as EventListener);
       window.removeEventListener('questionSelected', handleQuestionSelected as EventListener);
       window.removeEventListener('showAlert', handleShowAlert as EventListener);
@@ -2889,7 +2908,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         clearTimeout(editingTimeoutRef.current);
       }
     };
-  }, [currentPage, editingElement, selectedQuestionElementId]);
+  }, [currentPage, editingElement, selectedQuestionElementId, user]);
 
   // Expose stage reference for PDF export
   useEffect(() => {
@@ -3209,8 +3228,48 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
             
             {/* Canvas elements */}
             <Group x={activePageOffsetX} y={pageOffsetY}>
-              {currentPage?.elements.map(element => (
-                <Group key={`${element.id}-${element.questionId || 'no-question'}`}>
+              {(() => {
+                const elements = currentPage?.elements || [];
+                
+                const sorted = elements
+                  .slice() // Create a copy to avoid mutating the original array
+                  .sort((a, b) => {
+                    // Sort qna_inline elements by questionOrder, then by y position
+                    if (a.textType === 'qna_inline' && b.textType === 'qna_inline') {
+                      const orderA = a.questionOrder ?? Infinity;
+                      const orderB = b.questionOrder ?? Infinity;
+                      if (orderA !== orderB) {
+                        return orderA - orderB;
+                      }
+                      // If order is the same, sort by y position
+                      return (a.y ?? 0) - (b.y ?? 0);
+                    }
+                    // If only one is qna_inline, prioritize it based on questionOrder
+                    if (a.textType === 'qna_inline') {
+                      const orderA = a.questionOrder ?? Infinity;
+                      return orderA === Infinity ? 1 : -1; // qna_inline with order comes first
+                    }
+                    if (b.textType === 'qna_inline') {
+                      const orderB = b.questionOrder ?? Infinity;
+                      return orderB === Infinity ? -1 : 1; // qna_inline with order comes first
+                    }
+                    // For other elements, maintain original order (by y position)
+                    return (a.y ?? 0) - (b.y ?? 0);
+                  });
+                
+                // In Konva, rendering order is determined by the order elements are added to the Layer,
+                // not by zIndex. So we need to ensure elements are rendered in the sorted order.
+                // The sorted array is already in the correct order, so we just need to render them in that order.
+                return sorted;
+              })().map((element, index) => {
+                // Don't use zIndex - Konva renders in the order elements are added to the Layer
+                // The sorted array ensures correct rendering order
+                
+                return (
+                <Group 
+                  key={`${element.id}-${element.questionId || 'no-question'}-${index}`}
+                  listening={true}
+                >
                   <CanvasItemComponent
                     element={element}
                     isSelected={state.selectedElementIds.includes(element.id)}
@@ -3443,7 +3502,8 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                 />
 
                 </Group>
-              ))}
+                );
+              })}
             
               {/* Preview elements */}
               {isDrawing && currentPath.length > 2 && (
@@ -4018,7 +4078,6 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                   const element = currentPage?.elements.find(el => el.id === selectedQuestionElementId);
                   
                   if (element?.textType === 'qna' || element?.textType === 'qna2' || element?.textType === 'qna_inline') {
-                    // console.log('Updating QnA/QnA2 element with questionId:', questionId);
                     // For QnA elements, update the element with questionId and load existing answer
                     const updates = questionId === '' 
                       ? { questionId: undefined }
@@ -4144,6 +4203,59 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
             />
           </DialogContent>
         </Dialog>
+      )}
+      
+      {showQuestionSelectorModal && state.currentBook && token && user?.role !== 'author' && questionSelectorElementId && (
+        <QuestionSelectorModal
+          isOpen={showQuestionSelectorModal}
+          onClose={() => {
+            setShowQuestionSelectorModal(false);
+            setTimeout(() => setQuestionSelectorElementId(null), 100);
+          }}
+          onQuestionSelect={(questionId, questionText, questionPosition) => {
+            if (questionSelectorElementId) {
+              const element = currentPage?.elements.find(el => el.id === questionSelectorElementId);
+              
+              if (element && element.textType === 'qna_inline') {
+                // Calculate question order: use provided position, or count existing qna_inline elements
+                let order = questionPosition;
+                if (order === undefined && currentPage) {
+                  const qnaInlineElements = currentPage.elements.filter(
+                    el => el.textType === 'qna_inline' && el.questionOrder !== undefined
+                  );
+                  order = qnaInlineElements.length > 0 
+                    ? Math.max(...qnaInlineElements.map(el => el.questionOrder || 0)) + 1
+                    : 0;
+                }
+                
+                // Update element with questionId and load question text
+                dispatch({
+                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                  payload: {
+                    id: questionSelectorElementId,
+                    updates: { 
+                      questionId: questionId || undefined, 
+                      text: questionText || '', 
+                      formattedText: questionText || '',
+                      questionOrder: order
+                    }
+                  }
+                });
+                
+                // Store question text in temp questions only if it doesn't exist yet
+                if (questionId && !state.tempQuestions[questionId]) {
+                  dispatch({
+                    type: 'UPDATE_TEMP_QUESTION',
+                    payload: { questionId, text: questionText }
+                  });
+                }
+              }
+            }
+            setShowQuestionSelectorModal(false);
+            setTimeout(() => setQuestionSelectorElementId(null), 100);
+          }}
+          elementId={questionSelectorElementId}
+        />
       )}
       </CanvasPageContainer>
       

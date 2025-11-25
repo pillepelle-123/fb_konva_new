@@ -245,11 +245,13 @@ export function StatusBar() {
         </div>
 
         {isExpanded && (
-          <div className="border-t border-border/70 bg-muted/30 px-4 py-3">
+          <div className="border-t border-border/70 bg-muted/30 px-4 py-3 min-w-0">
             {activeSection === 'details' ? (
               renderDetailsContent(false)
             ) : (
-              renderPageExplorer('expanded')
+              <div className="w-full min-w-0">
+                {renderPageExplorer('expanded')}
+              </div>
             )}
           </div>
         )}

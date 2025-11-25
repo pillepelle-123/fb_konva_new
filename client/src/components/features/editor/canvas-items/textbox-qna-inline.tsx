@@ -297,14 +297,29 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
     }
   }, [element.questionId, state.activePageIndex, state.pageAssignments]);
 
+  // Store a global function that can be called directly from the button
+  useEffect(() => {
+    // Store a function on the window object that can be called from the Quill editor button
+    (window as any)[`openQuestionSelector_${element.id}`] = () => {
+      // Dispatch event to open modal in Canvas component
+      window.dispatchEvent(new CustomEvent('openQuestionDialog', {
+        detail: { elementId: element.id }
+      }));
+    };
+    
+    return () => {
+      delete (window as any)[`openQuestionSelector_${element.id}`];
+    };
+  }, [element.id]);
+
 
 
 
   
   // Get current theme context
   const currentPage = state.currentBook?.pages[state.activePageIndex];
-  const pageTheme = currentPage?.background?.pageTheme;
-  const bookTheme = state.currentBook?.bookTheme;
+  const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+  const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
   const elementTheme = element.theme;
   const pageLayoutTemplateId = currentPage?.layoutTemplateId;
   const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
@@ -1079,9 +1094,21 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
       insertQuestionBtn.onmouseover = () => insertQuestionBtn.style.background = '#f1f5f9';
       insertQuestionBtn.onmouseout = () => insertQuestionBtn.style.background = 'white';
       insertQuestionBtn.onclick = () => {
-        window.dispatchEvent(new CustomEvent('openQuestionDialog', {
-          detail: { elementId: element.id }
-        }));
+        // Close Quill editor modal first
+        window.dispatchEvent(new CustomEvent('closeQuillEditor'));
+        
+        // Small delay to ensure Quill modal is closed
+        setTimeout(() => {
+          // Try direct function call first, then fallback to event
+          const directFn = (window as any)[`openQuestionSelector_${element.id}`];
+          if (directFn) {
+            directFn();
+          } else {
+            window.dispatchEvent(new CustomEvent('openQuestionDialog', {
+              detail: { elementId: element.id }
+            }));
+          }
+        }, 100);
       };
       
       const resetQuestionBtn = document.createElement('button');
@@ -1198,44 +1225,37 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
         // Track current question ID (can change when user selects new question)
         let currentQuestionId = element.questionId;
         
-        // Reset question handler
+        // Reset question handler - removes question from this element
         resetQuestionBtn.onclick = () => {
-          // Clear question ID from element
-          currentQuestionId = undefined;
+          // Reset element: remove questionId and clear text
           dispatch({
             type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
             payload: {
               id: element.id,
               updates: {
                 questionId: undefined,
-                answerId: undefined,
                 text: '',
                 formattedText: ''
               }
             }
           });
           
+          // Update UI in Quill editor
+          insertQuestionBtn.textContent = 'Insert Question';
+          questionText.textContent = 'No question selected';
+          resetQuestionBtn.style.display = 'none';
+          
           // Clear Quill editor content
           quill.setText('');
           
-          // Update UI
-          insertQuestionBtn.textContent = 'Insert Question';
-          resetQuestionBtn.style.display = 'none';
-          questionText.textContent = 'No question selected';
-          
-          // Remove reset button from toolbar if it exists
-          if (toolbarButtonContainer.contains(resetQuestionBtn)) {
-            toolbarButtonContainer.removeChild(resetQuestionBtn);
-          }
-          
-          // Disable editor and show placeholder
+          // Disable editor since no question is selected
           quill.disable();
           quill.root.setAttribute('data-placeholder', 'Add a question');
           quill.root.style.backgroundColor = '#f9fafb';
           quill.root.style.color = '#9ca3af';
           
-          // Close the modal
-          closeModal();
+          // Update current question ID
+          currentQuestionId = undefined;
         };
         
         // No need to protect placeholder since it's not in the editor
@@ -1380,6 +1400,11 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
           const closeQuillEditorHandler = (modal as any).__closeQuillEditorHandler;
           if (closeQuillEditorHandler) {
             window.removeEventListener('closeQuillEditor', closeQuillEditorHandler);
+          }
+          // Remove openQuestionDialog listener
+          const openQuestionDialogHandler = (modal as any).__openQuestionDialogHandler;
+          if (openQuestionDialogHandler) {
+            window.removeEventListener('openQuestionDialog', openQuestionDialogHandler);
           }
           previousCloseModal();
         };
