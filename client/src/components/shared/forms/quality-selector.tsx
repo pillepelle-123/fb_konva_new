@@ -1,5 +1,5 @@
 import { FormField } from '../../ui/layout/form-field';
-import { SelectInput } from '../../ui/primitives/select-input';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../../ui/primitives/select';
 
 interface QualitySelectorProps {
   value: 'preview' | 'medium' | 'printing';
@@ -11,13 +11,18 @@ export function QualitySelector({ value, onChange, userRole }: QualitySelectorPr
   const isAuthor = userRole === 'author';
   return (
     <FormField label="PDF Quality:">
-      <SelectInput value={value} onChange={onChange as (value: string) => void}>
-        <option value="preview">Preview</option>
-        <option value="medium">Medium</option>
-        <option value="printing" disabled={isAuthor}>
-          For Printing {isAuthor ? '(Publisher only)' : ''}
-        </option>
-      </SelectInput>
+      <Select value={value} onValueChange={onChange as (value: string) => void}>
+        <SelectTrigger>
+          <SelectValue placeholder="Select quality" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="preview">Preview</SelectItem>
+          <SelectItem value="medium">Medium</SelectItem>
+          <SelectItem value="printing" disabled={isAuthor}>
+            For Printing {isAuthor ? '(Publisher only)' : ''}
+          </SelectItem>
+        </SelectContent>
+      </Select>
     </FormField>
   );
 }

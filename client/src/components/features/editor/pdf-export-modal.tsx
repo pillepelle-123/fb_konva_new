@@ -82,6 +82,7 @@ export default function PDFExportModal({ isOpen, onClose }: PDFExportModalProps)
         </>
       }
     >
+      <div className="p-1">
       <QualitySelector value={quality} onChange={setQuality} userRole={state.userRole} />
       
       <PageRangeSelector
@@ -95,6 +96,7 @@ export default function PDFExportModal({ isOpen, onClose }: PDFExportModalProps)
       />
       
       {isExporting && <ExportProgress progress={progress} />}
+      </div>
     </Modal>
   );
 }

@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader } from '../../../ui/composites/card';
-import { SelectInput } from '../../../ui/primitives/select-input';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../../../ui/primitives/select';
 
 interface BookSettingsTabProps {
   pageSize: string;
@@ -22,21 +22,31 @@ export function BookSettingsTab({
       <CardContent className="space-y-4">
         <div className="space-y-2">
           <label className="text-sm font-medium">Page Size</label>
-          <SelectInput value={pageSize} onChange={onPageSizeChange} className="w-full">
-            <option value="A4">A4 (210 × 297 mm)</option>
-            <option value="Letter">Letter (8.5 × 11 in)</option>
-            <option value="Legal">Legal (8.5 × 14 in)</option>
-            <option value="A5">A5 (148 × 210 mm)</option>
-            <option value="Square">Square (210 × 210 mm)</option>
-          </SelectInput>
+          <Select value={pageSize} onValueChange={onPageSizeChange}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="A4">A4 (210 × 297 mm)</SelectItem>
+              <SelectItem value="Letter">Letter (8.5 × 11 in)</SelectItem>
+              <SelectItem value="Legal">Legal (8.5 × 14 in)</SelectItem>
+              <SelectItem value="A5">A5 (148 × 210 mm)</SelectItem>
+              <SelectItem value="Square">Square (210 × 210 mm)</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-2">
           <label className="text-sm font-medium">Orientation</label>
-          <SelectInput value={orientation} onChange={onOrientationChange} className="w-full">
-            <option value="portrait">Portrait</option>
-            <option value="landscape">Landscape</option>
-          </SelectInput>
+          <Select value={orientation} onValueChange={onOrientationChange}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="portrait">Portrait</SelectItem>
+              <SelectItem value="landscape">Landscape</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </CardContent>
     </Card>

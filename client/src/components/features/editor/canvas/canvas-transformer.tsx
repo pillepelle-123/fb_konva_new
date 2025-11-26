@@ -14,6 +14,8 @@ interface CanvasTransformerProps {
   rotationSnapTolerance?: number;
   keepRatio?: boolean;
   enabledAnchors?: string[];
+  resizeEnabled?: boolean;
+  rotateEnabled?: boolean;
 }
 
 const CanvasTransformer = forwardRef<Konva.Transformer, CanvasTransformerProps>(({
@@ -27,13 +29,15 @@ const CanvasTransformer = forwardRef<Konva.Transformer, CanvasTransformerProps>(
   rotationSnaps,
   rotationSnapTolerance,
   keepRatio = false,
-  enabledAnchors
+  enabledAnchors,
+  resizeEnabled = true,
+  rotateEnabled = true
 }, ref) => {
   return (
     <Transformer
       ref={ref}
       keepRatio={keepRatio}
-      enabledAnchors={enabledAnchors !== undefined ? enabledAnchors : (keepRatio ? ['top-left', 'top-right', 'bottom-left', 'bottom-right'] : ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'top-center', 'middle-left', 'middle-right', 'bottom-center'])}
+      enabledAnchors={resizeEnabled ? (enabledAnchors !== undefined ? enabledAnchors : (keepRatio ? ['top-left', 'top-right', 'bottom-left', 'bottom-right'] : ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'top-center', 'middle-left', 'middle-right', 'bottom-center'])) : []}
       boundBoxFunc={boundBoxFunc || ((oldBox, newBox) => {
         if (newBox.width < 5 || newBox.height < 5) {
           return oldBox;
@@ -42,6 +46,7 @@ const CanvasTransformer = forwardRef<Konva.Transformer, CanvasTransformerProps>(
       })}
       rotationSnaps={rotationSnaps}
       rotationSnapTolerance={rotationSnapTolerance}
+      rotateEnabled={rotateEnabled}
       onDragStart={onDragStart}
       onDragMove={onDragMove}
       onDragEnd={onDragEnd}

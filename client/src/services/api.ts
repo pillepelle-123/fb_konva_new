@@ -141,6 +141,15 @@ class ApiService {
     });
   }
 
+  async updateQuestionOrder(bookId: number, questionOrders: Array<{ questionId: string; displayOrder: number }>) {
+    const response = await fetch(`${this.baseUrl}/questions/book/${bookId}/order`, {
+      method: 'PUT',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ questionOrders })
+    });
+    return response.json();
+  }
+
   // Answer operations
   async getUserAnswers(bookId: number) {
     const response = await fetch(`${this.baseUrl}/answers/book/${bookId}`, { headers: this.getHeaders() });

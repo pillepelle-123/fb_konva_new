@@ -40,8 +40,8 @@ export function Slider({
   );
 
   return (
-    <div className={`${className} flex flex-row gap-2`}>
-      <div className="flex-1">
+    <div className={`${className} flex flex-row gap-2 w-full`}>
+      <div className="flex-1 min-w-0">
         {hasLabel ? (
           <Tooltip content={label} side={tooltipPosition}>
             {sliderInput}
@@ -50,7 +50,7 @@ export function Slider({
           sliderInput
         )}
       </div>
-      <span className="text-xs text-muted-foreground">{displayValue !== undefined ? displayValue : value}{unit}</span>
+      <span className="text-xs text-muted-foreground flex-shrink-0">{displayValue !== undefined ? displayValue : value}{unit}</span>
     </div>
   );
 }

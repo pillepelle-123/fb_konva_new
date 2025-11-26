@@ -90,8 +90,9 @@ export default function BaseCanvasItem({
         e.cancelBubble = true;
         // For question-answer pairs, always call onSelect to handle sequential selection
         // For other elements with Ctrl+click, always call onSelect to handle multi-selection/deselection
-        // For other elements without Ctrl, only call if not already selected
-        if (element.textType === 'question' || element.textType === 'answer' || !isSelected || e.evt.ctrlKey || e.evt.metaKey) {
+        // For other elements without Ctrl, call onSelect if not already selected OR if lockElements is enabled
+        // This ensures selection is properly updated even when lockElements is active
+        if (element.textType === 'question' || element.textType === 'answer' || !isSelected || e.evt.ctrlKey || e.evt.metaKey || state.editorSettings?.editor?.lockElements) {
           onSelect(e);
         }
       } else if (e.evt.button === 2) {
@@ -116,22 +117,34 @@ export default function BaseCanvasItem({
     if (state.activeTool === 'select' && e.evt.button === 0) {
       // If multiple elements are selected, don't stop event propagation
       // This allows the Stage's handleMouseDown to handle group movement
-      if (state.selectedElementIds.length > 1) {
+      // But only if elements are not locked
+      if (state.selectedElementIds.length > 1 && !state.editorSettings?.editor?.lockElements) {
         // Don't stop event - let it bubble to Stage for group move handling
         return;
       }
       
+      // Stop event propagation to prevent Stage from handling it
+      // This ensures selection works even when lockElements is enabled
       e.cancelBubble = true;
       // For regular elements, select on mouseDown if not already selected
       // Skip for question-answer pairs as they use onClick for sequential selection
       // Skip if Ctrl/Cmd is pressed (multi-selection is handled in onClick)
-      if (!isSelected && !(element.textType === 'question' || element.textType === 'answer') && !e.evt.ctrlKey && !e.evt.metaKey) {
+      // When lockElements is enabled, always call onSelect to ensure selection is updated
+      if ((!isSelected || state.editorSettings?.editor?.lockElements) && !(element.textType === 'question' || element.textType === 'answer') && !e.evt.ctrlKey && !e.evt.metaKey) {
         onSelect(e);
       }
     }
   };
 
   const handleDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
+    // Block position update if elements are locked
+    if (state.editorSettings?.editor?.lockElements) {
+      // Reset position to original
+      e.target.x(element.x);
+      e.target.y(element.y);
+      return;
+    }
+    
     dispatch({
       type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
       payload: {
@@ -158,7 +171,7 @@ export default function BaseCanvasItem({
       scaleX={(element.textType === 'question' || element.textType === 'answer') ? 1 : (element.scaleX || 1)}
       scaleY={(element.textType === 'question' || element.textType === 'answer') ? 1 : (element.scaleY || 1)}
       rotation={typeof element.rotation === 'number' ? element.rotation : 0}
-      draggable={state.activeTool === 'select' && !isMovingGroup && !isInsideGroup && state.editorInteractionLevel !== 'answer_only' && state.selectedElementIds.length <= 1}
+      draggable={state.activeTool === 'select' && !isMovingGroup && !isInsideGroup && state.editorInteractionLevel !== 'answer_only' && state.selectedElementIds.length <= 1 && !(state.editorSettings?.editor?.lockElements)}
       onMouseDown={handleMouseDown}
       onClick={handleClick}
       onDblClick={handleDoubleClick}

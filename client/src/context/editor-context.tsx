@@ -802,6 +802,7 @@ type EditorAction =
   | { type: 'MARK_SAVED' }
   | { type: 'UPDATE_TOOL_SETTINGS'; payload: { tool: string; settings: Record<string, any> } }
   | { type: 'SET_EDITOR_SETTINGS'; payload: Record<string, Record<string, any>> }
+  | { type: 'UPDATE_EDITOR_SETTINGS'; payload: { category: string; settings: Record<string, any> } }
   | { type: 'UPDATE_TEMP_QUESTION'; payload: { questionId: string; text: string; questionPoolId?: number } }
   | { type: 'DELETE_TEMP_QUESTION'; payload: { questionId: string } }
   | { type: 'UPDATE_TEMP_ANSWER'; payload: { questionId: string; text: string; userId?: number; answerId?: string } }
@@ -2112,9 +2113,31 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       };
     
     case 'SET_EDITOR_SETTINGS':
+      // Merge with existing editorSettings to preserve local changes (like lockElements)
+      // Local editor settings take precedence over server settings
       return {
         ...state,
-        editorSettings: action.payload
+        editorSettings: {
+          ...action.payload,
+          // Preserve local editor category settings (like lockElements) if they exist
+          editor: {
+            ...(action.payload.editor || {}),
+            ...(state.editorSettings?.editor || {})
+          }
+        }
+      };
+    
+    case 'UPDATE_EDITOR_SETTINGS':
+      // Don't save to history for editor settings (like tool settings)
+      return {
+        ...state,
+        editorSettings: {
+          ...state.editorSettings,
+          [action.payload.category]: {
+            ...(state.editorSettings[action.payload.category] || {}),
+            ...action.payload.settings
+          }
+        }
       };
     
     case 'UPDATE_TEMP_QUESTION':

@@ -21,14 +21,27 @@ export function Tooltip({ children, content, title, description, side = "right",
 
   // Store ref to child element for event forwarding
   React.useEffect(() => {
-    if (triggerRef.current && triggerRef.current.firstElementChild) {
-      childRef.current = triggerRef.current.firstElementChild as HTMLElement;
+    if (triggerRef.current) {
+      // Find the actual child element (skip wrapper divs)
+      let current = triggerRef.current.firstElementChild as HTMLElement;
+      while (current && current.tagName === 'DIV' && current.children.length === 1) {
+        current = current.firstElementChild as HTMLElement;
+      }
+      childRef.current = current || triggerRef.current.firstElementChild as HTMLElement;
     }
   }, [children]);
 
   const updatePosition = () => {
-    // Use the inner div (children container) for positioning if available
-    const elementToMeasure = triggerRef.current?.firstElementChild as HTMLElement || triggerRef.current;
+    // Use the actual child element for positioning - traverse through wrapper divs if needed
+    let elementToMeasure: HTMLElement | null = null;
+    if (triggerRef.current) {
+      // Try to find the actual child element (skip wrapper divs)
+      let current = triggerRef.current.firstElementChild as HTMLElement;
+      while (current && current.tagName === 'DIV' && current.children.length === 1) {
+        current = current.firstElementChild as HTMLElement;
+      }
+      elementToMeasure = current || triggerRef.current.firstElementChild as HTMLElement || triggerRef.current;
+    }
     if (elementToMeasure) {
       const rect = elementToMeasure.getBoundingClientRect();
       if (side === "bottom_editor_bar") {
@@ -62,12 +75,12 @@ export function Tooltip({ children, content, title, description, side = "right",
   return (
     <div 
       ref={triggerRef}
-      className="relative inline-block"
+      className="relative"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      style={{ display: 'inline-block', pointerEvents: 'none' }}
+      style={{ display: 'contents', pointerEvents: 'none' }}
     >
-      <div style={{ pointerEvents: 'auto' }}>
+      <div style={{ pointerEvents: 'auto', width: '100%' }}>
         {children}
       </div>
       {isMounted && createPortal(

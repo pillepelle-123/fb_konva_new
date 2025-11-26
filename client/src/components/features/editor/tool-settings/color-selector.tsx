@@ -116,9 +116,10 @@ export function ColorSelector({
           <SketchPicker
             color={value === 'transparent' ? '#ffffff' : (value || '#000000')}
             onChange={(color) => onChange(color.hex)}
-            presetColors={favoriteColors}
+            presetColors={[]}
             disableAlpha={true}
-            width="260px"
+            width="100%"
+            className="!border-none !shadow-none !p-0 !border-2 !border-primary"
           />
       </div>
       

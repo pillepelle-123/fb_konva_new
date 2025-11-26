@@ -18,12 +18,13 @@ import ContextMenu from '../../../ui/overlays/context-menu';
 import { Modal } from '../../../ui/overlays/modal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../ui/overlays/dialog';
 import ImagesContent from '../../images/images-content';
-import QuestionsManagerDialog from '../questions-manager-dialog';
 import { QuestionSelectorModal } from '../question-selector-modal';
 
 import { getToolDefaults, TOOL_DEFAULTS } from '../../../../utils/tool-defaults';
 import { Alert, AlertDescription } from '../../../ui/composites/alert';
-import { snapPosition, type SnapGuideline } from '../../../../utils/snapping';
+import { Tooltip } from '../../../ui/composites/tooltip';
+import { Lock, LockOpen } from 'lucide-react';
+import { snapPosition, snapDimensions, type SnapGuideline } from '../../../../utils/snapping';
 
 import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
 import type { PageBackground } from '../../../../context/editor-context';
@@ -212,6 +213,7 @@ export default function Canvas() {
   const transformerRef = useRef<Konva.Transformer>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
+  const [panelOffset, setPanelOffset] = useState(0);
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentPath, setCurrentPath] = useState<number[]>([]);
   const [brushStrokes, setBrushStrokes] = useState<Array<{ points: number[]; strokeColor: string; strokeWidth: number }>>([]);
@@ -285,6 +287,93 @@ export default function Canvas() {
   const [alertPosition, setAlertPosition] = useState<{ x: number; y: number } | null>(null);
   const [snapGuidelines, setSnapGuidelines] = useState<SnapGuideline[]>([]);
   
+  // Observe tool settings panel width to position lock icon correctly
+  useEffect(() => {
+    if (!state.settingsPanelVisible) {
+      setPanelOffset(0);
+      return;
+    }
+
+    const findPanelElement = () => {
+      // Find the tool settings panel - it's a Card with specific classes
+      // Look for the panel in the editor layout (right side)
+      const editorLayout = document.querySelector('.flex-1.flex.min-h-0');
+      if (!editorLayout) return null;
+      
+      // The panel is the last child in the flex layout
+      const children = Array.from(editorLayout.children);
+      const panel = children[children.length - 1] as HTMLElement | null;
+      
+      // Verify it's the tool settings panel by checking for the Card classes
+      if (panel && panel.classList.contains('border-t-0') && panel.classList.contains('border-b-0')) {
+        return panel;
+      }
+      
+      return null;
+    };
+
+    const updatePanelOffset = () => {
+      const panel = findPanelElement();
+      const container = containerRef.current;
+      
+      if (panel && container) {
+        const panelRect = panel.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        
+        // Calculate distance from right edge of container to right edge of panel
+        // Then add panel width + spacing
+        const distanceFromContainerRight = containerRect.right - panelRect.right;
+        const spacing = 8; // 0.5rem spacing
+        setPanelOffset(panelRect.width + distanceFromContainerRight + spacing);
+      } else {
+        // Fallback: use default panel widths
+        // Expanded: 280px, Collapsed: 48px (w-12)
+        // Use expanded width as default to ensure icon is always visible
+        setPanelOffset(288); // 280px + 8px spacing
+      }
+    };
+
+    // Initial update with delay to ensure DOM is ready
+    const timeoutId = setTimeout(() => {
+      updatePanelOffset();
+    }, 100);
+
+    // Observe panel for size changes
+    const panel = findPanelElement();
+    let resizeObserver: ResizeObserver | null = null;
+    
+    if (panel) {
+      resizeObserver = new ResizeObserver(() => {
+        updatePanelOffset();
+      });
+      resizeObserver.observe(panel);
+    }
+
+    // Also observe window resize
+    window.addEventListener('resize', updatePanelOffset);
+
+    // Retry finding panel if not found initially
+    const checkInterval = setInterval(() => {
+      const panel = findPanelElement();
+      if (panel && !resizeObserver) {
+        resizeObserver = new ResizeObserver(() => {
+          updatePanelOffset();
+        });
+        resizeObserver.observe(panel);
+        updatePanelOffset();
+      }
+    }, 200);
+
+    return () => {
+      clearTimeout(timeoutId);
+      clearInterval(checkInterval);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+      window.removeEventListener('resize', updatePanelOffset);
+    };
+  }, [state.settingsPanelVisible]);
+
   // Update canvas container size when its bounding box changes
   useEffect(() => {
     const updateSize = () => {
@@ -638,7 +727,11 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           if (!node) return false;
           try {
             // Check if node has a parent (is still in the scene graph)
-            return node.getStage() !== null && node.getParent() !== null;
+            // Also verify that the node hasn't been destroyed by checking if it has an id
+            const stage = node.getStage();
+            const parent = node.getParent();
+            const nodeId = node.id();
+            return stage !== null && parent !== null && nodeId !== undefined;
           } catch {
             return false;
           }
@@ -646,12 +739,33 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         
         if (selectedNodes.length > 0) {
           try {
-            transformer.nodes(selectedNodes);
-            transformer.forceUpdate();
-            transformer.moveToTop();
-            const layer = transformer.getLayer();
-            if (layer) {
-              layer.batchDraw();
+            // Double-check all nodes are still valid before assigning to transformer
+            const validNodes = selectedNodes.filter(node => {
+              try {
+                const stage = node.getStage();
+                const parent = node.getParent();
+                const nodeId = node.id();
+                return stage !== null && parent !== null && nodeId !== undefined;
+              } catch {
+                return false;
+              }
+            });
+            
+            if (validNodes.length > 0) {
+              transformer.nodes(validNodes);
+              transformer.forceUpdate();
+              transformer.moveToTop();
+              const layer = transformer.getLayer();
+              if (layer) {
+                layer.batchDraw();
+              }
+            } else {
+              // All nodes are invalid, clear transformer
+              transformer.nodes([]);
+              const layer = transformer.getLayer();
+              if (layer) {
+                layer.batchDraw();
+              }
             }
           } catch (error) {
             // Silently handle transformer update errors (nodes may have been destroyed)
@@ -703,7 +817,11 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           const validNodes = nodes.filter((node): node is Konva.Node => {
             if (!node) return false;
             try {
-              return node.getStage() !== null && node.getParent() !== null;
+              // Check if node is still valid and not destroyed
+              const stage = node.getStage();
+              const parent = node.getParent();
+              const nodeId = node.id();
+              return stage !== null && parent !== null && nodeId !== undefined;
             } catch {
               return false;
             }
@@ -717,7 +835,12 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
             }
           } else if (validNodes.length !== nodes.length) {
             // Some nodes are invalid, update the transformer with only valid nodes
-            transformer.nodes(validNodes);
+            if (validNodes.length > 0) {
+              transformer.nodes(validNodes);
+            } else {
+              // All nodes are invalid, clear transformer
+              transformer.nodes([]);
+            }
             const layer = transformer.getLayer();
             if (layer) {
               layer.batchDraw();
@@ -726,6 +849,13 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         } catch (error) {
           // Silently handle transformer update errors (nodes may have been destroyed)
           console.debug('Transformer update error:', error);
+          // Clear transformer on error
+          try {
+            transformer.nodes([]);
+            transformer.getLayer()?.batchDraw();
+          } catch {
+            // Ignore cleanup errors
+          }
         }
       }, 10);
     }
@@ -768,7 +898,10 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         }).filter(node => {
           if (!node) return false;
           try {
-            return node.getStage() && node.getParent() !== null;
+            const stage = node.getStage();
+            const parent = node.getParent();
+            const nodeId = node.id();
+            return stage !== null && parent !== null && nodeId !== undefined;
           } catch {
             return false;
           }
@@ -779,7 +912,10 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           const validNodes = selectedNodes.filter((node): node is Konva.Node => {
             if (!node) return false;
             try {
-              return node.getStage() !== null && node.getParent() !== null;
+              const stage = node.getStage();
+              const parent = node.getParent();
+              const nodeId = node.id();
+              return stage !== null && parent !== null && nodeId !== undefined;
             } catch {
               return false;
             }
@@ -796,6 +932,21 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
             } catch (error) {
               // Silently handle transformer update errors (nodes may have been destroyed)
               console.debug('Transformer update error:', error);
+              // Clear transformer on error
+              try {
+                transformer.nodes([]);
+                transformer.getLayer()?.batchDraw();
+              } catch {
+                // Ignore cleanup errors
+              }
+            }
+          } else if (validNodes.length === 0) {
+            // All nodes are invalid, clear transformer
+            try {
+              transformer.nodes([]);
+              transformer.getLayer()?.batchDraw();
+            } catch {
+              // Ignore cleanup errors
             }
           }
         }
@@ -838,6 +989,8 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     // Block canvas editing for non-full-edit levels
     if (!canEditCanvas()) return;
     
+    const lockElements = state.editorSettings?.editor?.lockElements;
+    
     const currentTime = Date.now();
     const isDoubleClick = currentTime - lastClickTime < 300;
     setLastClickTime(currentTime);
@@ -851,6 +1004,14 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         setPanStart({ x: pos.x - stagePos.x, y: pos.y - stagePos.y });
       }
       return;
+    }
+
+    // Block adding new elements if elements are locked
+    if (lockElements && ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna', 'qna2', 'qna_inline', 'free_text'].includes(state.activeTool)) {
+      // Allow selection tool to work for selecting elements
+      if (state.activeTool !== 'select') {
+        return;
+      }
     }
 
     // Only handle mouseDown for brush, select, and pan tools
@@ -936,6 +1097,16 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         }
       }
       
+      // If clicking on an element (not background), don't handle it here
+      // In Konva, events bubble from child to parent, so if e.target is an element,
+      // the event has already been handled by the element's handlers
+      // We only need to handle background clicks here
+      if (!isBackgroundClick) {
+        // Don't handle element clicks here - let base-canvas-item handle them
+        // The event has already been handled by the element's onMouseDown handler
+        return;
+      }
+      
       if (isBackgroundClick) {
         // Check if double-click is within selected elements bounds
         if (isDoubleClick && state.selectedElementIds.length > 0) {
@@ -948,7 +1119,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                      y >= el.y && y <= el.y + (el.height || 100);
             });
             
-            if (clickedElement?.type !== 'text') {
+            if (clickedElement?.type !== 'text' && !state.editorSettings?.editor?.lockElements) {
               setIsMovingGroup(true);
               setGroupMoveStart({ x, y });
             }
@@ -961,10 +1132,11 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         setSelectionStart({ x, y });
         setSelectionRect({ x, y, width: 0, height: 0, visible: true });
       } else {
-        // Clicked on an element - if multiple elements are selected, start group move
-        if (state.selectedElementIds.length > 1 && e.evt.button === 0) {
-          // Always start group move if multiple elements are selected and we clicked on an element
-          // (not on background)
+        // Clicked on an element
+        // When lockElements is enabled, don't handle group moves here
+        // Let the event propagate to base-canvas-item so selection can work
+        if (state.selectedElementIds.length > 1 && e.evt.button === 0 && !state.editorSettings?.editor?.lockElements) {
+          // Start group move if multiple elements are selected and elements are not locked
           const startPos = { x, y };
           setIsMovingGroup(true);
           isMovingGroupRef.current = true;
@@ -972,6 +1144,8 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           groupMoveStartRef.current = startPos;
           dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Move Elements' });
         }
+        // For single element clicks or when lockElements is enabled, let the event propagate
+        // to base-canvas-item so that selection can work
       }
     } else {
       // Handle element creation for other tools
@@ -1087,6 +1261,15 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         });
       }
     } else if ((isMovingGroup || isMovingGroupRef.current) && (groupMoveStart || groupMoveStartRef.current)) {
+      // Block group move if elements are locked
+      if (state.editorSettings?.editor?.lockElements) {
+        setIsMovingGroup(false);
+        isMovingGroupRef.current = false;
+        setGroupMoveStart(null);
+        groupMoveStartRef.current = null;
+        return;
+      }
+      
       // Move entire selection
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
@@ -1206,6 +1389,13 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       setIsPanning(false);
       setPanStart({ x: 0, y: 0 });
     } else if (isDrawing && state.activeTool === 'brush' && currentPath.length > 2) {
+      // Block adding brush strokes if elements are locked
+      if (state.editorSettings?.editor?.lockElements) {
+        setIsDrawing(false);
+        setCurrentPath([]);
+        return;
+      }
+      
       const smoothedPath = smoothPath(currentPath);
       
       if (!isBrushMode) {
@@ -1238,6 +1428,13 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       
       // Don't create element yet - wait for Done button
     } else if (isDrawingLine && lineStart && previewLine) {
+      // Block adding line elements if elements are locked
+      if (state.editorSettings?.editor?.lockElements) {
+        setIsDrawingLine(false);
+        setLineStart(null);
+        setPreviewLine(null);
+        return;
+      }
       const width = previewLine.x2 - previewLine.x1;
       const height = previewLine.y2 - previewLine.y1;
       
@@ -1270,6 +1467,14 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       setLineStart(null);
       setPreviewLine(null);
     } else if (isDrawingShape && shapeStart && previewShape) {
+      // Block adding shape elements if elements are locked
+      if (state.editorSettings?.editor?.lockElements) {
+        setIsDrawingShape(false);
+        setShapeStart(null);
+        setPreviewShape(null);
+        return;
+      }
+      
       if (previewShape.width > 5 || previewShape.height > 5) {
         const currentPage = state.currentBook?.pages[state.activePageIndex];
         const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
@@ -1306,6 +1511,14 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       setShapeStart(null);
       setPreviewShape(null);
     } else if (isDrawingTextbox && textboxStart && previewTextbox) {
+      // Block adding text elements if elements are locked
+      if (state.editorSettings?.editor?.lockElements) {
+        setIsDrawingTextbox(false);
+        setTextboxStart(null);
+        setPreviewTextbox(null);
+        return;
+      }
+      
       if (previewTextbox.width > 50 || previewTextbox.height > 20) {
         let newElement: CanvasElement;
         
@@ -2919,12 +3132,14 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
 
 
   const handleSnapPosition = (node: Konva.Node, x: number, y: number, enableGridSnap: boolean = false) => {
+    // Check if magnetic snapping is enabled (default to true if not set)
+    const magneticSnapping = (state as any).magneticSnapping !== false;
     const result = snapPosition(
       node,
       x,
       y,
       enableGridSnap,
-      state.magneticSnapping,
+      magneticSnapping,
       currentPage!,
       canvasWidth,
       canvasHeight,
@@ -3197,6 +3412,43 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           isMiniPreview={state.isMiniPreview}
           editorInteractionLevel={state.editorInteractionLevel}
         >
+        {/* Lock Elements Toggle Button - positioned left of tool settings panel */}
+        <div 
+          className="absolute top-2 z-50 bg-background/90 backdrop-blur-sm border border-border rounded-md p-1.5 shadow-lg cursor-pointer hover:bg-background/95 transition-colors"
+          style={{ 
+            right: state.settingsPanelVisible && panelOffset > 0 
+              ? `${panelOffset}px` 
+              : '0.5rem' // If panel is hidden or offset not calculated, show at edge
+          }}
+          onClick={() => {
+            const currentLockState = Boolean(state.editorSettings?.editor?.lockElements);
+            dispatch({
+              type: 'UPDATE_EDITOR_SETTINGS',
+              payload: {
+                category: 'editor',
+                settings: { lockElements: !currentLockState }
+              }
+            });
+          }}
+        >
+          <Tooltip 
+            side="bottom" 
+            content={
+              state.editorSettings?.editor?.lockElements 
+                ? "Click to unlock elements (allow moving, resizing, rotating, and adding new elements)"
+                : "Click to lock elements (prevent moving, resizing, rotating, and adding new elements)"
+            }
+          >
+            <div style={{ pointerEvents: 'auto' }}>
+              {state.editorSettings?.editor?.lockElements ? (
+                <Lock className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <LockOpen className="h-4 w-4 text-muted-foreground" />
+              )}
+            </div>
+          </Tooltip>
+        </div>
+        
         <CanvasStage
           ref={stageRef}
           width={containerSize.width}
@@ -3298,6 +3550,9 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                     if (state.editorInteractionLevel === 'no_access') {
                       return;
                     }
+                    
+                    // Note: Selection is allowed even when lockElements is enabled
+                    // Only dragging, resizing, rotating, and adding new elements are blocked
                     
                     // Handle Ctrl+click for multi-selection and deselection
                     if (e?.evt?.ctrlKey || e?.evt?.metaKey) {
@@ -3408,6 +3663,12 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                       return;
                     }
                     
+                    // Block dragging if elements are locked
+                    if (state.editorSettings?.editor?.lockElements) {
+                      e.target.stopDrag();
+                      return;
+                    }
+                    
                     // If multiple elements are selected, stop individual drag
                     // Group move is already started in handleMouseDown
                     if (state.selectedElementIds.length > 1) {
@@ -3467,6 +3728,16 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                     }
                   }}
                   onDragEnd={(e) => {
+                    // Block position update if elements are locked
+                    if (state.editorSettings?.editor?.lockElements) {
+                      // Reset position to original
+                      e.target.x(element.x);
+                      e.target.y(element.y);
+                      setSnapGuidelines([]);
+                      setTimeout(() => setIsDragging(false), 10);
+                      return;
+                    }
+                    
                     // Clear guidelines when drag ends
                     setSnapGuidelines([]);
                     
@@ -3621,6 +3892,8 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
               keepRatio={false}
               rotationSnaps={[0, 90, 180, 270]}
               rotationSnapTolerance={5}
+              resizeEnabled={!(state.editorSettings?.editor?.lockElements)}
+              rotateEnabled={!(state.editorSettings?.editor?.lockElements)}
               onDragStart={() => {
                 dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Move Elements' });
               }}
@@ -3683,70 +3956,72 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                 if (newBox.width < 5 || newBox.height < 5) return oldBox;
                 
                 const transformer = transformerRef.current;
-                if (!transformer) return newBox;
+                // Check if magnetic snapping is enabled (default to true if not set)
+                const magneticSnapping = (state as any).magneticSnapping !== false;
+                if (!transformer || !currentPage || !magneticSnapping) return newBox;
                 
+                // Get the active anchor to determine which edges should snap
                 const activeAnchor = transformer.getActiveAnchor();
-                if (!activeAnchor) return newBox;
                 
-                const SNAP_THRESHOLD = 15;
+                // Determine which edges are being resized based on the anchor
+                const isResizingTop = activeAnchor?.includes('top') || false;
+                const isResizingBottom = activeAnchor?.includes('bottom') || false;
+                const isResizingLeft = activeAnchor?.includes('left') || false;
+                const isResizingRight = activeAnchor?.includes('right') || false;
                 
-                currentPage?.elements.forEach(otherElement => {
-                  const node = transformer.nodes()[0];
-                  if (!node || otherElement.id === node.id()) return;
-                  
-                  const otherBox = {
-                    x: (otherElement.x + activePageOffsetX),
-                    y: (otherElement.y + pageOffsetY),
-                    width: otherElement.width || 100,
-                    height: otherElement.height || 100
+                // The boundBoxFunc receives newBox in Stage coordinates (absolute position on the Stage)
+                // Convert to page coordinates for snapping calculation
+                const oldPageY = (oldBox.y - stagePos.y) / zoom - pageOffsetY;
+                const oldPageHeight = oldBox.height / zoom;
+                
+                const newPageX = (newBox.x - stagePos.x) / zoom - activePageOffsetX;
+                const newPageY = (newBox.y - stagePos.y) / zoom - pageOffsetY;
+                const newPageWidth = newBox.width / zoom;
+                const newPageHeight = newBox.height / zoom;
+                
+                // Use snapDimensions function for dimension snapping
+                const snapped = snapDimensions(
+                  transformer,
+                  newPageX,
+                  newPageY,
+                  newPageWidth,
+                  newPageHeight,
+                  currentPage,
+                  canvasWidth,
+                  canvasHeight,
+                  activePageOffsetX,
+                  pageOffsetY,
+                  stageRef as React.RefObject<Konva.Stage>,
+                  {
+                    allowTopSnap: isResizingTop,
+                    allowBottomSnap: isResizingBottom,
+                    allowLeftSnap: isResizingLeft,
+                    allowRightSnap: isResizingRight,
+                    originalY: oldPageY,
+                    originalHeight: oldPageHeight
+                  }
+                );
+                
+                // Update guidelines
+                setSnapGuidelines(snapped.guidelines);
+                
+                // Convert snapped page coordinates back to Stage coordinates
+                const snappedStageX = (snapped.x + activePageOffsetX) * zoom + stagePos.x;
+                const snappedStageY = (snapped.y + pageOffsetY) * zoom + stagePos.y;
+                const snappedStageWidth = snapped.width * zoom;
+                const snappedStageHeight = snapped.height * zoom;
+                
+                // Always apply snapping if guidelines are present (indicating a snap was found)
+                // This ensures magnetic snapping works the same way as when moving elements
+                if (snapped.guidelines.length > 0) {
+                  return {
+                    ...newBox,
+                    x: snappedStageX,
+                    y: snappedStageY,
+                    width: snappedStageWidth,
+                    height: snappedStageHeight
                   };
-                  
-                  if (activeAnchor.includes('right') || activeAnchor === 'middle-right') {
-                    const rightEdge = newBox.x + newBox.width;
-                    if (Math.abs(rightEdge - otherBox.x) < SNAP_THRESHOLD) {
-                      newBox.width = otherBox.x - newBox.x;
-                    }
-                    if (Math.abs(rightEdge - (otherBox.x + otherBox.width)) < SNAP_THRESHOLD) {
-                      newBox.width = (otherBox.x + otherBox.width) - newBox.x;
-                    }
-                  }
-                  
-                  if (activeAnchor.includes('bottom') || activeAnchor === 'bottom-center') {
-                    const bottomEdge = newBox.y + newBox.height;
-                    if (Math.abs(bottomEdge - otherBox.y) < SNAP_THRESHOLD) {
-                      newBox.height = otherBox.y - newBox.y;
-                    }
-                    if (Math.abs(bottomEdge - (otherBox.y + otherBox.height)) < SNAP_THRESHOLD) {
-                      newBox.height = (otherBox.y + otherBox.height) - newBox.y;
-                    }
-                  }
-                  
-                  if (activeAnchor.includes('left') || activeAnchor === 'middle-left') {
-                    if (Math.abs(newBox.x - otherBox.x) < SNAP_THRESHOLD) {
-                      const diff = otherBox.x - newBox.x;
-                      newBox.x = otherBox.x;
-                      newBox.width = newBox.width - diff;
-                    }
-                    if (Math.abs(newBox.x - (otherBox.x + otherBox.width)) < SNAP_THRESHOLD) {
-                      const diff = (otherBox.x + otherBox.width) - newBox.x;
-                      newBox.x = otherBox.x + otherBox.width;
-                      newBox.width = newBox.width - diff;
-                    }
-                  }
-                  
-                  if (activeAnchor.includes('top') || activeAnchor === 'top-center') {
-                    if (Math.abs(newBox.y - otherBox.y) < SNAP_THRESHOLD) {
-                      const diff = otherBox.y - newBox.y;
-                      newBox.y = otherBox.y;
-                      newBox.height = newBox.height - diff;
-                    }
-                    if (Math.abs(newBox.y - (otherBox.y + otherBox.height)) < SNAP_THRESHOLD) {
-                      const diff = (otherBox.y + otherBox.height) - newBox.y;
-                      newBox.y = otherBox.y + otherBox.height;
-                      newBox.height = newBox.height - diff;
-                    }
-                  }
-                });
+                }
                 
                 return newBox;
               }}
@@ -3820,6 +4095,9 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                 }
               }}
               onTransformEnd={(e) => {
+                // Clear snap guidelines when transform ends
+                setSnapGuidelines([]);
+                
                 // Dispatch custom events for each selected element
                 state.selectedElementIds.forEach(elementId => {
                   window.dispatchEvent(new CustomEvent('transformEnd', {
@@ -4063,17 +4341,13 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
 
       
       {showQuestionDialog && state.currentBook && token && user?.role !== 'author' && (
-        <Dialog open={showQuestionDialog} onOpenChange={setShowQuestionDialog}>
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden">
-            <DialogHeader>
-              <DialogTitle>Select Question</DialogTitle>
-            </DialogHeader>
-            <QuestionsManagerDialog
-              bookId={state.currentBook.id}
-              bookName={state.currentBook.name}
-              mode="select"
-              token={token}
-              onQuestionSelect={(questionId, questionText) => {
+        <QuestionSelectorModal
+          isOpen={showQuestionDialog}
+          onClose={() => {
+            setShowQuestionDialog(false);
+            setTimeout(() => setSelectedQuestionElementId(null), 100);
+          }}
+          onQuestionSelect={(questionId, questionText, questionPosition) => {
                 if (selectedQuestionElementId) {
                   const element = currentPage?.elements.find(el => el.id === selectedQuestionElementId);
                   
@@ -4090,6 +4364,14 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                         updates
                       }
                     });
+                    
+                    // Store question text in temp questions only if it doesn't exist yet
+                    if (questionId && questionId !== '' && questionText && !state.tempQuestions[questionId]) {
+                      dispatch({
+                        type: 'UPDATE_TEMP_QUESTION',
+                        payload: { questionId, text: questionText }
+                      });
+                    }
                     
                     // If questionId is provided, check for existing answer in tempAnswers
                     if (questionId && questionId !== '') {
@@ -4196,13 +4478,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                 // Reset selectedQuestionElementId after a delay to allow questionSelected event to process
                 setTimeout(() => setSelectedQuestionElementId(null), 100);
               }}
-              onClose={() => {
-                setShowQuestionDialog(false);
-                setTimeout(() => setSelectedQuestionElementId(null), 100);
-              }}
-            />
-          </DialogContent>
-        </Dialog>
+        />
       )}
       
       {showQuestionSelectorModal && state.currentBook && token && user?.role !== 'author' && questionSelectorElementId && (

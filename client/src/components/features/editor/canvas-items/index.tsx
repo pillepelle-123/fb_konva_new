@@ -23,7 +23,7 @@ export default function CanvasItemComponent(props: CanvasItemComponentProps) {
         y={element.y} 
         id={element.id}
         listening={true}
-        draggable={state.activeTool === 'select'}
+        draggable={state.activeTool === 'select' && !(state.editorSettings?.editor?.lockElements)}
         onMouseDown={(e) => {
           if (state.activeTool === 'select') {
             e.cancelBubble = true;
@@ -42,10 +42,23 @@ export default function CanvasItemComponent(props: CanvasItemComponentProps) {
           }
         }}
         onDragStart={(e) => {
+          // Block dragging if elements are locked
+          if (state.editorSettings?.editor?.lockElements) {
+            e.target.stopDrag();
+            return;
+          }
           dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Move Group' });
           onDragStart?.();
         }}
         onDragEnd={(e) => {
+          // Block position update if elements are locked
+          if (state.editorSettings?.editor?.lockElements) {
+            // Reset position to original
+            e.target.x(element.x);
+            e.target.y(element.y);
+            return;
+          }
+          
           dispatch({
             type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
             payload: {

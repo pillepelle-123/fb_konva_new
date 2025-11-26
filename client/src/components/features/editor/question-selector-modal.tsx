@@ -1,15 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Modal } from '../../ui/overlays/modal';
-import { QuestionsManagerContent } from './questions-manager-content';
-import { QuestionsAnswersTab } from '../books/book-manager-tabs/questions-answers-tab';
-import { QuestionPoolContent } from '../questions/question-pool-content';
+import { QuestionList, type Question } from '../questions/question-list';
 import { Button } from '../../ui/primitives/button';
-import { ChevronLeft } from 'lucide-react';
+import { Input } from '../../ui/primitives/input';
+import { Card, CardContent } from '../../ui/composites/card';
+import { ChevronLeft, Plus, Library, Settings } from 'lucide-react';
 import { useEditor } from '../../../context/editor-context';
 import { useAuth } from '../../../context/auth-context';
 import { apiService } from '../../../services/api';
 import { v4 as uuidv4 } from 'uuid';
-import type { Question } from '../books/book-manager-content';
 
 interface QuestionPoolItem {
   id: number;
@@ -37,6 +36,17 @@ export function QuestionSelectorModal({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [newQuestion, setNewQuestion] = useState('');
+  const [userAnswers, setUserAnswers] = useState<Set<string>>(new Set());
+  
+  // Pool mode state
+  const [poolQuestions, setPoolQuestions] = useState<Question[]>([]);
+  const [filteredPoolQuestions, setFilteredPoolQuestions] = useState<Question[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedPoolIds, setSelectedPoolIds] = useState<Set<string | number>>(new Set());
+  const [poolLoading, setPoolLoading] = useState(false);
+  const [adding, setAdding] = useState(false);
 
   const bookId = state.currentBook?.id;
   const bookName = state.currentBook?.name || '';
@@ -93,8 +103,77 @@ export function QuestionSelectorModal({
   useEffect(() => {
     if (isOpen && bookId && typeof bookId === 'number') {
       fetchQuestions();
+      fetchUserAnswers();
     }
   }, [isOpen, bookId, fetchQuestions]);
+
+  const fetchUserAnswers = async () => {
+    if (!bookId || typeof bookId !== 'number') {
+      setUserAnswers(new Set());
+      return;
+    }
+    
+    try {
+      const answers = await apiService.getUserAnswers(bookId);
+      const answeredQuestionIds = new Set<string>(answers.map((answer: { question_id: string }) => answer.question_id));
+      setUserAnswers(answeredQuestionIds);
+    } catch (error) {
+      console.error('Error fetching user answers:', error);
+    }
+  };
+
+  // Pool mode functions
+  const loadPoolQuestions = useCallback(async () => {
+    try {
+      setPoolLoading(true);
+      const data = await apiService.getQuestionPool();
+      const poolQuestionsConverted: Question[] = data.map((q: QuestionPoolItem) => ({
+        id: q.id.toString(),
+        question_text: q.question_text,
+        created_at: new Date().toISOString(),
+        updated_at: null,
+        question_pool_id: q.id,
+        category: q.category,
+      }));
+      setPoolQuestions(poolQuestionsConverted);
+      setFilteredPoolQuestions(poolQuestionsConverted);
+    } catch (error) {
+      console.error('Error loading question pool:', error);
+    } finally {
+      setPoolLoading(false);
+    }
+  }, []);
+
+  const loadCategories = useCallback(async () => {
+    try {
+      const data = await apiService.getQuestionPoolCategories();
+      setCategories(data);
+    } catch (error) {
+      console.error('Error loading categories:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadPoolQuestions();
+      loadCategories();
+    }
+  }, [isOpen, loadPoolQuestions, loadCategories]);
+
+  useEffect(() => {
+    let filtered = poolQuestions;
+
+    if (selectedCategory) {
+      filtered = filtered.filter(q => q.category === selectedCategory);
+    }
+
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(q => q.question_text.toLowerCase().includes(term));
+    }
+
+    setFilteredPoolQuestions(filtered);
+  }, [poolQuestions, selectedCategory, searchTerm]);
 
   const handleAddQuestion = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -157,35 +236,45 @@ export function QuestionSelectorModal({
     }
   };
 
-  const handleQuestionFromPool = (poolQuestions: QuestionPoolItem[]) => {
-    if (poolQuestions.length === 0) return;
+  const handleQuestionFromPool = async () => {
+    if (selectedPoolIds.size === 0) return;
     
-    const poolQuestion = poolQuestions[0];
-    const questionId = uuidv4();
-    const newQuestionObj: Question = {
-      id: questionId,
-      question_text: poolQuestion.question_text,
-      created_at: new Date().toISOString(),
-      updated_at: null,
-      question_pool_id: poolQuestion.id,
-      answers: []
-    };
-    
-    setQuestions(prev => [newQuestionObj, ...prev]);
-    
-    // Add to temp questions in state with pool id
-    dispatch({ 
-      type: 'UPDATE_TEMP_QUESTION', 
-      payload: { 
-        questionId: questionId, 
-        text: poolQuestion.question_text, 
-        questionPoolId: poolQuestion.id 
-      } 
-    });
-    
-    // Select the question immediately
-    onQuestionSelect(questionId, poolQuestion.question_text);
-    onClose();
+    setAdding(true);
+    try {
+      const selectedId = Array.from(selectedPoolIds)[0];
+      const poolQuestion = poolQuestions.find(q => q.id === selectedId.toString() || q.id === selectedId);
+      if (!poolQuestion) return;
+      
+      const questionId = uuidv4();
+      const newQuestionObj: Question = {
+        id: questionId,
+        question_text: poolQuestion.question_text,
+        created_at: new Date().toISOString(),
+        updated_at: null,
+        question_pool_id: typeof selectedId === 'number' ? selectedId : parseInt(selectedId.toString()),
+        answers: []
+      };
+      
+      setQuestions(prev => [newQuestionObj, ...prev]);
+      
+      // Add to temp questions in state with pool id
+      dispatch({ 
+        type: 'UPDATE_TEMP_QUESTION', 
+        payload: { 
+          questionId: questionId, 
+          text: poolQuestion.question_text, 
+          questionPoolId: typeof selectedId === 'number' ? selectedId : parseInt(selectedId.toString())
+        } 
+      });
+      
+      // Select the question immediately
+      onQuestionSelect(questionId, poolQuestion.question_text);
+      onClose();
+    } catch (error) {
+      console.error('Error adding question from pool:', error);
+    } finally {
+      setAdding(false);
+    }
   };
 
   const getTitle = (view: string) => {
@@ -205,16 +294,64 @@ export function QuestionSelectorModal({
       position = question?.display_order ?? undefined;
     }
     
-    console.log('[QuestionSelectorModal] Selecting question:', {
-      questionId,
-      questionText: questionText?.substring(0, 50),
-      questionPosition,
-      foundPosition: position,
-      allQuestions: questions.map(q => ({ id: q.id, display_order: q.display_order }))
-    });
-    
     onQuestionSelect(questionId, questionText, position);
     onClose();
+  };
+  
+  const isQuestionAvailable = (questionId: string): boolean => {
+    if (!state?.currentBook) return false;
+    
+    const currentPageNumber = state.activePageIndex + 1;
+    const assignedUser = state.pageAssignments[currentPageNumber];
+    
+    // For pages with no assignment, only check if question already exists on current page
+    if (!assignedUser) {
+      const currentPage = state.currentBook.pages.find(p => p.pageNumber === currentPageNumber);
+      if (currentPage) {
+        return !currentPage.elements.some(el => 
+          (el.textType === 'question' || el.textType === 'qna' || el.textType === 'qna_inline') && el.questionId === questionId
+        );
+      }
+      return true;
+    }
+    
+    // For pages with assignment, check across all user's pages
+    const userPages = Object.entries(state.pageAssignments)
+      .filter(([, user]) => user?.id === assignedUser.id)
+      .map(([pageNum]) => parseInt(pageNum));
+    
+    for (const page of state.currentBook.pages) {
+      if (userPages.includes(page.pageNumber)) {
+        const hasQuestion = page.elements.some(el => 
+          (el.textType === 'question' || el.textType === 'qna' || el.textType === 'qna_inline') && el.questionId === questionId
+        );
+        if (hasQuestion) {
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+  
+  const getUnavailableReason = (questionId: string): string | null => {
+    const currentPageNumber = state?.activePageIndex ? state.activePageIndex + 1 : 0;
+    const assignedUser = state?.pageAssignments[currentPageNumber];
+    
+    if (!isQuestionAvailable(questionId)) {
+      if (!assignedUser) {
+        return 'Already on this page';
+      }
+      return `Already used by ${assignedUser.name}`;
+    }
+    return null;
+  };
+  
+  const validateQuestionSelection = (questionId: string) => {
+    const available = isQuestionAvailable(questionId);
+    return {
+      valid: available,
+      reason: available ? undefined : getUnavailableReason(questionId) || 'This question cannot be selected.'
+    };
   };
 
   const handleResetQuestion = () => {
@@ -250,41 +387,126 @@ export function QuestionSelectorModal({
         switch(view) {
           case 'main':
             return (
-              <QuestionsManagerContent
-                bookId={bookId}
-                bookName={bookName}
-                onQuestionSelect={handleQuestionSelect}
-                token={token || ''}
-                onNavigate={navigate}
-                onResetQuestion={handleResetQuestion}
-              />
+              <>
+                <div className="p-1 pb-6">
+                {/* <Card className="border-0 shadow-none flex-shrink-0 mb-4"> */}
+                  {/* <CardContent className="p-4"> */}
+                    <form onSubmit={handleAddQuestion} className="space-y-3">
+                      <div className="flex gap-2">
+                        <Input
+                          type="text"
+                          value={newQuestion}
+                          onChange={(e) => setNewQuestion(e.target.value)}
+                          placeholder="Enter new question..."
+                          className="flex-1"
+                        />
+                        <Button type="submit" className="space-x-2">
+                          <Plus className="h-4 w-4" />
+                          <span>Add</span>
+                        </Button>
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          onClick={() => navigate('manage')}
+                          className="space-x-2"
+                        >
+                          <Settings className="h-4 w-4" />
+                          <span>Manage Questions</span>
+                        </Button>
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          onClick={() => navigate('pool')}
+                          className="space-x-2"
+                        >
+                          <Library className="h-4 w-4" />
+                          <span>Browse Pool</span>
+                        </Button>
+                      </div>
+                    </form>
+                  {/* </CardContent> */}
+                {/* </Card> */}
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  <QuestionList
+                    mode="select"
+                    questions={questions.sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime())}
+                    loading={questionsLoading}
+                    onQuestionSelect={handleQuestionSelect}
+                    showDates={true}
+                    disabledQuestionIds={new Set(questions.filter(q => !isQuestionAvailable(q.id)).map(q => q.id))}
+                    validateQuestionSelection={validateQuestionSelection}
+                    getUserAnswer={(questionId) => {
+                      if (userAnswers.has(questionId)) {
+                        return { answer_text: 'Answered' };
+                      }
+                      return null;
+                    }}
+                  />
+                </div>
+              </>
             );
           case 'manage':
             return (
-              <QuestionsAnswersTab
-                questionsLoading={questionsLoading}
-                questions={questions}
-                editingId={editingId}
-                editText={editText}
-                editInputRef={{ current: null }}
-                newQuestion={newQuestion}
-                onNewQuestionChange={setNewQuestion}
-                onAddQuestion={handleAddQuestion}
-                onBrowseQuestionPool={() => navigate('pool')}
-                onStartEdit={handleStartEdit}
-                onEditQuestion={handleEditQuestion}
-                onCancelEdit={handleCancelEdit}
-                onDeleteQuestionRequest={handleDeleteQuestionRequest}
-                onEditTextChange={setEditText}
-              />
+              <div className="flex-1 min-h-0 overflow-y-auto space-y-6">
+                <Card className="flex-shrink-0">
+                  <CardContent className="p-6">
+                    <form onSubmit={handleAddQuestion} className="flex gap-2">
+                      <Input
+                        type="text"
+                        value={newQuestion}
+                        onChange={(e) => setNewQuestion(e.target.value)}
+                        placeholder="Enter new question..."
+                        className="flex-1"
+                      />
+                      <Button type="submit">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Question
+                      </Button>
+                      <Button variant="outline" onClick={() => navigate('pool')}>
+                        <Library className="h-4 w-4 mr-2" />
+                        Browse Question Pool
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+                <QuestionList
+                  mode="edit"
+                  questions={questions}
+                  loading={questionsLoading}
+                  onQuestionEdit={handleEditQuestion}
+                  onQuestionDelete={handleDeleteQuestionRequest}
+                  editingQuestionId={editingId}
+                  editText={editText}
+                  onEditTextChange={setEditText}
+                  onSaveEdit={handleEditQuestion}
+                  onCancelEdit={handleCancelEdit}
+                  showEditDelete={true}
+                  showAnswers={true}
+                  showDates={true}
+                />
+              </div>
             );
           case 'pool':
             return (
-              <QuestionPoolContent
-                bookId={bookId}
-                onQuestionsAdded={handleQuestionFromPool}
+              <QuestionList
+                mode="pool"
+                questions={filteredPoolQuestions}
+                loading={poolLoading}
+                multiSelect={false}
+                selectedIds={selectedPoolIds}
+                onSelectionChange={setSelectedPoolIds}
+                showCategory={true}
+                compact={true}
+                onAddSelected={handleQuestionFromPool}
+                adding={adding}
+                searchTerm={searchTerm}
+                onSearchChange={setSearchTerm}
+                selectedCategory={selectedCategory}
+                onCategoryChange={setSelectedCategory}
+                categories={categories}
                 onNavigate={navigate}
-                singleSelect
+                emptyMessage="No questions found"
               />
             );
           default:

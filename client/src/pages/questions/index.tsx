@@ -6,23 +6,9 @@ import { Card, CardContent } from '../../components/ui/composites/card';
 import { Input } from '../../components/ui/primitives/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
 import { MessageCircleQuestion, Plus, Edit, Trash2, Save, X, Users, ArrowLeft, Eye, FileText, AlertCircle } from 'lucide-react';
+import { QuestionList, type Question, type QuestionStats } from '../../components/features/questions/question-list';
 
-interface Question {
-  id: string; // UUID
-  question_text: string;
-  created_at: string;
-  updated_at: string | null;
-  page_numbers?: number[];
-  status?: 'draft' | 'published';
-}
-
-interface QuestionStats {
-  question_id: string; // UUID
-  question_text: string;
-  question_created_at: string;
-  answer_count: number;
-  unique_users: number;
-}
+// Question and QuestionStats interfaces are now imported from question-list.tsx
 
 interface Answer {
   id: string; // UUID
@@ -215,6 +201,16 @@ export default function QuestionsList() {
     }
   };
 
+  const handleStartEdit = (question: Question) => {
+    setEditingId(question.id);
+    setEditText(question.question_text);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditText('');
+  };
+
   const handleDeleteQuestion = async () => {
     if (!showDeleteConfirm) return;
     
@@ -373,155 +369,36 @@ export default function QuestionsList() {
         )}
 
         {/* Questions Overview */}
-        <div className="grid gap-4">
-          {questions.length === 0 ? (
-            <Card>
-              <CardContent className="text-center py-12">
-                <MessageCircleQuestion className="h-12 w-12 text-muted-foreground mx-auto opacity-50 mb-4" />
-                <h3 className="text-lg font-medium text-foreground mb-2">No questions yet</h3>
-                <p className="text-muted-foreground">
-                  Add your first question above to start collecting responses.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            questions.map(question => {
-              const stat = questionStats.find(s => s.question_id === question.id);
-              return (
-                <Card key={question.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-6">
-                    {editingId === question.id ? (
-                      <div className="space-y-4">
-                        <Input
-                          type="text"
-                          value={editText}
-                          onChange={(e) => setEditText(e.target.value)}
-                          className="w-full"
-                        />
-                        <div className="flex gap-2 justify-end">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setEditingId(null);
-                              setEditText('');
-                            }}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => handleEditQuestion(question.id)}
-                          >
-                            <Save className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 space-y-2">
-                          <h3 className="text-lg font-medium text-foreground">
-                            {question.question_text}
-                          </h3>
-
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            {stat ? (
-                              userRole === 'author' ? (
-                                <span className="flex items-center gap-1">
-                                  <Users className="h-4 w-4" />
-                                  {stat.answer_count > 0 ? 'You have answered' : 'Not answered yet'}
-                                </span>
-                              ) : (
-                                <span className="flex items-center gap-1">
-                                  <Users className="h-4 w-4" />
-                                  {stat.answer_count} answers from {stat.unique_users} users
-                                </span>
-                              )
-                            ) : (
-                              <span className="flex items-center gap-1">
-                                <Users className="h-4 w-4" />
-                                {userRole === 'author' ? 'Not answered yet' : 'No answers yet'}
-                              </span>
-                            )}
-                            <span>Created {formatDate(question.created_at)}</span>
-                          </div>
-                          
-                          {/* Page status */}
-                          <div className="flex items-center gap-2 text-sm">
-                            {question.status === 'draft' ? (
-                              <div className="flex items-center gap-1 text-amber-600">
-                                <AlertCircle className="h-4 w-4" />
-                                <span>Draft - Not on any page</span>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-1 text-green-600">
-                                <FileText className="h-4 w-4" />
-                                <span>On page{question.page_numbers?.length > 1 ? 's' : ''}: {question.page_numbers?.join(', ')}</span>
-                              </div>
-                            )}
-                          </div>
-                          
-                          {/* User's answer preview */}
-                          {(() => {
-                            const userAnswer = getUserAnswer(question.id);
-                            return userAnswer ? (
-                              <div className="mt-2 p-3 bg-muted/50 rounded-md border-l-4 border-primary">
-                                <p className="text-sm text-muted-foreground mb-1">Your answer:</p>
-                                <p className="text-sm text-foreground" style={{ 
-                                  display: '-webkit-box', 
-                                  WebkitLineClamp: 2, 
-                                  WebkitBoxOrient: 'vertical', 
-                                  overflow: 'hidden' 
-                                }}>{userAnswer.answer_text}</p>
-                              </div>
-                            ) : null;
-                          })()}
-                          
-                          
-                        </div>
-                        <div className="flex flex-col gap-2 ml-4">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleViewAnswers(question.id)}
-                            className="space-x-2"
-                          >
-                            <Eye className="h-4 w-4" />
-                            <span>View Answers</span>
-                          </Button>
-                          {(userRole === 'owner' || userRole === 'publisher') && (
-                            <>
-                            <div className="flex gap-2 justify-center">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setEditingId(question.id);
-                                  setEditText(question.question_text);
-                                }}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setShowDeleteConfirm(question.id)}
-                                className="text-destructive hover:text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })
+        <QuestionList
+          mode="view"
+          questions={questions}
+          loading={loading}
+          onQuestionEdit={handleEditQuestion}
+          onQuestionDelete={(id) => setShowDeleteConfirm(id)}
+          editingQuestionId={editingId}
+          editText={editText}
+          onEditTextChange={setEditText}
+          onSaveEdit={handleEditQuestion}
+          onCancelEdit={handleCancelEdit}
+          showEditDelete={userRole === 'owner' || userRole === 'publisher'}
+          showStats={true}
+          showDates={true}
+          questionStats={questionStats}
+          getUserAnswer={getUserAnswer}
+          userRole={userRole || undefined}
+          renderCustomActions={(question) => (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleViewAnswers(question.id)}
+              className="space-x-2"
+            >
+              <Eye className="h-4 w-4" />
+              <span>View Answers</span>
+            </Button>
           )}
-        </div>
+          emptyMessage="Add your first question above to start collecting responses."
+        />
 
         {/* Answers Dialog */}
         <Dialog open={!!selectedQuestion} onOpenChange={() => setSelectedQuestion(null)}>

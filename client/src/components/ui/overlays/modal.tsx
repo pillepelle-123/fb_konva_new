@@ -54,10 +54,10 @@ export function Modal({
       onClick={closeOnBackdrop ? onClose : undefined}
     >
       <div 
-        className={`fixed left-[50%] top-[50%] z-[10000] w-full ${sizeClasses[size]} h-[85vh] min-h-[600px] max-h-[90vh] translate-x-[-50%] translate-y-[-50%] border bg-background shadow-lg sm:rounded-lg overflow-hidden flex flex-col`}
+        className={`fixed left-[50%] top-[50%] z-[10000] w-full ${sizeClasses[size]} h-[85vh] min-h-[600px] max-h-[90vh] translate-x-[-50%] translate-y-[-50%] border bg-background shadow-lg sm:rounded-lg overflow-hidden flex flex-col p-5`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between flex-shrink-0 p-6 pb-4">
+        <div className="flex items-center justify-between flex-shrink-0 p-1 pb-4">
           <div className="flex flex-col space-y-1.5 text-center sm:text-left">
             <h2 className="leading-none tracking-tight">
               {displayTitle}
@@ -72,10 +72,8 @@ export function Modal({
           </button>
         </div>
         
-        <div className="flex-1 min-h-0 overflow-y-auto px-6">
-          <div className="space-y-4">
-            {content}
-          </div>
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+          {content}
         </div>
         
         {displayActions && (

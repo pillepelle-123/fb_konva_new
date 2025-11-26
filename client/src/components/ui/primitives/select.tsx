@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
 import { cn } from '../../../lib/utils';
+import { ChevronDown } from 'lucide-react';
 
 interface SelectContextType {
   value: string;
@@ -11,16 +12,28 @@ interface SelectContextType {
 const SelectContext = createContext<SelectContextType | undefined>(undefined);
 
 interface SelectProps {
-  value: string;
-  onValueChange: (value: string) => void;
+  value?: string;
+  onValueChange?: (value: string) => void;
+  defaultValue?: string;
   children: React.ReactNode;
 }
 
-export function Select({ value, onValueChange, children }: SelectProps) {
+export function Select({ value: controlledValue, onValueChange, defaultValue, children }: SelectProps) {
+  const [internalValue, setInternalValue] = useState(defaultValue || '');
   const [open, setOpen] = useState(false);
+  
+  const isControlled = controlledValue !== undefined;
+  const value = isControlled ? controlledValue : internalValue;
+  
+  const handleValueChange = (newValue: string) => {
+    if (!isControlled) {
+      setInternalValue(newValue);
+    }
+    onValueChange?.(newValue);
+  };
 
   return (
-    <SelectContext.Provider value={{ value, onValueChange, open, setOpen }}>
+    <SelectContext.Provider value={{ value, onValueChange: handleValueChange, open, setOpen }}>
       <div className="relative">
         {children}
       </div>
@@ -31,30 +44,25 @@ export function Select({ value, onValueChange, children }: SelectProps) {
 interface SelectTriggerProps {
   className?: string;
   children: React.ReactNode;
+  disabled?: boolean;
 }
 
-export function SelectTrigger({ className, children }: SelectTriggerProps) {
+export function SelectTrigger({ className, children, disabled }: SelectTriggerProps) {
   const context = useContext(SelectContext);
   if (!context) throw new Error('SelectTrigger must be used within Select');
 
   return (
     <button
       type="button"
-      onClick={() => context.setOpen(!context.open)}
+      disabled={disabled}
+      onClick={() => !disabled && context.setOpen(!context.open)}
       className={cn(
         "flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
         className
       )}
     >
       {children}
-      <svg
-        className="h-4 w-4 opacity-50"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-      </svg>
+      <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-2" />
     </button>
   );
 }
@@ -63,15 +71,17 @@ export function SelectValue({ placeholder }: { placeholder?: string }) {
   const context = useContext(SelectContext);
   if (!context) throw new Error('SelectValue must be used within Select');
 
-  return <span>{context.value || placeholder}</span>;
+  const displayValue = context.value || placeholder || '';
+  return <span className="block truncate">{displayValue}</span>;
 }
 
 interface SelectContentProps {
   className?: string;
   children: React.ReactNode;
+  position?: 'popper' | 'item-aligned';
 }
 
-export function SelectContent({ className, children }: SelectContentProps) {
+export function SelectContent({ className, children, position = 'popper' }: SelectContentProps) {
   const context = useContext(SelectContext);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -82,9 +92,19 @@ export function SelectContent({ className, children }: SelectContentProps) {
       }
     }
 
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        context?.setOpen(false);
+      }
+    }
+
     if (context?.open) {
       document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleEscape);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('keydown', handleEscape);
+      };
     }
   }, [context?.open]);
 
@@ -95,7 +115,36 @@ export function SelectContent({ className, children }: SelectContentProps) {
     <div
       ref={ref}
       className={cn(
-        "absolute top-full z-50 mt-1 w-full rounded-md border bg-popover p-1 text-popover-foreground shadow-md",
+        "relative z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md",
+        position === 'popper' && "absolute top-full mt-1 w-full",
+        className
+      )}
+    >
+      <div className="p-1">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+interface SelectGroupProps {
+  children: React.ReactNode;
+}
+
+export function SelectGroup({ children }: SelectGroupProps) {
+  return <div className="space-y-0.5">{children}</div>;
+}
+
+interface SelectLabelProps {
+  className?: string;
+  children: React.ReactNode;
+}
+
+export function SelectLabel({ className, children }: SelectLabelProps) {
+  return (
+    <div
+      className={cn(
+        "px-2 py-1.5 text-sm font-semibold",
         className
       )}
     >
@@ -108,22 +157,31 @@ interface SelectItemProps {
   value: string;
   className?: string;
   children: React.ReactNode;
+  disabled?: boolean;
 }
 
-export function SelectItem({ value, className, children }: SelectItemProps) {
+export function SelectItem({ value, className, children, disabled }: SelectItemProps) {
   const context = useContext(SelectContext);
   if (!context) throw new Error('SelectItem must be used within Select');
+
+  const isSelected = context.value === value;
 
   return (
     <div
       onClick={() => {
-        context.onValueChange(value);
-        context.setOpen(false);
+        if (!disabled) {
+          context.onValueChange(value);
+          context.setOpen(false);
+        }
       }}
       className={cn(
-        "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
+        "relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        !disabled && "hover:bg-accent hover:text-accent-foreground",
+        isSelected && "bg-accent text-accent-foreground",
+        disabled && "opacity-50 cursor-not-allowed",
         className
       )}
+      data-disabled={disabled}
     >
       {children}
     </div>

@@ -147,7 +147,7 @@ export function DesignStep({
             </Select>
 
             {/* Toggles */}
-            <div className="flex flex-wrap gap-2">
+            <div className="flex gap-2">
               <TogglePill
                 active={wizardState.design.mirrorLayout && !wizardState.design.pickLeftRight}
                 label="Mirror right page"

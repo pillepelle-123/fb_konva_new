@@ -1,7 +1,7 @@
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import { Button } from '../../../ui/primitives/button';
-import { ChevronLeft, Settings, Image, PaintBucket, CircleHelp, LayoutPanelLeft, Paintbrush2, Palette, ArrowDown, ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight, MessagesSquare } from 'lucide-react';
+import { ChevronLeft, Settings, Image, PaintBucket, CircleHelp, LayoutPanelLeft, Paintbrush2, Palette, ArrowDown, ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight, MessagesSquare, Columns3Cog } from 'lucide-react';
 import { RadioGroup } from '../../../ui/primitives/radio-group';
 import { ButtonGroup } from '../../../ui/composites/button-group';
 import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
@@ -91,6 +91,7 @@ export function GeneralSettings({
   const [showBookLayout, setShowBookLayout] = useState(false);
   const [showPageThemeSelector, setShowPageThemeSelector] = useState(false);
   const [showBookThemeSelector, setShowBookThemeSelector] = useState(false);
+  const [showEditorSettings, setShowEditorSettings] = useState(false);
   const [forceImageMode, setForceImageMode] = useState(false);
   
   // Keys to force remount when dialogs are opened
@@ -580,6 +581,56 @@ export function GeneralSettings({
           }}
           onBack={() => {}}
         />
+      </div>
+    );
+  };
+
+  const renderEditorSettings = () => {
+    // Read lockElements directly from state to ensure we get the latest value
+    const lockElements = Boolean(state.editorSettings?.editor?.lockElements);
+    
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowEditorSettings(false)}
+            className="px-2 h-8"
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+        </div>
+        
+        <div className="space-y-3">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="lock-elements"
+              checked={lockElements}
+              onCheckedChange={(checked) => {
+                // Ensure we only accept boolean true, not 'indeterminate' or other values
+                const lockValue = checked === true;
+                dispatch({
+                  type: 'UPDATE_EDITOR_SETTINGS',
+                  payload: {
+                    category: 'editor',
+                    settings: { lockElements: lockValue }
+                  }
+                });
+              }}
+            />
+            <label
+              htmlFor="lock-elements"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+            >
+              Lock Elements
+            </label>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            When enabled, all users will be unable to move canvas elements.
+          </p>
+        </div>
       </div>
     );
   };
@@ -1258,6 +1309,10 @@ export function GeneralSettings({
     );
   };
 
+  if (showEditorSettings) {
+    return renderEditorSettings();
+  }
+  
   if (showBackgroundSettings) {
     return renderBackgroundSettings();
   }
@@ -1540,6 +1595,21 @@ export function GeneralSettings({
                 </div>
               )}
             </Button>
+              </div>
+            </div>
+            
+            <div>
+              <Label variant="xs" className="text-muted-foreground mb-2 block">Editor Settings</Label>
+              <div className="space-y-1">
+                <Button
+                  variant="ghost_hover"
+                  size="sm"
+                  onClick={() => setShowEditorSettings(true)}
+                  className="w-full justify-start"
+                >
+                  <Columns3Cog className="h-4 w-4 mr-2" />
+                  Editor
+                </Button>
               </div>
             </div>
             

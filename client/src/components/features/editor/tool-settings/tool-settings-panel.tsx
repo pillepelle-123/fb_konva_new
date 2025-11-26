@@ -4,9 +4,8 @@ import { useAuth } from '../../../../context/auth-context';
 import { ToolSettingsContainer } from './tool-settings-container';
 import { ToolSettingsHeader } from './tool-settings-header';
 import { ToolSettingsContent } from './tool-settings-content';
-import { Dialog, DialogContent } from '../../../ui/overlays/dialog';
 import { Modal } from '../../../ui/overlays/modal';
-import QuestionsManagerDialog from '../questions-manager-dialog';
+import { QuestionSelectorModal } from '../question-selector-modal';
 import ImagesContent from '../../images/images-content';
 import PagePreviewOverlay from '../preview/page-preview-overlay';
 import { SquareMousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile } from 'lucide-react';
@@ -408,14 +407,10 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
       </ToolSettingsContainer>
       
       {showQuestionDialog && state.currentBook && token && (
-        <Dialog open={showQuestionDialog} onOpenChange={setShowQuestionDialog}>
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden">
-            <QuestionsManagerDialog
-              bookId={state.currentBook.id}
-              bookName={state.currentBook.name}
-              mode="select"
-              token={token}
-              onQuestionSelect={(questionId, questionText) => {
+        <QuestionSelectorModal
+          isOpen={showQuestionDialog}
+          onClose={() => setShowQuestionDialog(false)}
+          onQuestionSelect={(questionId, questionText, questionPosition) => {
                 if (selectedQuestionElementId) {
                   const updates = questionId === 0 
                     ? { text: '', fill: '#9ca3af', questionId: undefined }
@@ -431,13 +426,7 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
                 setShowQuestionDialog(false);
                 setSelectedQuestionElementId(null);
               }}
-              onClose={() => {
-                setShowQuestionDialog(false);
-                setSelectedQuestionElementId(null);
-              }}
-            />
-          </DialogContent>
-        </Dialog>
+        />
       )}
       
       <Modal

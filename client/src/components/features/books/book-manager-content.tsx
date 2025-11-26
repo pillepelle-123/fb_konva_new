@@ -7,17 +7,21 @@ import { UserRoundX } from 'lucide-react';
 import CompactList from '../../shared/compact-list';
 import ProfilePicture from '../users/profile-picture';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../ui/composites/tabs';
-import { SelectInput } from '../../ui/primitives/select-input';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../../ui/primitives/select';
 import { Tooltip } from '../../ui/composites/tooltip';
 import { Switch } from '../../ui/primitives/switch';
 import { Card, CardContent } from '../../ui/composites/card';
 import InviteUserDialog from './invite-user-dialog';
 import UnsavedChangesDialog from '../../ui/overlays/unsaved-changes-dialog';
-import QuestionPoolModal from '../questions/question-pool-modal';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../../ui/overlays/dialog';
+import { QuestionList } from '../questions/question-list';
+import { AnswerList } from '../questions/answer-list';
 import { PagesAssignmentsTab } from './book-manager-tabs/pages-assignments-tab';
 import { FriendsTab } from './book-manager-tabs/friends-tab';
-import { QuestionsAnswersTab } from './book-manager-tabs/questions-answers-tab';
 import { BookSettingsTab } from './book-manager-tabs/book-settings-tab';
+import { Input } from '../../ui/primitives/input';
+import { Plus, Library } from 'lucide-react';
+import { apiService } from '../../../services/api';
 
 export interface User {
   id: number;
@@ -44,6 +48,7 @@ export interface Question {
   question_pool_id?: number | null;
   display_order?: number | null;
   answers?: Answer[];
+  category?: string | null;
 }
 
 export interface Answer {
@@ -71,6 +76,7 @@ interface TempState {
   removedFriends: Set<number>;
   tempQuestions: Record<string, string>;
   deletedQuestions: Set<string>;
+  questionOrders?: Array<{ questionId: string; displayOrder: number }>;
   bookSettings: {
     pageSize: string;
     orientation: string;
@@ -102,6 +108,7 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
     removedFriends: new Set(),
     tempQuestions: {},
     deletedQuestions: new Set(),
+    questionOrders: undefined,
     bookSettings: {
       pageSize: state?.currentBook?.pageSize || 'A4',
       orientation: state?.currentBook?.orientation || 'portrait'
@@ -115,6 +122,7 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
     removedFriends: new Set(),
     tempQuestions: {},
     deletedQuestions: new Set(),
+    questionOrders: undefined,
     bookSettings: {
       pageSize: state?.currentBook?.pageSize || 'A4',
       orientation: state?.currentBook?.orientation || 'portrait'
@@ -137,6 +145,20 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [showQuestionPool, setShowQuestionPool] = useState(false);
   const editInputRef = useRef<HTMLInputElement>(null);
+  
+  // Pool mode state
+  const [poolQuestions, setPoolQuestions] = useState<Question[]>([]);
+  const [filteredPoolQuestions, setFilteredPoolQuestions] = useState<Question[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedPoolIds, setSelectedPoolIds] = useState<Set<string | number>>(new Set());
+  const [poolLoading, setPoolLoading] = useState(false);
+  const [adding, setAdding] = useState(false);
+  
+  // Answer list view state
+  const [showAnswerList, setShowAnswerList] = useState(false);
+  const [selectedQuestionForAnswers, setSelectedQuestionForAnswers] = useState<{ id: string; text: string } | null>(null);
 
   const currentPage = (state?.activePageIndex !== undefined ? state.activePageIndex + 1 : 1);
   const currentPageMeta = state?.currentBook?.pages?.find((page) => page.pageNumber === currentPage);
@@ -199,25 +221,33 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
               <div className="flex items-center gap-2">
                 {!isPublisher && (
                   <>
-                    <SelectInput
+                    <Select
                       value={tempState.pendingPermissions[friend.id]?.pageAccessLevel || friend.pageAccessLevel || 'own_page'}
-                      onChange={(value) => handlePermissionChange(friend.id, 'pageAccessLevel', value)}
-                      className="text-xs w-24"
+                      onValueChange={(value) => handlePermissionChange(friend.id, 'pageAccessLevel', value)}
                     >
-                      <option value="form_only">Form Only</option>
-                      <option value="own_page">Own Page</option>
-                      <option value="all_pages">All Pages</option>
-                    </SelectInput>
-                    <SelectInput
+                      <SelectTrigger className="text-xs w-24">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="form_only">Form Only</SelectItem>
+                        <SelectItem value="own_page">Own Page</SelectItem>
+                        <SelectItem value="all_pages">All Pages</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select
                       value={tempState.pendingPermissions[friend.id]?.editorInteractionLevel || friend.editorInteractionLevel || 'full_edit'}
-                      onChange={(value) => handlePermissionChange(friend.id, 'editorInteractionLevel', value)}
-                      className="text-xs w-28"
+                      onValueChange={(value) => handlePermissionChange(friend.id, 'editorInteractionLevel', value)}
                     >
-                      <option value="no_access">No Access</option>
-                      <option value="answer_only">Answer Only</option>
-                      <option value="full_edit">Full Edit</option>
-                      <option value="full_edit_with_settings">Full + Settings</option>
-                    </SelectInput>
+                      <SelectTrigger className="text-xs w-28">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="no_access">No Access</SelectItem>
+                        <SelectItem value="answer_only">Answer Only</SelectItem>
+                        <SelectItem value="full_edit">Full Edit</SelectItem>
+                        <SelectItem value="full_edit_with_settings">Full + Settings</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </>
                 )}
                 <Switch
@@ -346,6 +376,32 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
       // Remove from editor state
       dispatch({ type: 'DELETE_TEMP_QUESTION', payload: { questionId } });
     }
+    
+    // Update question order on qna_inline elements
+    if (currentTempState.questionOrders && currentTempState.questionOrders.length > 0 && state.currentBook) {
+      const questionOrderMap = new Map<string, number>();
+      currentTempState.questionOrders.forEach(({ questionId, displayOrder }) => {
+        questionOrderMap.set(questionId, displayOrder);
+      });
+      
+      // Update questionOrder on all qna_inline elements
+      state.currentBook.pages.forEach((page) => {
+        page.elements.forEach((element) => {
+          if (element.textType === 'qna_inline' && element.questionId) {
+            const displayOrder = questionOrderMap.get(element.questionId);
+            if (displayOrder !== undefined) {
+              dispatch({
+                type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                payload: {
+                  id: element.id,
+                  updates: { questionOrder: displayOrder }
+                }
+              });
+            }
+          }
+        });
+      });
+    }
   }, [tempState, state, dispatch]);
   
   const saveToDatabase = async () => {
@@ -451,6 +507,11 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${token}` }
         });
+      }
+      
+      // Update question order
+      if (tempState.questionOrders && tempState.questionOrders.length > 0 && typeof bookId === 'number') {
+        await apiService.updateQuestionOrder(bookId, tempState.questionOrders);
       }
     } catch (error) {
       console.error('Error saving to database:', error);
@@ -642,19 +703,84 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
     setNewQuestion('');
   };
 
-  const handleQuestionsFromPool = (addedQuestions: any[]) => {
-    addedQuestions.forEach(q => {
-      const questionId = require('uuid').v4 ? require('uuid').v4() : crypto.randomUUID();
-      setTempState(prev => ({
-        ...prev,
-        tempQuestions: { 
-          ...prev.tempQuestions, 
-          [questionId]: JSON.stringify({ text: q.question_text, poolId: q.id })
-        }
-      }));
-    });
-    fetchQuestionsWithAnswers();
+  const handleQuestionsFromPool = async () => {
+    if (selectedPoolIds.size === 0 || typeof bookId !== 'number') return;
+    
+    setAdding(true);
+    try {
+      const createdQuestions = await apiService.addQuestionsFromPool(bookId, Array.from(selectedPoolIds).map(id => typeof id === 'number' ? id : parseInt(id.toString())));
+      createdQuestions.forEach((q: Question) => {
+        setTempState(prev => ({
+          ...prev,
+          tempQuestions: { 
+            ...prev.tempQuestions, 
+            [q.id]: JSON.stringify({ text: q.question_text, poolId: q.question_pool_id })
+          }
+        }));
+      });
+      fetchQuestionsWithAnswers();
+      setShowQuestionPool(false);
+      setSelectedPoolIds(new Set());
+    } catch (error) {
+      console.error('Error adding questions from pool:', error);
+    } finally {
+      setAdding(false);
+    }
   };
+
+  // Pool mode functions
+  const loadPoolQuestions = useCallback(async () => {
+    try {
+      setPoolLoading(true);
+      const data = await apiService.getQuestionPool();
+      const poolQuestionsConverted: Question[] = data.map((q: { id: number; question_text: string; category: string | null }) => ({
+        id: q.id.toString(),
+        question_text: q.question_text,
+        created_at: new Date().toISOString(),
+        updated_at: null,
+        question_pool_id: q.id,
+        category: q.category,
+        answers: []
+      }));
+      setPoolQuestions(poolQuestionsConverted);
+      setFilteredPoolQuestions(poolQuestionsConverted);
+    } catch (error) {
+      console.error('Error loading question pool:', error);
+    } finally {
+      setPoolLoading(false);
+    }
+  }, []);
+
+  const loadCategories = useCallback(async () => {
+    try {
+      const data = await apiService.getQuestionPoolCategories();
+      setCategories(data);
+    } catch (error) {
+      console.error('Error loading categories:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (showQuestionPool) {
+      loadPoolQuestions();
+      loadCategories();
+    }
+  }, [showQuestionPool, loadPoolQuestions, loadCategories]);
+
+  useEffect(() => {
+    let filtered = poolQuestions;
+
+    if (selectedCategory) {
+      filtered = filtered.filter(q => q.category === selectedCategory);
+    }
+
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(q => q.question_text.toLowerCase().includes(term));
+    }
+
+    setFilteredPoolQuestions(filtered);
+  }, [poolQuestions, selectedCategory, searchTerm]);
 
   const handleEditQuestion = (questionId: string) => {
     if (!editText.trim()) return;
@@ -730,9 +856,10 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
         pendingPermissions: {},
         pendingAssignment: null,
         hasRemovedAssignment: false,
-        removedFriends: new Set(),
+        removedFriends: new Set<number>(),
         tempQuestions: {},
-        deletedQuestions: new Set(),
+        deletedQuestions: new Set<string>(),
+        questionOrders: undefined,
         bookSettings: { pageSize: 'A4', orientation: 'portrait' }
       };
       setTempState(initialState);
@@ -745,9 +872,10 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
         pendingPermissions: {},
         pendingAssignment: null,
         hasRemovedAssignment: false,
-        removedFriends: new Set(),
+        removedFriends: new Set<number>(),
         tempQuestions: { ...state?.tempQuestions || {} },
-        deletedQuestions: new Set(),
+        deletedQuestions: new Set<string>(),
+        questionOrders: undefined,
         bookSettings: {
           pageSize: state?.currentBook?.pageSize || 'A4',
           orientation: state?.currentBook?.orientation || 'portrait'
@@ -983,10 +1111,10 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
     <div className="h-full flex flex-col min-h-0">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
         <TabsList className="grid w-full grid-cols-4" variant='bootstrap'>
-          <TabsTrigger value="pages-assignments">Pages & Assignments</TabsTrigger>
-          <TabsTrigger value="friends">Friends</TabsTrigger>
-          <TabsTrigger value="questions-answers">Questions & Answers</TabsTrigger>
-          <TabsTrigger value="book-settings">Book Settings</TabsTrigger>
+          <TabsTrigger value="pages-assignments" variant="bootstrap">Pages & Assignments</TabsTrigger>
+          <TabsTrigger value="friends" variant="bootstrap">Friends</TabsTrigger>
+          <TabsTrigger value="questions-answers" variant="bootstrap">Questions & Answers</TabsTrigger>
+          <TabsTrigger value="book-settings" variant="bootstrap">Book Settings</TabsTrigger>
         </TabsList>
         
         <TabsContent value="pages-assignments" className="space-y-4">
@@ -1010,22 +1138,67 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
         </TabsContent>
 
         <TabsContent value="questions-answers" className="space-y-4 flex-1 flex flex-col">
-          <QuestionsAnswersTab
-            questionsLoading={questionsLoading}
-            questions={questions}
-            editingId={editingId}
-            editText={editText}
-            editInputRef={editInputRef}
-            newQuestion={newQuestion}
-            onNewQuestionChange={setNewQuestion}
-            onAddQuestion={handleAddQuestion}
-            onBrowseQuestionPool={() => setShowQuestionPool(true)}
-            onStartEdit={startEdit}
-            onEditQuestion={handleEditQuestion}
-            onCancelEdit={cancelEdit}
-            onDeleteQuestionRequest={(id) => setShowDeleteConfirm(id)}
-            onEditTextChange={setEditText}
-          />
+          {showAnswerList && selectedQuestionForAnswers ? (
+            <AnswerList
+              questionId={selectedQuestionForAnswers.id}
+              questionText={selectedQuestionForAnswers.text}
+              answers={questions.find(q => q.id === selectedQuestionForAnswers.id)?.answers || []}
+              onBack={() => {
+                setShowAnswerList(false);
+                setSelectedQuestionForAnswers(null);
+              }}
+              emptyMessage="No one has answered this question yet."
+            />
+          ) : (
+            <div className="flex-1 overflow-auto space-y-3 p-1 pb-6">
+              {/* <Card> */}
+                {/* <CardContent className="p-4"> */}
+                  <form onSubmit={handleAddQuestion} className="flex gap-2">
+                    <Input
+                      type="text"
+                      value={newQuestion}
+                      onChange={(e) => setNewQuestion(e.target.value)}
+                      placeholder="Enter new question..."
+                      className="flex-1"
+                    />
+                    <Button type="submit">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Question
+                    </Button>
+                    <Button variant="outline" onClick={() => setShowQuestionPool(true)}>
+                      <Library className="h-4 w-4 mr-2" />
+                      Browse Question Pool
+                    </Button>
+                  </form>
+                {/* </CardContent> */}
+              {/* </Card> */}
+              <QuestionList
+                mode="edit"
+                questions={questions}
+                loading={questionsLoading}
+                onQuestionEdit={handleEditQuestion}
+                onQuestionDelete={(id) => setShowDeleteConfirm(id)}
+                editingQuestionId={editingId}
+                editText={editText}
+                onEditTextChange={setEditText}
+                onSaveEdit={handleEditQuestion}
+                onCancelEdit={cancelEdit}
+                showEditDelete={true}
+                showAnswers={true}
+                showDates={false}
+                onViewAnswers={(questionId, questionText) => {
+                  setSelectedQuestionForAnswers({ id: questionId, text: questionText });
+                  setShowAnswerList(true);
+                }}
+                onQuestionOrderChange={(questionOrders) => {
+                  setTempState(prev => ({
+                    ...prev,
+                    questionOrders
+                  }));
+                }}
+              />
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="book-settings" className="space-y-4">
@@ -1126,32 +1299,50 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
       />
       
       {/* Delete Question Confirmation Dialog */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md mx-4">
-            <h3 className="text-lg font-semibold mb-2">Delete Question</h3>
-            <p className="text-sm text-muted-foreground mb-4">
+      <Dialog open={!!showDeleteConfirm} onOpenChange={(open) => !open && setShowDeleteConfirm(null)}>
+        <DialogContent size="md">
+          <DialogHeader>
+            <DialogTitle>Delete Question</DialogTitle>
+            <DialogDescription>
               Are you sure you want to delete this question? This will also delete all answers to this question and reset any textboxes containing this question. This action cannot be undone.
-            </p>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setShowDeleteConfirm(null)} className="flex-1">
-                Cancel
-              </Button>
-              <Button variant="destructive" onClick={handleDeleteQuestion} className="flex-1">
-                Delete Question
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteQuestion}>
+              Delete Question
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Question Pool Modal */}
       {showQuestionPool && typeof bookId === 'number' && (
-        <QuestionPoolModal
-          bookId={bookId}
-          onClose={() => setShowQuestionPool(false)}
-          onQuestionsAdded={handleQuestionsFromPool}
-        />
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-4xl max-h-[80vh] overflow-hidden w-full mx-4">
+            <QuestionList
+              mode="pool"
+              questions={filteredPoolQuestions}
+              loading={poolLoading}
+              multiSelect={true}
+              selectedIds={selectedPoolIds}
+              onSelectionChange={setSelectedPoolIds}
+              showCategory={true}
+              compact={true}
+              onAddSelected={handleQuestionsFromPool}
+              adding={adding}
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+              selectedCategory={selectedCategory}
+              onCategoryChange={setSelectedCategory}
+              categories={categories}
+              onNavigate={() => setShowQuestionPool(false)}
+              emptyMessage="No questions found"
+            />
+          </div>
+        </div>
       )}
     </div>
   );

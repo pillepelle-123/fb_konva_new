@@ -626,43 +626,98 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
       const effectivePadding = padding + (maxFontSizeUsed * 0.2);
       const combinedLineHeight = maxFontSizeUsed * Math.max(getLineHeightMultiplier(qSpacing), getLineHeightMultiplier(aSpacing));
       
-      // Ruled lines should ONLY appear under answer text, not under question-only lines
-      // The combined line (last question line with answer text) should have a ruled line
-      // Start from the combined line's baseline (same as text positioning) for consistent alignment
-      // This matches the calculation used in text rendering: effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6)
-      const combinedLineBaseline = effectivePadding + ((questionLineCount - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSizeUsed * 0.6);
+      // Ruled lines should appear under answer text
+      // When question spans multiple lines, we need to generate ruled lines for all question lines
+      // that are part of the answer area, not just the last question line
       const answerBaselineOffset = -(answerFontSize * getLineHeightMultiplier(aSpacing) * 0.15) + (answerFontSize * (answerFontSize >= 50 ? answerFontSize >= 96 ? answerFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1));
       
-      // Generate lines for answer text only, starting from combined line baseline
+      // Generate lines for answer text
       // This must match exactly the text positioning logic:
       // - Combined line answer text: answerY = sharedBaseline - (aFontSize * 0.8)
-      //   where sharedBaseline = combinedLineBaseline = effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6)
+      //   where sharedBaseline = effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.8) - (number / 7)
       // - Subsequent answer lines (wrapped segments): answerY = answerBaseline - (aFontSize * 0.8)
       //   where answerBaseline = combinedLineBaseline + (lineIndex * aLineHeight) + answerBaselineOffset + (aFontSize * 0.6)
-      // Ruled lines are positioned 4px below the text baseline
+      // Ruled lines are positioned slightly below the text baseline
       if (userText && userText.trim()) {
-        // Generate lines starting from the combined line baseline
-        // answerLineIndex = 0: combined line (question + first part of answer)
-        // answerLineIndex = 1: first wrapped segment (if answer text wraps)
-        // answerLineIndex = 2+: subsequent answer-only lines
-        let answerLineIndex = 0;
         const dynamicHeight = calculateDynamicHeight();
         const maxLines = 1000; // Safety limit to prevent infinite loops
         let iterationCount = 0;
         
+        // Check if answer can fit on same line as last question line
+        const lastQuestionLine = questionText.split(' ').reduce((acc, word) => {
+          const testLine = acc ? acc + ' ' + word : word;
+          const testWidth = context.measureText(testLine).width;
+          if (testWidth > textWidth && acc) {
+            return word;
+          }
+          return testLine;
+        }, '');
+        const lastQuestionLineWidth = context.measureText(lastQuestionLine).width;
+        const gap = 40;
+        const availableWidthAfterQuestion = textWidth - lastQuestionLineWidth - gap;
+        
+        // Check if first word of answer fits after last question line
+        const aFontFamily = answerStyle.fontFamily || element.font?.fontFamily || element.fontFamily || fontFamily;
+        const aFontBold = answerStyle.fontBold || false;
+        const aFontItalic = answerStyle.fontItalic || false;
+        const answerContext = document.createElement('canvas').getContext('2d')!;
+        answerContext.font = `${aFontBold ? 'bold ' : ''}${aFontItalic ? 'italic ' : ''}${answerFontSize}px ${aFontFamily}`;
+        const firstAnswerLine = userText.split('\n')[0] || '';
+        const firstAnswerWord = firstAnswerLine.split(' ')[0] || '';
+        const canFitOnSameLine = firstAnswerWord && availableWidthAfterQuestion > 0 && answerContext.measureText(firstAnswerWord).width <= availableWidthAfterQuestion;
+        
+        // Calculate baseline for the combined line (last question line with answer)
+        // This matches the text rendering logic: effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6)
+        const combinedLineBaseline = effectivePadding + ((questionLineCount - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSizeUsed * 0.6);
+        
+        // Always generate ruled lines for all question lines when question spans multiple lines
+        // OR when answer starts on a new line (even if question is single line)
+        // This ensures that all question lines have ruled lines underneath them
+        if (questionLineCount > 1 || !canFitOnSameLine) {
+          // Generate ruled lines for all question lines (starting from first question line)
+          // Each question line should have a ruled line underneath it
+          // Use the same baseline calculation as answer lines for consistency
+          for (let questionLineIndex = 0; questionLineIndex < questionLineCount; questionLineIndex++) {
+            // Calculate baseline using the same formula as answer lines
+            // This ensures ruled lines are aligned consistently across all lines
+            const questionLineBaseline = effectivePadding + (questionLineIndex * combinedLineHeight) + textBaselineOffset + (maxFontSizeUsed * 0.6);
+            const baseline = questionLineBaseline + answerBaselineOffset + (answerFontSize * 0.6);
+            const lineY = baseline + (answerFontSize * 0.15);
+            
+            // Safety check: ensure lineY is a valid number
+            if (isFinite(lineY) && !isNaN(lineY) && lineY < dynamicHeight - padding - 10) {
+              lines.push(...generateLineElement(lineY, aTheme, padding, aColor, aWidth, aOpacity));
+            }
+          }
+        }
+        
+        // Generate ruled lines for answer lines
+        // If answer fits on same line as last question, it starts on the combined line (index = 0)
+        // Otherwise, it starts on the next line (index = 1)
+        let answerLineIndex = 0;
+        
+        // If answer doesn't fit on same line, it starts on next line after question
+        if (!canFitOnSameLine) {
+          answerLineIndex = 1; // Start from next line after question
+        }
+        
         // Additional safety checks before entering loop
         if (aLineHeight <= 0 || !isFinite(aLineHeight) || isNaN(aLineHeight)) {
           // If aLineHeight is invalid, generate just one line at the starting position
-          const answerBaseline = combinedLineBaseline + answerBaselineOffset + (answerFontSize * 0.6);
+          const answerBaseline = combinedLineBaseline + (answerLineIndex * aLineHeight) + answerBaselineOffset + (answerFontSize * 0.6);
           const lineY = answerBaseline + (answerFontSize * 0.15);
           if (isFinite(lineY) && !isNaN(lineY)) {
             lines.push(...generateLineElement(lineY, aTheme, padding, aColor, aWidth, aOpacity));
           }
         } else {
+          // Generate ruled lines for all answer lines
+          // Start from the line where answer begins and continue until the end of the textbox
           while (iterationCount < maxLines) {
             // Calculate answer baseline (same formula as text rendering)
             // The answerBaseline represents the actual text baseline position
             // Text Y position is: answerBaseline - (aFontSize * 0.8)
+            // For combined line (answerLineIndex = 0): answerBaseline = combinedLineBaseline + answerBaselineOffset + (answerFontSize * 0.6)
+            // For subsequent lines: answerBaseline = combinedLineBaseline + (answerLineIndex * aLineHeight) + answerBaselineOffset + (answerFontSize * 0.6)
             const answerBaseline = combinedLineBaseline + (answerLineIndex * aLineHeight) + answerBaselineOffset + (answerFontSize * 0.6);
             
             // Position ruled line slightly below the baseline so it sits under the text
@@ -1489,6 +1544,8 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               dispatch({ type: 'TOGGLE_STYLE_PAINTER' });
             }
           }}
+          // Don't add onClick or onMouseDown handlers here - let events propagate to BaseCanvasItem Group
+          // This ensures selection works even when lockElements is enabled
         >
           {/* Background */}
           {(() => {
@@ -1690,6 +1747,9 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               const qFontBold = questionStyle.fontBold || qnaInlineDefaults.questionSettings?.fontBold || false;
               const qFontItalic = questionStyle.fontItalic || qnaInlineDefaults.questionSettings?.fontItalic || false;
               
+              // Calculate available width for text wrapping
+              const availableWidth = element.width - (2 * padding);
+              
               return (
                 <Text
                   ref={textRef}
@@ -1703,6 +1763,8 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                   opacity={qFontOpacity}
                   align="left"
                   verticalAlign="top"
+                  width={availableWidth}
+                  wrap="word"
                   listening={true}
                   name="no-print"
                 />
@@ -2027,10 +2089,32 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                 
                 context.font = `${aFontBold ? 'bold ' : ''}${aFontItalic ? 'italic ' : ''}${aFontSize}px ${aFontFamily}`;
                 
+                // Check if there's enough space after the question to render answer on the same line
+                // We need to check if the first word of the answer actually fits
+                const gap = 40;
+                const availableWidthAfterQuestion = textWidth - questionTextWidth - gap;
+                let canFitOnSameLine = false;
+                
+                // Only check if there's positive space available
+                if (availableWidthAfterQuestion > 0) {
+                  // Get the first word of the answer to check if it fits
+                  const firstAnswerLine = userText.split('\n')[0] || '';
+                  const firstAnswerWord = firstAnswerLine.split(' ')[0] || '';
+                  if (firstAnswerWord) {
+                    const firstWordWidth = context.measureText(firstAnswerWord).width;
+                    // Check if the first word fits in the available space
+                    canFitOnSameLine = firstWordWidth <= availableWidthAfterQuestion;
+                  } else {
+                    // Empty answer text - can fit anywhere
+                    canFitOnSameLine = true;
+                  }
+                }
+                
                 // Handle line breaks in user text first
                 const userLines = userText.split('\n');
                 let currentLineY = questionEndY;
-                let isFirstLine = true;
+                // Only treat as first line if answer can fit on same line as question
+                let isFirstLine = canFitOnSameLine;
                 let wrappedSegmentsCount = 0; // Track how many wrapped segments from first line
                 let totalAnswerLineCount = 0; // Track total answer lines (including wrapped segments and subsequent lines)
                 
@@ -2055,9 +2139,8 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                     let currentX = padding;
                     let availableWidth = textWidth;
                     
-                    // For first line only, start after question
-                    if (isFirstLine) {
-                      const gap = 40;
+                    // For first line only, start after question (if there's space)
+                    if (isFirstLine && canFitOnSameLine) {
                       currentX = padding + questionTextWidth + gap;
                       availableWidth = textWidth - questionTextWidth - gap;
                     }
@@ -2200,8 +2283,10 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                         // Calculate answer-specific baseline offset based only on answer font size
                         const answerBaselineOffset = -(aFontSize * getLineHeightMultiplier(aParagraphSpacing) * 0.15) + (aFontSize * (aFontSize >= 50 ? aFontSize >= 96 ? aFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1));
                         // Increment total answer line count for subsequent lines
+                        // If answer starts on a new line (because question filled the line), this will be the first answer line (count = 1)
                         totalAnswerLineCount++;
                         // Start from combined line baseline and add aLineHeight for each answer line
+                        // When question filled the line, first answer line (count = 1) starts in next line after question
                         const answerBaseline = combinedLineBaseline + (totalAnswerLineCount * aLineHeight) + answerBaselineOffset + (aFontSize * 0.6);
                         const answerY = answerBaseline - (aFontSize * 0.8);
                         
@@ -2346,6 +2431,9 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
             } // End of inline layout
             
             // Add invisible overlay for double-click detection
+            // IMPORTANT: Set listening to false so it doesn't intercept events
+            // Events will pass through to BaseCanvasItem Group which handles selection
+            // Double-click is handled by BaseCanvasItem's onDblClick handler
             elements.push(
               <Rect
                 key="overlay"
@@ -2355,7 +2443,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                 width={element.width}
                 height={element.height}
                 fill="transparent"
-                listening={true}
+                listening={false}
               />
             );
             
