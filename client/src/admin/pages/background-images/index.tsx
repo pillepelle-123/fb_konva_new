@@ -17,7 +17,7 @@ import {
 } from '../../../components/ui'
 import { DataTable } from '../../components/table'
 import type { DataTableBulkAction } from '../../components/table'
-import { CreatableCombobox } from '../../components/combobox'
+import { CreatableCombobox } from '../../../components/ui/primitives/creatable-combobox'
 import {
   useAdminBackgroundImages,
   type AdminBackgroundImage,

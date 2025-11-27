@@ -17,7 +17,7 @@ import {
   Switch,
   Textarea,
 } from '../../../components/ui'
-import { CreatableCombobox } from '../combobox'
+import { CreatableCombobox } from '../../../components/ui/primitives/creatable-combobox'
 import type {
   AdminBackgroundImage,
   AdminBackgroundImageCategory,
