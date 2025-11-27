@@ -70,15 +70,41 @@ const initialState: WizardState = {
     },
 };
 
+// Animation variants for step transitions
+const stepVariants = {
+  enter: (direction: number) => ({
+    y: direction > 0 ? '100%' : '-100%',
+    opacity: 0,
+  }),
+  center: {
+    y: 0,
+    opacity: 1,
+    transition: {
+      type: 'spring' as const,
+      stiffness: 300,
+      damping: 30,
+      mass: 0.8,
+    },
+  },
+  exit: (direction: number) => ({
+    y: direction > 0 ? '-100%' : '100%',
+    opacity: 0,
+    transition: {
+      type: 'spring' as const,
+      stiffness: 300,
+      damping: 30,
+      mass: 0.8,
+    },
+  }),
+};
+
 export default function BookCreatePage() {
   const [wizardState, setWizardState] = useState<WizardState>(initialState);
   const [activeStepIndex, setActiveStepIndex] = useState(0);
-  const [previousStepIndex, setPreviousStepIndex] = useState<number | null>(null);
-  const [previousStepComponent, setPreviousStepComponent] = useState<React.ReactNode>(null);
-  const [nextStepIndex, setNextStepIndex] = useState<number | null>(null);
+  const [direction, setDirection] = useState(0); // 1 for forward, -1 for backward
   const initialStepId = stepConfig[0]?.id as string | undefined;
   const [showCanvas, setShowCanvas] = useState(initialStepId === 'design' || initialStepId === 'review');
-  const [animationDirection, setAnimationDirection] = useState<'forward' | 'backward'>('forward');
+  const [canvasLoaded, setCanvasLoaded] = useState(false);
   const [availableFriends, setAvailableFriends] = useState<Friend[]>([]);
   const [customQuestionDialogOpen, setCustomQuestionDialogOpen] = useState(false);
   const [customQuestionDraft, setCustomQuestionDraft] = useState('');
@@ -106,9 +132,27 @@ export default function BookCreatePage() {
     fetchFriends();
   }, []);
 
-  // Use nextStepIndex during transition, otherwise use activeStepIndex
-  const displayStepIndex = nextStepIndex !== null ? nextStepIndex : activeStepIndex;
-  const currentStepId = stepConfig[displayStepIndex]?.id ?? stepConfig[activeStepIndex].id;
+  const currentStepId = stepConfig[activeStepIndex]?.id ?? stepConfig[0].id;
+  
+  // Calculate animation direction based on step change
+  const getDirection = (newIndex: number) => {
+    return newIndex > activeStepIndex ? 1 : -1;
+  };
+
+  // Reset canvas loaded state when step changes
+  useEffect(() => {
+    const needsCanvas = currentStepId === 'design' || currentStepId === 'review';
+    if (needsCanvas) {
+      setCanvasLoaded(false);
+      // Load canvas after animation delay
+      const timer = setTimeout(() => {
+        setCanvasLoaded(true);
+      }, 600); // Wait for animation to complete (spring animation ~500ms)
+      return () => clearTimeout(timer);
+    } else {
+      setCanvasLoaded(false);
+    }
+  }, [activeStepIndex, currentStepId]);
 
   const updateWizard = <K extends keyof WizardState>(key: K, value: Partial<WizardState[K]>) => {
     setWizardState((prev) => ({
@@ -842,41 +886,12 @@ export default function BookCreatePage() {
       const newIndex = activeStepIndex - 1;
       const newStepId = stepConfig[newIndex]?.id;
       const needsCanvas = newStepId === 'design' || newStepId === 'review';
-      const currentNeedsCanvas = currentStepId === 'design' || currentStepId === 'review';
       
-      // Save previous step component to prevent re-render
-      setPreviousStepComponent(getStepComponent(activeStepIndex));
-      setPreviousStepIndex(activeStepIndex);
-      setNextStepIndex(newIndex);
-      setAnimationDirection('backward');
+      setDirection(-1);
+      setActiveStepIndex(newIndex);
       
-      // Hide canvas if transitioning to/from canvas steps
-      if (needsCanvas || currentNeedsCanvas) {
-        setShowCanvas(false);
-      }
-      
-      // Start exit animation, then show new step after exit completes
-      setTimeout(() => {
-        // After exit animation completes (400ms), show new step
-        setTimeout(() => {
-          setActiveStepIndex(newIndex);
-          setNextStepIndex(null);
-          // Show canvas after animation completes if needed
-          if (needsCanvas) {
-            setTimeout(() => {
-              setShowCanvas(true);
-            }, 50);
-          } else {
-            setShowCanvas(true);
-          }
-        }, 400);
-      }, 50);
-      
-      // Clear previous step after animation completes
-      setTimeout(() => {
-        setPreviousStepIndex(null);
-        setPreviousStepComponent(null);
-      }, 450);
+      // Update showCanvas immediately based on new step
+      setShowCanvas(needsCanvas);
     }
   };
 
@@ -885,41 +900,12 @@ export default function BookCreatePage() {
       const newIndex = activeStepIndex + 1;
       const newStepId = stepConfig[newIndex]?.id;
       const needsCanvas = newStepId === 'design' || newStepId === 'review';
-      const currentNeedsCanvas = currentStepId === 'design' || currentStepId === 'review';
       
-      // Save previous step component to prevent re-render
-      setPreviousStepComponent(getStepComponent(activeStepIndex));
-      setPreviousStepIndex(activeStepIndex);
-      setNextStepIndex(newIndex);
-      setAnimationDirection('forward');
+      setDirection(1);
+      setActiveStepIndex(newIndex);
       
-      // Hide canvas if transitioning to/from canvas steps
-      if (needsCanvas || currentNeedsCanvas) {
-        setShowCanvas(false);
-      }
-      
-      // Start exit animation, then show new step after exit completes
-      setTimeout(() => {
-        // After exit animation completes (400ms), show new step
-        setTimeout(() => {
-          setActiveStepIndex(newIndex);
-          setNextStepIndex(null);
-          // Show canvas after animation completes if needed
-          if (needsCanvas) {
-            setTimeout(() => {
-              setShowCanvas(true);
-            }, 50);
-          } else {
-            setShowCanvas(true);
-          }
-        }, 400);
-      }, 50);
-      
-      // Clear previous step after animation completes
-      setTimeout(() => {
-        setPreviousStepIndex(null);
-        setPreviousStepComponent(null);
-      }, 450);
+      // Update showCanvas immediately based on new step
+      setShowCanvas(needsCanvas);
     }
   };
 
@@ -927,46 +913,12 @@ export default function BookCreatePage() {
     if (index !== activeStepIndex) {
       const newStepId = stepConfig[index]?.id;
       const needsCanvas = newStepId === 'design' || newStepId === 'review';
-      const currentNeedsCanvas = currentStepId === 'design' || currentStepId === 'review';
       
-      // Save previous step component to prevent re-render
-      setPreviousStepComponent(getStepComponent(activeStepIndex));
-      setPreviousStepIndex(activeStepIndex);
-      setNextStepIndex(index);
+      setDirection(getDirection(index));
+      setActiveStepIndex(index);
       
-      if (index > activeStepIndex) {
-        setAnimationDirection('forward');
-      } else {
-        setAnimationDirection('backward');
-      }
-      
-      // Hide canvas if transitioning to/from canvas steps
-      if (needsCanvas || currentNeedsCanvas) {
-        setShowCanvas(false);
-      }
-      
-      // Start exit animation, then show new step after exit completes
-      setTimeout(() => {
-        // After exit animation completes (400ms), show new step
-        setTimeout(() => {
-          setActiveStepIndex(index);
-          setNextStepIndex(null);
-          // Show canvas after animation completes if needed
-          if (needsCanvas) {
-            setTimeout(() => {
-              setShowCanvas(true);
-            }, 50);
-          } else {
-            setShowCanvas(true);
-          }
-        }, 400);
-      }, 50);
-      
-      // Clear previous step after animation completes
-      setTimeout(() => {
-        setPreviousStepIndex(null);
-        setPreviousStepComponent(null);
-      }, 450);
+      // Update showCanvas immediately based on new step
+      setShowCanvas(needsCanvas);
     }
   };
 
@@ -1025,9 +977,6 @@ export default function BookCreatePage() {
     }
   };
 
-  // Only render current step if not transitioning (nextStepIndex is null)
-  // During transition, we show the previous step component until exit animation completes
-  const currentStep = nextStepIndex === null ? getStepComponent(activeStepIndex) : null;
 
   return (
     <div className="w-full h-full bg-muted/20 flex overflow-hidden">
@@ -1080,107 +1029,69 @@ export default function BookCreatePage() {
       <div className="flex-1 overflow-y-auto scrollbar relative">
         <div className="mx-auto max-w-7xl px-4 py-8 pt-0 lg:px-8 h-full flex flex-col relative">
           {/* Hauptbereich: Layout abhängig vom aktuellen Schritt */}
-          {currentStepId === 'design' || currentStepId === 'review' ? (
-            <div className="mt-6 mb-6 grid grid-cols-1 lg:grid-cols-5 gap-6 items-stretch relative">
-              {/* Left: Controls (60%) */}
-              <div className="lg:col-span-3 flex flex-col min-h-0 relative overflow-hidden">
-                <AnimatePresence mode="wait" initial={false}>
-                  {/* Previous step (sliding out) */}
-                  {previousStepIndex !== null && previousStepComponent && (
-                    <motion.div
-                      key={`prev-${previousStepIndex}`}
-                      initial={{ y: 0, opacity: 1 }}
-                      exit={{ 
-                        y: animationDirection === 'forward' ? '-100vh' : '100vh',
-                        opacity: 0
-                      }}
-                      transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
-                      className="absolute inset-0"
-                    >
-                      {previousStepComponent}
-                    </motion.div>
-                  )}
-                  {/* Current step (sliding in) */}
-                  {currentStep && (
-                    <motion.div
-                      key={`current-${activeStepIndex}`}
-                      initial={{ 
-                        y: animationDirection === 'forward' ? '100vh' : '-100vh',
-                        opacity: 0
-                      }}
-                      animate={{ y: 0, opacity: 1 }}
-                      transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
-                      className="relative"
-                    >
-                      {currentStep}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+          <div className="mt-6 relative overflow-hidden">
+            <AnimatePresence mode="wait" initial={false} custom={direction}>
+              <motion.div
+                key={activeStepIndex}
+                custom={direction}
+                variants={stepVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                className="relative"
+              >
+                {currentStepId === 'design' || currentStepId === 'review' ? (
+                  <div className="mb-6 grid grid-cols-1 lg:grid-cols-5 gap-6 items-stretch">
+                    {/* Left: Controls (60%) */}
+                    <div className="lg:col-span-3 flex flex-col min-h-0">
+                      {getStepComponent(activeStepIndex)}
+                    </div>
 
-              {/* Right: Live mini editor canvas (40%) */}
-              <div className="lg:col-span-2 flex flex-col min-h-0 relative">
-                {showCanvas && (
-                  <motion.div 
-                    key={`canvas-${activeStepIndex}`}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.2, delay: 0.2, ease: "easeInOut" }}
-                    onClick={() => setPreviewModalOpen(true)}
-                    className="cursor-pointer transition-opacity hover:opacity-90 h-[600px]"
-                    title="Click to view larger preview"
-                  >
-                    <MiniEditorCanvas
-                      pageSize={wizardState.basic.pageSize}
-                      orientation={wizardState.basic.orientation}
-                      themeId={wizardState.design.themeId}
-                      paletteId={wizardState.design.paletteId ?? getThemePaletteId(wizardState.design.themeId) ?? 'default'}
-                      baseTemplate={wizardState.design.layoutTemplate ?? null}
-                      pickLeftRight={wizardState.design.pickLeftRight}
-                      leftTemplate={wizardState.design.leftLayoutTemplate ?? null}
-                      rightTemplate={wizardState.design.rightLayoutTemplate ?? null}
-                      mirrorRight={wizardState.design.mirrorLayout && !wizardState.design.pickLeftRight}
-                    />
-                  </motion.div>
+                    {/* Right: Live mini editor canvas (40%) */}
+                    <div className="lg:col-span-2 flex flex-col min-h-0 relative overflow-hidden">
+                      <div className="h-[600px]">
+                        {showCanvas && canvasLoaded ? (
+                          <motion.div
+                            key={`canvas-content-${activeStepIndex}`}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ duration: 0.3 }}
+                            onClick={() => setPreviewModalOpen(true)}
+                            className="cursor-pointer transition-opacity hover:opacity-90 h-full"
+                            title="Click to view larger preview"
+                          >
+                            <MiniEditorCanvas
+                              pageSize={wizardState.basic.pageSize}
+                              orientation={wizardState.basic.orientation}
+                              themeId={wizardState.design.themeId}
+                              paletteId={wizardState.design.paletteId ?? getThemePaletteId(wizardState.design.themeId) ?? 'default'}
+                              baseTemplate={wizardState.design.layoutTemplate ?? null}
+                              pickLeftRight={wizardState.design.pickLeftRight}
+                              leftTemplate={wizardState.design.leftLayoutTemplate ?? null}
+                              rightTemplate={wizardState.design.rightLayoutTemplate ?? null}
+                              mirrorRight={wizardState.design.mirrorLayout && !wizardState.design.pickLeftRight}
+                            />
+                          </motion.div>
+                        ) : showCanvas && !canvasLoaded ? (
+                          <div className="h-full flex items-center justify-center bg-muted/20 rounded-2xl">
+                            <div className="text-sm text-muted-foreground">Loading preview...</div>
+                          </div>
+                        ) : (
+                          <div className="h-full flex items-center justify-center bg-muted/20 rounded-2xl">
+                            <div className="text-sm text-muted-foreground opacity-0">Placeholder</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mb-6">
+                    {getStepComponent(activeStepIndex)}
+                  </div>
                 )}
-              </div>
-            </div>
-          ) : (
-            <div className="mt-6 relative overflow-hidden">
-              <AnimatePresence mode="wait" initial={false}>
-                {/* Previous step (sliding out) */}
-                {previousStepIndex !== null && previousStepComponent && (
-                  <motion.div
-                    key={`prev-${previousStepIndex}`}
-                    initial={{ y: 0, opacity: 1 }}
-                    exit={{ 
-                      y: animationDirection === 'forward' ? '-100vh' : '100vh',
-                      opacity: 0
-                    }}
-                    transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-                    className="absolute inset-0"
-                  >
-                    {previousStepComponent}
-                  </motion.div>
-                )}
-                {/* Current step (sliding in) */}
-                {currentStep && (
-                  <motion.div
-                    key={`current-${activeStepIndex}`}
-                    initial={{ 
-                      y: animationDirection === 'forward' ? '100vh' : '-100vh',
-                      opacity: 0
-                    }}
-                    animate={{ y: 0, opacity: 1 }}
-                    transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-                    className="relative"
-                  >
-                    {currentStep}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
+              </motion.div>
+            </AnimatePresence>
+          </div>
           {/* Spacer am Ende für konsistenten Abstand zum Browser-Rand */}
           <div className="h-6 flex-shrink-0"></div>
         </div>
