@@ -1,3 +1,6 @@
+import { StepGrid } from '../../shared/step-grid';
+import { StepContainer } from '../../shared/step-container';
+
 type LayoutStrategy = 'same' | 'pair' | 'mirrored' | 'random';
 type RandomMode = 'single' | 'pair';
 
@@ -48,15 +51,17 @@ export function LayoutVariationStep({
         <p className="text-sm text-gray-600">Tell the assistant how it should distribute layouts across the book.</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <StepGrid columns={[1, 2]} gap="md">
         {STRATEGY_OPTIONS.map((option) => (
-          <button
+          <StepContainer
             key={option.value}
-            type="button"
-            onClick={() => onStrategyChange(option.value)}
-            className={`w-full text-left border rounded-xl p-4 transition-all ${
+            as="button"
+            variant="default"
+            padding="md"
+            className={`w-full text-left transition-all ${
               layoutStrategy === option.value ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-gray-200 hover:border-gray-300'
             }`}
+            onClick={() => onStrategyChange(option.value)}
           >
             <div className="font-semibold">{option.title}</div>
             <p className="text-sm text-gray-600 mt-1">{option.description}</p>
@@ -84,9 +89,9 @@ export function LayoutVariationStep({
                 </label>
               </div>
             )}
-          </button>
+          </StepContainer>
         ))}
-      </div>
+      </StepGrid>
     </div>
   );
 }

@@ -3,8 +3,10 @@ import { Card, CardContent } from '../../ui/composites/card';
 import { Button } from '../../ui/primitives/button';
 import { Input } from '../../ui/primitives/input';
 import { Checkbox } from '../../ui/primitives/checkbox';
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '../../ui/primitives/select';
 import { SortableList } from '../../ui/composites/sortable-list';
 import { MessageCircleQuestionMark, Calendar, Edit, Trash2, Save, X, Users, Library, MessageSquare } from 'lucide-react';
+import { cn } from '../../../lib/utils';
 
 // Common Question interface
 export interface Question {
@@ -286,37 +288,35 @@ export function QuestionList({
     return (
       <div className="flex flex-col max-h-[calc(80vh-8rem)]">
         {/* Header */}
-        <div className="pb-4 border-b">
-          <h2 className="text-lg font-semibold">Browse Question Pool</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            {multiSelect ? 'Select questions to add to your book' : 'Click a question to select it'}
-          </p>
-        </div>
+        
 
         {/* Filters */}
         {(onSearchChange || onCategoryChange) && (
           <div className="py-4 border-b space-y-4">
-            {onSearchChange && (
-              <Input
-                type="text"
-                placeholder="Search questions..."
-                value={searchTerm}
-                onChange={(e) => onSearchChange(e.target.value)}
-                className="flex-1"
-              />
-            )}
-            {onCategoryChange && categories.length > 0 && (
-              <select
-                value={selectedCategory}
-                onChange={(e) => onCategoryChange(e.target.value)}
-                className="w-fit shrink-0"
-              >
-                <option value="">All Categories</option>
-                {categories.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-            )}
+            <div className="flex gap-2 items-center p-1">
+              {onSearchChange && (
+                <Input
+                  type="text"
+                  placeholder="Search questions..."
+                  value={searchTerm}
+                  onChange={(e) => onSearchChange(e.target.value)}
+                  className="flex-1"
+                />
+              )}
+              {onCategoryChange && categories.length > 0 && (
+                <Select value={selectedCategory} onValueChange={onCategoryChange}>
+                  <SelectTrigger className="w-fit shrink-0">
+                    <SelectValue placeholder="All Categories" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">All Categories</SelectItem>
+                    {categories.map(cat => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
             <div className="flex items-center justify-between text-sm text-muted-foreground">
               <span>{questions.length} questions available</span>
               <div className="flex items-center gap-2">
@@ -455,100 +455,107 @@ export function QuestionList({
                     }));
                     onQuestionChange({ orderedQuestions: questionsWithUpdatedPositions });
                   }}
-                  renderItem={(question) => {
+                  renderItem={(question, _, knob) => {
                     const isEditingThis = isEditing(question.id);
                     return (
-                      <div className="flex items-center justify-between w-full pr-2">
-                        {isEditingThis ? (
-                          <div className="flex-1 flex gap-2">
-                            <Input
-                              type="text"
-                              value={getEditText()}
-                              onChange={(e) => {
-                                if (onEditTextChange) {
-                                  onEditTextChange(e.target.value);
-                                } else {
-                                  setLocalEditText(e.target.value);
-                                }
-                              }}
-                              className="flex-1"
-                              autoFocus
-                            />
-                            <Button
-                              size="sm"
-                              onClick={() => handleSaveEdit(question.id)}
-                            >
-                              Save
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={handleCancelEdit}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        ) : (
-                          <>
-                            <span className="text-sm flex-1">{question.text}</span>
-                            <div className="flex gap-2">
-                              {showEditDelete && (
-                                <>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  const q = questions.find(q => q.id === question.id);
-                                  if (q) {
-                                    if (onEditButtonClick) {
-                                      onEditButtonClick(q);
-                                    } else {
-                                      handleStartEdit(q);
-                                    }
+                      <Card className="shadow-sm cursor-grab active:cursor-grabbing">
+                        <CardContent className={cn("p-2 flex items-center justify-between w-full hover:shadow-md transition-shadow gap-2")}>
+                          {knob && <div className="flex-shrink-0">{knob}</div>}
+                          {isEditingThis ? (
+                            <div className="flex-1 flex gap-2">
+                              <Input
+                                type="text"
+                                value={getEditText()}
+                                onChange={(e) => {
+                                  if (onEditTextChange) {
+                                    onEditTextChange(e.target.value);
+                                  } else {
+                                    setLocalEditText(e.target.value);
                                   }
                                 }}
+                                className="flex-1"
+                                autoFocus
+                              />
+                              <Button
+                                size="sm"
+                                onClick={() => handleSaveEdit(question.id)}
                               >
-                                <Edit className="h-4 w-4" />
+                                Save
                               </Button>
                               <Button
-                                variant="outline"
                                 size="sm"
-                                onClick={() => {
-                                  if (onDeleteButtonClick) {
+                                variant="outline"
+                                onClick={handleCancelEdit}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          ) : (
+                            <>
+                              <span className="text-sm flex-1">{question.text}</span>
+                              <div className="flex gap-2" style={{ pointerEvents: 'auto' }}>
+                                {showEditDelete && (
+                                  <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     const q = questions.find(q => q.id === question.id);
                                     if (q) {
-                                      onDeleteButtonClick(q);
+                                      if (onEditButtonClick) {
+                                        onEditButtonClick(q);
+                                      } else {
+                                        handleStartEdit(q);
+                                      }
                                     }
-                                  } else {
-                                    handleDelete(question.id);
+                                  }}
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (onDeleteButtonClick) {
+                                      const q = questions.find(q => q.id === question.id);
+                                      if (q) {
+                                        onDeleteButtonClick(q);
+                                      }
+                                    } else {
+                                      handleDelete(question.id);
+                                    }
+                                  }}
+                                  className="text-destructive hover:text-destructive"
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                                  </>
+                                )}
+                                {renderCustomActions && (() => {
+                                  const foundQuestion = questions.find(q => q.id === question.id);
+                                  if (foundQuestion) {
+                                    return renderCustomActions(foundQuestion);
                                   }
-                                }}
-                                className="text-destructive hover:text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                                </>
-                              )}
-                              {renderCustomActions && (() => {
-                                const foundQuestion = questions.find(q => q.id === question.id);
-                                if (foundQuestion) {
-                                  return renderCustomActions(foundQuestion);
-                                }
-                                // Convert ordered question to Question format for renderCustomActions
-                                const questionAsQuestion: Question = {
-                                  id: question.id,
-                                  question_text: question.text,
-                                  created_at: new Date().toISOString(),
-                                  updated_at: null,
-                                  question_pool_id: question.questionPoolId ? parseInt(question.questionPoolId) : null,
-                                  type: question.type,
-                                };
-                                return renderCustomActions(questionAsQuestion);
-                              })()}
-                            </div>
-                          </>
-                        )}
-                      </div>
+                                  // Convert ordered question to Question format for renderCustomActions
+                                  const questionAsQuestion: Question = {
+                                    id: question.id,
+                                    question_text: question.text,
+                                    created_at: new Date().toISOString(),
+                                    updated_at: null,
+                                    question_pool_id: question.questionPoolId ? parseInt(question.questionPoolId) : null,
+                                    type: question.type,
+                                  };
+                                  return renderCustomActions(questionAsQuestion);
+                                })()}
+                              </div>
+                            </>
+                          )}
+                        </CardContent>
+                      </Card>
                     );
                   }}
                 />
@@ -588,15 +595,16 @@ export function QuestionList({
               }));
               onQuestionOrderChange(questionOrders);
             }}
-            renderItem={(question) => {
+            renderItem={(question, _, knob) => {
               const isEditingThis = isEditing(question.id);
               const answerCount = question.answers?.length || 0;
               
               return (
-                <Card className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-3">
+                <Card className="hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing">
+                  <CardContent className={cn("p-3 flex items-center gap-3")}>
+                    {knob && <div className="flex-shrink-0">{knob}</div>}
                     {isEditingThis ? (
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-1">
                         <Input
                           type="text"
                           value={getEditText()}
@@ -625,7 +633,7 @@ export function QuestionList({
                         </Button>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-1">
                         <h3 className="text-sm font-medium text-foreground flex-1 min-w-0">
                           {question.question_text}
                         </h3>

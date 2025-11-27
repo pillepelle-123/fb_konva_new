@@ -6,6 +6,7 @@ import { Button } from '../../../../ui/primitives/button';
 import { Checkbox } from '../../../../ui/primitives/checkbox';
 import { Label } from '../../../../ui/primitives/label';
 import { ChevronLeft, UserRoundX } from 'lucide-react';
+import { StepContainer } from '../../shared/step-container';
 
 interface PendingInvite {
   name: string;
@@ -42,7 +43,7 @@ export function WizardFriendsStep({
   const availableList = availableFriends.filter((friend) => !friends.some((f) => f.id === friend.id));
 
   const renderFriend = (friend: BookFriend) => (
-    <div className="flex items-center justify-between gap-3 p-3 border rounded-lg bg-card" key={friend.id}>
+    <StepContainer variant="card" padding="sm" className="flex items-center justify-between gap-3" key={friend.id}>
       <div className="flex items-center gap-3 min-w-0">
         <ProfilePicture name={friend.name} size="sm" userId={friend.id} />
         <div className="min-w-0">
@@ -54,7 +55,7 @@ export function WizardFriendsStep({
         <UserRoundX className="h-4 w-4 mr-1" />
         Remove
       </Button>
-    </div>
+    </StepContainer>
   );
 
   return (
@@ -80,19 +81,22 @@ export function WizardFriendsStep({
       />
 
       {pendingInvites.length > 0 && (
-        <div className="border rounded-lg p-3 space-y-1 bg-muted/40">
+        <StepContainer variant="muted" padding="sm">
+          <div className="space-y-1">
           <p className="text-sm font-medium">Pending Invitations</p>
           {pendingInvites.map((invite, index) => (
             <p key={`${invite.email}-${index}`} className="text-sm text-muted-foreground">
               {invite.name} &lt;{invite.email}&gt;
             </p>
-          ))}
+          )          )}
           <p className="text-xs text-muted-foreground">Invitations are sent once the book is created.</p>
-        </div>
+          </div>
+        </StepContainer>
       )}
 
       {showFriendPicker && (
-        <div className="border rounded-lg p-4 space-y-4 bg-card/80">
+        <StepContainer variant="card" padding="md" className="bg-card/80">
+          <div className="space-y-4">
           <div className="flex items-center justify-between">
             <Button variant="ghost" size="sm" onClick={onCloseFriendPicker} className="px-2">
               <ChevronLeft className="h-4 w-4 mr-1" />
@@ -107,10 +111,12 @@ export function WizardFriendsStep({
               items={availableList}
               keyExtractor={(friend) => friend.id.toString()}
               renderItem={(friend) => (
-                <button
+                <StepContainer
                   key={friend.id}
-                  type="button"
-                  className="w-full flex items-center gap-3 p-3 border rounded-lg text-left hover:bg-muted transition"
+                  as="button"
+                  variant="default"
+                  padding="sm"
+                  className="w-full flex items-center gap-3 text-left hover:bg-muted transition cursor-pointer"
                   onClick={() => onSelectFriend(friend)}
                 >
                   <ProfilePicture name={friend.name} size="sm" userId={friend.id} />
@@ -119,14 +125,15 @@ export function WizardFriendsStep({
                     <p className="text-xs text-muted-foreground truncate">{friend.email}</p>
                   </div>
                   <span className="text-xs text-primary font-medium">Add</span>
-                </button>
+                </StepContainer>
               )}
               itemsPerPage={8}
             />
           ) : (
             <p className="text-center text-muted-foreground py-6">All friends have been added already.</p>
           )}
-        </div>
+          </div>
+        </StepContainer>
       )}
     </div>
   );

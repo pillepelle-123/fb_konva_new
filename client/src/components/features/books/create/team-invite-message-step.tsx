@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { UserPlus } from 'lucide-react';
 import { Button } from '../../../ui/primitives/button';
 import { Textarea } from '../../../ui/primitives/textarea';
+import { StepContainer } from '../shared/step-container';
 import { useAuth } from '../../../../context/auth-context';
 import type { WizardState } from './types';
 
@@ -66,7 +67,7 @@ export function TeamInviteMessageStep({
     .replace('[friend name]', FRIEND_NAME_PLACEHOLDER);
 
   return (
-    <div className="flex flex-col gap-4 rounded-2xl bg-white shadow-sm border p-6">
+    <StepContainer variant="default" padding="lg" className="flex flex-col gap-4 rounded-2xl shadow-sm">
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
           <UserPlus className="h-5 w-5 text-primary" />
@@ -100,7 +101,7 @@ export function TeamInviteMessageStep({
           Use <code className="px-1 py-0.5 bg-muted rounded text-xs">[friend name]</code> to personalize the message for each collaborator.
         </p>
       </div>
-    </div>
+    </StepContainer>
   );
 }
 

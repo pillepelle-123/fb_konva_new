@@ -1,16 +1,19 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Palette, GalleryHorizontal, LayoutGrid, Filter, LayoutPanelLeft, PaintbrushVertical, PanelLeftRightDashed, ArrowLeftRight, Dices } from 'lucide-react';
-import { Button } from '../../../ui/primitives/button';
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
-import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, type CarouselApi } from '../../../ui/composites/carousel';
+
+import { Button } from '../../../ui/primitives/button';
 import { Select, SelectTrigger, SelectContent, SelectItem } from '../../../ui/primitives/select';
-import { Tooltip } from '../../../ui/composites/tooltip';
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, type CarouselApi } from '../../../ui/composites/carousel';
+
+import { LayoutTemplatePreview } from '../../editor/templates/layout-template-preview';
+import { TogglePill } from './toggle-pill';
+import type { WizardState } from './types';
+
 import { colorPalettes } from '../../../../data/templates/color-palettes';
 import { pageTemplates as builtinPageTemplates } from '../../../../data/templates/page-templates';
 import themesData from '../../../../data/templates/themes.json';
-import { LayoutTemplatePreview } from '../../editor/templates/layout-template-preview';
 import { getThemePaletteId } from '../../../../utils/global-themes';
-import type { WizardState } from './types';
 
 type CategoryFilter = 'all' | 'structured' | 'playful' | 'creative' | 'minimal';
 
@@ -19,26 +22,12 @@ interface DesignStepProps {
   onChange: (data: Partial<WizardState['design']>) => void;
 }
 
-function TogglePill({ label, icon, active, onClick }: { label: string; icon: React.ReactNode; active: boolean; onClick: () => void }) {
-  return (
-    <Tooltip content={label} side="bottom">
-    <button
-      onClick={onClick}
-        className={`px-3 py-1 rounded-full border text-xs font-medium transition flex items-center justify-center ${
-        active ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-muted/40'
-      }`}
-    >
-        {icon}
-    </button>
-    </Tooltip>
-  );
-}
-
 export function DesignStep({
   wizardState,
   onChange,
 }: DesignStepProps) {
   const [paletteCarouselApi, setPaletteCarouselApi] = useState<CarouselApi>();
+  const [themeCarouselApi, setThemeCarouselApi] = useState<CarouselApi>();
   const [themeViewMode, setThemeViewMode] = useState<'carousel' | 'grid'>('carousel');
   const [paletteViewMode, setPaletteViewMode] = useState<'carousel' | 'grid'>('carousel');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
@@ -63,12 +52,17 @@ export function DesignStep({
   }, [categoryFilter]);
 
   const themeEntries = useMemo(() => {
-    return Object.entries(themesData as Record<string, { name: string; description: string; palette?: string }>).map(([id, theme]) => ({
-      id,
-      name: theme.name ?? id,
-      description: theme.description ?? 'Custom theme',
-      paletteId: theme.palette ?? 'default',
-    }));
+    return Object.entries(themesData as Record<string, { name: string; description: string; palette?: string }>).map(([id, theme]) => {
+      const paletteId = theme.palette ?? 'default';
+      const palette = colorPalettes.find(p => p.id === paletteId);
+      return {
+        id,
+        name: theme.name ?? id,
+        description: theme.description ?? 'Custom theme',
+        paletteId,
+        paletteName: palette?.name || paletteId,
+      };
+    });
   }, []);
 
   // Get theme's default palette ID for current theme
@@ -102,6 +96,36 @@ export function DesignStep({
       paletteCarouselApi.scrollTo(0);
     }
   };
+
+  // Scroll to selected theme when switching to carousel mode
+  useEffect(() => {
+    if (themeViewMode === 'carousel' && themeCarouselApi) {
+      const selectedIndex = themeEntries.findIndex(theme => theme.id === wizardState.design.themeId);
+      if (selectedIndex !== -1) {
+        // Use setTimeout to ensure carousel is fully rendered
+        setTimeout(() => {
+          themeCarouselApi.scrollTo(selectedIndex);
+        }, 100);
+      }
+    }
+  }, [themeViewMode, themeCarouselApi, wizardState.design.themeId, themeEntries]);
+
+  // Scroll to selected palette when switching to carousel mode
+  useEffect(() => {
+    if (paletteViewMode === 'carousel' && paletteCarouselApi) {
+      const selectedIndex = paletteEntries.findIndex(palette => 
+        palette.id === null 
+          ? wizardState.design.paletteId === null
+          : wizardState.design.paletteId === palette.id
+      );
+      if (selectedIndex !== -1) {
+        // Use setTimeout to ensure carousel is fully rendered
+        setTimeout(() => {
+          paletteCarouselApi.scrollTo(selectedIndex);
+        }, 100);
+      }
+    }
+  }, [paletteViewMode, paletteCarouselApi, wizardState.design.paletteId, paletteEntries]);
 
   return (
     <div className="flex flex-col lg:flex-row gap-6">
@@ -304,6 +328,7 @@ export function DesignStep({
                 if (newMode === 'grid') {
                   setPaletteViewMode('carousel');
                 }
+                // Scroll logic is handled by useEffect
               }}
                 className="h-6 w-6 p-0"
                 title={themeViewMode === 'carousel' ? 'Show all Themes in Grid' : 'Themes Carousel'}
@@ -326,6 +351,7 @@ export function DesignStep({
                     loop: true,
                   }}
                   className="w-full"
+                  setApi={setThemeCarouselApi}
                 >
                   <CarouselContent className="-ml-2">
                     {themeEntries.map((theme) => {
@@ -335,7 +361,7 @@ export function DesignStep({
                           <button
                             type="button"
                             onClick={() => onChange({ themeId: theme.id })}
-                            className={`w-full rounded-xl border p-4 pl-10 text-left transition hover:shadow-sm ${
+                            className={`w-full h-full rounded-xl border p-4 pl-10 text-left transition hover:shadow-sm ${
                               isActive ? 'border-primary bg-primary/5' : 'border-border bg-card'
                             }`}
                             title={theme.name}
@@ -346,17 +372,8 @@ export function DesignStep({
                             </p>
                             <p className="text-xs text-muted-foreground">{theme.description}</p>
                             <div className="mt-3 flex items-center gap-2">
-                              <span className="text-[10px] text-muted-foreground">Default palette:</span>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="xxs"
-                                onClick={handleSelectThemeDefaultPalette}
-                                className="h-auto px-1.5 py-0.5 text-[11px] font-medium"
-                                title="Select Theme's Default Palette"
-                              >
-                                {theme.paletteId}
-                              </Button>
+                              <span className="text-[10px] text-muted-foreground">Default palette: {theme.paletteName}</span>
+                              
                             </div>
                           </button>
                         </CarouselItem>
@@ -397,7 +414,7 @@ export function DesignStep({
                             }}
                             className="h-auto px-1 py-0.5 text-[10px] font-medium"
                           >
-                            {theme.paletteId}
+                            {theme.paletteName}
                           </Button>
                         </div>
                       </button>
@@ -416,6 +433,23 @@ export function DesignStep({
               <Palette className="h-5 w-5" />
               Color Palette
             </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="xxs"
+                onClick={() => {
+                  onChange({ paletteId: null });
+                  // Scroll to first item (Theme's Default Palette) - index 0
+                  if (paletteCarouselApi) {
+                    paletteCarouselApi.scrollTo(0);
+                  }
+                }}
+                className="h-auto px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+                title="Select Theme's Default Palette"
+              >
+                Theme's default
+              </Button>
               <Button
                 type="button"
                 variant="ghost"
@@ -427,6 +461,7 @@ export function DesignStep({
                 if (newMode === 'grid') {
                   setThemeViewMode('carousel');
                 }
+                // Scroll logic is handled by useEffect
               }}
                 className="h-6 w-6 p-0"
                 title={paletteViewMode === 'carousel' ? 'Show all Color Palettes in Grid' : 'Color Palettes Carousel'}
@@ -437,6 +472,7 @@ export function DesignStep({
                   <GalleryHorizontal className="h-5 w-5" />
                 )}
               </Button>
+            </div>
             </div>
 
           {/* Palette carousel */}
@@ -465,7 +501,7 @@ export function DesignStep({
                           <button
                             type="button"
                             onClick={() => onChange({ paletteId: palette.id })}
-                            className={`w-full rounded-xl border p-4 pl-10 text-left transition hover:shadow-sm ${
+                            className={`w-full h-full rounded-xl border p-4 pl-10 text-left transition hover:shadow-sm ${
                               isActive ? 'border-primary bg-primary/5' : 'border-border bg-card'
                             }`}
                             title={palette.name}

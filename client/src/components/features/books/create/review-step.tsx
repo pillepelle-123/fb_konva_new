@@ -1,5 +1,6 @@
 import { Star, Info, ChevronRight } from 'lucide-react';
 import { Button } from '../../../ui/primitives/button';
+import { StepContainer } from '../shared/step-container';
 import { Badge } from '../../../ui/composites/badge';
 import type { WizardState } from './types';
 
@@ -54,7 +55,7 @@ export function ReviewStep({
   isSubmitting,
 }: ReviewStepProps) {
   return (
-    <div className="rounded-2xl bg-white shadow-sm border p-6 space-y-3 flex flex-col h-[600px]">
+    <StepContainer variant="default" padding="lg" className="rounded-2xl shadow-sm space-y-3 flex flex-col h-[600px]">
       <div className="flex items-center gap-2">
         <Star className="h-5 w-5 text-primary" />
         <div>
@@ -88,7 +89,7 @@ export function ReviewStep({
       {/* <Button onClick={onSubmit} disabled={isSubmitting}>
         {isSubmitting ? 'Creating book...' : 'Create book and open editor'}
       </Button> */}
-    </div>
+    </StepContainer>
   );
 }
 

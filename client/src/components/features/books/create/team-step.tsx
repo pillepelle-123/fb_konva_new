@@ -9,9 +9,9 @@ import {
 } from '@dnd-kit/core';
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
 import { useDroppable } from '@dnd-kit/core';
-import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
+import { useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { X, CirclePlus, CircleMinus, RotateCcw, Delete, Users } from 'lucide-react';
+import { X, CirclePlus, CircleMinus, RotateCcw, Delete, Users, Crown } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'sonner';
 
@@ -21,8 +21,10 @@ import { Checkbox } from '../../../ui/primitives/checkbox';
 import { Tooltip } from '../../../ui/composites/tooltip';
 import { ButtonGroup } from '../../../ui/composites/button-group';
 import { CreatableCombobox } from '../../../ui/primitives/creatable-combobox';
+import { StepContainer } from '../shared/step-container';
 import InviteUserDialog from '../invite-user-dialog';
 import ProfilePicture from '../../users/profile-picture';
+import { TogglePill } from './toggle-pill';
 import { cn } from '../../../../lib/utils';
 import {
   Dialog,
@@ -234,7 +236,7 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
     if (!friend) return;
     if (selectedFriends.some((existing) => existing.id === friend.id)) return;
     onTeamChange({
-      selectedFriends: [...selectedFriends, friend],
+      selectedFriends: [...selectedFriends, { ...friend, book_role: 'author' as const }],
     });
   };
 
@@ -258,6 +260,7 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
       id: tempFriendId,
       name,
       email,
+      book_role: 'author',
     };
     const newInvite: InviteDraft = {
       id: uuidv4(),
@@ -773,9 +776,9 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        <div className="grid gap-6 lg:grid-cols-[320px_auto] flex-1 min-h-0 items-stretch mb-6">
-          <div className="flex flex-col min-h-0 h-full">
-            <div className="rounded-lg border bg-white p-4 shadow-sm space-y-4 flex flex-col overflow-y-auto flex-1 min-h-0">
+        <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0 items-stretch mb-6">
+          <div className="flex flex-col min-h-0 h-full w-full lg:w-1/3">
+            <StepContainer variant="default" padding="md" className="shadow-sm space-y-4 flex flex-col overflow-y-auto flex-1 min-h-0">
               <div>
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <p className="text-sm font-semibold flex items-center gap-2">
@@ -845,22 +848,25 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
                   {selectedFriends.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No collaborators selected yet.</p>
                   ) : (
-                    <SortableContext
-                      items={selectedFriends.map((friend) => friend.id)}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      <div className="grid grid-cols-4 gap-1">
-                        {selectedFriends.map((friend) => (
-                          <CollaboratorDraggableCard
-                            key={friend.id}
-                            friend={friend}
-                            onRemove={removeFriend}
-                            isActive={activeDraggedFriendId === friend.id}
-                            disableDrag={isFriendAssigned(friend.id)}
-                          />
-                        ))}
-                      </div>
-                    </SortableContext>
+                    <div className="grid grid-cols-4 gap-1">
+                      {selectedFriends.map((friend) => (
+                        <CollaboratorDraggableCard
+                          key={friend.id}
+                          friend={friend}
+                          onRemove={removeFriend}
+                          isActive={activeDraggedFriendId === friend.id}
+                          disableDrag={isFriendAssigned(friend.id)}
+                          onToggleRole={(friendId) => {
+                            const updatedFriends = selectedFriends.map(f =>
+                              f.id === friendId
+                                ? { ...f, book_role: (f.book_role === 'publisher' ? 'author' : 'publisher') as 'author' | 'publisher' }
+                                : f
+                            );
+                            onTeamChange({ selectedFriends: updatedFriends });
+                          }}
+                        />
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
@@ -929,11 +935,11 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
                   </div>
                 </div>
               </div>
-            </div>
+            </StepContainer>
           </div>
 
-          <div className="flex flex-col min-h-0 flex-1 overflow-hidden">
-            <div className="rounded-lg border bg-white p-4 shadow-inner flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div className="flex flex-col min-h-0 flex-1 overflow-hidden w-full lg:w-2/3">
+            <StepContainer variant="default" padding="md" className="shadow-inner flex flex-col flex-1 min-h-0 overflow-hidden">
               <BookTimeline
                 pageTiles={pageTiles}
                 activeFriendId={activeDraggedFriendId}
@@ -953,7 +959,7 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
                 pageAssignments={assignmentState.pageAssignments}
                 onRemoveUnassignedPages={handleRemoveUnassignedPages}
               />
-            </div>
+            </StepContainer>
           </div>
         </div>
 
@@ -1055,6 +1061,7 @@ interface CollaboratorDraggableCardProps {
   isActive: boolean;
   disableDrag?: boolean;
   hideRemove?: boolean;
+  onToggleRole?: (friendId: number) => void;
 }
 
 function CollaboratorDraggableCard({
@@ -1063,6 +1070,7 @@ function CollaboratorDraggableCard({
   isActive,
   disableDrag = false,
   hideRemove = false,
+  onToggleRole,
 }: CollaboratorDraggableCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: friend.id,
@@ -1070,7 +1078,7 @@ function CollaboratorDraggableCard({
       type: 'collaborator',
       friendId: friend.id,
     },
-    disabled: disableDrag,
+    disabled: disableDrag, // Disable drag only if disableDrag is true
   });
 
   const style = {
@@ -1078,50 +1086,72 @@ function CollaboratorDraggableCard({
     transition,
   };
 
+  const isPublisher = friend.book_role === 'publisher';
+
   return (
-    <Tooltip content={friend.name} side="bottom">
-      <div
-        ref={setNodeRef}
-        style={style}
-        className={cn(
-          'rounded-lg border-transparent bg-card flex items-center justify-center transition-colors min-h-[80px]',
-          disableDrag 
-            ? 'opacity-50 cursor-not-allowed' 
-            : 'hover:bg-muted/50 cursor-grab active:cursor-grabbing',
-          (isDragging || isActive) && 'ring-2 ring-primary/40 shadow-sm',
-        )}
-        {...attributes}
-        {...(disableDrag ? {} : listeners)}
-      >
-        <div className="relative">
-          <ProfilePicture
-            name={friend.name}
-            size="sm"
-            userId={friend.id > 0 ? friend.id : undefined}
-            editable={false}
-            variant='withColoredBorder'
-          />
-          {!hideRemove && (
-            <button
-              onClick={disableDrag ? undefined : (e) => {
-                e.stopPropagation();
-                onRemove(friend.id);
-              }}
-              disabled={disableDrag}
-              className={cn(
-                "absolute -top-1 -right-1 transition-colors p-0.5 rounded-full bg-background/70 border border-border",
-                disableDrag
-                  ? "text-muted-foreground/50 cursor-not-allowed"
-                  : "text-muted-foreground hover:text-foreground hover:bg-background"
-              )}
-              aria-label={disableDrag ? `Cannot remove ${friend.name} - unassign first` : `Remove ${friend.name}`}
-            >
-              <X className="h-3 w-3" />
-            </button>
+    <div className="flex flex-col items-center gap-1">
+      <Tooltip content={friend.name} side="bottom">
+        <div
+          ref={setNodeRef}
+          style={style}
+          className={cn(
+            'rounded-lg border-transparent bg-card flex items-center justify-center transition-colors min-h-[80px] w-full',
+            disableDrag 
+              ? ' cursor-not-allowed' 
+              : 'hover:bg-muted/50 cursor-grab active:cursor-grabbing',
+            (isDragging || isActive) && 'ring-2 ring-primary/40 shadow-sm',
           )}
+          {...attributes}
+          {...(disableDrag ? {} : listeners)}
+        >
+          <div className="relative">
+            <ProfilePicture
+              name={friend.name}
+              size="sm"
+              userId={friend.id > 0 ? friend.id : undefined}
+              editable={false}
+              variant='withColoredBorder'
+            />
+            {!hideRemove && (
+              <Tooltip 
+                content={disableDrag ? `Remove page assignment first before removing ${friend.name} from collaborator list` : `Remove ${friend.name}`}
+                side="right"
+              >
+                <button
+                  onClick={disableDrag ? undefined : (e) => {
+                    e.stopPropagation();
+                    onRemove(friend.id);
+                  }}
+                  disabled={disableDrag}
+                  className={cn(
+                    "absolute -top-1 -right-1 transition-colors p-0.5 rounded-full bg-background/70 border border-border",
+                    disableDrag
+                      ? "text-muted-foreground/50 cursor-not-allowed"
+                      : "text-muted-foreground hover:text-foreground hover:bg-background"
+                  )}
+                  aria-label={disableDrag ? `Cannot remove ${friend.name} - unassign first` : `Remove ${friend.name}`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Tooltip>
+            )}
+          </div>
+          {onToggleRole && (
+        <div className="relative top-4 right-5 w-full flex justify-end pr-1">
+          <TogglePill
+            variant="outline"
+            label={isPublisher ? 'Set as Author' : 'Set as Publisher'}
+            icon={<Crown className="h-6 w-3" />}
+            active={isPublisher}
+            onClick={() => onToggleRole(friend.id)}
+            className="h-6 w-6 p-0"
+          />
         </div>
-      </div>
-    </Tooltip>
+      )}
+        </div>
+      </Tooltip>
+
+    </div>
   );
 }
 

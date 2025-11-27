@@ -22,7 +22,7 @@ export default function CompactList<T>({
   const currentItems = items.slice(startIndex, startIndex + itemsPerPage);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 h-full">
       {/* Pagination */}
       {items.length > itemsPerPage && (
         <div className="flex justify-center items-center space-x-2">

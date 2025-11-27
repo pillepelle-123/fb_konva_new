@@ -1,5 +1,6 @@
 import { getGlobalTheme } from '../../../../../utils/global-themes';
 import type { ColorPalette, PageTemplate } from '../../../../../types/template-types';
+import { StepContainer } from '../../shared/step-container';
 
 interface ConfirmationStepProps {
   name: string;
@@ -25,7 +26,8 @@ export function ConfirmationStep({
       <h3 className="text-lg font-semibold">Confirmation</h3>
       <p className="text-sm text-gray-600">Review your selections and create your book.</p>
 
-      <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
+      <StepContainer variant="muted" padding="md">
+        <div className="space-y-3">
         <div>
           <span className="font-medium">Book Name:</span> {name}
         </div>
@@ -41,7 +43,8 @@ export function ConfirmationStep({
         <div>
           <span className="font-medium">Colors:</span> {selectedPalette?.name || 'Default'}
         </div>
-      </div>
+        </div>
+      </StepContainer>
     </div>
   );
 }

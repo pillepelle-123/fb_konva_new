@@ -86,7 +86,7 @@ export function Tooltip({ children, content, title, description, side = "right",
       {isMounted && createPortal(
         <div
           className={cn(
-            "fixed z-[9999] px-3 py-2 text-sm rounded-md shadow-lg break-words transition-all duration-200 ease-out pointer-events-none",
+            "fixed z-[10001] px-3 py-2 text-sm rounded-md shadow-lg break-words transition-all duration-200 ease-out pointer-events-none",
             backgroundColor?.startsWith('#') ? '' : backgroundColor,
             textColor?.startsWith('#') ? '' : textColor,
             side === "bottom_editor_bar" || side === "bottom" || side === "top" ? "transform -translate-x-1/2 max-w-xs" : side === "floating_button_fixed" ? "transform -translate-x-1/2 max-w-xs" : side === "left" ? "transform -translate-x-full -translate-y-1/2 max-w-xs" : "transform -translate-y-1/2 w-60",

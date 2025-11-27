@@ -140,9 +140,22 @@ export default function BookCreatePage() {
 
   const currentStepId = stepConfig[activeStepIndex]?.id ?? stepConfig[0].id;
   
-  // Calculate animation direction based on step change
-  const getDirection = (newIndex: number) => {
-    return newIndex > activeStepIndex ? 1 : -1;
+  // Calculate animation direction based on step change or half-step change
+  // For half-steps: going to a half-step is forward (1), returning to main step is backward (-1)
+  const getDirection = (newIndex: number, newHalfStep?: string | null) => {
+    if (newIndex !== activeStepIndex) {
+      return newIndex > activeStepIndex ? 1 : -1;
+    }
+    // Same step index, check half-step
+    if (newHalfStep !== undefined) {
+      if (newHalfStep && !activeHalfStep) {
+        return 1; // Going to half-step is forward
+      }
+      if (!newHalfStep && activeHalfStep) {
+        return -1; // Returning to main step is backward
+      }
+    }
+    return direction; // Keep current direction if no change
   };
 
   // Reset canvas loaded state when step changes
@@ -709,7 +722,7 @@ export default function BookCreatePage() {
                 },
                 body: JSON.stringify({
                   friendId: friend.id,
-                  book_role: 'author',
+                  book_role: friend.book_role || 'author',
                   page_access_level: 'own_page',
                   editor_interaction_level: 'full_edit',
                 }),
@@ -918,7 +931,7 @@ ${user?.name || '[user name]'}`;
     // If in a half step, go back to the previous main step
     if (activeHalfStep) {
       setActiveHalfStep(null);
-      setDirection(-1);
+      setDirection(getDirection(activeStepIndex, null));
       return;
     }
     
@@ -927,8 +940,14 @@ ${user?.name || '[user name]'}`;
       const newStepId = stepConfig[newIndex]?.id;
       const needsCanvas = newStepId === 'design' || newStepId === 'review';
       
-      setDirection(-1);
+      // If going back to Team step and friends are selected, activate half step
+      const newHalfStep = (newStepId === 'team' && wizardState.team.selectedFriends.length > 0) 
+        ? 'team-invite-message' 
+        : null;
+      
+      setDirection(getDirection(newIndex, newHalfStep));
       setActiveStepIndex(newIndex);
+      setActiveHalfStep(newHalfStep);
       
       // Update showCanvas immediately based on new step
       setShowCanvas(needsCanvas);
@@ -944,7 +963,7 @@ ${user?.name || '[user name]'}`;
         const newStepId = stepConfig[newIndex]?.id;
         const needsCanvas = newStepId === 'design' || newStepId === 'review';
         
-        setDirection(1);
+        setDirection(getDirection(newIndex, null));
         setActiveStepIndex(newIndex);
         setShowCanvas(needsCanvas);
       }
@@ -954,7 +973,7 @@ ${user?.name || '[user name]'}`;
     // If in Team step and friends are selected, navigate to half step
     if (currentStepId === 'team' && wizardState.team.selectedFriends.length > 0) {
       setActiveHalfStep('team-invite-message');
-      setDirection(1);
+      setDirection(getDirection(activeStepIndex, 'team-invite-message'));
       return;
     }
     
@@ -963,7 +982,7 @@ ${user?.name || '[user name]'}`;
       const newStepId = stepConfig[newIndex]?.id;
       const needsCanvas = newStepId === 'design' || newStepId === 'review';
       
-      setDirection(1);
+      setDirection(getDirection(newIndex, null));
       setActiveStepIndex(newIndex);
       
       // Update showCanvas immediately based on new step
@@ -976,12 +995,16 @@ ${user?.name || '[user name]'}`;
       const newStepId = stepConfig[index]?.id;
       const needsCanvas = newStepId === 'design' || newStepId === 'review';
       
-      setDirection(getDirection(index));
+      setDirection(getDirection(index, null));
       setActiveStepIndex(index);
       setActiveHalfStep(null); // Clear half step when clicking main step
       
       // Update showCanvas immediately based on new step
       setShowCanvas(needsCanvas);
+    } else if (activeHalfStep !== null) {
+      // If clicking the same step but we're in a half step, return to main step
+      setActiveHalfStep(null);
+      setDirection(getDirection(activeStepIndex, null));
     }
   };
 
@@ -992,7 +1015,7 @@ ${user?.name || '[user name]'}`;
     }
     
     setActiveHalfStep(halfStepId);
-    setDirection(1);
+    setDirection(getDirection(activeStepIndex, halfStepId));
   };
 
   // Helper function to get step component by index
@@ -1187,7 +1210,7 @@ ${user?.name || '[user name]'}`;
           <div className="mt-6 relative overflow-hidden">
             <AnimatePresence mode="wait" initial={false} custom={direction}>
               <motion.div
-                key={activeStepIndex}
+                key={`${activeStepIndex}-${activeHalfStep || 'main'}`}
                 custom={direction}
                 variants={stepVariants}
                 initial="enter"

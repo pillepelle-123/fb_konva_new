@@ -3413,41 +3413,43 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           editorInteractionLevel={state.editorInteractionLevel}
         >
         {/* Lock Elements Toggle Button - positioned left of tool settings panel */}
-        <div 
-          className="absolute top-2 z-50 bg-background/90 backdrop-blur-sm border border-border rounded-md p-1.5 shadow-lg cursor-pointer hover:bg-background/95 transition-colors"
-          style={{ 
-            right: state.settingsPanelVisible && panelOffset > 0 
-              ? `${panelOffset}px` 
-              : '0.5rem' // If panel is hidden or offset not calculated, show at edge
-          }}
-          onClick={() => {
-            const currentLockState = Boolean(state.editorSettings?.editor?.lockElements);
-            dispatch({
-              type: 'UPDATE_EDITOR_SETTINGS',
-              payload: {
-                category: 'editor',
-                settings: { lockElements: !currentLockState }
-              }
-            });
-          }}
-        >
-          <Tooltip 
-            side="bottom" 
-            content={
-              state.editorSettings?.editor?.lockElements 
-                ? "Click to unlock elements (allow moving, resizing, rotating, and adding new elements)"
-                : "Click to lock elements (prevent moving, resizing, rotating, and adding new elements)"
-            }
+        {!state.isMiniPreview && (
+          <div 
+            className="absolute top-2 z-50 bg-background/90 backdrop-blur-sm border border-border rounded-md p-1.5 shadow-lg cursor-pointer hover:bg-background/95 transition-colors"
+            style={{ 
+              right: state.settingsPanelVisible && panelOffset > 0 
+                ? `${panelOffset}px` 
+                : '0.5rem' // If panel is hidden or offset not calculated, show at edge
+            }}
+            onClick={() => {
+              const currentLockState = Boolean(state.editorSettings?.editor?.lockElements);
+              dispatch({
+                type: 'UPDATE_EDITOR_SETTINGS',
+                payload: {
+                  category: 'editor',
+                  settings: { lockElements: !currentLockState }
+                }
+              });
+            }}
           >
-            <div style={{ pointerEvents: 'auto' }}>
-              {state.editorSettings?.editor?.lockElements ? (
-                <Lock className="h-4 w-4 text-muted-foreground" />
-              ) : (
-                <LockOpen className="h-4 w-4 text-muted-foreground" />
-              )}
-            </div>
-          </Tooltip>
-        </div>
+            <Tooltip 
+              side="left" 
+              content={
+                state.editorSettings?.editor?.lockElements 
+                  ? "Click to unlock elements (allow moving, resizing, rotating, and adding new elements)"
+                  : "Click to lock elements (prevent moving, resizing, rotating, and adding new elements)"
+              }
+            >
+              <div style={{ pointerEvents: 'auto' }}>
+                {state.editorSettings?.editor?.lockElements ? (
+                  <Lock className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <LockOpen className="h-4 w-4 text-muted-foreground" />
+                )}
+              </div>
+            </Tooltip>
+          </div>
+        )}
         
         <CanvasStage
           ref={stageRef}

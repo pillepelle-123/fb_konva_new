@@ -1,19 +1,15 @@
 import { useMemo, useState, useEffect, useCallback } from 'react';
-import { MessageCircleQuestionMark, Plus, Library } from 'lucide-react';
+import { MessageCircleQuestionMark, Plus, Library, ArrowBigLeft } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-import { useAuth } from '../../../../context/auth-context';
 
 import { Badge } from '../../../ui/composites/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../../../ui/overlays/dialog';
 import { QuestionList, type Question } from '../../questions/question-list';
 import { Button } from '../../../ui/primitives/button';
+import { StepContainer } from '../shared/step-container';
 import { Input } from '../../../ui/primitives/input';
-import { Card, CardContent } from '../../../ui/composites/card';
 import { apiService } from '../../../../services/api';
-import {
-  curatedQuestions,
-  type WizardState,
-} from './types';
+import type { WizardState } from './types';
 
 interface QuestionsStepProps {
   wizardState: WizardState;
@@ -26,7 +22,6 @@ export function QuestionsStep({
   onQuestionChange,
   openCustomQuestionModal: _openCustomQuestionModal, // eslint-disable-line @typescript-eslint/no-unused-vars
 }: QuestionsStepProps) {
-  const { token } = useAuth();
   const orderedQuestions = useMemo(() => wizardState.questions.orderedQuestions || [], [wizardState.questions.orderedQuestions]);
   const selectedQuestionIds = wizardState.questions.selectedDefaults;
   const [showQuestionPool, setShowQuestionPool] = useState(false);
@@ -112,46 +107,6 @@ export function QuestionsStep({
     setQuestionPendingDelete({ id: question.id, text: question.question_text });
   };
 
-  const handleQuestionsFromPool = (poolQuestions: Array<{ id: number; question_text: string }>) => {
-    if (poolQuestions.length === 0) return;
-
-    const currentCount = orderedQuestions.length;
-    const remainingSlots = maxQuestions - currentCount;
-    
-    if (remainingSlots <= 0) {
-      return; // No more slots available
-    }
-
-    // Limit the number of questions to add based on maxQuestions
-    const questionsToAdd = poolQuestions.slice(0, remainingSlots);
-    
-    const newQuestions = questionsToAdd.map((poolQ, index) => ({
-      id: uuidv4(),
-      text: poolQ.question_text,
-      type: 'custom' as const,
-      questionPoolId: poolQ.id.toString(),
-      position: orderedQuestions.length + index, // Set position based on current count + index
-    }));
-
-    const updatedOrderedQuestions = [...orderedQuestions, ...newQuestions];
-    const updatedCustom = [
-      ...wizardState.questions.custom,
-      ...newQuestions.map(q => ({ id: q.id, text: q.text }))
-    ];
-
-    onQuestionChange({
-      orderedQuestions: updatedOrderedQuestions,
-      custom: updatedCustom,
-    });
-
-    setShowQuestionPool(false);
-  };
-
-  const handleNavigate = (view: string) => {
-    if (view === 'pool') {
-      setShowQuestionPool(true);
-    }
-  };
 
   // Get set of question pool IDs that are already added
   const alreadyAddedQuestionPoolIds = useMemo(() => {
@@ -204,6 +159,13 @@ export function QuestionsStep({
     }
   }, []);
 
+  // Load pool questions on mount for desktop view
+  useEffect(() => {
+    loadPoolQuestions();
+    loadCategories();
+  }, [loadPoolQuestions, loadCategories]);
+
+  // Also reload when opening mobile dialog
   useEffect(() => {
     if (showQuestionPool) {
       loadPoolQuestions();
@@ -254,13 +216,6 @@ export function QuestionsStep({
     setNewQuestion('');
   };
 
-  const handleStartEdit = (questionId: string) => {
-    const question = orderedQuestions.find(q => q.id === questionId);
-    if (question) {
-      setEditingQuestionId(questionId);
-      setEditText(question.text);
-    }
-  };
 
   const handleSaveEdit = (questionId: string) => {
     if (!editText.trim()) return;
@@ -318,18 +273,19 @@ export function QuestionsStep({
   };
 
   return (
-    <div className="rounded-xl bg-white shadow-sm border p-5 flex flex-col h-full">
-      <div className="flex items-center gap-2 text-sm font-semibold flex-shrink-0 mb-4">
-        <MessageCircleQuestionMark className="h-5 w-5" />
-        Question set
-        <Badge variant="outline" className="text-[10px]">Optional</Badge>
-        {maxQuestions > 0 && (
-          <Badge variant="secondary" className="text-[10px] ml-auto">
-            Max {maxQuestions} questions
-          </Badge>
-        )}
-      </div>
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden space-y-4">
+    <StepContainer variant="default" padding="lg" className="rounded-xl shadow-sm flex flex-col h-full">
+      {/* Mobile: Single column layout */}
+      <div className="lg:hidden flex-1 min-h-0 flex flex-col overflow-hidden space-y-4">
+        <div className="flex items-center gap-2 text-sm font-semibold flex-shrink-0">
+          <MessageCircleQuestionMark className="h-5 w-5" />
+          Question set
+          <Badge variant="outline" className="text-[10px]">Optional</Badge>
+          {maxQuestions > 0 && (
+            <Badge variant="secondary" className="text-[10px] ml-auto">
+              Max {maxQuestions} questions
+            </Badge>
+          )}
+        </div>
         {/* <Card className="border-0 shadow-sm">
           <CardContent className="p-4">
             
@@ -367,13 +323,13 @@ export function QuestionsStep({
             </form>
         <QuestionList
           mode="sortable"
-          questions={orderedQuestions.map(q => ({
+          questions={orderedQuestions.map((q, index) => ({
             id: q.id,
             question_text: q.text,
             created_at: new Date().toISOString(),
             updated_at: null,
             question_pool_id: q.questionPoolId ? parseInt(q.questionPoolId) : null,
-            position: q.position,
+            position: (q as { position?: number }).position ?? index,
             type: q.type,
           }))}
           orderedQuestions={orderedQuestions}
@@ -393,7 +349,111 @@ export function QuestionsStep({
         />
       </div>
 
-      {/* Question Pool Modal */}
+      {/* Desktop: Two column layout */}
+      <div className="hidden lg:flex flex-1 min-h-0 gap-6 overflow-hidden">
+        {/* Left: Selected Questions */}
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden space-y-4">
+          <div className="flex items-center gap-2 text-sm font-semibold flex-shrink-0">
+            <MessageCircleQuestionMark className="h-5 w-5" />
+            Question set
+            <Badge variant="outline" className="text-[10px]">Optional</Badge>
+            {maxQuestions > 0 && (
+              <Badge variant="secondary" className="text-[10px] ml-auto">
+                Max {maxQuestions} questions
+              </Badge>
+            )}
+          </div>
+          <form onSubmit={handleAddQuestion} className="space-y-3">
+            <div className="flex gap-2 p-1">
+              <Input
+                type="text"
+                value={newQuestion}
+                onChange={(e) => setNewQuestion(e.target.value)}
+                placeholder="Enter new question..."
+                className="flex-1"
+                disabled={maxQuestions !== undefined && orderedQuestions.length >= maxQuestions}
+              />
+              <Button 
+                type="submit" 
+                className="space-x-2"
+                disabled={maxQuestions !== undefined && orderedQuestions.length >= maxQuestions}
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add</span>
+              </Button>
+            </div>
+          </form>
+          <QuestionList
+            mode="sortable"
+            questions={orderedQuestions.map((q, index) => ({
+              id: q.id,
+              question_text: q.text,
+              created_at: new Date().toISOString(),
+              updated_at: null,
+              question_pool_id: q.questionPoolId ? parseInt(q.questionPoolId) : null,
+              position: (q as { position?: number }).position ?? index,
+              type: q.type,
+            }))}
+            orderedQuestions={orderedQuestions}
+            onQuestionChange={onQuestionChange}
+            onQuestionEdit={handleQuestionEdit}
+            onQuestionDelete={handleQuestionDelete}
+            editingQuestionId={editingQuestionId}
+            editText={editText}
+            onEditTextChange={setEditText}
+            onSaveEdit={handleSaveEdit}
+            onCancelEdit={handleCancelEdit}
+            showEditDelete={true}
+            onEditButtonClick={handleEditButtonClick}
+            onDeleteButtonClick={handleDeleteButtonClick}
+            maxQuestions={maxQuestions}
+            emptyMessage="Add your first question above to get started."
+          />
+        </div>
+
+        {/* Right: Pool Questions */}
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden border-l pl-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <span className="flex items-center gap-2 text-sm font-semibold flex-shrink-0">Pool Questions</span>
+            </div>
+            {selectedPoolIds.size > 0 && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleAddFromPool}
+                disabled={adding || (availableSlots !== undefined && selectedPoolIds.size > availableSlots)}
+                className="gap-2"
+              >
+                <ArrowBigLeft className="h-4 w-4" />
+                <span>Add {selectedPoolIds.size}</span>
+              </Button>
+            )}
+          </div>
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <QuestionList
+              mode="pool"
+              questions={filteredPoolQuestions}
+              loading={poolLoading}
+              multiSelect={true}
+              selectedIds={selectedPoolIds}
+              onSelectionChange={setSelectedPoolIds}
+              showCategory={true}
+              compact={true}
+              disabledQuestionIds={new Set(Array.from(alreadyAddedQuestionPoolIds).map(id => id.toString()))}
+              maxAvailableSlots={availableSlots}
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+              selectedCategory={selectedCategory}
+              onCategoryChange={setSelectedCategory}
+              categories={categories}
+              emptyMessage="No questions found"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Question Pool Modal (Mobile only) */}
       <Dialog open={showQuestionPool} onOpenChange={setShowQuestionPool}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden">
           <QuestionList
@@ -445,7 +505,7 @@ export function QuestionsStep({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </StepContainer>
   );
 }
 

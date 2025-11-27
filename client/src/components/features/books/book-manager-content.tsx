@@ -20,7 +20,7 @@ import { PagesAssignmentsTab } from './book-manager-tabs/pages-assignments-tab';
 import { FriendsTab } from './book-manager-tabs/friends-tab';
 import { BookSettingsTab } from './book-manager-tabs/book-settings-tab';
 import { Input } from '../../ui/primitives/input';
-import { Plus, Library } from 'lucide-react';
+import { Plus, Library, MessageCircleQuestionMark, Edit, Trash2, Save, X, MessageSquare } from 'lucide-react';
 import { apiService } from '../../../services/api';
 
 export interface User {
@@ -224,8 +224,14 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
                     <Select
                       value={tempState.pendingPermissions[friend.id]?.pageAccessLevel || friend.pageAccessLevel || 'own_page'}
                       onValueChange={(value) => handlePermissionChange(friend.id, 'pageAccessLevel', value)}
+                      showInfoIcons={true}
+                      itemTooltips={{
+                        'form_only': 'User can answer questions only via form',
+                        'own_page': 'User can access own page' ,
+                        'all_pages': 'User can access all pages'
+                      }}  
                     >
-                      <SelectTrigger className="text-xs w-24">
+                      <SelectTrigger className="text-xs w-32">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -237,8 +243,15 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
                     <Select
                       value={tempState.pendingPermissions[friend.id]?.editorInteractionLevel || friend.editorInteractionLevel || 'full_edit'}
                       onValueChange={(value) => handlePermissionChange(friend.id, 'editorInteractionLevel', value)}
+                      showInfoIcons={true}
+                      itemTooltips={{
+                        'no_access': 'User has no access to the book (in combination with "Form Only"',
+                        'answer_only': 'User can only answer questions on pages',
+                        'full_edit': 'User can edit his own pages',
+                        'full_edit_with_settings': 'User can edit pages and book settings'
+                      }}
                     >
-                      <SelectTrigger className="text-xs w-28">
+                      <SelectTrigger className="text-xs w-32">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1172,31 +1185,111 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
                   </form>
                 {/* </CardContent> */}
               {/* </Card> */}
-              <QuestionList
-                mode="edit"
-                questions={questions}
-                loading={questionsLoading}
-                onQuestionEdit={handleEditQuestion}
-                onQuestionDelete={(id) => setShowDeleteConfirm(id)}
-                editingQuestionId={editingId}
-                editText={editText}
-                onEditTextChange={setEditText}
-                onSaveEdit={handleEditQuestion}
-                onCancelEdit={cancelEdit}
-                showEditDelete={true}
-                showAnswers={true}
-                showDates={false}
-                onViewAnswers={(questionId, questionText) => {
-                  setSelectedQuestionForAnswers({ id: questionId, text: questionText });
-                  setShowAnswerList(true);
-                }}
-                onQuestionOrderChange={(questionOrders) => {
-                  setTempState(prev => ({
-                    ...prev,
-                    questionOrders
-                  }));
-                }}
-              />
+              {questionsLoading ? (
+                <div className="flex items-center justify-center h-32">
+                  <div className="text-center space-y-4">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                    <p className="text-muted-foreground">Loading questions...</p>
+                  </div>
+                </div>
+              ) : questions.length === 0 ? (
+                <div className="text-center py-12">
+                  <MessageCircleQuestionMark className="h-12 w-12 text-muted-foreground mx-auto opacity-50 mb-4" />
+                  <h3 className="text-lg font-medium text-foreground mb-2">No questions yet</h3>
+                  <p className="text-muted-foreground">
+                    Add your first question above to get started.
+                  </p>
+                </div>
+              ) : (
+                <CompactList
+                  items={questions.sort((a, b) => {
+                    const orderA = a.display_order ?? Infinity;
+                    const orderB = b.display_order ?? Infinity;
+                    return orderA - orderB;
+                  })}
+                  keyExtractor={(question) => question.id}
+                  itemsPerPage={10}
+                  renderItem={(question) => {
+                    const isEditingThis = editingId === question.id;
+                    const answerCount = question.answers?.length || 0;
+                    
+                    return (
+                      <Card className="hover:shadow-md transition-shadow">
+                        <CardContent className="p-3">
+                          {isEditingThis ? (
+                            <div className="flex gap-2">
+                              <Input
+                                type="text"
+                                value={editText}
+                                onChange={(e) => setEditText(e.target.value)}
+                                className="flex-1"
+                                autoFocus
+                              />
+                              <Button
+                                size="sm"
+                                onClick={() => handleEditQuestion(question.id)}
+                              >
+                                <Save className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={cancelEdit}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-3">
+                              <h3 className="text-sm font-medium text-foreground flex-1 min-w-0">
+                                {question.question_text}
+                              </h3>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      setSelectedQuestionForAnswers({ id: question.id, text: question.question_text });
+                                      setShowAnswerList(true);
+                                    }}
+                                    disabled={answerCount === 0}
+                                    className="h-7 text-xs"
+                                  >
+                                    <MessageSquare className="h-3 w-3 mr-1" />
+                                    <span>
+                                      {answerCount > 0 
+                                        ? `${answerCount} answer${answerCount > 1 ? 's' : ''}`
+                                        : 'No answers'}
+                                    </span>
+                                  </Button>
+                                {!question.question_pool_id && (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => startEdit(question)}
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => setShowDeleteConfirm(question.id)}
+                                      className="text-destructive hover:text-destructive"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  }}
+                />
+              )}
             </div>
           )}
         </TabsContent>

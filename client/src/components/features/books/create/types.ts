@@ -6,6 +6,7 @@ export type Friend = {
   name: string;
   email?: string;
   role?: string;
+  book_role?: 'author' | 'publisher';
 };
 
 export type InviteDraft = {

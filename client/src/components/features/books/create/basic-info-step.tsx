@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ArrowBigRight, BookHeart, Sparkles } from 'lucide-react';
 import { Button } from '../../../ui/primitives/button';
+import { StepContainer } from '../shared/step-container';
 import { FormField } from '../../../ui/layout/form-field';
 import { BOOK_ORIENTATIONS, BOOK_PAGE_DIMENSIONS, type BookOrientation, type BookPageSize } from '../../../../constants/book-formats';
 import type { WizardState } from './types';
@@ -105,7 +106,7 @@ export function BasicInfoStep({
 
   return (
     <div className="flex flex-row gap-6 h-full">
-      <div className="flex w-2/3 flex-col gap-4 rounded-2xl bg-white shadow-sm border p-4 flex-1 min-h-0">
+      <StepContainer variant="default" padding="md" className="flex w-2/3 flex-col gap-4 rounded-2xl shadow-sm flex-1 min-h-0">
         <div className="flex flex-col gap-2">
             {/* <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
@@ -197,7 +198,7 @@ export function BasicInfoStep({
             </div>
           </div>
         </div>
-      </div>
+      </StepContainer>
       <div className="flex items-center justify-center pb-10">
         <button
           type="button"

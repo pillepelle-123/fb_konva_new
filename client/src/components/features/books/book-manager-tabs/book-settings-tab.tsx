@@ -14,6 +14,11 @@ export function BookSettingsTab({
   onPageSizeChange,
   onOrientationChange,
 }: BookSettingsTabProps) {
+  const formatOrientation = (value: string) => {
+    if (!value) return '';
+    return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -40,7 +45,7 @@ export function BookSettingsTab({
           <label className="text-sm font-medium">Orientation</label>
           <Select value={orientation} onValueChange={onOrientationChange}>
             <SelectTrigger className="w-full">
-              <SelectValue />
+              <span className="block truncate">{formatOrientation(orientation)}</span>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="portrait">Portrait</SelectItem>
