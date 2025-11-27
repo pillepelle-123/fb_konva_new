@@ -673,11 +673,17 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
         // Always generate ruled lines for all question lines when question spans multiple lines
         // OR when answer starts on a new line (even if question is single line)
         // This ensures that all question lines have ruled lines underneath them
+        // BUT: Skip the last question line if answer fits on same line (to avoid duplicate ruled line)
         if (questionLineCount > 1 || !canFitOnSameLine) {
           // Generate ruled lines for all question lines (starting from first question line)
           // Each question line should have a ruled line underneath it
           // Use the same baseline calculation as answer lines for consistency
-          for (let questionLineIndex = 0; questionLineIndex < questionLineCount; questionLineIndex++) {
+          // If answer fits on same line as last question, skip the last question line (it will get a ruled line from answer section)
+          const maxQuestionLineIndex = (questionLineCount > 1 && canFitOnSameLine) 
+            ? questionLineCount - 1  // Skip last line if answer fits on same line
+            : questionLineCount;     // Include all lines if answer starts on new line
+          
+          for (let questionLineIndex = 0; questionLineIndex < maxQuestionLineIndex; questionLineIndex++) {
             // Calculate baseline using the same formula as answer lines
             // This ensures ruled lines are aligned consistently across all lines
             const questionLineBaseline = effectivePadding + (questionLineIndex * combinedLineHeight) + textBaselineOffset + (maxFontSizeUsed * 0.6);

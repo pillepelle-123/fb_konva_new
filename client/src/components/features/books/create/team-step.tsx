@@ -769,7 +769,7 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        <div className="grid gap-6 lg:grid-cols-[320px_auto] flex-1 min-h-0 items-stretch">
+        <div className="grid gap-6 lg:grid-cols-[320px_auto] flex-1 min-h-0 items-stretch mb-6">
           <div className="flex flex-col min-h-0 h-full">
             <div className="rounded-lg border bg-white p-4 shadow-sm space-y-4 flex flex-col overflow-y-auto flex-1 min-h-0">
               <div>
@@ -874,40 +874,31 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
                   </label>
                   <div className="flex gap-2 w-full">
                     <Tooltip content="Remove all page assignments from collaborators." side="bottom">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowResetAssignmentDialog(true)}
-                        disabled={Object.keys(assignmentState.pageAssignments).length === 0}
-                      >
-                        Reset Assignment
-                      </Button>
+                      <div className="flex-1 min-w-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowResetAssignmentDialog(true)}
+                          disabled={Object.keys(assignmentState.pageAssignments).length === 0}
+                          className="w-full"
+                        >
+                          Reset Assignment
+                        </Button>
+                      </div>
                     </Tooltip>
-                    <div className="flex-1 min-w-0 auto-assign-button-container" style={{ display: 'flex' }}>
-                      <Tooltip content="Automatically distribute all collaborators to pages in above order." side="bottom">
+                    <Tooltip content="Automatically distribute all collaborators to pages in above order." side="bottom">
+                      <div className="flex-1 min-w-0">
                         <Button
                           variant="highlight"
                           size="sm"
                           onClick={handleAutoAssign}
                           disabled={selectedFriends.length === 0}
-                          className="flex-1"
+                          className="w-full"
                         >
                           Auto-assign
                         </Button>
-                      </Tooltip>
-                      <style>{`
-                        .auto-assign-button-container > div.relative.inline-block,
-                        .auto-assign-button-container > div[class*="relative"][style*="display: inline-block"] {
-                          display: flex !important;
-                          width: 100% !important;
-                          flex: 1 !important;
-                        }
-                        .auto-assign-button-container > div > div[style*="pointer-events: auto"] {
-                          width: 100% !important;
-                          display: flex !important;
-                        }
-                      `}</style>
-                    </div>
+                      </div>
+                    </Tooltip>
                   </div>
                 </div>
               </div>
