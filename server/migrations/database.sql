@@ -38,6 +38,7 @@ CREATE TABLE books (
   layout_random_mode VARCHAR(50),
   assisted_layouts JSONB,
   group_chat_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  invite_message TEXT,
   archived BOOLEAN DEFAULT FALSE,
   admin_state VARCHAR(50) NOT NULL DEFAULT 'active',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,

@@ -1245,13 +1245,11 @@ export function GeneralSettings({
             {/* Repeat Checkbox for Contain mode */}
             {background.imageSize === 'contain' && (
               <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={background.imageRepeat || false}
-                  onChange={(e) => {
-                    updateBackground({ imageRepeat: e.target.checked });
+                  onCheckedChange={(checked) => {
+                    updateBackground({ imageRepeat: checked === true });
                   }}
-                  className="rounded w-3 h-3"
                 />
                 <Label variant="xs" className="cursor-pointer">Repeat</Label>
               </div>

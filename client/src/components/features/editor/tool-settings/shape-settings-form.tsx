@@ -4,6 +4,7 @@ import { ButtonGroup } from '../../../ui/composites/button-group';
 import { Slider } from '../../../ui/primitives/slider';
 import { Separator } from '../../../ui/primitives/separator';
 import { Label } from '../../../ui/primitives/label';
+import { Checkbox } from '../../../ui/primitives/checkbox';
 import { IndentedSection } from '../../../ui/primitives/indented-section';
 import { ThemeSelect } from '../../../../utils/theme-options';
 import { commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth } from '../../../../utils/stroke-width-converter';
@@ -146,12 +147,12 @@ export function ShapeSettingsForm({
           
           <div>
             <Label className="flex items-center gap-1" variant="xs">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={element.borderEnabled !== undefined ? element.borderEnabled : (element.strokeWidth || 0) > 0}
-                onChange={(e) => {
-                  updateSetting('borderEnabled', e.target.checked);
-                  if (e.target.checked) {
+                onCheckedChange={(checked) => {
+                  const isChecked = checked === true;
+                  updateSetting('borderEnabled', isChecked);
+                  if (isChecked) {
                     const lastBorderWidth = localStorage.getItem(`shape-border-width-${element.id}`) || '2';
                     const lastBorderColor = localStorage.getItem(`shape-border-color-${element.id}`) || '#1f2937';
                     updateSetting('strokeWidth', Math.max(1, parseInt(lastBorderWidth)));
@@ -164,7 +165,6 @@ export function ShapeSettingsForm({
                     updateSetting('strokeWidth', 0);
                   }
                 }}
-                className="rounded w-3 h-3"
               />
               Border
             </Label>
@@ -210,12 +210,12 @@ export function ShapeSettingsForm({
           
           <div>
             <Label className="flex items-center gap-1" variant="xs">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={element.backgroundEnabled !== undefined ? element.backgroundEnabled : (element.fill !== 'transparent' && element.fill !== undefined)}
-                onChange={(e) => {
-                  updateSetting('backgroundEnabled', e.target.checked);
-                  if (e.target.checked) {
+                onCheckedChange={(checked) => {
+                  const isChecked = checked === true;
+                  updateSetting('backgroundEnabled', isChecked);
+                  if (isChecked) {
                     const lastFillColor = localStorage.getItem(`shape-fill-color-${element.id}`) || '#ffffff';
                     updateSetting('fill', lastFillColor);
                   } else {
@@ -223,7 +223,6 @@ export function ShapeSettingsForm({
                     updateSetting('fill', 'transparent');
                   }
                 }}
-                className="rounded w-3 h-3"
               />
               Background
             </Label>
@@ -260,11 +259,9 @@ export function ShapeSettingsForm({
               <Separator />
               <div className="flex items-center gap-2 h-12">
                 <Label className="flex items-center gap-1" variant="xs">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={element.candyRandomness || false}
-                    onChange={(e) => updateSetting('candyRandomness', e.target.checked)}
-                    className="rounded w-3 h-3"
+                    onCheckedChange={(checked) => updateSetting('candyRandomness', checked === true)}
                   />
                   Randomness
                 </Label>

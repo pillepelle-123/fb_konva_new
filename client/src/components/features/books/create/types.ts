@@ -58,6 +58,7 @@ export type WizardState = {
     friendFacingPages: boolean;
     autoAssign: boolean;
     assignmentState: TeamAssignmentState;
+    inviteMessage?: string;
   };
   questions: {
     selectedDefaults: string[];

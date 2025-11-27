@@ -3,6 +3,7 @@ import { Image, Trash2, Palette } from 'lucide-react';
 import { Slider } from '../../../ui/primitives/slider';
 import { Separator } from '../../../ui/primitives/separator';
 import { Label } from '../../../ui/primitives/label';
+import { Checkbox } from '../../../ui/primitives/checkbox';
 import { IndentedSection } from '../../../ui/primitives/indented-section';
 import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE } from '../../../../utils/corner-radius-converter';
 import { ThemeSelect } from '../../../../utils/theme-options';
@@ -81,12 +82,12 @@ export function ImageSettingsForm({
         <>
           <div>
             <Label className="flex items-center gap-1" variant="xs">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={frameEnabled}
-                onChange={(e) => {
-                  updateSetting('frameEnabled', e.target.checked);
-                  if (e.target.checked) {
+                onCheckedChange={(checked) => {
+                  const isChecked = checked === true;
+                  updateSetting('frameEnabled', isChecked);
+                  if (isChecked) {
                     // Enable frame with default values
                     if (!element.strokeWidth) {
                       updateSetting('strokeWidth', 2);
@@ -102,7 +103,6 @@ export function ImageSettingsForm({
                     updateSetting('strokeWidth', 0);
                   }
                 }}
-                className="rounded w-3 h-3"
               />
               Frame
             </Label>

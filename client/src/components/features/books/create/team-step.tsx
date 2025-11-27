@@ -11,11 +11,13 @@ import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { X, CirclePlus, CircleMinus, RotateCcw, Delete } from 'lucide-react';
+import { X, CirclePlus, CircleMinus, RotateCcw, Delete, Users } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'sonner';
 
 import { Button } from '../../../ui/primitives/button';
+import { Label } from '../../../ui/primitives/label';
+import { Checkbox } from '../../../ui/primitives/checkbox';
 import { Tooltip } from '../../../ui/composites/tooltip';
 import { ButtonGroup } from '../../../ui/composites/button-group';
 import { CreatableCombobox } from '../../../ui/primitives/creatable-combobox';
@@ -30,6 +32,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../../ui/overlays/dialog';
+import ConfirmationDialog from '../../../ui/overlays/confirmation-dialog';
 import {
   type Friend,
   type InviteDraft,
@@ -81,6 +84,7 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
   const [inviteError, setInviteError] = useState<string | undefined>(undefined);
   const [showResetAssignmentDialog, setShowResetAssignmentDialog] = useState(false);
   const [showResetAddedPagesDialog, setShowResetAddedPagesDialog] = useState(false);
+  const [removeAllDialogOpen, setRemoveAllDialogOpen] = useState(false);
 
   const assignmentState =
     wizardState.team.assignmentState ?? getDefaultTeamAssignmentState();
@@ -774,41 +778,64 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
             <div className="rounded-lg border bg-white p-4 shadow-sm space-y-4 flex flex-col overflow-y-auto flex-1 min-h-0">
               <div>
                 <div className="flex items-center justify-between gap-2 mb-2">
-                  <p className="text-sm font-semibold">Invite collaborators</p>
-                  {availableFriends.length > 0 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const selectedIds = new Set(selectedFriends.map((friend) => friend.id));
-                        const friendsToAdd = availableFriends.filter(
-                          (friend) => !selectedIds.has(friend.id)
-                        );
-                        if (friendsToAdd.length > 0) {
-                          onTeamChange({
-                            selectedFriends: [...selectedFriends, ...friendsToAdd],
-                          });
-                        }
-                      }}
-                      disabled={availableFriends.every((friend) =>
-                        selectedFriends.some((selected) => selected.id === friend.id)
-                      )}
-                      className="text-xs"
-                    >
-                      Add all friends
-                    </Button>
-                  )}
+                  <p className="text-sm font-semibold flex items-center gap-2">
+                    <Users className="h-5 w-5 text-primary" />
+                    Invite collaborators</p>
                 </div>
                 <CreatableCombobox
                   options={friendOptions}
                   value={undefined}
                   onChange={handleSelectFriend}
                   onCreateOption={handleCreateFriend}
-                  placeholder="Search or invite friend..."
+                  placeholder="Add or invite friends..."
                   inputPlaceholder="Search friends..."
                   emptyLabel="No friends found"
                   allowClear={false}
                 />
+              </div>
+              <div className="flex justify-end gap-2 w-full">
+                <div className="inline-flex">
+                  <Tooltip content="Remove all friends" side="bottom">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setRemoveAllDialogOpen(true)}
+                      disabled={selectedFriends.length === 0}
+                      className="text-xs"
+                    >
+                      <Users className="h-4 w-4" />
+                      <span className="text-xs">--</span>
+                    </Button>
+                  </Tooltip>
+                </div>
+                {availableFriends.length > 0 && (
+                  <div className="inline-flex">
+                    <Tooltip content="Add all friends" side="bottom">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const selectedIds = new Set(selectedFriends.map((friend) => friend.id));
+                          const friendsToAdd = availableFriends.filter(
+                            (friend) => !selectedIds.has(friend.id)
+                          );
+                          if (friendsToAdd.length > 0) {
+                            onTeamChange({
+                              selectedFriends: [...selectedFriends, ...friendsToAdd],
+                            });
+                          }
+                        }}
+                        disabled={availableFriends.every((friend) =>
+                          selectedFriends.some((selected) => selected.id === friend.id)
+                        )}
+                        className="text-xs"
+                      >
+                        <Users className="h-4 w-4" />
+                        <span className="text-xs">++</span>
+                      </Button>
+                    </Tooltip>
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase text-muted-foreground">
@@ -838,40 +865,40 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
                 </div>
               </div>
               <div className="space-y-3">
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div>
-                    <p className="text-sm font-semibold">Pages per collaborator</p>
-                    <p className="text-xs text-muted-foreground">Choose how many pages each drop assigns.</p>
+                <div className="flex items-start gap-6 flex-wrap">
+                  <div className="flex flex-col gap-2">
+                    <Label variant="sm">Pages per collaborator</Label>
+                    <Tooltip content="Choose how many pages each drop assigns." side="bottom">
+                      <div>
+                        <ButtonGroup>
+                          {[1, 2, 3, 4].map((n) => (
+                            <Button
+                              key={n}
+                              variant={pagesPerUser === n ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => handlePageCountChange(n as 1 | 2 | 3 | 4)}
+                            >
+                              {n}
+                            </Button>
+                          ))}
+                        </ButtonGroup>
+                      </div>
+                    </Tooltip>
                   </div>
-                  <ButtonGroup>
-                    {[1, 2, 3, 4].map((n) => (
-                      <Button
-                        key={n}
-                        variant={pagesPerUser === n ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => handlePageCountChange(n as 1 | 2 | 3 | 4)}
-                      >
-                        {n}
-                      </Button>
-                    ))}
-                  </ButtonGroup>
+                  <div className="flex flex-col gap-2">
+                    <Label variant="sm">Facing Pages</Label>
+                    <Tooltip content="Assign complete spreads (requires an even pages-per-user value)." side="bottom">
+                      <div>
+                        <Checkbox
+                          checked={wizardState.team.friendFacingPages}
+                          onCheckedChange={(checked) => handleFacingPagesToggle(checked === true)}
+                          disabled={pagesPerUser % 2 !== 0}
+                        />
+                      </div>
+                    </Tooltip>
+                  </div>
                 </div>
                 <div className="grid gap-3">
-                  <label className="flex items-start gap-2">
-                    <input
-                      type="checkbox"
-                      className="mt-1"
-                      checked={wizardState.team.friendFacingPages}
-                      onChange={(event) => handleFacingPagesToggle(event.target.checked)}
-                      disabled={pagesPerUser % 2 !== 0}
-                    />
-                    <span className="text-sm">
-                      Facing Pages
-                      <span className="block text-xs text-muted-foreground">
-                        Assign complete spreads (requires an even pages-per-user value).
-                      </span>
-                    </span>
-                  </label>
                   <div className="flex gap-2 w-full">
                     <Tooltip content="Remove all page assignments from collaborators." side="bottom">
                       <div className="flex-1 min-w-0">
@@ -992,6 +1019,32 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Remove All Friends Confirmation Dialog */}
+      <ConfirmationDialog
+        open={removeAllDialogOpen}
+        onOpenChange={setRemoveAllDialogOpen}
+        title="Remove all friends?"
+        description={
+          <>
+          <div className="flex flex-col gap-2">
+            <p>Are you sure you want to remove all friends from the list of selected collaborators?</p>
+            <p>This will also remove all page assignments for these friends. Page assignments will be lost. This cannot be undone.</p>
+            </div>
+          </>
+        }
+        onConfirm={() => {
+          onTeamChange({ 
+            selectedFriends: [],
+            assignmentState: getDefaultTeamAssignmentState()
+          });
+          setRemoveAllDialogOpen(false);
+        }}
+        onCancel={() => setRemoveAllDialogOpen(false)}
+        confirmText="Remove all"
+        cancelText="Cancel"
+        confirmVariant="destructive"
+      />
     </div>
   );
 }

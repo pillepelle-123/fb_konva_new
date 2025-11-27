@@ -5,6 +5,7 @@ import type { PageTemplate, TemplateCategory } from '../../../../types/template-
 import { SelectorShell, SelectorListSection } from './selector-shell';
 import { getMirroredTemplateId, mirrorTemplate } from '../../../../utils/layout-mirroring';
 import { LayoutTemplatePreview } from './layout-template-preview';
+import { Checkbox } from '../../../ui/primitives/checkbox';
 
 interface LayoutSelectorProps {
   selectedLayout: PageTemplate | null;
@@ -387,10 +388,9 @@ export function LayoutSelector({
               />
             </div>
             <label className="mt-3 inline-flex items-center gap-2 text-xs font-medium text-gray-600">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={mirrorChecked}
-                onChange={(event) => handleMirrorToggle(template, event.target.checked)}
+                onCheckedChange={(checked) => handleMirrorToggle(template, checked === true)}
                 onClick={(event) => event.stopPropagation()}
               />
               <span>Mirrored</span>

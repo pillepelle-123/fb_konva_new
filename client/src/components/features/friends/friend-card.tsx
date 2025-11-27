@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../../ui/primitives/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/composites/card';
+import { Checkbox } from '../../ui/primitives/checkbox';
 import ProfilePicture from '../users/profile-picture';
 import { MessageCircle, UserCog, UserMinus } from 'lucide-react';
 
@@ -62,11 +63,9 @@ export default function FriendsCard({
             <span className="text-sm font-medium">
               Assign to page {pageNumber}
             </span>
-            <input
-              type="checkbox"
+            <Checkbox
               checked={pendingAssignments?.has(friend.id) || false}
-              onChange={(e) => onPageAssignment?.(friend.id, e.target.checked)}
-              className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+              onCheckedChange={(checked) => onPageAssignment?.(friend.id, checked === true)}
             />
           </div>
         ) : (

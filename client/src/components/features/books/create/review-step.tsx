@@ -85,9 +85,9 @@ export function ReviewStep({
         You can still invite more friends or tweak questions later inside the editor.
       </div>
 
-      <Button onClick={onSubmit} disabled={isSubmitting}>
+      {/* <Button onClick={onSubmit} disabled={isSubmitting}>
         {isSubmitting ? 'Creating book...' : 'Create book and open editor'}
-      </Button>
+      </Button> */}
     </div>
   );
 }

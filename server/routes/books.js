@@ -715,8 +715,9 @@ router.put('/:id', authenticateToken, async (req, res) => {
              layout_strategy = $12,
              layout_random_mode = $13,
              assisted_layouts = $14,
+             invite_message = $15,
              updated_at = CURRENT_TIMESTAMP
-         WHERE id = $15`,
+         WHERE id = $16`,
         [
           name, 
           pageSize, 
@@ -732,6 +733,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
           req.body.layoutStrategy || null,
           req.body.layoutRandomMode || null,
           req.body.assistedLayouts ? JSON.stringify(req.body.assistedLayouts) : null,
+          req.body.inviteMessage || null,
           bookId
         ]
       );

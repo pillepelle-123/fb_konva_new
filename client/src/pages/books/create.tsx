@@ -16,6 +16,7 @@ import { getThemePaletteId } from '../../utils/global-themes';
 import { BasicInfoStep } from '../../components/features/books/create/basic-info-step';
 import { DesignStep } from '../../components/features/books/create/design-step';
 import { TeamStep } from '../../components/features/books/create/team-step';
+import { TeamInviteMessageStep } from '../../components/features/books/create/team-invite-message-step';
 import { QuestionsStep } from '../../components/features/books/create/questions-step';
 import { ReviewStep } from '../../components/features/books/create/review-step';
 import type { WizardState, Friend } from '../../components/features/books/create/types';
@@ -25,6 +26,7 @@ import {
 } from '../../components/features/books/create/types';
 import { convertTemplateToElements } from '../../utils/template-to-elements';
 import { calculatePageDimensions } from '../../utils/template-utils';
+import { useAuth } from '../../context/auth-context';
 
 const stepConfig = [
   { id: 'basic', label: 'Basic Info & Start', description: 'Name, size, and quick presets' },
@@ -62,6 +64,7 @@ const initialState: WizardState = {
     friendFacingPages: false,
     autoAssign: false,
     assignmentState: getDefaultTeamAssignmentState(),
+    inviteMessage: undefined,
   },
     questions: {
       selectedDefaults: [],
@@ -99,9 +102,11 @@ const stepVariants = {
 };
 
 export default function BookCreatePage() {
+  const { user } = useAuth();
   const [wizardState, setWizardState] = useState<WizardState>(initialState);
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const [direction, setDirection] = useState(0); // 1 for forward, -1 for backward
+  const [activeHalfStep, setActiveHalfStep] = useState<string | null>(null);
   const initialStepId = stepConfig[0]?.id as string | undefined;
   const [showCanvas, setShowCanvas] = useState(initialStepId === 'design' || initialStepId === 'review');
   const [canvasLoaded, setCanvasLoaded] = useState(false);
@@ -110,6 +115,7 @@ export default function BookCreatePage() {
   const [customQuestionDraft, setCustomQuestionDraft] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const navigate = useNavigate();
 
   const fetchFriends = async () => {
@@ -142,7 +148,7 @@ export default function BookCreatePage() {
   // Reset canvas loaded state when step changes
   useEffect(() => {
     const needsCanvas = currentStepId === 'design' || currentStepId === 'review';
-    if (needsCanvas) {
+    if (needsCanvas && showCanvas) {
       setCanvasLoaded(false);
       // Load canvas after animation delay
       const timer = setTimeout(() => {
@@ -152,7 +158,7 @@ export default function BookCreatePage() {
     } else {
       setCanvasLoaded(false);
     }
-  }, [activeStepIndex, currentStepId]);
+  }, [activeStepIndex, currentStepId, showCanvas]);
 
   const updateWizard = <K extends keyof WizardState>(key: K, value: Partial<WizardState[K]>) => {
     setWizardState((prev) => ({
@@ -168,6 +174,8 @@ export default function BookCreatePage() {
 
   const handleBookWizard = () => {
     if (!wizardState.basic.name.trim()) return;
+    setDirection(1); // Forward direction for animation
+    setShowCanvas(true); // Design step needs canvas
     setActiveStepIndex(1); // Jump to Design step
   };
 
@@ -683,6 +691,7 @@ export default function BookCreatePage() {
                 : 'same',
           pages,
           onlyModifiedPages: false,
+          inviteMessage: wizardState.team.inviteMessage || null,
         }),
       });
 
@@ -856,6 +865,30 @@ export default function BookCreatePage() {
       // Add a small delay to ensure database consistency
       await new Promise(resolve => setTimeout(resolve, 100));
 
+      // Log invite messages to console
+      const inviteMessage = wizardState.team.inviteMessage;
+      const defaultMessage = `Hey [friend name],
+
+I've created a new book called "${wizardState.basic.name}" and I'd love for you to be part of it! Would you like to collaborate?
+
+Best,
+${user?.name || '[user name]'}`;
+
+      const messageToUse = inviteMessage || defaultMessage;
+      const allCollaborators = [
+        ...wizardState.team.selectedFriends.filter(f => f.id > 0),
+        ...wizardState.team.invites.map(invite => ({ id: -1, name: invite.name, email: invite.email }))
+      ];
+
+      allCollaborators.forEach((collaborator) => {
+        const personalizedMessage = messageToUse
+          .replace(/\[friend name\]/g, collaborator.name)
+          .replace(/\[book name\]/g, wizardState.basic.name)
+          .replace(/\[user name\]/g, user?.name || '[user name]');
+        
+        console.log('Invite to:', collaborator.email || collaborator.name, 'Message:', personalizedMessage);
+      });
+
       navigate(`/editor/${newBook.id}`);
     } catch (error) {
       console.error(error);
@@ -882,6 +915,13 @@ export default function BookCreatePage() {
   const canGoNext = activeStepIndex < stepConfig.length - 1 && canAccessStep(activeStepIndex + 1);
 
   const handleBack = () => {
+    // If in a half step, go back to the previous main step
+    if (activeHalfStep) {
+      setActiveHalfStep(null);
+      setDirection(-1);
+      return;
+    }
+    
     if (canGoBack) {
       const newIndex = activeStepIndex - 1;
       const newStepId = stepConfig[newIndex]?.id;
@@ -896,6 +936,28 @@ export default function BookCreatePage() {
   };
 
   const handleNext = () => {
+    // If in a half step, go to the next main step
+    if (activeHalfStep) {
+      setActiveHalfStep(null);
+      if (canGoNext) {
+        const newIndex = activeStepIndex + 1;
+        const newStepId = stepConfig[newIndex]?.id;
+        const needsCanvas = newStepId === 'design' || newStepId === 'review';
+        
+        setDirection(1);
+        setActiveStepIndex(newIndex);
+        setShowCanvas(needsCanvas);
+      }
+      return;
+    }
+    
+    // If in Team step and friends are selected, navigate to half step
+    if (currentStepId === 'team' && wizardState.team.selectedFriends.length > 0) {
+      setActiveHalfStep('team-invite-message');
+      setDirection(1);
+      return;
+    }
+    
     if (canGoNext) {
       const newIndex = activeStepIndex + 1;
       const newStepId = stepConfig[newIndex]?.id;
@@ -916,14 +978,35 @@ export default function BookCreatePage() {
       
       setDirection(getDirection(index));
       setActiveStepIndex(index);
+      setActiveHalfStep(null); // Clear half step when clicking main step
       
       // Update showCanvas immediately based on new step
       setShowCanvas(needsCanvas);
     }
   };
 
+  const handleHalfStepClick = (halfStepId: string) => {
+    // Check if half step is available (e.g., friends must be selected for team-invite-message)
+    if (halfStepId === 'team-invite-message' && wizardState.team.selectedFriends.length === 0) {
+      return; // Don't navigate if prerequisites not met
+    }
+    
+    setActiveHalfStep(halfStepId);
+    setDirection(1);
+  };
+
   // Helper function to get step component by index
   const getStepComponent = (index: number) => {
+    // If in a half step, render the half step component
+    if (activeHalfStep === 'team-invite-message' && stepConfig[index]?.id === 'team') {
+      return (
+        <TeamInviteMessageStep
+          wizardState={wizardState}
+          onChange={(data) => updateWizard('team', data)}
+        />
+      );
+    }
+    
     const stepId = stepConfig[index]?.id;
     if (!stepId) return null;
     
@@ -979,45 +1062,117 @@ export default function BookCreatePage() {
 
 
   return (
-    <div className="w-full h-full bg-muted/20 flex overflow-hidden">
-      {/* Left Sidebar - Navigation */}
-      <div className="w-40 flex-shrink-0 border-r bg-background flex flex-col h-full">
+    <>
+      <style>{`
+        @keyframes pulse-button {
+          0% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 hsl(45 92% 42% / 0.7);
+          }
+          50% {
+            transform: scale(1.05);
+            box-shadow: 0 0 0 10px hsl(45 92% 42% / 0);
+          }
+          100% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 hsl(45 92% 42% / 0);
+          }
+        }
+        
+        .animate-pulse-button {
+          animation: pulse-button 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+      `}</style>
+      <div className="w-full h-full bg-muted/20 flex overflow-hidden relative">
+        {/* Mobile Toggle Button */}
+        <button
+          type="button"
+          onClick={() => setIsMobileNavOpen(!isMobileNavOpen)}
+          className={`lg:hidden fixed bottom-4 right-4 z-50 inline-flex h-9 w-9 items-center justify-center rounded-full transition shadow-lg ring-2 ring-ring ring-offset-2 ring-offset-background ${
+            activeHalfStep === 'team-invite-message'
+              ? 'bg-primary border-primary text-primary-foreground'
+              : 'bg-primary text-primary-foreground'
+          }`}
+          aria-label="Toggle navigation"
+        >
+          {(() => {
+            // Check if we're on a half-step
+            if (activeHalfStep === 'team-invite-message') {
+              return <div className="h-2.5 w-2.5 rounded-full bg-primary-foreground" />;
+            }
+            
+            const currentStep = stepConfig[activeStepIndex];
+            if (!currentStep) return <DotIcon />;
+            
+            // Show the current step icon
+            switch (currentStep.id) {
+              case 'basic': return <Book className="h-4 w-4" />;
+              case 'design': return <PaintbrushVertical className="h-4 w-4" />;
+              case 'team': return <Users className="h-4 w-4" />;
+              case 'questions': return <MessageCircleQuestionMark className="h-4 w-4" />;
+              case 'review': return <BookCheck className="h-4 w-4" />;
+              default: return <DotIcon />;
+            }
+          })()}
+        </button>
+
+        {/* Mobile Overlay */}
+        {isMobileNavOpen && (
+          <div
+            className="lg:hidden fixed inset-0 bg-black/50 z-40"
+            onClick={() => setIsMobileNavOpen(false)}
+          />
+        )}
+
+        {/* Left Sidebar - Navigation */}
+      <div className={`${isMobileNavOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:static top-0 left-0 w-64 lg:w-40 h-full flex-shrink-0 border-r bg-background flex flex-col h-full z-50 transition-transform duration-300 ease-in-out`}>
         <div className="flex-1 overflow-y-scroll overscroll-contain" style={{ minHeight: 0 }}>
           <div className="py-4 px-2 pt-6">
             <div className="space-y-2 pb-5">
               <StepNavigation
                 steps={stepConfig}
                 activeStepIndex={activeStepIndex}
-                onStepClick={handleStepClick}
+                activeHalfStep={activeHalfStep}
+                onStepClick={(index) => {
+                  handleStepClick(index);
+                  setIsMobileNavOpen(false);
+                }}
+                onHalfStepClick={(halfStepId) => {
+                  handleHalfStepClick(halfStepId);
+                  setIsMobileNavOpen(false);
+                }}
                 wizardState={wizardState}
               />
             </div>
             <div className="border-t p-2 space-y-2">
-              {currentStepId !== 'basic' && (
+              {(currentStepId !== 'basic' || activeHalfStep !== null) && (
                 <Button
                   variant="outline"
                   onClick={handleBack}
-                  disabled={!canGoBack}
+                  disabled={activeHalfStep === null && !canGoBack}
                   className="w-full"
                   size="sm"
                 >
                   Back
                 </Button>
               )}
-              {(currentStepId !== 'basic' || wizardState.basic.name.trim().length >= 3) && (
+              {((currentStepId !== 'basic' && currentStepId !== 'review') || activeHalfStep !== null || wizardState.basic.name.trim().length >= 3) && (
                 <Button
-                  onClick={currentStepId === 'review' ? handleSubmit : handleNext}
+                  onClick={currentStepId === 'review' && !activeHalfStep ? handleSubmit : handleNext}
                   disabled={
-                    currentStepId === 'review' 
+                    currentStepId === 'review' && !activeHalfStep
                       ? isSubmitting 
-                      : currentStepId === 'basic'
+                      : currentStepId === 'basic' && !activeHalfStep
                         ? wizardState.basic.name.trim().length < 3 || !canGoNext
-                        : !canGoNext
+                        : activeHalfStep !== null
+                          ? false // Half steps always allow navigation
+                          : !canGoNext
                   }
-                  className="w-full"
+                  className={`w-full ${currentStepId === 'review' && !activeHalfStep && !isSubmitting ? 'animate-pulse-button' : ''}`}
                   size="sm"
+                  variant={currentStepId === 'review' && !activeHalfStep ? 'highlight' : 'outline'}
                 >
-                  {currentStepId === 'review' ? (isSubmitting ? 'Creating...' : 'Create') : 'Next'}
+                  {currentStepId === 'review' && !activeHalfStep ? (isSubmitting ? 'Creating...' : 'Create') : 'Next'}
                 </Button>
               )}
             </div>
@@ -1026,8 +1181,8 @@ export default function BookCreatePage() {
       </div>
 
       {/* Scrollable Content Area */}
-      <div className="flex-1 overflow-y-auto scrollbar relative">
-        <div className="mx-auto max-w-7xl px-4 py-8 pt-0 lg:px-8 h-full flex flex-col relative">
+      <div className="flex-1 overflow-y-auto scrollbar relative min-h-0">
+        <div className="mx-auto max-w-7xl px-4 py-8 pt-0 lg:px-8 flex flex-col relative">
           {/* Hauptbereich: Layout abhängig vom aktuellen Schritt */}
           <div className="mt-6 relative overflow-hidden">
             <AnimatePresence mode="wait" initial={false} custom={direction}>
@@ -1161,20 +1316,24 @@ export default function BookCreatePage() {
           </div>
         </DialogContent>
       </Dialog>
-
-    </div>
+      </div>
+    </>
   );
 }
 
 function StepNavigation({
   steps,
   activeStepIndex,
+  activeHalfStep,
   onStepClick,
+  onHalfStepClick,
   wizardState,
 }: {
   steps: typeof stepConfig;
   activeStepIndex: number;
+  activeHalfStep: string | null;
   onStepClick: (index: number) => void;
+  onHalfStepClick: (halfStepId: string) => void;
   wizardState: WizardState;
 }) {
   const canAccessStep = (index: number) => {
@@ -1233,20 +1392,38 @@ function StepNavigation({
 
 
             {/* Labels */}
-            <div className="mt-1 flex flex-col items-center text-center w-full">
+            <div className="mt-1 flex flex-row justify-center items-center text-center w-full">
               <span className={`text-xs font-semibold transition leading-tight ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>
                 {step.label}
               </span>
-              {'optional' in step && step.optional && (
-                <span className={`text-[10px] transition mt-0.5 ${isActive ? 'text-primary/70' : 'text-muted-foreground'}`}>
-                  Optional
+              {/* {'optional' in step && step.optional && (
+                <span className={`text-[10px] transition mt-0.5 ml-1 ${isActive ? 'text-primary/70' : 'text-muted-foreground'}`}>
+                  Opt
                 </span>
-              )}
+              )} */}
             </div>
             {/* Separator circle */}
             {showSeparator && (
               <div className="mt-2 mb-2">
-                <div className="h-2.5 w-2.5 rounded-full border border-muted-foreground/30 bg-white" />
+                {step.id === 'team' && wizardState.team.selectedFriends.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => onHalfStepClick('team-invite-message')}
+                    className={`h-2.5 w-2.5 rounded-full border transition p-0 m-0 ${
+                      activeHalfStep === 'team-invite-message'
+                        ? 'bg-primary border-primary ring-2 ring-ring ring-offset-2 ring-offset-background'
+                        : index < activeStepIndex
+                          ? 'bg-primary border-muted-foreground/30'
+                          : 'bg-white border-muted-foreground/30'
+                    } hover:ring-2 hover:ring-ring hover:ring-offset-2 hover:ring-offset-background`}
+                    title="Invite message"
+                    style={{ display: 'block', margin: 0, padding: 0 }}
+                  />
+                ) : (
+                  <div className={`h-2.5 w-2.5 rounded-full border border-muted-foreground/30 ${
+                    index < activeStepIndex ? 'bg-primary' : 'bg-white'
+                  }`} />
+                )}
               </div>
             )}
           </div>

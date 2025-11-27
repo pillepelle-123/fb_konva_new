@@ -80,7 +80,7 @@ export function Tooltip({ children, content, title, description, side = "right",
       onMouseLeave={handleMouseLeave}
       style={{ display: 'contents', pointerEvents: 'none' }}
     >
-      <div style={{ pointerEvents: 'auto', width: '100%' }}>
+      <div style={{ pointerEvents: 'auto', display: 'inline-flex' }}>
         {children}
       </div>
       {isMounted && createPortal(

@@ -38,9 +38,9 @@ export function CreatableCombobox({
   onChange,
   onCreateOption,
   placeholder = 'Kategorie wählen...',
-  inputPlaceholder = 'Suchen oder erstellen...',
-  emptyLabel = 'Keine Einträge gefunden',
-  createLabel = (label) => `Erstelle "${label}"`,
+  inputPlaceholder = 'Search or invite a new user...',
+  emptyLabel = 'No users found',
+  createLabel = (label) => `Invite "${label}"`,
   disabled = false,
   allowClear = true,
 }: CreatableComboboxProps) {
