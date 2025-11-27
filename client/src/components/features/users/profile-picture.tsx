@@ -30,7 +30,11 @@ export default function ProfilePicture({ name, size = 'md', className = '', user
   const canEdit = editable && user && userId === user.id;
 
   const fetchProfilePicture = useCallback(async () => {
-    if (!userId || !token) return;
+    if (!userId || !token) {
+      // Reset profile image URL when userId is not available
+      setProfileImageUrl(null);
+      return;
+    }
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const response = await fetch(`${apiUrl}/users/${userId}`, {
@@ -42,16 +46,30 @@ export default function ProfilePicture({ name, size = 'md', className = '', user
         if (userData[pictureField]) {
           const baseUrl = apiUrl.replace('/api', '');
           setProfileImageUrl(`${baseUrl}/uploads/profile_pictures/${userId}/${userData[pictureField]}`);
+        } else {
+          // Reset if no profile picture exists
+          setProfileImageUrl(null);
         }
+      } else {
+        // Reset on error
+        setProfileImageUrl(null);
       }
     } catch (error) {
       console.error('Error fetching profile picture:', error);
+      setProfileImageUrl(null);
     }
   }, [token, userId, size]);
 
   useEffect(() => {
     fetchProfilePicture();
   }, [fetchProfilePicture]);
+
+  // Reset profile image URL when userId or name changes
+  useEffect(() => {
+    if (!userId) {
+      setProfileImageUrl(null);
+    }
+  }, [userId, name]);
 
   const handleSaveProfilePicture = async (file192: File, file32: File) => {
     if (!token || !userId) return;

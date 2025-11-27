@@ -4,7 +4,7 @@ import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
 import { Textarea } from '../../components/ui/primitives/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/composites/card';
-import { Toast } from '../../components/ui/overlays/toast';
+import { toast } from 'sonner';
 
 interface Question {
   id: string; // UUID
@@ -25,7 +25,6 @@ export default function AnswerForm() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [bookTitle, setBookTitle] = useState('');
-  const [showToast, setShowToast] = useState(false);
 
   useEffect(() => {
     if (!token || !bookId) return;
@@ -107,10 +106,8 @@ export default function AnswerForm() {
           })
         });
       }
-      
 
-      
-      setShowToast(true);
+      toast.success('Answers saved successfully');
     } catch (error) {
       console.error('Error saving answers:', error);
     } finally {
@@ -169,12 +166,6 @@ export default function AnswerForm() {
           </CardContent>
         </Card>
       )}
-      
-      <Toast 
-        message="Answers saved successfully" 
-        isVisible={showToast} 
-        onClose={() => setShowToast(false)} 
-      />
     </div>
   );
 }

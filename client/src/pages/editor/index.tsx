@@ -6,7 +6,7 @@ import Toolbar from '../../components/features/editor/toolbar';
 import Canvas from '../../components/features/editor/canvas';
 import ToolSettingsPanel, { type ToolSettingsPanelRef } from '../../components/features/editor/tool-settings/tool-settings-panel';
 import { StatusBar } from '../../components/features/editor/status-bar';
-import { Toast } from '../../components/ui/overlays/toast';
+import { toast } from 'sonner';
 import QuestionSelectionHandler from '../../components/features/editor/question-selection-handler';
 import PagePreviewOverlay from '../../components/features/editor/preview/page-preview-overlay';
 import TemplateGallery from '../../components/templates/template-gallery';
@@ -21,7 +21,6 @@ function EditorContent() {
   const location = useLocation();
   const { state, dispatch, loadBook, undo, redo, saveBook, canAccessEditor, canEditCanvas } = useEditor();
   const toolSettingsPanelRef = useRef<ToolSettingsPanelRef>(null);
-  const [showSaveToast, setShowSaveToast] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [previewContent, setPreviewContent] = useState<'preview' | 'questions' | 'manager'>('preview');
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
@@ -567,7 +566,7 @@ function EditorContent() {
       } else if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         saveBook().then(() => {
-          setShowSaveToast(true);
+          toast.success('Book saved successfully');
         }).catch(console.error);
       } else if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
         e.preventDefault();
@@ -676,11 +675,6 @@ function EditorContent() {
       <EditorBar toolSettingsPanelRef={toolSettingsPanelRef} initialPreviewOpen={openPreviewOnLoad} />
       
       <div className="flex-1 min-h-0">
-        <Toast 
-        message="Book saved successfully" 
-        isVisible={showSaveToast} 
-        onClose={() => setShowSaveToast(false)} 
-      />
         <div className="h-full flex flex-col bg-background">
           <div className="flex-1 flex min-h-0">
             {canEditCanvas() && <Toolbar onOpenTemplates={() => setShowTemplateGallery(true)} />}

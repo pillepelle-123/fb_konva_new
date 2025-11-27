@@ -747,6 +747,7 @@ export default function BookCreatePage() {
 
       const hasManualAssignments = existingAssignments.length > 0;
 
+      // Only create page assignments if they were manually assigned in the wizard
       if (hasManualAssignments) {
         const filteredAssignments = existingAssignments.filter(
           (assignment) =>
@@ -771,70 +772,8 @@ export default function BookCreatePage() {
             console.warn('Failed to create page assignments:', error);
           }
         }
-      } else if (validFriends.length > 0 && wizardState.team.pagesPerUser) {
-        const pagesPerUser = wizardState.team.pagesPerUser;
-        const assignments: Array<{ pageNumber: number; userId: number }> = [];
-
-        const firstContentPage = 5;
-        const lastContentPage = totalPages - 1;
-        let currentPage = firstContentPage;
-
-        const ensureOddStart = (page: number) => (page % 2 === 0 ? page + 1 : page);
-
-        for (const friend of validFriends) {
-          if (pagesPerUser === 1) {
-            if (currentPage <= lastContentPage) {
-              assignments.push({ pageNumber: currentPage, userId: friend.id });
-              currentPage++;
-            }
-          } else if (pagesPerUser === 2) {
-            if (currentPage <= lastContentPage) {
-              const oddPage = ensureOddStart(currentPage);
-              const evenPage = oddPage + 1;
-              if (oddPage <= lastContentPage) assignments.push({ pageNumber: oddPage, userId: friend.id });
-              if (evenPage <= lastContentPage) assignments.push({ pageNumber: evenPage, userId: friend.id });
-              currentPage = evenPage + 1;
-            }
-          } else if (pagesPerUser === 3) {
-            for (let i = 0; i < 3 && currentPage <= lastContentPage; i++) {
-              assignments.push({ pageNumber: currentPage, userId: friend.id });
-              currentPage++;
-            }
-          } else if (pagesPerUser === 4) {
-            if (currentPage <= lastContentPage) {
-              const startPage = ensureOddStart(currentPage);
-              for (let i = 0; i < 4; i++) {
-                const pageNumber = startPage + i;
-                if (pageNumber <= lastContentPage) {
-                  assignments.push({ pageNumber, userId: friend.id });
-                }
-              }
-              currentPage = startPage + 4;
-            }
-          }
-        }
-
-        const filteredAssignments = assignments.filter(
-          (assignment) => assignment.pageNumber > 2 && assignment.pageNumber < totalPages,
-        );
-
-        if (filteredAssignments.length > 0) {
-          try {
-            await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/page-assignments/book/${newBook.id}`, {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${localStorage.getItem('token')}`,
-              },
-              body: JSON.stringify({
-                assignments: filteredAssignments,
-              }),
-            });
-          } catch (error) {
-            console.warn('Failed to create page assignments:', error);
-          }
-        }
       }
+      // Removed automatic assignment logic - users must explicitly assign pages or use "Auto-assign" button
 
       // Send invitations for new users (these will generate invitation URLs with tokens)
       await Promise.all(

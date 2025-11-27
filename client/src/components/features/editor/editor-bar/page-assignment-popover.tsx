@@ -8,6 +8,7 @@ import { Button } from '../../../ui/primitives/button';
 import { Tooltip } from '../../../ui/composites/tooltip';
 import InviteUserDialog from '../../books/invite-user-dialog';
 import SelectFriendDialog from '../../friends/select-friend-dialog';
+import { toast } from 'sonner';
 
 interface BookFriend {
   id: number;
@@ -100,6 +101,8 @@ export default function PageAssignmentPopover({
     // No conflicts, proceed with assignment
     onAssignUser(userToAssign);
     setOpen(false);
+    // Show toast notification
+    toast.success(`Page ${currentPage} assigned to ${userToAssign.name}`);
   };
 
   const handleSelectFriend = async (selectedUser: { id: number; name: string; email: string }) => {
@@ -225,6 +228,9 @@ export default function PageAssignmentPopover({
               
               // Also call onAssignUser to update parent component
               onAssignUser(newBookFriend);
+              
+              // Show toast notification
+              toast.success(`Page ${currentPage} assigned to ${newBookFriend.name}`);
             } else {
               console.error('Failed to assign page to new user');
             }

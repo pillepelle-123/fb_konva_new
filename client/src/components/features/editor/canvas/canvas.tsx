@@ -33,6 +33,8 @@ import { getPalettePartColor } from '../../../../data/templates/color-palettes';
 import { colorPalettes } from '../../../../data/templates/color-palettes';
 import { getThemePaletteId } from '../../../../utils/global-themes';
 import { BOOK_PAGE_DIMENSIONS, DEFAULT_BOOK_ORIENTATION, DEFAULT_BOOK_PAGE_SIZE } from '../../../../constants/book-formats';
+import { getConsistentColor } from '../../../../utils/consistent-color';
+import ProfilePicture from '../../users/profile-picture';
 
 function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
   return (
@@ -52,21 +54,6 @@ function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; he
   );
 }
 
-function getConsistentColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const colors = [
-    '3b82f6', '8b5cf6', 'ef4444', '10b981', 'f59e0b', 'ec4899', '06b6d4', 'f97316',
-    'f87171', 'fb7185', 'f472b6', 'e879f9', 'c084fc', 'a78bfa', '8b5cf6', '7c3aed',
-    '6366f1', '4f46e5', '3b82f6', '2563eb', '0ea5e9', '0891b2', '0e7490', '0f766e',
-    '059669', '047857', '065f46', '166534', '15803d', '16a34a', '22c55e', '4ade80',
-    '65a30d', '84cc16', 'a3e635', 'bef264', 'eab308', 'f59e0b', 'f97316', 'ea580c',
-    'dc2626', 'b91c1c', '991b1b', '7f1d1d', '78716c', '57534e', '44403c', '292524'
-  ];
-  return colors[Math.abs(hash) % colors.length];
-}
 
 function CanvasPageContainer({ children, assignedUser }: { children: React.ReactNode; assignedUser?: { name: string } | null }) {
   const borderStyle = assignedUser ? {
@@ -111,9 +98,10 @@ const ACTIVE_BADGE_COLOR = '#304050';
 const ACTIVE_BADGE_TEXT = '#f8fafc';
 const INACTIVE_BADGE_COLOR = '#FFFFFF';
 const INACTIVE_BADGE_TEXT = '#1f2937';
+const INACTIVE_BADGE_TEXT_WITH_PROFILE = '#FFFFFF';
 const INACTIVE_BADGE_BORDER = '#cbd5f5';
 
-const createBadgeStyle = (isActive: boolean, disabled?: boolean): CSSProperties => ({
+const createBadgeStyleWithoutProfile = (isActive: boolean, disabled?: boolean): CSSProperties => ({
   backgroundColor: isActive ? ACTIVE_BADGE_COLOR : INACTIVE_BADGE_COLOR,
   color: isActive ? ACTIVE_BADGE_TEXT : INACTIVE_BADGE_TEXT,
   border: `1px solid ${isActive ? ACTIVE_BADGE_COLOR : INACTIVE_BADGE_BORDER}`,
@@ -129,6 +117,38 @@ const createBadgeStyle = (isActive: boolean, disabled?: boolean): CSSProperties 
   cursor: !isActive && !disabled ? 'pointer' : 'default',
   opacity: disabled ? 0.75 : 1
 });
+
+const createBadgeStyleWithProfile = (isActive: boolean, disabled?: boolean, assignedUser?: { name: string } | null): CSSProperties => {
+  const backgroundColor = assignedUser 
+    ? `#${getConsistentColor(assignedUser.name)}`
+    : (isActive ? ACTIVE_BADGE_COLOR : INACTIVE_BADGE_COLOR);
+  const textColor = assignedUser && isActive
+    ? '#ffffff'
+    : (isActive ? ACTIVE_BADGE_TEXT : INACTIVE_BADGE_TEXT_WITH_PROFILE);
+  const borderColor = assignedUser
+    ? backgroundColor
+    : (isActive ? ACTIVE_BADGE_COLOR : INACTIVE_BADGE_BORDER);
+  
+  // Set opacity: 0.6 for inactive badges with profile picture, otherwise use disabled opacity or 1
+  const opacity = disabled ? 0.75 : (!isActive ? 0.6 : 1);
+  
+  return {
+    backgroundColor,
+    color: textColor,
+    border: `2px solid ${borderColor}`,
+    borderRadius: 9999,
+    padding: '0px 0px 0px 8px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+    flexWrap: 'wrap',
+    fontSize: '12px',
+    fontWeight: 600,
+    boxShadow: '0 10px 25px rgba(15, 23, 42, 0.12)',
+    cursor: !isActive && !disabled ? 'pointer' : 'default',
+    opacity
+  };
+};
 
 const createMetaTextStyle = (isActive: boolean): CSSProperties => ({
   fontSize: '11px',
@@ -614,9 +634,19 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     };
   }, [partnerPage, previewTargetLocked, previewPageOffsetX, canvasWidth, canvasHeight, pageOffsetY, stagePos.x, stagePos.y, zoom]);
   const renderBadgeSegments = useCallback(
-    (meta: PageBadgeMeta, isActive: boolean) => (
+    (meta: PageBadgeMeta, isActive: boolean, assignedUser?: { name: string; id?: number } | null) => (
       <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
         <span style={{ fontWeight: 600 }}>{meta.label}</span>
+        {assignedUser && (
+          <ProfilePicture
+            key={`profile-${assignedUser.id}-${assignedUser.name}`}
+            name={assignedUser.name}
+            size="sm"
+            userId={assignedUser.id}
+            editable={false}
+            variant="default"
+          />
+        )}
       </div>
     ),
     []
@@ -3472,9 +3502,19 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         >
           <Layer>
             {/* Page boundary */}
-            <CanvasPageEditArea width={canvasWidth} height={canvasHeight} x={activePageOffsetX} y={pageOffsetY} />
+            <CanvasPageEditArea 
+              width={canvasWidth} 
+              height={canvasHeight} 
+              x={activePageOffsetX} 
+              y={pageOffsetY}
+            />
             {partnerPage && previewPageOffsetX !== null && (
-              <CanvasPageEditArea width={canvasWidth} height={canvasHeight} x={previewPageOffsetX} y={pageOffsetY} />
+              <CanvasPageEditArea 
+                width={canvasWidth} 
+                height={canvasHeight} 
+                x={previewPageOffsetX} 
+                y={pageOffsetY}
+              />
             )}
             {/* Background Layer */}
             {renderBackground(currentPage, activePageOffsetX)}
@@ -4233,9 +4273,15 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
               pointerEvents: 'none'
             }}
           >
-            <div style={createBadgeStyle(true)}>
-              {renderBadgeSegments(activePageBadgeMeta, true)}
-            </div>
+            {state.pageAssignments[activePageNumber] ? (
+              <div style={createBadgeStyleWithProfile(true, false, state.pageAssignments[activePageNumber])}>
+                {renderBadgeSegments(activePageBadgeMeta, true, state.pageAssignments[activePageNumber])}
+              </div>
+            ) : (
+              <div style={createBadgeStyleWithoutProfile(true, false)}>
+                {renderBadgeSegments(activePageBadgeMeta, true, null)}
+              </div>
+            )}
           </div>
         )}
         {!state.isMiniPreview && previewPageBadgeMeta && previewPageBadgePosition && (
@@ -4248,14 +4294,25 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
               pointerEvents: previewTargetLocked ? 'none' : 'auto'
             }}
           >
-            <button
-              type="button"
-              onClick={previewTargetLocked ? undefined : handlePreviewBadgeClick}
-              disabled={previewTargetLocked}
-              style={createBadgeStyle(false, previewTargetLocked)}
-            >
-              {renderBadgeSegments(previewPageBadgeMeta, false)}
-            </button>
+            {partnerPage?.pageNumber && state.pageAssignments[partnerPage.pageNumber] ? (
+              <button
+                type="button"
+                onClick={previewTargetLocked ? undefined : handlePreviewBadgeClick}
+                disabled={previewTargetLocked}
+                style={createBadgeStyleWithProfile(false, previewTargetLocked, state.pageAssignments[partnerPage.pageNumber])}
+              >
+                {renderBadgeSegments(previewPageBadgeMeta, false, state.pageAssignments[partnerPage.pageNumber])}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={previewTargetLocked ? undefined : handlePreviewBadgeClick}
+                disabled={previewTargetLocked}
+                style={createBadgeStyleWithoutProfile(false, previewTargetLocked)}
+              >
+                {renderBadgeSegments(previewPageBadgeMeta, false, null)}
+              </button>
+            )}
           </div>
         )}
         {!state.isMiniPreview && previewLockBadgeScreen && (
