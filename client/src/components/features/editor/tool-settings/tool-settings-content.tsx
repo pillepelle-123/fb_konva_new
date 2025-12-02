@@ -556,6 +556,131 @@ export function ToolSettingsContent({
       );
       
       if (selectedElement) {
+        // Special handling for QnA elements - render ColorSelector directly
+        if (selectedElement.textType === 'qna' || selectedElement.textType === 'qna_inline' || selectedElement.textType === 'qna2') {
+          
+          const getColorValue = () => {
+            switch (showColorSelector) {
+              case 'element-text-color':
+                const activeSection = state.qnaActiveSection || 'question';
+                if (activeSection === 'question') {
+                  return selectedElement.questionSettings?.fontColor || '#666666';
+                } else {
+                  return selectedElement.answerSettings?.fontColor || '#1f2937';
+                }
+              case 'element-border-color':
+                return selectedElement.borderColor || '#000000';
+              case 'element-background-color':
+                return selectedElement.backgroundColor || '#ffffff';
+              case 'element-ruled-lines-color':
+                return selectedElement.ruledLinesColor || '#1f2937';
+              default:
+                return '#1f2937';
+            }
+          };
+          
+          const getOpacityValue = () => {
+            switch (showColorSelector) {
+              case 'element-text-color':
+                const activeSection = state.qnaActiveSection || 'question';
+                if (activeSection === 'question') {
+                  return selectedElement.questionSettings?.fontOpacity ?? 1;
+                } else {
+                  return selectedElement.answerSettings?.fontOpacity ?? 1;
+                }
+              case 'element-border-color':
+                return selectedElement.borderOpacity ?? 1;
+              case 'element-background-color':
+                return selectedElement.backgroundOpacity ?? 1;
+              case 'element-ruled-lines-color':
+                return selectedElement.ruledLinesOpacity ?? 1;
+              default:
+                return 1;
+            }
+          };
+          
+          const handleColorChange = (color: string) => {
+            const colorValue = color || '#000000';
+            const activeSection = state.qnaActiveSection || 'question';
+            
+            switch (showColorSelector) {
+              case 'element-text-color':
+                if (activeSection === 'question') {
+                  updateElementSetting(selectedElement.id, {
+                    questionSettings: {
+                      ...selectedElement.questionSettings,
+                      fontColor: colorValue
+                    }
+                  });
+                } else {
+                  updateElementSetting(selectedElement.id, {
+                    answerSettings: {
+                      ...selectedElement.answerSettings,
+                      fontColor: colorValue
+                    }
+                  });
+                }
+                break;
+              case 'element-border-color':
+                updateElementSetting(selectedElement.id, { borderColor: colorValue });
+                break;
+              case 'element-background-color':
+                updateElementSetting(selectedElement.id, { backgroundColor: colorValue });
+                break;
+              case 'element-ruled-lines-color':
+                updateElementSetting(selectedElement.id, { ruledLinesColor: colorValue });
+                break;
+            }
+          };
+          
+          const handleOpacityChange = (opacity: number) => {
+            const activeSection = state.qnaActiveSection || 'question';
+            
+            switch (showColorSelector) {
+              case 'element-text-color':
+                if (activeSection === 'question') {
+                  updateElementSetting(selectedElement.id, {
+                    questionSettings: {
+                      ...selectedElement.questionSettings,
+                      fontOpacity: opacity
+                    }
+                  });
+                } else {
+                  updateElementSetting(selectedElement.id, {
+                    answerSettings: {
+                      ...selectedElement.answerSettings,
+                      fontOpacity: opacity
+                    }
+                  });
+                }
+                break;
+              case 'element-border-color':
+                updateElementSetting(selectedElement.id, { borderOpacity: opacity });
+                break;
+              case 'element-background-color':
+                updateElementSetting(selectedElement.id, { backgroundOpacity: opacity });
+                break;
+              case 'element-ruled-lines-color':
+                updateElementSetting(selectedElement.id, { ruledLinesOpacity: opacity });
+                break;
+            }
+          };
+          
+          return (
+            <ColorSelector
+              value={getColorValue()}
+              onChange={handleColorChange}
+              opacity={getOpacityValue()}
+              onOpacityChange={handleOpacityChange}
+              favoriteColors={favoriteStrokeColors}
+              onAddFavorite={addFavoriteStrokeColor}
+              onRemoveFavorite={removeFavoriteStrokeColor}
+              onBack={() => setShowColorSelector(null)}
+              showOpacitySlider={showColorSelector === 'element-text-color' || showColorSelector === 'element-border-color' || showColorSelector === 'element-background-color'}
+            />
+          );
+        }
+        
         return renderElementColorSelector(selectedElement, showColorSelector);
       }
     }

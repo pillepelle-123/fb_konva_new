@@ -1,8 +1,7 @@
-import jsPDF from 'jspdf';
 import Konva from 'konva';
-import type { Book } from '../context/EditorContext';
-import { PATTERNS } from '../utils/patterns';
-import type { PageBackground } from '../context/editor-context';
+import { PDFDocument } from 'pdf-lib';
+import type { Book, PageBackground } from '../context/editor-context';
+import { PAGE_DIMENSIONS, CANVAS_DIMS, PATTERNS, createPatternTile } from './shared-rendering';
 
 export interface PDFExportOptions {
   quality: 'preview' | 'medium' | 'printing';
@@ -11,14 +10,6 @@ export interface PDFExportOptions {
   endPage?: number;
   currentPageIndex?: number;
 }
-
-const PAGE_DIMENSIONS = {
-  A4: { width: 210, height: 297 },
-  A5: { width: 148, height: 210 },
-  A3: { width: 297, height: 420 },
-  Letter: { width: 216, height: 279 },
-  Square: { width: 210, height: 210 }
-};
 
 export const exportBookToPDF = async (
   book: Book,
@@ -30,255 +21,210 @@ export const exportBookToPDF = async (
   window.dispatchEvent(new CustomEvent('setBackgroundQuality', { detail: { mode: 'full' } }));
   await new Promise((resolve) => setTimeout(resolve, 100));
   try {
-  // Restrict printing quality for authors
-  if (userRole === 'author' && options.quality === 'printing') {
-    throw new Error('Authors cannot export in printing quality');
-  }
-  // Determine which pages to export
-  let pagesToExport = book.pages;
-  if (options.pageRange === 'range' && options.startPage && options.endPage) {
-    const start = Math.max(1, options.startPage) - 1;
-    const end = Math.min(book.pages.length, options.endPage);
-    pagesToExport = book.pages.slice(start, end);
-  } else if (options.pageRange === 'current' && options.currentPageIndex !== undefined) {
-    pagesToExport = [book.pages[options.currentPageIndex]];
-  }
-
-  // Get PDF dimensions
-  const dimensions = PAGE_DIMENSIONS[book.pageSize as keyof typeof PAGE_DIMENSIONS] || PAGE_DIMENSIONS.A4;
-  const pdfWidth = book.orientation === 'landscape' ? dimensions.height : dimensions.width;
-  const pdfHeight = book.orientation === 'landscape' ? dimensions.width : dimensions.height;
-  
-  // Fix TypeScript error by using proper jsPDF constructor
-  const pdf = new jsPDF({
-    orientation: (book.orientation === 'portrait' ? 'portrait' : 'landscape') as 'portrait' | 'landscape',
-    unit: 'mm',
-    format: [pdfWidth, pdfHeight],
-    compress: true
-  } as any);
-
-  for (let i = 0; i < pagesToExport.length; i++) {
-    if (signal?.aborted) {
-      throw new DOMException('Export cancelled', 'AbortError');
+    // Restrict printing quality for authors
+    if (userRole === 'author' && options.quality === 'printing') {
+      throw new Error('Authors cannot export in printing quality');
     }
     
-    const bookPage = pagesToExport[i];
-    
-    // Navigate to the page
-    const pageIndex = book.pages.findIndex(p => p.id === bookPage.id);
-    if (pageIndex !== -1) {
-      const event = new CustomEvent('changePage', { detail: pageIndex });
-      window.dispatchEvent(event);
-      await new Promise(resolve => setTimeout(resolve, 500));
-    }
-    
-    // Get the stage from window reference
-    const stage = (window as any).konvaStage;
-    if (!stage) {
-      console.error('Konva stage not found');
-      return;
+    // Determine which pages to export
+    let pagesToExport = book.pages;
+    if (options.pageRange === 'range' && options.startPage && options.endPage) {
+      const start = Math.max(1, options.startPage) - 1;
+      const end = Math.min(book.pages.length, options.endPage);
+      pagesToExport = book.pages.slice(start, end);
+    } else if (options.pageRange === 'current' && options.currentPageIndex !== undefined) {
+      pagesToExport = [book.pages[options.currentPageIndex]];
     }
 
-    // Create a temporary stage for PDF export with exact page dimensions
-    const CANVAS_DIMS = {
-      A4: { width: 2480, height: 3508 },
-      A5: { width: 1748, height: 2480 },
-      A3: { width: 3508, height: 4961 },
-      Letter: { width: 2550, height: 3300 },
-      Square: { width: 2480, height: 2480 }
-    };
+    // Get PDF dimensions in mm
+    const dimensions = PAGE_DIMENSIONS[book.pageSize as keyof typeof PAGE_DIMENSIONS] || PAGE_DIMENSIONS.A4;
+    const pdfWidth = book.orientation === 'landscape' ? dimensions.height : dimensions.width;
+    const pdfHeight = book.orientation === 'landscape' ? dimensions.width : dimensions.height;
     
+    // Convert mm to points for pdf-lib (1 point = 0.352778 mm)
+    const widthPt = pdfWidth / 0.352778;
+    const heightPt = pdfHeight / 0.352778;
+    
+    // Create PDF document with pdf-lib (same as server-side)
+    const pdfDoc = await PDFDocument.create();
+    
+    // Set metadata
+    pdfDoc.setTitle(book.name);
+    pdfDoc.setSubject(`PDF Export - ${book.name}`);
+    pdfDoc.setCreator('FB Konva Editor');
+    pdfDoc.setProducer('FB Konva Editor');
+    
+    // Get canvas dimensions
     const canvasDims = CANVAS_DIMS[book.pageSize as keyof typeof CANVAS_DIMS] || CANVAS_DIMS.A4;
     const canvasWidth = book.orientation === 'landscape' ? canvasDims.height : canvasDims.width;
     const canvasHeight = book.orientation === 'landscape' ? canvasDims.width : canvasDims.height;
 
-    // Create temporary container
-    const tempContainer = document.createElement('div');
-    tempContainer.style.position = 'absolute';
-    tempContainer.style.top = '-9999px';
-    tempContainer.style.left = '-9999px';
-    document.body.appendChild(tempContainer);
+    console.log(`PDF Export: Creating PDF with dimensions ${pdfWidth} x ${pdfHeight} mm (${widthPt.toFixed(2)} x ${heightPt.toFixed(2)} pt)`);
 
-    // Create temporary stage with exact page dimensions
-    const tempStage = new Konva.Stage({
-      container: tempContainer,
-      width: canvasWidth,
-      height: canvasHeight
-    });
-
-    // Clone the main layer to the temporary stage
-    const mainLayer = stage.getLayers()[0];
-    if (mainLayer) {
-      const clonedLayer = mainLayer.clone();
-
-      // Detect page offsets using the CanvasPageEditArea rectangle
-      let pageRect = clonedLayer.findOne('#canvas-page-edit-area') as Konva.Rect | null;
-      const allRects = clonedLayer.find<Konva.Rect>('Rect');
-      if (!pageRect) {
-        pageRect = allRects.find((rectNode) => {
-          return (
-            !rectNode.id() &&
-            rectNode.stroke() === '#e5e7eb' &&
-            rectNode.strokeWidth() === 11
-          );
-        }) ?? null;
+    for (let i = 0; i < pagesToExport.length; i++) {
+      if (signal?.aborted) {
+        throw new DOMException('Export cancelled', 'AbortError');
+      }
+      
+      const bookPage = pagesToExport[i];
+      
+      // Navigate to the page
+      const pageIndex = book.pages.findIndex((p) => String(p.id) === String(bookPage.id));
+      if (pageIndex !== -1) {
+        const event = new CustomEvent('changePage', { detail: pageIndex });
+        window.dispatchEvent(event);
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      // Get the stage from window reference
+      const stage = (window as Window & { konvaStage?: Konva.Stage }).konvaStage;
+      if (!stage) {
+        console.error('Konva stage not found');
+        return;
       }
 
-      let pageOffsetX = 0;
-      let pageOffsetY = 0;
-      let pageContentWidth = canvasWidth;
-      let pageContentHeight = canvasHeight;
+      // Create a temporary stage for PDF export with exact page dimensions
+      const tempContainer = document.createElement('div');
+      tempContainer.style.position = 'absolute';
+      tempContainer.style.top = '-9999px';
+      tempContainer.style.left = '-9999px';
+      document.body.appendChild(tempContainer);
 
-      if (pageRect) {
-        pageOffsetX = pageRect.x();
-        pageOffsetY = pageRect.y();
-        pageContentWidth = pageRect.width();
-        pageContentHeight = pageRect.height();
-        pageRect.destroy();
-      }
-
-      // Remove elements with no-print name
-      const noPrintElements = clonedLayer.find('.no-print');
-      noPrintElements.forEach(element => element.destroy());
-
-      const placeholderGroups = clonedLayer.find('.placeholder-element');
-      placeholderGroups.forEach(node => node.destroy());
-
-      // Resize export stage to actual page dimensions and shift layer so page starts at (0,0)
-      tempStage.size({ width: pageContentWidth, height: pageContentHeight });
-      clonedLayer.position({
-        x: -pageOffsetX,
-        y: -pageOffsetY
+      const tempStage = new Konva.Stage({
+        container: tempContainer,
+        width: canvasWidth,
+        height: canvasHeight
       });
-      tempStage.add(clonedLayer);
-      
-      // Fix pattern fills for PDF export - pattern fills don't clone correctly
-      // Check if current page has pattern background
-      const currentPage = bookPage;
-      if (currentPage?.background?.type === 'pattern') {
-        const background = currentPage.background as PageBackground;
-        const pattern = PATTERNS.find(p => p.id === background.value);
-        
-        if (pattern) {
-          // Find all Rects with fillPatternImage (pattern backgrounds)
-          const patternRects = clonedLayer.find('Rect').filter(rect => {
-            const fillPatternImage = (rect as any).fillPatternImage();
-            return fillPatternImage && !rect.listening();
-          });
-          
-          patternRects.forEach(rect => {
-            // Recreate pattern tile for PDF export
-            const patternColor = background.patternBackgroundColor || '#666';
-            const patternScale = Math.pow(1.5, (background.patternSize || 1) - 1);
-            const patternTile = createPatternTile(pattern, patternColor, patternScale, background.patternStrokeWidth || 1);
-            
-            // Set the pattern tile on the rect
-            (rect as any).fillPatternImage(patternTile);
-            (rect as any).fillPatternRepeat('repeat');
-            
-            // Ensure rect dimensions match page dimensions exactly
-            rect.width(pageContentWidth);
-            rect.height(pageContentHeight);
-            rect.x(0);
-            rect.y(0);
-          });
+
+      // Clone the main layer to the temporary stage
+      const mainLayer = stage.getLayers()[0];
+      if (mainLayer) {
+        const clonedLayer = mainLayer.clone();
+
+        // Detect page offsets using the CanvasPageEditArea rectangle
+        let pageRect = clonedLayer.findOne('#canvas-page-edit-area') as Konva.Rect | null;
+        const allRects = clonedLayer.find<Konva.Rect>('Rect');
+        if (!pageRect) {
+          pageRect = allRects.find((rectNode: Konva.Rect) => {
+            return (
+              !rectNode.id() &&
+              rectNode.stroke() === '#e5e7eb' &&
+              rectNode.strokeWidth() === 11
+            );
+          }) ?? null;
         }
+
+        let pageOffsetX = 0;
+        let pageOffsetY = 0;
+        let pageContentWidth: number = canvasWidth;
+        let pageContentHeight: number = canvasHeight;
+
+        if (pageRect) {
+          pageOffsetX = pageRect.x();
+          pageOffsetY = pageRect.y();
+          pageContentWidth = pageRect.width();
+          pageContentHeight = pageRect.height();
+          pageRect.destroy();
+        }
+
+        // Remove elements with no-print name
+        const noPrintElements = clonedLayer.find('.no-print');
+        noPrintElements.forEach((element: Konva.Node) => element.destroy());
+
+        const placeholderGroups = clonedLayer.find('.placeholder-element');
+        placeholderGroups.forEach((node: Konva.Node) => node.destroy());
+
+        // Resize export stage to actual page dimensions and shift layer so page starts at (0,0)
+        tempStage.size({ width: pageContentWidth, height: pageContentHeight });
+        clonedLayer.position({
+          x: -pageOffsetX,
+          y: -pageOffsetY
+        });
+        tempStage.add(clonedLayer);
+        
+        // Fix pattern fills for PDF export - pattern fills don't clone correctly
+        // Check if current page has pattern background
+        const currentPage = bookPage;
+        if (currentPage?.background?.type === 'pattern') {
+          const background = currentPage.background as PageBackground;
+          const pattern = PATTERNS.find(p => p.id === background.value);
+          
+          if (pattern) {
+            // Find all Rects with fillPatternImage (pattern backgrounds)
+            const patternRects = clonedLayer.find<Konva.Rect>('Rect').filter((rect: Konva.Rect) => {
+              const fillPatternImage = (rect as Konva.Rect & { fillPatternImage?: () => HTMLImageElement | HTMLCanvasElement }).fillPatternImage?.();
+              return fillPatternImage && !rect.listening();
+            });
+            
+            patternRects.forEach((rect: Konva.Rect) => {
+              // Recreate pattern tile for PDF export
+              const patternColor = background.patternBackgroundColor || '#666';
+              const patternScale = Math.pow(1.5, (background.patternSize || 1) - 1);
+              const patternTile = createPatternTile(pattern, patternColor, patternScale, background.patternStrokeWidth || 1);
+              
+              // Set the pattern tile on the rect
+              (rect as Konva.Rect & { fillPatternImage: (img: HTMLImageElement | HTMLCanvasElement) => void; fillPatternRepeat: (repeat: string) => void }).fillPatternImage(patternTile);
+              (rect as Konva.Rect & { fillPatternImage: (img: HTMLImageElement | HTMLCanvasElement) => void; fillPatternRepeat: (repeat: string) => void }).fillPatternRepeat('repeat');
+              
+              // Ensure rect dimensions match page dimensions exactly
+              rect.width(pageContentWidth);
+              rect.height(pageContentHeight);
+              rect.x(0);
+              rect.y(0);
+            });
+          }
+        }
+        
+        tempStage.draw();
       }
+
+      // Export to data URL
+      const dataURL = tempStage.toDataURL({
+        mimeType: 'image/png',
+        quality: 1.0,
+        pixelRatio: 1
+      });
+
+      // Convert data URL to Uint8Array for pdf-lib
+      const response = await fetch(dataURL);
+      const arrayBuffer = await response.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
       
-      tempStage.draw();
+      // Embed PNG image in PDF
+      const imageEmbed = await pdfDoc.embedPng(uint8Array);
+      
+      // Add page with correct dimensions (in points)
+      const pdfPage = pdfDoc.addPage([widthPt, heightPt]);
+      
+      // Draw image to fill the entire page
+      pdfPage.drawImage(imageEmbed, {
+        x: 0,
+        y: 0,
+        width: widthPt,
+        height: heightPt,
+      });
+
+      // Clean up temporary stage
+      tempStage.destroy();
+      document.body.removeChild(tempContainer);
+      
+      if (onProgress) {
+        onProgress(((i + 1) / pagesToExport.length) * 100);
+      }
     }
-
-    // Export to data URL
-    const dataURL = tempStage.toDataURL({
-      mimeType: 'image/png',
-      quality: 1.0,
-      pixelRatio: 1
-    });
-
-    // Add page to PDF (add new page for subsequent pages)
-    if (i > 0) {
-      pdf.addPage([pdfWidth, pdfHeight], (book.orientation === 'portrait' ? 'portrait' : 'landscape') as 'portrait' | 'landscape');
-    }
-
-    // Add image to PDF
-    pdf.addImage(dataURL, 'PNG', 0, 0, pdfWidth, pdfHeight);
-
-    // Clean up temporary stage
-    tempStage.destroy();
-    document.body.removeChild(tempContainer);
     
-    if (onProgress) {
-      onProgress(((i + 1) / pagesToExport.length) * 100);
-    }
-  }
-  
-  // Save PDF
-  pdf.save(`${book.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`);
+    // Save PDF
+    const pdfBytes = await pdfDoc.save();
+    const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${book.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   } finally {
     window.dispatchEvent(new CustomEvent('setBackgroundQuality', { detail: { mode: 'preview' } }));
   }
-};
-
-// Helper function to create pattern tile (same as in canvas.tsx)
-const createPatternTile = (pattern: any, color: string, size: number, strokeWidth: number = 1): HTMLCanvasElement => {
-  const tileSize = 20 * size;
-  const canvas = document.createElement('canvas');
-  canvas.width = tileSize;
-  canvas.height = tileSize;
-  const ctx = canvas.getContext('2d')!;
-  
-  ctx.fillStyle = color;
-  ctx.strokeStyle = color;
-  
-  if (pattern.id === 'dots') {
-    ctx.beginPath();
-    ctx.arc(tileSize/2, tileSize/2, tileSize * 0.1, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (pattern.id === 'grid') {
-    ctx.lineWidth = strokeWidth;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(tileSize, 0);
-    ctx.moveTo(0, 0);
-    ctx.lineTo(0, tileSize);
-    ctx.stroke();
-  } else if (pattern.id === 'diagonal') {
-    ctx.lineWidth = strokeWidth;
-    ctx.beginPath();
-    ctx.moveTo(0, tileSize);
-    ctx.lineTo(tileSize, 0);
-    ctx.stroke();
-  } else if (pattern.id === 'cross') {
-    ctx.lineWidth = strokeWidth;
-    ctx.beginPath();
-    ctx.moveTo(0, tileSize);
-    ctx.lineTo(tileSize, 0);
-    ctx.moveTo(0, 0);
-    ctx.lineTo(tileSize, tileSize);
-    ctx.stroke();
-  } else if (pattern.id === 'waves') {
-    ctx.lineWidth = strokeWidth * 2;
-    ctx.beginPath();
-    ctx.moveTo(0, tileSize/2);
-    ctx.quadraticCurveTo(tileSize/4, 0, tileSize/2, tileSize/2);
-    ctx.quadraticCurveTo(3*tileSize/4, tileSize, tileSize, tileSize/2);
-    ctx.stroke();
-  } else if (pattern.id === 'hexagon') {
-    ctx.lineWidth = strokeWidth;
-    ctx.beginPath();
-    const centerX = tileSize/2;
-    const centerY = tileSize/2;
-    const radius = tileSize * 0.3;
-    for (let i = 0; i < 6; i++) {
-      const angle = (i * Math.PI) / 3;
-      const x = centerX + radius * Math.cos(angle);
-      const y = centerY + radius * Math.sin(angle);
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.closePath();
-    ctx.stroke();
-  }
-  
-  return canvas;
 };

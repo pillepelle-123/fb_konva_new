@@ -1,23 +1,56 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/auth-context';
 import { Link } from 'react-router-dom';
-import { MessageCircle } from 'lucide-react';
+import { MessageCircle, FileDown } from 'lucide-react';
 import ProfilePicture from '../users/profile-picture';
 import type { Conversation } from './types';
+import { useSocket } from '../../../context/socket-context';
 
 interface NotificationPopoverProps {
   onUpdate: () => void;
   onClose: () => void;
 }
 
+interface PDFExportNotification {
+  id: number;
+  bookId: number;
+  bookName: string;
+  status: 'completed' | 'failed';
+  createdAt: string;
+}
+
 export default function NotificationPopover({ onUpdate, onClose }: NotificationPopoverProps) {
   const { token } = useAuth();
+  const { socket } = useSocket();
   const [unreadConversations, setUnreadConversations] = useState<Conversation[]>([]);
+  const [pdfExportNotifications, setPdfExportNotifications] = useState<PDFExportNotification[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchUnreadConversations();
+    fetchPDFExportNotifications();
   }, []);
+
+  useEffect(() => {
+    if (socket) {
+      socket.on('pdf_export_completed', (data: { exportId: number; bookId: number; bookName: string; status: string }) => {
+        if (data.status === 'completed') {
+          setPdfExportNotifications(prev => [{
+            id: data.exportId,
+            bookId: data.bookId,
+            bookName: data.bookName,
+            status: 'completed',
+            createdAt: new Date().toISOString()
+          }, ...prev]);
+          onUpdate();
+        }
+      });
+
+      return () => {
+        socket.off('pdf_export_completed');
+      };
+    }
+  }, [socket, onUpdate]);
 
   const fetchUnreadConversations = async () => {
     try {
@@ -35,6 +68,23 @@ export default function NotificationPopover({ onUpdate, onClose }: NotificationP
       console.error('Error fetching unread conversations:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPDFExportNotifications = async () => {
+    try {
+      // Fetch recent completed PDF exports (last 24 hours)
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/pdf-exports/recent`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setPdfExportNotifications(data.filter((exp: any) => exp.status === 'completed'));
+      }
+    } catch (error) {
+      // Silently fail - this is optional
     }
   };
 
@@ -86,13 +136,38 @@ export default function NotificationPopover({ onUpdate, onClose }: NotificationP
         </Link>
       </div>
       
-      {unreadConversations.length === 0 ? (
+      {(unreadConversations.length === 0 && pdfExportNotifications.length === 0) ? (
         <div className="text-center py-8">
           <MessageCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
-          <p className="text-sm text-muted-foreground">No new messages</p>
+          <p className="text-sm text-muted-foreground">No new notifications</p>
         </div>
       ) : (
         <div className="space-y-2 max-h-64 overflow-y-auto">
+          {pdfExportNotifications.map((notification) => (
+            <Link
+              key={`pdf-${notification.id}`}
+              to={`/books/${notification.bookId}/export`}
+              onClick={() => { onClose(); }}
+              className="block p-3 rounded-lg hover:bg-muted transition-colors"
+            >
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 mt-0.5">
+                  <FileDown className="h-4 w-4 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium text-sm truncate">PDF Export Ready</span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatTime(notification.createdAt)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {notification.bookName}
+                  </p>
+                </div>
+              </div>
+            </Link>
+          ))}
           {unreadConversations.map((conversation) => {
             const isGroup = conversation.is_group;
             const partner = conversation.direct_partner;

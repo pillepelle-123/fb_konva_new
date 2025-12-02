@@ -164,25 +164,18 @@ export function applyPaletteToElement(palette: ColorPalette, elementType: string
       break;
       
     case 'qna_inline':
+      // Font properties only in questionSettings/answerSettings (no nested font object)
+      // Shared properties (borderColor, backgroundColor, etc.) are set on top-level
       updates.questionSettings = {
-        fontColor: palette.colors.text,
-        font: { fontColor: palette.colors.text },
-        borderColor: palette.colors.primary,
-        border: { borderColor: palette.colors.primary },
-        backgroundColor: palette.colors.accent,
-        background: { backgroundColor: palette.colors.accent },
-        ruledLinesColor: palette.colors.primary
+        fontColor: palette.colors.text
       };
       updates.answerSettings = {
-        fontColor: palette.colors.text,
-        font: { fontColor: palette.colors.text },
-        borderColor: palette.colors.primary,
-        border: { borderColor: palette.colors.primary },
-        backgroundColor: palette.colors.accent,
-        background: { backgroundColor: palette.colors.accent },
-        ruledLinesColor: palette.colors.primary,
-        ruledLines: { lineColor: palette.colors.primary }
+        fontColor: palette.colors.text
       };
+      // Set shared properties on top-level
+      updates.borderColor = palette.colors.primary;
+      updates.backgroundColor = palette.colors.accent;
+      updates.ruledLinesColor = palette.colors.primary;
       break;
       
     case 'free_text':

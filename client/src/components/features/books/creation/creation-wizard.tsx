@@ -317,36 +317,14 @@ export function CreationWizard({ open, onOpenChange, onSuccess }: CreationWizard
       if (element.textType === 'qna_inline') {
         updatedElement.questionSettings = {
           ...(defaults.questionSettings || {}),
-          ...(element.questionSettings || {}),
-          font: {
-            ...(defaults.questionSettings?.font || {}),
-            ...(element.questionSettings?.font || {})
-          },
-          border: {
-            ...(defaults.questionSettings?.border || {}),
-            ...(element.questionSettings?.border || {})
-          },
-          background: {
-            ...(defaults.questionSettings?.background || {}),
-            ...(element.questionSettings?.background || {})
-          }
+          ...(element.questionSettings || {})
+          // Border/Background are shared properties - borderEnabled/backgroundEnabled are only on top-level
         };
 
         updatedElement.answerSettings = {
           ...(defaults.answerSettings || {}),
-          ...(element.answerSettings || {}),
-          font: {
-            ...(defaults.answerSettings?.font || {}),
-            ...(element.answerSettings?.font || {})
-          },
-          border: {
-            ...(defaults.answerSettings?.border || {}),
-            ...(element.answerSettings?.border || {})
-          },
-          background: {
-            ...(defaults.answerSettings?.background || {}),
-            ...(element.answerSettings?.background || {})
-          }
+          ...(element.answerSettings || {})
+          // Border/Background are shared properties - borderEnabled/backgroundEnabled are only on top-level
         };
       }
 

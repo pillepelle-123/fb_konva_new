@@ -18,6 +18,7 @@ import BookCreatePage from './pages/books/create'
 import ImagesList from './pages/images/index'
 import QuestionsList from './pages/questions/index'
 import BookManagerPage from './pages/books/manager'
+import BookExportPage from './pages/books/[bookId]/export'
 import FriendsList from './pages/friends/index'
 import Profile from './pages/profile/index'
 import Settings from './pages/profile/settings'
@@ -76,6 +77,7 @@ function AppContent() {
           <Route path="/images" element={<ProtectedRoute><ImagesList /></ProtectedRoute>} />
           <Route path="/questions/:bookId" element={<ProtectedRoute><BookAccessGuard><QuestionsList /></BookAccessGuard></ProtectedRoute>} />
           <Route path="/books/:bookId/manager" element={<ProtectedRoute><BookAccessGuard><BookManagerPage /></BookAccessGuard></ProtectedRoute>} />
+          <Route path="/books/:bookId/export" element={<ProtectedRoute><BookAccessGuard><BookExportPage /></BookAccessGuard></ProtectedRoute>} />
           <Route path="/friends" element={<ProtectedRoute><FriendsList /></ProtectedRoute>} />
           <Route path="/messenger" element={<ProtectedRoute><MessengerPage /></ProtectedRoute>} />
           <Route path="/profile/:userId" element={<ProtectedRoute><Profile /></ProtectedRoute>} />

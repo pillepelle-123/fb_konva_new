@@ -209,6 +209,13 @@ export function SelectItem({ value, className, children, disabled, tooltip }: Se
   const tooltipText = tooltip || context.itemTooltips?.get(value);
 
   // Extract text content from children
+  // Use ref to store registerItem function to prevent infinite loops
+  const registerItemRef = useRef(context.registerItem);
+  registerItemRef.current = context.registerItem;
+  
+  // Track previous label to prevent unnecessary re-registrations
+  const previousLabelRef = useRef<string>('');
+  
   useEffect(() => {
     if (children) {
       // Extract text recursively if it's nested
@@ -226,11 +233,15 @@ export function SelectItem({ value, className, children, disabled, tooltip }: Se
       };
       
       const label = extractText(children);
-      if (label.trim()) {
-        context.registerItem(value, label.trim());
+      const trimmedLabel = label.trim();
+      
+      // Only register if label has changed
+      if (trimmedLabel && trimmedLabel !== previousLabelRef.current) {
+        previousLabelRef.current = trimmedLabel;
+        registerItemRef.current(value, trimmedLabel);
       }
     }
-  }, [children, value, context]);
+  }, [children, value]);
 
   return (
     <div

@@ -98,3 +98,8 @@ public/uploads/
 
 # My own files
 .pillepelle/
+
+# Temporary test documentation (optional - uncomment if you don't want these in git)
+# docs/testing/test-results.md
+# docs/testing/test-execution-summary.md
+# docs/testing/test-issue-analysis.md

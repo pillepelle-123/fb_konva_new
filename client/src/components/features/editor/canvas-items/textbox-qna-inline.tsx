@@ -237,65 +237,113 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
 
   // Force refresh when element properties change (e.g., from Style Painter)
   // Extract primitive values to prevent infinite re-renders from object references
-  const questionSettingsFontSize = element.questionSettings?.font?.fontSize;
-  const answerSettingsFontSize = element.answerSettings?.font?.fontSize;
-  const questionSettingsFontSizeDirect = element.questionSettings?.fontSize;
-  const answerSettingsFontSizeDirect = element.answerSettings?.fontSize;
+  // Font properties are now only directly in questionSettings/answerSettings
+  const questionSettingsFontSize = element.questionSettings?.fontSize;
+  const answerSettingsFontSize = element.answerSettings?.fontSize;
   const questionSettingsFontColor = element.questionSettings?.fontColor;
   const answerSettingsFontColor = element.answerSettings?.fontColor;
   const questionSettingsFontOpacity = element.questionSettings?.fontOpacity;
   const answerSettingsFontOpacity = element.answerSettings?.fontOpacity;
-  const elementFontSize = element.fontSize;
-  const elementFontFamily = element.fontFamily;
-  const elementFontColor = element.fontColor;
+  // Font properties for qna_inline are only in questionSettings/answerSettings, not on element level
   const elementWidth = element.width;
   const elementHeight = element.height;
   const elementQuestionWidth = element.questionWidth;
   
   // Get current question text to detect changes - use useMemo to make it reactive
   // Access the specific question from tempQuestions to ensure reactivity
-  const questionTextFromState = element.questionId ? state.tempQuestions[element.questionId] : null;
+  // Stabilize tempQuestions object reference to prevent infinite loops
+  const tempQuestionsString = useMemo(() => JSON.stringify(state.tempQuestions), [state.tempQuestions]);
+  const questionTextFromState = useMemo(() => {
+    return element.questionId ? state.tempQuestions[element.questionId] : null;
+  }, [element.questionId, tempQuestionsString]);
+  
   const currentQuestionText = useMemo(() => {
     if (!element.questionId) return null;
     return questionTextFromState || null;
   }, [element.questionId, questionTextFromState]);
   
+  // Use ref to track previous font values to prevent unnecessary re-renders
+  const previousFontValuesRef = useRef<string>('');
   useEffect(() => {
-    // Simulate the resize process to force proper re-calculation of ruled lines
-    setIsResizing(true);
-    const timeoutId = setTimeout(() => {
-      setIsResizing(false);
-      setRefreshKey(prev => prev + 1);
-    }, 10);
+    // Create a stable string representation of all font-related values
+    const currentFontValues = JSON.stringify({
+      questionSettingsFontSize,
+      answerSettingsFontSize,
+      questionSettingsFontColor,
+      answerSettingsFontColor,
+      questionSettingsFontOpacity,
+      answerSettingsFontOpacity,
+      elementWidth,
+      elementHeight,
+      elementQuestionWidth
+    });
     
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [questionSettingsFontSize, answerSettingsFontSize, questionSettingsFontSizeDirect, answerSettingsFontSizeDirect, questionSettingsFontColor, answerSettingsFontColor, questionSettingsFontOpacity, answerSettingsFontOpacity, elementFontSize, elementFontFamily, elementFontColor, elementWidth, elementHeight, elementQuestionWidth]);
+    // Only trigger if values actually changed
+    if (currentFontValues !== previousFontValuesRef.current) {
+      previousFontValuesRef.current = currentFontValues;
+      setIsResizing(true);
+      const timeoutId = setTimeout(() => {
+        setIsResizing(false);
+        setRefreshKey(prev => prev + 1);
+      }, 10);
+      
+      return () => {
+        clearTimeout(timeoutId);
+      };
+    }
+  }, [questionSettingsFontSize, answerSettingsFontSize, questionSettingsFontColor, answerSettingsFontColor, questionSettingsFontOpacity, answerSettingsFontOpacity, elementWidth, elementHeight, elementQuestionWidth]);
 
   // Force refresh when ruled lines settings change
+  // Extract values to prevent object reference changes from triggering infinite loops
+  const ruledLinesColor = element.ruledLinesColor;
+  const ruledLinesOpacity = element.ruledLinesOpacity;
+  const ruledLinesTheme = element.ruledLinesTheme;
+  const ruledLinesWidth = element.ruledLinesWidth;
+  const questionSettingsFontSizeForRuledLines = element.questionSettings?.fontSize;
   useEffect(() => {
     setRefreshKey(prev => prev + 1);
-  }, [element.answerSettings?.ruledLinesColor, element.answerSettings?.ruledLinesOpacity, element.answerSettings?.ruledLinesTheme, element.answerSettings?.ruledLinesWidth, element.questionSettings?.fontSize]);
+  }, [ruledLinesColor, ruledLinesOpacity, ruledLinesTheme, ruledLinesWidth, questionSettingsFontSizeForRuledLines]);
 
   // Force refresh when active section or individual settings change
+  // Use JSON.stringify to compare arrays/objects to prevent infinite loops
+  const selectedElementIdsString = JSON.stringify(state.selectedElementIds);
+  
+  // Use ref to track previous values to prevent unnecessary re-renders
+  const previousSectionValuesRef = useRef<string>('');
   useEffect(() => {
-    setRefreshKey(prev => prev + 1);
-  }, [activeSection, individualSettings, state.selectedElementIds]);
+    const currentSectionValues = JSON.stringify({
+      activeSection,
+      individualSettings,
+      selectedElementIdsString
+    });
+    
+    if (currentSectionValues !== previousSectionValuesRef.current) {
+      previousSectionValuesRef.current = currentSectionValues;
+      setRefreshKey(prev => prev + 1);
+    }
+  }, [activeSection, individualSettings, selectedElementIdsString]);
   
   // Force refresh when question text changes (e.g., after editing in book-manager or when questions are loaded)
+  // Only trigger if questionText actually changed (not just reference)
+  const previousQuestionTextRef = useRef<string | null>(null);
   useEffect(() => {
-    if (element.questionId) {
+    if (element.questionId && currentQuestionText !== previousQuestionTextRef.current) {
+      previousQuestionTextRef.current = currentQuestionText;
       setRefreshKey(prev => prev + 1);
     }
-  }, [element.questionId, currentQuestionText, questionTextFromState]);
+  }, [element.questionId, currentQuestionText]);
 
   // Force refresh when active page changes to ensure questions are re-rendered for different users
+  // Use ref to track previous page index to prevent unnecessary refreshes
+  const previousPageIndexRef = useRef<number>(state.activePageIndex);
+  const pageAssignmentsStringForRefresh = useMemo(() => JSON.stringify(state.pageAssignments), [state.pageAssignments]);
+  
   useEffect(() => {
-    if (element.questionId) {
+    if (element.questionId && (state.activePageIndex !== previousPageIndexRef.current)) {
+      previousPageIndexRef.current = state.activePageIndex;
       setRefreshKey(prev => prev + 1);
     }
-  }, [element.questionId, state.activePageIndex, state.pageAssignments]);
+  }, [element.questionId, state.activePageIndex, pageAssignmentsStringForRefresh]);
 
   // Store a global function that can be called directly from the button
   useEffect(() => {
@@ -336,16 +384,16 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
     questionSettings: {
       fontSize: qnaInlineThemeDefaults.questionSettings?.fontSize || 45,
       // Priority: toolSettings > themeDefaults.questionSettings > themeDefaults (top level)
-      fontColor: state.toolSettings?.qna_inline?.fontColor || qnaInlineThemeDefaults.questionSettings?.fontColor || qnaInlineThemeDefaults.questionSettings?.font?.fontColor || qnaInlineThemeDefaults.fontColor,
-      fontOpacity: state.toolSettings?.qna_inline?.fontOpacity ?? qnaInlineThemeDefaults.questionSettings?.fontOpacity ?? qnaInlineThemeDefaults.questionSettings?.font?.fontOpacity ?? 1,
+      fontColor: state.toolSettings?.qna_inline?.fontColor || qnaInlineThemeDefaults.questionSettings?.fontColor || qnaInlineThemeDefaults.fontColor,
+      fontOpacity: state.toolSettings?.qna_inline?.fontOpacity ?? qnaInlineThemeDefaults.questionSettings?.fontOpacity ?? 1,
       borderColor: state.toolSettings?.qna_inline?.borderColor || qnaInlineThemeDefaults.questionSettings?.borderColor || qnaInlineThemeDefaults.questionSettings?.border?.borderColor || qnaInlineThemeDefaults.borderColor,
       backgroundColor: state.toolSettings?.qna_inline?.backgroundColor || qnaInlineThemeDefaults.questionSettings?.backgroundColor || qnaInlineThemeDefaults.questionSettings?.background?.backgroundColor || qnaInlineThemeDefaults.backgroundColor
     },
     answerSettings: {
       fontSize: qnaInlineThemeDefaults.answerSettings?.fontSize || 50,
       // Priority: toolSettings > themeDefaults.answerSettings > themeDefaults (top level)
-      fontColor: state.toolSettings?.qna_inline?.fontColor || qnaInlineThemeDefaults.answerSettings?.fontColor || qnaInlineThemeDefaults.answerSettings?.font?.fontColor || qnaInlineThemeDefaults.fontColor,
-      fontOpacity: state.toolSettings?.qna_inline?.fontOpacity ?? qnaInlineThemeDefaults.answerSettings?.fontOpacity ?? qnaInlineThemeDefaults.answerSettings?.font?.fontOpacity ?? 1,
+      fontColor: state.toolSettings?.qna_inline?.fontColor || qnaInlineThemeDefaults.answerSettings?.fontColor || qnaInlineThemeDefaults.fontColor,
+      fontOpacity: state.toolSettings?.qna_inline?.fontOpacity ?? qnaInlineThemeDefaults.answerSettings?.fontOpacity ?? 1,
       borderColor: state.toolSettings?.qna_inline?.borderColor || qnaInlineThemeDefaults.answerSettings?.borderColor || qnaInlineThemeDefaults.answerSettings?.border?.borderColor || qnaInlineThemeDefaults.borderColor,
       backgroundColor: state.toolSettings?.qna_inline?.backgroundColor || qnaInlineThemeDefaults.answerSettings?.backgroundColor || qnaInlineThemeDefaults.answerSettings?.background?.backgroundColor || qnaInlineThemeDefaults.backgroundColor,
       ruledLines: { 
@@ -354,8 +402,10 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
     }
   };
   
-  const fontSize = element.font?.fontSize || element.fontSize || toolDefaults.fontSize || 50;
-  const fontFamily = element.font?.fontFamily || element.fontFamily || toolDefaults.fontFamily || 'Arial, sans-serif';
+  // Font properties for qna_inline are only in questionSettings/answerSettings
+  // These defaults are only used as fallback for theme defaults
+  const fontSize = toolDefaults.fontSize || 50;
+  const fontFamily = toolDefaults.fontFamily || 'Arial, sans-serif';
   
   const getQuestionText = () => {
     if (!element.questionId) return '';
@@ -460,24 +510,53 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
 
   
   // Update element text when assigned user changes to show their answer
+  // Stabilize object references to prevent infinite loops
+  const pageAssignmentsString = useMemo(() => JSON.stringify(state.pageAssignments), [state.pageAssignments]);
+  const tempAnswersString = useMemo(() => JSON.stringify(state.tempAnswers), [state.tempAnswers]);
+  
+  const assignedUser = useMemo(() => {
+    return state.pageAssignments[state.activePageIndex + 1];
+  }, [pageAssignmentsString, state.activePageIndex]);
+  
+  const answerText = useMemo(() => {
+    if (!element.questionId || !assignedUser) return '';
+    return state.tempAnswers[element.questionId]?.[assignedUser.id]?.text || '';
+  }, [element.questionId, assignedUser, tempAnswersString]);
+  
+  // Use ref to track previous values and prevent unnecessary updates
+  const previousAnswerTextRef = useRef<string>('');
+  const previousElementTextRef = useRef<string>('');
+  const previousElementFormattedTextRef = useRef<string>('');
+  
   useEffect(() => {
     if (element.questionId) {
-      const assignedUser = state.pageAssignments[state.activePageIndex + 1];
-      const answerText = assignedUser ? (state.tempAnswers[element.questionId]?.[assignedUser.id]?.text || '') : '';
+      // Only update if the answerText has changed AND element text doesn't match
+      // Don't include element.text/formattedText in dependencies to prevent infinite loops
+      const answerTextChanged = answerText !== previousAnswerTextRef.current;
+      const elementTextMismatch = element.text !== answerText || element.formattedText !== answerText;
       
-      // Always update to show the assigned user's answer (or empty if no answer yet)
-      dispatch({
-        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-        payload: {
-          id: element.id,
-          updates: {
-            text: answerText,
-            formattedText: answerText
+      if (answerTextChanged && elementTextMismatch) {
+        previousAnswerTextRef.current = answerText;
+        previousElementTextRef.current = element.text;
+        previousElementFormattedTextRef.current = element.formattedText;
+        
+        dispatch({
+          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+          payload: {
+            id: element.id,
+            updates: {
+              text: answerText,
+              formattedText: answerText
+            }
           }
-        }
-      });
+        });
+      } else {
+        // Update refs even if we don't dispatch to track current state
+        previousElementTextRef.current = element.text;
+        previousElementFormattedTextRef.current = element.formattedText;
+      }
     }
-  }, [element.questionId, state.pageAssignments, state.activePageIndex, state.tempAnswers, element.id, dispatch]);
+  }, [element.questionId, answerText, element.id, dispatch]);
 
 
 
@@ -489,14 +568,14 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
       questionSettings: {
         fontSize: qnaInlineDefaultsFromTheme.questionSettings?.fontSize || 45,
         // Priority: toolSettings > themeDefaults.questionSettings > themeDefaults (top level)
-        fontColor: state.toolSettings?.qna_inline?.fontColor || qnaInlineDefaultsFromTheme.questionSettings?.fontColor || qnaInlineDefaultsFromTheme.questionSettings?.font?.fontColor || qnaInlineDefaultsFromTheme.fontColor,
+        fontColor: state.toolSettings?.qna_inline?.fontColor || qnaInlineDefaultsFromTheme.questionSettings?.fontColor || qnaInlineDefaultsFromTheme.fontColor,
         borderColor: state.toolSettings?.qna_inline?.borderColor || qnaInlineDefaultsFromTheme.questionSettings?.borderColor || qnaInlineDefaultsFromTheme.questionSettings?.border?.borderColor || qnaInlineDefaultsFromTheme.borderColor,
         backgroundColor: state.toolSettings?.qna_inline?.backgroundColor || qnaInlineDefaultsFromTheme.questionSettings?.backgroundColor || qnaInlineDefaultsFromTheme.questionSettings?.background?.backgroundColor || qnaInlineDefaultsFromTheme.backgroundColor
       },
       answerSettings: {
         fontSize: qnaInlineDefaultsFromTheme.answerSettings?.fontSize || 50,
         // Priority: toolSettings > themeDefaults.answerSettings > themeDefaults (top level)
-        fontColor: state.toolSettings?.qna_inline?.fontColor || qnaInlineDefaultsFromTheme.answerSettings?.fontColor || qnaInlineDefaultsFromTheme.answerSettings?.font?.fontColor || qnaInlineDefaultsFromTheme.fontColor,
+        fontColor: state.toolSettings?.qna_inline?.fontColor || qnaInlineDefaultsFromTheme.answerSettings?.fontColor || qnaInlineDefaultsFromTheme.fontColor,
         borderColor: state.toolSettings?.qna_inline?.borderColor || qnaInlineDefaultsFromTheme.answerSettings?.borderColor || qnaInlineDefaultsFromTheme.answerSettings?.border?.borderColor || qnaInlineDefaultsFromTheme.borderColor,
         backgroundColor: state.toolSettings?.qna_inline?.backgroundColor || qnaInlineDefaultsFromTheme.answerSettings?.backgroundColor || qnaInlineDefaultsFromTheme.answerSettings?.background?.backgroundColor || qnaInlineDefaultsFromTheme.backgroundColor,
         ruledLines: { 
@@ -513,8 +592,8 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
       ...qnaInlineDefaults.answerSettings,
       ...element.answerSettings
     };
-    const padding = questionStyle.padding || answerStyle.padding || element.format?.padding || element.padding || 4;
-    const answerRuledLines = answerStyle.ruledLines ?? false;
+    const padding = element.padding || questionStyle.padding || answerStyle.padding || element.format?.padding || 4;
+    const answerRuledLines = element.ruledLines ?? false;
     
     if (!answerRuledLines) return [];
     
@@ -531,10 +610,10 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
       }
     };
     
-    const aTheme = element.answerSettings?.ruledLinesTheme || answerStyle.ruledLinesTheme || 'rough';
-    const aColor = element.answerSettings?.ruledLines?.lineColor || element.answerSettings?.ruledLinesColor || answerStyle.ruledLines?.lineColor || answerStyle.ruledLinesColor || '#1f2937';
-    const aWidth = element.answerSettings?.ruledLinesWidth || answerStyle.ruledLinesWidth || 0.8;
-    const aOpacity = element.answerSettings?.ruledLinesOpacity ?? answerStyle.ruledLinesOpacity ?? 1;
+    const aTheme = element.ruledLinesTheme || 'rough';
+    const aColor = element.ruledLinesColor || '#1f2937';
+    const aWidth = element.ruledLinesWidth || 0.8;
+    const aOpacity = element.ruledLinesOpacity ?? 1;
     
     if (layoutVariant === 'block') {
       return generateBlockLayoutRuledLines(questionPosition, padding, answerFontSize, aSpacing, getLineHeightMultiplier, aTheme, aColor, aWidth, aOpacity);
@@ -657,9 +736,9 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
         const availableWidthAfterQuestion = textWidth - lastQuestionLineWidth - gap;
         
         // Check if first word of answer fits after last question line
-        const aFontFamily = answerStyle.fontFamily || element.font?.fontFamily || element.fontFamily || fontFamily;
-        const aFontBold = answerStyle.fontBold || false;
-        const aFontItalic = answerStyle.fontItalic || false;
+        const aFontFamily = answerStyle.fontFamily || fontFamily;
+        const aFontBold = answerStyle.fontBold ?? false;
+        const aFontItalic = answerStyle.fontItalic ?? false;
         const answerContext = document.createElement('canvas').getContext('2d')!;
         answerContext.font = `${aFontBold ? 'bold ' : ''}${aFontItalic ? 'italic ' : ''}${answerFontSize}px ${aFontFamily}`;
         const firstAnswerLine = userText.split('\n')[0] || '';
@@ -858,14 +937,14 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
       questionSettings: {
         fontSize: qnaInlineDefaultsFromTheme.questionSettings?.fontSize || 45,
         // Priority: toolSettings > themeDefaults.questionSettings > themeDefaults (top level)
-        fontColor: state.toolSettings?.qna_inline?.fontColor || qnaInlineDefaultsFromTheme.questionSettings?.fontColor || qnaInlineDefaultsFromTheme.questionSettings?.font?.fontColor || qnaInlineDefaultsFromTheme.fontColor,
+        fontColor: state.toolSettings?.qna_inline?.fontColor || qnaInlineDefaultsFromTheme.questionSettings?.fontColor || qnaInlineDefaultsFromTheme.fontColor,
         borderColor: state.toolSettings?.qna_inline?.borderColor || qnaInlineDefaultsFromTheme.questionSettings?.borderColor || qnaInlineDefaultsFromTheme.questionSettings?.border?.borderColor || qnaInlineDefaultsFromTheme.borderColor,
         backgroundColor: state.toolSettings?.qna_inline?.backgroundColor || qnaInlineDefaultsFromTheme.questionSettings?.backgroundColor || qnaInlineDefaultsFromTheme.questionSettings?.background?.backgroundColor || qnaInlineDefaultsFromTheme.backgroundColor
       },
       answerSettings: {
         fontSize: qnaInlineDefaultsFromTheme.answerSettings?.fontSize || 50,
         // Priority: toolSettings > themeDefaults.answerSettings > themeDefaults (top level)
-        fontColor: state.toolSettings?.qna_inline?.fontColor || qnaInlineDefaultsFromTheme.answerSettings?.fontColor || qnaInlineDefaultsFromTheme.answerSettings?.font?.fontColor || qnaInlineDefaultsFromTheme.fontColor,
+        fontColor: state.toolSettings?.qna_inline?.fontColor || qnaInlineDefaultsFromTheme.answerSettings?.fontColor || qnaInlineDefaultsFromTheme.fontColor,
         borderColor: state.toolSettings?.qna_inline?.borderColor || qnaInlineDefaultsFromTheme.answerSettings?.borderColor || qnaInlineDefaultsFromTheme.answerSettings?.border?.borderColor || qnaInlineDefaultsFromTheme.borderColor,
         backgroundColor: state.toolSettings?.qna_inline?.backgroundColor || qnaInlineDefaultsFromTheme.answerSettings?.backgroundColor || qnaInlineDefaultsFromTheme.answerSettings?.background?.backgroundColor || qnaInlineDefaultsFromTheme.backgroundColor,
         ruledLines: { 
@@ -1573,11 +1652,13 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               ...qnaInlineDefaults.answerSettings,
               ...element.answerSettings
             };
-            const showBackground = questionStyle.background?.enabled || answerStyle.background?.enabled;
+            // Border/Background are shared properties - only check top-level element.borderEnabled/element.backgroundEnabled
+            // Fallback to questionSettings/answerSettings for backward compatibility with old data
+            const showBackground = element.backgroundEnabled ?? (questionStyle.background?.enabled || answerStyle.background?.enabled) ?? false;
             
             if (showBackground) {
-              const backgroundColor = questionStyle.background?.backgroundColor || answerStyle.background?.backgroundColor || 'transparent';
-              const backgroundOpacity = questionStyle.backgroundOpacity ?? answerStyle.backgroundOpacity ?? 1;
+              const backgroundColor = element.backgroundColor || questionStyle.background?.backgroundColor || answerStyle.background?.backgroundColor || 'transparent';
+              const backgroundOpacity = element.backgroundOpacity ?? questionStyle.backgroundOpacity ?? answerStyle.backgroundOpacity ?? 1;
               const cornerRadius = element.cornerRadius ?? qnaInlineDefaults.cornerRadius ?? 0;
               
               const dynamicHeight = calculateDynamicHeight();
@@ -1620,14 +1701,16 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               ...qnaInlineDefaults.answerSettings,
               ...element.answerSettings
             };
-            const showBorder = questionStyle.border?.enabled || answerStyle.border?.enabled;
+            // Border/Background are shared properties - only check top-level element.borderEnabled/element.backgroundEnabled
+            // Fallback to questionSettings/answerSettings for backward compatibility with old data
+            const showBorder = element.borderEnabled ?? (questionStyle.border?.enabled || answerStyle.border?.enabled) ?? false;
             
             if (showBorder) {
-              const borderColor = questionStyle.border?.borderColor || answerStyle.border?.borderColor || '#000000';
-              const borderWidth = questionStyle.borderWidth || answerStyle.borderWidth || 1;
-              const borderOpacity = questionStyle.borderOpacity ?? answerStyle.borderOpacity ?? 1;
+              const borderColor = element.borderColor || questionStyle.border?.borderColor || answerStyle.border?.borderColor || '#000000';
+              const borderWidth = element.borderWidth || questionStyle.borderWidth || answerStyle.borderWidth || 1;
+              const borderOpacity = element.borderOpacity ?? questionStyle.borderOpacity ?? answerStyle.borderOpacity ?? 1;
               const cornerRadius = element.cornerRadius ?? qnaInlineDefaults.cornerRadius ?? 0;
-              const theme = questionStyle.borderTheme || answerStyle.borderTheme || 'default';
+              const theme = element.borderTheme || questionStyle.borderTheme || answerStyle.borderTheme || 'default';
               
               const dynamicHeight = calculateDynamicHeight();
               
@@ -1714,13 +1797,13 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
             const questionStyle = {
               ...qnaInlineDefaults.questionSettings,
               ...element.questionSettings,
-              fontFamily: element.questionSettings?.fontFamily || element.font?.fontFamily || element.fontFamily || qnaInlineDefaults.questionSettings?.fontFamily || fontFamily,
+              fontFamily: element.questionSettings?.fontFamily || qnaInlineDefaults.questionSettings?.fontFamily || fontFamily,
               align: element.questionSettings?.align || element.format?.textAlign || element.align || qnaInlineDefaults.questionSettings?.align
             };
             const answerStyle = {
               ...qnaInlineDefaults.answerSettings,
               ...element.answerSettings,
-              fontFamily: element.answerSettings?.fontFamily || element.font?.fontFamily || element.fontFamily || qnaInlineDefaults.answerSettings?.fontFamily || fontFamily,
+              fontFamily: element.answerSettings?.fontFamily || qnaInlineDefaults.answerSettings?.fontFamily || fontFamily,
               align: element.answerSettings?.align || element.format?.textAlign || element.align || qnaInlineDefaults.answerSettings?.align
             };
             
@@ -1731,14 +1814,26 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
             if (element.answerSettings?.fontColor) {
               answerStyle.fontColor = element.answerSettings.fontColor;
             }
-            const padding = questionStyle.padding || answerStyle.padding || element.format?.padding || element.padding || 4;
+            
+            // When individualSettings is false, use answer font properties for question as well
+            if (!individualSettings) {
+              // Override question font properties with answer font properties
+              // Use ?? to handle false values correctly (false || something would always return something)
+              questionStyle.fontSize = answerStyle.fontSize ?? questionStyle.fontSize;
+              questionStyle.fontFamily = answerStyle.fontFamily ?? questionStyle.fontFamily;
+              questionStyle.fontBold = answerStyle.fontBold ?? questionStyle.fontBold ?? false;
+              questionStyle.fontItalic = answerStyle.fontItalic ?? questionStyle.fontItalic ?? false;
+              questionStyle.fontColor = answerStyle.fontColor ?? questionStyle.fontColor;
+              questionStyle.fontOpacity = answerStyle.fontOpacity ?? questionStyle.fontOpacity ?? 1;
+            }
+            const padding = element.padding || questionStyle.padding || answerStyle.padding || element.format?.padding || 4;
             const textWidth = element.width - (padding * 2);
             const questionText = getQuestionText();
             const userText = getUserText();
             
-            // Get alignment settings - Priority: questionSettings/answerSettings > element.align (from layout) > default
-            const questionAlign = questionStyle.align || element.format?.textAlign || element.align || 'left';
-            const answerAlign = answerStyle.align || element.format?.textAlign || element.align || 'left';
+            // Get alignment settings - Priority: element.align > element.format?.textAlign > questionSettings/answerSettings > default
+            const questionAlign = element.align || element.format?.textAlign || questionStyle.align || 'left';
+            const answerAlign = element.align || element.format?.textAlign || answerStyle.align || 'left';
             
             // Get layout variant
             const layoutVariant = element.layoutVariant || 'inline';
@@ -1746,12 +1841,12 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
             
             if (!questionText && !userText) {
               // Use question font properties for placeholder text
-              const qFontFamily = questionStyle.fontFamily || element.font?.fontFamily || element.fontFamily || qnaInlineDefaults.questionSettings?.fontFamily || fontFamily;
+              const qFontFamily = questionStyle.fontFamily || qnaInlineDefaults.questionSettings?.fontFamily || fontFamily;
               const qFontSize = questionStyle.fontSize || fontSize;
-              const qFontColor = questionStyle.fontColor || questionStyle.font?.fontColor || element.font?.fontColor || element.fontColor || qnaInlineDefaults.questionSettings?.fontColor || '#666666';
+              const qFontColor = questionStyle.fontColor || qnaInlineDefaults.questionSettings?.fontColor || '#666666';
               const qFontOpacity = questionStyle.fontOpacity ?? qnaInlineDefaults.questionSettings?.fontOpacity ?? 1;
-              const qFontBold = questionStyle.fontBold || qnaInlineDefaults.questionSettings?.fontBold || false;
-              const qFontItalic = questionStyle.fontItalic || qnaInlineDefaults.questionSettings?.fontItalic || false;
+              const qFontBold = questionStyle.fontBold ?? qnaInlineDefaults.questionSettings?.fontBold ?? false;
+              const qFontItalic = questionStyle.fontItalic ?? qnaInlineDefaults.questionSettings?.fontItalic ?? false;
               
               // Calculate available width for text wrapping
               const availableWidth = element.width - (2 * padding);
@@ -1789,9 +1884,9 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
             const effectivePadding = layoutVariant === 'inline' ? padding + (maxFontSize * 0.2) : padding;
             const baselineY = effectivePadding + maxFontSize * 0.8; // Baseline position
             
-            // Get paragraph spacing settings - Priority: questionSettings/answerSettings > element.paragraphSpacing (from layout) > default
-            const qParagraphSpacing = questionStyle.paragraphSpacing || element.paragraphSpacing || 'small';
-            const aParagraphSpacing = answerStyle.paragraphSpacing || element.paragraphSpacing || 'small';
+            // Get paragraph spacing settings - Priority: element.paragraphSpacing > questionSettings/answerSettings > default
+            const qParagraphSpacing = element.paragraphSpacing || questionStyle.paragraphSpacing || 'small';
+            const aParagraphSpacing = element.paragraphSpacing || answerStyle.paragraphSpacing || 'small';
             
             // Calculate line heights based on paragraph spacing
             const getLineHeightMultiplier = (spacing: string) => {
@@ -1821,16 +1916,16 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
             // Render based on layout variant
             if (layoutVariant === 'block') {
               // Block layout: question and answer in separate areas
-              const qFontFamily = questionStyle.fontFamily || element.font?.fontFamily || element.fontFamily || qnaInlineDefaults.questionSettings?.fontFamily || fontFamily;
-              const qFontColor = questionStyle.fontColor || questionStyle.font?.fontColor || element.font?.fontColor || element.fontColor || qnaInlineDefaults.questionSettings?.fontColor || '#666666';
-              const qFontBold = questionStyle.fontBold || qnaInlineDefaults.questionSettings?.fontBold || false;
-              const qFontItalic = questionStyle.fontItalic || qnaInlineDefaults.questionSettings?.fontItalic || false;
+              const qFontFamily = questionStyle.fontFamily || qnaInlineDefaults.questionSettings?.fontFamily || fontFamily;
+              const qFontColor = questionStyle.fontColor || qnaInlineDefaults.questionSettings?.fontColor || '#666666';
+              const qFontBold = questionStyle.fontBold ?? qnaInlineDefaults.questionSettings?.fontBold ?? false;
+              const qFontItalic = questionStyle.fontItalic ?? qnaInlineDefaults.questionSettings?.fontItalic ?? false;
               const qFontOpacity = questionStyle.fontOpacity ?? qnaInlineDefaults.questionSettings?.fontOpacity ?? 1;
               
-              const aFontFamily = answerStyle.fontFamily || element.font?.fontFamily || element.fontFamily || qnaInlineDefaults.answerSettings?.fontFamily || fontFamily;
-              const aFontColor = answerStyle.fontColor || answerStyle.font?.fontColor || element.font?.fontColor || element.fontColor || qnaInlineDefaults.answerSettings?.fontColor || '#1f2937';
-              const aFontBold = answerStyle.fontBold || qnaInlineDefaults.answerSettings?.fontBold || false;
-              const aFontItalic = answerStyle.fontItalic || qnaInlineDefaults.answerSettings?.fontItalic || false;
+              const aFontFamily = answerStyle.fontFamily || qnaInlineDefaults.answerSettings?.fontFamily || fontFamily;
+              const aFontColor = answerStyle.fontColor || qnaInlineDefaults.answerSettings?.fontColor || '#1f2937';
+              const aFontBold = answerStyle.fontBold ?? qnaInlineDefaults.answerSettings?.fontBold ?? false;
+              const aFontItalic = answerStyle.fontItalic ?? qnaInlineDefaults.answerSettings?.fontItalic ?? false;
               const aFontOpacity = answerStyle.fontOpacity ?? qnaInlineDefaults.answerSettings?.fontOpacity ?? 1;
               
               let questionArea = { x: padding, y: padding, width: textWidth, height: element.height - padding * 2 };
@@ -2023,10 +2118,10 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               // Inline layout: original implementation
               // Render question text first
               if (questionText) {
-              const qFontFamily = questionStyle.fontFamily || element.font?.fontFamily || element.fontFamily || qnaInlineDefaults.questionSettings?.fontFamily || fontFamily;
-              const qFontColor = questionStyle.fontColor || questionStyle.font?.fontColor || element.font?.fontColor || element.fontColor || qnaInlineDefaults.questionSettings?.fontColor || '#666666';
-              const qFontBold = questionStyle.fontBold || qnaInlineDefaults.questionSettings?.fontBold || false;
-              const qFontItalic = questionStyle.fontItalic || qnaInlineDefaults.questionSettings?.fontItalic || false;
+              const qFontFamily = questionStyle.fontFamily || qnaInlineDefaults.questionSettings?.fontFamily || fontFamily;
+              const qFontColor = questionStyle.fontColor || qnaInlineDefaults.questionSettings?.fontColor || '#666666';
+              const qFontBold = questionStyle.fontBold ?? qnaInlineDefaults.questionSettings?.fontBold ?? false;
+              const qFontItalic = questionStyle.fontItalic ?? qnaInlineDefaults.questionSettings?.fontItalic ?? false;
               const qFontOpacity = questionStyle.fontOpacity ?? qnaInlineDefaults.questionSettings?.fontOpacity ?? 1;
               
               // Calculate question text width and handle wrapping
@@ -2087,10 +2182,10 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               
               // Render user text with custom wrapping logic
               if (userText) {
-                const aFontFamily = answerStyle.fontFamily || element.font?.fontFamily || element.fontFamily || qnaInlineDefaults.answerSettings?.fontFamily || fontFamily;
-                const aFontColor = answerStyle.fontColor || answerStyle.font?.fontColor || element.font?.fontColor || element.fontColor || qnaInlineDefaults.answerSettings?.fontColor || '#1f2937';
-                const aFontBold = answerStyle.fontBold || qnaInlineDefaults.answerSettings?.fontBold || false;
-                const aFontItalic = answerStyle.fontItalic || qnaInlineDefaults.answerSettings?.fontItalic || false;
+                const aFontFamily = answerStyle.fontFamily || qnaInlineDefaults.answerSettings?.fontFamily || fontFamily;
+                const aFontColor = answerStyle.fontColor || qnaInlineDefaults.answerSettings?.fontColor || '#1f2937';
+                const aFontBold = answerStyle.fontBold ?? qnaInlineDefaults.answerSettings?.fontBold ?? false;
+                const aFontItalic = answerStyle.fontItalic ?? qnaInlineDefaults.answerSettings?.fontItalic ?? false;
                 const aFontOpacity = answerStyle.fontOpacity ?? qnaInlineDefaults.answerSettings?.fontOpacity ?? 1;
                 
                 context.font = `${aFontBold ? 'bold ' : ''}${aFontItalic ? 'italic ' : ''}${aFontSize}px ${aFontFamily}`;
@@ -2337,10 +2432,10 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               }
             } else if (userText) {
               // Only user text, no question - handle line breaks manually
-              const aFontFamily = answerStyle.fontFamily || element.font?.fontFamily || element.fontFamily || qnaInlineDefaults.answerSettings?.fontFamily || fontFamily;
-              const aFontColor = answerStyle.fontColor || answerStyle.font?.fontColor || element.font?.fontColor || element.fontColor || qnaInlineDefaults.answerSettings?.fontColor || '#1f2937';
-              const aFontBold = answerStyle.fontBold || qnaInlineDefaults.answerSettings?.fontBold || false;
-              const aFontItalic = answerStyle.fontItalic || qnaInlineDefaults.answerSettings?.fontItalic || false;
+              const aFontFamily = answerStyle.fontFamily || qnaInlineDefaults.answerSettings?.fontFamily || fontFamily;
+              const aFontColor = answerStyle.fontColor || qnaInlineDefaults.answerSettings?.fontColor || '#1f2937';
+              const aFontBold = answerStyle.fontBold ?? qnaInlineDefaults.answerSettings?.fontBold ?? false;
+              const aFontItalic = answerStyle.fontItalic ?? qnaInlineDefaults.answerSettings?.fontItalic ?? false;
               const aFontOpacity = answerStyle.fontOpacity ?? qnaInlineDefaults.answerSettings?.fontOpacity ?? 1;
               
               const canvas = document.createElement('canvas');

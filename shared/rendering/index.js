@@ -1,0 +1,125 @@
+/**
+ * Main rendering function for PDF export
+ * This is the entry point for rendering a complete page with Konva
+ */
+
+const { renderBackground } = require('./render-background');
+const { renderElement } = require('./render-element');
+const { loadThemes } = require('./utils/theme-utils');
+const { loadColorPalettes } = require('./utils/palette-utils');
+
+/**
+ * Render a complete page with Konva
+ * @param {Object} pageData - Page data with elements and background
+ * @param {Object} bookData - Book data with questions and themes
+ * @param {number} canvasWidth - Canvas width in pixels
+ * @param {number} canvasHeight - Canvas height in pixels
+ * @param {Object} konvaInstance - Konva instance (e.g., window.Konva)
+ * @param {Object} document - Document object
+ * @param {Object} Image - Image constructor
+ * @param {Object} options - Options object with rough instance, etc.
+ * @returns {Promise<Object>} Promise that resolves with { layer, imagePromises }
+ */
+async function renderPageWithKonva(pageData, bookData, canvasWidth, canvasHeight, konvaInstance, document, Image, options = {}) {
+  const Konva = konvaInstance;
+  const roughInstance = options.rough;
+  
+  // Load themes and color palettes
+  const themesData = loadThemes();
+  const colorPalettes = loadColorPalettes();
+  
+  // Create a new layer for this page
+  const layer = new Konva.Layer();
+  
+  // Initialize image promises array
+  const imagePromises = [];
+  
+  // Render background first (it will be behind all elements)
+  await renderBackground(
+    layer,
+    pageData,
+    bookData,
+    canvasWidth,
+    canvasHeight,
+    konvaInstance,
+    document,
+    Image,
+    null, // callback
+    imagePromises // Pass imagePromises to track background image loading
+  );
+  
+  // Render all elements
+  // Sort elements to ensure correct z-order (like client-side rendering)
+  const elements = (pageData.elements || []).slice().sort((a, b) => {
+    // Sort qna_inline elements by questionOrder, then by y position
+    if (a.textType === 'qna_inline' && b.textType === 'qna_inline') {
+      const orderA = a.questionOrder ?? Infinity;
+      const orderB = b.questionOrder ?? Infinity;
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
+      // If order is the same, sort by y position
+      return (a.y ?? 0) - (b.y ?? 0);
+    }
+    // If only one is qna_inline, prioritize it based on questionOrder
+    if (a.textType === 'qna_inline') {
+      const orderA = a.questionOrder ?? Infinity;
+      return orderA === Infinity ? 1 : -1; // qna_inline with order comes first
+    }
+    if (b.textType === 'qna_inline') {
+      const orderB = b.questionOrder ?? Infinity;
+      return orderB === Infinity ? -1 : 1; // qna_inline with order comes first
+    }
+    // For other elements, maintain original order (by y position)
+    return (a.y ?? 0) - (b.y ?? 0);
+  });
+  
+  let elementsRendered = 0;
+  let elementsSkipped = 0;
+  
+  for (const element of elements) {
+    // Skip placeholder elements
+    if (element.type === 'placeholder') {
+      elementsSkipped++;
+      continue;
+    }
+    
+    // Skip brush-multicolor elements (they are rendered as groups)
+    if (element.type === 'brush-multicolor') {
+      elementsSkipped++;
+      continue;
+    }
+    
+    // Render element
+    const renderedNode = renderElement(
+      layer,
+      element,
+      pageData,
+      bookData,
+      konvaInstance,
+      document,
+      Image,
+      roughInstance,
+      themesData,
+      colorPalettes,
+      imagePromises
+    );
+    
+    if (renderedNode) {
+      elementsRendered++;
+    } else {
+      elementsSkipped++;
+    }
+  }
+  
+  // Return layer and image promises
+  return {
+    layer,
+    imagePromises
+  };
+}
+
+module.exports = {
+  renderPageWithKonva
+};
+

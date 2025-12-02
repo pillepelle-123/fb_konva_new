@@ -66,6 +66,7 @@ app.use('/api/color-palettes', require('./routes/templates'));
 app.use('/api/pages', require('./routes/templates'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/background-images', require('./routes/background-images'));
+app.use('/api/pdf-exports', require('./routes/pdf-exports'));
 
 // Socket.IO authentication middleware
 io.use((socket, next) => {

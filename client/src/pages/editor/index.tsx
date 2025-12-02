@@ -288,10 +288,21 @@ function EditorContent() {
                     const pagePaletteOverrideId = page.colorPaletteId || null;
                     const effectiveThemeId = pageThemeOverrideId || wizardThemeId;
 
-                    // Preserve image backgrounds from wizard - don't override them
+                    // Check if background was explicitly set by user (not inherited from theme)
+                    // If background has backgroundImageTemplateId, it comes from theme
+                    // If background type is pattern or color without templateId, it was explicitly set
                     const isImageBackground = page.background?.type === 'image' && page.background?.value;
+                    const isPatternBackground = page.background?.type === 'pattern';
+                    const isColorBackground = page.background?.type === 'color';
+                    const hasBackgroundImageTemplateId = page.background?.backgroundImageTemplateId !== undefined;
                     
-                    if (effectiveThemeId && !isImageBackground) {
+                    // Preserve backgrounds that were explicitly set by user
+                    // Only override if background comes from theme (has backgroundImageTemplateId) or is undefined
+                    const shouldPreserveBackground = isImageBackground || 
+                      (isPatternBackground && !hasBackgroundImageTemplateId) ||
+                      (isColorBackground && !hasBackgroundImageTemplateId);
+                    
+                    if (effectiveThemeId && !shouldPreserveBackground) {
                       const theme = getGlobalTheme(effectiveThemeId);
                       const paletteForBackground =
                         wizardPalette ||

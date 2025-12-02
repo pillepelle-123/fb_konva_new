@@ -1699,19 +1699,19 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
             width: previewTextbox.width,
             height: previewTextbox.height,
             text: '',
-            fontSize: qnaInlineDefaults.fontSize,
             align: qnaInlineDefaults.align,
-            fontFamily: themeFontFamily,
             textType: 'qna_inline',
             paragraphSpacing: qnaInlineDefaults.paragraphSpacing,
             cornerRadius: qnaInlineDefaults.cornerRadius,
             questionSettings: {
               ...qnaInlineDefaults.questionSettings,
-              fontFamily: qnaInlineDefaults.questionSettings?.fontFamily || themeFontFamily
+              fontFamily: qnaInlineDefaults.questionSettings?.fontFamily || themeFontFamily,
+              // Border/Background are shared properties - borderEnabled/backgroundEnabled are only on top-level
             },
             answerSettings: {
               ...qnaInlineDefaults.answerSettings,
               fontFamily: qnaInlineDefaults.answerSettings?.fontFamily || themeFontFamily
+              // Border/Background are shared properties - borderEnabled/backgroundEnabled are only on top-level
             }
           };
         } else if (previewTextbox.type === 'free_text') {

@@ -1129,10 +1129,20 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
       page.background?.type === 'image' &&
       !page.background?.backgroundImageTemplateId &&
       page.background?.value;
+    
+    // Check if background was explicitly set by user (not inherited from theme)
+    // If page has explicit themeId, it means user set it, so preserve the background
+    // Also check if background type is pattern or color (user might have changed from image to pattern)
+    const hasExplicitBackground = !pageInheritsTheme || 
+      (page.background && (
+        page.background.type === 'pattern' ||
+        (page.background.type === 'color' && page.background.value !== undefined) ||
+        isCustomImageBackground
+      ));
 
     if (isInnerFrontOrBack) {
       resolvedBackground = null;
-    } else if (pageInheritsTheme && bookThemeId && !isCustomImageBackground) {
+    } else if (pageInheritsTheme && bookThemeId && !hasExplicitBackground) {
       const theme = getGlobalTheme(bookThemeId);
       if (theme) {
         const pageColorPaletteId = page.colorPaletteId || effectiveBookPaletteId;
@@ -1217,6 +1227,92 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
           const preservedQuestionId = element.questionId;
           const preservedAnswerId = element.answerId;
           const mergedElement = mergeElementDefaults(element, themeDefaults);
+          
+          // For qna_inline, clean up shared properties from questionSettings/answerSettings
+          // getToolDefaults already cleans themeDefaults, but element might have old structure
+          if (toolType === 'qna_inline' && mergedElement) {
+            const questionSettings = mergedElement.questionSettings || {};
+            const answerSettings = mergedElement.answerSettings || {};
+            
+            // List of shared properties to move to top-level
+            const sharedProperties = [
+              'borderWidth', 'borderColor', 'borderTheme', 'borderOpacity', 'borderEnabled',
+              'backgroundColor', 'backgroundOpacity', 'backgroundEnabled',
+              'cornerRadius', 'padding', 'paragraphSpacing', 'align',
+              'layoutVariant', 'questionPosition', 'questionWidth',
+              'ruledLinesColor', 'ruledLinesTheme', 'ruledLinesWidth', 'ruledLinesOpacity', 'ruledLines'
+            ];
+            
+            // Move shared properties from questionSettings/answerSettings to top-level
+            // Priority: existing top-level > questionSettings > answerSettings
+            sharedProperties.forEach(prop => {
+              if (mergedElement[prop] === undefined || mergedElement[prop] === null) {
+                // Try to get from questionSettings first, then answerSettings
+                let value = questionSettings[prop];
+                if (value === undefined || value === null) {
+                  value = answerSettings[prop];
+                }
+                
+                // Special handling for nested properties
+                if (value === undefined || value === null) {
+                  if (prop === 'borderColor') {
+                    value = questionSettings.border?.borderColor || answerSettings.border?.borderColor;
+                  } else if (prop === 'borderEnabled') {
+                    value = questionSettings.border?.enabled ?? answerSettings.border?.enabled ?? questionSettings.borderEnabled ?? answerSettings.borderEnabled;
+                  } else if (prop === 'backgroundColor') {
+                    value = questionSettings.background?.backgroundColor || answerSettings.background?.backgroundColor;
+                  } else if (prop === 'backgroundEnabled') {
+                    value = questionSettings.background?.enabled ?? answerSettings.background?.enabled ?? questionSettings.backgroundEnabled ?? answerSettings.backgroundEnabled;
+                  }
+                }
+                
+                if (value !== undefined && value !== null) {
+                  mergedElement[prop] = value;
+                }
+              }
+            });
+            
+            // Remove font properties from top-level (they should only be in questionSettings/answerSettings)
+            const fontPropertiesToRemove = ['fontSize', 'fontColor', 'fontFamily', 'fontStyle', 'fontWeight', 'fill'];
+            fontPropertiesToRemove.forEach(prop => {
+              if (mergedElement[prop] !== undefined) {
+                delete mergedElement[prop];
+              }
+            });
+            // Remove font object if it exists
+            if (mergedElement.font !== undefined) {
+              delete mergedElement.font;
+            }
+            
+            // Clean questionSettings: keep only font properties (border/background are shared properties on top-level only)
+            const cleanedQuestionSettings: any = {};
+            if (questionSettings.fontSize !== undefined) cleanedQuestionSettings.fontSize = questionSettings.fontSize;
+            if (questionSettings.fontFamily !== undefined) cleanedQuestionSettings.fontFamily = questionSettings.fontFamily;
+            if (questionSettings.fontBold !== undefined) cleanedQuestionSettings.fontBold = questionSettings.fontBold;
+            if (questionSettings.fontItalic !== undefined) cleanedQuestionSettings.fontItalic = questionSettings.fontItalic;
+            if (questionSettings.fontColor !== undefined) cleanedQuestionSettings.fontColor = questionSettings.fontColor;
+            if (questionSettings.fontOpacity !== undefined) cleanedQuestionSettings.fontOpacity = questionSettings.fontOpacity;
+            // Font properties are now only directly in questionSettings, no nested font object
+            // Border/Background are shared properties - borderEnabled/backgroundEnabled are only on top-level
+            
+            // Clean answerSettings: keep only font properties (border/background are shared properties on top-level only)
+            const cleanedAnswerSettings: any = {};
+            if (answerSettings.fontSize !== undefined) cleanedAnswerSettings.fontSize = answerSettings.fontSize;
+            if (answerSettings.fontFamily !== undefined) cleanedAnswerSettings.fontFamily = answerSettings.fontFamily;
+            if (answerSettings.fontBold !== undefined) cleanedAnswerSettings.fontBold = answerSettings.fontBold;
+            if (answerSettings.fontItalic !== undefined) cleanedAnswerSettings.fontItalic = answerSettings.fontItalic;
+            if (answerSettings.fontColor !== undefined) cleanedAnswerSettings.fontColor = answerSettings.fontColor;
+            if (answerSettings.fontOpacity !== undefined) cleanedAnswerSettings.fontOpacity = answerSettings.fontOpacity;
+            // Font properties are now only directly in answerSettings, no nested font object
+            // Border/Background are shared properties - borderEnabled/backgroundEnabled are only on top-level
+            
+            // Ruled lines are now only on element level, not in answerSettings
+            
+            // Update mergedElement with cleaned questionSettings and answerSettings
+            mergedElement.questionSettings = Object.keys(cleanedQuestionSettings).length > 0 ? cleanedQuestionSettings : undefined;
+            mergedElement.answerSettings = Object.keys(cleanedAnswerSettings).length > 0 ? cleanedAnswerSettings : undefined;
+          }
+          
           const updatedElement = {
             ...mergedElement,
             theme: bookThemeId,
@@ -1458,6 +1554,91 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       // Assign UUID to question elements
       if (elementWithDefaults.textType === 'question' && !elementWithDefaults.questionId) {
         elementWithDefaults.questionId = uuidv4();
+      }
+      
+      // For qna_inline, clean up shared properties from questionSettings/answerSettings
+      // Tool settings might contain shared properties in questionSettings/answerSettings
+      if (toolType === 'qna_inline' && elementWithDefaults) {
+        const questionSettings = elementWithDefaults.questionSettings || {};
+        const answerSettings = elementWithDefaults.answerSettings || {};
+        
+        // List of shared properties to move to top-level
+        const sharedProperties = [
+          'borderWidth', 'borderColor', 'borderTheme', 'borderOpacity', 'borderEnabled',
+          'backgroundColor', 'backgroundOpacity', 'backgroundEnabled',
+          'cornerRadius', 'padding', 'paragraphSpacing', 'align',
+          'layoutVariant', 'questionPosition', 'questionWidth',
+          'ruledLinesColor', 'ruledLinesTheme', 'ruledLinesWidth', 'ruledLinesOpacity', 'ruledLines'
+        ];
+        
+        // Move shared properties from questionSettings/answerSettings to top-level
+        // Priority: existing top-level > questionSettings > answerSettings
+        sharedProperties.forEach(prop => {
+          if (elementWithDefaults[prop] === undefined || elementWithDefaults[prop] === null) {
+            // Try to get from questionSettings first, then answerSettings
+            let value = questionSettings[prop];
+            if (value === undefined || value === null) {
+              value = answerSettings[prop];
+            }
+            
+            // Special handling for nested properties
+            if (value === undefined || value === null) {
+              if (prop === 'borderColor') {
+                value = questionSettings.border?.borderColor || answerSettings.border?.borderColor;
+              } else if (prop === 'borderEnabled') {
+                value = questionSettings.border?.enabled ?? answerSettings.border?.enabled ?? questionSettings.borderEnabled ?? answerSettings.borderEnabled;
+              } else if (prop === 'backgroundColor') {
+                value = questionSettings.background?.backgroundColor || answerSettings.background?.backgroundColor;
+              } else if (prop === 'backgroundEnabled') {
+                value = questionSettings.background?.enabled ?? answerSettings.background?.enabled ?? questionSettings.backgroundEnabled ?? answerSettings.backgroundEnabled;
+              }
+            }
+            
+            if (value !== undefined && value !== null) {
+              elementWithDefaults[prop] = value;
+            }
+          }
+        });
+        
+        // Remove font properties from top-level (they should only be in questionSettings/answerSettings)
+        const fontPropertiesToRemove = ['fontSize', 'fontColor', 'fontFamily', 'fontStyle', 'fontWeight', 'fill'];
+        fontPropertiesToRemove.forEach(prop => {
+          if (elementWithDefaults[prop] !== undefined) {
+            delete elementWithDefaults[prop];
+          }
+        });
+        // Remove font object if it exists
+        if (elementWithDefaults.font !== undefined) {
+          delete elementWithDefaults.font;
+        }
+        
+        // Clean questionSettings: keep only font properties (border/background are shared properties on top-level only)
+        const cleanedQuestionSettings: any = {};
+        if (questionSettings.fontSize !== undefined) cleanedQuestionSettings.fontSize = questionSettings.fontSize;
+        if (questionSettings.fontFamily !== undefined) cleanedQuestionSettings.fontFamily = questionSettings.fontFamily;
+        if (questionSettings.fontBold !== undefined) cleanedQuestionSettings.fontBold = questionSettings.fontBold;
+        if (questionSettings.fontItalic !== undefined) cleanedQuestionSettings.fontItalic = questionSettings.fontItalic;
+        if (questionSettings.fontColor !== undefined) cleanedQuestionSettings.fontColor = questionSettings.fontColor;
+        if (questionSettings.fontOpacity !== undefined) cleanedQuestionSettings.fontOpacity = questionSettings.fontOpacity;
+        // Font properties are now only directly in questionSettings, no nested font object
+        // Border/Background are shared properties - borderEnabled/backgroundEnabled are only on top-level
+        
+        // Clean answerSettings: keep only font properties (border/background are shared properties on top-level only)
+        const cleanedAnswerSettings: any = {};
+        if (answerSettings.fontSize !== undefined) cleanedAnswerSettings.fontSize = answerSettings.fontSize;
+        if (answerSettings.fontFamily !== undefined) cleanedAnswerSettings.fontFamily = answerSettings.fontFamily;
+        if (answerSettings.fontBold !== undefined) cleanedAnswerSettings.fontBold = answerSettings.fontBold;
+        if (answerSettings.fontItalic !== undefined) cleanedAnswerSettings.fontItalic = answerSettings.fontItalic;
+        if (answerSettings.fontColor !== undefined) cleanedAnswerSettings.fontColor = answerSettings.fontColor;
+        if (answerSettings.fontOpacity !== undefined) cleanedAnswerSettings.fontOpacity = answerSettings.fontOpacity;
+        // Font properties are now only directly in answerSettings, no nested font object
+        // Border/Background are shared properties - borderEnabled/backgroundEnabled are only on top-level
+        
+        // Ruled lines are now only on element level, not in answerSettings
+        
+        // Update elementWithDefaults with cleaned questionSettings and answerSettings
+        elementWithDefaults.questionSettings = Object.keys(cleanedQuestionSettings).length > 0 ? cleanedQuestionSettings : undefined;
+        elementWithDefaults.answerSettings = Object.keys(cleanedAnswerSettings).length > 0 ? cleanedAnswerSettings : undefined;
       }
       
       const newBook = {
@@ -2481,28 +2662,26 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
               
               // Apply palette colors based on element type (same logic as APPLY_COLOR_PALETTE)
               if (updatedElement.type === 'text' || updatedElement.textType) {
-                // Update font color in nested font object if it exists
-                if (updatedElement.font) {
-                  updates.font = { ...updatedElement.font, fontColor: effectivePaletteForElement.colors.text };
-                }
-                // Update QnA specific nested settings
-                if (updatedElement.questionSettings) {
-                  updates.questionSettings = {
-                    ...updatedElement.questionSettings,
-                    font: updatedElement.questionSettings.font ? 
-                      { ...updatedElement.questionSettings.font, fontColor: effectivePaletteForElement.colors.text } : 
-                      { fontColor: effectivePaletteForElement.colors.text },
-                    fontColor: effectivePaletteForElement.colors.text
-                  };
-                }
-                if (updatedElement.answerSettings) {
-                  updates.answerSettings = {
-                    ...updatedElement.answerSettings,
-                    font: updatedElement.answerSettings.font ? 
-                      { ...updatedElement.answerSettings.font, fontColor: effectivePaletteForElement.colors.text } : 
-                      { fontColor: effectivePaletteForElement.colors.text },
-                    fontColor: effectivePaletteForElement.colors.text
-                  };
+                // For qna_inline, font properties are only in questionSettings/answerSettings
+                if (updatedElement.textType === 'qna_inline') {
+                  // Update QnA specific settings - no nested font objects
+                  if (updatedElement.questionSettings) {
+                    updates.questionSettings = {
+                      ...updatedElement.questionSettings,
+                      fontColor: effectivePaletteForElement.colors.text
+                    };
+                  }
+                  if (updatedElement.answerSettings) {
+                    updates.answerSettings = {
+                      ...updatedElement.answerSettings,
+                      fontColor: effectivePaletteForElement.colors.text
+                    };
+                  }
+                } else {
+                  // For other text elements, update font color in nested font object if it exists
+                  if (updatedElement.font) {
+                    updates.font = { ...updatedElement.font, fontColor: effectivePaletteForElement.colors.text };
+                  }
                 }
                 
                 // Handle free_text elements with textSettings
@@ -2573,93 +2752,65 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                   const existingQuestionBackground = updatedElement.questionSettings?.background || {};
                   const existingAnswerBackground = updatedElement.answerSettings?.background || {};
                   
+                  // Get border/background values from top-level or fallback to questionSettings/answerSettings
+                  const existingBorderWidth = (updatedElement.borderWidth || existingQuestionBorder.borderWidth || existingAnswerBorder.borderWidth) ?? 2;
+                  const existingBorderOpacity = updatedElement.borderOpacity ?? existingQuestionBorder.borderOpacity ?? existingAnswerBorder.borderOpacity ?? 1;
+                  const existingBackgroundOpacity = updatedElement.backgroundOpacity ?? existingQuestionBackground.backgroundOpacity ?? existingAnswerBackground.backgroundOpacity ?? 0.3;
+                  
                   updates.questionSettings = {
                     ...updatedElement.questionSettings,
                     fontColor: effectivePaletteForElement.colors.text,
-                    font: { ...updatedElement.questionSettings?.font, fontColor: effectivePaletteForElement.colors.text },
-                    border: borderEnabled ? {
+                    // Only set border.enabled in questionSettings for rendering check
+                    border: {
                       ...existingQuestionBorder,
-                      enabled: true,
-                      borderColor: effectivePaletteForElement.colors.primary,
-                      borderWidth: existingQuestionBorder.borderWidth ?? 2,
-                      borderOpacity: existingQuestionBorder.borderOpacity ?? 1
-                    } : {
-                      ...existingQuestionBorder,
-                      enabled: false
+                      enabled: borderEnabled
                     },
-                    background: backgroundEnabled ? {
+                    // Only set background.enabled in questionSettings for rendering check
+                    background: {
                       ...existingQuestionBackground,
-                      enabled: true,
-                      backgroundColor: effectivePaletteForElement.colors.accent,
-                      backgroundOpacity: existingQuestionBackground.backgroundOpacity ?? 0.3
-                    } : {
-                      ...existingQuestionBackground,
-                      enabled: false
+                      enabled: backgroundEnabled
                     }
                   };
                   updates.answerSettings = {
                     ...updatedElement.answerSettings,
                     fontColor: effectivePaletteForElement.colors.text,
-                    font: { ...updatedElement.answerSettings?.font, fontColor: effectivePaletteForElement.colors.text },
-                    border: borderEnabled ? {
+                    // Only set border.enabled in answerSettings for rendering check
+                    border: {
                       ...existingAnswerBorder,
-                      enabled: true,
-                      borderColor: effectivePaletteForElement.colors.primary,
-                      borderWidth: existingAnswerBorder.borderWidth ?? 2,
-                      borderOpacity: existingAnswerBorder.borderOpacity ?? 1
-                    } : {
-                      ...existingAnswerBorder,
-                      enabled: false
+                      enabled: borderEnabled
                     },
-                    background: backgroundEnabled ? {
+                    // Only set background.enabled in answerSettings for rendering check
+                    background: {
                       ...existingAnswerBackground,
-                      enabled: true,
-                      backgroundColor: effectivePaletteForElement.colors.accent,
-                      backgroundOpacity: existingAnswerBackground.backgroundOpacity ?? 0.3
-                    } : {
-                      ...existingAnswerBackground,
-                      enabled: false
+                      enabled: backgroundEnabled
                     }
                   };
+                  // Set all border/background properties on top-level (only individual properties, no border/background objects)
+                  updates.borderColor = effectivePaletteForElement.colors.primary;
+                  updates.borderWidth = existingBorderWidth;
+                  updates.borderOpacity = existingBorderOpacity;
+                  updates.borderEnabled = borderEnabled;
+                  updates.backgroundColor = effectivePaletteForElement.colors.accent;
+                  updates.backgroundOpacity = existingBackgroundOpacity;
+                  updates.backgroundEnabled = backgroundEnabled;
                 }
                 
-                // Update border colors - only if border is enabled
-                if (updatedElement.textType === 'qna_inline') {
-                  if (borderEnabled) {
-                    updates.border = { ...updatedElement.border, borderColor: effectivePaletteForElement.colors.primary, enabled: true };
-                  } else {
-                    updates.border = { ...updatedElement.border, enabled: false };
-                  }
-                  
-                  // Update background colors - only if background is enabled
-                  if (backgroundEnabled) {
-                    updates.background = { ...updatedElement.background, backgroundColor: effectivePaletteForElement.colors.accent, enabled: true };
-                  } else {
-                    updates.background = { ...updatedElement.background, enabled: false };
-                  }
-                } else {
-                  // For other text elements, check existing enabled state
-                  const currentBorderEnabled = updatedElement.border?.enabled !== false;
-                  const currentBackgroundEnabled = updatedElement.background?.enabled !== false;
-                  
-                  if (currentBorderEnabled) {
-                    updates.border = { ...updatedElement.border, borderColor: effectivePaletteForElement.colors.primary, enabled: true };
-                  } else {
-                    updates.border = { ...updatedElement.border, enabled: false };
-                  }
-                  
-                  if (currentBackgroundEnabled) {
-                    updates.background = { ...updatedElement.background, backgroundColor: effectivePaletteForElement.colors.accent, enabled: true };
-                  } else {
-                    updates.background = { ...updatedElement.background, enabled: false };
-                  }
-                }
+                // Update border/background colors on top-level (only individual properties, no border/background objects)
+                // For qna_inline, border.enabled and background.enabled are already set in questionSettings/answerSettings above
+                // For other text elements, we don't need to set border/background objects
 
-                // Update direct font color properties
-                updates.fontColor = effectivePaletteForElement.colors.text;
-                updates.fill = effectivePaletteForElement.colors.text;
-                updates.borderColor = effectivePaletteForElement.colors.primary;
-                updates.backgroundColor = effectivePaletteForElement.colors.accent;
+                // Update direct font color properties (only for non-qna_inline text elements)
+                // For qna_inline, font properties are only in questionSettings/answerSettings
+                if (updatedElement.textType !== 'qna_inline') {
+                  updates.fontColor = effectivePaletteForElement.colors.text;
+                  updates.fill = effectivePaletteForElement.colors.text;
+                  updates.borderColor = effectivePaletteForElement.colors.primary;
+                  updates.backgroundColor = effectivePaletteForElement.colors.accent;
+                } else {
+                  // For qna_inline, only update border/background colors on top-level (font colors are in questionSettings/answerSettings)
+                  updates.borderColor = effectivePaletteForElement.colors.primary;
+                  updates.backgroundColor = effectivePaletteForElement.colors.accent;
+                }
               }
               
               // Apply stroke color to shapes and lines
@@ -3489,51 +3640,51 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         }
         
         // Convert textSettings to questionSettings/answerSettings for qna_inline elements
+        // Shared properties are set on top-level, only font properties go to questionSettings/answerSettings
         if (targetElementType === 'qna_inline' && styleToApply.textSettings) {
           const textSettings = styleToApply.textSettings;
           if (!styleToApply.questionSettings) {
             styleToApply.questionSettings = {
               ...(targetElement.questionSettings || {}),
+              // Only font properties in questionSettings
               fontSize: textSettings.fontSize || targetElement.questionSettings?.fontSize,
               fontFamily: textSettings.fontFamily || targetElement.questionSettings?.fontFamily,
               fontColor: textSettings.fontColor || targetElement.questionSettings?.fontColor,
               fontOpacity: textSettings.fontOpacity ?? targetElement.questionSettings?.fontOpacity,
               fontBold: textSettings.fontBold ?? targetElement.questionSettings?.fontBold,
               fontItalic: textSettings.fontItalic ?? targetElement.questionSettings?.fontItalic,
+              // Keep border.enabled and background.enabled for rendering check
               border: textSettings.border || targetElement.questionSettings?.border,
-              borderWidth: textSettings.borderWidth || targetElement.questionSettings?.borderWidth,
-              borderColor: textSettings.borderColor || targetElement.questionSettings?.borderColor,
-              borderOpacity: textSettings.borderOpacity ?? targetElement.questionSettings?.borderOpacity,
-              borderTheme: textSettings.borderTheme || targetElement.questionSettings?.borderTheme,
-              background: textSettings.background || targetElement.questionSettings?.background,
-              backgroundColor: textSettings.backgroundColor || targetElement.questionSettings?.backgroundColor,
-              backgroundOpacity: textSettings.backgroundOpacity ?? targetElement.questionSettings?.backgroundOpacity
+              background: textSettings.background || targetElement.questionSettings?.background
             };
           }
           if (!styleToApply.answerSettings) {
             styleToApply.answerSettings = {
               ...(targetElement.answerSettings || {}),
+              // Only font properties in answerSettings
               fontSize: textSettings.fontSize || targetElement.answerSettings?.fontSize,
               fontFamily: textSettings.fontFamily || targetElement.answerSettings?.fontFamily,
               fontColor: textSettings.fontColor || targetElement.answerSettings?.fontColor,
               fontOpacity: textSettings.fontOpacity ?? targetElement.answerSettings?.fontOpacity,
               fontBold: textSettings.fontBold ?? targetElement.answerSettings?.fontBold,
               fontItalic: textSettings.fontItalic ?? targetElement.answerSettings?.fontItalic,
+              // Keep border.enabled and background.enabled for rendering check
               border: textSettings.border || targetElement.answerSettings?.border,
-              borderWidth: textSettings.borderWidth || targetElement.answerSettings?.borderWidth,
-              borderColor: textSettings.borderColor || targetElement.answerSettings?.borderColor,
-              borderOpacity: textSettings.borderOpacity ?? targetElement.answerSettings?.borderOpacity,
-              borderTheme: textSettings.borderTheme || targetElement.answerSettings?.borderTheme,
-              background: textSettings.background || targetElement.answerSettings?.background,
-              backgroundColor: textSettings.backgroundColor || targetElement.answerSettings?.backgroundColor,
-              backgroundOpacity: textSettings.backgroundOpacity ?? targetElement.answerSettings?.backgroundOpacity,
-              ruledLines: textSettings.ruledLines || targetElement.answerSettings?.ruledLines,
-              ruledLinesWidth: textSettings.ruledLinesWidth || targetElement.answerSettings?.ruledLinesWidth,
-              ruledLinesColor: textSettings.ruledLinesColor || targetElement.answerSettings?.ruledLinesColor,
-              ruledLinesOpacity: textSettings.ruledLinesOpacity ?? targetElement.answerSettings?.ruledLinesOpacity,
-              ruledLinesTheme: textSettings.ruledLinesTheme || targetElement.answerSettings?.ruledLinesTheme
+              background: textSettings.background || targetElement.answerSettings?.background
             };
           }
+          // Set shared properties on top-level
+          if (textSettings.borderWidth !== undefined) styleToApply.borderWidth = textSettings.borderWidth || targetElement.borderWidth;
+          if (textSettings.borderColor !== undefined) styleToApply.borderColor = textSettings.borderColor || targetElement.borderColor;
+          if (textSettings.borderOpacity !== undefined) styleToApply.borderOpacity = textSettings.borderOpacity ?? targetElement.borderOpacity;
+          if (textSettings.borderTheme !== undefined) styleToApply.borderTheme = textSettings.borderTheme || targetElement.borderTheme;
+          if (textSettings.backgroundColor !== undefined) styleToApply.backgroundColor = textSettings.backgroundColor || targetElement.backgroundColor;
+          if (textSettings.backgroundOpacity !== undefined) styleToApply.backgroundOpacity = textSettings.backgroundOpacity ?? targetElement.backgroundOpacity;
+          if (textSettings.ruledLines !== undefined) styleToApply.ruledLines = textSettings.ruledLines || targetElement.ruledLines;
+          if (textSettings.ruledLinesWidth !== undefined) styleToApply.ruledLinesWidth = textSettings.ruledLinesWidth || targetElement.ruledLinesWidth;
+          if (textSettings.ruledLinesColor !== undefined) styleToApply.ruledLinesColor = textSettings.ruledLinesColor || targetElement.ruledLinesColor;
+          if (textSettings.ruledLinesOpacity !== undefined) styleToApply.ruledLinesOpacity = textSettings.ruledLinesOpacity ?? targetElement.ruledLinesOpacity;
+          if (textSettings.ruledLinesTheme !== undefined) styleToApply.ruledLinesTheme = textSettings.ruledLinesTheme || targetElement.ruledLinesTheme;
           // Remove textSettings as it doesn't apply to qna_inline
           delete styleToApply.textSettings;
         }
@@ -4070,28 +4221,26 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             
             // Apply palette colors based on element type - always override manual colors
             if (element.type === 'text' || element.textType) {
-              // Update font color in nested font object if it exists
-            if (element.font) {
-              updates.font = { ...element.font, fontColor: paletteParts.freeTextText };
-            }
-              // Update QnA specific nested settings
-              if (element.questionSettings) {
-                updates.questionSettings = {
-                  ...element.questionSettings,
-                  font: element.questionSettings.font ? 
-                  { ...element.questionSettings.font, fontColor: paletteParts.freeTextText } : 
-                  { fontColor: paletteParts.freeTextText },
-                fontColor: paletteParts.freeTextText
-                };
-              }
-              if (element.answerSettings) {
-                updates.answerSettings = {
-                  ...element.answerSettings,
-                  font: element.answerSettings.font ? 
-                  { ...element.answerSettings.font, fontColor: paletteParts.freeTextText } : 
-                  { fontColor: paletteParts.freeTextText },
-                fontColor: paletteParts.freeTextText
-                };
+              // For qna_inline, font properties are only in questionSettings/answerSettings
+              if (element.textType === 'qna_inline') {
+                // Update QnA specific settings - no nested font objects
+                if (element.questionSettings) {
+                  updates.questionSettings = {
+                    ...element.questionSettings,
+                    fontColor: paletteParts.freeTextText
+                  };
+                }
+                if (element.answerSettings) {
+                  updates.answerSettings = {
+                    ...element.answerSettings,
+                    fontColor: paletteParts.freeTextText
+                  };
+                }
+              } else {
+                // For other text elements, update font color in nested font object if it exists
+                if (element.font) {
+                  updates.font = { ...element.font, fontColor: paletteParts.freeTextText };
+                }
               }
               
               // Handle free_text elements with textSettings
@@ -4172,86 +4321,77 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                 const existingQuestionBackground = element.questionSettings?.background || {};
                 const existingAnswerBackground = element.answerSettings?.background || {};
                 
+                // Get border/background values from top-level or fallback to questionSettings/answerSettings
+                const existingBorderWidth = (element.borderWidth || existingQuestionBorder.borderWidth || existingAnswerBorder.borderWidth) ?? 2;
+                const existingBorderOpacity = element.borderOpacity ?? existingQuestionBorder.borderOpacity ?? existingAnswerBorder.borderOpacity ?? 1;
+                const existingBackgroundOpacity = element.backgroundOpacity ?? existingQuestionBackground.backgroundOpacity ?? existingAnswerBackground.backgroundOpacity ?? 0.3;
+                
                 updates.questionSettings = {
                   ...element.questionSettings,
                   fontColor: paletteParts.qnaQuestionText,
                   font: { ...element.questionSettings?.font, fontColor: paletteParts.qnaQuestionText },
-                  border: borderEnabled ? {
+                  // Only set border.enabled in questionSettings for rendering check
+                  border: {
                     ...existingQuestionBorder,
-                    enabled: true,
-                    borderColor: paletteParts.qnaQuestionBorder,
-                    borderWidth: existingQuestionBorder.borderWidth ?? 2,
-                    borderOpacity: existingQuestionBorder.borderOpacity ?? 1
-                  } : {
-                    ...existingQuestionBorder,
-                    enabled: false
+                    enabled: borderEnabled
                   },
-                  background: backgroundEnabled ? {
+                  // Only set background.enabled in questionSettings for rendering check
+                  background: {
                     ...existingQuestionBackground,
-                    enabled: true,
-                    backgroundColor: paletteParts.qnaQuestionBackground,
-                    backgroundOpacity: existingQuestionBackground.backgroundOpacity ?? 0.3
-                  } : {
-                    ...existingQuestionBackground,
-                    enabled: false
+                    enabled: backgroundEnabled
                   }
                 };
                 updates.answerSettings = {
                   ...element.answerSettings,
                   fontColor: paletteParts.qnaAnswerText,
                   font: { ...element.answerSettings?.font, fontColor: paletteParts.qnaAnswerText },
-                  border: borderEnabled ? {
+                  // Only set border.enabled in answerSettings for rendering check
+                  border: {
                     ...existingAnswerBorder,
-                    enabled: true,
-                    borderColor: paletteParts.qnaAnswerBorder,
-                    borderWidth: existingAnswerBorder.borderWidth ?? 2,
-                    borderOpacity: existingAnswerBorder.borderOpacity ?? 1
-                  } : {
-                    ...existingAnswerBorder,
-                    enabled: false
+                    enabled: borderEnabled
                   },
-                  background: backgroundEnabled ? {
+                  // Only set background.enabled in answerSettings for rendering check
+                  background: {
                     ...existingAnswerBackground,
-                    enabled: true,
-                    backgroundColor: paletteParts.qnaAnswerBackground,
-                    backgroundOpacity: existingAnswerBackground.backgroundOpacity ?? 0.3
-                  } : {
-                    ...existingAnswerBackground,
-                    enabled: false
-                  },
-                  ruledLines: { ...element.answerSettings?.ruledLines, lineColor: paletteParts.qnaAnswerRuledLines }
+                    enabled: backgroundEnabled
+                  }
                 };
+                // Set all border/background properties on top-level
+                // Use question border color if different from answer, otherwise use answer
+                const borderColor = paletteParts.qnaQuestionBorder || paletteParts.qnaAnswerBorder || '#000000';
+                updates.borderColor = borderColor;
+                // Set all border/background properties on top-level (only individual properties, no border/background objects)
+                updates.borderWidth = existingBorderWidth;
+                updates.borderOpacity = existingBorderOpacity;
+                updates.borderEnabled = borderEnabled;
+                updates.borderColor = borderColor;
+                // Use question background color if different from answer, otherwise use answer
+                const backgroundColor = paletteParts.qnaQuestionBackground || paletteParts.qnaAnswerBackground || '#ffffff';
+                updates.backgroundColor = backgroundColor;
+                updates.backgroundOpacity = existingBackgroundOpacity;
+                updates.backgroundEnabled = backgroundEnabled;
+                // Set ruledLinesColor on top-level (moved from answerSettings)
+                if (paletteParts.qnaAnswerRuledLines) {
+                  updates.ruledLinesColor = paletteParts.qnaAnswerRuledLines;
+                }
               }
               
-              // Update border colors - only if border is enabled (for non-qna_inline elements, check existing enabled state)
+              // Update border/background colors on top-level (only individual properties, no border/background objects)
+              // For qna_inline, border.enabled and background.enabled are already set in questionSettings/answerSettings above
+              // For other text elements, we don't need to set border/background objects
               if (element.textType === 'qna_inline') {
-                if (borderEnabled) {
-                  updates.border = { ...element.border, borderColor: paletteParts.qnaBorder, enabled: true };
-                } else {
-                  updates.border = { ...element.border, enabled: false };
-                }
-                
-                // Update background colors - only if background is enabled
-                if (backgroundEnabled) {
-                  updates.background = { ...element.background, backgroundColor: paletteParts.qnaBackground, enabled: true };
-                } else {
-                  updates.background = { ...element.background, enabled: false };
-                }
+                // Border and background colors are already set above for qna_inline
               } else {
-                // For other text elements, check existing enabled state
+                // For other text elements, update border/background colors on top-level
                 const currentBorderEnabled = element.border?.enabled !== false;
                 const currentBackgroundEnabled = element.background?.enabled !== false;
                 
                 if (currentBorderEnabled) {
-                  updates.border = { ...element.border, borderColor: paletteParts.freeTextBorder, enabled: true };
-                } else {
-                  updates.border = { ...element.border, enabled: false };
+                  updates.borderColor = paletteParts.freeTextBorder;
                 }
                 
                 if (currentBackgroundEnabled) {
-                  updates.background = { ...element.background, backgroundColor: paletteParts.freeTextBackground, enabled: true };
-                } else {
-                  updates.background = { ...element.background, enabled: false };
+                  updates.backgroundColor = paletteParts.freeTextBackground;
                 }
               }
 
@@ -5681,15 +5821,51 @@ function applyThemeAndPaletteToElement(
   }
 
   if (element.textType === 'qna_inline') {
+    // getToolDefaults already cleans shared properties from questionSettings/answerSettings
+    // Only font properties and border.enabled/background.enabled remain in themeDefaults.questionSettings/answerSettings
     if (themeDefaults.questionSettings || element.questionSettings) {
+      // Extract only font properties and border.enabled/background.enabled from element.questionSettings
+      const elementQuestionSettings = element.questionSettings || {};
+      const cleanedElementQuestionSettings: any = {};
+      
+      // Font properties
+      if (elementQuestionSettings.fontSize !== undefined) cleanedElementQuestionSettings.fontSize = elementQuestionSettings.fontSize;
+      if (elementQuestionSettings.fontFamily !== undefined) cleanedElementQuestionSettings.fontFamily = elementQuestionSettings.fontFamily;
+      if (elementQuestionSettings.fontBold !== undefined) cleanedElementQuestionSettings.fontBold = elementQuestionSettings.fontBold;
+      if (elementQuestionSettings.fontItalic !== undefined) cleanedElementQuestionSettings.fontItalic = elementQuestionSettings.fontItalic;
+      if (elementQuestionSettings.fontColor !== undefined) cleanedElementQuestionSettings.fontColor = elementQuestionSettings.fontColor;
+      if (elementQuestionSettings.fontOpacity !== undefined) cleanedElementQuestionSettings.fontOpacity = elementQuestionSettings.fontOpacity;
+      // Font properties are now only directly in questionSettings, no nested font object
+      
+      // Border/Background are shared properties - borderEnabled/backgroundEnabled are only on top-level
+      // Don't set border.enabled or background.enabled in questionSettings/answerSettings
+      
       updatedElement.questionSettings = {
-        ...(element.questionSettings || {}),
+        ...cleanedElementQuestionSettings,
         ...(themeDefaults.questionSettings || {})
       };
     }
     if (themeDefaults.answerSettings || element.answerSettings) {
+      // Extract only font properties, border.enabled/background.enabled from element.answerSettings
+      const elementAnswerSettings = element.answerSettings || {};
+      const cleanedElementAnswerSettings: any = {};
+      
+      // Font properties
+      if (elementAnswerSettings.fontSize !== undefined) cleanedElementAnswerSettings.fontSize = elementAnswerSettings.fontSize;
+      if (elementAnswerSettings.fontFamily !== undefined) cleanedElementAnswerSettings.fontFamily = elementAnswerSettings.fontFamily;
+      if (elementAnswerSettings.fontBold !== undefined) cleanedElementAnswerSettings.fontBold = elementAnswerSettings.fontBold;
+      if (elementAnswerSettings.fontItalic !== undefined) cleanedElementAnswerSettings.fontItalic = elementAnswerSettings.fontItalic;
+      if (elementAnswerSettings.fontColor !== undefined) cleanedElementAnswerSettings.fontColor = elementAnswerSettings.fontColor;
+      if (elementAnswerSettings.fontOpacity !== undefined) cleanedElementAnswerSettings.fontOpacity = elementAnswerSettings.fontOpacity;
+      // Font properties are now only directly in answerSettings, no nested font object
+      
+      // Border/Background are shared properties - borderEnabled/backgroundEnabled are only on top-level
+      // Don't set border.enabled or background.enabled in questionSettings/answerSettings
+      
+      // Ruled lines are now only on element level, not in answerSettings
+      
       updatedElement.answerSettings = {
-        ...(element.answerSettings || {}),
+        ...cleanedElementAnswerSettings,
         ...(themeDefaults.answerSettings || {})
       };
     }

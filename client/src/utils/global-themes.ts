@@ -567,11 +567,13 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
         if (settings.font) {
           settings.font = { ...settings.font, fontColor: palette.colors.text || palette.colors.primary };
         }
-        if (settings.background && settings.background.enabled !== false) {
-          settings.background = { ...settings.background, backgroundColor: palette.colors.surface || palette.colors.background };
+        // Border/Background are shared properties - borderEnabled/backgroundEnabled are only on top-level
+        // Remove border/background objects from questionSettings/answerSettings
+        if (settings.background) {
+          delete settings.background;
         }
-        if (settings.border && settings.border.enabled !== false) {
-          settings.border = { ...settings.border, borderColor: palette.colors.secondary };
+        if (settings.border) {
+          delete settings.border;
         }
         if (settings.ruledLines) {
           settings.ruledLines = { ...settings.ruledLines, lineColor: palette.colors.accent || palette.colors.primary };
@@ -579,17 +581,16 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
       }
       
       // Ensure border and background objects exist if they're enabled
-      // Only apply palette colors if border/background is not explicitly disabled
-      if (settings.border && settings.border.enabled !== false) {
+      // Only set enabled property, no other border/background properties
+      // Border/background colors are set on top-level, not in questionSettings/answerSettings
+      if (settings.border) {
         settings.border = {
-          ...settings.border,
-          borderColor: settings.border.borderColor || palette.colors.secondary
+          enabled: settings.border.enabled ?? false
         };
       }
-      if (settings.background && settings.background.enabled !== false) {
+      if (settings.background) {
         settings.background = {
-          ...settings.background,
-          backgroundColor: settings.background.backgroundColor || (isAnswer ? palette.colors.background : palette.colors.surface || palette.colors.background)
+          enabled: settings.background.enabled ?? false
         };
       }
     }

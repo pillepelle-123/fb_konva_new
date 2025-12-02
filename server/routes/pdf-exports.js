@@ -1,0 +1,523 @@
+const express = require('express');
+const { Pool } = require('pg');
+const { authenticateToken } = require('../middleware/auth');
+const { generatePDFFromBook } = require('../services/pdf-export');
+const fs = require('fs').promises;
+const path = require('path');
+
+const router = express.Router();
+
+// Parse schema from DATABASE_URL
+const url = new URL(process.env.DATABASE_URL);
+const schema = url.searchParams.get('schema') || 'public';
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
+
+// Set search path from DATABASE_URL schema parameter
+pool.on('connect', (client) => {
+  client.query(`SET search_path TO ${schema}`);
+});
+
+const parseJsonField = (value) => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  return value;
+};
+
+// Background job queue for PDF exports
+const exportQueue = [];
+let isProcessingQueue = false;
+
+async function processExportQueue() {
+  if (isProcessingQueue || exportQueue.length === 0) {
+    return;
+  }
+
+  isProcessingQueue = true;
+
+  while (exportQueue.length > 0) {
+    const { exportId, bookId, userId, options, io } = exportQueue.shift();
+    
+    try {
+      // Update status to processing
+      await pool.query(
+        'UPDATE public.pdf_exports SET status = $1 WHERE id = $2',
+        ['processing', exportId]
+      );
+
+      // Load complete book data from database
+      const bookData = await loadBookDataFromDB(bookId, userId);
+
+      if (!bookData) {
+        throw new Error('Failed to load book data');
+      }
+
+      // Generate PDF
+      const pdfPath = await generatePDFFromBook(
+        bookData,
+        options,
+        exportId,
+        (progress) => {
+          // Could update progress in DB if needed
+        }
+      );
+
+      // Get file size
+      const stats = await fs.stat(pdfPath);
+      const fileSize = stats.size;
+
+      // Update export record
+      await pool.query(
+        `UPDATE public.pdf_exports 
+         SET status = $1, file_path = $2, file_size = $3, completed_at = CURRENT_TIMESTAMP 
+         WHERE id = $4`,
+        ['completed', pdfPath, fileSize, exportId]
+      );
+
+      // Get book name for notification
+      const bookResult = await pool.query('SELECT name FROM public.books WHERE id = $1', [bookId]);
+      const bookName = bookResult.rows[0]?.name || 'Book';
+
+      // Send Socket.IO notification
+      if (io) {
+        io.to(`user_${userId}`).emit('pdf_export_completed', {
+          exportId,
+          bookId,
+          bookName,
+          status: 'completed'
+        });
+      }
+    } catch (error) {
+      console.error('PDF export error:', error);
+      
+      // Update status to failed
+      await pool.query(
+        `UPDATE public.pdf_exports 
+         SET status = $1, error_message = $2, completed_at = CURRENT_TIMESTAMP 
+         WHERE id = $3`,
+        ['failed', error.message, exportId]
+      );
+
+      // Send failure notification
+      if (io) {
+        io.to(`user_${userId}`).emit('pdf_export_completed', {
+          exportId,
+          bookId,
+          status: 'failed',
+          error: error.message
+        });
+      }
+    }
+  }
+
+  isProcessingQueue = false;
+}
+
+async function loadBookDataFromDB(bookId, userId) {
+  // Check if user has access
+  const bookAccess = await pool.query(`
+    SELECT b.* FROM public.books b
+    LEFT JOIN public.book_friends bf ON b.id = bf.book_id
+    WHERE b.id = $1 AND (b.owner_id = $2 OR bf.user_id = $2)
+  `, [bookId, userId]);
+
+  if (bookAccess.rows.length === 0) {
+    return null;
+  }
+
+  const book = bookAccess.rows[0];
+  const specialPagesConfig = parseJsonField(book.special_pages_config) || null;
+
+  // Get pages
+  const pagesResult = await pool.query(
+    'SELECT * FROM public.pages WHERE book_id = $1 ORDER BY page_number ASC',
+    [bookId]
+  );
+
+  // Get answers
+  const answersResult = await pool.query(`
+    SELECT a.* FROM public.answers a
+    JOIN public.questions q ON a.question_id = q.id
+    WHERE q.book_id = $1
+  `, [bookId]);
+
+  // Get questions
+  const questionsResult = await pool.query(
+    'SELECT * FROM public.questions WHERE book_id = $1 ORDER BY display_order ASC NULLS LAST, created_at ASC',
+    [bookId]
+  );
+
+  // Get page assignments
+  const assignmentsResult = await pool.query(`
+    SELECT pa.page_id, pa.user_id, p.page_number, u.name, u.email, u.role
+    FROM public.page_assignments pa
+    JOIN public.pages p ON pa.page_id = p.id
+    JOIN public.users u ON pa.user_id = u.id
+    WHERE p.book_id = $1
+  `, [bookId]);
+
+  // Build book data structure similar to API response
+  return {
+    id: book.id,
+    name: book.name,
+    pageSize: book.page_size,
+    orientation: book.orientation,
+    bookTheme: book.book_theme || book.theme_id,
+    themeId: book.theme_id || book.book_theme,
+    colorPaletteId: book.color_palette_id,
+    pages: pagesResult.rows.map(page => {
+      let pageData = {};
+      if (page.elements) {
+        if (typeof page.elements === 'object' && !Array.isArray(page.elements)) {
+          pageData = page.elements;
+        } else if (typeof page.elements === 'string') {
+          try {
+            pageData = JSON.parse(page.elements);
+          } catch (e) {
+            pageData = {};
+          }
+        } else {
+          pageData = { elements: Array.isArray(page.elements) ? page.elements : [] };
+        }
+      }
+      const elements = pageData.elements || [];
+      
+      // Update answer elements with actual answer text
+      const updatedElements = elements.map(element => {
+        if (element.textType === 'answer') {
+          const pageAssignment = assignmentsResult.rows.find(pa => pa.page_id === page.id);
+          if (pageAssignment) {
+            let questionId = element.questionId;
+            if (!questionId) {
+              const questionElement = elements.find(el => el.textType === 'question' && el.questionId);
+              if (questionElement) {
+                questionId = questionElement.questionId;
+              }
+            }
+            
+            if (questionId) {
+              const assignedUserAnswer = answersResult.rows.find(a => 
+                a.question_id === questionId && a.user_id === pageAssignment.user_id
+              );
+              if (assignedUserAnswer) {
+                return {
+                  ...element,
+                  questionId: questionId,
+                  text: assignedUserAnswer.answer_text || '',
+                  answerId: assignedUserAnswer.id
+                };
+              }
+            }
+          }
+        }
+        return element;
+      });
+
+      const pageResult = {
+        id: page.id,
+        pageNumber: page.page_number,
+        elements: updatedElements,
+        background: {
+          ...pageData.background,
+          pageTheme: page.theme_id || null
+        },
+        layoutTemplateId: page.layout_template_id,
+        ...(page.theme_id ? { themeId: page.theme_id } : {}),
+        colorPaletteId: page.color_palette_id,
+        pageType: page.page_type || 'content'
+      };
+      
+      // Debug logging
+      
+      return pageResult;
+    }),
+    questions: questionsResult.rows,
+    answers: answersResult.rows,
+    pageAssignments: assignmentsResult.rows
+  };
+}
+
+// Create new PDF export
+router.post('/', authenticateToken, async (req, res) => {
+  try {
+    const { bookId, quality, pageRange, startPage, endPage, currentPageIndex } = req.body;
+    const userId = req.user.id;
+
+    // Validate book access
+    const bookAccess = await pool.query(`
+      SELECT b.* FROM public.books b
+      LEFT JOIN public.book_friends bf ON b.id = bf.book_id
+      WHERE b.id = $1 AND (b.owner_id = $2 OR bf.user_id = $2)
+    `, [bookId, userId]);
+
+    if (bookAccess.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Check user role for printing quality restriction
+    const book = bookAccess.rows[0];
+    const isOwner = book.owner_id === userId;
+    let userRole = 'publisher';
+    if (!isOwner) {
+      const collaborator = await pool.query(
+        'SELECT book_role FROM public.book_friends WHERE book_id = $1 AND user_id = $2',
+        [bookId, userId]
+      );
+      if (collaborator.rows.length > 0) {
+        userRole = collaborator.rows[0].book_role;
+      }
+    }
+
+    if (userRole === 'author' && quality === 'printing') {
+      return res.status(403).json({ error: 'Authors cannot export in printing quality' });
+    }
+
+    // Create export record
+    const result = await pool.query(
+      `INSERT INTO public.pdf_exports 
+       (book_id, user_id, status, quality, page_range, start_page, end_page) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7) 
+       RETURNING *`,
+      [bookId, userId, 'pending', quality, pageRange, startPage || null, endPage || null]
+    );
+
+    const exportRecord = result.rows[0];
+
+    // Add to queue
+    const io = req.app.get('io');
+    exportQueue.push({
+      exportId: exportRecord.id,
+      bookId,
+      userId,
+      options: {
+        quality,
+        pageRange,
+        startPage,
+        endPage,
+        currentPageIndex
+      },
+      io
+    });
+
+    // Start processing queue if not already processing
+    setImmediate(() => processExportQueue());
+
+    res.json({
+      id: exportRecord.id,
+      bookId: exportRecord.book_id,
+      status: exportRecord.status,
+      createdAt: exportRecord.created_at
+    });
+  } catch (error) {
+    console.error('Error creating PDF export:', error);
+    res.status(500).json({ error: 'Failed to create PDF export' });
+  }
+});
+
+// Get all exports for a book
+router.get('/book/:bookId', authenticateToken, async (req, res) => {
+  try {
+    const { bookId } = req.params;
+    const userId = req.user.id;
+
+    // Check book access
+    const bookAccess = await pool.query(`
+      SELECT b.* FROM public.books b
+      LEFT JOIN public.book_friends bf ON b.id = bf.book_id
+      WHERE b.id = $1 AND (b.owner_id = $2 OR bf.user_id = $2)
+    `, [bookId, userId]);
+
+    if (bookAccess.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Get exports
+    const exportsResult = await pool.query(
+      `SELECT * FROM public.pdf_exports 
+       WHERE book_id = $1 
+       ORDER BY created_at DESC`,
+      [bookId]
+    );
+
+    res.json(exportsResult.rows.map(exp => ({
+      id: exp.id,
+      bookId: exp.book_id,
+      userId: exp.user_id,
+      status: exp.status,
+      quality: exp.quality,
+      pageRange: exp.page_range,
+      startPage: exp.start_page,
+      endPage: exp.end_page,
+      fileSize: exp.file_size,
+      errorMessage: exp.error_message,
+      createdAt: exp.created_at,
+      completedAt: exp.completed_at
+    })));
+  } catch (error) {
+    console.error('Error fetching PDF exports:', error);
+    res.status(500).json({ error: 'Failed to fetch PDF exports' });
+  }
+});
+
+// Get single export
+router.get('/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const result = await pool.query(
+      `SELECT pe.*, b.owner_id 
+       FROM public.pdf_exports pe
+       JOIN public.books b ON pe.book_id = b.id
+       WHERE pe.id = $1`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Export not found' });
+    }
+
+    const exp = result.rows[0];
+
+    // Check access (user must be owner or have book access)
+    if (exp.owner_id !== userId) {
+      const bookAccess = await pool.query(
+        'SELECT * FROM public.book_friends WHERE book_id = $1 AND user_id = $2',
+        [exp.book_id, userId]
+      );
+      if (bookAccess.rows.length === 0) {
+        return res.status(403).json({ error: 'Not authorized' });
+      }
+    }
+
+    res.json({
+      id: exp.id,
+      bookId: exp.book_id,
+      userId: exp.user_id,
+      status: exp.status,
+      quality: exp.quality,
+      pageRange: exp.page_range,
+      startPage: exp.start_page,
+      endPage: exp.end_page,
+      fileSize: exp.file_size,
+      errorMessage: exp.error_message,
+      createdAt: exp.created_at,
+      completedAt: exp.completed_at
+    });
+  } catch (error) {
+    console.error('Error fetching PDF export:', error);
+    res.status(500).json({ error: 'Failed to fetch PDF export' });
+  }
+});
+
+// Download PDF
+router.get('/:id/download', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const result = await pool.query(
+      `SELECT pe.*, b.owner_id, b.name as book_name
+       FROM public.pdf_exports pe
+       JOIN public.books b ON pe.book_id = b.id
+       WHERE pe.id = $1`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Export not found' });
+    }
+
+    const exp = result.rows[0];
+
+    // Check access
+    if (exp.owner_id !== userId) {
+      const bookAccess = await pool.query(
+        'SELECT * FROM public.book_friends WHERE book_id = $1 AND user_id = $2',
+        [exp.book_id, userId]
+      );
+      if (bookAccess.rows.length === 0) {
+        return res.status(403).json({ error: 'Not authorized' });
+      }
+    }
+
+    if (exp.status !== 'completed' || !exp.file_path) {
+      return res.status(400).json({ error: 'Export not ready for download' });
+    }
+
+    // Check if file exists
+    try {
+      await fs.access(exp.file_path);
+    } catch {
+      return res.status(404).json({ error: 'PDF file not found' });
+    }
+
+    // Send file
+    const fileName = `${exp.book_name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_export_${exp.id}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    
+    const fileStream = require('fs').createReadStream(exp.file_path);
+    fileStream.pipe(res);
+  } catch (error) {
+    console.error('Error downloading PDF:', error);
+    res.status(500).json({ error: 'Failed to download PDF' });
+  }
+});
+
+// Delete export
+router.delete('/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const result = await pool.query(
+      `SELECT pe.*, b.owner_id 
+       FROM public.pdf_exports pe
+       JOIN public.books b ON pe.book_id = b.id
+       WHERE pe.id = $1`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Export not found' });
+    }
+
+    const exp = result.rows[0];
+
+    // Check access (only owner or export creator can delete)
+    if (exp.owner_id !== userId && exp.user_id !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Delete file if exists
+    if (exp.file_path) {
+      try {
+        await fs.unlink(exp.file_path);
+      } catch (error) {
+        console.error('Error deleting PDF file:', error);
+      }
+    }
+
+    // Delete record
+    await pool.query('DELETE FROM public.pdf_exports WHERE id = $1', [id]);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting PDF export:', error);
+    res.status(500).json({ error: 'Failed to delete PDF export' });
+  }
+});
+
+module.exports = router;
+

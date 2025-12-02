@@ -3,9 +3,7 @@ import { useEditor } from '../../../context/editor-context';
 import { exportBookToPDF, type PDFExportOptions } from '../../../utils/pdf-export';
 import { Modal } from '../../ui/overlays/modal';
 import { Button } from '../../ui/primitives/button';
-import { QualitySelector } from '../../shared/forms/quality-selector';
-import { PageRangeSelector } from '../../shared/forms/page-range-selector';
-import { ExportProgress } from './export-progress';
+import { PDFExportContent } from './pdf-export-content';
 
 interface PDFExportModalProps {
   isOpen: boolean;
@@ -82,21 +80,20 @@ export default function PDFExportModal({ isOpen, onClose }: PDFExportModalProps)
         </>
       }
     >
-      <div className="p-1">
-      <QualitySelector value={quality} onChange={setQuality} userRole={state.userRole} />
-      
-      <PageRangeSelector
+      <PDFExportContent
+        quality={quality}
+        setQuality={setQuality}
         pageRange={pageRange}
+        setPageRange={setPageRange}
         startPage={startPage}
+        setStartPage={setStartPage}
         endPage={endPage}
+        setEndPage={setEndPage}
         maxPages={state.currentBook.pages.length}
-        onPageRangeChange={setPageRange}
-        onStartPageChange={setStartPage}
-        onEndPageChange={setEndPage}
+        userRole={state.userRole}
+        isExporting={isExporting}
+        progress={progress}
       />
-      
-      {isExporting && <ExportProgress progress={progress} />}
-      </div>
     </Modal>
   );
 }

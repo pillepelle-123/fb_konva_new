@@ -44,10 +44,8 @@ export function extractColorPalette(elements: CanvasElement[], pageBackground: a
     if (element.stroke && element.stroke !== 'transparent') colors.add(element.stroke);
     if (element.fill && element.fill !== 'transparent') colors.add(element.fill);
     
-    // Ruled lines colors
+    // Ruled lines colors (now only on element level)
     if (element.ruledLinesColor) colors.add(element.ruledLinesColor);
-    if (element.answerSettings?.ruledLinesColor) colors.add(element.answerSettings.ruledLinesColor);
-    if (element.answerSettings?.ruledLines?.lineColor) colors.add(element.answerSettings.ruledLines.lineColor);
   });
   
   // Page background color
@@ -317,11 +315,11 @@ export function extractThemeDefaults(
       opacity: backgroundOpacity
     };
     
-    // Ruled lines
-    const ruledLines = qnaElement.answerSettings?.ruledLines ?? false;
-    const ruledLinesWidth = qnaElement.answerSettings?.ruledLinesWidth ?? 0.8;
-    const ruledLinesTheme = qnaElement.answerSettings?.ruledLinesTheme ?? 'default';
-    const ruledLinesOpacity = qnaElement.answerSettings?.ruledLinesOpacity ?? 0.5;
+    // Ruled lines (now only on element level)
+    const ruledLines = qnaElement.ruledLines ?? false;
+    const ruledLinesWidth = qnaElement.ruledLinesWidth ?? 0.8;
+    const ruledLinesTheme = qnaElement.ruledLinesTheme ?? 'default';
+    const ruledLinesOpacity = qnaElement.ruledLinesOpacity ?? 0.5;
     
     qnaDefaults.ruledLines = {
       enabled: ruledLines,

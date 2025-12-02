@@ -205,18 +205,8 @@ export const TOOL_DEFAULTS = {
       align: 'left',
       paragraphSpacing: 'small',
       ruledLines: false,
-      padding: 4,
-      font: {
-        fontColor: '#666666'
-      },
-      border: {
-        borderColor: '#000000',
-        enabled: false
-      },
-      background: {
-        backgroundColor: 'transparent',
-        enabled: false
-      }
+      padding: 4
+      // Border/Background are shared properties - borderEnabled/backgroundEnabled are only on top-level
     },
     answerSettings: {
       fontSize: 50, // Font size for answer text in canvas
@@ -228,19 +218,9 @@ export const TOOL_DEFAULTS = {
       align: 'left',
       paragraphSpacing: 'medium',
       ruledLines: false,
-      padding: 4,
-      font: {
-        fontColor: '#1f2937'
-      },
-      border: {
-        borderColor: '#000000',
-        enabled: false
-      },
-      background: {
-        backgroundColor: 'transparent',
-        enabled: false
-      },
-      ruledLinesColor: '#1f2937'
+      padding: 4
+      // Border/Background are shared properties - borderEnabled/backgroundEnabled are only on top-level
+      // Ruled lines properties (ruledLinesColor, ruledLinesTheme, etc.) are only on top-level, not in answerSettings
     }
   },
   free_text: {
@@ -345,29 +325,145 @@ export function getToolDefaults(
           font: { ...mergedDefaults.answerSettings?.font, fontColor: currentToolSettings.fontColor }
         };
       }
+      // borderColor and backgroundColor are shared properties - set only on top-level
+      // border.enabled and background.enabled remain in questionSettings/answerSettings for rendering check
       if (currentToolSettings.borderColor) {
+        // Only set border.enabled in questionSettings/answerSettings, not borderColor
+        const questionBorder = mergedDefaults.questionSettings?.border || {};
+        const answerBorder = mergedDefaults.answerSettings?.border || {};
         colorSettings.questionSettings = {
           ...colorSettings.questionSettings || mergedDefaults.questionSettings,
-          border: { ...mergedDefaults.questionSettings?.border, borderColor: currentToolSettings.borderColor }
+          border: {
+            ...questionBorder,
+            enabled: questionBorder.enabled
+          }
         };
         colorSettings.answerSettings = {
           ...colorSettings.answerSettings || mergedDefaults.answerSettings,
-          border: { ...mergedDefaults.answerSettings?.border, borderColor: currentToolSettings.borderColor }
+          border: {
+            ...answerBorder,
+            enabled: answerBorder.enabled
+          }
         };
       }
       if (currentToolSettings.backgroundColor) {
+        // Only set background.enabled in questionSettings/answerSettings, not backgroundColor
+        const questionBackground = mergedDefaults.questionSettings?.background || {};
+        const answerBackground = mergedDefaults.answerSettings?.background || {};
         colorSettings.questionSettings = {
           ...colorSettings.questionSettings || mergedDefaults.questionSettings,
-          background: { ...mergedDefaults.questionSettings?.background, backgroundColor: currentToolSettings.backgroundColor }
+          background: {
+            ...questionBackground,
+            enabled: questionBackground.enabled
+          }
         };
         colorSettings.answerSettings = {
           ...colorSettings.answerSettings || mergedDefaults.answerSettings,
-          background: { ...mergedDefaults.answerSettings?.background, backgroundColor: currentToolSettings.backgroundColor }
+          background: {
+            ...answerBackground,
+            enabled: answerBackground.enabled
+          }
         };
       }
     }
     
     mergedDefaults = { ...mergedDefaults, ...colorSettings };
+  }
+  
+  // For qna_inline, clean up shared properties from questionSettings/answerSettings
+  // Move them to top-level and keep only font properties in questionSettings/answerSettings
+  if (tool === 'qna_inline' && mergedDefaults) {
+    const questionSettings = mergedDefaults.questionSettings || {};
+    const answerSettings = mergedDefaults.answerSettings || {};
+    
+    // List of shared properties to move to top-level
+    const sharedProperties = [
+      'borderWidth', 'borderColor', 'borderTheme', 'borderOpacity', 'borderEnabled',
+      'backgroundColor', 'backgroundOpacity', 'backgroundEnabled',
+      'cornerRadius', 'padding', 'paragraphSpacing', 'align',
+      'layoutVariant', 'questionPosition', 'questionWidth',
+      'ruledLinesColor', 'ruledLinesTheme', 'ruledLinesWidth', 'ruledLinesOpacity', 'ruledLines'
+    ];
+    
+    // Move shared properties from questionSettings/answerSettings to top-level
+    // Priority: existing top-level > questionSettings > answerSettings
+    sharedProperties.forEach(prop => {
+      if (mergedDefaults[prop] === undefined || mergedDefaults[prop] === null) {
+        // Try to get from questionSettings first, then answerSettings
+        let value = questionSettings[prop];
+        if (value === undefined || value === null) {
+          value = answerSettings[prop];
+        }
+        
+        // Special handling for nested properties
+        if (value === undefined || value === null) {
+          if (prop === 'borderColor') {
+            value = questionSettings.border?.borderColor || answerSettings.border?.borderColor;
+          } else if (prop === 'borderEnabled') {
+            value = questionSettings.border?.enabled ?? answerSettings.border?.enabled ?? questionSettings.borderEnabled ?? answerSettings.borderEnabled;
+          } else if (prop === 'backgroundColor') {
+            value = questionSettings.background?.backgroundColor || answerSettings.background?.backgroundColor;
+          } else if (prop === 'backgroundEnabled') {
+            value = questionSettings.background?.enabled ?? answerSettings.background?.enabled ?? questionSettings.backgroundEnabled ?? answerSettings.backgroundEnabled;
+          } else if (prop === 'ruledLinesColor') {
+            value = element.ruledLinesColor;
+          }
+        }
+        
+        if (value !== undefined && value !== null) {
+          mergedDefaults[prop] = value;
+        }
+      }
+    });
+    
+    // Clean questionSettings: keep only font properties and border.enabled/background.enabled
+    const cleanedQuestionSettings: any = {};
+    if (questionSettings.fontSize !== undefined) cleanedQuestionSettings.fontSize = questionSettings.fontSize;
+    if (questionSettings.fontFamily !== undefined) cleanedQuestionSettings.fontFamily = questionSettings.fontFamily;
+    if (questionSettings.fontBold !== undefined) cleanedQuestionSettings.fontBold = questionSettings.fontBold;
+    if (questionSettings.fontItalic !== undefined) cleanedQuestionSettings.fontItalic = questionSettings.fontItalic;
+    if (questionSettings.fontColor !== undefined) cleanedQuestionSettings.fontColor = questionSettings.fontColor;
+    if (questionSettings.fontOpacity !== undefined) cleanedQuestionSettings.fontOpacity = questionSettings.fontOpacity;
+    // Font properties are now only directly in questionSettings, no nested font object
+    
+    // Keep border.enabled and background.enabled for rendering check
+    const borderEnabled = mergedDefaults.borderEnabled ?? questionSettings.border?.enabled ?? questionSettings.borderEnabled ?? false;
+    const backgroundEnabled = mergedDefaults.backgroundEnabled ?? questionSettings.background?.enabled ?? questionSettings.backgroundEnabled ?? false;
+    
+    cleanedQuestionSettings.border = {
+      ...(questionSettings.border || {}),
+      enabled: borderEnabled
+    };
+    cleanedQuestionSettings.background = {
+      ...(questionSettings.background || {}),
+      enabled: backgroundEnabled
+    };
+    
+    // Clean answerSettings: keep only font properties, border.enabled/background.enabled, and ruledLines (enabled flag)
+    const cleanedAnswerSettings: any = {};
+    if (answerSettings.fontSize !== undefined) cleanedAnswerSettings.fontSize = answerSettings.fontSize;
+    if (answerSettings.fontFamily !== undefined) cleanedAnswerSettings.fontFamily = answerSettings.fontFamily;
+    if (answerSettings.fontBold !== undefined) cleanedAnswerSettings.fontBold = answerSettings.fontBold;
+    if (answerSettings.fontItalic !== undefined) cleanedAnswerSettings.fontItalic = answerSettings.fontItalic;
+    if (answerSettings.fontColor !== undefined) cleanedAnswerSettings.fontColor = answerSettings.fontColor;
+    if (answerSettings.fontOpacity !== undefined) cleanedAnswerSettings.fontOpacity = answerSettings.fontOpacity;
+    // Font properties are now only directly in answerSettings, no nested font object
+    
+    // Keep border.enabled and background.enabled for rendering check
+    cleanedAnswerSettings.border = {
+      ...(answerSettings.border || {}),
+      enabled: borderEnabled
+    };
+    cleanedAnswerSettings.background = {
+      ...(answerSettings.background || {}),
+      enabled: backgroundEnabled
+    };
+    
+    // Ruled lines are now only on element level, not in answerSettings
+    
+    // Update mergedDefaults with cleaned questionSettings and answerSettings
+    mergedDefaults.questionSettings = Object.keys(cleanedQuestionSettings).length > 0 ? cleanedQuestionSettings : undefined;
+    mergedDefaults.answerSettings = Object.keys(cleanedAnswerSettings).length > 0 ? cleanedAnswerSettings : undefined;
   }
   
   // If we have an existing element, apply theme defaults but preserve essential properties
@@ -390,64 +486,23 @@ export function getToolDefaults(
     };
     
     // For qna_inline, preserve layout properties from layout (element.padding, element.format?.textAlign, element.paragraphSpacing)
-    // and apply to questionSettings/answerSettings if not explicitly set there.
-    // These are layout properties and should come from layout.json primarily.
+    // Shared properties are stored only on top-level, not in questionSettings/answerSettings
     if (tool === 'qna_inline') {
-      // Handle padding
+      // Handle padding - preserve on top-level only
       if (existingElement.padding !== undefined) {
         preservedProperties.padding = existingElement.padding;
-        
-        if (mergedDefaults.questionSettings && mergedDefaults.questionSettings.padding === undefined) {
-          mergedDefaults.questionSettings = {
-            ...mergedDefaults.questionSettings,
-            padding: existingElement.padding
-          };
-        }
-        if (mergedDefaults.answerSettings && mergedDefaults.answerSettings.padding === undefined) {
-          mergedDefaults.answerSettings = {
-            ...mergedDefaults.answerSettings,
-            padding: existingElement.padding
-          };
-        }
       }
       
-      // Handle align
+      // Handle align - preserve on top-level only (for qna_inline, not in format.textAlign)
       const existingAlign = existingElement.format?.textAlign ?? existingElement.align;
       if (existingAlign !== undefined) {
-        preservedProperties.format = preservedProperties.format || {};
-        preservedProperties.format.textAlign = existingAlign;
         preservedProperties.align = existingAlign;
-        
-        if (mergedDefaults.questionSettings && mergedDefaults.questionSettings.align === undefined) {
-          mergedDefaults.questionSettings = {
-            ...mergedDefaults.questionSettings,
-            align: existingAlign
-          };
-        }
-        if (mergedDefaults.answerSettings && mergedDefaults.answerSettings.align === undefined) {
-          mergedDefaults.answerSettings = {
-            ...mergedDefaults.answerSettings,
-            align: existingAlign
-          };
-        }
+        // Don't set format.textAlign for qna_inline - align is only on top-level
       }
       
-      // Handle paragraphSpacing
+      // Handle paragraphSpacing - preserve on top-level only
       if (existingElement.paragraphSpacing !== undefined) {
         preservedProperties.paragraphSpacing = existingElement.paragraphSpacing;
-        
-        if (mergedDefaults.questionSettings && mergedDefaults.questionSettings.paragraphSpacing === undefined) {
-          mergedDefaults.questionSettings = {
-            ...mergedDefaults.questionSettings,
-            paragraphSpacing: existingElement.paragraphSpacing
-          };
-        }
-        if (mergedDefaults.answerSettings && mergedDefaults.answerSettings.paragraphSpacing === undefined) {
-          mergedDefaults.answerSettings = {
-            ...mergedDefaults.answerSettings,
-            paragraphSpacing: existingElement.paragraphSpacing
-          };
-        }
       }
     }
     

@@ -52,13 +52,10 @@ export function convertTemplateTextboxToElement(
     text: '',
     // fontColor and backgroundColor are not layout properties - they come from themes and color palettes
     // Using defaults for initial creation, will be overridden by theme/palette when template is applied
-    fontColor: (defaults as any).fontColor || '#000000',
     backgroundColor: (defaults as any).backgroundColor || 'transparent',
-    fontSize: defaults.fontSize || 50,
-    fontFamily: defaults.fontFamily || 'Arial, sans-serif',
     align: (defaults.format?.textAlign as 'left' | 'center' | 'right') || defaults.align || 'left',
     padding: defaults.padding || 4,
-    // Add type-specific settings
+    // Add type-specific settings - for qna_inline, font properties are only in questionSettings/answerSettings
     ...(isQnaInline ? {
       // qna_inline specific settings
       layoutVariant: 'inline',
@@ -69,6 +66,9 @@ export function convertTemplateTextboxToElement(
         (qnaInlineDefaults.answerSettings ? { ...qnaInlineDefaults.answerSettings } : undefined)
     } : {
       // free_text specific settings
+      fontColor: (defaults as any).fontColor || '#000000',
+      fontSize: defaults.fontSize || 50,
+      fontFamily: defaults.fontFamily || 'Arial, sans-serif',
       textSettings: freeTextDefaults.textSettings ? { ...freeTextDefaults.textSettings } : undefined
     })
   };

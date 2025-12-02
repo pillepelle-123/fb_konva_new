@@ -13,10 +13,15 @@ export function applyTextboxStyle(element: any, style?: TextboxStyle): any {
 
   // Apply only primary layout properties from format section
   if (style.format) {
-  if (style.format.textAlign) {
-    styledElement.format = styledElement.format || {};
-    styledElement.format.textAlign = style.format.textAlign;
-  }
+    // For qna_inline, align is on top-level, not in format.textAlign
+    if (style.format.textAlign) {
+      if (styledElement.textType === 'qna_inline') {
+        styledElement.align = style.format.textAlign;
+      } else {
+        styledElement.format = styledElement.format || {};
+        styledElement.format.textAlign = style.format.textAlign;
+      }
+    }
     if (style.format.paragraphSpacing) styledElement.paragraphSpacing = style.format.paragraphSpacing;
     if (style.format.padding) styledElement.padding = style.format.padding;
   }

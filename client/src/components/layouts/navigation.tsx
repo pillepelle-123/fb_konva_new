@@ -9,6 +9,7 @@ import NotificationPopover from '../features/messenger/notification-popover';
 import { useSocket } from '../../context/socket-context';
 import NavigationSubMenu from './navigation-sub-menu';
 import UnsavedChangesDialog from '../ui/overlays/unsaved-changes-dialog';
+import { toast } from 'sonner';
 
 export default function Navigation() {
   const { user, logout } = useAuth();
@@ -85,8 +86,26 @@ export default function Navigation() {
           fetchUnreadCount();
         });
         
+        // Listen for PDF export completion notifications
+        socket.on('pdf_export_completed', (data: { exportId: number; bookId: number; bookName: string; status: string; error?: string }) => {
+          if (data.status === 'completed') {
+            // Show toast notification
+            toast.success(`PDF export for "${data.bookName}" is ready!`, {
+              action: {
+                label: 'View',
+                onClick: () => navigate(`/books/${data.bookId}/export`)
+              }
+            });
+            // Refresh notifications
+            fetchUnreadCount();
+          } else if (data.status === 'failed') {
+            toast.error(`PDF export for "${data.bookName}" failed: ${data.error || 'Unknown error'}`);
+          }
+        });
+        
         return () => {
           socket.off('message_notification');
+          socket.off('pdf_export_completed');
           clearInterval(interval);
           window.removeEventListener('profilePictureUpdated', handleProfileUpdate);
         };

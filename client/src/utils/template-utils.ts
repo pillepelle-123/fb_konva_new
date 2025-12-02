@@ -40,6 +40,9 @@ export function applyTemplateToPage(
   
   // Create textbox elements
   scaledTemplate.textboxes.forEach(textbox => {
+    // Determine if this is a qna_inline element
+    const isQnaInline = textbox.layoutVariant === 'inline' || textbox.type === 'qna_inline';
+    
     const element: CanvasElement = {
       id: uuidv4(),
       type: 'text',
@@ -95,8 +98,13 @@ export function applyTemplateToPage(
     // All other styling properties (fontFamily, fontColor, border, background, cornerRadius) come from themes/palettes
     if (textbox.style && textbox.style.format) {
       if (textbox.style.format.textAlign) {
-        element.format = element.format || {};
-        element.format.textAlign = textbox.style.format.textAlign;
+        // For qna_inline, align is on top-level, not in format.textAlign
+        if (isQnaInline) {
+          element.align = textbox.style.format.textAlign;
+        } else {
+          element.format = element.format || {};
+          element.format.textAlign = textbox.style.format.textAlign;
+        }
       }
       if (textbox.style.format.padding !== undefined) {
         element.padding = textbox.style.format.padding;
