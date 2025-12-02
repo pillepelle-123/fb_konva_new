@@ -478,17 +478,14 @@ async function renderPageWithKonva(page, pageData, bookData, canvasWidth, canvas
       }
       
       if (typeof Konva === 'undefined') {
-        console.log('Konva not loaded yet, cannot initialize');
         return;
       }
       
       if (typeof renderPageWithKonva === 'undefined') {
-        console.log('renderPageWithKonva not loaded yet, cannot initialize');
         return;
       }
       
       window.initKonvaCalled = true;
-      console.log('initKonva called, initializing stage...');
       
       // Use IIFE to avoid variable conflicts, but keep stage in global scope
       (async function() {
@@ -513,7 +510,6 @@ async function renderPageWithKonva(page, pageData, bookData, canvasWidth, canvas
             width: ${canvasWidth},
             height: ${canvasHeight}
           });
-          console.log('Stage created successfully');
         } catch (e) {
           console.error('Error creating stage:', e.message, e.stack);
           return;
@@ -540,15 +536,11 @@ async function renderPageWithKonva(page, pageData, bookData, canvasWidth, canvas
           const allImagePromises = result.imagePromises || [];
           if (allImagePromises.length > 0) {
             await Promise.all(allImagePromises);
-            console.log('All images loaded');
           }
           
           // Draw stage
           result.layer.draw();
             window.stage.draw();
-          
-          const finalCount = result.layer.getChildren().length;
-          console.log('Final layer children count:', finalCount);
           
           window.renderComplete = true;
           } catch (e) {
@@ -559,7 +551,6 @@ async function renderPageWithKonva(page, pageData, bookData, canvasWidth, canvas
     }
     
     // Don't call initKonva automatically - let page.evaluate() call it
-    console.log('Script loaded, initKonva function available, waiting for modules and Konva to load');
   </script>
 </body>
 </html>`;
@@ -581,11 +572,9 @@ async function renderPageWithKonva(page, pageData, bookData, canvasWidth, canvas
   await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
     
     // Load shared rendering modules via addScriptTag
-    console.log('Loading shared rendering modules from temporary files...');
     for (const moduleFile of moduleFiles) {
       try {
         await page.addScriptTag({ path: moduleFile });
-        console.log('Loaded module:', path.basename(moduleFile));
       } catch (error) {
         console.error('Error loading module:', moduleFile, error.message);
         throw error;
@@ -607,9 +596,6 @@ async function renderPageWithKonva(page, pageData, bookData, canvasWidth, canvas
           
           // Check if renderPageWithKonva function is available
           if (typeof renderPageWithKonva === 'undefined') {
-            if (checkCount % 10 === 0) {
-              console.log('Waiting for rendering modules to load...');
-            }
             if (checkCount > 100) {
               clearInterval(checkModules);
               reject(new Error('Rendering modules failed to load after 10 seconds'));
@@ -618,7 +604,6 @@ async function renderPageWithKonva(page, pageData, bookData, canvasWidth, canvas
           }
           
           // Modules are loaded
-          console.log('Rendering modules loaded successfully');
           clearInterval(checkModules);
           resolve();
         }, 100);
@@ -634,9 +619,6 @@ async function renderPageWithKonva(page, pageData, bookData, canvasWidth, canvas
         
         // Check if Konva is loaded
         if (typeof Konva === 'undefined') {
-          if (checkCount % 10 === 0) {
-            console.log('Waiting for Konva to load...');
-          }
           if (checkCount > 100) {
             clearInterval(checkComplete);
             reject(new Error('Konva library failed to load after 10 seconds'));
@@ -646,7 +628,6 @@ async function renderPageWithKonva(page, pageData, bookData, canvasWidth, canvas
         
         // Konva is loaded, check if initKonva was called
         if (!window.initKonvaCalled && typeof window.initKonva === 'function') {
-          console.log('Konva loaded, calling initKonva...');
           try {
             // Reset image promises array
             window.imagePromises = [];
@@ -661,9 +642,6 @@ async function renderPageWithKonva(page, pageData, bookData, canvasWidth, canvas
         
         // Check if stage is created
         if (!window.stage) {
-          if (checkCount % 10 === 0) {
-            console.log('Waiting for stage to be created...');
-          }
           if (checkCount > 100) {
             clearInterval(checkComplete);
             reject(new Error('Stage was not created after 10 seconds. Konva loaded: ' + (typeof Konva !== 'undefined') + ', initKonvaCalled: ' + (window.initKonvaCalled || false)));
@@ -673,12 +651,6 @@ async function renderPageWithKonva(page, pageData, bookData, canvasWidth, canvas
         
         // Check if render is complete (including images)
         if (!window.renderComplete) {
-          if (checkCount % 10 === 0) {
-            console.log('Stage created, waiting for render to complete...');
-            if (window.imagePromises && window.imagePromises.length > 0) {
-              console.log('Waiting for', window.imagePromises.length, 'images to load...');
-            }
-          }
           if (checkCount > 600) {
             clearInterval(checkComplete);
             console.warn('Render timeout after 60 seconds, proceeding anyway');
@@ -690,7 +662,6 @@ async function renderPageWithKonva(page, pageData, bookData, canvasWidth, canvas
         // Everything is ready - wait a bit more to ensure all images are rendered
         setTimeout(() => {
           clearInterval(checkComplete);
-          console.log('Everything ready: Konva loaded, stage created, render complete');
           resolve();
         }, 500);
       }, 100);
@@ -859,9 +830,6 @@ async function renderPageWithKonva(page, pageData, bookData, canvasWidth, canvas
       renderComplete: window.renderComplete || false
     };
   });
-  
-    console.log('=== COMPREHENSIVE DEBUG INFO ===');
-    console.log(JSON.stringify(debugInfo, null, 2));
 
   // Verify stage exists before taking screenshot
   const stageCheck = await page.evaluate(() => {
@@ -879,11 +847,12 @@ async function renderPageWithKonva(page, pageData, bookData, canvasWidth, canvas
     
     // Debug: Take a screenshot before PDF export to see what's actually rendered
     try {
+      const uploadsDir = process.env.UPLOADS_DIR || path.join(__dirname, '..', 'uploads');
+      const debugScreenshotPath = path.join(uploadsDir, `debug-screenshot-${Date.now()}.png`);
       const debugScreenshot = await page.screenshot({ 
-        path: `server/uploads/pdf-exports/debug-screenshot-${Date.now()}.png`,
+        path: debugScreenshotPath,
         fullPage: false 
       });
-      console.log('Debug screenshot saved');
     } catch (e) {
       console.warn('Could not save debug screenshot:', e.message);
     }

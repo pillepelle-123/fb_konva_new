@@ -261,17 +261,6 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
   // Fallback to questionSettings/answerSettings for backward compatibility with old data
   const showBackground = element.backgroundEnabled ?? (questionSettings.background?.enabled || answerSettings.background?.enabled) ?? false;
   
-  // Debug: Log background rendering decision
-  if (typeof console !== 'undefined' && console.log) {
-    const debugInfo = {
-      elementBackgroundEnabled: element.backgroundEnabled,
-      questionBackgroundEnabled: questionSettings.background?.enabled,
-      answerBackgroundEnabled: answerSettings.background?.enabled,
-      showBackground: showBackground,
-      backgroundColor: element.backgroundColor || questionSettings.background?.backgroundColor || answerSettings.background?.backgroundColor
-    };
-    console.log('DEBUG Background:', JSON.stringify(debugInfo, null, 2));
-  }
   
   // Render background if showBackground is true (match client-side logic)
   // Client-side renders background even if backgroundColor is 'transparent' (as long as showBackground is true)
@@ -392,42 +381,6 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
     // If no page background found, bgRect is already at the end, which is fine
     nodesAdded++;
     
-    // Debug: Verify background node was added
-    if (typeof console !== 'undefined' && console.log) {
-      const stage = layer.getStage();
-      const stageWidth = stage ? stage.width() : 0;
-      const stageHeight = stage ? stage.height() : 0;
-      const bgRectIndex = layer.getChildren().indexOf(bgRect);
-      const allChildren = layer.getChildren().map((node, idx) => ({
-        idx: idx,
-        className: node.getClassName(),
-        x: node.x ? node.x() : 0,
-        y: node.y ? node.y() : 0,
-        width: node.width ? node.width() : 0,
-        height: node.height ? node.height() : 0,
-        fill: node.fill ? node.fill() : 'N/A',
-        stroke: node.stroke ? node.stroke() : 'N/A',
-        visible: node.visible(),
-        opacity: node.opacity(),
-        zIndex: node.zIndex()
-      }));
-      
-      console.log('DEBUG Background Node Added:', JSON.stringify({
-        className: bgRect.getClassName(),
-        x: bgRect.x(),
-        y: bgRect.y(),
-        width: bgRect.width(),
-        height: bgRect.height(),
-        fill: bgRect.fill(),
-        opacity: bgRect.opacity(),
-        visible: bgRect.visible(),
-        zIndex: bgRect.zIndex(),
-        indexInLayer: bgRectIndex,
-        stageSize: { width: stageWidth, height: stageHeight },
-        layerChildrenCount: layer.getChildren().length,
-        allChildren: allChildren
-      }, null, 2));
-    }
   }
   
   // Render border if enabled (BEFORE text so text appears on top)
@@ -436,18 +389,6 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
   // Match client-side logic exactly: element.borderEnabled ?? (questionStyle.border?.enabled || answerStyle.border?.enabled) ?? false
   const showBorder = element.borderEnabled ?? (questionSettings.border?.enabled || answerSettings.border?.enabled) ?? false;
   
-  // Debug: Log border rendering decision
-  if (typeof console !== 'undefined' && console.log) {
-    const debugInfo = {
-      elementBorderEnabled: element.borderEnabled,
-      questionBorderEnabled: questionSettings.border?.enabled,
-      answerBorderEnabled: answerSettings.border?.enabled,
-      showBorder: showBorder,
-      borderWidth: element.borderWidth || questionSettings.borderWidth || answerSettings.borderWidth,
-      borderColor: element.borderColor || questionSettings.border?.borderColor || answerSettings.border?.borderColor
-    };
-    console.log('DEBUG Border:', JSON.stringify(debugInfo, null, 2));
-  }
   
   if (showBorder) {
     // Priority: element (top-level) > questionSettings > answerSettings (fallback for old data)
@@ -607,27 +548,6 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
           }
           nodesAdded++;
           
-              // Debug: Verify border node was added (rough.js path)
-              if (typeof console !== 'undefined' && console.log) {
-                console.log('DEBUG Border Node Added (rough.js):', JSON.stringify({
-                  className: borderPath.getClassName(),
-                  x: borderPath.x(),
-                  y: borderPath.y(),
-                  stroke: borderPath.stroke(),
-                  strokeWidth: borderPath.strokeWidth(),
-                  opacity: borderPath.opacity(),
-                  visible: borderPath.visible(),
-                  zIndex: borderPath.zIndex(),
-                  layerChildren: layer.getChildren().length,
-                  allZIndices: layer.getChildren().map((node, idx) => ({
-                    idx: idx,
-                    className: node.getClassName(),
-                    zIndex: node.zIndex(),
-                    x: node.x ? node.x() : 'N/A',
-                    y: node.y ? node.y() : 'N/A'
-                  }))
-                }, null, 2));
-              }
         }
       } catch (error) {
         // Fallback to regular rect border
@@ -679,22 +599,6 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
             }
             nodesAdded++;
             
-            // Debug: Verify border node was added (rough.js fallback)
-        if (typeof console !== 'undefined' && console.log) {
-          console.log('DEBUG Border Node Added (rough.js fallback):', JSON.stringify({
-            className: borderRect.getClassName(),
-            x: borderRect.x(),
-            y: borderRect.y(),
-            width: borderRect.width(),
-            height: borderRect.height(),
-            stroke: borderRect.stroke(),
-            strokeWidth: borderRect.strokeWidth(),
-            opacity: borderRect.opacity(),
-            visible: borderRect.visible(),
-            layerChildren: layer.getChildren().length,
-            error: error.message
-          }, null, 2));
-        }
       }
     } else {
       // Default border (no theme)
@@ -746,21 +650,6 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
       }
       nodesAdded++;
       
-      // Debug: Verify border node was added
-      if (typeof console !== 'undefined' && console.log) {
-        console.log('DEBUG Border Node Added:', JSON.stringify({
-          className: borderRect.getClassName(),
-          x: borderRect.x(),
-          y: borderRect.y(),
-          width: borderRect.width(),
-          height: borderRect.height(),
-          stroke: borderRect.stroke(),
-          strokeWidth: borderRect.strokeWidth(),
-          opacity: borderRect.opacity(),
-          visible: borderRect.visible(),
-          layerChildren: layer.getChildren().length
-        }, null, 2));
-      }
     }
   }
   
@@ -793,11 +682,32 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
   const factor = aFontSize >= 50 ? aFontSize >= 96 ? aFontSize >= 145 ? -0.07 : 0.01 : 0.07 : 0.1;
   const textBaselineOffset = -(maxFontSizeUsed * maxLineHeightMultiplier * 0.15) + (maxFontSizeUsed * factor);
   
+  // Calculate text width for wrapping (used for both question and answer)
+  const textWidth = width - (padding * 2);
+  
+  // DEBUG: Log basic positioning values
+  if (typeof console !== 'undefined' && console.log) {
+    const debugInfo = JSON.stringify({
+      elementX: x,
+      elementY: y,
+      elementWidth: width,
+      elementHeight: height,
+      padding: padding,
+      textWidth: textWidth,
+      layoutVariant: layoutVariant,
+      effectivePadding: effectivePadding,
+      qFontSize: qFontSize,
+      aFontSize: aFontSize
+    }, null, 2);
+    console.log('[DEBUG QnA Inline] Basic Values: ' + debugInfo);
+  }
+  
+  // Store question lines globally so they can be reused for answer positioning
+  let questionLines = [];
+  let questionTextWidth = 0;
+  
   // Render question text if present
   if (questionText && questionText.trim()) {
-    // Calculate text width for wrapping
-    const textWidth = width - (padding * 2);
-    
     // Create canvas to measure text for proper wrapping
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
@@ -806,7 +716,6 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
     
     // Split text into lines based on width
     const words = questionText.split(' ');
-    const questionLines = [];
     let currentLine = '';
     let currentLineWidth = 0;
     
@@ -833,10 +742,27 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
       const number = qFontSize - aFontSize;
       questionLines.forEach((line, index) => {
         const sharedBaseline = effectivePadding + (index * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.8) - (number / 7);
-        const questionY = y + sharedBaseline - (qFontSize * 0.8);
+        // Apply same Y offset as answer text for consistent positioning
+        const questionY = y + sharedBaseline - (qFontSize * 0.8) + (qFontSize * 0.06);
+        const questionX = x + padding;
+        
+        // DEBUG: Log question position (only for last line)
+        if (typeof console !== 'undefined' && console.log && index === questionLines.length - 1) {
+          const debugInfo = JSON.stringify({
+            questionX: questionX,
+            questionY: questionY,
+            elementX: x,
+            elementY: y,
+            padding: padding,
+            line: line,
+            index: index,
+            totalLines: questionLines.length
+          }, null, 2);
+          console.log('[DEBUG QnA Inline] Question Position (Last Line): ' + debugInfo);
+        }
         
         const questionNode = new Konva.Text({
-          x: x + padding,
+          x: questionX,
           y: questionY,
           text: line,
           fontSize: qFontSize,
@@ -855,86 +781,203 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
         layer.add(questionNode);
         nodesAdded++;
       });
+      
+      // Calculate question text width for gap calculation AFTER rendering
+      // CRITICAL: Use EXACT same font formatting as Konva uses for rendering
+      // Konva uses: fontStyle: qFontBold ? (qFontStyle === 'italic' ? 'bold italic' : 'bold') : qFontStyle
+      // For canvas measurement, convert to CSS font string: 'bold italic', 'bold', 'italic', or 'normal'
+      if (questionLines.length > 0) {
+        const qMeasureCanvas = document.createElement('canvas');
+        const qMeasureContext = qMeasureCanvas.getContext('2d');
+        // Match client-side font string format EXACTLY: `${qFontBold ? 'bold ' : ''}${qFontItalic ? 'italic ' : ''}${qFontSize}px ${qFontFamily}`
+        // This ensures the measurement matches exactly how Konva renders the text
+        const qMeasureFontString = (qFontBold ? 'bold ' : '') + (qFontItalic ? 'italic ' : '') + qFontSize + 'px ' + qFontFamily;
+        qMeasureContext.font = qMeasureFontString;
+        const lastQuestionLine = questionLines[questionLines.length - 1] || '';
+        questionTextWidth = qMeasureContext.measureText(lastQuestionLine).width;
+        
+        // DEBUG: Log question text width calculation
+        if (typeof console !== 'undefined' && console.log) {
+          const debugInfo = JSON.stringify({
+            lastQuestionLine: lastQuestionLine,
+            questionTextWidth: questionTextWidth,
+            fontString: qMeasureFontString,
+            qFontBold: qFontBold,
+            qFontItalic: qFontItalic,
+            qFontSize: qFontSize,
+            qFontFamily: qFontFamily,
+            padding: padding,
+            elementX: x,
+            questionX: x + padding
+          }, null, 2);
+          console.log('[DEBUG QnA Inline] Question Text Width Calculation: ' + debugInfo);
+        }
+      }
     } else {
-      // Block layout: simple vertical stacking
-      questionLines.forEach((line, index) => {
-        const questionNode = new Konva.Text({
-          x: x + padding,
-          y: y + padding + (index * qLineHeight),
-          text: line,
-          fontSize: qFontSize,
-          fontFamily: qFontFamily,
-          fontStyle: qFontBold ? (qFontStyle === 'italic' ? 'bold italic' : 'bold') : qFontStyle,
-          fill: qFontColor,
-          width: textWidth,
-          align: questionSettings.align || element.align || 'left',
-          verticalAlign: 'top',
-          wrap: 'none',
-          rotation: rotation,
-          opacity: opacity,
-          visible: true,
-          listening: false
+      // Block layout: render question in area based on questionPosition
+      const questionPosition = element.questionPosition || 'top';
+      
+      // Calculate question and answer areas based on position
+      let questionArea = { x: x + padding, y: y + padding, width: textWidth, height: height - padding * 2 };
+      let answerArea = { x: x + padding, y: y + padding, width: textWidth, height: height - padding * 2 };
+      
+      // Calculate dynamic question area size based on text content
+      let questionWidthValue = 0;
+      let questionHeightValue = 0;
+      
+      if (questionLines.length > 0) {
+        const qCanvas = document.createElement('canvas');
+        const qContext = qCanvas.getContext('2d');
+        const qFontString = (qFontBold ? 'bold ' : '') + (qFontStyle === 'italic' ? 'italic ' : '') + qFontSize + 'px ' + qFontFamily;
+        qContext.font = qFontString;
+        
+        // Calculate required width and height for question text
+        let maxLineWidth = 0;
+        questionLines.forEach(line => {
+          const lineWidth = qContext.measureText(line).width;
+          maxLineWidth = Math.max(maxLineWidth, lineWidth);
         });
-        layer.add(questionNode);
-        nodesAdded++;
+        
+        questionWidthValue = Math.min(maxLineWidth + padding * 2, width * 0.6);
+        questionHeightValue = questionLines.length * qLineHeight + padding * 2;
+      }
+      
+      // Calculate areas based on position
+      if (questionPosition === 'left' || questionPosition === 'right') {
+        const questionWidthPercent = element.questionWidth || 40;
+        const finalQuestionWidth = (width * questionWidthPercent) / 100;
+        const answerWidth = width - finalQuestionWidth - padding * 3;
+        
+        if (questionPosition === 'left') {
+          questionArea = { x: x + padding, y: y + padding, width: finalQuestionWidth, height: height - padding * 2 };
+          answerArea = { x: x + finalQuestionWidth + padding * 2, y: y + padding, width: answerWidth, height: height - padding * 2 };
+        } else {
+          answerArea = { x: x + padding, y: y + padding, width: answerWidth, height: height - padding * 2 };
+          questionArea = { x: x + answerWidth + padding * 2, y: y + padding, width: finalQuestionWidth, height: height - padding * 2 };
+        }
+      } else {
+        // top or bottom
+        const finalQuestionHeight = Math.max(questionHeightValue, qFontSize + padding * 2);
+        const answerHeight = height - finalQuestionHeight - padding * 3;
+        
+        if (questionPosition === 'top') {
+          questionArea = { x: x + padding, y: y + padding, width: textWidth, height: finalQuestionHeight };
+          answerArea = { x: x + padding, y: y + finalQuestionHeight + padding * 2, width: textWidth, height: answerHeight };
+        } else {
+          // bottom
+          answerArea = { x: x + padding, y: y + padding, width: textWidth, height: answerHeight };
+          questionArea = { x: x + padding, y: y + answerHeight + padding * 2, width: textWidth, height: finalQuestionHeight };
+        }
+      }
+      
+      // Render question in its area with wrapping
+      // Use Konva's built-in word wrap for reliable text wrapping
+      // Add small positive offset to move first line slightly down for proper spacing
+      const questionY = questionArea.y + (qFontSize * 0.02);
+      
+      const questionNode = new Konva.Text({
+        x: questionArea.x,
+        y: questionY,
+        text: questionText,
+        fontSize: qFontSize,
+        fontFamily: qFontFamily,
+        fontStyle: qFontBold ? (qFontStyle === 'italic' ? 'bold italic' : 'bold') : qFontStyle,
+        fill: qFontColor,
+        width: questionArea.width,
+        height: questionArea.height,
+        align: questionSettings.align || element.align || 'left',
+        verticalAlign: 'top',
+        wrap: 'word', // Enable word wrap
+        lineHeight: (qLineHeight / qFontSize) * 0.85, // Reduce line height to match client rendering
+        rotation: rotation,
+        opacity: opacity,
+        visible: true,
+        listening: false
       });
+      layer.add(questionNode);
+      nodesAdded++;
+      
+      // Store answer area in a variable accessible in this scope
+      // We'll use it for block layout answer rendering
+      if (layoutVariant === 'block') {
+        // answerArea is already calculated above for block layout
+        // It will be used in the answer rendering section
+      }
     }
   }
   
   // Render answer text if present
   if (plainAnswerText && plainAnswerText.trim()) {
-    const textWidth = width - (padding * 2);
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     const aFontString = (aFontBold ? 'bold ' : '') + (aFontStyle === 'italic' ? 'italic ' : '') + aFontSize + 'px ' + aFontFamily;
     context.font = aFontString;
     
-    if (layoutVariant === 'inline' && questionText && questionText.trim()) {
+    if (layoutVariant === 'inline' && questionText && questionText.trim() && questionLines.length > 0) {
       // Inline layout: check if answer can fit on same line as question
-      const qCanvas = document.createElement('canvas');
-      const qContext = qCanvas.getContext('2d');
-      const qFontString = (qFontBold ? 'bold ' : '') + (qFontStyle === 'italic' ? 'italic ' : '') + qFontSize + 'px ' + qFontFamily;
-      qContext.font = qFontString;
-      
-      // Recalculate question lines for width measurement
-      const qWords = questionText.split(' ');
-      const qLines = [];
-      let qCurrentLine = '';
-      let qCurrentLineWidth = 0;
-      
-      for (const word of qWords) {
-        const wordWithSpace = qCurrentLine ? ' ' + word : word;
-        const wordWidth = qContext.measureText(wordWithSpace).width;
-        
-        if (qCurrentLineWidth + wordWidth <= textWidth) {
-          qCurrentLine += wordWithSpace;
-          qCurrentLineWidth += wordWidth;
-        } else {
-          if (qCurrentLine) qLines.push(qCurrentLine);
-          qCurrentLine = word;
-          qCurrentLineWidth = qContext.measureText(word).width;
-        }
-      }
-      if (qCurrentLine) {
-        qLines.push(qCurrentLine);
-      }
-      
-      const lastQuestionLine = qLines[qLines.length - 1] || '';
-      const questionTextWidth = qContext.measureText(lastQuestionLine).width;
-      const gap = 40;
-      const availableWidthAfterQuestion = textWidth - questionTextWidth - gap;
+      // Use the question lines that were already calculated for rendering
+      // Match client-side: two gap values - one for calculation (40), one for rendering (dynamic)
+      const gapForCalculation = 40; // Used for checking if answer fits
+      // CRITICAL: availableWidthAfterQuestion must account for padding on both sides
+      // textWidth already accounts for padding (width - padding * 2), so this is correct
+      const availableWidthAfterQuestion = textWidth - questionTextWidth - gapForCalculation;
       
       // Check if first word of answer fits after last question line
       const firstAnswerLine = plainAnswerText.split('\n')[0] || '';
       const firstAnswerWord = firstAnswerLine.split(' ')[0] || '';
       const canFitOnSameLine = firstAnswerWord && availableWidthAfterQuestion > 0 && context.measureText(firstAnswerWord).width <= availableWidthAfterQuestion;
       
+      // DEBUG: Log positioning calculations
+      if (typeof console !== 'undefined' && console.log) {
+        const debugInfo = JSON.stringify({
+          layoutVariant: layoutVariant,
+          padding: padding,
+          elementX: x,
+          elementY: y,
+          elementWidth: width,
+          textWidth: textWidth,
+          questionTextWidth: questionTextWidth,
+          gapForCalculation: gapForCalculation,
+          gapForRendering: Math.max(10, qFontSize * 0.5),
+          availableWidthAfterQuestion: availableWidthAfterQuestion,
+          canFitOnSameLine: canFitOnSameLine,
+          firstAnswerWord: firstAnswerWord,
+          firstAnswerWordWidth: firstAnswerWord ? context.measureText(firstAnswerWord).width : 0,
+          questionX: x + padding,
+          calculatedAnswerX: x + padding + questionTextWidth + Math.max(10, qFontSize * 0.5)
+        }, null, 2);
+        console.log('[DEBUG QnA Inline] Answer Positioning: ' + debugInfo);
+      }
+      
       if (canFitOnSameLine) {
         // Render answer on same line as question
+        // Match client-side: const gap = Math.max(10, qFontSize * .5); for rendering
+        // Add small adjustment to match client rendering more closely
+        const gapForRendering = Math.max(10, qFontSize * 0.5) + (qFontSize * 0.15); // Small additional gap adjustment
         const number = qFontSize - aFontSize;
-        const sharedBaseline = effectivePadding + ((qLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.8) - (number / 7);
-        const answerY = y + sharedBaseline - (aFontSize * 0.8);
-        const answerX = x + padding + questionTextWidth + gap;
+        const sharedBaseline = effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.8) - (number / 7);
+        // Add small Y offset adjustment to match client rendering
+        const answerY = y + sharedBaseline - (aFontSize * 0.8) + (aFontSize * 0.06);
+        const answerX = x + padding + questionTextWidth + gapForRendering;
+        
+        // DEBUG: Log final answer position
+        if (typeof console !== 'undefined' && console.log) {
+          const questionY = y + effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.8) - (qFontSize * 0.8) + (qFontSize * 0.06);
+          const debugInfo = JSON.stringify({
+            answerX: answerX,
+            answerY: answerY,
+            questionX: x + padding,
+            questionY: questionY,
+            gapForRendering: gapForRendering,
+            questionTextWidth: questionTextWidth,
+            padding: padding,
+            xOffset: answerX - (x + padding),
+            yOffset: answerY - questionY,
+            sharedBaseline: sharedBaseline,
+            effectivePadding: effectivePadding
+          }, null, 2);
+          console.log('[DEBUG QnA Inline] Answer on Same Line: ' + debugInfo);
+        }
         
         // Split answer text into words and render with wrapping
         const answerWords = plainAnswerText.split(' ');
@@ -985,10 +1028,11 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
             } else {
               // Render current line and start new line
               if (currentAnswerLine) {
-                const combinedLineBaseline = effectivePadding + ((qLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6);
+                const combinedLineBaseline = effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6);
                 const answerBaselineOffset = -(aFontSize * getLineHeightMultiplier(aParagraphSpacing) * 0.15) + (aFontSize * factor);
                 const answerBaseline = combinedLineBaseline + (answerLineIndex * aLineHeight) + answerBaselineOffset + (aFontSize * 0.6);
-                const answerLineY = y + answerBaseline - (aFontSize * 0.8);
+                // Apply Y offset to match client rendering
+                const answerLineY = y + answerBaseline - (aFontSize * 0.8) + (aFontSize * 0.06);
                 
                 const answerNode = new Konva.Text({
                   x: x + padding,
@@ -1042,10 +1086,11 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
             nodesAdded++;
           } else {
             // On subsequent line
-            const combinedLineBaseline = effectivePadding + ((qLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6);
+            const combinedLineBaseline = effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6);
             const answerBaselineOffset = -(aFontSize * getLineHeightMultiplier(aParagraphSpacing) * 0.15) + (aFontSize * factor);
             const answerBaseline = combinedLineBaseline + (answerLineIndex * aLineHeight) + answerBaselineOffset + (aFontSize * 0.6);
-            const answerLineY = y + answerBaseline - (aFontSize * 0.8);
+            // Apply Y offset to match client rendering
+            const answerLineY = y + answerBaseline - (aFontSize * 0.8) + (aFontSize * 0.06);
             
             const answerNode = new Konva.Text({
               x: x + padding,
@@ -1071,13 +1116,27 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
         }
       } else {
         // Answer starts on new line after question
-        const combinedLineBaseline = effectivePadding + ((qLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6);
+        const combinedLineBaseline = effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6);
         const answerBaselineOffset = -(aFontSize * getLineHeightMultiplier(aParagraphSpacing) * 0.15) + (aFontSize * factor);
         const answerBaseline = combinedLineBaseline + (1 * aLineHeight) + answerBaselineOffset + (aFontSize * 0.6);
-        const answerY = y + answerBaseline - (aFontSize * 0.8);
+        // Apply Y offset to match client rendering
+        const answerY = y + answerBaseline - (aFontSize * 0.8) + (aFontSize * 0.06);
+        const answerX = x + padding;
+        
+        // DEBUG: Log answer position when starting on new line
+        if (typeof console !== 'undefined' && console.log) {
+          const debugInfo = JSON.stringify({
+            answerX: answerX,
+            answerY: answerY,
+            elementX: x,
+            padding: padding,
+            questionX: x + padding
+          }, null, 2);
+          console.log('[DEBUG QnA Inline] Answer on New Line: ' + debugInfo);
+        }
         
         const answerNode = new Konva.Text({
-          x: x + padding,
+          x: answerX,
           y: answerY,
           text: plainAnswerText,
           fontSize: aFontSize,
@@ -1098,18 +1157,26 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
         nodesAdded++;
       }
     } else {
-      // Block layout or no question: simple vertical positioning
-      let answerY = y + padding;
-      if (questionText && questionText.trim() && layoutVariant === 'block') {
+      // Block layout or no question
+      if (layoutVariant === 'block' && questionText && questionText.trim()) {
+        // Block layout: render answer in area based on questionPosition
+        const questionPosition = element.questionPosition || 'top';
+        
+        // Calculate answer area (same logic as question area calculation above)
+        let answerArea = { x: x + padding, y: y + padding, width: textWidth, height: height - padding * 2 };
+        
+        // Calculate dynamic question area size to determine answer area
         const qCanvas = document.createElement('canvas');
         const qContext = qCanvas.getContext('2d');
         const qFontString = (qFontBold ? 'bold ' : '') + (qFontStyle === 'italic' ? 'italic ' : '') + qFontSize + 'px ' + qFontFamily;
         qContext.font = qFontString;
         
+        // Calculate question lines for height/width calculation
         const qWords = questionText.split(' ');
         const qLines = [];
         let qCurrentLine = '';
         let qCurrentLineWidth = 0;
+        let maxQuestionLineWidth = 0;
         
         for (const word of qWords) {
           const wordWithSpace = qCurrentLine ? ' ' + word : word;
@@ -1118,41 +1185,104 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
           if (qCurrentLineWidth + wordWidth <= textWidth) {
             qCurrentLine += wordWithSpace;
             qCurrentLineWidth += wordWidth;
+            maxQuestionLineWidth = Math.max(maxQuestionLineWidth, qCurrentLineWidth);
           } else {
-            if (qCurrentLine) qLines.push(qCurrentLine);
+            if (qCurrentLine) {
+              qLines.push(qCurrentLine);
+              maxQuestionLineWidth = Math.max(maxQuestionLineWidth, qContext.measureText(qCurrentLine).width);
+            }
             qCurrentLine = word;
             qCurrentLineWidth = qContext.measureText(word).width;
+            maxQuestionLineWidth = Math.max(maxQuestionLineWidth, qCurrentLineWidth);
           }
         }
         if (qCurrentLine) {
           qLines.push(qCurrentLine);
+          maxQuestionLineWidth = Math.max(maxQuestionLineWidth, qContext.measureText(qCurrentLine).width);
         }
         
-        const questionHeight = qLines.length * qLineHeight;
-        answerY = y + padding + questionHeight + (padding / 2);
+        const questionWidthValue = Math.min(maxQuestionLineWidth + padding * 2, width * 0.6);
+        const questionHeightValue = qLines.length * qLineHeight + padding * 2;
+        
+        // Calculate answer area based on question position
+        if (questionPosition === 'left' || questionPosition === 'right') {
+          const questionWidthPercent = element.questionWidth || 40;
+          const finalQuestionWidth = (width * questionWidthPercent) / 100;
+          const answerWidth = width - finalQuestionWidth - padding * 3;
+          
+          if (questionPosition === 'left') {
+            answerArea = { x: x + finalQuestionWidth + padding * 2, y: y + padding, width: answerWidth, height: height - padding * 2 };
+          } else {
+            answerArea = { x: x + padding, y: y + padding, width: answerWidth, height: height - padding * 2 };
+          }
+        } else {
+          // top or bottom
+          const finalQuestionHeight = Math.max(questionHeightValue, qFontSize + padding * 2);
+          const answerHeight = height - finalQuestionHeight - padding * 3;
+          
+          if (questionPosition === 'top') {
+            answerArea = { x: x + padding, y: y + finalQuestionHeight + padding * 2, width: textWidth, height: answerHeight };
+          } else {
+            // bottom - answer is on top
+            answerArea = { x: x + padding, y: y + padding, width: textWidth, height: answerHeight };
+          }
+        }
+        
+        // Render answer in its area with wrapping (matching client-side logic)
+        // Use Konva's built-in word wrap for reliable text wrapping
+        // Adjust Y position slightly upward to match client-side rendering
+        // Konva.Text with verticalAlign: 'top' positions text slightly lower than manual line-by-line rendering
+        const answerY = answerArea.y - (aFontSize * 0.05);
+        
+        const answerNode = new Konva.Text({
+          x: answerArea.x,
+          y: answerY,
+          text: plainAnswerText,
+          fontSize: aFontSize,
+          fontFamily: aFontFamily,
+          fontStyle: aFontStyle,
+          fontWeight: aFontWeight,
+          fill: aFontColor,
+          width: answerArea.width,
+          // Don't set height to allow text to overflow boundaries like in client rendering
+          align: answerSettings.align || element.align || 'left',
+          verticalAlign: 'top',
+          wrap: 'word', // Enable word wrap
+          lineHeight: aLineHeight / aFontSize, // Set line height relative to font size
+          rotation: rotation,
+          opacity: opacity,
+          visible: true,
+          listening: false
+        });
+        layer.add(answerNode);
+        nodesAdded++;
+      } else {
+        // No question or not block layout: simple vertical positioning
+        // Apply Y offset to match client rendering
+        const answerY = y + padding + (aFontSize * 0.06);
+        
+        const answerNode = new Konva.Text({
+          x: x + padding,
+          y: answerY,
+          text: plainAnswerText,
+          fontSize: aFontSize,
+          fontFamily: aFontFamily,
+          fontStyle: aFontStyle,
+          fontWeight: aFontWeight,
+          fill: aFontColor,
+          width: textWidth,
+          height: height - answerY + y - padding,
+          align: answerSettings.align || element.align || 'left',
+          verticalAlign: 'top',
+          wrap: 'word',
+          rotation: rotation,
+          opacity: opacity,
+          visible: true,
+          listening: false
+        });
+        layer.add(answerNode);
+        nodesAdded++;
       }
-      
-      const answerNode = new Konva.Text({
-        x: x + padding,
-        y: answerY,
-        text: plainAnswerText,
-        fontSize: aFontSize,
-        fontFamily: aFontFamily,
-        fontStyle: aFontStyle,
-        fontWeight: aFontWeight,
-        fill: aFontColor,
-        width: textWidth,
-        height: height - answerY + y - padding,
-        align: answerSettings.align || element.align || 'left',
-        verticalAlign: 'top',
-        wrap: 'word',
-        rotation: rotation,
-        opacity: opacity,
-        visible: true,
-        listening: false
-      });
-      layer.add(answerNode);
-      nodesAdded++;
     }
   }
   

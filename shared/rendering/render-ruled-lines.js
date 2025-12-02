@@ -262,11 +262,17 @@ function renderRuledLines(layer, element, questionText, answerText, questionSett
     // Block layout or single text: calculate lines based on answer area
     const aSpacing = paragraphSpacing;
     const lineHeightMultiplier = getLineHeightMultiplier(aSpacing);
-    const combinedLineHeight = answerFontSize * lineHeightMultiplier;
-    const textBaselineOffset = answerFontSize * 0.2;
+    const aLineHeight = answerFontSize * lineHeightMultiplier;
     
-    let answerStartY = y + padding;
+    // Calculate answer area based on layout variant and question position
+    let answerArea = { x: x + padding, y: y + padding, width: width - padding * 2, height: height - padding * 2 };
+    let answerAreaStartX = startX;
+    let answerAreaEndX = endX;
+    
     if (questionText && layoutVariant === 'block') {
+      const questionPosition = element.questionPosition || 'top';
+      
+      // Calculate question dimensions
       const canvas = document.createElement('canvas');
       const context = canvas.getContext('2d');
       const qFontFamily = questionSettings.fontFamily || 'Arial, sans-serif';
@@ -279,30 +285,64 @@ function renderRuledLines(layer, element, questionText, answerText, questionSett
       const questionWords = questionText.split(' ');
       let questionLineCount = 1;
       let currentLineWidth = 0;
+      let maxQuestionLineWidth = 0;
       
       for (const word of questionWords) {
         const wordWidth = context.measureText(word + ' ').width;
         if (currentLineWidth + wordWidth > textWidth && currentLineWidth > 0) {
           questionLineCount++;
+          maxQuestionLineWidth = Math.max(maxQuestionLineWidth, currentLineWidth);
           currentLineWidth = wordWidth;
         } else {
           currentLineWidth += wordWidth;
+          maxQuestionLineWidth = Math.max(maxQuestionLineWidth, currentLineWidth);
         }
       }
       
-      const questionHeight = questionLineCount * qFontSize * lineHeightMultiplier;
-      answerStartY = y + padding + questionHeight + (padding / 2);
+      const questionWidthValue = Math.min(maxQuestionLineWidth + padding * 2, width * 0.6);
+      const questionHeightValue = questionLineCount * qFontSize * lineHeightMultiplier + padding * 2;
+      
+      // Calculate answer area based on question position
+      if (questionPosition === 'left' || questionPosition === 'right') {
+        const questionWidthPercent = element.questionWidth || 40;
+        const finalQuestionWidth = (width * questionWidthPercent) / 100;
+        const answerWidth = width - finalQuestionWidth - padding * 3;
+        
+        if (questionPosition === 'left') {
+          answerArea = { x: x + finalQuestionWidth + padding * 2, y: y + padding, width: answerWidth, height: height - padding * 2 };
+          answerAreaStartX = x + finalQuestionWidth + padding * 2;
+          answerAreaEndX = x + width - padding;
+        } else {
+          answerArea = { x: x + padding, y: y + padding, width: answerWidth, height: height - padding * 2 };
+          answerAreaStartX = x + padding;
+          answerAreaEndX = x + width - finalQuestionWidth - padding * 2;
+        }
+      } else {
+        // top or bottom
+        const finalQuestionHeight = Math.max(questionHeightValue, qFontSize + padding * 2);
+        const answerHeight = height - finalQuestionHeight - padding * 3;
+        
+        if (questionPosition === 'top') {
+          answerArea = { x: x + padding, y: y + finalQuestionHeight + padding * 2, width: width - padding * 2, height: answerHeight };
+        } else {
+          answerArea = { x: x + padding, y: y + padding, width: width - padding * 2, height: answerHeight };
+        }
+        answerAreaStartX = x + padding;
+        answerAreaEndX = x + width - padding;
+      }
     }
     
-    let lineY = answerStartY + textBaselineOffset + (answerFontSize * 0.8);
-    const dynamicHeight = height - padding - 10;
+    // Generate lines aligned with text baselines in answer area
+    const textBaselineY = answerArea.y + answerFontSize * 0.8; // Text baseline position
+    let lineY = textBaselineY + answerFontSize * 0.2; // Position lines slightly below text baseline
+    const endY = answerArea.y + answerArea.height;
     const maxLines = 1000;
     let iterationCount = 0;
     
-    if (combinedLineHeight > 0) {
-      while (lineY < dynamicHeight && iterationCount < maxLines) {
+    if (aLineHeight > 0) {
+      while (lineY < endY && iterationCount < maxLines) {
         if (!isFinite(lineY) || lineY === Infinity || isNaN(lineY)) break;
-        if (lineY >= dynamicHeight) break;
+        if (lineY >= endY) break;
         
         // Render line with theme support
         if (ruledLinesTheme === 'rough' && rough) {
@@ -310,7 +350,7 @@ function renderRuledLines(layer, element, questionText, answerText, questionSett
             const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
             const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
             const rc = rough.svg(svg);
-            const roughLine = rc.line(startX, lineY, endX, lineY, {
+            const roughLine = rc.line(answerAreaStartX, lineY, answerAreaEndX, lineY, {
               roughness: 2,
               strokeWidth: ruledLinesWidth,
               stroke: ruledLinesColor,
@@ -336,7 +376,7 @@ function renderRuledLines(layer, element, questionText, answerText, questionSett
           } catch (error) {
             // Fallback to regular line if rough fails
             const line = new Konva.Line({
-              points: [startX, lineY, endX, lineY],
+              points: [answerAreaStartX, lineY, answerAreaEndX, lineY],
               stroke: ruledLinesColor,
               strokeWidth: ruledLinesWidth,
               opacity: ruledLinesOpacity,
@@ -346,7 +386,7 @@ function renderRuledLines(layer, element, questionText, answerText, questionSett
           }
         } else {
           const line = new Konva.Line({
-            points: [startX, lineY, endX, lineY],
+            points: [answerAreaStartX, lineY, answerAreaEndX, lineY],
             stroke: ruledLinesColor,
             strokeWidth: ruledLinesWidth,
             opacity: ruledLinesOpacity,
@@ -355,7 +395,7 @@ function renderRuledLines(layer, element, questionText, answerText, questionSett
           lines.push(line);
         }
         
-        lineY += combinedLineHeight;
+        lineY += aLineHeight;
         iterationCount++;
       }
     }
