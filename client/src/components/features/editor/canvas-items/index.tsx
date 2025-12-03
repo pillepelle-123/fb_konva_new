@@ -1,19 +1,19 @@
 import { Group } from 'react-konva';
-import type { CanvasElement } from '../../../../context/editor-context';
-import { useEditor } from '../../../../context/editor-context';
-import type { CanvasItemProps } from './base-canvas-item';
-import ThemedShape from './themed-shape';
+import type { CanvasElement } from '../../../../context/editor-context.tsx';
+import { useEditor } from '../../../../context/editor-context.tsx';
+import type { CanvasItemProps } from './base-canvas-item.tsx';
+import ThemedShape from './themed-shape.tsx';
 
-import TextboxQnAInline from './textbox-qna-inline';
-import TextboxFreeText from './textbox-free-text';
-import Image from './image';
+import TextboxQnAInline from './textbox-qna-inline.tsx';
+import TextboxFreeText from './textbox-free-text.tsx';
+import Image from './image.tsx';
 
 interface CanvasItemComponentProps extends CanvasItemProps {
   element: CanvasElement;
 }
 
 export default function CanvasItemComponent(props: CanvasItemComponentProps) {
-  const { element, onDragStart, onSelect, hoveredElementId } = props;
+  const { element, onDragStart, onSelect, hoveredElementId, interactive = true } = props;
   const { dispatch, state } = useEditor();
 
   if ((element.type === 'group' || element.type === 'brush-multicolor') && element.groupedElements) {
@@ -22,26 +22,26 @@ export default function CanvasItemComponent(props: CanvasItemComponentProps) {
         x={element.x} 
         y={element.y} 
         id={element.id}
-        listening={true}
-        draggable={state.activeTool === 'select' && !(state.editorSettings?.editor?.lockElements)}
-        onMouseDown={(e) => {
+        listening={interactive}
+        draggable={interactive && state.activeTool === 'select' && !(state.editorSettings?.editor?.lockElements)}
+        onMouseDown={interactive ? (e) => {
           if (state.activeTool === 'select') {
             e.cancelBubble = true;
           }
-        }}
-        onClick={(e) => {
+        } : undefined}
+        onClick={interactive ? (e) => {
           if (state.activeTool === 'select') {
             e.cancelBubble = true;
             onSelect?.(e);
           }
-        }}
-        onTap={(e) => {
+        } : undefined}
+        onTap={interactive ? (e) => {
           if (state.activeTool === 'select') {
             e.cancelBubble = true;
             onSelect?.();
           }
-        }}
-        onDragStart={(e) => {
+        } : undefined}
+        onDragStart={interactive ? (e) => {
           // Block dragging if elements are locked
           if (state.editorSettings?.editor?.lockElements) {
             e.target.stopDrag();
@@ -49,8 +49,8 @@ export default function CanvasItemComponent(props: CanvasItemComponentProps) {
           }
           dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Move Group' });
           onDragStart?.();
-        }}
-        onDragEnd={(e) => {
+        } : undefined}
+        onDragEnd={interactive ? (e) => {
           // Block position update if elements are locked
           if (state.editorSettings?.editor?.lockElements) {
             // Reset position to original
@@ -66,10 +66,10 @@ export default function CanvasItemComponent(props: CanvasItemComponentProps) {
               updates: { x: e.target.x(), y: e.target.y() }
             }
           });
-        }}
+        } : undefined}
       >
         {element.groupedElements.map(groupedEl => (
-          <CanvasItemComponent key={groupedEl.id} {...props} element={groupedEl} isSelected={false} isInsideGroup={true} hoveredElementId={hoveredElementId} />
+          <CanvasItemComponent key={groupedEl.id} {...props} element={groupedEl} isSelected={false} isInsideGroup={true} hoveredElementId={hoveredElementId} interactive={interactive} />
         ))}
       </Group>
     );

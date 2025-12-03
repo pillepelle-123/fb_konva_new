@@ -1,9 +1,9 @@
-import type { CanvasElement } from '../context/editor-context';
-import { colorPalettes } from '../data/templates/color-palettes';
-import type { ColorPalette } from '../types/template-types';
-import { commonToActual } from './font-size-converter';
-import { themeJsonToActualStrokeWidth } from './stroke-width-converter';
-import { commonToActualRadius } from './corner-radius-converter';
+import type { CanvasElement } from '../context/editor-context.tsx';
+import { colorPalettes } from '../data/templates/color-palettes.ts';
+import type { ColorPalette } from '../types/template-types.ts';
+import { commonToActual } from './font-size-converter.ts';
+import { themeJsonToActualStrokeWidth } from './stroke-width-converter.ts';
+import { commonToActualRadius } from './corner-radius-converter.ts';
 import themesData from '../data/templates/themes.json';
 
 // Get palette from color-palettes.ts (single source of truth)

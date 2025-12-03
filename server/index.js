@@ -44,6 +44,18 @@ const UPLOADS_DIR =
   path.join(__dirname, '..', 'uploads');
 app.use('/uploads', express.static(UPLOADS_DIR));
 
+// PDF Renderer static assets
+const CLIENT_DIST_DIR = path.join(__dirname, '..', 'client', 'dist');
+app.get('/pdf-renderer.iife.js', (req, res) => {
+  res.sendFile(path.join(CLIENT_DIST_DIR, 'pdf-renderer.iife.js'));
+});
+
+// PDF Renderer HTML template
+const TEMPLATES_DIR = path.join(__dirname, 'templates');
+app.get('/pdf-renderer.html', (req, res) => {
+  res.sendFile(path.join(TEMPLATES_DIR, 'pdf-renderer.html'));
+});
+
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/books', require('./routes/books'));

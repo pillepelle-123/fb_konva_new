@@ -119,6 +119,8 @@ export default function Image(props: CanvasItemProps) {
   const [isTransforming, setIsTransforming] = useState(false);
 
   const handleDoubleClick = () => {
+    // Don't open modals in non-interactive mode (e.g., PDF export)
+    if (props.interactive === false) return;
     if (element.type === 'placeholder') {
       // Dispatch custom event to open image modal in canvas
       window.dispatchEvent(new CustomEvent('openImageModal', {

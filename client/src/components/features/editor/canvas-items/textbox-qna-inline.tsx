@@ -1132,6 +1132,8 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
   };
 
   const handleDoubleClick = (e: any) => {
+    // Don't open modals in non-interactive mode (e.g., PDF export)
+    if (props.interactive === false) return;
     if (state.activeTool !== 'select') return;
     if (e.evt.button !== 0) return; // Only left button (0)
     enableQuillEditing();

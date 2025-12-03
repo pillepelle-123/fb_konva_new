@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Renderer</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: transparent;
+    }
+    #pdf-renderer-root {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
+  </style>
+</head>
+<body>
+  <div id="pdf-renderer-root"></div>
+  <script>
+    // Polyfill for process (needed for some dependencies)
+    if (typeof process === 'undefined') {
+      window.process = { env: { NODE_ENV: 'production' } };
+    }
+    
+    // Track script loading
+    window.pdfRendererScriptLoaded = false;
+    window.pdfRendererScriptError = null;
+  </script>
+  <script src="https://unpkg.com/roughjs@4/bundled/rough.js"></script>
+  <script src="/pdf-renderer.iife.js" onload="window.pdfRendererScriptLoaded = true;" onerror="window.pdfRendererScriptError = 'Script failed to load';"></script>
+</body>
+</html>
+

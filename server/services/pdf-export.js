@@ -2,6 +2,7 @@ const puppeteer = require('puppeteer');
 const { PDFDocument } = require('pdf-lib');
 const fs = require('fs').promises;
 const path = require('path');
+const PDFRendererService = require('./pdf-renderer-service');
 
 // Load theme data files
 const colorPalettesJson = require('../../client/src/data/templates/color-palettes.json');
@@ -22,8 +23,11 @@ const { PAGE_DIMENSIONS, CANVAS_DIMS, PATTERNS } = require('../../shared/renderi
  * @returns {Promise<string>} - Path to generated PDF file
  */
 async function generatePDFFromBook(bookData, options, exportId, updateProgress) {
-  let browser;
+  const pdfRendererService = new PDFRendererService();
   try {
+    // Initialize PDF renderer service (creates reusable browser instance)
+    await pdfRendererService.initialize();
+
     // Determine which pages to export
     let pagesToExport = bookData.pages || [];
     if (options.pageRange === 'range' && options.startPage && options.endPage) {
@@ -48,24 +52,10 @@ async function generatePDFFromBook(bookData, options, exportId, updateProgress) 
     const canvasWidth = bookData.orientation === 'landscape' ? canvasDims.height : canvasDims.width;
     const canvasHeight = bookData.orientation === 'landscape' ? canvasDims.width : canvasDims.height;
 
-    // Launch Puppeteer browser
-    browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-
-    const page = await browser.newPage();
-    
-    // Set viewport size
-    await page.setViewport({
-      width: canvasWidth,
-      height: canvasHeight
-    });
-
     // Create PDF document
     const pdfDoc = await PDFDocument.create();
 
-    // Render each page
+    // Render each page using PDFRendererService
     for (let i = 0; i < pagesToExport.length; i++) {
       const bookPage = pagesToExport[i];
       
@@ -73,8 +63,17 @@ async function generatePDFFromBook(bookData, options, exportId, updateProgress) 
         updateProgress(((i + 1) / pagesToExport.length) * 100);
       }
 
-      // Render page with Konva
-      const pageImage = await renderPageWithKonva(page, bookPage, bookData, canvasWidth, canvasHeight);
+      // Render page with PDFRendererService
+      const pageImage = await pdfRendererService.renderPage({
+        page: bookPage,
+        book: bookData,
+        canvasWidth: canvasWidth,
+        canvasHeight: canvasHeight
+      }, {
+        scale: options.quality === 'high' ? 2 : 1,
+        user: options.user || null,
+        token: options.token || null
+      });
       
       if (!pageImage || pageImage.length === 0) {
         throw new Error(`Failed to render page ${bookPage.pageNumber}`);
@@ -111,9 +110,8 @@ async function generatePDFFromBook(bookData, options, exportId, updateProgress) 
 
     return pdfPath;
   } finally {
-    if (browser) {
-      await browser.close();
-    }
+    // Cleanup PDF renderer service (closes browser instance)
+    await pdfRendererService.cleanup();
   }
 }
 

@@ -1,12 +1,12 @@
-import type { PageBackground } from '../context/editor-context';
+import type { PageBackground } from '../context/editor-context.tsx';
 import {
   getBackgroundImageById,
   getBackgroundImageWithUrl as getBackgroundImageWithUrlInternal,
   svgRawImports
-} from '../data/templates/background-images';
-import { colorPalettes } from '../data/templates/color-palettes';
-import { applyAutoPaletteToSvg, applyPaletteSlotsToSvg } from './svg-palette';
-import type { PaletteSlot } from './svg-palette';
+} from '../data/templates/background-images.ts';
+import { colorPalettes } from '../data/templates/color-palettes.ts';
+import { applyAutoPaletteToSvg, applyPaletteSlotsToSvg } from './svg-palette.ts';
+import type { PaletteSlot } from './svg-palette.ts';
 
 /**
  * Optional palette context for palette-aware SVG backgrounds.
@@ -219,7 +219,7 @@ export function resolveBackgroundImageUrl(
   return background.value;
 }
 
-export { getBackgroundImageWithUrl } from '../data/templates/background-images';
+export { getBackgroundImageWithUrl } from '../data/templates/background-images.ts';
 
 /**
  * Check if background uses a template

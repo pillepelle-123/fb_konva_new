@@ -18,6 +18,7 @@ export interface CanvasItemProps {
   zoom?: number;
   isInsideGroup?: boolean;
   hoveredElementId?: string | null;
+  interactive?: boolean; // If false, disables all interactions (for PDF export)
 }
 
 interface BaseCanvasItemProps extends CanvasItemProps {
@@ -27,6 +28,7 @@ interface BaseCanvasItemProps extends CanvasItemProps {
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
   hoveredElementId?: string | null;
+  interactive?: boolean; // If false, disables all interactions (for PDF export)
 }
 
 export default function BaseCanvasItem({ 
@@ -43,7 +45,8 @@ export default function BaseCanvasItem({
   onDoubleClick,
   onMouseEnter,
   onMouseLeave,
-  hoveredElementId
+  hoveredElementId,
+  interactive = true // Default to interactive mode
 }: BaseCanvasItemProps) {
   const { state, dispatch } = useEditor();
   const groupRef = useRef<Konva.Group>(null);
@@ -84,6 +87,7 @@ export default function BaseCanvasItem({
     return () => window.removeEventListener('hoverPartner', handlePartnerHover as EventListener);
   }, [element.id, element.textType, element.questionElementId, state.currentBook, state.activePageIndex]);
   const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (!interactive) return; // Skip interactions in non-interactive mode
     if (isInsideGroup) return; // Don't handle clicks for grouped elements
     if (state.activeTool === 'select') {
       if (e.evt.button === 0) {
@@ -106,6 +110,7 @@ export default function BaseCanvasItem({
   };
 
   const handleDoubleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (!interactive) return; // Skip interactions in non-interactive mode
     if (state.activeTool === 'select' && onDoubleClick) {
       e.cancelBubble = true;
       onDoubleClick(e);
@@ -113,6 +118,7 @@ export default function BaseCanvasItem({
   };
 
   const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (!interactive) return; // Skip interactions in non-interactive mode
     if (isInsideGroup) return; // Don't handle mousedown for grouped elements
     if (state.activeTool === 'select' && e.evt.button === 0) {
       // If multiple elements are selected, don't stop event propagation
@@ -137,6 +143,7 @@ export default function BaseCanvasItem({
   };
 
   const handleDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
+    if (!interactive) return; // Skip interactions in non-interactive mode
     // Block position update if elements are locked
     if (state.editorSettings?.editor?.lockElements) {
       // Reset position to original
@@ -171,27 +178,27 @@ export default function BaseCanvasItem({
       scaleX={(element.textType === 'question' || element.textType === 'answer') ? 1 : (element.scaleX || 1)}
       scaleY={(element.textType === 'question' || element.textType === 'answer') ? 1 : (element.scaleY || 1)}
       rotation={typeof element.rotation === 'number' ? element.rotation : 0}
-      draggable={state.activeTool === 'select' && !isMovingGroup && !isInsideGroup && state.editorInteractionLevel !== 'answer_only' && state.selectedElementIds.length <= 1 && !(state.editorSettings?.editor?.lockElements)}
-      onMouseDown={handleMouseDown}
-      onClick={handleClick}
-      onDblClick={handleDoubleClick}
-      onTap={(e) => {
+      draggable={interactive && state.activeTool === 'select' && !isMovingGroup && !isInsideGroup && state.editorInteractionLevel !== 'answer_only' && state.selectedElementIds.length <= 1 && !(state.editorSettings?.editor?.lockElements)}
+      onMouseDown={interactive ? handleMouseDown : undefined}
+      onClick={interactive ? handleClick : undefined}
+      onDblClick={interactive ? handleDoubleClick : undefined}
+      onTap={interactive ? (e) => {
         e.cancelBubble = true;
         // For question-answer pairs, always call onSelect for sequential selection
         // For other elements, only call if not already selected
         if (element.textType === 'question' || element.textType === 'answer' || !isSelected) {
           onSelect();
         }
-      }}
-      onDragStart={() => {
+      } : undefined}
+      onDragStart={interactive ? () => {
         setIsDragging(true);
         onDragStart?.();
-      }}
-      onDragEnd={(e) => {
+      } : undefined}
+      onDragEnd={interactive ? (e) => {
         setIsDragging(false);
         handleDragEnd(e);
-      }}
-      onMouseEnter={state.activeTool === 'select' ? () => {
+      } : undefined}
+      onMouseEnter={interactive && state.activeTool === 'select' ? () => {
         setIsHovered(true);
         onMouseEnter?.();
         // Trigger hover on partner element for question-answer pairs
@@ -199,7 +206,7 @@ export default function BaseCanvasItem({
           window.dispatchEvent(new CustomEvent('hoverPartner', { detail: { elementId: element.id, hover: true } }));
         }
       } : undefined}
-      onMouseLeave={state.activeTool === 'select' ? () => {
+      onMouseLeave={interactive && state.activeTool === 'select' ? () => {
         setIsHovered(false);
         onMouseLeave?.();
         // Remove hover from partner element for question-answer pairs
@@ -222,7 +229,7 @@ export default function BaseCanvasItem({
       />
       
       {/* Dashed border on hover or within selection */}
-      {(isHovered || partnerHovered || isWithinSelection || hoveredElementId === element.id) && state.activeTool === 'select' && (
+      {interactive && (isHovered || partnerHovered || isWithinSelection || hoveredElementId === element.id) && state.activeTool === 'select' && (
         <SelectionHoverRectangle
           x={defaultHitArea.x}
           y={defaultHitArea.y}
@@ -233,7 +240,7 @@ export default function BaseCanvasItem({
       )}
       
       {/* Permanent dashed border for shapes with no border and no background */}
-      {state.activeTool === 'select' && 
+      {interactive && state.activeTool === 'select' && 
        !isInsideGroup &&
        ['rect', 'circle', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(element.type) &&
        (!element.strokeWidth || element.strokeWidth === 0) &&

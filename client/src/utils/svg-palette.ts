@@ -1,4 +1,4 @@
-import type { ColorPalette } from '../types/template-types';
+import type { ColorPalette } from '../types/template-types.ts';
 
 type BufferLike = {
   from(content: string, encoding: string): { toString(encoding: string): string };

@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "description": "Full-stack React and Node.js application",
   "scripts": {
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "dev": "concurrently \"npm run server\" \"npm run client\" \"npm run client:pdf-renderer:watch\"",
     "server": "cd server && npm run dev",
     "client": "cd client && npm run dev",
+    "client:pdf-renderer:watch": "cd client && npm run build:pdf-renderer:watch",
     "install-deps": "cd server && npm install && cd ../client && npm install"
   },
   "devDependencies": {
