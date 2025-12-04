@@ -12,6 +12,7 @@ interface SliderProps {
   unit?: string;
   className?: string;
   displayValue?: number;
+  disabled?: boolean;
 }
 
 export function Slider({ 
@@ -26,6 +27,7 @@ export function Slider({
   tooltipPosition = 'left',
   hasLabel = true,
   displayValue,
+  disabled = false,
 }: SliderProps) {
   const sliderInput = (
     <input
@@ -36,6 +38,7 @@ export function Slider({
       max={max}
       step={step}
       className="w-full"
+      disabled={disabled}
     />
   );
 

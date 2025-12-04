@@ -1226,6 +1226,10 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
           // Preserve questionId and answerId from element (important for qna_inline elements)
           const preservedQuestionId = element.questionId;
           const preservedAnswerId = element.answerId;
+          // CRITICAL: Preserve width and height explicitly to prevent them from being overwritten by defaults
+          const preservedWidth = typeof element.width === 'number' ? element.width : undefined;
+          const preservedHeight = typeof element.height === 'number' ? element.height : undefined;
+          
           const mergedElement = mergeElementDefaults(element, themeDefaults);
           
           // For qna_inline, clean up shared properties from questionSettings/answerSettings
@@ -1317,11 +1321,14 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
             ...mergedElement,
             theme: bookThemeId,
             rotation: preservedRotation,
+            ...(preservedWidth !== undefined ? { width: preservedWidth } : {}),
+            ...(preservedHeight !== undefined ? { height: preservedHeight } : {}),
             ...(preservedScaleX !== undefined ? { scaleX: preservedScaleX } : {}),
             ...(preservedScaleY !== undefined ? { scaleY: preservedScaleY } : {}),
             ...(preservedQuestionId !== undefined ? { questionId: preservedQuestionId } : {}),
             ...(preservedAnswerId !== undefined ? { answerId: preservedAnswerId } : {})
           };
+          
           return updatedElement;
         });
       }

@@ -801,6 +801,71 @@ export function QnAInlineSettingsForm({
         </>
       )}
       
+      {/* Answer layout controls - only show for shared mode */}
+      {sectionType === 'shared' && (
+        <div className="flex flex-row gap-3 mb-2">
+          {/* Answer in new row checkbox */}
+          <div className="flex items-center gap-2 flex-1">
+            <Tooltip content="Answer in new row" side="left">
+              <Checkbox
+                checked={element.answerInNewRow ?? false}
+                onCheckedChange={(checked) => {
+                  dispatch({
+                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                    payload: {
+                      id: element.id,
+                      updates: {
+                        answerInNewRow: checked,
+                        // When enabling "Answer in new row", always set gap to 0
+                        // (gap will then control vertical spacing)
+                        ...(checked ? { questionAnswerGap: 0 } : {})
+                      }
+                    }
+                  });
+                }}
+              />
+            </Tooltip>
+            <Label variant="xs" className="text-xs font-medium">
+              Answer in new row
+            </Label>
+          </div>
+          
+          {/* Gap between Question and Answer slider */}
+          <div className="flex-1">
+            <Tooltip 
+              content={element.answerInNewRow 
+                ? "Vertical gap between Question and Answer" 
+                : "Horizontal gap between Question and Answer"} 
+              side="left"
+            >
+              <Slider
+                label={element.answerInNewRow 
+                  ? "Vertical gap between Question and Answer" 
+                  : "Horizontal gap between Question and Answer"}
+                value={element.questionAnswerGap ?? 0}
+                onChange={(value) => {
+                  dispatch({
+                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                    payload: {
+                      id: element.id,
+                      updates: {
+                        questionAnswerGap: value
+                      }
+                    }
+                  });
+                }}
+                min={0}
+                max={200}
+                step={2}
+                unit=""
+                hasLabel={false}
+                displayValue={Math.round((element.questionAnswerGap ?? 0) / 2)}
+              />
+            </Tooltip>
+          </div>
+        </div>
+      )}
+      
       {/* Individual settings checkbox - only show for shared mode */}
       {sectionType === 'shared' && onIndividualSettingsChange && (
         <>

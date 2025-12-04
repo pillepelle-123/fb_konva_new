@@ -359,7 +359,7 @@ export function LayoutSelector({
             }
           }}
         >
-          <button
+          <div
             onClick={(e) => {
               e.stopPropagation();
               const isMirrored = mirroredFlags[template.id] ?? isMirroredSelected;
@@ -368,7 +368,17 @@ export function LayoutSelector({
             onMouseDown={(e) => {
               e.stopPropagation();
             }}
-            className="flex-1 text-left"
+            className="flex-1 text-left cursor-pointer"
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                const isMirrored = mirroredFlags[template.id] ?? isMirroredSelected;
+                onLayoutSelect(getDisplayTemplate(template, isMirrored));
+              }
+            }}
           >
             <div className="flex items-center justify-between mb-2">
               <span className="font-medium text-sm">{template.name}</span>
@@ -395,7 +405,7 @@ export function LayoutSelector({
               />
               <span>Mirrored</span>
             </label>
-          </button>
+          </div>
           {onPreviewClick && (
             <button
               type="button"

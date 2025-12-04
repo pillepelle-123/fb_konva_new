@@ -4258,6 +4258,31 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                   
                   const element = currentPage?.elements.find(el => el.id === elementId);
                   if (element) {
+                    // Skip dimension updates for qna/qna2 elements - they handle their own resize logic
+                    // The textbox-qna.tsx component manages dimensions during transform
+                    if (element.type === 'text' && (element.textType === 'qna' || element.textType === 'qna2')) {
+                      // Only update position and rotation, not dimensions
+                      // Dimensions are handled by textbox-qna.tsx's handleTransformEnd
+                      const updates: any = {
+                        x: node.x(),
+                        y: node.y(),
+                        rotation: node.rotation()
+                      };
+                      
+                      // Reset scale to 1 (dimensions are handled by textbox-qna.tsx)
+                      node.scaleX(1);
+                      node.scaleY(1);
+                      
+                      dispatch({
+                        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                        payload: {
+                          id: element.id,
+                          updates
+                        }
+                      });
+                      return; // Skip the rest of the logic for qna elements
+                    }
+                    
                     const updates: any = {};
                     
                     // For text and image elements, convert scale to width/height changes
@@ -4313,7 +4338,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                           groupNode.scaleY(1);
                         }
                       } else {
-                        // For text elements, use Group node
+                        // For text elements (except qna/qna2 which are handled above), use Group node
                       const scaleX = node.scaleX();
                       const scaleY = node.scaleY();
                       

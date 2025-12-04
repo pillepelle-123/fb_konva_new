@@ -67,6 +67,8 @@ interface QnaCanvasElement extends CanvasElement {
   ruledLinesTheme?: string;
   ruledLinesColor?: string;
   ruledLinesOpacity?: number;
+  answerInNewRow?: boolean;
+  questionAnswerGap?: number;
 }
 
 type TempAnswerEntry = {
@@ -199,8 +201,10 @@ function createLayout(params: {
   height: number;
   padding: number;
   ctx: CanvasRenderingContext2D | null;
+  answerInNewRow?: boolean;
+  questionAnswerGap?: number;
 }): LayoutResult {
-  const { questionText, answerText, questionStyle, answerStyle, width, height, padding, ctx } = params;
+  const { questionText, answerText, questionStyle, answerStyle, width, height, padding, ctx, answerInNewRow = false, questionAnswerGap = 0 } = params;
   const availableWidth = Math.max(10, width - padding * 2);
   const runs: TextRun[] = [];
   const linePositions: LinePosition[] = [];
@@ -257,7 +261,10 @@ function createLayout(params: {
     }
   });
 
-  const inlineGap = Math.min(32, answerStyle.fontSize * 0.5);
+  // Calculate gap: base gap + user-defined gap
+  // If answerInNewRow is true, questionAnswerGap applies vertically (not horizontally)
+  const baseInlineGap = Math.min(32, answerStyle.fontSize * 0.5);
+  const inlineGap = answerInNewRow ? baseInlineGap : baseInlineGap + questionAnswerGap;
   let contentHeight = cursorY;
 
   let startAtSameLine = false;
@@ -265,7 +272,8 @@ function createLayout(params: {
   const lastQuestionLineY = questionLinePositions.length > 0 ? questionLinePositions[questionLinePositions.length - 1] : padding;
 
   // Check if answer can start on the same line as the last question line
-  if (questionLines.length > 0 && answerText && answerText.trim()) {
+  // Skip this check if answerInNewRow is true
+  if (!answerInNewRow && questionLines.length > 0 && answerText && answerText.trim()) {
     const inlineAvailable = availableWidth - lastQuestionLineWidth - inlineGap;
     
     // Split answer into words to check if at least the first word fits
@@ -345,7 +353,11 @@ function createLayout(params: {
     : wrapText(answerText, answerStyle, availableWidth, ctx);
 
   // Start answer on new line if not on same line as question
-  let answerCursorY = startAtSameLine ? cursorY : cursorY + (questionLines.length ? answerLineHeight * 0.2 : 0);
+  // If answerInNewRow is true, questionAnswerGap applies vertically
+  // Otherwise, use standard spacing (questionAnswerGap only applies horizontally via inlineGap)
+  const verticalGap = answerInNewRow ? questionAnswerGap : 0;
+  const baseVerticalSpacing = questionLines.length ? answerLineHeight * 0.2 : 0;
+  let answerCursorY = startAtSameLine ? cursorY : cursorY + baseVerticalSpacing + verticalGap;
 
   remainingAnswerLines.forEach((line) => {
     if (line.text) {
@@ -418,24 +430,37 @@ export default function TextboxQna(props: CanvasItemProps) {
   const qnaElement = element as QnaCanvasElement;
   const { state, dispatch } = useEditor();
   const { user } = useAuth();
+  // Get element dimensions - use actual values, don't default to 0
+  // This ensures we use the correct dimensions when loading
   const elementWidth = element.width ?? 0;
   const elementHeight = element.height ?? 0;
   
-  // Local state for dimensions during transform (to update visually without dispatch)
-  const [transformDimensions, setTransformDimensions] = useState<{ width: number; height: number } | null>(null);
-  
-  // Use transform dimensions during transform, otherwise use element dimensions
-  const boxWidth = transformDimensions?.width ?? elementWidth;
-  const boxHeight = transformDimensions?.height ?? elementHeight;
-  
+  // Refs must be declared before they are used
   const textShapeRef = useRef<Konva.Shape>(null);
+  const textRef = useRef<Konva.Rect>(null);
+  const isTransformingRef = useRef(false);
+  const transformStartDimensionsRef = useRef<{ width: number; height: number } | null>(null);
+  
+  // Local state for dimensions during transform (to update visually without dispatch)
+  // ONLY used during active transform, NOT during initial load
+  const [transformDimensions, setTransformDimensions] = useState<{ width: number; height: number } | null>(null);
+  const transformDimensionsRef = useRef<{ width: number; height: number } | null>(null);
+  
+  // Sync ref with state
+  useEffect(() => {
+    transformDimensionsRef.current = transformDimensions;
+  }, [transformDimensions]);
+  
+  // Use transform dimensions during active transform OR if transformDimensions are set (waiting for element update)
+  // Otherwise use element dimensions
+  // This ensures we keep the visual state until element dimensions are actually updated
+  const boxWidth = transformDimensions ? transformDimensions.width : elementWidth;
+  const boxHeight = transformDimensions ? transformDimensions.height : elementHeight;
+  
   const textShapeBoxRef = useRef<{ width: number; height: number }>({
     width: boxWidth,
     height: boxHeight
   });
-  const textRef = useRef<Konva.Rect>(null);
-  const isTransformingRef = useRef(false);
-  const transformStartDimensionsRef = useRef<{ width: number; height: number } | null>(null);
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
   const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
@@ -562,6 +587,10 @@ export default function TextboxQna(props: CanvasItemProps) {
 
   const getQuestionText = () => preparedQuestionText || '';
 
+  // Extract answerInNewRow and questionAnswerGap from element
+  const answerInNewRow = qnaElement.answerInNewRow ?? false;
+  const questionAnswerGap = qnaElement.questionAnswerGap ?? 0;
+
   const layout = useMemo(() => {
     const canvasContext = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
     return createLayout({
@@ -572,9 +601,11 @@ export default function TextboxQna(props: CanvasItemProps) {
       width: boxWidth,
       height: boxHeight,
       padding,
-      ctx: canvasContext
+      ctx: canvasContext,
+      answerInNewRow,
+      questionAnswerGap
     });
-  }, [answerContent, answerStyle, effectiveQuestionStyle, boxHeight, boxWidth, padding, preparedQuestionText]);
+  }, [answerContent, answerStyle, effectiveQuestionStyle, boxHeight, boxWidth, padding, preparedQuestionText, answerInNewRow, questionAnswerGap]);
 
   // Generate ruled lines if enabled
   const ruledLines = qnaElement.ruledLines ?? false;
@@ -675,17 +706,39 @@ export default function TextboxQna(props: CanvasItemProps) {
     textShapeBoxRef.current = { width: boxWidth, height: boxHeight };
   }, [boxWidth, boxHeight]);
   
+  // Track the last dispatched dimensions to detect when props are updated
+  const lastDispatchedDimensionsRef = useRef<{ width: number; height: number } | null>(null);
+  
   // Reset transform dimensions when element dimensions change to match transform dimensions
   // This ensures we keep the visual state until the element is actually updated
+  // ONLY reset after transform is complete AND element dimensions have been updated
   useEffect(() => {
-    if (!isTransformingRef.current && transformDimensions) {
+    // Don't reset during active transform
+    if (isTransformingRef.current) return;
+    
+    // Don't reset if element dimensions are invalid (0 or undefined)
+    if (!elementWidth || !elementHeight || elementWidth <= 0 || elementHeight <= 0) return;
+    
+    if (transformDimensions) {
       // Only reset if element dimensions match transform dimensions (update was successful)
-      if (Math.abs(elementWidth - transformDimensions.width) < 0.1 && 
-          Math.abs(elementHeight - transformDimensions.height) < 0.1) {
-        setTransformDimensions(null);
+      // Use a small tolerance to account for floating point precision
+      const widthMatch = Math.abs(elementWidth - transformDimensions.width) < 0.1;
+      const heightMatch = Math.abs(elementHeight - transformDimensions.height) < 0.1;
+      
+      if (widthMatch && heightMatch) {
+        // Reset transformDimensions after successful update
+        // Use a small delay to ensure the element update has been processed
+        const timeoutId = setTimeout(() => {
+          if (!isTransformingRef.current) {
+            setTransformDimensions(null);
+            lastDispatchedDimensionsRef.current = null;
+          }
+        }, 50);
+        
+        return () => clearTimeout(timeoutId);
       }
     }
-  }, [elementWidth, elementHeight, transformDimensions]);
+  }, [elementWidth, elementHeight, transformDimensions, element.id, element.textType]);
 
   // Handle transform events to resize text properly (as per Konva documentation)
   // Reset scale to 1 and update width/height instead
@@ -695,11 +748,25 @@ export default function TextboxQna(props: CanvasItemProps) {
       if (e.detail?.elementId !== element.id) return;
       
       isTransformingRef.current = true;
-      // Store initial dimensions at transform start (use element dimensions, not transform dimensions)
+      
+      // Use current transformDimensions if available, otherwise use element dimensions
+      // This ensures we start from the correct visual state (prevents jumping)
+      const currentTransformDims = transformDimensionsRef.current;
+      const currentWidth = currentTransformDims?.width ?? elementWidth;
+      const currentHeight = currentTransformDims?.height ?? elementHeight;
+      
+      // Store initial dimensions at transform start
       transformStartDimensionsRef.current = {
-        width: elementWidth,
-        height: elementHeight
+        width: currentWidth,
+        height: currentHeight
       };
+      
+      // Initialize transformDimensions immediately to prevent visual jump
+      // This ensures boxWidth/boxHeight use the correct values from the start
+      setTransformDimensions({
+        width: currentWidth,
+        height: currentHeight
+      });
     };
     
     const handleTransform = (e: CustomEvent) => {
@@ -752,6 +819,12 @@ export default function TextboxQna(props: CanvasItemProps) {
       // Apply the final dimensions update
       const finalDims = transformStartDimensionsRef.current;
       if (finalDims && (finalDims.width !== elementWidth || finalDims.height !== elementHeight)) {
+        // Store the dispatched dimensions so we can track when props are updated
+        lastDispatchedDimensionsRef.current = {
+          width: finalDims.width,
+          height: finalDims.height
+        };
+        
         dispatch({
           type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
           payload: {
