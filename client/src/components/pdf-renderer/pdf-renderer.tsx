@@ -2044,6 +2044,32 @@ export function PDFRenderer({
           const answerSettings = (element as any).answerSettings || {};
           const format = (element as any).format || {};
           
+          // Determine alignment based on layout variant and individual settings (matching textbox-qna.tsx logic)
+          const layoutVariant = (element as any).layoutVariant || 'inline';
+          const individualSettings = (element as any).qnaIndividualSettings ?? false;
+          
+          // For question style align: if inline OR (block without individual settings), use shared align
+          // Otherwise use individual question align
+          let questionAlign: 'left' | 'center' | 'right' | 'justify' = 'left';
+          if (layoutVariant === 'inline' || (layoutVariant === 'block' && !individualSettings)) {
+            // Shared align: check element.align, element.format?.textAlign, questionSettings.align, answerSettings.align
+            questionAlign = (element.align || format.textAlign || questionSettings.align || answerSettings.align || 'left') as 'left' | 'center' | 'right' | 'justify';
+          } else {
+            // Individual align: use questionSettings.align
+            questionAlign = (questionSettings.align || element.align || format.textAlign || 'left') as 'left' | 'center' | 'right' | 'justify';
+          }
+          
+          // For answer style align: if inline OR (block without individual settings), use shared align
+          // Otherwise use individual answer align
+          let answerAlign: 'left' | 'center' | 'right' | 'justify' = 'left';
+          if (layoutVariant === 'inline' || (layoutVariant === 'block' && !individualSettings)) {
+            // Shared align: check element.align, element.format?.textAlign, questionSettings.align, answerSettings.align
+            answerAlign = (element.align || format.textAlign || questionSettings.align || answerSettings.align || 'left') as 'left' | 'center' | 'right' | 'justify';
+          } else {
+            // Individual align: use answerSettings.align
+            answerAlign = (answerSettings.align || element.align || format.textAlign || 'left') as 'left' | 'center' | 'right' | 'justify';
+          }
+          
           const questionStyle = {
             fontSize: questionSettings.fontSize || qnaDefaults.questionSettings?.fontSize || qnaDefaults.fontSize || 42,
             fontFamily: questionSettings.fontFamily || qnaDefaults.questionSettings?.fontFamily || qnaDefaults.fontFamily || 'Arial, sans-serif',
@@ -2052,7 +2078,7 @@ export function PDFRenderer({
             fontColor: questionSettings.fontColor || qnaDefaults.questionSettings?.fontColor || '#666666',
             fontOpacity: questionSettings.fontOpacity ?? qnaDefaults.questionSettings?.fontOpacity ?? 1,
             paragraphSpacing: questionSettings.paragraphSpacing || qnaDefaults.questionSettings?.paragraphSpacing || (element as any).paragraphSpacing || 'small',
-            align: element.align || format.textAlign || questionSettings.align || qnaDefaults.questionSettings?.align || 'left'
+            align: questionAlign
           };
           
           const answerStyle = {
@@ -2063,11 +2089,10 @@ export function PDFRenderer({
             fontColor: answerSettings.fontColor || qnaDefaults.answerSettings?.fontColor || '#1f2937',
             fontOpacity: answerSettings.fontOpacity ?? qnaDefaults.answerSettings?.fontOpacity ?? 1,
             paragraphSpacing: answerSettings.paragraphSpacing || qnaDefaults.answerSettings?.paragraphSpacing || (element as any).paragraphSpacing || 'medium',
-            align: element.align || format.textAlign || answerSettings.align || qnaDefaults.answerSettings?.align || 'left'
+            align: answerAlign
           };
           
           // When individualSettings is false, use answer font properties for question as well
-          const individualSettings = (element as any).qnaIndividualSettings ?? false;
           const effectiveQuestionStyle = individualSettings ? questionStyle : { ...questionStyle, ...answerStyle };
           
           const padding = element.padding ?? qnaDefaults.padding ?? 8;
@@ -2155,79 +2180,372 @@ export function PDFRenderer({
             return lines;
           }
           
-          // Create layout using createLayout logic from textbox-qna.tsx
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          const availableWidth = Math.max(10, elementWidth - padding * 2);
-          const runs: Array<{ text: string; x: number; y: number; style: typeof questionStyle }> = [];
-          let cursorY = padding;
+          // Extract layout settings from element (layoutVariant already defined above)
+          const questionPosition = (element as any).questionPosition || 'left';
+          const questionWidth = (element as any).questionWidth ?? 40;
+          const ruledLinesTarget = (element as any).ruledLinesTarget || 'answer';
+          const blockQuestionAnswerGap = (element as any).blockQuestionAnswerGap ?? 10;
           
-          const questionLines = wrapText(questionText || '', effectiveQuestionStyle, availableWidth, ctx);
-          const questionLineHeight = getLineHeight(effectiveQuestionStyle);
-          
-          questionLines.forEach((line) => {
-            if (line.text) {
-              runs.push({
-                text: line.text,
-                x: padding,
-                y: cursorY,
-                style: effectiveQuestionStyle
-              });
-            }
-            cursorY += questionLineHeight;
-          });
-          
-          const lastQuestionLineWidth = questionLines.length ? questionLines[questionLines.length - 1].width : 0;
-          const lastQuestionLineY = questionLines.length ? cursorY - questionLineHeight : padding;
-          
-          const answerLines = wrapText(answerContent, answerStyle, availableWidth, ctx);
-          const answerLineHeight = getLineHeight(answerStyle);
-          const inlineGap = Math.min(32, answerStyle.fontSize * 0.5);
-          let contentHeight = cursorY;
-          
-          let startAtSameLine = false;
-          let remainingAnswerLines = answerLines;
-          
-          if (questionLines.length > 0 && answerLines.length > 0) {
-            const inlineAvailable = availableWidth - lastQuestionLineWidth - inlineGap;
-            const firstAnswerLineWidth = measureText(answerLines[0].text, answerStyle, ctx);
-            // Allow answer to start on same line if there's enough space (with some tolerance)
-            if (inlineAvailable >= firstAnswerLineWidth) {
-              startAtSameLine = true;
-              runs.push({
-                text: answerLines[0].text,
-                x: padding + lastQuestionLineWidth + inlineGap,
-                y: lastQuestionLineY,
-                style: answerStyle
-              });
-              remainingAnswerLines = answerLines.slice(1);
+          // Helper function to calculate text X position based on alignment
+          function calculateTextX(text: string, style: typeof questionStyle, startX: number, availableWidth: number, ctx: CanvasRenderingContext2D | null): number {
+            const align = style.align || 'left';
+            const textWidth = measureText(text, style, ctx);
+            
+            switch (align) {
+              case 'center':
+                return startX + (availableWidth - textWidth) / 2;
+              case 'right':
+                return startX + availableWidth - textWidth;
+              case 'justify':
+                return startX;
+              case 'left':
+              default:
+                return startX;
             }
           }
           
-          let answerCursorY = startAtSameLine ? cursorY : cursorY + (questionLines.length ? answerLineHeight * 0.2 : 0);
+          // Create layout using createLayout logic from textbox-qna.tsx
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          const runs: Array<{ text: string; x: number; y: number; style: typeof questionStyle }> = [];
+          let contentHeight = elementHeight;
+          let linePositions: Array<{ y: number; lineHeight: number; style: typeof questionStyle }> = [];
+          let blockRuledLinesNodes: Array<Konva.Path | Konva.Line> = [];
           
-          remainingAnswerLines.forEach((line) => {
-            if (line.text) {
-              runs.push({
-                text: line.text,
-                x: padding,
-                y: answerCursorY,
-                style: answerStyle
+          // Block layout uses different logic
+          if (layoutVariant === 'block') {
+            // Calculate line heights
+            const questionLineHeight = getLineHeight(effectiveQuestionStyle);
+            const answerLineHeight = getLineHeight(answerStyle);
+            
+            // Baseline offsets
+            const questionBaselineOffset = effectiveQuestionStyle.fontSize * 0.8;
+            const answerBaselineOffset = answerStyle.fontSize * 0.8;
+            
+            // Calculate question and answer areas based on position
+            let questionArea = { x: padding, y: padding, width: elementWidth - padding * 2, height: elementHeight - padding * 2 };
+            let answerArea = { x: padding, y: padding, width: elementWidth - padding * 2, height: elementHeight - padding * 2 };
+            
+            // Calculate question dimensions
+            let calculatedQuestionHeight = 0;
+            
+            if (questionText && ctx) {
+              const questionLines = wrapText(questionText, effectiveQuestionStyle, elementWidth - padding * 2, ctx);
+              calculatedQuestionHeight = questionLines.length * questionLineHeight + padding * 2;
+            }
+            
+            // Calculate areas based on position
+            if (questionPosition === 'left' || questionPosition === 'right') {
+              const finalQuestionWidth = (elementWidth * questionWidth) / 100;
+              const gap = blockQuestionAnswerGap;
+              const answerWidth = elementWidth - finalQuestionWidth - padding * 2 - gap;
+              
+              if (questionPosition === 'left') {
+                questionArea = { x: padding, y: padding, width: finalQuestionWidth, height: elementHeight - padding * 2 };
+                answerArea = { x: finalQuestionWidth + padding + gap, y: padding, width: answerWidth, height: elementHeight - padding * 2 };
+              } else {
+                answerArea = { x: padding, y: padding, width: answerWidth, height: elementHeight - padding * 2 };
+                questionArea = { x: answerWidth + padding + gap, y: padding, width: finalQuestionWidth, height: elementHeight - padding * 2 };
+              }
+            } else {
+              const finalQuestionHeight = Math.max(calculatedQuestionHeight, effectiveQuestionStyle.fontSize + padding * 2);
+              const gap = blockQuestionAnswerGap;
+              const answerHeight = elementHeight - finalQuestionHeight - padding * 2 - gap;
+              
+              if (questionPosition === 'top') {
+                questionArea = { x: padding, y: padding, width: elementWidth - padding * 2, height: finalQuestionHeight };
+                answerArea = { x: padding, y: finalQuestionHeight + padding + gap, width: elementWidth - padding * 2, height: answerHeight };
+              } else {
+                answerArea = { x: padding, y: padding, width: elementWidth - padding * 2, height: answerHeight };
+                questionArea = { x: padding, y: answerHeight + padding + gap, width: elementWidth - padding * 2, height: finalQuestionHeight };
+              }
+            }
+            
+            // Track line positions for ruled lines
+            linePositions = [];
+            
+            // Render question text in question area (first, like in client)
+            if (questionText) {
+              const questionLines = wrapText(questionText, effectiveQuestionStyle, questionArea.width, ctx);
+              let cursorY = questionArea.y;
+              
+              questionLines.forEach((line) => {
+                if (line.text) {
+                  const baselineY = cursorY + questionBaselineOffset;
+                  // Use calculateTextX to respect text alignment
+                  const textX = calculateTextX(line.text, effectiveQuestionStyle, questionArea.x, questionArea.width, ctx);
+                  runs.push({
+                    text: line.text,
+                    x: textX,
+                    y: baselineY,
+                    style: effectiveQuestionStyle
+                  });
+                  // Track line position for ruled lines
+                  if (ruledLinesTarget === 'question') {
+                    linePositions.push({
+                      y: baselineY + effectiveQuestionStyle.fontSize * 0.15,
+                      lineHeight: questionLineHeight,
+                      style: effectiveQuestionStyle
+                    });
+                  }
+                } else {
+                  // Track empty line position for ruled lines
+                  if (ruledLinesTarget === 'question') {
+                    const baselineY = cursorY + questionBaselineOffset;
+                    linePositions.push({
+                      y: baselineY + effectiveQuestionStyle.fontSize * 0.15,
+                      lineHeight: questionLineHeight,
+                      style: effectiveQuestionStyle
+                    });
+                  }
+                }
+                cursorY += questionLineHeight;
               });
             }
-            answerCursorY += answerLineHeight;
-          });
-          
-          contentHeight = Math.max(contentHeight, answerCursorY, elementHeight);
+            
+            // Render answer text in answer area (after question)
+            if (answerContent) {
+              const answerLines = wrapText(answerContent, answerStyle, answerArea.width, ctx);
+              let cursorY = answerArea.y;
+              
+              answerLines.forEach((line) => {
+                if (line.text) {
+                  const baselineY = cursorY + answerBaselineOffset;
+                  const textX = calculateTextX(line.text, answerStyle, answerArea.x, answerArea.width, ctx);
+                  runs.push({
+                    text: line.text,
+                    x: textX,
+                    y: baselineY,
+                    style: answerStyle
+                  });
+                  // Track line position for ruled lines
+                  if (ruledLinesTarget === 'answer') {
+                    linePositions.push({
+                      y: baselineY + answerStyle.fontSize * 0.15,
+                      lineHeight: answerLineHeight,
+                      style: answerStyle
+                    });
+                  }
+                } else {
+                  // Track empty line position for ruled lines
+                  if (ruledLinesTarget === 'answer') {
+                    const baselineY = cursorY + answerBaselineOffset;
+                    linePositions.push({
+                      y: baselineY + answerStyle.fontSize * 0.15,
+                      lineHeight: answerLineHeight,
+                      style: answerStyle
+                    });
+                  }
+                }
+                cursorY += answerLineHeight;
+              });
+            }
+            
+            contentHeight = elementHeight;
+            
+            // Collect ruled lines nodes for block layout (will be inserted after background)
+            blockRuledLinesNodes = [];
+            const ruledLines = (element as any).ruledLines ?? false;
+            if (ruledLines && linePositions.length > 0) {
+              const ruledLinesWidth = (element as any).ruledLinesWidth ?? 0.8;
+              const ruledLinesTheme = (element as any).ruledLinesTheme || 'rough';
+              const ruledLinesColor = (element as any).ruledLinesColor || '#1f2937';
+              const ruledLinesOpacity = (element as any).ruledLinesOpacity ?? 1;
+              const targetArea = ruledLinesTarget === 'question' ? questionArea : answerArea;
+              
+              linePositions.forEach((linePos) => {
+                // Check if line is within the target area (vertically)
+                if (linePos.y >= targetArea.y && linePos.y <= targetArea.y + targetArea.height) {
+                  // Use the target area's x position and width, not the full width
+                  // This ensures lines are only drawn within the question or answer block
+                  const startX = elementX + targetArea.x;
+                  const endX = elementX + targetArea.x + targetArea.width;
+                  
+                  // Generate ruled line
+                  let lineNode: Konva.Path | Konva.Line | null = null;
+                  if (ruledLinesTheme === 'rough' && (window as any).rough) {
+                    try {
+                      const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+                      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                      const rc = (window as any).rough.svg(svg);
+                      
+                      const roughLine = rc.line(startX, elementY + linePos.y, endX, elementY + linePos.y, {
+                        roughness: 2,
+                        strokeWidth: ruledLinesWidth,
+                        stroke: ruledLinesColor,
+                        seed: seed + linePos.y
+                      });
+                      
+                      const paths = roughLine.querySelectorAll('path');
+                      let combinedPath = '';
+                      paths.forEach((path: SVGPathElement) => {
+                        const d = path.getAttribute('d');
+                        if (d) combinedPath += d + ' ';
+                      });
+                      
+                      if (combinedPath) {
+                        lineNode = new Konva.Path({
+                          data: combinedPath.trim(),
+                          stroke: ruledLinesColor,
+                          strokeWidth: ruledLinesWidth,
+                          opacity: ruledLinesOpacity * elementOpacity,
+                          strokeScaleEnabled: true,
+                          rotation: elementRotation,
+                          listening: false,
+                          visible: true
+                        });
+                      }
+                    } catch (err) {
+                      // Fallback to simple line if rough.js fails
+                      lineNode = new Konva.Line({
+                        points: [startX, elementY + linePos.y, endX, elementY + linePos.y],
+                        stroke: ruledLinesColor,
+                        strokeWidth: ruledLinesWidth,
+                        opacity: ruledLinesOpacity * elementOpacity,
+                        rotation: elementRotation,
+                        listening: false,
+                        visible: true
+                      });
+                    }
+                  } else {
+                    // Default: simple line
+                    lineNode = new Konva.Line({
+                      points: [startX, elementY + linePos.y, endX, elementY + linePos.y],
+                      stroke: ruledLinesColor,
+                      strokeWidth: ruledLinesWidth,
+                      opacity: ruledLinesOpacity * elementOpacity,
+                      rotation: elementRotation,
+                      listening: false,
+                      visible: true
+                    });
+                  }
+                  
+                  if (lineNode) {
+                    blockRuledLinesNodes.push(lineNode);
+                  }
+                }
+              });
+            }
+          } else {
+            // Inline layout (existing logic)
+            const availableWidth = Math.max(10, elementWidth - padding * 2);
+            const questionLineHeight = getLineHeight(effectiveQuestionStyle);
+            const answerLineHeight = getLineHeight(answerStyle);
+            
+            // Baseline offsets
+            const questionBaselineOffset = effectiveQuestionStyle.fontSize * 0.8;
+            const answerBaselineOffset = answerStyle.fontSize * 0.8;
+            
+            let cursorY = padding;
+            const questionLines = wrapText(questionText || '', effectiveQuestionStyle, availableWidth, ctx);
+            const linePositionsInline: Array<{ y: number; lineHeight: number; style: typeof questionStyle }> = [];
+            
+            questionLines.forEach((line) => {
+              if (line.text) {
+                const baselineY = cursorY + questionBaselineOffset;
+                const textX = calculateTextX(line.text, effectiveQuestionStyle, padding, availableWidth, ctx);
+                runs.push({
+                  text: line.text,
+                  x: textX,
+                  y: baselineY,
+                  style: effectiveQuestionStyle
+                });
+                // Track line position for ruled lines
+                linePositionsInline.push({
+                  y: baselineY + effectiveQuestionStyle.fontSize * 0.15,
+                  lineHeight: questionLineHeight,
+                  style: effectiveQuestionStyle
+                });
+              } else {
+                // Track empty line position for ruled lines
+                const baselineY = cursorY + questionBaselineOffset;
+                linePositionsInline.push({
+                  y: baselineY + effectiveQuestionStyle.fontSize * 0.15,
+                  lineHeight: questionLineHeight,
+                  style: effectiveQuestionStyle
+                });
+              }
+              cursorY += questionLineHeight;
+            });
+            
+            const lastQuestionLineWidth = questionLines.length ? questionLines[questionLines.length - 1].width : 0;
+            const lastQuestionLineY = questionLines.length ? cursorY - questionLineHeight : padding;
+            
+            const answerLines = wrapText(answerContent, answerStyle, availableWidth, ctx);
+            const inlineGap = Math.min(32, answerStyle.fontSize * 0.5);
+            contentHeight = cursorY;
+            
+            let startAtSameLine = false;
+            let remainingAnswerLines = answerLines;
+            
+            if (questionLines.length > 0 && answerLines.length > 0) {
+              const inlineAvailable = availableWidth - lastQuestionLineWidth - inlineGap;
+              const firstAnswerLineWidth = measureText(answerLines[0].text, answerStyle, ctx);
+              // Allow answer to start on same line if there's enough space (with some tolerance)
+              if (inlineAvailable >= firstAnswerLineWidth) {
+                startAtSameLine = true;
+                const baselineY = lastQuestionLineY + answerBaselineOffset;
+                runs.push({
+                  text: answerLines[0].text,
+                  x: padding + lastQuestionLineWidth + inlineGap,
+                  y: baselineY,
+                  style: answerStyle
+                });
+                // Track line position for combined line
+                linePositionsInline.push({
+                  y: baselineY + answerStyle.fontSize * 0.15,
+                  lineHeight: Math.max(questionLineHeight, answerLineHeight),
+                  style: answerStyle
+                });
+                remainingAnswerLines = answerLines.slice(1);
+              }
+            }
+            
+            let answerCursorY = startAtSameLine ? cursorY : cursorY + (questionLines.length ? answerLineHeight * 0.2 : 0);
+            
+            remainingAnswerLines.forEach((line) => {
+              if (line.text) {
+                const baselineY = answerCursorY + answerBaselineOffset;
+                const textX = calculateTextX(line.text, answerStyle, padding, availableWidth, ctx);
+                runs.push({
+                  text: line.text,
+                  x: textX,
+                  y: baselineY,
+                  style: answerStyle
+                });
+                // Track line position for ruled lines
+                linePositionsInline.push({
+                  y: baselineY + answerStyle.fontSize * 0.15,
+                  lineHeight: answerLineHeight,
+                  style: answerStyle
+                });
+              } else {
+                // Track empty line position for ruled lines
+                const baselineY = answerCursorY + answerBaselineOffset;
+                linePositionsInline.push({
+                  y: baselineY + answerStyle.fontSize * 0.15,
+                  lineHeight: answerLineHeight,
+                  style: answerStyle
+                });
+              }
+              answerCursorY += answerLineHeight;
+            });
+            
+            contentHeight = Math.max(contentHeight, answerCursorY, elementHeight);
+            
+            // Store linePositions for ruled lines rendering
+            const linePositions = linePositionsInline;
+          }
           
           // Render background if enabled
           const showBackground = (element as any).backgroundEnabled && (element as any).backgroundColor;
+          let bgRect: Konva.Rect | null = null;
           if (showBackground) {
             const backgroundColor = (element as any).backgroundColor || 'transparent';
             const backgroundOpacity = (element as any).backgroundOpacity !== undefined ? (element as any).backgroundOpacity : 1;
             const cornerRadius = (element as any).cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
             
-            const bgRect = new Konva.Rect({
+            bgRect = new Konva.Rect({
               x: elementX,
               y: elementY,
               width: elementWidth,
@@ -2239,6 +2557,122 @@ export function PDFRenderer({
               listening: false,
             });
             layer.add(bgRect);
+          }
+          
+          // Collect all ruled lines nodes (block and inline) for z-index management
+          let allRuledLinesNodes: Array<Konva.Path | Konva.Line> = [];
+          
+          // Insert block layout ruled lines after background (if they exist)
+          if (layoutVariant === 'block' && blockRuledLinesNodes && blockRuledLinesNodes.length > 0) {
+            allRuledLinesNodes = [...blockRuledLinesNodes];
+            const insertIndex = bgRect ? layer.getChildren().indexOf(bgRect) + 1 : layer.getChildren().length;
+            blockRuledLinesNodes.forEach((lineNode, idx) => {
+              layer.add(lineNode);
+              const currentIndex = layer.getChildren().indexOf(lineNode);
+              if (currentIndex !== insertIndex + idx) {
+                layer.getChildren().splice(currentIndex, 1);
+                layer.getChildren().splice(insertIndex + idx, 0, lineNode);
+              }
+            });
+          }
+          
+          // Render ruled lines if enabled (after background, before border and text)
+          // Note: For block layout, ruled lines are already rendered above (within the block layout section)
+          // This section only handles inline layout
+          const ruledLines = (element as any).ruledLines ?? false;
+          const ruledLinesNodes: Array<Konva.Path | Konva.Line> = [];
+          if (ruledLines && linePositions && linePositions.length > 0 && layoutVariant !== 'block') {
+            const ruledLinesWidth = (element as any).ruledLinesWidth ?? 0.8;
+            const ruledLinesTheme = (element as any).ruledLinesTheme || 'rough';
+            const ruledLinesColor = (element as any).ruledLinesColor || '#1f2937';
+            const ruledLinesOpacity = (element as any).ruledLinesOpacity ?? 1;
+            
+            linePositions.forEach((linePos) => {
+              // For inline layout, use full width with padding
+              // Only generate lines that are within the box dimensions
+              if (linePos.y < 0 || linePos.y > elementHeight) {
+                return;
+              }
+              
+              const startX = elementX + padding;
+              const endX = elementX + elementWidth - padding;
+              
+              // Generate ruled line
+              let lineNode: Konva.Path | Konva.Line | null = null;
+              if (ruledLinesTheme === 'rough' && (window as any).rough) {
+                try {
+                  const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+                  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                  const rc = (window as any).rough.svg(svg);
+                  
+                  const roughLine = rc.line(startX, elementY + linePos.y, endX, elementY + linePos.y, {
+                    roughness: 2,
+                    strokeWidth: ruledLinesWidth,
+                    stroke: ruledLinesColor,
+                    seed: seed + linePos.y
+                  });
+                  
+                  const paths = roughLine.querySelectorAll('path');
+                  let combinedPath = '';
+                  paths.forEach((path: SVGPathElement) => {
+                    const d = path.getAttribute('d');
+                    if (d) combinedPath += d + ' ';
+                  });
+                  
+                  if (combinedPath) {
+                    lineNode = new Konva.Path({
+                      data: combinedPath.trim(),
+                      stroke: ruledLinesColor,
+                      strokeWidth: ruledLinesWidth,
+                      opacity: ruledLinesOpacity * elementOpacity,
+                      strokeScaleEnabled: true,
+                      rotation: elementRotation,
+                      listening: false,
+                      visible: true
+                    });
+                  }
+                } catch (err) {
+                  // Fallback to simple line if rough.js fails
+                  lineNode = new Konva.Line({
+                    points: [startX, elementY + linePos.y, endX, elementY + linePos.y],
+                    stroke: ruledLinesColor,
+                    strokeWidth: ruledLinesWidth,
+                    opacity: ruledLinesOpacity * elementOpacity,
+                    rotation: elementRotation,
+                    listening: false,
+                    visible: true
+                  });
+                }
+              } else {
+                // Default: simple line
+                lineNode = new Konva.Line({
+                  points: [startX, elementY + linePos.y, endX, elementY + linePos.y],
+                  stroke: ruledLinesColor,
+                  strokeWidth: ruledLinesWidth,
+                  opacity: ruledLinesOpacity * elementOpacity,
+                  rotation: elementRotation,
+                  listening: false,
+                  visible: true
+                });
+              }
+              
+              if (lineNode) {
+                ruledLinesNodes.push(lineNode);
+              }
+            });
+            
+            // Insert all ruled lines after background
+            if (ruledLinesNodes.length > 0) {
+              const insertIndex = bgRect ? layer.getChildren().indexOf(bgRect) + 1 : layer.getChildren().length;
+              ruledLinesNodes.forEach((lineNode, idx) => {
+                layer.add(lineNode);
+                const currentIndex = layer.getChildren().indexOf(lineNode);
+                if (currentIndex !== insertIndex + idx) {
+                  layer.getChildren().splice(currentIndex, 1);
+                  layer.getChildren().splice(insertIndex + idx, 0, lineNode);
+                }
+              });
+            }
           }
           
           // Render border if enabled
@@ -2263,6 +2697,15 @@ export function PDFRenderer({
               listening: false,
             });
             layer.add(borderRect);
+            
+            // Insert border after ruled lines (or after background if no ruled lines)
+            const totalRuledLinesCount = allRuledLinesNodes.length + ruledLinesNodes.length;
+            const insertAfterIndex = bgRect ? layer.getChildren().indexOf(bgRect) + 1 + totalRuledLinesCount : layer.getChildren().length;
+            const borderRectIndex = layer.getChildren().indexOf(borderRect);
+            if (borderRectIndex !== -1 && borderRectIndex !== insertAfterIndex) {
+              layer.getChildren().splice(borderRectIndex, 1);
+              layer.getChildren().splice(insertAfterIndex, 0, borderRect);
+            }
           }
           
           // Render text runs using Konva.Text nodes (matching textbox-qna.tsx RichTextShape behavior)
@@ -2275,9 +2718,15 @@ export function PDFRenderer({
             // Build font string to ensure proper font loading
             const fontString = `${fontWeight} ${fontStyle} ${style.fontSize}px ${fontFamily}`;
             
+            // Convert baseline Y position to top Y position for Konva.Text
+            // Client uses textBaseline = 'alphabetic' with baseline Y position
+            // Server uses verticalAlign = 'top', so we need to subtract baseline offset
+            const baselineOffset = style.fontSize * 0.8;
+            const topY = run.y - baselineOffset;
+            
             const textNode = new Konva.Text({
               x: elementX + run.x,
-              y: elementY + run.y,
+              y: elementY + topY,
               text: run.text,
               fontSize: style.fontSize,
               fontFamily: fontFamily,
@@ -2297,31 +2746,6 @@ export function PDFRenderer({
             
             layer.add(textNode);
           });
-          
-          // Render ruled lines if enabled
-          const ruledLinesEnabled = (element as any).ruledLines === true;
-          if (ruledLinesEnabled) {
-            // Use renderRuledLines from window if available (set by PDFRendererService)
-            const renderRuledLinesFunc = (typeof window !== 'undefined' && (window as any).renderRuledLines) ? (window as any).renderRuledLines : null;
-            if (renderRuledLinesFunc) {
-              renderRuledLinesFunc(
-                layer,
-                element,
-                questionText || '',
-                answerContent,
-                effectiveQuestionStyle,
-                answerStyle,
-                padding,
-                elementWidth,
-                contentHeight,
-                elementX,
-                elementY,
-                Konva,
-                document,
-                (typeof window !== 'undefined' && (window as any).rough) ? (window as any).rough : null
-              );
-            }
-          }
         }
         // Render free_text elements
         else if (element.textType === 'free_text') {

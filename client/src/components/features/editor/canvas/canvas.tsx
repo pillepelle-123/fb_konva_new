@@ -1736,6 +1736,8 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           const pageColorPaletteId = currentPage?.colorPaletteId;
           const bookColorPaletteId = state.currentBook?.colorPaletteId;
           const qnaDefaults = getToolDefaults('qna', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
+          const themeFontFamily = qnaDefaults.fontFamily || 'Arial, sans-serif';
+          
           newElement = {
             id: uuidv4(),
             type: 'text',
@@ -1749,7 +1751,15 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
             fontFamily: qnaDefaults.fontFamily,
             textType: 'qna',
             paragraphSpacing: qnaDefaults.paragraphSpacing,
-            cornerRadius: qnaDefaults.cornerRadius
+            cornerRadius: qnaDefaults.cornerRadius,
+            questionSettings: {
+              ...qnaDefaults.questionSettings,
+              fontFamily: qnaDefaults.questionSettings?.fontFamily || themeFontFamily
+            },
+            answerSettings: {
+              ...qnaDefaults.answerSettings,
+              fontFamily: qnaDefaults.answerSettings?.fontFamily || themeFontFamily
+            }
           };
         } else if (previewTextbox.type === 'qna2') {
           const currentPage = state.currentBook?.pages[state.activePageIndex];
@@ -2601,13 +2611,6 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       }
       
       if (!imageUrl) {
-        console.warn('Background image URL is undefined', {
-          backgroundType: background.type,
-          templateId: (background as any).backgroundImageTemplateId,
-          value: background.value,
-          paletteId,
-          hasPalette: !!palette
-        });
         return null;
       }
       

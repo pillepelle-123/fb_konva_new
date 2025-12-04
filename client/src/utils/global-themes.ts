@@ -385,6 +385,58 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string): Pa
     };
   }
   
+  // For QnA elements (qna, qna2), convert fontSize in questionSettings and answerSettings from common to actual
+  if (elementType === 'qna' || elementType === 'qna2') {
+    const category = getThemeCategory(elementType);
+    const baseDefaults = theme.elementDefaults[category] || {};
+    
+    // Convert fontSize in questionSettings and answerSettings if they exist
+    const convertedDefaults: any = { ...baseDefaults };
+    
+    if (baseDefaults.questionSettings) {
+      convertedDefaults.questionSettings = { ...baseDefaults.questionSettings };
+      if (convertedDefaults.questionSettings.fontSize !== undefined) {
+        convertedDefaults.questionSettings.fontSize = commonToActual(convertedDefaults.questionSettings.fontSize);
+      }
+    }
+    
+    if (baseDefaults.answerSettings) {
+      convertedDefaults.answerSettings = { ...baseDefaults.answerSettings };
+      if (convertedDefaults.answerSettings.fontSize !== undefined) {
+        convertedDefaults.answerSettings.fontSize = commonToActual(convertedDefaults.answerSettings.fontSize);
+      }
+    }
+    
+    // Apply palette colors automatically if palette exists
+    if (palette) {
+      const paletteDefaults: any = {
+        fontColor: palette.colors.text || palette.colors.primary,
+        stroke: palette.colors.text || palette.colors.primary,
+        borderColor: palette.colors.secondary,
+        backgroundColor: palette.colors.surface || palette.colors.background,
+        ruledLinesColor: palette.colors.accent || palette.colors.primary
+      };
+      
+      // Apply palette colors to questionSettings and answerSettings
+      if (convertedDefaults.questionSettings) {
+        convertedDefaults.questionSettings = {
+          ...convertedDefaults.questionSettings,
+          fontColor: palette.colors.text || palette.colors.primary
+        };
+      }
+      if (convertedDefaults.answerSettings) {
+        convertedDefaults.answerSettings = {
+          ...convertedDefaults.answerSettings,
+          fontColor: palette.colors.accent || palette.colors.text || palette.colors.primary
+        };
+      }
+      
+      return { ...convertedDefaults, ...paletteDefaults };
+    }
+    
+    return convertedDefaults;
+  }
+  
   // For free_text elements, build textSettings structure
   if (elementType === 'free_text') {
     const category = getThemeCategory(elementType);

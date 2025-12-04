@@ -94,17 +94,35 @@ export function QnAInlineSettingsForm({
     const qStyle = element.questionSettings || {};
     const bookTheme = state.currentBook?.bookTheme;
     const activeTheme = pageTheme || bookTheme;
-    const qnaDefaults = activeTheme ? getQnAThemeDefaults(activeTheme, 'question') : {};
+    const qnaThemeDefaults = activeTheme ? getQnAThemeDefaults(activeTheme, 'question') : {};
+    
+    // Get tool defaults for qna to use as fallback
+    const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+    const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+    const pageColorPaletteId = currentPage?.colorPaletteId;
+    const bookColorPaletteId = state.currentBook?.colorPaletteId;
+    const toolDefaults = getToolDefaults(
+      element.textType === 'qna' ? 'qna' : 'qna_inline',
+      pageTheme,
+      bookTheme,
+      element,
+      undefined,
+      pageLayoutTemplateId,
+      bookLayoutTemplateId,
+      pageColorPaletteId,
+      bookColorPaletteId
+    );
+    const qnaDefaults = toolDefaults.questionSettings || {};
     
     return {
-      fontSize: qStyle.fontSize || qnaDefaults?.fontSize || 16,
-      fontFamily: qStyle.fontFamily || qnaDefaults?.fontFamily || 'Arial, sans-serif',
-      fontBold: qStyle.fontBold ?? qnaDefaults?.fontBold ?? false,
-      fontItalic: qStyle.fontItalic ?? qnaDefaults?.fontItalic ?? false,
-      fontColor: qStyle.fontColor || qnaDefaults?.fontColor || '#666666',
+      fontSize: qStyle.fontSize ?? qnaThemeDefaults?.fontSize ?? qnaDefaults.fontSize ?? 58,
+      fontFamily: qStyle.fontFamily || qnaThemeDefaults?.fontFamily || qnaDefaults.fontFamily || 'Arial, sans-serif',
+      fontBold: qStyle.fontBold ?? qnaThemeDefaults?.fontBold ?? qnaDefaults.fontBold ?? false,
+      fontItalic: qStyle.fontItalic ?? qnaThemeDefaults?.fontItalic ?? qnaDefaults.fontItalic ?? false,
+      fontColor: qStyle.fontColor || qnaThemeDefaults?.fontColor || qnaDefaults.fontColor || '#666666',
       fontOpacity: qStyle.fontOpacity ?? 1,
-      align: qStyle.align || element.format?.textAlign || element.align || qnaDefaults?.align || 'left',
-      ruledLines: qStyle.ruledLines ?? qnaDefaults?.ruledLines ?? false
+      align: qStyle.align || element.format?.textAlign || element.align || qnaThemeDefaults?.align || qnaDefaults.align || 'left',
+      ruledLines: qStyle.ruledLines ?? qnaThemeDefaults?.ruledLines ?? qnaDefaults.ruledLines ?? false
     };
   };
   
@@ -112,17 +130,35 @@ export function QnAInlineSettingsForm({
     const aStyle = element.answerSettings || {};
     const bookTheme = state.currentBook?.bookTheme;
     const activeTheme = pageTheme || bookTheme;
-    const qnaDefaults = activeTheme ? getQnAThemeDefaults(activeTheme, 'answer') : {};
+    const qnaThemeDefaults = activeTheme ? getQnAThemeDefaults(activeTheme, 'answer') : {};
+    
+    // Get tool defaults for qna to use as fallback
+    const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+    const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+    const pageColorPaletteId = currentPage?.colorPaletteId;
+    const bookColorPaletteId = state.currentBook?.colorPaletteId;
+    const toolDefaults = getToolDefaults(
+      element.textType === 'qna' ? 'qna' : 'qna_inline',
+      pageTheme,
+      bookTheme,
+      element,
+      undefined,
+      pageLayoutTemplateId,
+      bookLayoutTemplateId,
+      pageColorPaletteId,
+      bookColorPaletteId
+    );
+    const qnaDefaults = toolDefaults.answerSettings || {};
     
     return {
-      fontSize: aStyle.fontSize || qnaDefaults?.fontSize || 16,
-      fontFamily: aStyle.fontFamily || qnaDefaults?.fontFamily || 'Arial, sans-serif',
-      fontBold: aStyle.fontBold ?? qnaDefaults?.fontBold ?? false,
-      fontItalic: aStyle.fontItalic ?? qnaDefaults?.fontItalic ?? false,
-      fontColor: aStyle.fontColor || qnaDefaults?.fontColor || '#1f2937',
+      fontSize: aStyle.fontSize ?? qnaThemeDefaults?.fontSize ?? qnaDefaults.fontSize ?? 50,
+      fontFamily: aStyle.fontFamily || qnaThemeDefaults?.fontFamily || qnaDefaults.fontFamily || 'Arial, sans-serif',
+      fontBold: aStyle.fontBold ?? qnaThemeDefaults?.fontBold ?? qnaDefaults.fontBold ?? false,
+      fontItalic: aStyle.fontItalic ?? qnaThemeDefaults?.fontItalic ?? qnaDefaults.fontItalic ?? false,
+      fontColor: aStyle.fontColor || qnaThemeDefaults?.fontColor || qnaDefaults.fontColor || '#1f2937',
       fontOpacity: aStyle.fontOpacity ?? 1,
-      align: aStyle.align || element.format?.textAlign || element.align || qnaDefaults?.align || 'left',
-      ruledLines: aStyle.ruledLines ?? qnaDefaults?.ruledLines ?? false
+      align: aStyle.align || element.format?.textAlign || element.align || qnaThemeDefaults?.align || qnaDefaults.align || 'left',
+      ruledLines: aStyle.ruledLines ?? qnaThemeDefaults?.ruledLines ?? qnaDefaults.ruledLines ?? false
     };
   };
   
@@ -252,13 +288,30 @@ export function QnAInlineSettingsForm({
     // When individualSettings is false, use answer style for display
     const displayStyle = (!individualSettings && sectionType === 'shared') ? computedAnswerStyle : currentStyle;
     
+    // Debug logging
+    console.log('[qna-inline-settings-form] renderFontControls:', {
+      elementId: element.id,
+      textType: element.textType,
+      individualSettings,
+      sectionType,
+      activeSection,
+      elementQuestionSettings: element.questionSettings,
+      elementAnswerSettings: element.answerSettings,
+      computedQuestionStyle: computedQuestionStyle,
+      computedAnswerStyle: computedAnswerStyle,
+      currentStyle,
+      displayStyle,
+      displayStyleFontSize: displayStyle.fontSize,
+      actualToCommonResult: actualToCommon(displayStyle.fontSize || 16)
+    });
+    
     return (
       <>
         <div>
           <div className="flex gap-2">
             <Button
               variant={displayStyle.fontBold ? 'default' : 'outline'}
-              size="xs"
+              size="xxs"
               onClick={() => {
                 // Nur fontBold aktualisieren - CSS font-weight wird verwendet, Font-Familie bleibt unverändert
                 updateFn('fontBold', !displayStyle.fontBold);
@@ -269,7 +322,7 @@ export function QnAInlineSettingsForm({
             </Button>
             <Button
               variant={displayStyle.fontItalic ? 'default' : 'outline'}
-              size="xs"
+              size="xxs"
               onClick={() => {
                 // Nur fontItalic aktualisieren - CSS font-style wird verwendet, Font-Familie bleibt unverändert
                 updateFn('fontItalic', !displayStyle.fontItalic);
@@ -280,7 +333,7 @@ export function QnAInlineSettingsForm({
             </Button>
             <Button
               variant="outline"
-              size="xs"
+              size="xxs"
               onClick={() => setShowFontSelector(true)}
               className="flex-1 justify-start"
               style={{ fontFamily: displayStyle.fontFamily }}
@@ -312,7 +365,7 @@ export function QnAInlineSettingsForm({
         <div>
           <Button
             variant="outline"
-            size="xs"
+            size="xxs"
             onClick={() => {
               // When individualSettings is enabled, use setShowColorSelector to render at top level
               // Otherwise, use localShowColorSelector for nested rendering
@@ -662,9 +715,68 @@ export function QnAInlineSettingsForm({
     );
   }
   
-  // For individual tabs, only show font controls (no spacing)
+  // Helper function to render Text Align ButtonGroup for individual settings
+  const renderTextAlignControls = () => {
+    const isQuestion = sectionType === 'question';
+    const settings = isQuestion ? (element.questionSettings || {}) : (element.answerSettings || {});
+    const currentAlign = settings.align || element.format?.textAlign || element.align || 'left';
+    const updateFn = isQuestion ? (updateQuestionSetting || updateSetting) : (updateAnswerSetting || updateSetting);
+    
+    return (
+      <>
+        <Separator/>
+        <div className='flex flex-row gap-3'>
+          <div className="flex-1 py-2">
+            <Label variant="xs">Text Align</Label>
+            <ButtonGroup className="mt-1 flex flex-row">
+              <Button
+                variant={currentAlign === 'left' ? 'default' : 'outline'}
+                size="xxs"
+                onClick={() => updateFn('align', 'left')}
+                className="px-1 h-6 flex-1"
+              >
+                <AlignLeft className="h-3 w-3" />
+              </Button>
+              <Button
+                variant={currentAlign === 'center' ? 'default' : 'outline'}
+                size="xxs"
+                onClick={() => updateFn('align', 'center')}
+                className="px-1 h-6 flex-1"
+              >
+                <AlignCenter className="h-3 w-3" />
+              </Button>
+              <Button
+                variant={currentAlign === 'right' ? 'default' : 'outline'}
+                size="xxs"
+                onClick={() => updateFn('align', 'right')}
+                className="px-1 h-6 flex-1"
+              >
+                <AlignRight className="h-3 w-3" />
+              </Button>
+              <Button
+                variant={currentAlign === 'justify' ? 'default' : 'outline'}
+                size="xxs"
+                onClick={() => updateFn('align', 'justify')}
+                className="px-1 h-6 flex-1"
+              >
+                <AlignJustify className="h-3 w-3" />
+              </Button>
+            </ButtonGroup>
+          </div>
+        </div>
+      </>
+    );
+  };
+  
+  // For individual tabs, show font controls and Text Align (if block layout)
   if (sectionType !== 'shared' && individualSettings) {
-    return renderFontControls();
+    return (
+      <>
+        {renderFontControls()}
+        {/* Show Text Align at the bottom for block layout with individual settings */}
+        {(element.layoutVariant || 'inline') === 'block' && renderTextAlignControls()}
+      </>
+    );
   }
   
   return (
@@ -677,7 +789,7 @@ export function QnAInlineSettingsForm({
             <ButtonGroup className="w-full">
               <Button
                 variant={(element.layoutVariant || 'inline') === 'inline' ? 'default' : 'outline'}
-                size="xs"
+                size="xxs"
                 onClick={() => {
                   dispatch({
                     type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
@@ -693,7 +805,7 @@ export function QnAInlineSettingsForm({
               </Button>
               <Button
                 variant={(element.layoutVariant || 'inline') === 'block' ? 'default' : 'outline'}
-                size="xs"
+                size="xxs"
                 onClick={() => {
                   dispatch({
                     type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
@@ -714,12 +826,12 @@ export function QnAInlineSettingsForm({
           {element.layoutVariant === 'block' && (
             <>
               <div className="flex flex-row items-start">
-                <div className="flex-1 ">
+                <div className="flex-1 pr-2">
                   <Label variant="xs">Question Position</Label>
-                  <ButtonGroup>
+                  <ButtonGroup className="w-full">
                     <Button
                       variant={(element.questionPosition || 'left') === 'left' ? 'default' : 'outline'}
-                      size="xs"
+                      size="xxs"
                       onClick={() => {
                         dispatch({
                           type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
@@ -729,13 +841,13 @@ export function QnAInlineSettingsForm({
                           }
                         });
                       }}
-                      className="w-8 h-8 p-0"
+                      className="w-full p-0"
                     >
                       <ArrowLeft className="w-4 h-4" />
                     </Button>
                     <Button
                       variant={(element.questionPosition || 'left') === 'top' ? 'default' : 'outline'}
-                      size="xs"
+                      size="xxs"
                       onClick={() => {
                         dispatch({
                           type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
@@ -745,13 +857,13 @@ export function QnAInlineSettingsForm({
                           }
                         });
                       }}
-                      className="w-8 h-8 p-0"
+                      className="w-full p-0"
                     >
                       <ArrowUp className="w-4 h-4" />
                     </Button>
                     <Button
                       variant={(element.questionPosition || 'left') === 'right' ? 'default' : 'outline'}
-                      size="xs"
+                      size="xxs"
                       onClick={() => {
                         dispatch({
                           type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
@@ -761,17 +873,19 @@ export function QnAInlineSettingsForm({
                           }
                         });
                       }}
-                      className="w-8 h-8 p-0"
+                      className="w-full p-0"
                     >
                       <ArrowRight className="w-4 h-4" />
                     </Button>
                   </ButtonGroup>
                 </div>
+
+                <div className='flex-1'>
               
                 {/* Question Width Slider (only for left/right positions) */}
                 {((element.questionPosition || 'left') === 'left' || (element.questionPosition || 'left') === 'right') && (
-                  <div className="flex-1">
-                    <Label variant="xs">Question Width</Label>
+                  <div className="flex-1 mb-2">
+                    {/* <Label variant="xs">Question Width</Label> */}
                     <Slider
                       label="Question Width"
                       value={element.questionWidth || 40}
@@ -791,18 +905,42 @@ export function QnAInlineSettingsForm({
                       className="w-full"
                     />
                   </div>
-                  
-              )}
+                )}
+                
+                {/* Question-Answer Gap Slider */}
+                <div className="flex-1">
+                  {/* <Label variant="xs">Question-Answer Gap</Label> */}
+                  <Slider
+                    label="Gap between Question and Answer"
+                    value={element.blockQuestionAnswerGap ?? 20}
+                    onChange={(value) => {
+                      dispatch({
+                        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                        payload: {
+                          id: element.id,
+                          updates: { blockQuestionAnswerGap: value }
+                        }
+                      });
+                    }}
+                    min={0}
+                    max={200}
+                    step={2}
+                    unit=""
+                    hasLabel={false}
+                    displayValue={Math.round((element.blockQuestionAnswerGap ?? 20) / 2)}
+                    className="w-full"
+                  />
+                </div>
               </div>
+              </div>	
             </>
           )}
           
-          <Separator />
         </>
       )}
       
-      {/* Answer layout controls - only show for shared mode */}
-      {sectionType === 'shared' && (
+      {/* Answer layout controls - only show for shared mode and inline layout */}
+      {sectionType === 'shared' && (element.layoutVariant || 'inline') !== 'block' && (
         <div className="flex flex-row gap-3 mb-2">
           {/* Answer in new row checkbox */}
           <div className="flex items-center gap-2 flex-1">
@@ -859,12 +997,14 @@ export function QnAInlineSettingsForm({
                 step={2}
                 unit=""
                 hasLabel={false}
-                displayValue={Math.round((element.questionAnswerGap ?? 0) / 2)}
+                displayValue={Math.round((element.questionAnswerGap ?? 20) / 2)}
               />
             </Tooltip>
           </div>
         </div>
       )}
+
+      <Separator/>
       
       {/* Individual settings checkbox - only show for shared mode */}
       {sectionType === 'shared' && onIndividualSettingsChange && (
@@ -963,6 +1103,69 @@ export function QnAInlineSettingsForm({
       
       <Separator/>
       
+      {/* Text Align - combined for inline layout OR block layout without individual settings */}
+      {((element.layoutVariant || 'inline') === 'inline' || ((element.layoutVariant || 'inline') === 'block' && !individualSettings)) && (
+        <div className='flex flex-row gap-3'>
+          <div className="flex-1 py-2">
+            <Label variant="xs">Text Align</Label>
+            <ButtonGroup className="mt-1 flex flex-row">
+              <Button
+                variant={(() => {
+                  const qSettings = element.questionSettings || {};
+                  const aSettings = element.answerSettings || {};
+                  const align = qSettings.align || aSettings.align || element.format?.textAlign || element.align || 'left';
+                  return align === 'left' ? 'default' : 'outline';
+                })()}
+                size="xxs"
+                onClick={() => updateSharedSetting('align', 'left')}
+                className="px-1 h-6 flex-1"
+              >
+                <AlignLeft className="h-3 w-3" />
+              </Button>
+              <Button
+                variant={(() => {
+                  const qSettings = element.questionSettings || {};
+                  const aSettings = element.answerSettings || {};
+                  const align = qSettings.align || aSettings.align || element.format?.textAlign || element.align || 'left';
+                  return align === 'center' ? 'default' : 'outline';
+                })()}
+                size="xxs"
+                onClick={() => updateSharedSetting('align', 'center')}
+                className="px-1 h-6 flex-1"
+              >
+                <AlignCenter className="h-3 w-3" />
+              </Button>
+              <Button
+                variant={(() => {
+                  const qSettings = element.questionSettings || {};
+                  const aSettings = element.answerSettings || {};
+                  const align = qSettings.align || aSettings.align || element.format?.textAlign || element.align || 'left';
+                  return align === 'right' ? 'default' : 'outline';
+                })()}
+                size="xxs"
+                onClick={() => updateSharedSetting('align', 'right')}
+                className="px-1 h-6 flex-1"
+              >
+                <AlignRight className="h-3 w-3" />
+              </Button>
+              <Button
+                variant={(() => {
+                  const qSettings = element.questionSettings || {};
+                  const aSettings = element.answerSettings || {};
+                  const align = qSettings.align || aSettings.align || element.format?.textAlign || element.align || 'left';
+                  return align === 'justify' ? 'default' : 'outline';
+                })()}
+                size="xxs"
+                onClick={() => updateSharedSetting('align', 'justify')}
+                className="px-1 h-6 flex-1"
+              >
+                <AlignJustify className="h-3 w-3" />
+              </Button>
+            </ButtonGroup>
+          </div>
+        </div>
+      )}
+      
       {/* Paragraph Spacing - always universal */}
       <div className='flex flex-row gap-3'>
         <div className="flex-1 py-2">
@@ -975,7 +1178,7 @@ export function QnAInlineSettingsForm({
                 const spacing = qSettings.paragraphSpacing || aSettings.paragraphSpacing || element.paragraphSpacing || 'medium';
                 return spacing === 'small' ? 'default' : 'outline';
               })()}
-              size="xs"
+              size="xxs"
               onClick={() => updateSharedSetting('paragraphSpacing', 'small')}
               className="px-1 h-6 flex-1"
             >
@@ -988,7 +1191,7 @@ export function QnAInlineSettingsForm({
                 const spacing = qSettings.paragraphSpacing || aSettings.paragraphSpacing || element.paragraphSpacing || 'medium';
                 return spacing === 'medium' ? 'default' : 'outline';
               })()}
-              size="xs"
+              size="xxs"
               onClick={() => updateSharedSetting('paragraphSpacing', 'medium')}
               className="px-1 h-6 flex-1"
             >
@@ -1001,7 +1204,7 @@ export function QnAInlineSettingsForm({
                 const spacing = qSettings.paragraphSpacing || aSettings.paragraphSpacing || element.paragraphSpacing || 'medium';
                 return spacing === 'large' ? 'default' : 'outline';
               })()}
-              size="xs"
+              size="xxs"
               onClick={() => updateSharedSetting('paragraphSpacing', 'large')}
               className="px-1 h-6 flex-1"
             >
@@ -1015,26 +1218,68 @@ export function QnAInlineSettingsForm({
       
       {/* Ruled Lines - Common Settings */}
       <div className='py-2'>
-        <Label className="flex items-center gap-1" variant="xs">
-          <Checkbox
-            checked={(() => {
-              return element.ruledLines ?? false;
-            })()}
-            onCheckedChange={(checked) => {
-              dispatch({
-                type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                payload: {
-                  id: element.id,
-                  updates: {
-                    // Set ruledLines on top-level (moved from answerSettings)
-                    ruledLines: checked
+        <div className="flex items-center gap-2">
+          <Label className="flex items-center gap-1" variant="xs">
+            <Checkbox
+              checked={(() => {
+                return element.ruledLines ?? false;
+              })()}
+              onCheckedChange={(checked) => {
+                dispatch({
+                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                  payload: {
+                    id: element.id,
+                    updates: {
+                      // Set ruledLines on top-level (moved from answerSettings)
+                      ruledLines: checked
+                    }
                   }
-                }
-              });
-            }}
-          />
-          Ruled Lines
-        </Label>
+                });
+              }}
+            />
+            Ruled Lines
+          </Label>
+          
+          {/* Ruled Lines Target (only for block layout) */}
+          {(element.layoutVariant || 'inline') === 'block' && (element.ruledLines ?? false) && (
+            <div className="flex-1">
+              <ButtonGroup className="w-full">
+                <Button
+                  variant={(element.ruledLinesTarget || 'answer') === 'question' ? 'default' : 'outline'}
+                  size="xxs"
+                  onClick={() => {
+                    dispatch({
+                      type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                      payload: {
+                        id: element.id,
+                        updates: { ruledLinesTarget: 'question' }
+                      }
+                    });
+                  }}
+                  className="flex-1"
+                >
+                  Question
+                </Button>
+                <Button
+                  variant={(element.ruledLinesTarget || 'answer') === 'answer' ? 'default' : 'outline'}
+                  size="xxs"
+                  onClick={() => {
+                    dispatch({
+                      type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                      payload: {
+                        id: element.id,
+                        updates: { ruledLinesTarget: 'answer' }
+                      }
+                    });
+                  }}
+                  className="flex-1"
+                >
+                  Answer
+                </Button>
+              </ButtonGroup>
+            </div>
+          )}
+        </div>
       </div>
       
       {(() => {
@@ -1087,7 +1332,7 @@ export function QnAInlineSettingsForm({
           <div>
             <Button
               variant="outline"
-              size="xs"
+              size="xxs"
               onClick={() => {
                 if (individualSettings) {
                   setShowColorSelector('element-ruled-lines-color');
@@ -1193,7 +1438,7 @@ export function QnAInlineSettingsForm({
           <div>
             <Button
               variant="outline"
-              size="xs"
+              size="xxs"
               onClick={() => {
                 if (individualSettings) {
                   setShowColorSelector('element-border-color');
@@ -1268,7 +1513,7 @@ export function QnAInlineSettingsForm({
           <div>
             <Button
               variant="outline"
-              size="xs"
+              size="xxs"
               onClick={() => {
                 if (individualSettings) {
                   setShowColorSelector('element-background-color');
@@ -1353,66 +1598,6 @@ export function QnAInlineSettingsForm({
               className='w-full'
             />
           </div>
-        </div>
-      </div>
-      
-      <div className='flex flex-row gap-3'>
-        <div className="flex-1 py-2">
-          <Label variant="xs">Text Align</Label>
-          <ButtonGroup className="mt-1 flex flex-row">
-            <Button
-              variant={(() => {
-                const qSettings = element.questionSettings || {};
-                const aSettings = element.answerSettings || {};
-                const align = qSettings.align || aSettings.align || element.format?.textAlign || element.align || 'left';
-                return align === 'left' ? 'default' : 'outline';
-              })()}
-              size="xs"
-              onClick={() => updateSharedSetting('align', 'left')}
-              className="px-1 h-6 flex-1"
-            >
-              <AlignLeft className="h-3 w-3" />
-            </Button>
-            <Button
-              variant={(() => {
-                const qSettings = element.questionSettings || {};
-                const aSettings = element.answerSettings || {};
-                const align = qSettings.align || aSettings.align || element.format?.textAlign || element.align || 'left';
-                return align === 'center' ? 'default' : 'outline';
-              })()}
-              size="xs"
-              onClick={() => updateSharedSetting('align', 'center')}
-              className="px-1 h-6 flex-1"
-            >
-              <AlignCenter className="h-3 w-3" />
-            </Button>
-            <Button
-              variant={(() => {
-                const qSettings = element.questionSettings || {};
-                const aSettings = element.answerSettings || {};
-                const align = qSettings.align || aSettings.align || element.format?.textAlign || element.align || 'left';
-                return align === 'right' ? 'default' : 'outline';
-              })()}
-              size="xs"
-              onClick={() => updateSharedSetting('align', 'right')}
-              className="px-1 h-6 flex-1"
-            >
-              <AlignRight className="h-3 w-3" />
-            </Button>
-            <Button
-              variant={(() => {
-                const qSettings = element.questionSettings || {};
-                const aSettings = element.answerSettings || {};
-                const align = qSettings.align || aSettings.align || element.format?.textAlign || element.align || 'left';
-                return align === 'justify' ? 'default' : 'outline';
-              })()}
-              size="xs"
-              onClick={() => updateSharedSetting('align', 'justify')}
-              className="px-1 h-6 flex-1"
-            >
-              <AlignJustify className="h-3 w-3" />
-            </Button>
-          </ButtonGroup>
         </div>
       </div>
     </>

@@ -34,6 +34,7 @@ import { getFontSize, getFontColor, getFontFamily } from '../../../../utils/font
 import { getBackgroundColor, getBackgroundOpacity, getBackgroundEnabled } from '../../../../utils/background-utils';
 import { getTextAlign, getParagraphSpacing, getPadding } from '../../../../utils/format-utils';
 import { getRuledLinesTheme } from '../../../../utils/theme-utils';
+import { getToolDefaults } from '../../../../utils/tool-defaults';
 import ChatWindow from '../../messenger/chat-window';
 import type { Conversation } from '../../messenger/types';
 
@@ -949,6 +950,26 @@ export function ToolSettingsContent({
           
           const individualSettings = selectedElement.qnaIndividualSettings ?? false;
           
+          // Get tool defaults for fallback values
+          const currentPage = state.currentBook?.pages[state.activePageIndex];
+          const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+          const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+          const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+          const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+          const pageColorPaletteId = currentPage?.colorPaletteId;
+          const bookColorPaletteId = state.currentBook?.colorPaletteId;
+          const toolDefaults = getToolDefaults(
+            selectedElement.textType === 'qna' ? 'qna' : 'qna_inline',
+            pageTheme,
+            bookTheme,
+            selectedElement,
+            undefined,
+            pageLayoutTemplateId,
+            bookLayoutTemplateId,
+            pageColorPaletteId,
+            bookColorPaletteId
+          );
+          
           const updateQuestionSetting = (key: string, value: any) => {
             const updates = {
               questionSettings: {
@@ -977,12 +998,12 @@ export function ToolSettingsContent({
                 element={selectedElement}
                 state={state}
                 currentStyle={{
-                  fontSize: selectedElement.questionSettings?.fontSize || selectedElement.answerSettings?.fontSize || 16,
-                  fontFamily: selectedElement.questionSettings?.fontFamily || selectedElement.answerSettings?.fontFamily || 'Arial, sans-serif',
-                  fontBold: selectedElement.questionSettings?.fontBold || selectedElement.answerSettings?.fontBold || false,
-                  fontItalic: selectedElement.questionSettings?.fontItalic || selectedElement.answerSettings?.fontItalic || false,
-                  fontColor: selectedElement.questionSettings?.fontColor || selectedElement.answerSettings?.fontColor || '#1f2937',
-                  fontOpacity: selectedElement.questionSettings?.fontOpacity || selectedElement.answerSettings?.fontOpacity || 1
+                  fontSize: selectedElement.questionSettings?.fontSize ?? selectedElement.answerSettings?.fontSize ?? toolDefaults.answerSettings?.fontSize ?? toolDefaults.fontSize ?? 50,
+                  fontFamily: selectedElement.questionSettings?.fontFamily || selectedElement.answerSettings?.fontFamily || toolDefaults.answerSettings?.fontFamily || toolDefaults.fontFamily || 'Arial, sans-serif',
+                  fontBold: selectedElement.questionSettings?.fontBold ?? selectedElement.answerSettings?.fontBold ?? toolDefaults.answerSettings?.fontBold ?? false,
+                  fontItalic: selectedElement.questionSettings?.fontItalic ?? selectedElement.answerSettings?.fontItalic ?? toolDefaults.answerSettings?.fontItalic ?? false,
+                  fontColor: selectedElement.questionSettings?.fontColor || selectedElement.answerSettings?.fontColor || toolDefaults.answerSettings?.fontColor || toolDefaults.fontColor || '#1f2937',
+                  fontOpacity: selectedElement.questionSettings?.fontOpacity ?? selectedElement.answerSettings?.fontOpacity ?? toolDefaults.answerSettings?.fontOpacity ?? 1
                 }}
                 updateSetting={(key: string, value: any) => {
                   updateQuestionSetting(key, value);
