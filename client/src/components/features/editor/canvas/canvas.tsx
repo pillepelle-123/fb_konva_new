@@ -3089,7 +3089,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         return;
       }
       const element = currentPage?.elements.find(el => el.id === event.detail.elementId);
-      if (element && element.textType === 'qna_inline') {
+      if (element && (element.textType === 'qna_inline' || element.textType === 'qna')) {
         setQuestionSelectorElementId(element.id);
         setShowQuestionSelectorModal(true);
       }
@@ -4578,11 +4578,78 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                 });
                 
                 // Store question text in temp questions only if it doesn't exist yet
-                if (questionId && !state.tempQuestions[questionId]) {
+                if (questionId && questionText) {
                   dispatch({
                     type: 'UPDATE_TEMP_QUESTION',
                     payload: { questionId, text: questionText }
                   });
+                }
+              } else if (element && element.textType === 'qna') {
+                dispatch({
+                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                  payload: {
+                    id: questionSelectorElementId,
+                    updates: {
+                      questionId: questionId || undefined
+                    }
+                  }
+                });
+                
+                if (questionId && questionText) {
+                  dispatch({
+                    type: 'UPDATE_TEMP_QUESTION',
+                    payload: { questionId, text: questionText }
+                  });
+                }
+
+                if (!questionId) {
+                  dispatch({
+                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                    payload: {
+                      id: questionSelectorElementId,
+                      updates: {
+                        text: '',
+                        formattedText: ''
+                      }
+                    }
+                  });
+                } else {
+                  const assignedUser = state.pageAssignments[state.activePageIndex + 1];
+                  const userIdToCheck = assignedUser?.id || user?.id;
+                  if (userIdToCheck) {
+                    const existingAnswer = getAnswerText(questionId, userIdToCheck);
+                    if (existingAnswer) {
+                      dispatch({
+                        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                        payload: {
+                          id: questionSelectorElementId,
+                          updates: {
+                            text: existingAnswer,
+                            formattedText: existingAnswer
+                          }
+                        }
+                      });
+                      dispatch({
+                        type: 'UPDATE_TEMP_ANSWER',
+                        payload: {
+                          questionId,
+                          text: existingAnswer,
+                          userId: userIdToCheck
+                        }
+                      });
+                    } else {
+                      dispatch({
+                        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                        payload: {
+                          id: questionSelectorElementId,
+                          updates: {
+                            text: '',
+                            formattedText: ''
+                          }
+                        }
+                      });
+                    }
+                  }
                 }
               }
             }

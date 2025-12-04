@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useParams } from 'react-router-dom';
+import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { useEditor, createSampleBook } from '../../context/editor-context';
 import EditorBar from '../../components/features/editor/editor-bar';
 import Toolbar from '../../components/features/editor/toolbar';
@@ -19,7 +19,8 @@ import type { PageBackground } from '../../context/editor-context';
 function EditorContent() {
   const { bookId } = useParams<{ bookId: string }>();
   const location = useLocation();
-  const { state, dispatch, loadBook, undo, redo, saveBook, canAccessEditor, canEditCanvas } = useEditor();
+  const navigate = useNavigate();
+  const { state, dispatch, loadBook, undo, redo, saveBook, canAccessEditor, canEditCanvas, ensurePagesLoaded } = useEditor();
   const toolSettingsPanelRef = useRef<ToolSettingsPanelRef>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [previewContent, setPreviewContent] = useState<'preview' | 'questions' | 'manager'>('preview');
@@ -565,6 +566,65 @@ function EditorContent() {
       }
     }
   }, [bookId, loadBook, dispatch]);
+
+  // Handle page parameter from URL on book load
+  const pageParamRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!state.currentBook || !bookId) return;
+    
+    const searchParams = new URLSearchParams(location.search);
+    const pageParam = searchParams.get('page');
+    
+    // Only process if page parameter changed (to avoid loops)
+    if (pageParam && pageParam !== pageParamRef.current) {
+      pageParamRef.current = pageParam;
+      const requestedPageNumber = parseInt(pageParam, 10);
+      if (!isNaN(requestedPageNumber) && requestedPageNumber >= 1) {
+        // Get total pages count
+        const totalPages = state.pagePagination?.totalPages ?? 
+          (state.currentBook.pages.length 
+            ? Math.max(...state.currentBook.pages.map((p) => p.pageNumber ?? 0), 0)
+            : state.currentBook.pages.length);
+        
+        // Validate page number
+        if (requestedPageNumber <= totalPages) {
+          // Find page index by pageNumber
+          const pageIndex = state.currentBook.pages.findIndex(
+            (page) => page.pageNumber === requestedPageNumber
+          );
+          
+          if (pageIndex !== -1) {
+            // Page found, navigate to it
+            ensurePagesLoaded(pageIndex, pageIndex + 1);
+            dispatch({ type: 'SET_ACTIVE_PAGE', payload: pageIndex });
+          } else {
+            // Page not loaded yet, try to load it
+            ensurePagesLoaded(requestedPageNumber - 1, requestedPageNumber);
+            dispatch({ type: 'SET_ACTIVE_PAGE', payload: requestedPageNumber - 1 });
+          }
+        }
+      }
+    } else if (!pageParam) {
+      // Reset ref when page param is removed
+      pageParamRef.current = null;
+    }
+  }, [state.currentBook, bookId, location.search, dispatch, ensurePagesLoaded]);
+
+  // Update URL when active page changes
+  const lastPageNumberRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!state.currentBook || !bookId) return;
+    
+    const currentPageNumber = state.currentBook.pages[state.activePageIndex]?.pageNumber ?? (state.activePageIndex + 1);
+    
+    // Only update URL if page number actually changed
+    if (lastPageNumberRef.current !== currentPageNumber) {
+      lastPageNumberRef.current = currentPageNumber;
+      const searchParams = new URLSearchParams(location.search);
+      searchParams.set('page', currentPageNumber.toString());
+      navigate(`/editor/${bookId}?${searchParams.toString()}`, { replace: true });
+    }
+  }, [state.activePageIndex, state.currentBook, bookId, navigate]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

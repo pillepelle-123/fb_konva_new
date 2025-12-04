@@ -1,7 +1,7 @@
 import { ToolButton } from './tool-button';
 import { ToolPopover } from './tool-popover';
 import { ToolSettingsPopover } from './tool-settings-popover';
-import { type Icon, Info, Hand, Brush, Pipette, Square, Sticker, MessageCircle, MessageCircleQuestionMark, MessageCircleMore, Search, SquareMousePointer, Magnet, MessageCircleHeart, Paintbrush, Image } from 'lucide-react';
+import { type Icon, Info, Hand, Brush, Pipette, Square, Sticker, MessageCircle, MessageCircleQuestionMark, MessageCircleMore, MessageCirclePlus, Search, SquareMousePointer, Magnet, MessageCircleHeart, Paintbrush, Image } from 'lucide-react';
 import { useState, forwardRef, useImperativeHandle } from 'react';
 import { Button } from '../../../ui/primitives/button';
 import { ShortcutsDialog } from './shortcuts-dialog';
@@ -174,7 +174,7 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
 
         {/* <Separator className="mb-2" /> */}
 
-        {/* Row 4: Zoom + Rich Text */}
+        {/* Row 4: Zoom + QnA */}
         <div className={`${isExpanded ? 'grid grid-cols-2 gap-1' : 'space-y-1'} mb-1`}>
           <ToolButton
             id="zoom"
@@ -187,6 +187,20 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
             onClick={() => onToolSelect('zoom')}
           />
           <ToolButton
+            id="qna"
+            label="Q&A"
+            icon={MessageCirclePlus}
+            isActive={activeTool === 'qna'}
+            isExpanded={false}
+            userRole={userRole}
+            isOnAssignedPage={isOnAssignedPage}
+            onClick={() => onToolSelect('qna')}
+          />
+        </div>
+        
+        {/* Row 5: Rich Text + Free Text */}
+        <div className={`${isExpanded ? 'grid grid-cols-2 gap-1' : 'space-y-1'} mb-2`}>
+          <ToolButton
             id="qna_inline"
             label="Rich Text"
             icon={MessageCircleMore}
@@ -196,10 +210,6 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
             isOnAssignedPage={isOnAssignedPage}
             onClick={() => onToolSelect('qna_inline')}
           />
-        </div>
-        
-        {/* Row 5: Free Text */}
-        <div className={`${isExpanded ? 'grid grid-cols-2 gap-1' : 'space-y-1'} mb-2`}>
           <ToolButton
             id="free_text"
             label="Free Text"
