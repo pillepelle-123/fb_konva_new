@@ -1,5 +1,5 @@
-import { useMemo, useRef, useEffect } from 'react';
-import { Shape, Rect } from 'react-konva';
+import React, { useMemo, useRef, useEffect, forwardRef } from 'react';
+import { Shape, Rect, Path } from 'react-konva';
 import { v4 as uuidv4 } from 'uuid';
 import BaseCanvasItem, { type CanvasItemProps } from './base-canvas-item';
 import { useEditor } from '../../../../context/editor-context';
@@ -7,6 +7,7 @@ import { useAuth } from '../../../../context/auth-context';
 import { getToolDefaults } from '../../../../utils/tool-defaults';
 import type { CanvasElement } from '../../../../context/editor-context';
 import type Konva from 'konva';
+import rough from 'roughjs';
 
 type ParagraphSpacing = 'small' | 'medium' | 'large';
 
@@ -27,9 +28,16 @@ interface TextRun {
   style: RichTextStyle;
 }
 
+interface LinePosition {
+  y: number;
+  lineHeight: number;
+  style: RichTextStyle;
+}
+
 interface LayoutResult {
   runs: TextRun[];
   contentHeight: number;
+  linePositions: LinePosition[];
 }
 
 type QnaSettings = {
@@ -54,6 +62,11 @@ interface QnaCanvasElement extends CanvasElement {
   borderWidth?: number;
   borderOpacity?: number;
   cornerRadius?: number;
+  ruledLines?: boolean;
+  ruledLinesWidth?: number;
+  ruledLinesTheme?: string;
+  ruledLinesColor?: string;
+  ruledLinesOpacity?: number;
 }
 
 type TempAnswerEntry = {
@@ -190,165 +203,172 @@ function createLayout(params: {
   const { questionText, answerText, questionStyle, answerStyle, width, height, padding, ctx } = params;
   const availableWidth = Math.max(10, width - padding * 2);
   const runs: TextRun[] = [];
-  let cursorY = padding;
-
-  const questionLines = wrapText(questionText, questionStyle, availableWidth, ctx);
+  const linePositions: LinePosition[] = [];
+  
+  // Calculate line heights for both styles
   const questionLineHeight = getLineHeight(questionStyle);
-
+  const answerLineHeight = getLineHeight(answerStyle);
+  
+  // Baseline offset: text baseline is typically at fontSize * 0.8 from top
+  // When using textBaseline = 'top', we need to adjust Y position
+  const questionBaselineOffset = questionStyle.fontSize * 0.8;
+  const answerBaselineOffset = answerStyle.fontSize * 0.8;
+  
+  // For combined lines, use the larger baseline offset to align both texts
+  const combinedBaselineOffset = Math.max(questionBaselineOffset, answerBaselineOffset);
+  
+  let cursorY = padding;
+  const questionLines = wrapText(questionText, questionStyle, availableWidth, ctx);
+  const lastQuestionLineWidth = questionLines.length ? questionLines[questionLines.length - 1].width : 0;
+  
+  // Store Y positions for each question line
+  const questionLinePositions: number[] = [];
+  
+  // First pass: render question lines and track their baseline positions
   questionLines.forEach((line) => {
     if (line.text) {
+      // Calculate baseline Y position: cursorY (top of line) + baseline offset
+      const baselineY = cursorY + questionBaselineOffset;
+      questionLinePositions.push(baselineY);
       runs.push({
         text: line.text,
         x: padding,
-        y: cursorY,
+        y: baselineY, // Store baseline position directly
         style: questionStyle
       });
+      // Track line position for ruled lines (position line slightly below text baseline)
+      linePositions.push({
+        y: baselineY + questionStyle.fontSize * 0.15,
+        lineHeight: questionLineHeight,
+        style: questionStyle
+      });
+      cursorY += questionLineHeight;
+    } else {
+      // Empty line - still track position
+      const baselineY = cursorY + questionBaselineOffset;
+      questionLinePositions.push(baselineY);
+      // Track empty line position for ruled lines
+      linePositions.push({
+        y: baselineY + questionStyle.fontSize * 0.15,
+        lineHeight: questionLineHeight,
+        style: questionStyle
+      });
+      cursorY += questionLineHeight;
     }
-    cursorY += questionLineHeight;
   });
 
-  const lastQuestionLineWidth = questionLines.length ? questionLines[questionLines.length - 1].width : 0;
-  const lastQuestionLineY = questionLines.length ? cursorY - questionLineHeight : padding;
-
-  const answerLines = wrapText(answerText, answerStyle, availableWidth, ctx);
-  const answerLineHeight = getLineHeight(answerStyle);
   const inlineGap = Math.min(32, answerStyle.fontSize * 0.5);
   let contentHeight = cursorY;
 
   let startAtSameLine = false;
-  let remainingAnswerLines = answerLines;
+  let remainingAnswerText = answerText;
+  const lastQuestionLineY = questionLinePositions.length > 0 ? questionLinePositions[questionLinePositions.length - 1] : padding;
 
-  if (questionLines.length > 0 && answerLines.length > 0) {
+  // Check if answer can start on the same line as the last question line
+  if (questionLines.length > 0 && answerText && answerText.trim()) {
     const inlineAvailable = availableWidth - lastQuestionLineWidth - inlineGap;
     
-    // Check if question line is full (with tolerance for rounding errors)
-    const isQuestionLineFull = lastQuestionLineWidth >= availableWidth - 2; // 2px tolerance
-    
-    // Only try to place answer on same line if question line is NOT full and there's minimum space
-    if (!isQuestionLineFull && inlineAvailable > 5) {
-      // Get words from first answer line and try to fit them into inlineAvailable
-      const firstAnswerLineText = answerLines[0].text;
-      const words = firstAnswerLineText.split(' ').filter(Boolean);
+    // Split answer into words to check if at least the first word fits
+    const answerWords = answerText.split(' ').filter(Boolean);
+    if (answerWords.length > 0) {
+      const firstWordWidth = measureText(answerWords[0], answerStyle, ctx);
       
-      if (words.length > 0) {
-        const wordsThatFit: string[] = [];
+      if (inlineAvailable > firstWordWidth) {
+        startAtSameLine = true;
         
-        for (const word of words) {
-          const wordWidth = measureText(word, answerStyle, ctx);
-          const testLine = wordsThatFit.length > 0 ? `${wordsThatFit.join(' ')} ${word}` : word;
-          const testWidth = measureText(testLine, answerStyle, ctx);
+        // Build text that fits on the same line
+        let inlineText = '';
+        let wordsUsed = 0;
+        
+        for (const word of answerWords) {
+          const testText = inlineText ? `${inlineText} ${word}` : word;
+          const testWidth = measureText(testText, answerStyle, ctx);
           
-          // Check if word fits (either alone or with previous words)
           if (testWidth <= inlineAvailable) {
-            wordsThatFit.push(word);
+            inlineText = testText;
+            wordsUsed++;
           } else {
-            // Word doesn't fit in inlineAvailable
-            // IMPORTANT: Only break word if it's too long for a FULL line (availableWidth)
-            // If word fits in a full line but not in inlineAvailable, move entire word to next line
-            if (wordsThatFit.length === 0) {
-              // This is the first word - check if we should break it or move it
-              if (wordWidth > availableWidth) {
-                // Word is too long for even a full line - need to break it character by character
-                // Break using availableWidth (full line width), not inlineAvailable
-                let charLine = '';
-                for (let i = 0; i < word.length; i++) {
-                  const testChar = charLine + word[i];
-                  const charWidth = measureText(testChar, answerStyle, ctx);
-                  if (charWidth <= availableWidth) {
-                    charLine = testChar;
-                  } else {
-                    break;
-                  }
-                }
-                if (charLine.length > 0) {
-                  // Only place broken part on same line if it fits in inlineAvailable
-                  const charLineWidth = measureText(charLine, answerStyle, ctx);
-                  if (charLineWidth <= inlineAvailable) {
-                    wordsThatFit.push(charLine);
-                    // Remaining part goes to next line
-                    const remainingPart = word.substring(charLine.length);
-                    if (remainingPart.length > 0) {
-                      const remainingText = remainingPart + (words.length > 1 ? ' ' + words.slice(1).join(' ') : '');
-                      const remainingLine = {
-                        text: remainingText,
-                        width: measureText(remainingText, answerStyle, ctx)
-                      };
-                      remainingAnswerLines = [remainingLine, ...answerLines.slice(1)];
-                    } else {
-                      if (words.length > 1) {
-                        const remainingText = words.slice(1).join(' ');
-                        const remainingLine = {
-                          text: remainingText,
-                          width: measureText(remainingText, answerStyle, ctx)
-                        };
-                        remainingAnswerLines = [remainingLine, ...answerLines.slice(1)];
-                      } else {
-                        remainingAnswerLines = answerLines.slice(1);
-                      }
-                    }
-                  } else {
-                    // Broken part doesn't fit in inlineAvailable - move entire word to next line
-                    // Don't break it, just move the whole word
-                    break;
-                  }
-                } else {
-                  // Can't even fit first character in full line - move entire word to next line
-                  break;
-                }
-              } else {
-                // Word fits in a full line but not in inlineAvailable
-                // Move entire word (and all remaining words) to next line - don't break it
-                break;
-              }
-            } else {
-              // We already have some words that fit - remaining words go to next line
-              const remainingWords = words.slice(wordsThatFit.length);
-              const remainingText = remainingWords.join(' ');
-              const remainingLine = {
-                text: remainingText,
-                width: measureText(remainingText, answerStyle, ctx)
-              };
-              remainingAnswerLines = [remainingLine, ...answerLines.slice(1)];
-              break;
-            }
+            break;
           }
         }
         
-        // If we have words that fit, place them on the same line
-        if (wordsThatFit.length > 0) {
-          const firstAnswerTextOnSameLine = wordsThatFit.join(' ');
-          startAtSameLine = true;
+        // Add inline text if we have at least one word
+        if (inlineText && wordsUsed > 0) {
+          // Calculate Y position for combined line: align both texts to the same baseline
+          // Use the larger baseline offset to ensure both texts align properly
+          // lastQuestionLineY is already a baseline position (from questionBaselineOffset)
+          // We need to adjust it to the combined baseline (larger of the two)
+          const combinedBaselineY = lastQuestionLineY + (combinedBaselineOffset - questionBaselineOffset);
           
+          // Update the last question line Y position to use combined baseline
+          const lastQuestionRunIndex = runs.length - 1;
+          if (lastQuestionRunIndex >= 0 && runs[lastQuestionRunIndex].style === questionStyle) {
+            runs[lastQuestionRunIndex].y = combinedBaselineY;
+          }
+          
+          // Add answer text aligned to the same baseline
+          // Both texts use the same baseline Y position
           runs.push({
-            text: firstAnswerTextOnSameLine,
+            text: inlineText,
             x: padding + lastQuestionLineWidth + inlineGap,
-            y: lastQuestionLineY,
+            y: combinedBaselineY, // Same baseline as question
             style: answerStyle
           });
           
-          // If we used all words from first line, remove it from remaining lines
-          if (wordsThatFit.length === words.length && !remainingAnswerLines.some(line => line.text === firstAnswerLineText)) {
-            remainingAnswerLines = answerLines.slice(1);
+          // Update cursorY to account for combined line height (use larger line height)
+          const combinedLineHeight = Math.max(questionLineHeight, answerLineHeight);
+          cursorY = padding + ((questionLines.length - 1) * questionLineHeight) + combinedLineHeight;
+          
+          // Update the last line position for ruled lines (use combined line height)
+          if (linePositions.length > 0) {
+            linePositions[linePositions.length - 1] = {
+              y: combinedBaselineY + Math.max(questionStyle.fontSize, answerStyle.fontSize) * 0.15,
+              lineHeight: combinedLineHeight,
+              style: answerStyle // Use answer style for combined line
+            };
           }
-          // Otherwise, remainingAnswerLines was already set correctly in the loop above
+          
+          // Get remaining text (words not used + rest of answer)
+          const remainingWords = answerWords.slice(wordsUsed);
+          remainingAnswerText = remainingWords.join(' ');
         } else {
-          // No words fit - ensure we don't skip a line
-          // Keep the original first answer line intact for next line
-          // This ensures the first answer line appears on the next line, not skipped
-          remainingAnswerLines = answerLines;
+          // No words fit, don't start on same line
+          startAtSameLine = false;
         }
       }
     }
   }
 
+  // Wrap remaining answer text for new lines
+  const remainingAnswerLines = startAtSameLine && remainingAnswerText 
+    ? wrapText(remainingAnswerText, answerStyle, availableWidth, ctx)
+    : wrapText(answerText, answerStyle, availableWidth, ctx);
+
+  // Start answer on new line if not on same line as question
   let answerCursorY = startAtSameLine ? cursorY : cursorY + (questionLines.length ? answerLineHeight * 0.2 : 0);
 
   remainingAnswerLines.forEach((line) => {
     if (line.text) {
+      // Calculate baseline Y position for answer-only lines
+      const answerBaselineY = answerCursorY + answerBaselineOffset;
       runs.push({
         text: line.text,
         x: padding,
-        y: answerCursorY,
+        y: answerBaselineY, // Store baseline position directly
+        style: answerStyle
+      });
+      // Track line position for ruled lines (position line slightly below text baseline)
+      linePositions.push({
+        y: answerBaselineY + answerStyle.fontSize * 0.15,
+        lineHeight: answerLineHeight,
+        style: answerStyle
+      });
+    } else {
+      // Track empty line position for ruled lines
+      const answerBaselineY = answerCursorY + answerBaselineOffset;
+      linePositions.push({
+        y: answerBaselineY + answerStyle.fontSize * 0.15,
+        lineHeight: answerLineHeight,
         style: answerStyle
       });
     }
@@ -359,45 +379,52 @@ function createLayout(params: {
 
   return {
     runs,
-    contentHeight
+    contentHeight,
+    linePositions
   };
 }
 
-const RichTextShape = ({
-  runs,
-  width,
-  height
-}: {
+const RichTextShape = forwardRef<Konva.Shape, {
   runs: TextRun[];
   width: number;
   height: number;
-}) => {
-  return (
-    <Shape
-      listening={false}
-      width={width}
-      height={height}
-      sceneFunc={(ctx, shape) => {
-        ctx.save();
-        ctx.textBaseline = 'top';
-        runs.forEach((run) => {
-          ctx.font = buildFont(run.style);
-          ctx.fillStyle = run.style.fontColor;
-          ctx.globalAlpha = run.style.fontOpacity ?? 1;
-          ctx.fillText(run.text, run.x, run.y);
-        });
-        ctx.restore();
-        ctx.fillStrokeShape(shape);
-      }}
-    />
-  );
-};
+}>(({ runs, width, height }, ref) => (
+  <Shape
+    ref={ref}
+    listening={false}
+    width={width}
+    height={height}
+    sceneFunc={(ctx, shape) => {
+      ctx.save();
+      // Use 'alphabetic' baseline for proper text alignment
+      // Y positions in runs are already baseline positions
+      ctx.textBaseline = 'alphabetic';
+      runs.forEach((run) => {
+        ctx.font = buildFont(run.style);
+        ctx.fillStyle = run.style.fontColor;
+        ctx.globalAlpha = run.style.fontOpacity ?? 1;
+        // Y position is already the baseline position
+        ctx.fillText(run.text, run.x, run.y);
+      });
+      ctx.restore();
+      ctx.fillStrokeShape(shape);
+    }}
+  />
+));
+RichTextShape.displayName = 'RichTextShape';
 
 export default function TextboxQna(props: CanvasItemProps) {
   const { element } = props;
   const qnaElement = element as QnaCanvasElement;
   const { state, dispatch } = useEditor();
   const { user } = useAuth();
+  const boxWidth = element.width ?? 0;
+  const boxHeight = element.height ?? 0;
+  const textShapeRef = useRef<Konva.Shape>(null);
+  const textShapeBoxRef = useRef<{ width: number; height: number }>({
+    width: boxWidth,
+    height: boxHeight
+  });
   const textRef = useRef<Konva.Rect>(null);
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
@@ -409,7 +436,7 @@ export default function TextboxQna(props: CanvasItemProps) {
 
   const qnaDefaults = useMemo(() => {
     return getToolDefaults(
-      'qna_inline',
+      'qna',
       pageTheme,
       bookTheme,
       element,
@@ -432,7 +459,7 @@ export default function TextboxQna(props: CanvasItemProps) {
 
   const questionStyle = useMemo(() => {
     const style = {
-      fontSize: qnaDefaults.questionSettings?.fontSize || qnaElement.questionSettings?.fontSize || qnaDefaults.fontSize || 42,
+      fontSize: qnaElement.questionSettings?.fontSize ?? qnaDefaults.questionSettings?.fontSize ?? qnaDefaults.fontSize ?? 42,
       fontFamily: qnaElement.questionSettings?.fontFamily || qnaDefaults.questionSettings?.fontFamily || qnaDefaults.fontFamily || 'Arial, sans-serif',
       fontBold: qnaElement.questionSettings?.fontBold ?? qnaDefaults.questionSettings?.fontBold ?? false,
       fontItalic: qnaElement.questionSettings?.fontItalic ?? qnaDefaults.questionSettings?.fontItalic ?? false,
@@ -441,11 +468,21 @@ export default function TextboxQna(props: CanvasItemProps) {
       paragraphSpacing: qnaElement.questionSettings?.paragraphSpacing || qnaDefaults.questionSettings?.paragraphSpacing || element.paragraphSpacing || 'small'
     } as RichTextStyle;
     return style;
-  }, [element.paragraphSpacing, qnaDefaults, qnaElement.questionSettings]);
+  }, [
+    element.paragraphSpacing, 
+    qnaDefaults, 
+    qnaElement.questionSettings?.fontSize,
+    qnaElement.questionSettings?.fontFamily,
+    qnaElement.questionSettings?.fontBold,
+    qnaElement.questionSettings?.fontItalic,
+    qnaElement.questionSettings?.fontColor,
+    qnaElement.questionSettings?.fontOpacity,
+    qnaElement.questionSettings?.paragraphSpacing
+  ]);
 
   const answerStyle = useMemo(() => {
     const style = {
-      fontSize: qnaElement.answerSettings?.fontSize || qnaDefaults.answerSettings?.fontSize || qnaDefaults.fontSize || 48,
+      fontSize: qnaElement.answerSettings?.fontSize ?? qnaDefaults.answerSettings?.fontSize ?? qnaDefaults.fontSize ?? 48,
       fontFamily: qnaElement.answerSettings?.fontFamily || qnaDefaults.answerSettings?.fontFamily || qnaDefaults.fontFamily || 'Arial, sans-serif',
       fontBold: qnaElement.answerSettings?.fontBold ?? qnaDefaults.answerSettings?.fontBold ?? false,
       fontItalic: qnaElement.answerSettings?.fontItalic ?? qnaDefaults.answerSettings?.fontItalic ?? false,
@@ -454,7 +491,17 @@ export default function TextboxQna(props: CanvasItemProps) {
       paragraphSpacing: qnaElement.answerSettings?.paragraphSpacing || qnaDefaults.answerSettings?.paragraphSpacing || element.paragraphSpacing || 'medium'
     } as RichTextStyle;
     return style;
-  }, [element.paragraphSpacing, qnaDefaults, qnaElement.answerSettings]);
+  }, [
+    element.paragraphSpacing, 
+    qnaDefaults, 
+    qnaElement.answerSettings?.fontSize,
+    qnaElement.answerSettings?.fontFamily,
+    qnaElement.answerSettings?.fontBold,
+    qnaElement.answerSettings?.fontItalic,
+    qnaElement.answerSettings?.fontColor,
+    qnaElement.answerSettings?.fontOpacity,
+    qnaElement.answerSettings?.paragraphSpacing
+  ]);
 
   const individualSettings = qnaElement.qnaIndividualSettings ?? false;
   const effectiveQuestionStyle = useMemo(
@@ -512,15 +559,176 @@ export default function TextboxQna(props: CanvasItemProps) {
       answerText: answerContent,
       questionStyle: effectiveQuestionStyle,
       answerStyle,
-      width: element.width,
-      height: element.height,
+      width: boxWidth,
+      height: boxHeight,
       padding,
       ctx: canvasContext
     });
-  }, [answerContent, answerStyle, effectiveQuestionStyle, element.height, element.width, padding, preparedQuestionText]);
+  }, [answerContent, answerStyle, effectiveQuestionStyle, boxHeight, boxWidth, padding, preparedQuestionText]);
+
+  // Generate ruled lines if enabled
+  const ruledLines = qnaElement.ruledLines ?? false;
+  const ruledLinesWidth = qnaElement.ruledLinesWidth ?? 0.8;
+  const ruledLinesTheme = qnaElement.ruledLinesTheme || 'rough';
+  const ruledLinesColor = qnaElement.ruledLinesColor || '#1f2937';
+  const ruledLinesOpacity = qnaElement.ruledLinesOpacity ?? 1;
+
+  const ruledLinesElements = useMemo(() => {
+    if (!ruledLines || !layout.linePositions || layout.linePositions.length === 0) {
+      return [];
+    }
+
+    const startX = padding;
+    const endX = boxWidth - padding;
+    const elements: React.ReactElement[] = [];
+
+    const generateRuledLineElement = (y: number, startX: number, endX: number): React.ReactElement => {
+      if (ruledLinesTheme === 'rough') {
+        try {
+          const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          const rc = rough.svg(svg);
+          
+          const roughLine = rc.line(startX, y, endX, y, {
+            roughness: 2,
+            strokeWidth: ruledLinesWidth,
+            stroke: ruledLinesColor,
+            seed: seed + y
+          });
+          
+          const paths = roughLine.querySelectorAll('path');
+          let combinedPath = '';
+          paths.forEach(path => {
+            const d = path.getAttribute('d');
+            if (d) combinedPath += d + ' ';
+          });
+          
+          if (combinedPath) {
+            return (
+              <Path
+                key={`ruled-line-${y}`}
+                data={combinedPath.trim()}
+                stroke={ruledLinesColor}
+                strokeWidth={ruledLinesWidth}
+                opacity={ruledLinesOpacity}
+                strokeScaleEnabled={true}
+                listening={false}
+              />
+            );
+          }
+        } catch {
+          // Fallback to simple line if rough.js fails
+          return (
+            <Path
+              key={`ruled-line-${y}`}
+              data={`M ${startX} ${y} L ${endX} ${y}`}
+              stroke={ruledLinesColor}
+              strokeWidth={ruledLinesWidth}
+              opacity={ruledLinesOpacity}
+              strokeScaleEnabled={true}
+              listening={false}
+            />
+          );
+        }
+      }
+      
+      // Default: simple line
+      return (
+        <Path
+          key={`ruled-line-${y}`}
+          data={`M ${startX} ${y} L ${endX} ${y}`}
+          stroke={ruledLinesColor}
+          strokeWidth={ruledLinesWidth}
+          opacity={ruledLinesOpacity}
+          strokeScaleEnabled={true}
+          listening={false}
+        />
+      );
+    };
+
+    layout.linePositions.forEach((linePos) => {
+      // Only generate lines that are within the box dimensions (0 <= y <= boxHeight)
+      // This ensures ruled lines only appear inside the visible border area
+      if (linePos.y >= 0 && linePos.y <= boxHeight) {
+        const lineElement = generateRuledLineElement(linePos.y, startX, endX);
+        elements.push(lineElement);
+      }
+    });
+
+    return elements;
+  }, [ruledLines, layout.linePositions, padding, boxWidth, boxHeight, ruledLinesWidth, ruledLinesTheme, ruledLinesColor, ruledLinesOpacity, element.id]);
 
   const showBackground = qnaElement.backgroundEnabled && qnaElement.backgroundColor;
   const showBorder = qnaElement.borderEnabled && qnaElement.borderColor && qnaElement.borderWidth !== undefined;
+
+  useEffect(() => {
+    textShapeBoxRef.current = { width: boxWidth, height: boxHeight };
+  }, [boxWidth, boxHeight]);
+
+  useEffect(() => {
+    const shape = textShapeRef.current;
+    if (!shape) return;
+
+    type ShapeWithOriginal = Konva.Shape & {
+      __qnaOriginalGetClientRect?: Konva.Shape['getClientRect'];
+    };
+
+    const shapeWithOriginal = shape as ShapeWithOriginal;
+
+    if (!shapeWithOriginal.__qnaOriginalGetClientRect) {
+      shapeWithOriginal.__qnaOriginalGetClientRect = shape.getClientRect.bind(shape);
+    }
+
+    const limitToTextbox = ((config?: Parameters<Konva.Shape['getClientRect']>[0]) => {
+      // Always use box dimensions for getClientRect to ensure consistent resize behavior
+      // The transformer needs consistent dimensions to calculate resize correctly
+      // If we return the full text bounding box during resize, it causes incorrect calculations
+      
+      // Skip transform calculation if requested (for performance)
+      if (config?.skipTransform && shapeWithOriginal.__qnaOriginalGetClientRect) {
+        return shapeWithOriginal.__qnaOriginalGetClientRect(config);
+      }
+
+      const { width, height } = textShapeBoxRef.current;
+      const safeWidth = Math.max(width, 0);
+      const safeHeight = Math.max(height, 0);
+
+      const transform = shape.getAbsoluteTransform().copy();
+      const topLeft = transform.point({ x: 0, y: 0 });
+      const bottomRight = transform.point({ x: safeWidth, y: safeHeight });
+
+      let rect = {
+        x: Math.min(topLeft.x, bottomRight.x),
+        y: Math.min(topLeft.y, bottomRight.y),
+        width: Math.abs(bottomRight.x - topLeft.x),
+        height: Math.abs(bottomRight.y - topLeft.y)
+      };
+
+      if (config?.relativeTo) {
+        const relativeTransform = config.relativeTo.getAbsoluteTransform().copy().invert();
+        const relativeTopLeft = relativeTransform.point({ x: rect.x, y: rect.y });
+        const relativeBottomRight = relativeTransform.point({ x: rect.x + rect.width, y: rect.y + rect.height });
+
+        rect = {
+          x: Math.min(relativeTopLeft.x, relativeBottomRight.x),
+          y: Math.min(relativeTopLeft.y, relativeBottomRight.y),
+          width: Math.abs(relativeBottomRight.x - relativeTopLeft.x),
+          height: Math.abs(relativeBottomRight.y - relativeTopLeft.y)
+        };
+      }
+
+      return rect;
+    }) as typeof shape.getClientRect;
+
+    shape.getClientRect = limitToTextbox;
+
+    return () => {
+      if (shapeWithOriginal.__qnaOriginalGetClientRect) {
+        shape.getClientRect = shapeWithOriginal.__qnaOriginalGetClientRect;
+        delete shapeWithOriginal.__qnaOriginalGetClientRect;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const globalWindow = window as ExtendedWindow;
@@ -915,15 +1123,24 @@ export default function TextboxQna(props: CanvasItemProps) {
     }
   };
 
+  // Create a hit area that matches only the box dimensions (not the extended text)
+  const hitArea = useMemo(() => ({
+    x: 0,
+    y: 0,
+    width: boxWidth,
+    height: boxHeight
+  }), [boxWidth, boxHeight]);
+
   return (
     <BaseCanvasItem
       {...props}
       onDoubleClick={handleDoubleClick}
+      hitArea={hitArea}
     >
       {showBackground && (
         <Rect
-          width={element.width}
-          height={element.height}
+          width={boxWidth}
+          height={boxHeight}
           fill={qnaElement.backgroundColor}
           opacity={qnaElement.backgroundOpacity ?? 1}
           cornerRadius={qnaElement.cornerRadius ?? qnaDefaults.cornerRadius ?? 0}
@@ -933,8 +1150,8 @@ export default function TextboxQna(props: CanvasItemProps) {
 
       {showBorder && (
         <Rect
-          width={element.width}
-          height={element.height}
+          width={boxWidth}
+          height={boxHeight}
           stroke={qnaElement.borderColor}
           strokeWidth={qnaElement.borderWidth}
           opacity={qnaElement.borderOpacity ?? 1}
@@ -943,13 +1160,19 @@ export default function TextboxQna(props: CanvasItemProps) {
         />
       )}
 
-      <RichTextShape runs={layout.runs} width={element.width} height={layout.contentHeight} />
+      {/* Text that can extend beyond the box */}
+      <RichTextShape ref={textShapeRef} runs={layout.runs} width={boxWidth} height={layout.contentHeight} />
+      
+      {/* Ruled lines underneath each text row */}
+      {ruledLines && ruledLinesElements}
+      
+      {/* Invisible hit area for double-click detection - limited to box dimensions */}
       <Rect
         ref={textRef}
         x={0}
         y={0}
-        width={element.width}
-        height={element.height}
+        width={boxWidth}
+        height={boxHeight}
         fill="transparent"
         listening={false}
       />

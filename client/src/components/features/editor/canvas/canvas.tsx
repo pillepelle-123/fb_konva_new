@@ -834,6 +834,102 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     }
   }, [state.selectedElementIds, isDragging, currentPage]);
   
+  // Limit transformer dimensions for QnA elements to box dimensions only
+  // This ensures the selection rectangle only shows the box, not the extended text
+  useEffect(() => {
+    if (transformerRef.current && state.selectedElementIds.length === 1 && currentPage) {
+      const transformer = transformerRef.current;
+      const elementId = state.selectedElementIds[0];
+      const element = currentPage.elements.find(el => el.id === elementId);
+      
+      if (element && element.type === 'text' && element.textType === 'qna') {
+        // Track if transformer is actively transforming
+        let isTransforming = false;
+        
+        // Listen for transform events
+        const handleTransformStart = () => {
+          isTransforming = true;
+        };
+        
+        const handleTransformEnd = () => {
+          isTransforming = false;
+        };
+        
+        // Delay to ensure transformer has updated
+        const timeoutId = setTimeout(() => {
+          if (!transformerRef.current) return;
+          
+          try {
+            const nodes = transformer.nodes();
+            if (nodes.length === 1) {
+              const node = nodes[0];
+              const boxWidth = element.width || 100;
+              const boxHeight = element.height || 100;
+              
+              // Override the transformer's getClientRect to return box dimensions
+              // This ensures the selection rectangle only shows the box
+              if (node && node.getClassName() === 'Group') {
+                const groupNode = node as Konva.Group;
+                
+                // Store original method if not already stored
+                if (!(transformer as any).__originalGetClientRect) {
+                  (transformer as any).__originalGetClientRect = transformer.getClientRect.bind(transformer);
+                }
+                
+                const originalGetClientRect = (transformer as any).__originalGetClientRect;
+                
+                // Set up event listeners
+                transformer.on('transformstart', handleTransformStart);
+                transformer.on('transformend', handleTransformEnd);
+                
+                // Override getClientRect to return box dimensions
+                transformer.getClientRect = function() {
+                  // During transform, use original method to allow resizing
+                  if (isTransforming) {
+                    return originalGetClientRect.call(this);
+                  }
+                  
+                  // Otherwise, limit to box dimensions for selection rectangle display
+                  const absPos = groupNode.getAbsolutePosition();
+                  
+                  return {
+                    x: absPos.x,
+                    y: absPos.y,
+                    width: boxWidth * zoom,
+                    height: boxHeight * zoom
+                  };
+                };
+                
+                transformer.forceUpdate();
+                transformer.getLayer()?.batchDraw();
+              }
+            }
+          } catch {
+            // Ignore errors
+          }
+        }, 100);
+        
+        return () => {
+          clearTimeout(timeoutId);
+          // Clean up event listeners
+          const transformer = transformerRef.current;
+          if (transformer) {
+            transformer.off('transformstart', handleTransformStart);
+            transformer.off('transformend', handleTransformEnd);
+          }
+        };
+      } else {
+        // Restore original getClientRect for non-QnA elements
+        if ((transformer as any).__originalGetClientRect) {
+          transformer.getClientRect = (transformer as any).__originalGetClientRect;
+          delete (transformer as any).__originalGetClientRect;
+          transformer.forceUpdate();
+          transformer.getLayer()?.batchDraw();
+        }
+      }
+    }
+  }, [state.selectedElementIds, currentPage, zoom]);
+  
   // Force transformer update when element dimensions change
   useEffect(() => {
     if (transformerRef.current && state.selectedElementIds.length > 0) {
