@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useEffect, forwardRef } from 'react';
+import React, { useMemo, useRef, useEffect, forwardRef, useState } from 'react';
 import { Shape, Rect, Path } from 'react-konva';
 import { v4 as uuidv4 } from 'uuid';
 import BaseCanvasItem, { type CanvasItemProps } from './base-canvas-item';
@@ -418,14 +418,24 @@ export default function TextboxQna(props: CanvasItemProps) {
   const qnaElement = element as QnaCanvasElement;
   const { state, dispatch } = useEditor();
   const { user } = useAuth();
-  const boxWidth = element.width ?? 0;
-  const boxHeight = element.height ?? 0;
+  const elementWidth = element.width ?? 0;
+  const elementHeight = element.height ?? 0;
+  
+  // Local state for dimensions during transform (to update visually without dispatch)
+  const [transformDimensions, setTransformDimensions] = useState<{ width: number; height: number } | null>(null);
+  
+  // Use transform dimensions during transform, otherwise use element dimensions
+  const boxWidth = transformDimensions?.width ?? elementWidth;
+  const boxHeight = transformDimensions?.height ?? elementHeight;
+  
   const textShapeRef = useRef<Konva.Shape>(null);
   const textShapeBoxRef = useRef<{ width: number; height: number }>({
     width: boxWidth,
     height: boxHeight
   });
   const textRef = useRef<Konva.Rect>(null);
+  const isTransformingRef = useRef(false);
+  const transformStartDimensionsRef = useRef<{ width: number; height: number } | null>(null);
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
   const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
@@ -664,6 +674,117 @@ export default function TextboxQna(props: CanvasItemProps) {
   useEffect(() => {
     textShapeBoxRef.current = { width: boxWidth, height: boxHeight };
   }, [boxWidth, boxHeight]);
+  
+  // Reset transform dimensions when element dimensions change to match transform dimensions
+  // This ensures we keep the visual state until the element is actually updated
+  useEffect(() => {
+    if (!isTransformingRef.current && transformDimensions) {
+      // Only reset if element dimensions match transform dimensions (update was successful)
+      if (Math.abs(elementWidth - transformDimensions.width) < 0.1 && 
+          Math.abs(elementHeight - transformDimensions.height) < 0.1) {
+        setTransformDimensions(null);
+      }
+    }
+  }, [elementWidth, elementHeight, transformDimensions]);
+
+  // Handle transform events to resize text properly (as per Konva documentation)
+  // Reset scale to 1 and update width/height instead
+  // We update dimensions only at transformEnd to avoid interrupting the transform process
+  useEffect(() => {
+    const handleTransformStart = (e: CustomEvent) => {
+      if (e.detail?.elementId !== element.id) return;
+      
+      isTransformingRef.current = true;
+      // Store initial dimensions at transform start (use element dimensions, not transform dimensions)
+      transformStartDimensionsRef.current = {
+        width: elementWidth,
+        height: elementHeight
+      };
+    };
+    
+    const handleTransform = (e: CustomEvent) => {
+      if (e.detail?.elementId !== element.id) return;
+      if (!isTransformingRef.current) return;
+      
+      // Get the Group node from the textRef (which is a child of the Group)
+      const rectNode = textRef.current;
+      if (!rectNode) return;
+      
+      const groupNode = rectNode.getParent();
+      if (!groupNode || groupNode.getClassName() !== 'Group') return;
+      
+      const scaleX = groupNode.scaleX();
+      const scaleY = groupNode.scaleY();
+      
+      // Only reset scale if it's not already 1 (to avoid unnecessary operations)
+      if (scaleX !== 1 || scaleY !== 1) {
+        // Get initial dimensions from when transform started
+        const startDims = transformStartDimensionsRef.current || { width: elementWidth, height: elementHeight };
+        
+        // Calculate new dimensions based on initial dimensions and current scale
+        const newWidth = Math.max(5, startDims.width * scaleX);
+        const newHeight = Math.max(5, startDims.height * scaleY);
+        
+        // Reset scale to 1 immediately (this is the key part from Konva docs)
+        // This allows the transform to continue smoothly
+        groupNode.scaleX(1);
+        groupNode.scaleY(1);
+        
+        // Update textShapeBoxRef for getClientRect calculations immediately
+        // This ensures the selection rectangle stays correct during transform
+        textShapeBoxRef.current = { width: newWidth, height: newHeight };
+        
+        // Update local state to visually update the component during transform
+        // This updates the boxWidth/boxHeight used for rendering without dispatch
+        setTransformDimensions({ width: newWidth, height: newHeight });
+        
+        // Store the new dimensions for update at transformEnd
+        transformStartDimensionsRef.current = {
+          width: newWidth,
+          height: newHeight
+        };
+      }
+    };
+    
+    const handleTransformEnd = (e: CustomEvent) => {
+      if (e.detail?.elementId !== element.id) return;
+      
+      // Apply the final dimensions update
+      const finalDims = transformStartDimensionsRef.current;
+      if (finalDims && (finalDims.width !== elementWidth || finalDims.height !== elementHeight)) {
+        dispatch({
+          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+          payload: {
+            id: element.id,
+            updates: {
+              width: finalDims.width,
+              height: finalDims.height
+            }
+          }
+        });
+        
+        // Keep transformDimensions until element dimensions are updated
+        // The useEffect will reset it when element dimensions match
+      } else {
+        // If dimensions didn't change, reset immediately
+        setTransformDimensions(null);
+      }
+      
+      // Reset flags (but keep transformDimensions until element updates)
+      isTransformingRef.current = false;
+      transformStartDimensionsRef.current = null;
+    };
+    
+    window.addEventListener('transformStart', handleTransformStart as EventListener);
+    window.addEventListener('transform', handleTransform as EventListener);
+    window.addEventListener('transformEnd', handleTransformEnd as EventListener);
+    
+    return () => {
+      window.removeEventListener('transformStart', handleTransformStart as EventListener);
+      window.removeEventListener('transform', handleTransform as EventListener);
+      window.removeEventListener('transformEnd', handleTransformEnd as EventListener);
+    };
+  }, [element.id, elementWidth, elementHeight, dispatch]);
 
   useEffect(() => {
     const shape = textShapeRef.current;
