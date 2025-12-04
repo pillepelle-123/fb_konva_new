@@ -710,6 +710,10 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
       // that are part of the answer area, not just the last question line
       const answerBaselineOffset = -(answerFontSize * getLineHeightMultiplier(aSpacing) * 0.15) + (answerFontSize * (answerFontSize >= 50 ? answerFontSize >= 96 ? answerFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1));
       
+      // Calculate question baseline offset for ruled lines under question text
+      // This should use question font size, not answer font size
+      const questionBaselineOffset = -(qFontSize * getLineHeightMultiplier(qSpacing) * 0.15) + (qFontSize * (qFontSize >= 50 ? qFontSize >= 96 ? qFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1));
+      
       // Generate lines for answer text
       // This must match exactly the text positioning logic:
       // - Combined line answer text: answerY = sharedBaseline - (aFontSize * 0.8)
@@ -756,18 +760,24 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
         if (questionLineCount > 1 || !canFitOnSameLine) {
           // Generate ruled lines for all question lines (starting from first question line)
           // Each question line should have a ruled line underneath it
-          // Use the same baseline calculation as answer lines for consistency
+          // IMPORTANT: Use question font size and question baseline offset for question lines
           // If answer fits on same line as last question, skip the last question line (it will get a ruled line from answer section)
           const maxQuestionLineIndex = (questionLineCount > 1 && canFitOnSameLine) 
             ? questionLineCount - 1  // Skip last line if answer fits on same line
             : questionLineCount;     // Include all lines if answer starts on new line
           
           for (let questionLineIndex = 0; questionLineIndex < maxQuestionLineIndex; questionLineIndex++) {
-            // Calculate baseline using the same formula as answer lines
-            // This ensures ruled lines are aligned consistently across all lines
-            const questionLineBaseline = effectivePadding + (questionLineIndex * combinedLineHeight) + textBaselineOffset + (maxFontSizeUsed * 0.6);
-            const baseline = questionLineBaseline + answerBaselineOffset + (answerFontSize * 0.6);
-            const lineY = baseline + (answerFontSize * 0.15);
+            // Calculate baseline for question line using question font size
+            // This matches the question text positioning: questionY = sharedBaseline - (qFontSize * 0.8)
+            // where sharedBaseline = effectivePadding + (questionLineIndex * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.8) - (number / 7)
+            // For ruled lines under question text, we need to position them based on question text size
+            // The question text Y position is: sharedBaseline - (qFontSize * 0.8)
+            // The ruled line should be positioned slightly below the question text baseline
+            const number = qFontSize - answerFontSize;
+            const sharedBaseline = effectivePadding + (questionLineIndex * combinedLineHeight) + textBaselineOffset + (maxFontSizeUsed * 0.8) - (number / 7);
+            const questionTextY = sharedBaseline - (qFontSize * 0.8);
+            // Position ruled line slightly below the question text (same logic as answer ruled lines)
+            const lineY = questionTextY + qFontSize + (qFontSize * 0.15);
             
             // Safety check: ensure lineY is a valid number
             if (isFinite(lineY) && !isNaN(lineY) && lineY < dynamicHeight - padding - 10) {
@@ -2131,23 +2141,70 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               const context = canvas.getContext('2d')!;
               context.font = `${qFontBold ? 'bold ' : ''}${qFontItalic ? 'italic ' : ''}${qFontSize}px ${qFontFamily}`;
               
+              // Helper function to break long words into multiple lines
+              const breakWordIntoLines = (word: string, maxWidth: number, context: CanvasRenderingContext2D): string[] => {
+                const lines: string[] = [];
+                let currentLine = '';
+                
+                for (let i = 0; i < word.length; i++) {
+                  const char = word[i];
+                  const testLine = currentLine + char;
+                  const testWidth = context.measureText(testLine).width;
+                  
+                  if (testWidth > maxWidth && currentLine.length > 0) {
+                    // Current line is full, start a new line
+                    lines.push(currentLine);
+                    currentLine = char;
+                  } else {
+                    currentLine = testLine;
+                  }
+                }
+                
+                if (currentLine.length > 0) {
+                  lines.push(currentLine);
+                }
+                
+                return lines.length > 0 ? lines : [word]; // Fallback to original word if empty
+              };
+              
               const questionWords = questionText.split(' ');
               let questionLines = [];
               let currentLine = '';
               let currentLineWidth = 0;
               
-              // Build question lines
+              // Build question lines with word breaking support
               for (const word of questionWords) {
-                const wordWithSpace = currentLine ? ' ' + word : word;
-                const wordWidth = context.measureText(wordWithSpace).width;
+                const wordAloneWidth = context.measureText(word).width;
                 
-                if (currentLineWidth + wordWidth <= textWidth) {
-                  currentLine += wordWithSpace;
-                  currentLineWidth += wordWidth;
+                // Check if word is too long and needs to be broken
+                if (wordAloneWidth > textWidth) {
+                  // Word is too long, break it into multiple lines
+                  if (currentLine) {
+                    // Save current line before breaking the word
+                    questionLines.push(currentLine);
+                    currentLine = '';
+                    currentLineWidth = 0;
+                  }
+                  
+                  // Break the word and add all parts as separate lines
+                  const brokenWordLines = breakWordIntoLines(word, textWidth, context);
+                  questionLines.push(...brokenWordLines);
+                  // Reset for next word
+                  currentLine = '';
+                  currentLineWidth = 0;
                 } else {
-                  if (currentLine) questionLines.push(currentLine);
-                  currentLine = word;
-                  currentLineWidth = context.measureText(word).width;
+                  // Word fits, try to add it to current line
+                  const wordWithSpace = currentLine ? ' ' + word : word;
+                  const wordWidth = context.measureText(wordWithSpace).width;
+                  
+                  if (currentLineWidth + wordWidth <= textWidth) {
+                    currentLine += wordWithSpace;
+                    currentLineWidth += wordWidth;
+                  } else {
+                    if (currentLine) questionLines.push(currentLine);
+                    currentLine = word;
+                    currentLineWidth = wordAloneWidth;
+                  }
                 }
               }
               if (currentLine) questionLines.push(currentLine);
@@ -2192,34 +2249,69 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                 
                 context.font = `${aFontBold ? 'bold ' : ''}${aFontItalic ? 'italic ' : ''}${aFontSize}px ${aFontFamily}`;
                 
+                // Helper function to break long words into multiple lines
+                const breakWordIntoLines = (word: string, maxWidth: number, context: CanvasRenderingContext2D): string[] => {
+                  const lines: string[] = [];
+                  let currentLine = '';
+                  
+                  for (let i = 0; i < word.length; i++) {
+                    const char = word[i];
+                    const testLine = currentLine + char;
+                    const testWidth = context.measureText(testLine).width;
+                    
+                    if (testWidth > maxWidth && currentLine.length > 0) {
+                      // Current line is full, start a new line
+                      lines.push(currentLine);
+                      currentLine = char;
+                    } else {
+                      currentLine = testLine;
+                    }
+                  }
+                  
+                  if (currentLine.length > 0) {
+                    lines.push(currentLine);
+                  }
+                  
+                  return lines.length > 0 ? lines : [word]; // Fallback to original word if empty
+                };
+                
                 // Check if there's enough space after the question to render answer on the same line
-                // We need to check if the first word of the answer actually fits
+                // IMPORTANT: If the last question line is full (width >= textWidth), the answer must start on a new line
+                // This ensures that even if the question contains a long word that spans multiple lines,
+                // the answer will always start directly after the last question line
                 const gap = 40;
-                const availableWidthAfterQuestion = textWidth - questionTextWidth - gap;
+                const lastQuestionLineWidth = context.measureText(lastQuestionLine).width;
+                const isLastQuestionLineFull = lastQuestionLineWidth >= textWidth - 1; // Allow 1px tolerance for rounding
+                const availableWidthAfterQuestion = textWidth - lastQuestionLineWidth - gap;
                 let canFitOnSameLine = false;
                 
-                // Only check if there's positive space available
-                if (availableWidthAfterQuestion > 0) {
+                // Only check if there's positive space available AND the last question line is not full
+                if (!isLastQuestionLineFull && availableWidthAfterQuestion > 0) {
                   // Get the first word of the answer to check if it fits
                   const firstAnswerLine = userText.split('\n')[0] || '';
                   const firstAnswerWord = firstAnswerLine.split(' ')[0] || '';
                   if (firstAnswerWord) {
                     const firstWordWidth = context.measureText(firstAnswerWord).width;
-                    // Check if the first word fits in the available space
-                    canFitOnSameLine = firstWordWidth <= availableWidthAfterQuestion;
+                    // Check if at least part of the first word fits in the available space
+                    // Even if the word is longer, we can break it, so we allow it if there's any space
+                    canFitOnSameLine = availableWidthAfterQuestion > 0;
                   } else {
                     // Empty answer text - can fit anywhere
                     canFitOnSameLine = true;
                   }
                 }
+                // If isLastQuestionLineFull is true, canFitOnSameLine remains false, 
+                // ensuring answer starts on a new line after the last question line
                 
                 // Handle line breaks in user text first
                 const userLines = userText.split('\n');
                 let currentLineY = questionEndY;
                 // Only treat as first line if answer can fit on same line as question
+                // If canFitOnSameLine is false, we should start on a new line after the question
                 let isFirstLine = canFitOnSameLine;
                 let wrappedSegmentsCount = 0; // Track how many wrapped segments from first line
-                let totalAnswerLineCount = 0; // Track total answer lines (including wrapped segments and subsequent lines)
+                // If answer doesn't fit on same line, start counting from 1 (first answer line after question)
+                let totalAnswerLineCount = canFitOnSameLine ? 0 : 1;
                 
                 userLines.forEach((line) => {
                   if (!line.trim() && !isFirstLine) {
@@ -2262,6 +2354,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                         wordIndex++;
                         continue;
                       }
+                      
                       const wordWithSpace = lineText ? ' ' + word : word;
                       const wordWidth = context.measureText(wordWithSpace).width;
                       
@@ -2272,13 +2365,59 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                         continue;
                       }
                       
+                      // Check if the word fits on the current line
                       if (lineWidth + wordWidth <= availableWidth) {
+                        // Word fits, add it to the line
                         lineText += wordWithSpace;
                         lineWidth += wordWidth;
                         wordIndex++;
                         innerIterationCount++;
                       } else {
-                        break;
+                        // Word doesn't fit
+                        // If we already have text on this line, break and start a new line
+                        if (lineText.length > 0) {
+                          break;
+                        }
+                        
+                        // If the line is empty and the word doesn't fit even alone,
+                        // we need to break the word character by character
+                        const wordAloneWidth = context.measureText(word).width;
+                        if (wordAloneWidth > availableWidth) {
+                          // Word is too long, break it into multiple lines
+                          const brokenWordLines = breakWordIntoLines(word, availableWidth, context);
+                          
+                          if (brokenWordLines.length > 0) {
+                            // Add the first part to current line
+                            lineText = brokenWordLines[0];
+                            lineWidth = context.measureText(brokenWordLines[0]).width;
+                            
+                            // Store remaining parts to render immediately after current line
+                            // This ensures consistent line spacing for all parts of the broken word
+                            if (brokenWordLines.length > 1) {
+                              // Store remaining parts - we'll render them after the current line
+                              const remainingParts = brokenWordLines.slice(1);
+                              // Remove the original word and insert remaining parts
+                              words.splice(wordIndex, 1, ...remainingParts);
+                              // Don't increment wordIndex, process the next part in next iteration
+                            } else {
+                              wordIndex++;
+                            }
+                            innerIterationCount++;
+                            break; // Break to render current line
+                          } else {
+                            // Fallback: skip the word if breaking failed
+                            wordIndex++;
+                            innerIterationCount++;
+                            break;
+                          }
+                        } else {
+                          // Word fits alone but not with space, add it anyway
+                          lineText = word;
+                          lineWidth = wordAloneWidth;
+                          wordIndex++;
+                          innerIterationCount++;
+                          break;
+                        }
                       }
                     }
                     
@@ -2295,7 +2434,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                     
                     // Store answer line for combined alignment
                     if (lineText) {
-                      if (isFirstLine) {
+                      if (isFirstLine && canFitOnSameLine) {
                         firstLineSegmentCount++;
                         // Only the first segment of the first line uses combined positioning
                         // Subsequent segments (wrapped parts) should use answer-only line height
@@ -2414,20 +2553,25 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                     
                     // Move to next line
                     // For answer-only lines (after first line), use independent answer line height
-                    if (isFirstLine && firstLineSegmentCount === 1) {
+                    if (isFirstLine && canFitOnSameLine && firstLineSegmentCount === 1) {
                       // First segment of first line is on same line as question - it's a combined line
                       currentLineY += combinedLineHeight;
                       // After first segment, wrapped parts use answer-only line height
                       isFirstLine = false;
                       // totalAnswerLineCount remains 0 here since first segment is on combined line
-                    } else if (isFirstLine && firstLineSegmentCount > 1) {
+                    } else if (isFirstLine && canFitOnSameLine && firstLineSegmentCount > 1) {
                       // Wrapped segments of first line use answer-only line height
                       // totalAnswerLineCount is already updated in the wrapped segment rendering above
                       // Don't update currentLineY here as positioning is handled by combinedLineBaseline calculation
+                      isFirstLine = false; // Mark first line as complete after first wrapped segment
                     } else {
                       // Subsequent answer-only lines (after first line is complete) use independent answer line height
                       // totalAnswerLineCount is already incremented in the rendering above
                       currentLineY += aLineHeight;
+                      // If this was the first line but couldn't fit on same line, mark it as complete
+                      if (isFirstLine) {
+                        isFirstLine = false;
+                      }
                     }
                   }
                 });
@@ -2443,6 +2587,32 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               const canvas = document.createElement('canvas');
               const context = canvas.getContext('2d')!;
               context.font = `${aFontBold ? 'bold ' : ''}${aFontItalic ? 'italic ' : ''}${aFontSize}px ${aFontFamily}`;
+              
+              // Helper function to break long words into multiple lines
+              const breakWordIntoLines = (word: string, maxWidth: number, context: CanvasRenderingContext2D): string[] => {
+                const lines: string[] = [];
+                let currentLine = '';
+                
+                for (let i = 0; i < word.length; i++) {
+                  const char = word[i];
+                  const testLine = currentLine + char;
+                  const testWidth = context.measureText(testLine).width;
+                  
+                  if (testWidth > maxWidth && currentLine.length > 0) {
+                    // Current line is full, start a new line
+                    lines.push(currentLine);
+                    currentLine = char;
+                  } else {
+                    currentLine = testLine;
+                  }
+                }
+                
+                if (currentLine.length > 0) {
+                  lines.push(currentLine);
+                }
+                
+                return lines.length > 0 ? lines : [word]; // Fallback to original word if empty
+              };
               
               const lines = userText.split('\n');
               let currentLineIndex = 0;
@@ -2466,14 +2636,9 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                     currentLine += wordWithSpace;
                     currentLineWidth += wordWidth;
                   } else {
+                    // Current word doesn't fit
                     if (currentLine) {
-                      let xPos = padding;
-                      if (answerAlign === 'center') {
-                        xPos = element.width / 2;
-                      } else if (answerAlign === 'right') {
-                        xPos = element.width - padding;
-                      }
-                      
+                      // Render the current line
                       const sharedBaseline = effectivePadding + (currentLineIndex * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.8);
                       const answerY = sharedBaseline - (aFontSize * 0.8);
                       
@@ -2494,20 +2659,55 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                         />
                       );
                       currentLineIndex++;
+                      currentLine = '';
+                      currentLineWidth = 0;
                     }
-                    currentLine = word;
-                    currentLineWidth = context.measureText(word).width;
+                    
+                    // Check if the word alone fits or needs to be broken
+                    const wordAloneWidth = context.measureText(word).width;
+                    if (wordAloneWidth > textWidth) {
+                      // Word is too long, break it into multiple lines
+                      const brokenWordLines = breakWordIntoLines(word, textWidth, context);
+                      
+                      // Render each broken part on a separate line
+                      brokenWordLines.forEach((brokenPart, partIndex) => {
+                        const sharedBaseline = effectivePadding + (currentLineIndex * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.8);
+                        const answerY = sharedBaseline - (aFontSize * 0.8);
+                        
+                        elements.push(
+                          <Text
+                            key={`user-line-${currentLineIndex}-${partIndex}`}
+                            x={padding}
+                            y={answerY}
+                            text={brokenPart}
+                            fontSize={aFontSize}
+                            fontFamily={aFontFamily}
+                            fontStyle={`${aFontBold ? 'bold' : ''} ${aFontItalic ? 'italic' : ''}`.trim() || 'normal'}
+                            fill={aFontColor}
+                            opacity={aFontOpacity}
+                            align={answerAlign}
+                            width={textWidth}
+                            listening={false}
+                          />
+                        );
+                        if (partIndex < brokenWordLines.length - 1) {
+                          currentLineIndex++;
+                        }
+                      });
+                      
+                      // After breaking, currentLine should be empty
+                      currentLine = '';
+                      currentLineWidth = 0;
+                    } else {
+                      // Word fits alone, add it to new line
+                      currentLine = word;
+                      currentLineWidth = wordAloneWidth;
+                    }
                   }
                 });
                 
+                // Render any remaining line
                 if (currentLine) {
-                  let xPos = padding;
-                  if (answerAlign === 'center') {
-                    xPos = element.width / 2;
-                  } else if (answerAlign === 'right') {
-                    xPos = element.width - padding;
-                  }
-                  
                   const sharedBaseline = effectivePadding + (currentLineIndex * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.8);
                   const answerY = sharedBaseline - (aFontSize * 0.8);
                   

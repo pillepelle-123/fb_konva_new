@@ -1141,6 +1141,8 @@ export function PDFRenderer({
               context.font = `${aFontBold ? 'bold ' : ''}${aFontItalic ? 'italic ' : ''}${aFontSize}px ${aFontFamilyClean}`;
               
               const lines = answerText.split('\n');
+              // Match Editor logic exactly: use currentY that increments after each line
+              // PST: Layout = Block: Adjust Y position for subsequent ruled lines, before it was >> let currentY = answerArea.y + aFontSize * 0.2;
               let currentY = answerArea.y;
               
               lines.forEach((line) => {
@@ -1241,14 +1243,60 @@ export function PDFRenderer({
               }
               if (currentLine) questionLines.push(currentLine);
               
+              // Calculate where question ends for answer positioning (needed for alignment)
+              const lastQuestionLine = questionLines[questionLines.length - 1] || '';
+              const questionTextWidth = context.measureText(lastQuestionLine).width;
+              
+              // Check if answer can fit on same line (needed for alignment calculation)
+              const gapForCheck = Math.max(10, qFontSize * 0.5);
+              const availableWidthAfterQuestion = textWidth - questionTextWidth - gapForCheck;
+              let canFitOnSameLineForAlignment = false;
+              
+              if (availableWidthAfterQuestion > 0 && answerText) {
+                const firstAnswerLine = answerText.split('\n')[0] || '';
+                const firstAnswerWord = firstAnswerLine.split(' ')[0] || '';
+                if (firstAnswerWord) {
+                  const firstWordWidth = context.measureText(firstAnswerWord).width;
+                  canFitOnSameLineForAlignment = firstWordWidth <= availableWidthAfterQuestion;
+                } else {
+                  canFitOnSameLineForAlignment = true;
+                }
+              }
+              
+              // Calculate combined width and startX for alignment (if answer fits on same line)
+              let questionStartX = elementX + padding;
+              if (canFitOnSameLineForAlignment && answerText) {
+                const qContext = document.createElement('canvas').getContext('2d')!;
+                const qFontFamilyClean = questionFontFamily.includes('Mynerve') ? 'Mynerve, cursive' : questionFontFamily;
+                qContext.font = `${questionFontBold ? 'bold ' : ''}${questionFontItalic ? 'italic' : ''}${qFontSize}px ${qFontFamilyClean}`;
+                const qWidth = qContext.measureText(lastQuestionLine).width;
+                const gap = Math.max(10, qFontSize * 0.5);
+                const firstAnswerLine = answerText.split('\n')[0] || '';
+                const firstAnswerWord = firstAnswerLine.split(' ')[0] || '';
+                const aWidth = firstAnswerWord ? context.measureText(firstAnswerWord).width : 0;
+                const combinedWidth = qWidth + gap + aWidth;
+                
+                if (answerAlign === 'center') {
+                  questionStartX = elementX + (elementWidth - combinedWidth) / 2;
+                } else if (answerAlign === 'right') {
+                  questionStartX = elementX + elementWidth - padding - combinedWidth;
+                }
+              }
+              
               // Render all question lines with shared baseline alignment
               const number = qFontSize - aFontSize;
               questionLines.forEach((line, index) => {
                 const sharedBaseline = effectivePadding + (index * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.8) - (number / 7);
                 const questionY = sharedBaseline - (qFontSize * 0.8);
                 
+                // For the last question line, use questionStartX if answer fits on same line and alignment is not left
+                // Otherwise, use normal padding
+                const questionX = (index === questionLines.length - 1 && canFitOnSameLineForAlignment && answerAlign !== 'left') 
+                  ? questionStartX 
+                  : elementX + padding;
+                
                 const questionNode = new Konva.Text({
-                  x: elementX + padding,
+                  x: questionX,
                   y: elementY + questionY,
                   text: line,
                   fontSize: questionFontSize,
@@ -1265,10 +1313,6 @@ export function PDFRenderer({
                 layer.add(questionNode);
               });
               
-              // Calculate where question ends for answer positioning
-              const lastQuestionLine = questionLines[questionLines.length - 1] || '';
-              const questionTextWidth = context.measureText(lastQuestionLine).width;
-              
               // Render answer text with inline layout logic
               if (answerText && answerText.trim() !== '') {
                 const answerFontSize = answerStyle.fontSize || 50;
@@ -1284,7 +1328,8 @@ export function PDFRenderer({
                 context.font = `${answerFontBold ? 'bold ' : ''}${answerFontItalic ? 'italic ' : ''}${answerFontSize}px ${answerFontFamily}`;
                 
                 // Check if there's enough space after the question to render answer on the same line
-                const gap = 40;
+                // Dynamic gap based on font size (same as Editor)
+                const gap = Math.max(10, qFontSize * 0.5);
                 const availableWidthAfterQuestion = textWidth - questionTextWidth - gap;
                 let canFitOnSameLine = false;
                 
@@ -1314,48 +1359,100 @@ export function PDFRenderer({
                   let wordIndex = 0;
                   let firstLineSegmentCount = 0;
                   
-                  while (wordIndex < words.length) {
+                  // Safety limit to prevent infinite loops with malformed data
+                  const maxWords = Math.min(words.length, 10000);
+                  let outerIterationCount = 0;
+                  
+                  while (wordIndex < words.length && outerIterationCount < maxWords) {
                     let lineText = '';
                     let lineWidth = 0;
-                    let currentX = elementX + padding;
                     let availableWidth = textWidth;
                     
                     // For first line only, start after question (if there's space)
                     if (isFirstLine && canFitOnSameLine) {
-                      currentX = elementX + padding + questionTextWidth + gap;
                       availableWidth = textWidth - questionTextWidth - gap;
                     }
                     
+                    // Safety check: ensure availableWidth is valid
+                    if (availableWidth <= 0 || !isFinite(availableWidth)) {
+                      availableWidth = Math.max(textWidth, 100); // Fallback to reasonable width
+                    }
+                    
                     // Build line with as many words as fit
-                    while (wordIndex < words.length) {
+                    let innerIterationCount = 0;
+                    const maxInnerIterations = 1000;
+                    while (wordIndex < words.length && innerIterationCount < maxInnerIterations) {
                       const word = words[wordIndex];
                       if (!word || word.length === 0) {
                         wordIndex++;
+                        innerIterationCount++;
                         continue;
                       }
                       const wordWithSpace = lineText ? ' ' + word : word;
                       const wordWidth = context.measureText(wordWithSpace).width;
                       
+                      // Safety check: ensure wordWidth is valid
+                      if (!isFinite(wordWidth) || wordWidth === Infinity || isNaN(wordWidth)) {
+                        wordIndex++;
+                        innerIterationCount++;
+                        continue;
+                      }
+                      
                       if (lineWidth + wordWidth <= availableWidth) {
                         lineText += wordWithSpace;
                         lineWidth += wordWidth;
                         wordIndex++;
+                        innerIterationCount++;
                       } else {
                         break;
                       }
                     }
+                    
+                    // Safety: break if we're stuck
+                    if (innerIterationCount >= maxInnerIterations) {
+                      break;
+                    }
+                    
+                    // Safety: prevent infinite loops
+                    if (outerIterationCount >= maxWords) {
+                      break;
+                    }
+                    outerIterationCount++;
                     
                     if (lineText) {
                       if (isFirstLine) {
                         firstLineSegmentCount++;
                         if (firstLineSegmentCount === 1) {
                           // First segment on same line as question
-                          const gap = Math.max(10, qFontSize * 0.5);
+                          // Calculate combined width for alignment
+                          const lastQuestionLine = questionLines[questionLines.length - 1] || '';
+                          
+                          // Use question font context for accurate measurement
+                          const qContext = document.createElement('canvas').getContext('2d')!;
+                          const qFontFamilyClean = questionFontFamily.includes('Mynerve') ? 'Mynerve, cursive' : questionFontFamily;
+                          qContext.font = `${questionFontBold ? 'bold ' : ''}${questionFontItalic ? 'italic ' : ''}${qFontSize}px ${qFontFamilyClean}`;
+                          const qWidth = qContext.measureText(lastQuestionLine).width;
+                          
+                          const gap = Math.max(10, qFontSize * 0.5); // Dynamic gap based on font size
+                          const aWidth = context.measureText(lineText).width;
+                          const combinedWidth = qWidth + gap + aWidth;
+                          
+                          // Calculate startX based on answerAlign
+                          let startX = elementX + padding;
+                          if (answerAlign === 'center') {
+                            startX = elementX + (elementWidth - combinedWidth) / 2;
+                          } else if (answerAlign === 'right') {
+                            startX = elementX + elementWidth - padding - combinedWidth;
+                          }
+                          
+                          // Calculate shared baseline for both question and answer text
+                          const number = qFontSize - aFontSize;
                           const sharedBaseline = effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.8) - (number / 7);
                           const answerY = sharedBaseline - (aFontSize * 0.8);
                           
+                          // Render answer after question with shared baseline alignment
                           const answerNode = new Konva.Text({
-                            x: elementX + padding + questionTextWidth + gap,
+                            x: startX + qWidth + gap,
                             y: elementY + answerY,
                             text: lineText,
                             fontSize: answerFontSize,
