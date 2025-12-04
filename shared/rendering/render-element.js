@@ -3,6 +3,7 @@
  */
 
 const { renderQnAInline } = require('./render-qna-inline');
+const { renderQnA } = require('./render-qna');
 const { getCrop } = require('./utils/image-utils');
 const { applyFillOpacity, applyStrokeOpacity } = require('./utils/color-utils');
 const { getGlobalThemeDefaults } = require('./utils/theme-utils');
@@ -34,6 +35,14 @@ function extractPlainText(html, document) {
  */
 function renderElement(layer, element, pageData, bookData, konvaInstance, document, Image, roughInstance, themesData, colorPalettes, imagePromises) {
   const Konva = konvaInstance;
+  
+  // Debug logging for all elements
+  console.log('renderElement called for element:', {
+    id: element.id,
+    type: element.type,
+    textType: element.textType,
+    questionId: element.questionId
+  });
   
   // Skip brush-multicolor elements (they are rendered as groups)
   if (element.type === 'brush-multicolor') {
@@ -85,6 +94,61 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
       colorPalettes
     );
     return { type: 'qna_inline', nodesAdded: nodesAdded };
+  }
+  
+  // Render QnA elements (standard QnA textbox)
+  // Note: In client, textType === 'qna' falls back to TextboxQnAInline, but for PDF export
+  // we want to use the standard QnA rendering (textbox-qna.tsx logic)
+  if (element.type === 'text' && (element.textType === 'qna' || element.textType === 'qna2')) {
+    console.log('Rendering QnA element:', element.id, 'textType:', element.textType);
+    // Use global function if available (browser context), otherwise fallback to local require (Node.js context)
+    const renderQnAFunc = (typeof window !== 'undefined' && window.renderQnA) ? window.renderQnA : renderQnA;
+    if (!renderQnAFunc) {
+      console.error('renderQnA is not defined. window.renderQnA:', typeof window !== 'undefined' ? (window.renderQnA ? 'exists' : 'undefined') : 'N/A', 'local renderQnA:', typeof renderQnA);
+      // Fallback to qna_inline if renderQnA is not available
+      console.log('Falling back to renderQnAInline for element:', element.id);
+      const renderQnAInlineFunc = (typeof window !== 'undefined' && window.renderQnAInline) ? window.renderQnAInline : renderQnAInline;
+      if (renderQnAInlineFunc) {
+        const nodesAdded = renderQnAInlineFunc(
+          layer,
+          element,
+          pageData,
+          bookData,
+          x,
+          y,
+          width,
+          height,
+          rotation,
+          opacity,
+          konvaInstance,
+          document,
+          roughInstance,
+          themesData,
+          colorPalettes
+        );
+        return { type: 'qna_inline', nodesAdded: nodesAdded };
+      }
+      return null;
+    }
+    console.log('Calling renderQnAFunc for element:', element.id);
+    const nodesAdded = renderQnAFunc(
+      layer,
+      element,
+      pageData,
+      bookData,
+      x,
+      y,
+      width,
+      height,
+      rotation,
+      opacity,
+      konvaInstance,
+      document,
+      roughInstance,
+      themesData,
+      colorPalettes
+    );
+    return { type: 'qna', nodesAdded: nodesAdded };
   }
   
   // Render regular text elements

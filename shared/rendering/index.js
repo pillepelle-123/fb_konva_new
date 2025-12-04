@@ -78,6 +78,14 @@ async function renderPageWithKonva(pageData, bookData, canvasWidth, canvasHeight
   let elementsSkipped = 0;
   
   for (const element of elements) {
+    // Debug logging for all elements before rendering
+    console.log('[renderPageWithKonva] Processing element:', {
+      id: element.id,
+      type: element.type,
+      textType: element.textType,
+      questionId: element.questionId
+    });
+    
     // Skip placeholder elements
     if (element.type === 'placeholder') {
       elementsSkipped++;
@@ -104,6 +112,12 @@ async function renderPageWithKonva(pageData, bookData, canvasWidth, canvasHeight
       colorPalettes,
       imagePromises
     );
+    
+    console.log('[renderPageWithKonva] Element rendered:', {
+      id: element.id,
+      rendered: !!renderedNode,
+      type: renderedNode?.type
+    });
     
     if (renderedNode) {
       elementsRendered++;

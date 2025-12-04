@@ -220,15 +220,124 @@ function createLayout(params: {
 
   if (questionLines.length > 0 && answerLines.length > 0) {
     const inlineAvailable = availableWidth - lastQuestionLineWidth - inlineGap;
-    if (inlineAvailable > measureText(answerLines[0].text, answerStyle, ctx)) {
-      startAtSameLine = true;
-      runs.push({
-        text: answerLines[0].text,
-        x: padding + lastQuestionLineWidth + inlineGap,
-        y: lastQuestionLineY,
-        style: answerStyle
-      });
-      remainingAnswerLines = answerLines.slice(1);
+    
+    // Check if question line is full (with tolerance for rounding errors)
+    const isQuestionLineFull = lastQuestionLineWidth >= availableWidth - 2; // 2px tolerance
+    
+    // Only try to place answer on same line if question line is NOT full and there's minimum space
+    if (!isQuestionLineFull && inlineAvailable > 5) {
+      // Get words from first answer line and try to fit them into inlineAvailable
+      const firstAnswerLineText = answerLines[0].text;
+      const words = firstAnswerLineText.split(' ').filter(Boolean);
+      
+      if (words.length > 0) {
+        const wordsThatFit: string[] = [];
+        
+        for (const word of words) {
+          const wordWidth = measureText(word, answerStyle, ctx);
+          const testLine = wordsThatFit.length > 0 ? `${wordsThatFit.join(' ')} ${word}` : word;
+          const testWidth = measureText(testLine, answerStyle, ctx);
+          
+          // Check if word fits (either alone or with previous words)
+          if (testWidth <= inlineAvailable) {
+            wordsThatFit.push(word);
+          } else {
+            // Word doesn't fit in inlineAvailable
+            // IMPORTANT: Only break word if it's too long for a FULL line (availableWidth)
+            // If word fits in a full line but not in inlineAvailable, move entire word to next line
+            if (wordsThatFit.length === 0) {
+              // This is the first word - check if we should break it or move it
+              if (wordWidth > availableWidth) {
+                // Word is too long for even a full line - need to break it character by character
+                // Break using availableWidth (full line width), not inlineAvailable
+                let charLine = '';
+                for (let i = 0; i < word.length; i++) {
+                  const testChar = charLine + word[i];
+                  const charWidth = measureText(testChar, answerStyle, ctx);
+                  if (charWidth <= availableWidth) {
+                    charLine = testChar;
+                  } else {
+                    break;
+                  }
+                }
+                if (charLine.length > 0) {
+                  // Only place broken part on same line if it fits in inlineAvailable
+                  const charLineWidth = measureText(charLine, answerStyle, ctx);
+                  if (charLineWidth <= inlineAvailable) {
+                    wordsThatFit.push(charLine);
+                    // Remaining part goes to next line
+                    const remainingPart = word.substring(charLine.length);
+                    if (remainingPart.length > 0) {
+                      const remainingText = remainingPart + (words.length > 1 ? ' ' + words.slice(1).join(' ') : '');
+                      const remainingLine = {
+                        text: remainingText,
+                        width: measureText(remainingText, answerStyle, ctx)
+                      };
+                      remainingAnswerLines = [remainingLine, ...answerLines.slice(1)];
+                    } else {
+                      if (words.length > 1) {
+                        const remainingText = words.slice(1).join(' ');
+                        const remainingLine = {
+                          text: remainingText,
+                          width: measureText(remainingText, answerStyle, ctx)
+                        };
+                        remainingAnswerLines = [remainingLine, ...answerLines.slice(1)];
+                      } else {
+                        remainingAnswerLines = answerLines.slice(1);
+                      }
+                    }
+                  } else {
+                    // Broken part doesn't fit in inlineAvailable - move entire word to next line
+                    // Don't break it, just move the whole word
+                    break;
+                  }
+                } else {
+                  // Can't even fit first character in full line - move entire word to next line
+                  break;
+                }
+              } else {
+                // Word fits in a full line but not in inlineAvailable
+                // Move entire word (and all remaining words) to next line - don't break it
+                break;
+              }
+            } else {
+              // We already have some words that fit - remaining words go to next line
+              const remainingWords = words.slice(wordsThatFit.length);
+              const remainingText = remainingWords.join(' ');
+              const remainingLine = {
+                text: remainingText,
+                width: measureText(remainingText, answerStyle, ctx)
+              };
+              remainingAnswerLines = [remainingLine, ...answerLines.slice(1)];
+              break;
+            }
+          }
+        }
+        
+        // If we have words that fit, place them on the same line
+        if (wordsThatFit.length > 0) {
+          const firstAnswerTextOnSameLine = wordsThatFit.join(' ');
+          startAtSameLine = true;
+          
+          runs.push({
+            text: firstAnswerTextOnSameLine,
+            x: padding + lastQuestionLineWidth + inlineGap,
+            y: lastQuestionLineY,
+            style: answerStyle
+          });
+          
+          // If we used all words from first line, remove it from remaining lines
+          if (wordsThatFit.length === words.length && !remainingAnswerLines.some(line => line.text === firstAnswerLineText)) {
+            remainingAnswerLines = answerLines.slice(1);
+          }
+          // Otherwise, remainingAnswerLines was already set correctly in the loop above
+        } else {
+          // No words fit - ensure we don't skip a line
+          // Keep the original first answer line intact for next line
+          // This ensures the first answer line appears on the next line, not skipped
+          remainingAnswerLines = answerLines;
+        }
+      }
     }
   }
 

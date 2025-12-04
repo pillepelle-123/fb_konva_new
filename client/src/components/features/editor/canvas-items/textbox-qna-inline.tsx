@@ -2281,7 +2281,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                 // the answer will always start directly after the last question line
                 const gap = 40;
                 const lastQuestionLineWidth = context.measureText(lastQuestionLine).width;
-                const isLastQuestionLineFull = lastQuestionLineWidth >= textWidth - 1; // Allow 1px tolerance for rounding
+                const isLastQuestionLineFull = lastQuestionLineWidth >= textWidth - 2; // Better tolerance (2px) for rounding errors
                 const availableWidthAfterQuestion = textWidth - lastQuestionLineWidth - gap;
                 let canFitOnSameLine = false;
                 
@@ -2292,12 +2292,12 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                   const firstAnswerWord = firstAnswerLine.split(' ')[0] || '';
                   if (firstAnswerWord) {
                     const firstWordWidth = context.measureText(firstAnswerWord).width;
-                    // Check if at least part of the first word fits in the available space
-                    // Even if the word is longer, we can break it, so we allow it if there's any space
-                    canFitOnSameLine = availableWidthAfterQuestion > 0;
+                    // Check if the word actually fits AND there's at least 5px of space (minimum threshold)
+                    // This prevents rendering text outside the textbox boundaries
+                    canFitOnSameLine = availableWidthAfterQuestion >= firstWordWidth && availableWidthAfterQuestion > 5;
                   } else {
-                    // Empty answer text - can fit anywhere
-                    canFitOnSameLine = true;
+                    // Empty answer text - can fit anywhere (but still check minimum space)
+                    canFitOnSameLine = availableWidthAfterQuestion > 5;
                   }
                 }
                 // If isLastQuestionLineFull is true, canFitOnSameLine remains false, 
@@ -2341,8 +2341,18 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                     }
                     
                     // Safety check: ensure availableWidth is valid
+                    // If no space available, force answer to start on new line
                     if (availableWidth <= 0 || !isFinite(availableWidth)) {
-                      availableWidth = Math.max(textWidth, 100); // Fallback to reasonable width
+                      // If we're on the first line and there's no space, move to next line
+                      if (isFirstLine && canFitOnSameLine) {
+                        isFirstLine = false;
+                        canFitOnSameLine = false;
+                        currentX = padding;
+                        availableWidth = textWidth;
+                      } else {
+                        // Fallback: use full textWidth, but this should rarely happen
+                        availableWidth = textWidth;
+                      }
                     }
                     
                     // Build line with as many words as fit

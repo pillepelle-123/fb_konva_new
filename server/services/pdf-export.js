@@ -195,6 +195,7 @@ function writeSharedRenderingModulesToFiles(themesData, colorPalettes) {
   const imageUtilsCode = fs.readFileSync(path.join(__dirname, '../../shared/rendering/utils/image-utils.js'), 'utf-8');
   const renderRuledLinesCode = fs.readFileSync(path.join(__dirname, '../../shared/rendering/render-ruled-lines.js'), 'utf-8');
   const renderQnaInlineCode = fs.readFileSync(path.join(__dirname, '../../shared/rendering/render-qna-inline.js'), 'utf-8');
+  const renderQnaCode = fs.readFileSync(path.join(__dirname, '../../shared/rendering/render-qna.js'), 'utf-8');
   const renderBackgroundCode = fs.readFileSync(path.join(__dirname, '../../shared/rendering/render-background.js'), 'utf-8');
   const renderElementCode = fs.readFileSync(path.join(__dirname, '../../shared/rendering/render-element.js'), 'utf-8');
   const indexCode = fs.readFileSync(path.join(__dirname, '../../shared/rendering/index.js'), 'utf-8');
@@ -361,6 +362,19 @@ function writeSharedRenderingModulesToFiles(themesData, colorPalettes) {
   fs.writeFileSync(renderQnaInlineFile, browserRenderQnaInline);
   moduleFiles.push(renderQnaInlineFile);
   
+  // Process render-qna.js - make functions globally available
+  // Remove require statements but keep function calls as-is - they will use global functions
+  let browserRenderQna = renderQnaCode
+    .replace(/const\s+\{\s*getGlobalThemeDefaults,\s*deepMerge\s*\}\s*=\s*require\([^)]+\);?\s*/g, '')
+    .replace(/const\s+\{\s*getGlobalThemeDefaults\s*\}\s*=\s*require\([^)]+\);?\s*/g, '')
+    .replace(/const\s+\{\s*deepMerge\s*\}\s*=\s*require\([^)]+\);?\s*/g, '');
+  
+  browserRenderQna = removeModuleExports(browserRenderQna);
+  browserRenderQna += '\n// Make functions globally available\nwindow.renderQnA = renderQnA;\nwindow.parseQuestionPayload = parseQuestionPayload;';
+  const renderQnaFile = path.join(tempDir, 'render-qna.js');
+  fs.writeFileSync(renderQnaFile, browserRenderQna);
+  moduleFiles.push(renderQnaFile);
+  
   // Process render-background.js - use PATTERNS from global scope (already loaded from constants.js)
   // Remove require statements but keep function calls as-is - they will use global functions
   let browserRenderBackground = renderBackgroundCode
@@ -380,6 +394,7 @@ function writeSharedRenderingModulesToFiles(themesData, colorPalettes) {
   // Remove require statements but keep function calls as-is - they will use global functions
   let browserRenderElement = renderElementCode
     .replace(/const\s+\{\s*renderQnAInline\s*\}\s*=\s*require\([^)]+\);?\s*/g, '')
+    .replace(/const\s+\{\s*renderQnA\s*\}\s*=\s*require\([^)]+\);?\s*/g, '')
     .replace(/const\s+\{\s*getCrop\s*\}\s*=\s*require\([^)]+\);?\s*/g, '')
     .replace(/const\s+\{\s*applyFillOpacity,\s*applyStrokeOpacity\s*\}\s*=\s*require\([^)]+\);?\s*/g, '')
     .replace(/const\s+\{\s*getGlobalThemeDefaults\s*\}\s*=\s*require\([^)]+\);?\s*/g, '');
