@@ -309,82 +309,91 @@ export function QnAInlineSettingsForm({
       <>
         <div>
           <div className="flex gap-2">
-            <Button
-              variant={displayStyle.fontBold ? 'default' : 'outline'}
-              size="xxs"
-              onClick={() => {
-                // Nur fontBold aktualisieren - CSS font-weight wird verwendet, Font-Familie bleibt unverändert
-                updateFn('fontBold', !displayStyle.fontBold);
-              }}
-              className="px-3"
-            >
-              <strong>B</strong>
-            </Button>
-            <Button
-              variant={displayStyle.fontItalic ? 'default' : 'outline'}
-              size="xxs"
-              onClick={() => {
-                // Nur fontItalic aktualisieren - CSS font-style wird verwendet, Font-Familie bleibt unverändert
-                updateFn('fontItalic', !displayStyle.fontItalic);
-              }}
-              className="px-3"
-            >
-              <em>I</em>
-            </Button>
-            <Button
-              variant="outline"
-              size="xxs"
-              onClick={() => setShowFontSelector(true)}
-              className="flex-1 justify-start"
-              style={{ fontFamily: displayStyle.fontFamily }}
-            >
-              <Type className="h-4 w-4 mr-2" />
-              <span className="truncate">{getCurrentFontName(displayStyle.fontFamily)}</span>
-            </Button>
+            <Tooltip content="Bold" side="left">
+              <Button
+                variant={displayStyle.fontBold ? 'default' : 'outline'}
+                size="xxs"
+                onClick={() => {
+                  // Nur fontBold aktualisieren - CSS font-weight wird verwendet, Font-Familie bleibt unverändert
+                  updateFn('fontBold', !displayStyle.fontBold);
+                }}
+                className="px-3"
+              >
+                <strong>B</strong>
+              </Button>
+            </Tooltip>
+            <Tooltip content="Italic" side="left">
+              <Button
+                variant={displayStyle.fontItalic ? 'default' : 'outline'}
+                size="xxs"
+                onClick={() => {
+                  // Nur fontItalic aktualisieren - CSS font-style wird verwendet, Font-Familie bleibt unverändert
+                  updateFn('fontItalic', !displayStyle.fontItalic);
+                }}
+                className="px-3"
+              >
+                <em>I</em>
+              </Button>
+            </Tooltip>
+            <Tooltip content="Font Family" side="left">
+              <Button
+                variant="outline"
+                size="xxs"
+                onClick={() => setShowFontSelector(true)}
+                className="flex-1 justify-start"
+                style={{ fontFamily: displayStyle.fontFamily }}
+              >
+                <Type className="h-4 w-4 mr-2" />
+                <span className="truncate">{getCurrentFontName(displayStyle.fontFamily)}</span>
+              </Button>
+            </Tooltip>
           </div>
         </div>
         
         <div className="flex flex-row gap-2 py-2 w-full">
-          <div className='flex-1'>
-            <div className='flex flex-row gap-2'>
-              <ALargeSmall className='w-5 h-5'/>
-              <Slider
-                label="Font Size"
-                value={actualToCommon(displayStyle.fontSize || 16)}
-                displayValue={actualToCommon(displayStyle.fontSize || 16)}
-                onChange={(value) => updateFn('fontSize', commonToActual(value))}
-                min={COMMON_FONT_SIZE_RANGE.min}
-                max={COMMON_FONT_SIZE_RANGE.max}
-                step={1}
-                className='w-full'
-              />
-            </div>
+          <Tooltip content="Font Size" side="left">
+            <ALargeSmall className='w-5 h-5 flex-shrink-0'/>
+          </Tooltip>
+          <div className='flex-1 min-w-0'>
+            <Slider
+              label="Font Size"
+              value={actualToCommon(displayStyle.fontSize || 16)}
+              displayValue={actualToCommon(displayStyle.fontSize || 16)}
+              onChange={(value) => updateFn('fontSize', commonToActual(value))}
+              min={COMMON_FONT_SIZE_RANGE.min}
+              max={COMMON_FONT_SIZE_RANGE.max}
+              step={1}
+              className='w-full'
+            />
           </div>
         </div>
         
         <div>
-          <Button
-            variant="outline"
-            size="xxs"
-            onClick={() => {
-              // When individualSettings is enabled, use setShowColorSelector to render at top level
-              // Otherwise, use localShowColorSelector for nested rendering
-              if (individualSettings) {
-                setShowColorSelector('element-text-color');
-              } else {
-                setLocalShowColorSelector('element-text-color');
-              }
-            }}
-            className="w-full"
-          >
-            <Palette className="w-4 mr-2" />
-            Font Color
-          </Button>
+          <Tooltip content="Font Color" side="left">
+            <Button
+              variant="outline"
+              size="xxs"
+              onClick={() => {
+                // When individualSettings is enabled, use setShowColorSelector to render at top level
+                // Otherwise, use localShowColorSelector for nested rendering
+                if (individualSettings) {
+                  setShowColorSelector('element-text-color');
+                } else {
+                  setLocalShowColorSelector('element-text-color');
+                }
+              }}
+              className="w-full"
+            >
+              <Palette className="w-4 mr-2" />
+              Font Color
+            </Button>
+          </Tooltip>
         </div>
         
-        <div>
-          <Slider
-            label="Font Opacity"
+        <div className='flex flex-row gap-2 py-2 w-full'>
+          <Tooltip content="Font Opacity" side="left" fullWidth={true}>
+            <Slider
+              label="Font Opacity"
             value={Math.round((displayStyle.fontOpacity ?? 1) * 100)}
             displayValue={Math.round((displayStyle.fontOpacity ?? 1) * 100)}
             onChange={(value) => {
@@ -425,6 +434,7 @@ export function QnAInlineSettingsForm({
             unit="%"
             hasLabel={false}
           />
+          </Tooltip>
         </div>
       </>
     );
@@ -724,11 +734,11 @@ export function QnAInlineSettingsForm({
     
     return (
       <>
-        <Separator/>
+        {/* <Separator/> */}
         <div className='flex flex-row gap-3'>
           <div className="flex-1 py-2">
-            <Label variant="xs">Text Align</Label>
-            <ButtonGroup className="mt-1 flex flex-row">
+            <Tooltip content="Text Align" side="left" fullWidth={true}>
+              <ButtonGroup className="flex flex-row">
               <Button
                 variant={currentAlign === 'left' ? 'default' : 'outline'}
                 size="xxs"
@@ -762,6 +772,7 @@ export function QnAInlineSettingsForm({
                 <AlignJustify className="h-3 w-3" />
               </Button>
             </ButtonGroup>
+            </Tooltip>
           </div>
         </div>
       </>
@@ -785,8 +796,8 @@ export function QnAInlineSettingsForm({
       {showLayoutControls && (
         <>
           <div className="space-y-1">
-            <Label variant="xs">Layout</Label>
-            <ButtonGroup className="w-full">
+            <Tooltip content="Layout" side="left" fullWidth={true}>
+              <ButtonGroup className="w-full">
               <Button
                 variant={(element.layoutVariant || 'inline') === 'inline' ? 'default' : 'outline'}
                 size="xxs"
@@ -820,6 +831,7 @@ export function QnAInlineSettingsForm({
                 Block
               </Button>
             </ButtonGroup>
+            </Tooltip>
           </div>
           
           {/* Question Position (only for block layout) */}
@@ -827,8 +839,8 @@ export function QnAInlineSettingsForm({
             <>
               <div className="flex flex-row items-start">
                 <div className="flex-1 pr-2">
-                  <Label variant="xs">Question Position</Label>
-                  <ButtonGroup className="w-full">
+                  <Tooltip content="Question Position" side="left" fullWidth={true}>
+                    <ButtonGroup className="w-full">
                     <Button
                       variant={(element.questionPosition || 'left') === 'left' ? 'default' : 'outline'}
                       size="xxs"
@@ -878,58 +890,61 @@ export function QnAInlineSettingsForm({
                       <ArrowRight className="w-4 h-4" />
                     </Button>
                   </ButtonGroup>
+                  </Tooltip>
                 </div>
 
                 <div className='flex-1'>
               
                 {/* Question Width Slider (only for left/right positions) */}
                 {((element.questionPosition || 'left') === 'left' || (element.questionPosition || 'left') === 'right') && (
-                  <div className="flex-1 mb-2">
-                    {/* <Label variant="xs">Question Width</Label> */}
+                  <div className="flex-1 mb-2 min-w-0">
+                    <Tooltip content="Question Width" side="left" fullWidth={true}>
+                      <Slider
+                        label="Question Width"
+                        value={element.questionWidth || 40}
+                        onChange={(value) => {
+                          dispatch({
+                            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                            payload: {
+                              id: element.id,
+                              updates: { questionWidth: value }
+                            }
+                          });
+                        }}
+                        min={25}
+                        max={75}
+                        step={5}
+                        unit="%"
+                        className="w-full"
+                      />
+                    </Tooltip>
+                  </div>
+                )}
+                
+                {/* Question-Answer Gap Slider */}
+                <div className="flex-1 min-w-0">
+                  <Tooltip content="Gap between Question and Answer" side="left" fullWidth={true}>
                     <Slider
-                      label="Question Width"
-                      value={element.questionWidth || 40}
+                      label="Gap between Question and Answer"
+                      value={Math.round((element.blockQuestionAnswerGap ?? 20) / 2)}
                       onChange={(value) => {
                         dispatch({
                           type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
                           payload: {
                             id: element.id,
-                            updates: { questionWidth: value }
+                            updates: { blockQuestionAnswerGap: value * 2 }
                           }
                         });
                       }}
-                      min={25}
-                      max={75}
-                      step={5}
-                      unit="%"
+                      min={0}
+                      max={100}
+                      step={1}
+                      unit=""
+                      hasLabel={false}
+                      displayValue={Math.round((element.blockQuestionAnswerGap ?? 20) / 2)}
                       className="w-full"
                     />
-                  </div>
-                )}
-                
-                {/* Question-Answer Gap Slider */}
-                <div className="flex-1">
-                  {/* <Label variant="xs">Question-Answer Gap</Label> */}
-                  <Slider
-                    label="Gap between Question and Answer"
-                    value={element.blockQuestionAnswerGap ?? 20}
-                    onChange={(value) => {
-                      dispatch({
-                        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                        payload: {
-                          id: element.id,
-                          updates: { blockQuestionAnswerGap: value }
-                        }
-                      });
-                    }}
-                    min={0}
-                    max={200}
-                    step={2}
-                    unit=""
-                    hasLabel={false}
-                    displayValue={Math.round((element.blockQuestionAnswerGap ?? 20) / 2)}
-                    className="w-full"
-                  />
+                  </Tooltip>
                 </div>
               </div>
               </div>	
@@ -993,29 +1008,30 @@ export function QnAInlineSettingsForm({
                 ? "Vertical gap between Question and Answer" 
                 : "Horizontal gap between Question and Answer"} 
               side="left"
+              fullWidth={true}
             >
               <Slider
                 label={element.answerInNewRow 
                   ? "Vertical gap between Question and Answer" 
                   : "Horizontal gap between Question and Answer"}
-                value={(() => {
-                  // Get the appropriate gap value based on current mode
-                  if (element.answerInNewRow) {
-                    return element.questionAnswerGapVertical ?? element.questionAnswerGap ?? 0;
-                  } else {
-                    return element.questionAnswerGapHorizontal ?? element.questionAnswerGap ?? 0;
-                  }
-                })()}
+                value={Math.round(((() => {
+                  // Get the appropriate gap value based on current mode and convert to display value
+                  const gapValue = element.answerInNewRow 
+                    ? (element.questionAnswerGapVertical ?? element.questionAnswerGap ?? 0)
+                    : (element.questionAnswerGapHorizontal ?? element.questionAnswerGap ?? 0);
+                  return gapValue / 2;
+                })()))}
                 onChange={(value) => {
+                  const actualValue = value * 2; // Convert display value to internal value
                   const updates: any = {
-                    questionAnswerGap: value
+                    questionAnswerGap: actualValue
                   };
                   
                   // Also save to the appropriate property based on current mode
                   if (element.answerInNewRow) {
-                    updates.questionAnswerGapVertical = value;
+                    updates.questionAnswerGapVertical = actualValue;
                   } else {
-                    updates.questionAnswerGapHorizontal = value;
+                    updates.questionAnswerGapHorizontal = actualValue;
                   }
                   
                   dispatch({
@@ -1027,8 +1043,8 @@ export function QnAInlineSettingsForm({
                   });
                 }}
                 min={0}
-                max={200}
-                step={2}
+                max={100}
+                step={1}
                 unit=""
                 hasLabel={false}
                 displayValue={Math.round(((() => {
@@ -1051,40 +1067,44 @@ export function QnAInlineSettingsForm({
       {sectionType === 'shared' && onIndividualSettingsChange && (
         <>
           <div className="flex items-center gap-2 mb-2">
-            <Checkbox
-              checked={individualSettings}
-              onCheckedChange={(checked) => {
-                if (!checked) {
-                  // When disabling individual settings, align question to answer settings
-                  const answerStyle = getAnswerStyle();
-                  const questionUpdates = {
-                    fontSize: answerStyle.fontSize,
-                    fontFamily: answerStyle.fontFamily,
-                    fontBold: answerStyle.fontBold,
-                    fontItalic: answerStyle.fontItalic,
-                    fontColor: answerStyle.fontColor,
-                    fontOpacity: answerStyle.fontOpacity
-                  };
-                  
-                  dispatch({
-                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                    payload: {
-                      id: element.id,
-                      updates: {
-                        questionSettings: {
-                          ...element.questionSettings,
-                          ...questionUpdates
+            <Tooltip content="Individual for Question and Answer" side="left">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={individualSettings}
+                  onCheckedChange={(checked) => {
+                    if (!checked) {
+                      // When disabling individual settings, align question to answer settings
+                      const answerStyle = getAnswerStyle();
+                      const questionUpdates = {
+                        fontSize: answerStyle.fontSize,
+                        fontFamily: answerStyle.fontFamily,
+                        fontBold: answerStyle.fontBold,
+                        fontItalic: answerStyle.fontItalic,
+                        fontColor: answerStyle.fontColor,
+                        fontOpacity: answerStyle.fontOpacity
+                      };
+                      
+                      dispatch({
+                        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                        payload: {
+                          id: element.id,
+                          updates: {
+                            questionSettings: {
+                              ...element.questionSettings,
+                              ...questionUpdates
+                            }
+                          }
                         }
-                      }
+                      });
                     }
-                  });
-                }
-                onIndividualSettingsChange?.(checked);
-              }}
-            />
-            <Label variant="xs" className="text-xs font-medium">
-              Individual for Question and Answer
-            </Label>
+                    onIndividualSettingsChange?.(checked);
+                  }}
+                />
+                <Label variant="xs" className="text-xs font-medium">
+                  Individual for Question and Answer
+                </Label>
+              </div>
+            </Tooltip>
           </div>
           
           {/* Tabs - only show when individual settings are enabled */}
@@ -1148,8 +1168,8 @@ export function QnAInlineSettingsForm({
       {((element.layoutVariant || 'inline') === 'inline' || ((element.layoutVariant || 'inline') === 'block' && !individualSettings)) && (
         <div className='flex flex-row gap-3'>
           <div className="flex-1 py-2">
-            <Label variant="xs">Text Align</Label>
-            <ButtonGroup className="mt-1 flex flex-row">
+            <Tooltip content="Text Align" side="left" fullWidth={true}>
+              <ButtonGroup className="flex flex-row">
               {(() => {
                 // Use the same priority order as textbox-qna.tsx: element.align || element.format?.textAlign || questionSettings.align || answerSettings.align
                 const qSettings = element.questionSettings || {};
@@ -1194,6 +1214,7 @@ export function QnAInlineSettingsForm({
                 );
               })()}
             </ButtonGroup>
+            </Tooltip>
           </div>
         </div>
       )}
@@ -1201,8 +1222,8 @@ export function QnAInlineSettingsForm({
       {/* Paragraph Spacing - always universal */}
       <div className='flex flex-row gap-3'>
         <div className="flex-1 py-2">
-          <Label variant="xs">Paragraph Spacing</Label>
-          <ButtonGroup className="mt-1 flex flex-row">
+          <Tooltip content="Paragraph Spacing" side="left" fullWidth={true}>
+            <ButtonGroup className="flex flex-row">
             <Button
               variant={(() => {
                 const qSettings = element.questionSettings || {};
@@ -1243,6 +1264,7 @@ export function QnAInlineSettingsForm({
               <Rows2 className="h-3 w-3" />
             </Button>
           </ButtonGroup>
+          </Tooltip>
         </div>
       </div>
       
@@ -1251,64 +1273,68 @@ export function QnAInlineSettingsForm({
       {/* Ruled Lines - Common Settings */}
       <div className='py-2'>
         <div className="flex items-center gap-2">
-          <Label className="flex items-center gap-1" variant="xs">
-            <Checkbox
-              checked={(() => {
-                return element.ruledLines ?? false;
-              })()}
-              onCheckedChange={(checked) => {
-                dispatch({
-                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                  payload: {
-                    id: element.id,
-                    updates: {
-                      // Set ruledLines on top-level (moved from answerSettings)
-                      ruledLines: checked
+          <Tooltip content="Ruled Lines" side="left">
+            <Label className="flex items-center gap-1" variant="xs">
+              <Checkbox
+                checked={(() => {
+                  return element.ruledLines ?? false;
+                })()}
+                onCheckedChange={(checked) => {
+                  dispatch({
+                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                    payload: {
+                      id: element.id,
+                      updates: {
+                        // Set ruledLines on top-level (moved from answerSettings)
+                        ruledLines: checked
+                      }
                     }
-                  }
-                });
-              }}
-            />
-            Ruled Lines
-          </Label>
+                  });
+                }}
+              />
+              Ruled Lines
+            </Label>
+          </Tooltip>
           
           {/* Ruled Lines Target (only for block layout) */}
           {(element.layoutVariant || 'inline') === 'block' && (element.ruledLines ?? false) && (
             <div className="flex-1">
-              <ButtonGroup className="w-full">
-                <Button
-                  variant={(element.ruledLinesTarget || 'answer') === 'question' ? 'default' : 'outline'}
-                  size="xxs"
-                  onClick={() => {
-                    dispatch({
-                      type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                      payload: {
-                        id: element.id,
-                        updates: { ruledLinesTarget: 'question' }
-                      }
-                    });
-                  }}
-                  className="flex-1"
-                >
-                  Question
-                </Button>
-                <Button
-                  variant={(element.ruledLinesTarget || 'answer') === 'answer' ? 'default' : 'outline'}
-                  size="xxs"
-                  onClick={() => {
-                    dispatch({
-                      type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                      payload: {
-                        id: element.id,
-                        updates: { ruledLinesTarget: 'answer' }
-                      }
-                    });
-                  }}
-                  className="flex-1"
-                >
-                  Answer
-                </Button>
-              </ButtonGroup>
+              <Tooltip content="Ruled Lines Target" side="left" fullWidth={true}>
+                <ButtonGroup className="w-full">
+                  <Button
+                    variant={(element.ruledLinesTarget || 'answer') === 'question' ? 'default' : 'outline'}
+                    size="xxs"
+                    onClick={() => {
+                      dispatch({
+                        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                        payload: {
+                          id: element.id,
+                          updates: { ruledLinesTarget: 'question' }
+                        }
+                      });
+                    }}
+                    className="flex-1"
+                  >
+                    Question
+                  </Button>
+                  <Button
+                    variant={(element.ruledLinesTarget || 'answer') === 'answer' ? 'default' : 'outline'}
+                    size="xxs"
+                    onClick={() => {
+                      dispatch({
+                        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                        payload: {
+                          id: element.id,
+                          updates: { ruledLinesTarget: 'answer' }
+                        }
+                      });
+                    }}
+                    className="flex-1"
+                  >
+                    Answer
+                  </Button>
+                </ButtonGroup>
+              </Tooltip>
             </div>
           )}
         </div>
@@ -1318,31 +1344,36 @@ export function QnAInlineSettingsForm({
         return element.ruledLines ?? false;
       })() && (
         <IndentedSection>
-          <Slider
-            label="Line Width"
-            value={(() => {
-              return Math.round(element.ruledLinesWidth ?? 0.8);  
-            })()}
-            onChange={(value) => {
-              dispatch({
-                type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                payload: {
-                  id: element.id,
-                  updates: {
-                    // Set ruledLinesWidth on top-level (moved from answerSettings)
-                    ruledLinesWidth: value
-                  }
-                }
-              });
-            }}
-            min={0}
-            max={30}
-            step={0.1}
-          />
+          <div className="min-w-0">
+            <Tooltip content="Line Width" side="left" fullWidth={true}>
+              <Slider
+                label="Line Width"
+                value={(() => {
+                  return Math.round(element.ruledLinesWidth ?? 0.8);  
+                })()}
+                onChange={(value) => {
+                  dispatch({
+                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                    payload: {
+                      id: element.id,
+                      updates: {
+                        // Set ruledLinesWidth on top-level (moved from answerSettings)
+                        ruledLinesWidth: value
+                      }
+                    }
+                  });
+                }}
+                min={0}
+                max={30}
+                step={0.1}
+                className="w-full"
+              />
+            </Tooltip>
+          </div>
           
           <div>
-            <Label variant="xs">Ruled Lines Theme</Label>
-            <ThemeSelect 
+            <Tooltip content="Ruled Lines Theme" side="left">
+              <ThemeSelect 
               value={(() => {
                 return element.ruledLinesTheme || 'rough';
               })()}
@@ -1359,29 +1390,33 @@ export function QnAInlineSettingsForm({
                 });
               }}
             />
+            </Tooltip>
           </div>
           
           <div>
-            <Button
-              variant="outline"
-              size="xxs"
-              onClick={() => {
-                if (individualSettings) {
-                  setShowColorSelector('element-ruled-lines-color');
-                } else {
-                  setLocalShowColorSelector('element-ruled-lines-color');
-                }
-              }}
-              className="w-full"
-            >
-              <Palette className="w-4 mr-2" />
-              Line Color
-            </Button>
+            <Tooltip content="Line Color" side="left">
+              <Button
+                variant="outline"
+                size="xxs"
+                onClick={() => {
+                  if (individualSettings) {
+                    setShowColorSelector('element-ruled-lines-color');
+                  } else {
+                    setLocalShowColorSelector('element-ruled-lines-color');
+                  }
+                }}
+                className="w-full"
+              >
+                <Palette className="w-4 mr-2" />
+                Line Color
+              </Button>
+            </Tooltip>
           </div>
           
-          <div>
-            <Slider
-              label="Line Opacity"
+          <div className="min-w-0">
+            <Tooltip content="Line Opacity" side="left" fullWidth={true}>
+              <Slider
+                label="Line Opacity"
               value={Math.round(((element.ruledLinesOpacity ?? 1) * 100))}
               displayValue={Math.round(((element.ruledLinesOpacity ?? 1) * 100))}
               onChange={(value) => {
@@ -1401,7 +1436,9 @@ export function QnAInlineSettingsForm({
               step={5}
               unit="%"
               hasLabel={false}
+              className="w-full"
             />
+            </Tooltip>
           </div>
         </IndentedSection>
       )}
@@ -1410,20 +1447,22 @@ export function QnAInlineSettingsForm({
       
       {/* Shared Settings - Always visible */}
       <div className='py-2'>
-        <Label className="flex items-center gap-1" variant="xs">
-          <Checkbox
-            checked={(() => {
-              const themeDefaults = getThemeDefaults();
-              // Border is a shared property - only check top-level element.borderEnabled
-              // Fallback to questionSettings/answerSettings for backward compatibility with old data
-              return element.borderEnabled ?? 
-                     (element.questionSettings?.border?.enabled || element.answerSettings?.border?.enabled) ??
-                     (themeDefaults.borderEnabled ?? false);
-            })()}
-            onCheckedChange={(checked) => updateSharedSetting('borderEnabled', checked)}
-          />
-          Border
-        </Label>
+        <Tooltip content="Border" side="left">
+          <Label className="flex items-center gap-1" variant="xs">
+            <Checkbox
+              checked={(() => {
+                const themeDefaults = getThemeDefaults();
+                // Border is a shared property - only check top-level element.borderEnabled
+                // Fallback to questionSettings/answerSettings for backward compatibility with old data
+                return element.borderEnabled ?? 
+                       (element.questionSettings?.border?.enabled || element.answerSettings?.border?.enabled) ??
+                       (themeDefaults.borderEnabled ?? false);
+              })()}
+              onCheckedChange={(checked) => updateSharedSetting('borderEnabled', checked)}
+            />
+            Border
+          </Label>
+        </Tooltip>
       </div>
       
       {(() => {
@@ -1436,24 +1475,29 @@ export function QnAInlineSettingsForm({
         return borderEnabled;
       })() && (
         <IndentedSection>
-          <Slider
-            label="Border Width"
-            value={(() => {
-              const themeDefaults = getThemeDefaults();
-              return element.borderWidth || 
-                     element.questionSettings?.borderWidth || 
-                     element.answerSettings?.borderWidth || 
-                     (element.border?.borderWidth ?? (themeDefaults.borderWidth ?? 1));
-            })()}
-            onChange={(value) => updateSharedSetting('borderWidth', value)}
-            min={0}
-            max={50}
-            step={1}
-          />
+          <div className="min-w-0">
+            <Tooltip content="Border Width" side="left" fullWidth={true}>
+              <Slider
+                label="Border Width"
+                value={(() => {
+                  const themeDefaults = getThemeDefaults();
+                  return element.borderWidth || 
+                         element.questionSettings?.borderWidth || 
+                         element.answerSettings?.borderWidth || 
+                         (element.border?.borderWidth ?? (themeDefaults.borderWidth ?? 1));
+                })()}
+                onChange={(value) => updateSharedSetting('borderWidth', value)}
+                min={0}
+                max={50}
+                step={1}
+                className="w-full"
+              />
+            </Tooltip>
+          </div>
           
           <div>
-            <Label variant="xs">Border Theme</Label>
-            <ThemeSelect 
+            <Tooltip content="Border Theme" side="left">
+              <ThemeSelect 
               value={(() => {
                 const themeDefaults = getThemeDefaults();
                 return element.borderTheme || 
@@ -1465,29 +1509,33 @@ export function QnAInlineSettingsForm({
               })()}
               onChange={(value) => updateSharedSetting('borderTheme', value)}
             />
+            </Tooltip>
           </div>
           
           <div>
-            <Button
-              variant="outline"
-              size="xxs"
-              onClick={() => {
-                if (individualSettings) {
-                  setShowColorSelector('element-border-color');
-                } else {
-                  setLocalShowColorSelector('element-border-color');
-                }
-              }}
-              className="w-full"
-            >
-              <Palette className="w-4 mr-2" />
-              Border Color
-            </Button>
+            <Tooltip content="Border Color" side="left">
+              <Button
+                variant="outline"
+                size="xxs"
+                onClick={() => {
+                  if (individualSettings) {
+                    setShowColorSelector('element-border-color');
+                  } else {
+                    setLocalShowColorSelector('element-border-color');
+                  }
+                }}
+                className="w-full"
+              >
+                <Palette className="w-4 mr-2" />
+                Border Color
+              </Button>
+            </Tooltip>
           </div>
           
-          <div>
-            <Slider
-              label="Border Opacity"
+          <div className="min-w-0">
+            <Tooltip content="Border Opacity" side="left" fullWidth={true}>
+              <Slider
+                label="Border Opacity"
               value={Math.round(((() => {
                 const themeDefaults = getThemeDefaults();
                 return element.borderOpacity ?? 
@@ -1510,26 +1558,30 @@ export function QnAInlineSettingsForm({
               step={5}
               unit="%"
               hasLabel={false}
+              className="w-full"
             />
+            </Tooltip>
           </div>
         </IndentedSection>
       )}
       
       <div>
-        <Label className="flex items-center gap-1" variant="xs">
-          <Checkbox
-            checked={(() => {
-              const themeDefaults = getThemeDefaults();
-              // Background is a shared property - only check top-level element.backgroundEnabled
-              // Fallback to questionSettings/answerSettings for backward compatibility with old data
-              return element.backgroundEnabled ?? 
-                     (element.questionSettings?.background?.enabled || element.answerSettings?.background?.enabled) ??
-                     (themeDefaults.backgroundEnabled ?? false);
-            })()}
-            onCheckedChange={(checked) => updateSharedSetting('backgroundEnabled', checked)}
-          />
-          Background
-        </Label>
+        <Tooltip content="Background" side="left">
+          <Label className="flex items-center gap-1" variant="xs">
+            <Checkbox
+              checked={(() => {
+                const themeDefaults = getThemeDefaults();
+                // Background is a shared property - only check top-level element.backgroundEnabled
+                // Fallback to questionSettings/answerSettings for backward compatibility with old data
+                return element.backgroundEnabled ?? 
+                       (element.questionSettings?.background?.enabled || element.answerSettings?.background?.enabled) ??
+                       (themeDefaults.backgroundEnabled ?? false);
+              })()}
+              onCheckedChange={(checked) => updateSharedSetting('backgroundEnabled', checked)}
+            />
+            Background
+          </Label>
+        </Tooltip>
       </div>
       
       {(() => {
@@ -1543,26 +1595,29 @@ export function QnAInlineSettingsForm({
       })() && (
         <IndentedSection>
           <div>
-            <Button
-              variant="outline"
-              size="xxs"
-              onClick={() => {
-                if (individualSettings) {
-                  setShowColorSelector('element-background-color');
-                } else {
-                  setLocalShowColorSelector('element-background-color');
-                }
-              }}
-              className="w-full"
-            >
-              <Palette className="w-4 mr-2" />
-              Background Color
-            </Button>
+            <Tooltip content="Background Color" side="left">
+              <Button
+                variant="outline"
+                size="xxs"
+                onClick={() => {
+                  if (individualSettings) {
+                    setShowColorSelector('element-background-color');
+                  } else {
+                    setLocalShowColorSelector('element-background-color');
+                  }
+                }}
+                className="w-full"
+              >
+                <Palette className="w-4 mr-2" />
+                Background Color
+              </Button>
+            </Tooltip>
           </div>
           
-          <div>
-            <Slider
-              label="Background Opacity"
+          <div className="min-w-0">
+            <Tooltip content="Background Opacity" side="left" fullWidth={true}>
+              <Slider
+                label="Background Opacity"
               value={Math.round(((() => {
                 const themeDefaults = getThemeDefaults();
                 return element.backgroundOpacity ?? 
@@ -1585,16 +1640,19 @@ export function QnAInlineSettingsForm({
               step={5}
               unit="%"
               hasLabel={false}
+              className="w-full"
             />
+            </Tooltip>
           </div>
         </IndentedSection>
       )}
 
       <div className="flex flex-row gap-2 py-2 w-full">
-        <div className='flex-1'>
-          <div className='flex flex-row gap-2'>
-            <SquareRoundCorner className='w-5 h-5'/>
-            <Slider
+        <Tooltip content="Corner Radius" side="left">
+          <SquareRoundCorner className='w-5 h-5 flex-shrink-0'/>
+        </Tooltip>
+        <div className='flex-1 min-w-0'>
+          <Slider
               label="Corner Radius"
               value={(() => {
                 const themeDefaults = getThemeDefaults();
@@ -1607,15 +1665,15 @@ export function QnAInlineSettingsForm({
               step={1}
               className='w-full'
             />
-          </div>
         </div>
       </div>
       
       <div className="flex flex-row gap-2 py-2 w-full">
-        <div className='flex-1'>
-          <div className='flex flex-row gap-2'>
-            <PanelTopBottomDashed className='w-5 h-5'/>
-            <Slider
+        <Tooltip content="Padding" side="left">
+          <PanelTopBottomDashed className='w-5 h-5 flex-shrink-0'/>
+        </Tooltip>
+        <div className='flex-1 min-w-0'>
+          <Slider
               label="Padding"
               value={(() => {
                 // Priority: questionSettings.padding > answerSettings.padding > element.padding (from layout) > default
@@ -1625,11 +1683,10 @@ export function QnAInlineSettingsForm({
               })()}              
               onChange={(value) => updateSharedSetting('padding', value)}
               min={0}
-              max={50}
+              max={100}
               step={1}
               className='w-full'
             />
-          </div>
         </div>
       </div>
     </>

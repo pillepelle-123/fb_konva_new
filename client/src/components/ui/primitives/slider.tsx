@@ -44,7 +44,9 @@ export function Slider({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/[^0-9]/g, '');
-    setInputValue(value);
+    // Limit to maximum 3 characters
+    const limitedValue = value.slice(0, 3);
+    setInputValue(limitedValue);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -96,24 +98,44 @@ export function Slider({
           sliderInput
         )}
       </div>
-      {isEditing ? (
-        <Input
-          value={inputValue}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          onBlur={handleBlur}
-          className="text-xs text-muted-foreground text-center w-12 h-5 p-0 border-0 bg-transparent focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:outline-none focus:shadow-none rounded-none focus:rounded-none flex-shrink-0"
-          autoFocus
-          disabled={disabled}
-        />
-      ) : (
-        <span 
-          className={`text-xs text-muted-foreground flex-shrink-0 ${disabled ? '' : 'cursor-pointer hover:bg-background/50 px-1 rounded'}`}
-          onClick={handleValueClick}
-        >
-          {currentDisplayValue}{unit}
+      <span 
+        className={`text-xs text-muted-foreground flex-shrink-0 inline-flex items-baseline py-1 pl-2 relative ${disabled ? '' : 'cursor-pointer hover:bg-background/50 px-1 rounded'}`}
+        onClick={!isEditing ? handleValueClick : undefined}
+      >
+        {/* Invisible placeholder to maintain consistent width */}
+        <span className="invisible inline-flex items-baseline" aria-hidden="true">
+          <span style={{ width: `${currentDisplayValue.toString().length * 0.6}rem`, minWidth: '1.5rem', textAlign: 'right', display: 'inline-block' }}>
+            {currentDisplayValue}
+          </span>
+          <span style={{ width: '1.2rem', minWidth: '1.2rem', textAlign: 'left', display: 'inline-block' }}>
+            {unit}
+          </span>
         </span>
-      )}
+        {/* Actual content - positioned absolutely to overlay placeholder */}
+        <span className="absolute inset-0 flex items-baseline">
+          <span className="inline-block text-right" style={{ width: `${currentDisplayValue.toString().length * 0.6}rem`, minWidth: '1.5rem' }}>
+            {isEditing ? (
+              <Input
+                value={inputValue}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                onBlur={handleBlur}
+                className="text-xs text-muted-foreground text-right h-5 p-0 px-0 m-0 border-0 bg-transparent focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:outline-none focus:shadow-none rounded-none focus:rounded-none block w-full"
+                autoFocus
+                disabled={disabled}
+              />
+            ) : (
+              <span className="inline-block w-full text-right pt-0.5">
+                {currentDisplayValue}
+              </span>
+            )}
+          </span>
+          {/* Unit with fixed width for 2 characters, left-aligned */}
+          <span className="inline-block text-left" style={{ width: '1.2rem', minWidth: '1.2rem' }}>
+            {unit}
+          </span>
+        </span>
+      </span>
     </div>
   );
 }

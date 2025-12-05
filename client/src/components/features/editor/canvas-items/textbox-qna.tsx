@@ -901,31 +901,77 @@ export default function TextboxQna(props: CanvasItemProps) {
     return parseQuestionPayload(questionData);
   }, [element.questionId, state.tempQuestions]);
 
-  const assignedUser = useMemo(() => state.pageAssignments[state.activePageIndex + 1], [state.activePageIndex, state.pageAssignments]);
-
+  // Update element text when assigned user changes to show their answer
+  // Find the page that contains this element
+  const elementPageNumber = useMemo(() => {
+    if (!state.currentBook?.pages) return null;
+    for (const page of state.currentBook.pages) {
+      if (page.elements.some(el => el.id === element.id)) {
+        return page.pageNumber ?? null;
+      }
+    }
+    return null;
+  }, [state.currentBook?.pages, element.id]);
+  
+  const assignedUser = useMemo(() => {
+    if (!elementPageNumber) return null;
+    return state.pageAssignments[elementPageNumber];
+  }, [state.pageAssignments, elementPageNumber]);
+  
   const answerText = useMemo(() => {
-    if (element.formattedText) {
-      return stripHtml(element.formattedText);
+    if (!element.questionId || !assignedUser) return '';
+    const answerEntry = state.tempAnswers[element.questionId]?.[assignedUser.id] as TempAnswerEntry | undefined;
+    return answerEntry?.text || '';
+  }, [element.questionId, assignedUser, state.tempAnswers]);
+  
+  // Use ref to track previous values and prevent unnecessary updates
+  const previousAnswerTextRef = useRef<string>('');
+  const previousElementTextRef = useRef<string>('');
+  const previousElementFormattedTextRef = useRef<string>('');
+  const previousAssignedUserIdRef = useRef<number | null>(null);
+  
+  useEffect(() => {
+    if (element.questionId) {
+      // Check if assignedUser has changed
+      const assignedUserIdChanged = assignedUser?.id !== previousAssignedUserIdRef.current;
+      
+      // Only update if the answerText has changed AND element text doesn't match
+      // OR if assignedUser has changed (to ensure we update when switching users)
+      // Don't include element.text/formattedText in dependencies to prevent infinite loops
+      const answerTextChanged = answerText !== previousAnswerTextRef.current;
+      const elementTextMismatch = element.text !== answerText || element.formattedText !== answerText;
+      
+      if ((answerTextChanged && elementTextMismatch) || assignedUserIdChanged) {
+        previousAnswerTextRef.current = answerText;
+        previousElementTextRef.current = element.text || '';
+        previousElementFormattedTextRef.current = element.formattedText || '';
+        previousAssignedUserIdRef.current = assignedUser?.id ?? null;
+        
+        dispatch({
+          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+          payload: {
+            id: element.id,
+            updates: {
+              text: answerText || '',
+              formattedText: answerText || ''
+            }
+          }
+        });
+      } else {
+        // Update refs even if we don't dispatch to track current state
+        previousElementTextRef.current = element.text || '';
+        previousElementFormattedTextRef.current = element.formattedText || '';
+        previousAssignedUserIdRef.current = assignedUser?.id ?? null;
+      }
+    } else {
+      // Update assignedUser ref even if no questionId
+      previousAssignedUserIdRef.current = assignedUser?.id ?? null;
     }
-    if (element.text) {
-      return element.text;
-    }
-    if (!element.questionId) {
-      return '';
-    }
-    if (assignedUser) {
-      const answerEntry = state.tempAnswers[element.questionId]?.[assignedUser.id] as TempAnswerEntry | undefined;
-      return answerEntry?.text || '';
-    }
-    if (user?.id) {
-      const answerEntry = state.tempAnswers[element.questionId]?.[user.id] as TempAnswerEntry | undefined;
-      return answerEntry?.text || '';
-    }
-    return '';
-  }, [assignedUser, element.formattedText, element.questionId, element.text, state.tempAnswers, user?.id]);
+  }, [element.questionId, answerText, assignedUser, element.id, dispatch]);
 
   const sanitizedAnswer = answerText ? stripHtml(answerText) : '';
-  const answerContent = sanitizedAnswer || 'Add an answer...';
+  // Use answerText directly (no placeholder in canvas rendering, only in editor)
+  const answerContent = sanitizedAnswer;
 
   const preparedQuestionText = questionText ? stripHtml(questionText) : questionText;
 
@@ -1468,7 +1514,18 @@ export default function TextboxQna(props: CanvasItemProps) {
         `;
         document.head.appendChild(styleEl);
 
-        const assignedUser = state.pageAssignments[state.activePageIndex + 1];
+        // Find the page that contains this element
+        let elementPageNumber: number | null = null;
+        if (state.currentBook?.pages) {
+          for (const page of state.currentBook.pages) {
+            if (page.elements.some(el => el.id === element.id)) {
+              elementPageNumber = page.pageNumber ?? null;
+              break;
+            }
+          }
+        }
+        
+        const assignedUser = elementPageNumber ? state.pageAssignments[elementPageNumber] : null;
         let contentToLoad = '';
 
         if (element.questionId && assignedUser) {

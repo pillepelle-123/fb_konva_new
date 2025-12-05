@@ -10,9 +10,10 @@ interface TooltipProps {
   side?: "top" | "right" | "bottom_editor_bar" | "left" | "bottom" | "floating_button_fixed";
   backgroundColor?: string;
   textColor?: string;
+  fullWidth?: boolean;
 }
 
-export function Tooltip({ children, content, title, description, side = "right", backgroundColor = "bg-background", textColor = "text-foreground" }: TooltipProps) {
+export function Tooltip({ children, content, title, description, side = "right", backgroundColor = "bg-background", textColor = "text-foreground", fullWidth = false }: TooltipProps) {
   const [isVisible, setIsVisible] = React.useState(false);
   const [isMounted, setIsMounted] = React.useState(false);
   const [position, setPosition] = React.useState({ x: 0, y: 0 });
@@ -80,7 +81,11 @@ export function Tooltip({ children, content, title, description, side = "right",
       onMouseLeave={handleMouseLeave}
       style={{ display: 'contents', pointerEvents: 'none' }}
     >
-      <div style={{ pointerEvents: 'auto', display: 'inline-flex' }}>
+      <div style={{ 
+        pointerEvents: 'auto', 
+        display: 'flex', 
+        width: fullWidth ? '100%' : 'auto'
+      }}>
         {children}
       </div>
       {isMounted && createPortal(
