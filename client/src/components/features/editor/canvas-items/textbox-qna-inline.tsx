@@ -1730,6 +1730,7 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
               const themeRenderer = getThemeRenderer(theme);
               if (themeRenderer && theme !== 'default') {
                 // Create a temporary element-like object for generatePath
+                // Set roughness to 8 for 'rough' theme to match client-side rendering
                 const borderElement = {
                   type: 'rect' as const,
                   id: element.id + '-border',
@@ -1740,7 +1741,8 @@ export default function TextboxQnAInline(props: CanvasItemProps) {
                   cornerRadius: cornerRadius,
                   stroke: borderColor,
                   strokeWidth: borderWidth,
-                  fill: 'transparent'
+                  fill: 'transparent',
+                  roughness: theme === 'rough' ? 8 : undefined
                 } as CanvasElement;
                 
                 const pathData = themeRenderer.generatePath(borderElement);

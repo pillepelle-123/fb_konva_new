@@ -473,7 +473,7 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
         if (cornerRadius > 0) {
           const roundedRectPath = 'M ' + cornerRadius + ' 0 L ' + (width - cornerRadius) + ' 0 Q ' + width + ' 0 ' + width + ' ' + cornerRadius + ' L ' + width + ' ' + (dynamicHeight - cornerRadius) + ' Q ' + width + ' ' + dynamicHeight + ' ' + (width - cornerRadius) + ' ' + dynamicHeight + ' L ' + cornerRadius + ' ' + dynamicHeight + ' Q 0 ' + dynamicHeight + ' 0 ' + (dynamicHeight - cornerRadius) + ' L 0 ' + cornerRadius + ' Q 0 0 ' + cornerRadius + ' 0 Z';
           roughElement = rc.path(roundedRectPath, {
-            roughness: borderTheme === 'sketchy' ? 2 : 1,
+            roughness: borderTheme === 'sketchy' ? 2 : 8, // Use roughness 8 for 'rough' theme to match client-side rendering
             strokeWidth: borderWidth,
             stroke: borderColor,
             fill: 'transparent',
@@ -481,7 +481,7 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
           });
         } else {
           roughElement = rc.rectangle(0, 0, width, dynamicHeight, {
-            roughness: borderTheme === 'sketchy' ? 2 : 1,
+            roughness: borderTheme === 'sketchy' ? 2 : 8, // Use roughness 8 for 'rough' theme to match client-side rendering
             strokeWidth: borderWidth,
             stroke: borderColor,
             fill: 'transparent',

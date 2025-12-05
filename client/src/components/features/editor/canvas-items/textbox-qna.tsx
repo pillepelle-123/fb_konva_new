@@ -5,6 +5,7 @@ import BaseCanvasItem, { type CanvasItemProps } from './base-canvas-item';
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import { getToolDefaults } from '../../../../utils/tool-defaults';
+import { getThemeRenderer } from '../../../../utils/themes';
 import type { CanvasElement } from '../../../../context/editor-context';
 import type Konva from 'konva';
 import rough from 'roughjs';
@@ -52,6 +53,7 @@ type QnaSettings = {
   fontOpacity?: number;
   paragraphSpacing?: ParagraphSpacing;
   align?: 'left' | 'center' | 'right' | 'justify';
+  borderTheme?: string;
 };
 
 interface QnaCanvasElement extends CanvasElement {
@@ -65,6 +67,7 @@ interface QnaCanvasElement extends CanvasElement {
   borderColor?: string;
   borderWidth?: number;
   borderOpacity?: number;
+  borderTheme?: string;
   cornerRadius?: number;
   ruledLines?: boolean;
   ruledLinesWidth?: number;
@@ -74,6 +77,8 @@ interface QnaCanvasElement extends CanvasElement {
   ruledLinesTarget?: 'question' | 'answer';
   answerInNewRow?: boolean;
   questionAnswerGap?: number;
+  questionAnswerGapHorizontal?: number;
+  questionAnswerGapVertical?: number;
   blockQuestionAnswerGap?: number;
   layoutVariant?: 'inline' | 'block';
   questionPosition?: 'left' | 'right' | 'top' | 'bottom';
@@ -430,10 +435,11 @@ function createLayout(params: {
   
   let cursorY = padding;
   const questionLines = wrapText(questionText, questionStyle, availableWidth, ctx);
-  const lastQuestionLineWidth = questionLines.length ? questionLines[questionLines.length - 1].width : 0;
   
   // Store Y positions for each question line
   const questionLinePositions: number[] = [];
+  // Store X positions for each question line (to handle text alignment)
+  const questionLineXPositions: number[] = [];
   
       // First pass: render question lines and track their baseline positions
   questionLines.forEach((line) => {
@@ -442,6 +448,7 @@ function createLayout(params: {
       const baselineY = cursorY + questionBaselineOffset;
       questionLinePositions.push(baselineY);
       const textX = calculateTextX(line.text, questionStyle, padding, availableWidth, ctx);
+      questionLineXPositions.push(textX); // Store actual X position
       runs.push({
         text: line.text,
         x: textX,
@@ -459,6 +466,8 @@ function createLayout(params: {
       // Empty line - still track position
       const baselineY = cursorY + questionBaselineOffset;
       questionLinePositions.push(baselineY);
+      // For empty lines, use left alignment position
+      questionLineXPositions.push(padding);
       // Track empty line position for ruled lines
       linePositions.push({
         y: baselineY + questionStyle.fontSize * 0.15,
@@ -482,7 +491,40 @@ function createLayout(params: {
   // Check if answer can start on the same line as the last question line
   // Skip this check if answerInNewRow is true
   if (!answerInNewRow && questionLines.length > 0 && answerText && answerText.trim()) {
-    const inlineAvailable = availableWidth - lastQuestionLineWidth - inlineGap;
+    // Get the actual X position and width of the last question line
+    const lastQuestionLineIndex = questionLines.length - 1;
+    const lastQuestionLine = questionLines[lastQuestionLineIndex];
+    const lastQuestionLineActualX = questionLineXPositions[lastQuestionLineIndex] || padding;
+    const lastQuestionLineActualWidth = lastQuestionLine.width;
+    const lastQuestionLineEndX = lastQuestionLineActualX + lastQuestionLineActualWidth;
+    
+    // Calculate available space for answer text
+    // The right edge of the available area is: padding + availableWidth
+    const rightEdge = padding + availableWidth;
+    
+    // Check alignment to determine placement strategy
+    const align = questionStyle.align || 'left';
+    const isRightAligned = align === 'right';
+    const isCenterAligned = align === 'center';
+    
+    let inlineAvailable: number;
+    
+    if (isRightAligned) {
+      // For right alignment: question and answer together form a right-aligned block
+      // Question text is already right-aligned, so we need space before it for answer text
+      // The combined width (question + gap + answer) should fit within availableWidth
+      const spaceBefore = lastQuestionLineActualX - padding - inlineGap;
+      inlineAvailable = spaceBefore;
+    } else if (isCenterAligned) {
+      // For center alignment: both texts together will be centered
+      // We need space after the question text for the answer text
+      const spaceAfter = rightEdge - lastQuestionLineEndX - inlineGap;
+      inlineAvailable = spaceAfter;
+    } else {
+      // For left alignment: place answer text after question text (to the right)
+      const spaceAfter = rightEdge - lastQuestionLineEndX - inlineGap;
+      inlineAvailable = spaceAfter;
+    }
     
     // Split answer into words to check if at least the first word fits
     const answerWords = answerText.split(' ').filter(Boolean);
@@ -522,9 +564,56 @@ function createLayout(params: {
             runs[lastQuestionRunIndex].y = combinedBaselineY;
           }
           
-          // For inline text on the same line, use left alignment (after question text)
-          // Text alignment only applies to full lines, not inline text
-          const inlineTextX = padding + lastQuestionLineWidth + inlineGap;
+          // Position answer text based on alignment
+          // Question text is always left of answer text, regardless of alignment
+          const inlineTextWidth = measureText(inlineText, answerStyle, ctx);
+          let inlineTextX: number;
+          let questionTextX: number;
+          
+          if (isRightAligned) {
+            // For right alignment: both texts together form a right-aligned block
+            // Question text is left, answer text is right
+            // Calculate combined width: question + gap + answer
+            const combinedWidth = lastQuestionLineActualWidth + inlineGap + inlineTextWidth;
+            
+            // Position the combined block so it ends at the right edge
+            const combinedBlockStartX = rightEdge - combinedWidth;
+            
+            // Question text starts at the beginning of the combined block (left side)
+            questionTextX = Math.max(combinedBlockStartX, padding);
+            
+            // Answer text starts after question text + gap (right side)
+            inlineTextX = questionTextX + lastQuestionLineActualWidth + inlineGap;
+            
+            // Update question text position to maintain right alignment of combined block
+            if (lastQuestionRunIndex >= 0 && runs[lastQuestionRunIndex].style === questionStyle) {
+              runs[lastQuestionRunIndex].x = questionTextX;
+            }
+          } else if (isCenterAligned) {
+            // For center alignment: both texts together form a centered block
+            // Calculate combined width: question + gap + answer
+            const combinedWidth = lastQuestionLineActualWidth + inlineGap + inlineTextWidth;
+            
+            // Center the combined block within the available width
+            const combinedBlockStartX = padding + (availableWidth - combinedWidth) / 2;
+            
+            // Question text starts at the beginning of the combined block (left side)
+            questionTextX = Math.max(combinedBlockStartX, padding);
+            
+            // Answer text starts after question text + gap (right side)
+            inlineTextX = questionTextX + lastQuestionLineActualWidth + inlineGap;
+            
+            // Update question text position to maintain center alignment of combined block
+            if (lastQuestionRunIndex >= 0 && runs[lastQuestionRunIndex].style === questionStyle) {
+              runs[lastQuestionRunIndex].x = questionTextX;
+            }
+          } else {
+            // For left alignment: place answer text after question text
+            inlineTextX = lastQuestionLineEndX + inlineGap;
+            
+            // Ensure answer text doesn't exceed the right edge
+            inlineTextX = Math.min(inlineTextX, rightEdge - inlineTextWidth);
+          }
           
           // Add answer text aligned to the same baseline
           // Both texts use the same baseline Y position
@@ -1622,17 +1711,69 @@ export default function TextboxQna(props: CanvasItemProps) {
         />
       )}
 
-      {showBorder && (
-        <Rect
-          width={boxWidth}
-          height={boxHeight}
-          stroke={qnaElement.borderColor}
-          strokeWidth={qnaElement.borderWidth}
-          opacity={qnaElement.borderOpacity ?? 1}
-          cornerRadius={qnaElement.cornerRadius ?? qnaDefaults.cornerRadius ?? 0}
-          listening={false}
-        />
-      )}
+      {showBorder && (() => {
+        const borderColor = qnaElement.borderColor || '#000000';
+        const borderWidth = qnaElement.borderWidth || 1;
+        const borderOpacity = qnaElement.borderOpacity ?? 1;
+        const cornerRadius = qnaElement.cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
+        const borderThemeRaw = qnaElement.borderTheme || 
+                              qnaElement.questionSettings?.borderTheme || 
+                              qnaElement.answerSettings?.borderTheme || 
+                              'default';
+        // Map 'sketchy' to 'rough' if needed, or use as-is if valid Theme
+        const borderTheme = (borderThemeRaw === 'sketchy' ? 'rough' : borderThemeRaw) as 'default' | 'rough' | 'glow' | 'candy' | 'zigzag' | 'wobbly';
+        
+        // Use theme renderer for consistent border rendering
+        const themeRenderer = getThemeRenderer(borderTheme);
+        if (themeRenderer && borderTheme !== 'default') {
+          // Create a temporary element-like object for generatePath
+          // Set roughness to 2 for 'rough' theme to match ruled lines roughness
+          const borderElement = {
+            type: 'rect' as const,
+            id: qnaElement.id + '-border',
+            x: 0,
+            y: 0,
+            width: boxWidth,
+            height: boxHeight,
+            cornerRadius: cornerRadius,
+            stroke: borderColor,
+            strokeWidth: borderWidth,
+            fill: 'transparent',
+            roughness: borderTheme === 'rough' ? 8 : undefined
+          } as CanvasElement;
+          
+          const pathData = themeRenderer.generatePath(borderElement);
+          
+          if (pathData) {
+            return (
+              <Path
+                data={pathData}
+                stroke={borderColor}
+                strokeWidth={borderWidth}
+                opacity={borderOpacity}
+                fill="transparent"
+                strokeScaleEnabled={true}
+                listening={false}
+                lineCap="round"
+                lineJoin="round"
+              />
+            );
+          }
+        }
+        
+        // Default: simple rect border
+        return (
+          <Rect
+            width={boxWidth}
+            height={boxHeight}
+            stroke={borderColor}
+            strokeWidth={borderWidth}
+            opacity={borderOpacity}
+            cornerRadius={cornerRadius}
+            listening={false}
+          />
+        );
+      })()}
 
       {/* Text that can extend beyond the box */}
       <RichTextShape ref={textShapeRef} runs={layout.runs} width={boxWidth} height={layout.contentHeight} />

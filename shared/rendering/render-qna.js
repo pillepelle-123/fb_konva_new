@@ -3,7 +3,7 @@
  * This handles the standard QnA textbox (not inline)
  */
 
-const { getGlobalThemeDefaults, deepMerge } = require('./utils/theme-utils');
+const { getGlobalThemeDefaults, deepMerge, getThemeRenderer } = require('./utils/theme-utils');
 
 /**
  * Extract plain text from HTML
@@ -339,7 +339,7 @@ function createBlockLayout(params) {
  * Create layout for question and answer text
  */
 function createLayout(params) {
-  const { questionText, answerText, questionStyle, answerStyle, width, height, padding, ctx, layoutVariant = 'inline', questionPosition = 'left', questionWidth = 40, ruledLinesTarget = 'answer', blockQuestionAnswerGap = 10 } = params;
+  const { questionText, answerText, questionStyle, answerStyle, width, height, padding, ctx, layoutVariant = 'inline', questionPosition = 'left', questionWidth = 40, ruledLinesTarget = 'answer', blockQuestionAnswerGap = 10, answerInNewRow = false, questionAnswerGap = 0 } = params;
   
   // Block layout uses different logic
   if (layoutVariant === 'block') {
@@ -369,6 +369,13 @@ function createLayout(params) {
   // Baseline offsets
   const questionBaselineOffset = questionStyle.fontSize * 0.8;
   const answerBaselineOffset = answerStyle.fontSize * 0.8;
+  // For combined lines, use the larger baseline offset to align both texts
+  const combinedBaselineOffset = Math.max(questionBaselineOffset, answerBaselineOffset);
+  
+  // Store Y positions for each question line
+  const questionLinePositions = [];
+  // Store X positions for each question line (to handle text alignment)
+  const questionLineXPositions = [];
   
   let cursorY = padding;
   const questionLines = wrapText(questionText, questionStyle, availableWidth, ctx);
@@ -376,7 +383,9 @@ function createLayout(params) {
   questionLines.forEach((line) => {
     if (line.text) {
       const baselineY = cursorY + questionBaselineOffset;
+      questionLinePositions.push(baselineY);
       const textX = calculateTextX(line.text, questionStyle, padding, availableWidth, ctx);
+      questionLineXPositions.push(textX); // Store actual X position
       runs.push({
         text: line.text,
         x: textX,
@@ -392,6 +401,8 @@ function createLayout(params) {
     } else {
       // Track empty line position for ruled lines
       const baselineY = cursorY + questionBaselineOffset;
+      questionLinePositions.push(baselineY);
+      questionLineXPositions.push(padding); // For empty lines, use left alignment position
       linePositions.push({
         y: baselineY + questionStyle.fontSize * 0.15,
         lineHeight: questionLineHeight,
@@ -401,38 +412,154 @@ function createLayout(params) {
     cursorY += questionLineHeight;
   });
 
-  const lastQuestionLineWidth = questionLines.length ? questionLines[questionLines.length - 1].width : 0;
-  const lastQuestionLineY = questionLines.length ? cursorY - questionLineHeight : padding;
-
-  const answerLines = wrapText(answerText, answerStyle, availableWidth, ctx);
-  const inlineGap = Math.min(32, answerStyle.fontSize * 0.5);
+  // Calculate gap: base gap + user-defined gap
+  // If answerInNewRow is true, questionAnswerGap applies vertically (not horizontally)
+  const baseInlineGap = Math.min(32, answerStyle.fontSize * 0.5);
+  const inlineGap = answerInNewRow ? baseInlineGap : baseInlineGap + questionAnswerGap;
   let contentHeight = cursorY;
 
   let startAtSameLine = false;
-  let remainingAnswerLines = answerLines;
+  let remainingAnswerText = answerText;
+  const lastQuestionLineY = questionLinePositions.length > 0 ? questionLinePositions[questionLinePositions.length - 1] : padding;
 
-  if (questionLines.length > 0 && answerLines.length > 0) {
-    const inlineAvailable = availableWidth - lastQuestionLineWidth - inlineGap;
-    if (inlineAvailable > measureText(answerLines[0].text, answerStyle, ctx)) {
-      startAtSameLine = true;
-      const baselineY = lastQuestionLineY + answerBaselineOffset;
-      runs.push({
-        text: answerLines[0].text,
-        x: padding + lastQuestionLineWidth + inlineGap,
-        y: baselineY,
-        style: answerStyle
-      });
-      // Track line position for combined line
-      linePositions.push({
-        y: baselineY + answerStyle.fontSize * 0.15,
-        lineHeight: Math.max(questionLineHeight, answerLineHeight),
-        style: answerStyle
-      });
-      remainingAnswerLines = answerLines.slice(1);
+  // Check if answer can start on the same line as the last question line
+  // Skip this check if answerInNewRow is true
+  if (!answerInNewRow && questionLines.length > 0 && answerText && answerText.trim()) {
+    // Get the actual X position and width of the last question line
+    const lastQuestionLineIndex = questionLines.length - 1;
+    const lastQuestionLine = questionLines[lastQuestionLineIndex];
+    const lastQuestionLineActualX = questionLineXPositions[lastQuestionLineIndex] || padding;
+    const lastQuestionLineActualWidth = lastQuestionLine.width;
+    const lastQuestionLineEndX = lastQuestionLineActualX + lastQuestionLineActualWidth;
+    
+    // Calculate available space for answer text
+    const rightEdge = padding + availableWidth;
+    
+    // Check alignment to determine placement strategy
+    const align = questionStyle.align || 'left';
+    const isRightAligned = align === 'right';
+    const isCenterAligned = align === 'center';
+    
+    let inlineAvailable;
+    
+    if (isRightAligned) {
+      const spaceBefore = lastQuestionLineActualX - padding - inlineGap;
+      inlineAvailable = spaceBefore;
+    } else if (isCenterAligned) {
+      const spaceAfter = rightEdge - lastQuestionLineEndX - inlineGap;
+      inlineAvailable = spaceAfter;
+    } else {
+      const spaceAfter = rightEdge - lastQuestionLineEndX - inlineGap;
+      inlineAvailable = spaceAfter;
+    }
+    
+    // Split answer into words to check if at least the first word fits
+    const answerWords = answerText.split(' ').filter(Boolean);
+    if (answerWords.length > 0) {
+      const firstWordWidth = measureText(answerWords[0], answerStyle, ctx);
+      
+      if (inlineAvailable > firstWordWidth) {
+        startAtSameLine = true;
+        
+        // Build text that fits on the same line
+        let inlineText = '';
+        let wordsUsed = 0;
+        
+        for (let i = 0; i < answerWords.length; i++) {
+          const word = answerWords[i];
+          const testText = inlineText ? inlineText + ' ' + word : word;
+          const testWidth = measureText(testText, answerStyle, ctx);
+          
+          if (testWidth <= inlineAvailable) {
+            inlineText = testText;
+            wordsUsed++;
+          } else {
+            break;
+          }
+        }
+        
+        // Add inline text if we have at least one word
+        if (inlineText && wordsUsed > 0) {
+          // Calculate Y position for combined line: align both texts to the same baseline
+          const combinedBaselineY = lastQuestionLineY + (combinedBaselineOffset - questionBaselineOffset);
+          
+          // Update the last question line Y position to use combined baseline
+          const lastQuestionRunIndex = runs.length - 1;
+          if (lastQuestionRunIndex >= 0 && runs[lastQuestionRunIndex].style === questionStyle) {
+            runs[lastQuestionRunIndex].y = combinedBaselineY;
+          }
+          
+          // Position answer text based on alignment
+          const inlineTextWidth = measureText(inlineText, answerStyle, ctx);
+          let inlineTextX;
+          let questionTextX;
+          
+          if (isRightAligned) {
+            const combinedWidth = lastQuestionLineActualWidth + inlineGap + inlineTextWidth;
+            const combinedBlockStartX = rightEdge - combinedWidth;
+            questionTextX = Math.max(combinedBlockStartX, padding);
+            inlineTextX = questionTextX + lastQuestionLineActualWidth + inlineGap;
+            
+            if (lastQuestionRunIndex >= 0 && runs[lastQuestionRunIndex].style === questionStyle) {
+              runs[lastQuestionRunIndex].x = questionTextX;
+            }
+          } else if (isCenterAligned) {
+            const combinedWidth = lastQuestionLineActualWidth + inlineGap + inlineTextWidth;
+            const combinedBlockStartX = padding + (availableWidth - combinedWidth) / 2;
+            questionTextX = Math.max(combinedBlockStartX, padding);
+            inlineTextX = questionTextX + lastQuestionLineActualWidth + inlineGap;
+            
+            if (lastQuestionRunIndex >= 0 && runs[lastQuestionRunIndex].style === questionStyle) {
+              runs[lastQuestionRunIndex].x = questionTextX;
+            }
+          } else {
+            inlineTextX = lastQuestionLineEndX + inlineGap;
+            inlineTextX = Math.min(inlineTextX, rightEdge - inlineTextWidth);
+          }
+          
+          // Add answer text aligned to the same baseline
+          runs.push({
+            text: inlineText,
+            x: inlineTextX,
+            y: combinedBaselineY,
+            style: answerStyle
+          });
+          
+          // Update the last line position for ruled lines (use combined line height)
+          // Match client-side logic: update the last linePositions entry instead of adding a new one
+          if (linePositions.length > 0) {
+            linePositions[linePositions.length - 1] = {
+              y: combinedBaselineY + Math.max(questionStyle.fontSize, answerStyle.fontSize) * 0.15,
+              lineHeight: Math.max(questionLineHeight, answerLineHeight),
+              style: answerStyle // Use answer style for combined line
+            };
+          }
+          
+          // Update cursorY to account for combined line height
+          const combinedLineHeight = Math.max(questionLineHeight, answerLineHeight);
+          cursorY = padding + ((questionLines.length - 1) * questionLineHeight) + combinedLineHeight;
+          
+          // Get remaining text (words not used + rest of answer)
+          const remainingWords = answerWords.slice(wordsUsed);
+          remainingAnswerText = remainingWords.join(' ');
+        } else {
+          startAtSameLine = false;
+        }
+      }
     }
   }
 
-  let answerCursorY = startAtSameLine ? cursorY : cursorY + (questionLines.length ? answerLineHeight * 0.2 : 0);
+  // Wrap remaining answer text for new lines
+  const remainingAnswerLines = startAtSameLine && remainingAnswerText 
+    ? wrapText(remainingAnswerText, answerStyle, availableWidth, ctx)
+    : wrapText(answerText, answerStyle, availableWidth, ctx);
+
+  // Start answer on new line if not on same line as question
+  // If answerInNewRow is true, questionAnswerGap applies vertically
+  // Otherwise, use standard spacing (questionAnswerGap only applies horizontally via inlineGap)
+  const verticalGap = answerInNewRow ? questionAnswerGap : 0;
+  const baseVerticalSpacing = questionLines.length ? answerLineHeight * 0.2 : 0;
+  let answerCursorY = startAtSameLine ? cursorY : cursorY + baseVerticalSpacing + verticalGap;
 
   remainingAnswerLines.forEach((line) => {
     if (line.text) {
@@ -586,6 +713,11 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
   const questionWidth = element.questionWidth ?? 40;
   const ruledLinesTarget = element.ruledLinesTarget || 'answer';
   const blockQuestionAnswerGap = element.blockQuestionAnswerGap ?? 10;
+  const answerInNewRow = element.answerInNewRow ?? false;
+  // Use the appropriate gap value based on mode, with fallback to questionAnswerGap for backward compatibility
+  const questionAnswerGap = answerInNewRow 
+    ? (element.questionAnswerGapVertical ?? element.questionAnswerGap ?? 0)
+    : (element.questionAnswerGapHorizontal ?? element.questionAnswerGap ?? 0);
   
   // Create layout
   const layout = createLayout({
@@ -601,7 +733,20 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
     questionPosition: questionPosition,
     questionWidth: questionWidth,
     ruledLinesTarget: ruledLinesTarget,
-    blockQuestionAnswerGap: blockQuestionAnswerGap
+    blockQuestionAnswerGap: blockQuestionAnswerGap,
+    answerInNewRow: answerInNewRow,
+    questionAnswerGap: questionAnswerGap
+  });
+  
+  // Debug logging for layout result
+  console.log('renderQnA layout result:', {
+    id: element.id,
+    layoutVariant: layoutVariant,
+    runsCount: layout.runs ? layout.runs.length : 0,
+    linePositionsCount: layout.linePositions ? layout.linePositions.length : 0,
+    linePositions: layout.linePositions,
+    contentHeight: layout.contentHeight,
+    height: height
   });
   
   let nodesAdded = 0;
@@ -665,49 +810,201 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
     const borderWidth = element.borderWidth || 1;
     const borderOpacity = element.borderOpacity !== undefined ? element.borderOpacity : 1;
     const cornerRadius = element.cornerRadius ?? toolDefaults.cornerRadius ?? 0;
+    const borderTheme = element.borderTheme || 
+                       (element.questionSettings && element.questionSettings.borderTheme) || 
+                       (element.answerSettings && element.answerSettings.borderTheme) || 
+                       'default';
     
-    const borderRect = new Konva.Rect({
-      x: x,
-      y: y,
-      width: width,
-      height: height,
-      fill: 'transparent',
-      stroke: borderColor,
-      strokeWidth: borderWidth,
-      opacity: borderOpacity * opacity,
-      cornerRadius: cornerRadius,
-      listening: false,
-      visible: true
-    });
+    // Use layout.contentHeight for border (matches text height)
+    const borderHeight = layout.contentHeight || height;
     
-    layer.add(borderRect);
-    
-    // Insert border after ruled lines (or after background if no ruled lines)
-    const insertAfterIndex = bgRect ? layer.getChildren().indexOf(bgRect) + 1 + ruledLinesNodes.length : layer.getChildren().length;
-    const borderRectIndex = layer.getChildren().indexOf(borderRect);
-    if (borderRectIndex !== -1 && borderRectIndex !== insertAfterIndex) {
-      layer.getChildren().splice(borderRectIndex, 1);
-      layer.getChildren().splice(insertAfterIndex, 0, borderRect);
-    }
-    
-    // Fallback: if no background, insert after page background
-    if (!bgRect) {
-      // No background, so insert border after page background nodes
-      const stage = layer.getStage();
-      const stageWidth = stage ? stage.width() : 0;
-      const stageHeight = stage ? stage.height() : 0;
-      let lastPageBgIndex = -1;
-      layer.getChildren().forEach((node, idx) => {
-        if (node === borderRect) return;
-        if (node.getClassName() !== 'Rect' && node.getClassName() !== 'Image') return;
-        const nodeX = node.x ? node.x() : 0;
-        const nodeY = node.y ? node.y() : 0;
-        const nodeWidth = node.width ? node.width() : 0;
-        const nodeHeight = node.height ? node.height() : 0;
-        if (nodeX === 0 && nodeY === 0 && nodeWidth === stageWidth && nodeHeight === stageHeight) {
-          lastPageBgIndex = Math.max(lastPageBgIndex, idx);
+    // Render border with theme support
+    // For rough/sketchy themes, use rough.js directly (matches client-side logic)
+    if (roughInstance && (borderTheme === 'rough' || borderTheme === 'sketchy')) {
+      try {
+        const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        const rc = roughInstance.svg(svg);
+        
+        let roughElement;
+        if (cornerRadius > 0) {
+          const roundedRectPath = 'M ' + cornerRadius + ' 0 L ' + (width - cornerRadius) + ' 0 Q ' + width + ' 0 ' + width + ' ' + cornerRadius + ' L ' + width + ' ' + (borderHeight - cornerRadius) + ' Q ' + width + ' ' + borderHeight + ' ' + (width - cornerRadius) + ' ' + borderHeight + ' L ' + cornerRadius + ' ' + borderHeight + ' Q 0 ' + borderHeight + ' 0 ' + (borderHeight - cornerRadius) + ' L 0 ' + cornerRadius + ' Q 0 0 ' + cornerRadius + ' 0 Z';
+          roughElement = rc.path(roundedRectPath, {
+            roughness: borderTheme === 'sketchy' ? 2 : 8, // Use roughness 8 for 'rough' theme to match client-side rendering
+            strokeWidth: borderWidth,
+            stroke: borderColor,
+            fill: 'transparent',
+            seed: seed
+          });
+        } else {
+          roughElement = rc.rectangle(0, 0, width, borderHeight, {
+            roughness: borderTheme === 'sketchy' ? 2 : 8, // Use roughness 8 for 'rough' theme to match client-side rendering
+            strokeWidth: borderWidth,
+            stroke: borderColor,
+            fill: 'transparent',
+            seed: seed
+          });
         }
+        
+        const paths = roughElement.querySelectorAll('path');
+        let combinedPath = '';
+        paths.forEach(path => {
+          const d = path.getAttribute('d');
+          if (d) combinedPath += d + ' ';
+        });
+        
+        if (combinedPath) {
+          const borderPath = new Konva.Path({
+            x: x,
+            y: y,
+            data: combinedPath.trim(),
+            stroke: borderColor,
+            strokeWidth: borderWidth,
+            opacity: borderOpacity * opacity,
+            fill: 'transparent',
+            strokeScaleEnabled: true,
+            rotation: rotation,
+            listening: false,
+            lineCap: 'round',
+            lineJoin: 'round',
+            visible: true
+          });
+          layer.add(borderPath);
+          
+          // Insert border after ruled lines (or after background if no ruled lines)
+          const insertAfterIndex = bgRect ? layer.getChildren().indexOf(bgRect) + 1 + ruledLinesNodes.length : layer.getChildren().length;
+          const borderPathIndex = layer.getChildren().indexOf(borderPath);
+          if (borderPathIndex !== -1 && borderPathIndex !== insertAfterIndex) {
+            layer.getChildren().splice(borderPathIndex, 1);
+            layer.getChildren().splice(insertAfterIndex, 0, borderPath);
+          }
+          
+          // Fallback: if no background, insert after page background
+          if (!bgRect) {
+            const stage = layer.getStage();
+            const stageWidth = stage ? stage.width() : 0;
+            const stageHeight = stage ? stage.height() : 0;
+            let lastPageBgIndex = -1;
+            layer.getChildren().forEach((node, idx) => {
+              if (node === borderPath) return;
+              if (node.getClassName() !== 'Rect' && node.getClassName() !== 'Image') return;
+              const nodeX = node.x ? node.x() : 0;
+              const nodeY = node.y ? node.y() : 0;
+              const nodeWidth = node.width ? node.width() : 0;
+              const nodeHeight = node.height ? node.height() : 0;
+              if (nodeX === 0 && nodeY === 0 && nodeWidth === stageWidth && nodeHeight === stageHeight) {
+                lastPageBgIndex = Math.max(lastPageBgIndex, idx);
+              }
+            });
+            if (lastPageBgIndex !== -1) {
+              const borderIndex = layer.getChildren().indexOf(borderPath);
+              if (borderIndex !== -1 && borderIndex !== lastPageBgIndex + 1) {
+                layer.getChildren().splice(borderIndex, 1);
+                layer.getChildren().splice(lastPageBgIndex + 1, 0, borderPath);
+              }
+            }
+          }
+          
+          nodesAdded++;
+        } else {
+          // Fallback to Rect if path generation fails
+          const borderRect = new Konva.Rect({
+            x: x,
+            y: y,
+            width: width,
+            height: borderHeight,
+            fill: 'transparent',
+            stroke: borderColor,
+            strokeWidth: borderWidth,
+            opacity: borderOpacity * opacity,
+            cornerRadius: cornerRadius,
+            rotation: rotation,
+            listening: false,
+            visible: true
+          });
+          layer.add(borderRect);
+          
+          // Insert border after ruled lines (or after background if no ruled lines)
+          const insertAfterIndex = bgRect ? layer.getChildren().indexOf(bgRect) + 1 + ruledLinesNodes.length : layer.getChildren().length;
+          const borderRectIndex = layer.getChildren().indexOf(borderRect);
+          if (borderRectIndex !== -1 && borderRectIndex !== insertAfterIndex) {
+            layer.getChildren().splice(borderRectIndex, 1);
+            layer.getChildren().splice(insertAfterIndex, 0, borderRect);
+          }
+          nodesAdded++;
+        }
+      } catch (error) {
+        // Fallback to Rect if rough.js fails
+        const borderRect = new Konva.Rect({
+          x: x,
+          y: y,
+          width: width,
+          height: borderHeight,
+          fill: 'transparent',
+          stroke: borderColor,
+          strokeWidth: borderWidth,
+          opacity: borderOpacity * opacity,
+          cornerRadius: cornerRadius,
+          rotation: rotation,
+          listening: false,
+          visible: true
+        });
+        layer.add(borderRect);
+        
+        // Insert border after ruled lines (or after background if no ruled lines)
+        const insertAfterIndex = bgRect ? layer.getChildren().indexOf(bgRect) + 1 + ruledLinesNodes.length : layer.getChildren().length;
+        const borderRectIndex = layer.getChildren().indexOf(borderRect);
+        if (borderRectIndex !== -1 && borderRectIndex !== insertAfterIndex) {
+          layer.getChildren().splice(borderRectIndex, 1);
+          layer.getChildren().splice(insertAfterIndex, 0, borderRect);
+        }
+        nodesAdded++;
+      }
+    } else {
+      // Default: simple rect border
+      const borderRect = new Konva.Rect({
+        x: x,
+        y: y,
+        width: width,
+        height: borderHeight,
+        fill: 'transparent',
+        stroke: borderColor,
+        strokeWidth: borderWidth,
+        opacity: borderOpacity * opacity,
+        cornerRadius: cornerRadius,
+        rotation: rotation,
+        listening: false,
+        visible: true
       });
+      
+      layer.add(borderRect);
+      
+      // Insert border after ruled lines (or after background if no ruled lines)
+      const insertAfterIndex = bgRect ? layer.getChildren().indexOf(bgRect) + 1 + ruledLinesNodes.length : layer.getChildren().length;
+      const borderRectIndex = layer.getChildren().indexOf(borderRect);
+      if (borderRectIndex !== -1 && borderRectIndex !== insertAfterIndex) {
+        layer.getChildren().splice(borderRectIndex, 1);
+        layer.getChildren().splice(insertAfterIndex, 0, borderRect);
+      }
+      
+      // Fallback: if no background, insert after page background
+      if (!bgRect) {
+        // No background, so insert border after page background nodes
+        const stage = layer.getStage();
+        const stageWidth = stage ? stage.width() : 0;
+        const stageHeight = stage ? stage.height() : 0;
+        let lastPageBgIndex = -1;
+        layer.getChildren().forEach((node, idx) => {
+          if (node === borderRect) return;
+          if (node.getClassName() !== 'Rect' && node.getClassName() !== 'Image') return;
+          const nodeX = node.x ? node.x() : 0;
+          const nodeY = node.y ? node.y() : 0;
+          const nodeWidth = node.width ? node.width() : 0;
+          const nodeHeight = node.height ? node.height() : 0;
+          if (nodeX === 0 && nodeY === 0 && nodeWidth === stageWidth && nodeHeight === stageHeight) {
+            lastPageBgIndex = Math.max(lastPageBgIndex, idx);
+          }
+        });
       if (lastPageBgIndex !== -1) {
         const borderRectIndex = layer.getChildren().indexOf(borderRect);
         if (borderRectIndex !== -1 && borderRectIndex !== lastPageBgIndex + 1) {
@@ -723,6 +1020,19 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
   // Render ruled lines if enabled (after background, before border and text)
   const ruledLines = element.ruledLines ?? false;
   const ruledLinesNodes = [];
+  
+  // Debug logging for ruled lines
+  console.log('renderQnA ruled lines check:', {
+    id: element.id,
+    ruledLines: ruledLines,
+    layoutVariant: layoutVariant,
+    hasLinePositions: !!layout.linePositions,
+    linePositionsCount: layout.linePositions ? layout.linePositions.length : 0,
+    linePositions: layout.linePositions,
+    height: height,
+    width: width
+  });
+  
   if (ruledLines && layout.linePositions && layout.linePositions.length > 0) {
     const ruledLinesWidth = element.ruledLinesWidth ?? 0.8;
     const ruledLinesTheme = element.ruledLinesTheme || 'rough';
@@ -750,12 +1060,30 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
         }
       } else {
         // For inline layout, use full width with padding
-        // Only generate lines that are within the box dimensions
+        // Only generate lines that are within the box dimensions (0 <= y <= height)
+        // linePos.y is relative to element top (0 = top of element)
+        // Match client-side logic: if (linePos.y >= 0 && linePos.y <= boxHeight)
         if (linePos.y < 0 || linePos.y > height) {
+          console.log('renderQnA skipping ruled line (out of bounds):', {
+            linePosY: linePos.y,
+            height: height,
+            condition: linePos.y < 0 || linePos.y > height
+          });
           return;
         }
         lineStartX = x + padding;
         lineEndX = x + width - padding;
+        
+        console.log('renderQnA rendering ruled line (inline):', {
+          linePosY: linePos.y,
+          height: height,
+          lineStartX: lineStartX,
+          lineEndX: lineEndX,
+          x: x,
+          y: y,
+          padding: padding,
+          absoluteY: y + linePos.y
+        });
       }
       
       // Generate ruled line

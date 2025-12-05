@@ -41,6 +41,7 @@ export function PageRangeSelector({
             onChange={onStartPageChange}
             min={1}
             max={maxPages}
+            onFocus={() => onPageRangeChange('range')}
           />
           <span>to</span>
           <NumberInput
@@ -48,6 +49,7 @@ export function PageRangeSelector({
             onChange={onEndPageChange}
             min={1}
             max={maxPages}
+            onFocus={() => onPageRangeChange('range')}
           />
         </div>
     

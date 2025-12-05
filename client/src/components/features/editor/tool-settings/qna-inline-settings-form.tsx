@@ -948,16 +948,34 @@ export function QnAInlineSettingsForm({
               <Checkbox
                 checked={element.answerInNewRow ?? false}
                 onCheckedChange={(checked) => {
+                  const updates: any = {
+                    answerInNewRow: checked
+                  };
+                  
+                  // Get current gap value based on CURRENT mode (before switching)
+                  const currentModeIsVertical = element.answerInNewRow ?? false;
+                  
+                  if (currentModeIsVertical) {
+                    // Currently in vertical mode, switching to horizontal
+                    // Save current vertical gap value
+                    const currentVerticalGap = element.questionAnswerGapVertical ?? element.questionAnswerGap ?? 0;
+                    updates.questionAnswerGapVertical = currentVerticalGap;
+                    // Restore horizontal gap (or use 0 if not set)
+                    updates.questionAnswerGap = element.questionAnswerGapHorizontal ?? 0;
+                  } else {
+                    // Currently in horizontal mode, switching to vertical
+                    // Save current horizontal gap value
+                    const currentHorizontalGap = element.questionAnswerGapHorizontal ?? element.questionAnswerGap ?? 0;
+                    updates.questionAnswerGapHorizontal = currentHorizontalGap;
+                    // Restore vertical gap (or use 0 if not set)
+                    updates.questionAnswerGap = element.questionAnswerGapVertical ?? 0;
+                  }
+                  
                   dispatch({
                     type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
                     payload: {
                       id: element.id,
-                      updates: {
-                        answerInNewRow: checked,
-                        // When enabling "Answer in new row", always set gap to 0
-                        // (gap will then control vertical spacing)
-                        ...(checked ? { questionAnswerGap: 0 } : {})
-                      }
+                      updates
                     }
                   });
                 }}
@@ -980,15 +998,31 @@ export function QnAInlineSettingsForm({
                 label={element.answerInNewRow 
                   ? "Vertical gap between Question and Answer" 
                   : "Horizontal gap between Question and Answer"}
-                value={element.questionAnswerGap ?? 0}
+                value={(() => {
+                  // Get the appropriate gap value based on current mode
+                  if (element.answerInNewRow) {
+                    return element.questionAnswerGapVertical ?? element.questionAnswerGap ?? 0;
+                  } else {
+                    return element.questionAnswerGapHorizontal ?? element.questionAnswerGap ?? 0;
+                  }
+                })()}
                 onChange={(value) => {
+                  const updates: any = {
+                    questionAnswerGap: value
+                  };
+                  
+                  // Also save to the appropriate property based on current mode
+                  if (element.answerInNewRow) {
+                    updates.questionAnswerGapVertical = value;
+                  } else {
+                    updates.questionAnswerGapHorizontal = value;
+                  }
+                  
                   dispatch({
                     type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
                     payload: {
                       id: element.id,
-                      updates: {
-                        questionAnswerGap: value
-                      }
+                      updates
                     }
                   });
                 }}
@@ -997,7 +1031,14 @@ export function QnAInlineSettingsForm({
                 step={2}
                 unit=""
                 hasLabel={false}
-                displayValue={Math.round((element.questionAnswerGap ?? 20) / 2)}
+                displayValue={Math.round(((() => {
+                  // Get the appropriate gap value for display
+                  if (element.answerInNewRow) {
+                    return element.questionAnswerGapVertical ?? element.questionAnswerGap ?? 0;
+                  } else {
+                    return element.questionAnswerGapHorizontal ?? element.questionAnswerGap ?? 0;
+                  }
+                })() ?? 20) / 2)}
               />
             </Tooltip>
           </div>
@@ -1109,58 +1150,49 @@ export function QnAInlineSettingsForm({
           <div className="flex-1 py-2">
             <Label variant="xs">Text Align</Label>
             <ButtonGroup className="mt-1 flex flex-row">
-              <Button
-                variant={(() => {
-                  const qSettings = element.questionSettings || {};
-                  const aSettings = element.answerSettings || {};
-                  const align = qSettings.align || aSettings.align || element.format?.textAlign || element.align || 'left';
-                  return align === 'left' ? 'default' : 'outline';
-                })()}
-                size="xxs"
-                onClick={() => updateSharedSetting('align', 'left')}
-                className="px-1 h-6 flex-1"
-              >
-                <AlignLeft className="h-3 w-3" />
-              </Button>
-              <Button
-                variant={(() => {
-                  const qSettings = element.questionSettings || {};
-                  const aSettings = element.answerSettings || {};
-                  const align = qSettings.align || aSettings.align || element.format?.textAlign || element.align || 'left';
-                  return align === 'center' ? 'default' : 'outline';
-                })()}
-                size="xxs"
-                onClick={() => updateSharedSetting('align', 'center')}
-                className="px-1 h-6 flex-1"
-              >
-                <AlignCenter className="h-3 w-3" />
-              </Button>
-              <Button
-                variant={(() => {
-                  const qSettings = element.questionSettings || {};
-                  const aSettings = element.answerSettings || {};
-                  const align = qSettings.align || aSettings.align || element.format?.textAlign || element.align || 'left';
-                  return align === 'right' ? 'default' : 'outline';
-                })()}
-                size="xxs"
-                onClick={() => updateSharedSetting('align', 'right')}
-                className="px-1 h-6 flex-1"
-              >
-                <AlignRight className="h-3 w-3" />
-              </Button>
-              <Button
-                variant={(() => {
-                  const qSettings = element.questionSettings || {};
-                  const aSettings = element.answerSettings || {};
-                  const align = qSettings.align || aSettings.align || element.format?.textAlign || element.align || 'left';
-                  return align === 'justify' ? 'default' : 'outline';
-                })()}
-                size="xxs"
-                onClick={() => updateSharedSetting('align', 'justify')}
-                className="px-1 h-6 flex-1"
-              >
-                <AlignJustify className="h-3 w-3" />
-              </Button>
+              {(() => {
+                // Use the same priority order as textbox-qna.tsx: element.align || element.format?.textAlign || questionSettings.align || answerSettings.align
+                const qSettings = element.questionSettings || {};
+                const aSettings = element.answerSettings || {};
+                const currentAlign = element.align || element.format?.textAlign || qSettings.align || aSettings.align || 'left';
+                
+                return (
+                  <>
+                    <Button
+                      variant={currentAlign === 'left' ? 'default' : 'outline'}
+                      size="xxs"
+                      onClick={() => updateSharedSetting('align', 'left')}
+                      className="px-1 h-6 flex-1"
+                    >
+                      <AlignLeft className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant={currentAlign === 'center' ? 'default' : 'outline'}
+                      size="xxs"
+                      onClick={() => updateSharedSetting('align', 'center')}
+                      className="px-1 h-6 flex-1"
+                    >
+                      <AlignCenter className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant={currentAlign === 'right' ? 'default' : 'outline'}
+                      size="xxs"
+                      onClick={() => updateSharedSetting('align', 'right')}
+                      className="px-1 h-6 flex-1"
+                    >
+                      <AlignRight className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant={currentAlign === 'justify' ? 'default' : 'outline'}
+                      size="xxs"
+                      onClick={() => updateSharedSetting('align', 'justify')}
+                      className="px-1 h-6 flex-1"
+                    >
+                      <AlignJustify className="h-3 w-3" />
+                    </Button>
+                  </>
+                );
+              })()}
             </ButtonGroup>
           </div>
         </div>

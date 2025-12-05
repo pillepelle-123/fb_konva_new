@@ -4,9 +4,10 @@ interface NumberInputProps {
   min?: number;
   max?: number;
   width?: string;
+  onFocus?: () => void;
 }
 
-export function NumberInput({ value, onChange, min, max, width = '60px' }: NumberInputProps) {
+export function NumberInput({ value, onChange, min, max, width = '60px', onFocus }: NumberInputProps) {
   return (
     <input
       type="number"
@@ -14,6 +15,7 @@ export function NumberInput({ value, onChange, min, max, width = '60px' }: Numbe
       max={max}
       value={value}
       onChange={(e) => onChange(parseInt(e.target.value))}
+      onFocus={onFocus}
       style={{
         width,
         padding: '4px',
