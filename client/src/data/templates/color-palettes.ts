@@ -80,6 +80,7 @@ export function applyPaletteToElement(palette: ColorPalette, elementType: string
       break;
     }
       
+    case 'qna':
     case 'qna_inline': {
       const questionFont = get('qnaQuestionText', 'text', palette.colors.text);
       const questionBg = get('qnaQuestionBackground', 'surface', palette.colors.surface);

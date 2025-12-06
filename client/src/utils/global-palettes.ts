@@ -163,6 +163,7 @@ export function applyPaletteToElement(palette: ColorPalette, elementType: string
       updates.ruledLines = { lineColor: palette.colors.primary };
       break;
       
+    case 'qna':
     case 'qna_inline':
       // Font properties only in questionSettings/answerSettings (no nested font object)
       // Shared properties (borderColor, backgroundColor, etc.) are set on top-level

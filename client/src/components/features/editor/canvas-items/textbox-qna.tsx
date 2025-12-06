@@ -1,11 +1,10 @@
-import React, { useMemo, useRef, useEffect, forwardRef, useState } from 'react';
-import { Shape, Rect, Path } from 'react-konva';
+import React, { useMemo, useRef, useEffect, forwardRef, useState, useCallback } from 'react';
+import { Shape, Rect, Path, Text as KonvaText } from 'react-konva';
 import { v4 as uuidv4 } from 'uuid';
 import BaseCanvasItem, { type CanvasItemProps } from './base-canvas-item';
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import { getToolDefaults } from '../../../../utils/tool-defaults';
-import { getThemeRenderer } from '../../../../utils/themes';
 import type { CanvasElement } from '../../../../context/editor-context';
 import type Konva from 'konva';
 import rough from 'roughjs';
@@ -53,7 +52,6 @@ type QnaSettings = {
   fontOpacity?: number;
   paragraphSpacing?: ParagraphSpacing;
   align?: 'left' | 'center' | 'right' | 'justify';
-  borderTheme?: string;
 };
 
 interface QnaCanvasElement extends CanvasElement {
@@ -67,7 +65,6 @@ interface QnaCanvasElement extends CanvasElement {
   borderColor?: string;
   borderWidth?: number;
   borderOpacity?: number;
-  borderTheme?: string;
   cornerRadius?: number;
   ruledLines?: boolean;
   ruledLinesWidth?: number;
@@ -77,8 +74,6 @@ interface QnaCanvasElement extends CanvasElement {
   ruledLinesTarget?: 'question' | 'answer';
   answerInNewRow?: boolean;
   questionAnswerGap?: number;
-  questionAnswerGapHorizontal?: number;
-  questionAnswerGapVertical?: number;
   blockQuestionAnswerGap?: number;
   layoutVariant?: 'inline' | 'block';
   questionPosition?: 'left' | 'right' | 'top' | 'bottom';
@@ -112,11 +107,6 @@ type QuillInstance = {
 type QuillConstructor = {
   new (container: HTMLElement, options: { theme: string }): QuillInstance;
   import: (moduleName: string) => QuillDeltaConstructor;
-};
-
-type QuillModalElement = HTMLDivElement & {
-  __closeQuillEditorHandler?: EventListener;
-  __openQuestionDialogHandler?: EventListener;
 };
 
 type ExtendedWindow = Window &
@@ -435,11 +425,10 @@ function createLayout(params: {
   
   let cursorY = padding;
   const questionLines = wrapText(questionText, questionStyle, availableWidth, ctx);
+  const lastQuestionLineWidth = questionLines.length ? questionLines[questionLines.length - 1].width : 0;
   
   // Store Y positions for each question line
   const questionLinePositions: number[] = [];
-  // Store X positions for each question line (to handle text alignment)
-  const questionLineXPositions: number[] = [];
   
       // First pass: render question lines and track their baseline positions
   questionLines.forEach((line) => {
@@ -448,7 +437,6 @@ function createLayout(params: {
       const baselineY = cursorY + questionBaselineOffset;
       questionLinePositions.push(baselineY);
       const textX = calculateTextX(line.text, questionStyle, padding, availableWidth, ctx);
-      questionLineXPositions.push(textX); // Store actual X position
       runs.push({
         text: line.text,
         x: textX,
@@ -466,8 +454,6 @@ function createLayout(params: {
       // Empty line - still track position
       const baselineY = cursorY + questionBaselineOffset;
       questionLinePositions.push(baselineY);
-      // For empty lines, use left alignment position
-      questionLineXPositions.push(padding);
       // Track empty line position for ruled lines
       linePositions.push({
         y: baselineY + questionStyle.fontSize * 0.15,
@@ -491,40 +477,7 @@ function createLayout(params: {
   // Check if answer can start on the same line as the last question line
   // Skip this check if answerInNewRow is true
   if (!answerInNewRow && questionLines.length > 0 && answerText && answerText.trim()) {
-    // Get the actual X position and width of the last question line
-    const lastQuestionLineIndex = questionLines.length - 1;
-    const lastQuestionLine = questionLines[lastQuestionLineIndex];
-    const lastQuestionLineActualX = questionLineXPositions[lastQuestionLineIndex] || padding;
-    const lastQuestionLineActualWidth = lastQuestionLine.width;
-    const lastQuestionLineEndX = lastQuestionLineActualX + lastQuestionLineActualWidth;
-    
-    // Calculate available space for answer text
-    // The right edge of the available area is: padding + availableWidth
-    const rightEdge = padding + availableWidth;
-    
-    // Check alignment to determine placement strategy
-    const align = questionStyle.align || 'left';
-    const isRightAligned = align === 'right';
-    const isCenterAligned = align === 'center';
-    
-    let inlineAvailable: number;
-    
-    if (isRightAligned) {
-      // For right alignment: question and answer together form a right-aligned block
-      // Question text is already right-aligned, so we need space before it for answer text
-      // The combined width (question + gap + answer) should fit within availableWidth
-      const spaceBefore = lastQuestionLineActualX - padding - inlineGap;
-      inlineAvailable = spaceBefore;
-    } else if (isCenterAligned) {
-      // For center alignment: both texts together will be centered
-      // We need space after the question text for the answer text
-      const spaceAfter = rightEdge - lastQuestionLineEndX - inlineGap;
-      inlineAvailable = spaceAfter;
-    } else {
-      // For left alignment: place answer text after question text (to the right)
-      const spaceAfter = rightEdge - lastQuestionLineEndX - inlineGap;
-      inlineAvailable = spaceAfter;
-    }
+    const inlineAvailable = availableWidth - lastQuestionLineWidth - inlineGap;
     
     // Split answer into words to check if at least the first word fits
     const answerWords = answerText.split(' ').filter(Boolean);
@@ -564,56 +517,9 @@ function createLayout(params: {
             runs[lastQuestionRunIndex].y = combinedBaselineY;
           }
           
-          // Position answer text based on alignment
-          // Question text is always left of answer text, regardless of alignment
-          const inlineTextWidth = measureText(inlineText, answerStyle, ctx);
-          let inlineTextX: number;
-          let questionTextX: number;
-          
-          if (isRightAligned) {
-            // For right alignment: both texts together form a right-aligned block
-            // Question text is left, answer text is right
-            // Calculate combined width: question + gap + answer
-            const combinedWidth = lastQuestionLineActualWidth + inlineGap + inlineTextWidth;
-            
-            // Position the combined block so it ends at the right edge
-            const combinedBlockStartX = rightEdge - combinedWidth;
-            
-            // Question text starts at the beginning of the combined block (left side)
-            questionTextX = Math.max(combinedBlockStartX, padding);
-            
-            // Answer text starts after question text + gap (right side)
-            inlineTextX = questionTextX + lastQuestionLineActualWidth + inlineGap;
-            
-            // Update question text position to maintain right alignment of combined block
-            if (lastQuestionRunIndex >= 0 && runs[lastQuestionRunIndex].style === questionStyle) {
-              runs[lastQuestionRunIndex].x = questionTextX;
-            }
-          } else if (isCenterAligned) {
-            // For center alignment: both texts together form a centered block
-            // Calculate combined width: question + gap + answer
-            const combinedWidth = lastQuestionLineActualWidth + inlineGap + inlineTextWidth;
-            
-            // Center the combined block within the available width
-            const combinedBlockStartX = padding + (availableWidth - combinedWidth) / 2;
-            
-            // Question text starts at the beginning of the combined block (left side)
-            questionTextX = Math.max(combinedBlockStartX, padding);
-            
-            // Answer text starts after question text + gap (right side)
-            inlineTextX = questionTextX + lastQuestionLineActualWidth + inlineGap;
-            
-            // Update question text position to maintain center alignment of combined block
-            if (lastQuestionRunIndex >= 0 && runs[lastQuestionRunIndex].style === questionStyle) {
-              runs[lastQuestionRunIndex].x = questionTextX;
-            }
-          } else {
-            // For left alignment: place answer text after question text
-            inlineTextX = lastQuestionLineEndX + inlineGap;
-            
-            // Ensure answer text doesn't exceed the right edge
-            inlineTextX = Math.min(inlineTextX, rightEdge - inlineTextWidth);
-          }
+          // For inline text on the same line, use left alignment (after question text)
+          // Text alignment only applies to full lines, not inline text
+          const inlineTextX = padding + lastQuestionLineWidth + inlineGap;
           
           // Add answer text aligned to the same baseline
           // Both texts use the same baseline Y position
@@ -649,8 +555,12 @@ function createLayout(params: {
   }
 
   // Wrap remaining answer text for new lines
-  const remainingAnswerLines = startAtSameLine && remainingAnswerText 
+  // Only wrap remaining text if startAtSameLine is true AND there is remaining text
+  // If startAtSameLine is true but remainingAnswerText is empty, don't render any additional lines
+  const remainingAnswerLines = startAtSameLine && remainingAnswerText && remainingAnswerText.trim()
     ? wrapText(remainingAnswerText, answerStyle, availableWidth, ctx)
+    : startAtSameLine
+    ? [] // If startAtSameLine is true but no remaining text, don't render additional lines
     : wrapText(answerText, answerStyle, availableWidth, ctx);
 
   // Start answer on new line if not on same line as question
@@ -727,6 +637,118 @@ const RichTextShape = forwardRef<Konva.Shape, {
 ));
 RichTextShape.displayName = 'RichTextShape';
 
+function getClickArea(
+  x: number,
+  y: number,
+  layout: LayoutResult,
+  layoutVariant: 'inline' | 'block',
+  questionStyle: RichTextStyle,
+  answerStyle: RichTextStyle,
+  padding: number,
+  width: number,
+  height: number,
+  hasAnswer: boolean
+): 'question' | 'answer' | null {
+  if (layoutVariant === 'block') {
+    // For block layout, use explicit questionArea and answerArea
+    if (layout.questionArea && layout.answerArea) {
+      const questionArea = layout.questionArea;
+      const answerArea = layout.answerArea;
+      
+      // Check if click is in question area
+      if (
+        x >= questionArea.x &&
+        x <= questionArea.x + questionArea.width &&
+        y >= questionArea.y &&
+        y <= questionArea.y + questionArea.height
+      ) {
+        return 'question';
+      }
+      
+      // Check if click is in answer area (even if empty)
+      if (
+        x >= answerArea.x &&
+        x <= answerArea.x + answerArea.width &&
+        y >= answerArea.y &&
+        y <= answerArea.y + answerArea.height
+      ) {
+        return 'answer';
+      }
+    }
+    return null;
+  } else {
+    // For inline layout, determine based on text runs
+    const answerRuns = layout.runs.filter(run => run.style === answerStyle);
+    const questionRuns = layout.runs.filter(run => run.style === questionStyle);
+    
+    if (answerRuns.length === 0 && questionRuns.length === 0) {
+      return null;
+    }
+    
+    // Calculate answer area bounds
+    if (answerRuns.length > 0) {
+      const answerBaselineOffset = answerStyle.fontSize * 0.8;
+      const answerLineHeight = getLineHeight(answerStyle);
+      const minAnswerY = Math.min(...answerRuns.map(run => run.y - answerBaselineOffset));
+      const maxAnswerY = Math.max(...answerRuns.map(run => run.y - answerBaselineOffset + answerLineHeight));
+      
+      // Check if click is in answer area
+      if (
+        x >= padding &&
+        x <= width - padding &&
+        y >= minAnswerY &&
+        y <= maxAnswerY
+      ) {
+        return 'answer';
+      }
+    }
+    
+    // If no answer exists, calculate expected answer area based on question position
+    if (!hasAnswer && questionRuns.length > 0) {
+      const questionBaselineOffset = questionStyle.fontSize * 0.8;
+      const questionLineHeight = getLineHeight(questionStyle);
+      const answerLineHeight = getLineHeight(answerStyle);
+      
+      // Find the last question line position
+      const lastQuestionY = Math.max(...questionRuns.map(run => run.y - questionBaselineOffset + questionLineHeight));
+      
+      // Answer area starts after the question (with some spacing)
+      const answerStartY = lastQuestionY + (answerLineHeight * 0.2);
+      const answerEndY = height - padding; // Until bottom edge (with padding)
+      
+      // Check if click is in expected answer area
+      if (
+        x >= padding &&
+        x <= width - padding &&
+        y >= answerStartY &&
+        y <= answerEndY
+      ) {
+        return 'answer';
+      }
+    }
+    
+    // Calculate question area bounds
+    if (questionRuns.length > 0) {
+      const questionBaselineOffset = questionStyle.fontSize * 0.8;
+      const questionLineHeight = getLineHeight(questionStyle);
+      const minQuestionY = Math.min(...questionRuns.map(run => run.y - questionBaselineOffset));
+      const maxQuestionY = Math.max(...questionRuns.map(run => run.y - questionBaselineOffset + questionLineHeight));
+      
+      // Check if click is in question area
+      if (
+        x >= padding &&
+        x <= width - padding &&
+        y >= minQuestionY &&
+        y <= maxQuestionY
+      ) {
+        return 'question';
+      }
+    }
+    
+    return null;
+  }
+}
+
 export default function TextboxQna(props: CanvasItemProps) {
   const { element } = props;
   const qnaElement = element as QnaCanvasElement;
@@ -748,6 +770,13 @@ export default function TextboxQna(props: CanvasItemProps) {
   const [transformDimensions, setTransformDimensions] = useState<{ width: number; height: number } | null>(null);
   const transformDimensionsRef = useRef<{ width: number; height: number } | null>(null);
   
+  // State to track if answer editor is open (to hide only answer text, not question)
+  const [isAnswerEditorOpen, setIsAnswerEditorOpen] = useState(false);
+  
+  // State for hover detection and tooltip
+  const [hoveredArea, setHoveredArea] = useState<'question' | 'answer' | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
+  
   // Sync ref with state
   useEffect(() => {
     transformDimensionsRef.current = transformDimensions;
@@ -764,8 +793,11 @@ export default function TextboxQna(props: CanvasItemProps) {
     height: boxHeight
   });
   const currentPage = state.currentBook?.pages[state.activePageIndex];
-  const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
-  const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+  // CRITICAL: Use element.theme if present (set during loadBook for pages that inherit book theme)
+  // Otherwise fall back to page/book theme from state
+  const elementTheme = element.theme;
+  const pageTheme = elementTheme || currentPage?.themeId || currentPage?.background?.pageTheme;
+  const bookTheme = elementTheme || state.currentBook?.themeId || state.currentBook?.bookTheme;
   const pageLayoutTemplateId = currentPage?.layoutTemplateId;
   const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
   const pageColorPaletteId = currentPage?.colorPaletteId;
@@ -809,16 +841,24 @@ export default function TextboxQna(props: CanvasItemProps) {
       align = (qnaElement.questionSettings?.align || element.align || (element as any).format?.textAlign || 'left') as 'left' | 'center' | 'right' | 'justify';
     }
     
+    // Use spread operator to set defaults first, then override with element settings (same as textbox-qna-inline.tsx)
     const style = {
+      ...qnaDefaults.questionSettings,
+      ...qnaElement.questionSettings,
       fontSize: qnaElement.questionSettings?.fontSize ?? qnaDefaults.questionSettings?.fontSize ?? qnaDefaults.fontSize ?? 58,
       fontFamily: qnaElement.questionSettings?.fontFamily || qnaDefaults.questionSettings?.fontFamily || qnaDefaults.fontFamily || 'Arial, sans-serif',
       fontBold: qnaElement.questionSettings?.fontBold ?? qnaDefaults.questionSettings?.fontBold ?? false,
       fontItalic: qnaElement.questionSettings?.fontItalic ?? qnaDefaults.questionSettings?.fontItalic ?? false,
-      fontColor: qnaElement.questionSettings?.fontColor || qnaDefaults.questionSettings?.fontColor || '#666666',
       fontOpacity: qnaElement.questionSettings?.fontOpacity ?? qnaDefaults.questionSettings?.fontOpacity ?? 1,
       paragraphSpacing: qnaElement.questionSettings?.paragraphSpacing || qnaDefaults.questionSettings?.paragraphSpacing || element.paragraphSpacing || 'small',
       align
     } as RichTextStyle;
+    
+    // Direct color override - element settings have absolute priority
+    if (qnaElement.questionSettings?.fontColor) {
+      style.fontColor = qnaElement.questionSettings.fontColor;
+    }
+    
     return style;
   }, [
     element.paragraphSpacing,
@@ -853,16 +893,24 @@ export default function TextboxQna(props: CanvasItemProps) {
       align = (qnaElement.answerSettings?.align || element.align || (element as any).format?.textAlign || 'left') as 'left' | 'center' | 'right' | 'justify';
     }
     
+    // Use spread operator to set defaults first, then override with element settings (same as textbox-qna-inline.tsx)
     const style = {
+      ...qnaDefaults.answerSettings,
+      ...qnaElement.answerSettings,
       fontSize: qnaElement.answerSettings?.fontSize ?? qnaDefaults.answerSettings?.fontSize ?? qnaDefaults.fontSize ?? 50,
       fontFamily: qnaElement.answerSettings?.fontFamily || qnaDefaults.answerSettings?.fontFamily || qnaDefaults.fontFamily || 'Arial, sans-serif',
       fontBold: qnaElement.answerSettings?.fontBold ?? qnaDefaults.answerSettings?.fontBold ?? false,
       fontItalic: qnaElement.answerSettings?.fontItalic ?? qnaDefaults.answerSettings?.fontItalic ?? false,
-      fontColor: qnaElement.answerSettings?.fontColor || qnaDefaults.answerSettings?.fontColor || '#1f2937',
       fontOpacity: qnaElement.answerSettings?.fontOpacity ?? qnaDefaults.answerSettings?.fontOpacity ?? 1,
       paragraphSpacing: qnaElement.answerSettings?.paragraphSpacing || qnaDefaults.answerSettings?.paragraphSpacing || element.paragraphSpacing || 'medium',
       align
     } as RichTextStyle;
+    
+    // Direct color override - element settings have absolute priority
+    if (qnaElement.answerSettings?.fontColor) {
+      style.fontColor = qnaElement.answerSettings.fontColor;
+    }
+    
     return style;
   }, [
     element.paragraphSpacing,
@@ -917,65 +965,33 @@ export default function TextboxQna(props: CanvasItemProps) {
     if (!elementPageNumber) return null;
     return state.pageAssignments[elementPageNumber];
   }, [state.pageAssignments, elementPageNumber]);
-  
+
   const answerText = useMemo(() => {
-    if (!element.questionId || !assignedUser) return '';
-    const answerEntry = state.tempAnswers[element.questionId]?.[assignedUser.id] as TempAnswerEntry | undefined;
-    return answerEntry?.text || '';
-  }, [element.questionId, assignedUser, state.tempAnswers]);
-  
-  // Use ref to track previous values and prevent unnecessary updates
-  const previousAnswerTextRef = useRef<string>('');
-  const previousElementTextRef = useRef<string>('');
-  const previousElementFormattedTextRef = useRef<string>('');
-  const previousAssignedUserIdRef = useRef<number | null>(null);
-  
-  useEffect(() => {
-    if (element.questionId) {
-      // Check if assignedUser has changed
-      const assignedUserIdChanged = assignedUser?.id !== previousAssignedUserIdRef.current;
-      
-      // Only update if the answerText has changed AND element text doesn't match
-      // OR if assignedUser has changed (to ensure we update when switching users)
-      // Don't include element.text/formattedText in dependencies to prevent infinite loops
-      const answerTextChanged = answerText !== previousAnswerTextRef.current;
-      const elementTextMismatch = element.text !== answerText || element.formattedText !== answerText;
-      
-      if ((answerTextChanged && elementTextMismatch) || assignedUserIdChanged) {
-        previousAnswerTextRef.current = answerText;
-        previousElementTextRef.current = element.text || '';
-        previousElementFormattedTextRef.current = element.formattedText || '';
-        previousAssignedUserIdRef.current = assignedUser?.id ?? null;
-        
-        dispatch({
-          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-          payload: {
-            id: element.id,
-            updates: {
-              text: answerText || '',
-              formattedText: answerText || ''
-            }
-          }
-        });
-      } else {
-        // Update refs even if we don't dispatch to track current state
-        previousElementTextRef.current = element.text || '';
-        previousElementFormattedTextRef.current = element.formattedText || '';
-        previousAssignedUserIdRef.current = assignedUser?.id ?? null;
-      }
-    } else {
-      // Update assignedUser ref even if no questionId
-      previousAssignedUserIdRef.current = assignedUser?.id ?? null;
+    if (element.formattedText) {
+      return stripHtml(element.formattedText);
     }
-  }, [element.questionId, answerText, assignedUser, element.id, dispatch]);
+    if (element.text) {
+      return element.text;
+    }
+    if (!element.questionId) {
+      return '';
+    }
+    if (assignedUser) {
+      const answerEntry = state.tempAnswers[element.questionId]?.[assignedUser.id] as TempAnswerEntry | undefined;
+      return answerEntry?.text || '';
+    }
+    if (user?.id) {
+      const answerEntry = state.tempAnswers[element.questionId]?.[user.id] as TempAnswerEntry | undefined;
+      return answerEntry?.text || '';
+    }
+    return '';
+  }, [assignedUser, element.formattedText, element.questionId, element.text, state.tempAnswers, user?.id]);
 
   const sanitizedAnswer = answerText ? stripHtml(answerText) : '';
   // Use answerText directly (no placeholder in canvas rendering, only in editor)
   const answerContent = sanitizedAnswer;
 
   const preparedQuestionText = questionText ? stripHtml(questionText) : questionText;
-
-  const getQuestionText = () => preparedQuestionText || '';
 
   // Extract layout settings from element
   const answerInNewRow = qnaElement.answerInNewRow ?? false;
@@ -1006,6 +1022,46 @@ export default function TextboxQna(props: CanvasItemProps) {
       blockQuestionAnswerGap
     });
   }, [answerContent, answerStyle, effectiveQuestionStyle, boxHeight, boxWidth, padding, preparedQuestionText, answerInNewRow, questionAnswerGap, layoutVariant, questionPosition, questionWidth, ruledLinesTarget, blockQuestionAnswerGap]);
+  
+  // Filter runs to show only question runs when answer editor is open
+  const visibleRuns = useMemo(() => {
+    if (isAnswerEditorOpen) {
+      // When editor is open, show only question runs
+      return layout.runs.filter(run => run.style === effectiveQuestionStyle);
+    }
+    // When editor is closed, show all runs
+    return layout.runs;
+  }, [layout.runs, isAnswerEditorOpen, effectiveQuestionStyle]);
+  
+  // Calculate answer area bounds for placeholder and hover detection
+  const answerAreaBounds = useMemo(() => {
+    if (!element.questionId || answerContent.trim().length > 0 || isAnswerEditorOpen) {
+      return null; // No placeholder needed if no question, answer exists, or editor is open
+    }
+    
+    if (layoutVariant === 'block' && layout.answerArea) {
+      return layout.answerArea;
+    } else if (layoutVariant === 'inline') {
+      const questionRuns = layout.runs.filter(run => run.style === effectiveQuestionStyle);
+      if (questionRuns.length === 0) return null;
+      
+      const questionBaselineOffset = effectiveQuestionStyle.fontSize * 0.8;
+      const questionLineHeight = getLineHeight(effectiveQuestionStyle);
+      const answerLineHeight = getLineHeight(answerStyle);
+      
+      const lastQuestionY = Math.max(...questionRuns.map(run => run.y - questionBaselineOffset + questionLineHeight));
+      const answerStartY = lastQuestionY + (answerLineHeight * 0.2);
+      
+      return {
+        x: padding,
+        y: answerStartY,
+        width: boxWidth - padding * 2,
+        height: Math.max(answerLineHeight, boxHeight - answerStartY - padding)
+      };
+    }
+    
+    return null;
+  }, [layoutVariant, layout.answerArea, layout.runs, effectiveQuestionStyle, answerStyle, padding, boxWidth, boxHeight, element.questionId, answerContent, isAnswerEditorOpen]);
 
   // Generate ruled lines if enabled
   const ruledLines = qnaElement.ruledLines ?? false;
@@ -1351,397 +1407,491 @@ export default function TextboxQna(props: CanvasItemProps) {
     };
   }, [element.id]);
 
-  const handleDoubleClick = (e?: Konva.KonvaEventObject<MouseEvent>) => {
-    if (props.interactive === false) return;
-    if (state.activeTool !== 'select') return;
-    if (e?.evt && e.evt.button !== 0) return;
-    enableQuillEditing();
-  };
-
-  const enableQuillEditing = () => {
+  const enableInlineAnswerEditing = useCallback(() => {
     const stage = textRef.current?.getStage();
     if (!stage) return;
     const stageInstance: Konva.Stage = stage;
 
-    const globalWindow = window as ExtendedWindow;
-
-    if (!globalWindow.Quill) {
-      const quillCSS = document.createElement('link');
-      quillCSS.rel = 'stylesheet';
-      quillCSS.href = 'https://cdn.quilljs.com/1.3.6/quill.snow.css';
-      document.head.appendChild(quillCSS);
-
-      const quillJS = document.createElement('script');
-      quillJS.src = 'https://cdn.quilljs.com/1.3.6/quill.min.js';
-      document.head.appendChild(quillJS);
-
-      quillJS.onload = () => initQuillForQnA();
-      return;
-    } else {
-      initQuillForQnA();
-    }
-
-    function initQuillForQnA() {
-      const modal = document.createElement('div') as QuillModalElement;
-      modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255, 255, 255, 0.5);backdrop-filter:blur(2px);display:flex;justify-content:center;align-items:center;z-index:10000';
-
-      const container = document.createElement('div');
-      container.style.cssText = 'background:white;border-radius:8px;padding:20px;width:80vw;max-width:800px;min-width:400px;box-shadow:0 3px 6px rgba(0,0,0,0.1)';
-
-      const header = document.createElement('div');
-      header.style.cssText = 'margin-bottom:16px;padding-bottom:12px';
-      header.innerHTML = '<h2 style="margin:0;font-size:1.25rem;font-weight:600">Question Answer</h2>';
-
-      const toolbar = document.createElement('div');
-      toolbar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:8px;background:#f8fafc;border-radius:4px';
-
-      const questionTextEl = document.createElement('div');
-      const hasExistingQuestion = element.questionId;
-      questionTextEl.textContent = hasExistingQuestion ? getQuestionText() : 'No question selected';
-      questionTextEl.style.cssText = 'font-size:0.875rem;color:#374151;font-weight:500;flex:1';
-
-      const toolbarButtonContainer = document.createElement('div');
-      toolbarButtonContainer.style.cssText = 'display:flex;gap:8px;align-items:center';
-
-      const insertQuestionBtn = document.createElement('button');
-      insertQuestionBtn.textContent = hasExistingQuestion ? 'Change Question' : 'Insert Question';
-      insertQuestionBtn.style.cssText = 'padding:6px 12px;border:1px solid #e2e8f0;border-radius:4px;cursor:pointer;background:white;font-size:0.875rem';
-      insertQuestionBtn.onmouseover = () => insertQuestionBtn.style.background = '#f1f5f9';
-      insertQuestionBtn.onmouseout = () => insertQuestionBtn.style.background = 'white';
-      insertQuestionBtn.onclick = () => {
-        globalWindow.dispatchEvent(new CustomEvent('closeQuillEditor'));
-        setTimeout(() => {
-          const directFn = globalWindow[`openQuestionSelector_${element.id}`];
-          if (typeof directFn === 'function') {
-            (directFn as () => void)();
-          } else {
-            globalWindow.dispatchEvent(new CustomEvent('openQuestionDialog', {
-              detail: { elementId: element.id }
-            }));
-          }
-        }, 100);
-      };
-
-      const resetQuestionBtn = document.createElement('button');
-      resetQuestionBtn.textContent = 'Reset Question';
-      resetQuestionBtn.style.cssText = 'padding:6px 12px;border:1px solid #e2e8f0;border-radius:4px;cursor:pointer;background:white;font-size:0.875rem;color:#dc2626';
-      resetQuestionBtn.style.display = hasExistingQuestion ? 'block' : 'none';
-      resetQuestionBtn.onmouseover = () => resetQuestionBtn.style.background = '#fef2f2';
-      resetQuestionBtn.onmouseout = () => resetQuestionBtn.style.background = 'white';
-
-      toolbarButtonContainer.appendChild(insertQuestionBtn);
-      if (hasExistingQuestion) {
-        toolbarButtonContainer.appendChild(resetQuestionBtn);
-      }
-
-      toolbar.appendChild(questionTextEl);
-      toolbar.appendChild(toolbarButtonContainer);
-
-      const editorContainer = document.createElement('div');
-      editorContainer.style.cssText = 'min-height:90px;margin-bottom:0px;border:1px solid #e2e8f0;border-radius:4px';
-
-      const buttonContainer = document.createElement('div');
-      buttonContainer.style.cssText = 'display:flex;justify-content:flex-end;gap:8px;margin-top:12px';
-
-      const cancelBtn = document.createElement('button');
-      cancelBtn.textContent = 'Cancel';
-      cancelBtn.style.cssText = 'padding:4px 16px;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;background:white;font-size:0.875rem';
-      cancelBtn.onmouseover = () => cancelBtn.style.background = '#f1f5f9';
-      cancelBtn.onmouseout = () => cancelBtn.style.background = 'white';
-
-      const saveBtn = document.createElement('button');
-      saveBtn.textContent = 'Save';
-      saveBtn.style.cssText = 'padding:8px 16px;border:none;border-radius:6px;background:#304050;color:white;cursor:pointer;font-size:0.875rem';
-      saveBtn.onmouseover = () => saveBtn.style.background = '#303a50e6';
-      saveBtn.onmouseout = () => saveBtn.style.background = '#304050';
-
-      let closeModal = () => {
-        if (document.body.contains(modal)) {
-          document.body.removeChild(modal);
-        }
-        stageInstance.draw();
-      };
-
-      const handleCloseQuillEditor = () => {
-        closeModal();
-      };
-      window.addEventListener('closeQuillEditor', handleCloseQuillEditor);
-      modal.__closeQuillEditorHandler = handleCloseQuillEditor;
-
-      const originalCloseModal = closeModal;
-      closeModal = () => {
-        window.removeEventListener('closeQuillEditor', handleCloseQuillEditor);
-        originalCloseModal();
-      };
-
-      cancelBtn.onclick = closeModal;
-
-      buttonContainer.appendChild(cancelBtn);
-      buttonContainer.appendChild(saveBtn);
-
-      container.appendChild(header);
-      container.appendChild(toolbar);
-      container.appendChild(editorContainer);
-      container.appendChild(buttonContainer);
-      modal.appendChild(container);
-      document.body.appendChild(modal);
-
-      setTimeout(() => {
-        const quillConstructor = globalWindow.Quill;
-        if (!quillConstructor) {
-          return;
-        }
-        const quill = new quillConstructor(editorContainer, {
-          theme: 'snow'
-        });
-
-        const styleEl = document.createElement('style');
-        styleEl.textContent = `
-          .ql-toolbar { display: none !important; }
-          .ql-container {
-            border: 2px solid #3b82f6 !important;
-            border-radius: 4px;
-            height: 144px !important;
-          }
-          .ql-container.ql-disabled {
-            border: 1px solid #e5e7eb !important;
-          }
-          .ql-editor {
-            height: 144px !important;
-            overflow-y: auto !important;
-            line-height: 24px !important;
-          }
-        `;
-        document.head.appendChild(styleEl);
-
-        // Find the page that contains this element
-        let elementPageNumber: number | null = null;
-        if (state.currentBook?.pages) {
-          for (const page of state.currentBook.pages) {
-            if (page.elements.some(el => el.id === element.id)) {
-              elementPageNumber = page.pageNumber ?? null;
-              break;
-            }
-          }
-        }
+    // Get answer area and calculate actual text bounds
+    let answerArea: { x: number; y: number; width: number; height: number };
+    let actualTextBounds: { x: number; y: number; width: number; height: number } | null = null;
+    
+    if (layoutVariant === 'block' && layout.answerArea) {
+      answerArea = layout.answerArea;
+      // For block layout, calculate actual text bounds from runs
+      const answerRuns = layout.runs.filter(run => run.style === answerStyle);
+      if (answerRuns.length > 0) {
+        const answerBaselineOffset = answerStyle.fontSize * 0.8;
+        const answerLineHeight = getLineHeight(answerStyle);
+        const canvasContext = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
+        const minAnswerX = Math.min(...answerRuns.map(run => run.x));
+        const maxAnswerX = Math.max(...answerRuns.map(run => {
+          const textWidth = measureText(run.text, answerStyle, canvasContext);
+          return run.x + textWidth;
+        }));
+        const minAnswerY = Math.min(...answerRuns.map(run => run.y - answerBaselineOffset));
+        const maxAnswerY = Math.max(...answerRuns.map(run => run.y - answerBaselineOffset + answerLineHeight));
         
-        const assignedUser = elementPageNumber ? state.pageAssignments[elementPageNumber] : null;
-        let contentToLoad = '';
-
-        if (element.questionId && assignedUser) {
-          const answerEntry = state.tempAnswers[element.questionId]?.[assignedUser.id] as TempAnswerEntry | undefined;
-          contentToLoad = answerEntry?.text || element.formattedText || element.text || '';
+        actualTextBounds = {
+          x: minAnswerX,
+          y: minAnswerY,
+          width: maxAnswerX - minAnswerX,
+          height: maxAnswerY - minAnswerY
+        };
+      }
+    } else {
+      // For inline layout, calculate answer area from runs
+      const answerRuns = layout.runs.filter(run => run.style === answerStyle);
+      const questionRuns = layout.runs.filter(run => run.style === effectiveQuestionStyle);
+      
+      if (answerRuns.length === 0) {
+        // No answer text, calculate position below question text
+        if (questionRuns.length > 0) {
+          const questionBaselineOffset = effectiveQuestionStyle.fontSize * 0.8;
+          const questionLineHeight = getLineHeight(effectiveQuestionStyle);
+          const answerLineHeight = getLineHeight(answerStyle);
+          
+          // Find the last question line position
+          const lastQuestionY = Math.max(...questionRuns.map(run => run.y - questionBaselineOffset + questionLineHeight));
+          
+          // Answer area starts after the question (with some spacing)
+          const answerStartY = lastQuestionY + (answerLineHeight * 0.2);
+          
+          answerArea = {
+            x: padding,
+            y: answerStartY,
+            width: boxWidth - padding * 2,
+            height: Math.max(answerLineHeight, boxHeight - answerStartY - padding)
+          };
         } else {
-          contentToLoad = element.formattedText || element.text || '';
+          // No question text either, use default area
+          answerArea = { x: padding, y: padding, width: boxWidth - padding * 2, height: boxHeight - padding * 2 };
         }
-
-        if (contentToLoad) {
-          if (contentToLoad.includes('<')) {
-            quill.root.innerHTML = contentToLoad;
-          } else {
-            quill.setText(contentToLoad);
-          }
-        }
-
-        let currentQuestionId = element.questionId;
-
-        resetQuestionBtn.onclick = () => {
-          dispatch({
-            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-            payload: {
-              id: element.id,
-              updates: {
-                questionId: undefined,
-                text: '',
-                formattedText: ''
-              }
-            }
-          });
-
-          insertQuestionBtn.textContent = 'Insert Question';
-          questionTextEl.textContent = 'No question selected';
-          resetQuestionBtn.style.display = 'none';
-
-          quill.setText('');
-          quill.disable();
-          quill.root.setAttribute('data-placeholder', 'Add a question');
-          quill.root.style.backgroundColor = '#f9fafb';
-          quill.root.style.color = '#9ca3af';
-
-          currentQuestionId = undefined;
+        actualTextBounds = null;
+      } else {
+        const answerBaselineOffset = answerStyle.fontSize * 0.8;
+        const answerLineHeight = getLineHeight(answerStyle);
+        const minAnswerY = Math.min(...answerRuns.map(run => run.y - answerBaselineOffset));
+        const maxAnswerY = Math.max(...answerRuns.map(run => run.y - answerBaselineOffset + answerLineHeight));
+        // Create canvas context for text measurement
+        const canvasContext = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
+        const minAnswerX = Math.min(...answerRuns.map(run => run.x));
+        const maxAnswerX = Math.max(...answerRuns.map(run => {
+          const textWidth = measureText(run.text, answerStyle, canvasContext);
+          return run.x + textWidth;
+        }));
+        
+        actualTextBounds = {
+          x: minAnswerX,
+          y: minAnswerY,
+          width: maxAnswerX - minAnswerX,
+          height: maxAnswerY - minAnswerY
         };
-
-        saveBtn.onclick = () => {
-          const htmlContent = quill.root.innerHTML;
-          const plainText = quill.getText().trim();
-
-          dispatch({
-            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-            payload: {
-              id: element.id,
-              updates: {
-                text: plainText,
-                formattedText: htmlContent
-              }
-            }
-          });
-
-          if (currentQuestionId && user?.id) {
-            dispatch({
-              type: 'UPDATE_TEMP_ANSWER',
-              payload: {
-                questionId: currentQuestionId,
-                text: plainText,
-                userId: user.id,
-                answerId: element.answerId || uuidv4()
-              }
-            });
-          }
-
-          closeModal();
+        
+        answerArea = {
+          x: minAnswerX,
+          y: minAnswerY,
+          width: Math.max(maxAnswerX - minAnswerX, boxWidth - padding * 2),
+          height: maxAnswerY - minAnswerY
         };
-
-        const uniqueEventName = `questionSelected-${element.id}`;
-        const handleQuestionSelected = (event: CustomEvent) => {
-          const { questionId, questionText: selectedQuestionText } = event.detail;
-
-          currentQuestionId = questionId;
-          insertQuestionBtn.textContent = 'Change Question';
-          questionTextEl.textContent = selectedQuestionText || 'No question selected';
-
-          if (resetQuestionBtn.style.display === 'none' || !toolbarButtonContainer.contains(resetQuestionBtn)) {
-            resetQuestionBtn.style.display = 'block';
-            if (!toolbarButtonContainer.contains(resetQuestionBtn)) {
-              toolbarButtonContainer.appendChild(resetQuestionBtn);
+      }
+    }
+    
+    // Set state to hide only answer text (not question) during editing
+    setIsAnswerEditorOpen(true);
+    
+    const groupNode = textRef.current?.getParent();
+    if (!groupNode) return;
+    
+    // Calculate absolute position relative to viewport
+    const stageBox = stage.container().getBoundingClientRect();
+    
+    // Get zoom factor from stage (scaleX and scaleY should be the same for uniform scaling)
+    const zoom = stage.scaleX();
+    
+    // Apply zoom to dimensions and font size (needed for line height calculation)
+    const scaledFontSize = answerStyle.fontSize * zoom;
+    const lineHeightValue = getLineHeight(answerStyle);
+    const scaledLineHeight = lineHeightValue * zoom;
+    
+    // Use actual text bounds if available, otherwise use answerArea
+    const textBounds = actualTextBounds || answerArea;
+    
+    // Position textarea horizontally at the left edge of the textbox (padding)
+    // This ensures the textarea always aligns with the textbox's horizontal position,
+    // regardless of where the answer text starts (e.g., in a combined question-answer row)
+    const runX = padding;
+    // Position textarea one line below the first answer text row (only if text exists)
+    const runY = actualTextBounds 
+      ? textBounds.y + lineHeightValue // Add one line height to position below first row when text exists
+      : textBounds.y; // Use normal position when no text exists yet
+    
+    // Transform run position through the group's transform to get stage coordinates
+    const groupTransform = groupNode.getAbsoluteTransform();
+    const runStagePos = groupTransform.point({ x: runX, y: runY });
+    
+    // Convert to viewport coordinates (stage container position + transformed run position)
+    // Apply small offsets to fine-tune positioning
+    // Textarea needs to shift slightly right (positive X) and down (positive Y) for correct alignment
+    const areaPosition = {
+      x: stageBox.left + runStagePos.x + (1 * zoom), // Shift slightly right
+      y: stageBox.top + runStagePos.y + (4 * zoom), // Shift down a bit more
+    };
+    
+    // Use answerArea width for textarea (full available width for wrapping)
+    // This ensures textarea has the same width as the text area on canvas
+    const scaledWidth = answerArea.width * zoom;
+    // Calculate text height based on actual content (number of lines)
+    const canvasContext = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
+    const minimumHeight = scaledLineHeight * 2; // Minimum height (two lines) for better usability
+    let textHeight = minimumHeight;
+    
+    if (canvasContext) {
+      // Always calculate height based on wrapped lines, even if no text exists
+      const textToMeasure = answerText || '';
+      canvasContext.font = `${answerStyle.fontBold ? 'bold ' : ''}${answerStyle.fontItalic ? 'italic ' : ''}${scaledFontSize}px ${answerStyle.fontFamily}`;
+      const wrappedLines = wrapText(textToMeasure, answerStyle, scaledWidth, canvasContext);
+      // Height is based on number of lines, not words
+      // Ensure minimum height of 2 lines for better usability
+      textHeight = Math.max(minimumHeight, wrappedLines.length * scaledLineHeight);
+    }
+    
+    // Use exact text height without additional padding
+    const scaledHeight = textHeight;
+    
+    // Create textarea
+    const textarea = document.createElement('textarea');
+    // Remove any classes that might add borders
+    textarea.className = '';
+    textarea.removeAttribute('class');
+    document.body.appendChild(textarea);
+    
+    // Set initial value
+    textarea.value = answerText || '';
+    
+    // Style textarea exactly like canvas rendering (with zoom applied)
+    textarea.style.position = 'fixed'; // Use fixed instead of absolute for viewport-relative positioning
+    textarea.style.top = areaPosition.y + 'px';
+    textarea.style.left = areaPosition.x + 'px';
+    textarea.style.width = scaledWidth + 'px';
+    textarea.style.height = scaledHeight + 'px';
+    textarea.style.fontSize = scaledFontSize + 'px';
+    textarea.style.fontFamily = answerStyle.fontFamily;
+    textarea.style.fontWeight = answerStyle.fontBold ? 'bold' : 'normal';
+    textarea.style.fontStyle = answerStyle.fontItalic ? 'italic' : 'normal';
+    textarea.style.color = 'var(--foreground)'; // Always use foreground color for editor textarea
+    textarea.style.opacity = '0.7'; // Set opacity to 0.7 for editor textarea
+    textarea.style.lineHeight = scaledLineHeight + 'px'; // Set lineHeight as pixel value (scaled)
+    textarea.style.textAlign = answerStyle.align || 'left';
+    textarea.style.padding = '0px';
+    textarea.style.margin = '0px';
+    textarea.style.border = '3px dashed #d1d5db'; // Light gray dashed border, 3px width
+    textarea.style.borderWidth = '3px';
+    textarea.style.borderStyle = 'dashed';
+    textarea.style.borderColor = '#d1d5db'; // Light gray color
+    textarea.style.outline = 'none';
+    textarea.style.boxShadow = 'none';
+    textarea.style.backgroundColor = '#ffffff'; // White background
+    textarea.style.background = '#ffffff';
+    textarea.style.resize = 'none';
+    textarea.style.overflow = 'hidden';
+    textarea.style.whiteSpace = 'pre-wrap';
+    textarea.style.transformOrigin = 'left top';
+    textarea.style.zIndex = '1000'; // Set z-index to be above canvas but not too high
+    textarea.style.boxSizing = 'border-box';
+    
+    // Remove any focus styles that might add borders
+    textarea.style.setProperty('--tw-ring-width', '0');
+    textarea.style.setProperty('--tw-ring-offset-width', '0');
+    
+    // Handle rotation if needed
+    const rotation = textRef.current?.rotation() || 0;
+    let transform = '';
+    if (rotation) {
+      transform += 'rotateZ(' + rotation + 'deg)';
+    }
+    transform += 'translateY(-2px)';
+    textarea.style.transform = transform;
+    
+    // Focus textarea
+    textarea.focus();
+    
+    function removeTextarea() {
+      if (textarea.parentNode) {
+        textarea.parentNode.removeChild(textarea);
+      }
+      window.removeEventListener('click', handleOutsideClick);
+      window.removeEventListener('touchstart', handleOutsideClick);
+      // Show answer text again by resetting state
+      setIsAnswerEditorOpen(false);
+      stageInstance.draw();
+    }
+    
+    function handleOutsideClick(e: MouseEvent | TouchEvent) {
+      const target = e.target as Node;
+      if (target !== textarea && !textarea.contains(target)) {
+        // Save changes
+        const newText = textarea.value;
+        dispatch({
+          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+          payload: {
+            id: element.id,
+            updates: {
+              text: newText,
+              formattedText: newText
             }
           }
-
-          dispatch({
-            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-            payload: {
-              id: element.id,
-              updates: { questionId }
-            }
-          });
-
-          if (questionId && !state.tempQuestions[questionId]) {
-            dispatch({
-              type: 'UPDATE_TEMP_QUESTION',
-              payload: {
-                questionId,
-                text: selectedQuestionText
-              }
-            });
-          }
-
-          if (assignedUser) {
-            const existingAnswerEntry = state.tempAnswers[questionId]?.[assignedUser.id] as TempAnswerEntry | undefined;
-            const existingAnswer = existingAnswerEntry?.text || '';
-            quill.setText(existingAnswer);
-
-            dispatch({
-              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-              payload: {
-                id: element.id,
-                updates: {
-                  text: existingAnswer,
-                  formattedText: existingAnswer
-                }
-              }
-            });
-          } else {
-            quill.setText('');
-
-            dispatch({
-              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-              payload: {
-                id: element.id,
-                updates: {
-                  text: '',
-                  formattedText: ''
-                }
-              }
-            });
-          }
-
-          const canEdit = assignedUser && assignedUser.id === user?.id;
-
-          if (!assignedUser) {
-            quill.disable();
-            quill.root.setAttribute('data-placeholder', 'No user assigned to this page');
-            quill.root.style.backgroundColor = '#f9fafb';
-            quill.root.style.color = '#9ca3af';
-          } else if (!canEdit) {
-            quill.disable();
-            quill.root.setAttribute('data-placeholder', `${assignedUser?.name || 'User'} can answer here`);
-            quill.root.style.backgroundColor = '#f9fafb';
-            quill.root.style.color = '#9ca3af';
-          } else {
-            quill.enable();
-            quill.root.removeAttribute('data-placeholder');
-            quill.root.style.backgroundColor = '';
-            quill.root.style.color = '';
-            quill.focus();
-          }
-        };
-
-        window.addEventListener(uniqueEventName, handleQuestionSelected as EventListener);
-
-        const previousCloseModal = closeModal;
-        closeModal = () => {
-          window.removeEventListener(uniqueEventName, handleQuestionSelected as EventListener);
-          const closeQuillEditorHandler = modal.__closeQuillEditorHandler;
-          if (closeQuillEditorHandler) {
-            window.removeEventListener('closeQuillEditor', closeQuillEditorHandler);
-          }
-          const openQuestionDialogHandler = modal.__openQuestionDialogHandler;
-          if (openQuestionDialogHandler) {
-            window.removeEventListener('openQuestionDialog', openQuestionDialogHandler);
-          }
-          previousCloseModal();
-        };
-
-        cancelBtn.onclick = closeModal;
-
-        quill.clipboard.addMatcher(Node.ELEMENT_NODE, (node: Node) => {
-          const elementNode = node as HTMLElement;
-          const plaintext = elementNode.innerText || elementNode.textContent || '';
-          const DeltaConstructor = quillConstructor.import('delta');
-          const deltaInstance = new DeltaConstructor();
-          return deltaInstance.insert(plaintext);
         });
 
-        const canEdit = assignedUser && assignedUser.id === user?.id;
-
-        if (!assignedUser) {
-          quill.disable();
-          quill.root.setAttribute('data-placeholder', 'No user assigned to this page');
-          quill.root.style.backgroundColor = '#f9fafb';
-          quill.root.style.color = '#9ca3af';
-        } else if (!canEdit) {
-          quill.disable();
-          quill.root.setAttribute('data-placeholder', `${assignedUser?.name || 'User'} can answer here`);
-          quill.root.style.backgroundColor = '#f9fafb';
-          quill.root.style.color = '#9ca3af';
-        } else if (!hasExistingQuestion) {
-          quill.disable();
-          quill.root.setAttribute('data-placeholder', 'Add a question');
-          quill.root.style.backgroundColor = '#f9fafb';
-          quill.root.style.color = '#9ca3af';
-        } else {
-          quill.focus();
+        if (element.questionId && user?.id) {
+          dispatch({
+            type: 'UPDATE_TEMP_ANSWER',
+            payload: {
+              questionId: element.questionId,
+              text: newText,
+              userId: user.id,
+              answerId: element.answerId || uuidv4()
+            }
+          });
         }
 
-        modal.addEventListener('keydown', (evt: KeyboardEvent) => {
-          evt.stopPropagation();
-          if (evt.key === 'Escape') closeModal();
-        }, true);
-        modal.addEventListener('keyup', (evt: KeyboardEvent) => {
-          evt.stopPropagation();
-        }, true);
-      }, 100);
+        removeTextarea();
+      }
+    }
+    
+    // Handle keydown events
+    textarea.addEventListener('keydown', function (e: KeyboardEvent) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        const newText = textarea.value;
+        dispatch({
+          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+          payload: {
+            id: element.id,
+            updates: {
+              text: newText,
+              formattedText: newText
+            }
+          }
+        });
+
+        if (element.questionId && user?.id) {
+          dispatch({
+            type: 'UPDATE_TEMP_ANSWER',
+            payload: {
+              questionId: element.questionId,
+              text: newText,
+              userId: user.id,
+              answerId: element.answerId || uuidv4()
+            }
+          });
+        }
+
+        removeTextarea();
+      }
+      if (e.key === 'Escape') {
+        removeTextarea();
+      }
+    });
+    
+    // Handle input events for auto-wrapping and height adjustment
+    // Create a persistent canvas context for text measurement
+    const inputCanvasContext = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
+    
+    textarea.addEventListener('input', function () {
+      // Calculate text height based on number of lines (not words)
+      const minimumHeight = scaledLineHeight * 2; // Minimum height (two lines) for better usability
+      let newTextHeight = minimumHeight;
+      
+      if (inputCanvasContext) {
+        // Use same canvas context and font as in layout
+        inputCanvasContext.font = `${answerStyle.fontBold ? 'bold ' : ''}${answerStyle.fontItalic ? 'italic ' : ''}${scaledFontSize}px ${answerStyle.fontFamily}`;
+        const textToMeasure = textarea.value || '';
+        const wrappedLines = wrapText(textToMeasure, answerStyle, scaledWidth, inputCanvasContext);
+        // Height is based on number of lines, not words
+        // Ensure minimum height of 2 lines for better usability
+        newTextHeight = Math.max(minimumHeight, wrappedLines.length * scaledLineHeight);
+      }
+      
+      // Use exact text height without additional padding
+      textarea.style.height = newTextHeight + 'px';
+    });
+    
+    // Add outside click handler with delay to prevent immediate trigger
+    setTimeout(() => {
+      window.addEventListener('click', handleOutsideClick);
+      window.addEventListener('touchstart', handleOutsideClick);
+    }, 0);
+  }, [answerText, answerStyle, effectiveQuestionStyle, layout, layoutVariant, padding, boxWidth, boxHeight, element.id, element.questionId, element.answerId, user?.id, dispatch, textRef]);
+  
+  // Update cursor style based on hovered area
+  useEffect(() => {
+    const stage = textRef.current?.getStage();
+    if (!stage) return;
+    
+    const container = stage.container();
+    if (hoveredArea === 'answer' && assignedUser && assignedUser.id === user?.id && state.activeTool === 'select') {
+      container.style.cursor = 'text';
+    } else {
+      container.style.cursor = '';
+    }
+    
+    return () => {
+      if (container) {
+        container.style.cursor = '';
+      }
+    };
+  }, [hoveredArea, assignedUser, user?.id, state.activeTool]);
+  
+  // Render tooltip directly in DOM (outside Konva canvas)
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    
+    const shouldShowTooltip = hoveredArea === 'answer' && tooltipPosition && answerAreaBounds && assignedUser && assignedUser.id === user?.id;
+    
+    if (!shouldShowTooltip) {
+      // Remove existing tooltip if any
+      const existingTooltip = document.getElementById(`qna-tooltip-${element.id}`);
+      if (existingTooltip) {
+        existingTooltip.remove();
+      }
+      return;
+    }
+    
+    // Remove existing tooltip if any
+    const existingTooltip = document.getElementById(`qna-tooltip-${element.id}`);
+    if (existingTooltip) {
+      existingTooltip.remove();
+    }
+    
+    // Create tooltip element
+    const tooltip = document.createElement('div');
+    tooltip.id = `qna-tooltip-${element.id}`;
+    tooltip.className = 'fixed z-50 pointer-events-none';
+    tooltip.style.left = `${tooltipPosition.x}px`;
+    tooltip.style.top = `${tooltipPosition.y - 30}px`;
+    tooltip.style.transform = 'translateX(-50%)';
+    
+    const tooltipContent = document.createElement('div');
+    tooltipContent.className = 'bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap';
+    tooltipContent.textContent = 'Doppelklick zum Bearbeiten';
+    tooltip.appendChild(tooltipContent);
+    
+    document.body.appendChild(tooltip);
+    
+    return () => {
+      const tooltipToRemove = document.getElementById(`qna-tooltip-${element.id}`);
+      if (tooltipToRemove) {
+        tooltipToRemove.remove();
+      }
+    };
+  }, [hoveredArea, tooltipPosition, answerAreaBounds, assignedUser, user?.id, element.id]);
+
+  // Helper function to get click area from mouse position
+  const getClickAreaFromEvent = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+    const stage = e.target.getStage();
+    if (!stage) return null;
+    
+    const pointerPos = stage.getPointerPosition();
+    if (!pointerPos) return null;
+    
+    // Transform pointer position to element's local coordinate system
+    const groupNode = textRef.current?.getParent();
+    if (!groupNode) return null;
+    
+    const transform = groupNode.getAbsoluteTransform().copy().invert();
+    const localPos = transform.point(pointerPos);
+    
+    return getClickArea(
+      localPos.x,
+      localPos.y,
+      layout,
+      layoutVariant,
+      effectiveQuestionStyle,
+      answerStyle,
+      padding,
+      boxWidth,
+      boxHeight,
+      answerContent.trim().length > 0
+    );
+  }, [layout, layoutVariant, effectiveQuestionStyle, answerStyle, padding, boxWidth, boxHeight, answerContent]);
+  
+  const handleMouseMove = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (props.interactive === false || state.activeTool !== 'select') {
+      setHoveredArea(null);
+      setTooltipPosition(null);
+      return;
+    }
+    
+    const clickArea = getClickAreaFromEvent(e);
+    const stage = e.target.getStage();
+    
+    if (clickArea === 'answer' && stage) {
+      setHoveredArea('answer');
+      
+      // Calculate tooltip position (center of answer area)
+      if (answerAreaBounds) {
+        const groupNode = textRef.current?.getParent();
+        if (groupNode) {
+          const groupTransform = groupNode.getAbsoluteTransform();
+          const centerLocalPos = {
+            x: answerAreaBounds.x + answerAreaBounds.width / 2,
+            y: answerAreaBounds.y + answerAreaBounds.height / 2
+          };
+          const centerStagePos = groupTransform.point(centerLocalPos);
+          const stageBox = stage.container().getBoundingClientRect();
+          
+          setTooltipPosition({
+            x: stageBox.left + centerStagePos.x,
+            y: stageBox.top + centerStagePos.y
+          });
+        }
+      }
+    } else {
+      setHoveredArea(clickArea);
+      setTooltipPosition(null);
+    }
+  }, [props.interactive, state.activeTool, getClickAreaFromEvent, answerAreaBounds]);
+  
+  const handleMouseLeave = useCallback(() => {
+    setHoveredArea(null);
+    setTooltipPosition(null);
+  }, []);
+
+  const handleDoubleClick = (e?: Konva.KonvaEventObject<MouseEvent>) => {
+    if (props.interactive === false) return;
+    if (state.activeTool !== 'select') return;
+    if (e?.evt && e.evt.button !== 0) return;
+    
+    // Get mouse position relative to the element
+    if (!e) return;
+    
+    const clickArea = getClickAreaFromEvent(e);
+    
+    if (clickArea === 'question') {
+      // Open question selector modal directly
+      const globalWindow = window as ExtendedWindow;
+      const directFn = globalWindow[`openQuestionSelector_${element.id}`];
+      if (typeof directFn === 'function') {
+        (directFn as () => void)();
+      } else {
+        globalWindow.dispatchEvent(new CustomEvent('openQuestionDialog', {
+          detail: { elementId: element.id }
+        }));
+      }
+    } else if (clickArea === 'answer') {
+      // Check if user is assigned to this page
+      if (!assignedUser || assignedUser.id !== user?.id) {
+        return; // User not assigned or not the assigned user
+      }
+      
+      // Open inline answer editor
+      enableInlineAnswerEditing();
     }
   };
+
+  // enableQuillEditing function removed - now using inline editor for answers
+  // and direct question selector modal for questions
 
   // Create a hit area that matches only the box dimensions (not the extended text)
   const hitArea = useMemo(() => ({
@@ -1752,11 +1902,13 @@ export default function TextboxQna(props: CanvasItemProps) {
   }), [boxWidth, boxHeight]);
 
   return (
-    <BaseCanvasItem
-      {...props}
-      onDoubleClick={handleDoubleClick}
-      hitArea={hitArea}
-    >
+    <>
+      <BaseCanvasItem
+        {...props}
+        onDoubleClick={handleDoubleClick}
+        onMouseLeave={handleMouseLeave}
+        hitArea={hitArea}
+      >
       {showBackground && (
         <Rect
           width={boxWidth}
@@ -1768,77 +1920,45 @@ export default function TextboxQna(props: CanvasItemProps) {
         />
       )}
 
-      {showBorder && (() => {
-        const borderColor = qnaElement.borderColor || '#000000';
-        const borderWidth = qnaElement.borderWidth || 1;
-        const borderOpacity = qnaElement.borderOpacity ?? 1;
-        const cornerRadius = qnaElement.cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
-        const borderThemeRaw = qnaElement.borderTheme || 
-                              qnaElement.questionSettings?.borderTheme || 
-                              qnaElement.answerSettings?.borderTheme || 
-                              'default';
-        // Map 'sketchy' to 'rough' if needed, or use as-is if valid Theme
-        const borderTheme = (borderThemeRaw === 'sketchy' ? 'rough' : borderThemeRaw) as 'default' | 'rough' | 'glow' | 'candy' | 'zigzag' | 'wobbly';
-        
-        // Use theme renderer for consistent border rendering
-        const themeRenderer = getThemeRenderer(borderTheme);
-        if (themeRenderer && borderTheme !== 'default') {
-          // Create a temporary element-like object for generatePath
-          // Set roughness to 2 for 'rough' theme to match ruled lines roughness
-          const borderElement = {
-            type: 'rect' as const,
-            id: qnaElement.id + '-border',
-            x: 0,
-            y: 0,
-            width: boxWidth,
-            height: boxHeight,
-            cornerRadius: cornerRadius,
-            stroke: borderColor,
-            strokeWidth: borderWidth,
-            fill: 'transparent',
-            roughness: borderTheme === 'rough' ? 8 : undefined
-          } as CanvasElement;
-          
-          const pathData = themeRenderer.generatePath(borderElement);
-          
-          if (pathData) {
-            return (
-              <Path
-                data={pathData}
-                stroke={borderColor}
-                strokeWidth={borderWidth}
-                opacity={borderOpacity}
-                fill="transparent"
-                strokeScaleEnabled={true}
-                listening={false}
-                lineCap="round"
-                lineJoin="round"
-              />
-            );
-          }
-        }
-        
-        // Default: simple rect border
-        return (
-          <Rect
-            width={boxWidth}
-            height={boxHeight}
-            stroke={borderColor}
-            strokeWidth={borderWidth}
-            opacity={borderOpacity}
-            cornerRadius={cornerRadius}
-            listening={false}
-          />
-        );
-      })()}
+      {showBorder && (
+        <Rect
+          width={boxWidth}
+          height={boxHeight}
+          stroke={qnaElement.borderColor}
+          strokeWidth={qnaElement.borderWidth}
+          opacity={qnaElement.borderOpacity ?? 1}
+          cornerRadius={qnaElement.cornerRadius ?? qnaDefaults.cornerRadius ?? 0}
+          listening={false}
+        />
+      )}
 
       {/* Text that can extend beyond the box */}
-      <RichTextShape ref={textShapeRef} runs={layout.runs} width={boxWidth} height={layout.contentHeight} />
+      {/* When answer editor is open, only show question runs */}
+      <RichTextShape ref={textShapeRef} runs={visibleRuns} width={boxWidth} height={layout.contentHeight} />
+      
+      {/* Placeholder text when no answer exists */}
+      {answerAreaBounds && !answerContent && !isAnswerEditorOpen && (
+        <KonvaText
+          x={answerAreaBounds.x}
+          y={answerAreaBounds.y}
+          width={answerAreaBounds.width}
+          height={answerAreaBounds.height}
+          text="Antwort eingeben..."
+          fontSize={answerStyle.fontSize}
+          fontFamily={answerStyle.fontFamily}
+          fontStyle="italic"
+          fill={answerStyle.fontColor}
+          opacity={0.4}
+          align={answerStyle.align || 'left'}
+          verticalAlign="top"
+          listening={false}
+        />
+      )}
       
       {/* Ruled lines underneath each text row */}
       {ruledLines && ruledLinesElements}
       
-      {/* Invisible hit area for double-click detection - limited to box dimensions */}
+      {/* Hit area for double-click detection and mouse move - limited to box dimensions */}
       <Rect
         ref={textRef}
         x={0}
@@ -1846,9 +1966,12 @@ export default function TextboxQna(props: CanvasItemProps) {
         width={boxWidth}
         height={boxHeight}
         fill="transparent"
-        listening={false}
+        listening={true}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
       />
     </BaseCanvasItem>
+    </>
   );
 }
 
