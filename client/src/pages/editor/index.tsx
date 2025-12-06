@@ -4,6 +4,7 @@ import { useEditor, createSampleBook } from '../../context/editor-context';
 import EditorBar from '../../components/features/editor/editor-bar';
 import Toolbar from '../../components/features/editor/toolbar';
 import Canvas from '../../components/features/editor/canvas';
+import { ZoomProvider } from '../../components/features/editor/canvas/zoom-context';
 import ToolSettingsPanel, { type ToolSettingsPanelRef } from '../../components/features/editor/tool-settings/tool-settings-panel';
 import { StatusBar } from '../../components/features/editor/status-bar';
 import { toast } from 'sonner';
@@ -741,22 +742,23 @@ function EditorContent() {
   }
 
   return (
-    <div className="h-full flex flex-col">
-      <QuestionSelectionHandler />
-      <EditorBar toolSettingsPanelRef={toolSettingsPanelRef} initialPreviewOpen={openPreviewOnLoad} />
-      
-      <div className="flex-1 min-h-0">
-        <div className="h-full flex flex-col bg-background">
-          <div className="flex-1 flex min-h-0">
-            {canEditCanvas() && <Toolbar onOpenTemplates={() => setShowTemplateGallery(true)} />}
-            <div className="flex-1 overflow-hidden bg-muted">
-              <Canvas />
+    <ZoomProvider>
+      <div className="h-full flex flex-col">
+        <QuestionSelectionHandler />
+        <EditorBar toolSettingsPanelRef={toolSettingsPanelRef} initialPreviewOpen={openPreviewOnLoad} />
+        
+        <div className="flex-1 min-h-0">
+          <div className="h-full flex flex-col bg-background">
+            <div className="flex-1 flex min-h-0">
+              {canEditCanvas() && <Toolbar onOpenTemplates={() => setShowTemplateGallery(true)} />}
+              <div className="flex-1 overflow-hidden bg-muted">
+                <Canvas />
+              </div>
+              {canEditCanvas() && <ToolSettingsPanel ref={toolSettingsPanelRef} onOpenTemplates={() => setShowTemplateGallery(true)} />}
             </div>
-            {canEditCanvas() && <ToolSettingsPanel ref={toolSettingsPanelRef} onOpenTemplates={() => setShowTemplateGallery(true)} />}
+            
+            <StatusBar />
           </div>
-          
-          <StatusBar />
-        </div>
         
         <PagePreviewOverlay 
           isOpen={showPreview} 
@@ -771,6 +773,7 @@ function EditorContent() {
       </div>
       
     </div>
+    </ZoomProvider>
   );
 }
 

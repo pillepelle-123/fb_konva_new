@@ -23,6 +23,7 @@ import { getQnAThemeDefaults, getQnAInlineThemeDefaults } from '../../../../util
 import { getToolDefaults } from '../../../../utils/tool-defaults';
 import { getMinActualStrokeWidth, commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth } from '../../../../utils/stroke-width-converter';
 import { getBorderTheme } from '../../../../utils/theme-utils';
+import { ThemeSettingsRenderer } from './theme-settings-renderer';
 
 const getCurrentFontName = (fontFamily: string) => {
   for (const group of FONT_GROUPS) {
@@ -1402,6 +1403,23 @@ export function QnAInlineSettingsForm({
             </Tooltip>
           </div>
           
+          {/* Theme-specific settings for Ruled Lines */}
+          <ThemeSettingsRenderer
+            element={element}
+            theme={element.ruledLinesTheme || 'rough'}
+            updateSetting={(key, value) => {
+              dispatch({
+                type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                payload: {
+                  id: element.id,
+                  updates: {
+                    [key]: value
+                  }
+                }
+              });
+            }}
+          />
+          
           <div>
             <Tooltip content="Line Color" side="left">
               <Button
@@ -1539,6 +1557,21 @@ export function QnAInlineSettingsForm({
             />
             </Tooltip>
           </div>
+          
+          {/* Theme-specific settings for Border */}
+          <ThemeSettingsRenderer
+            element={element}
+            theme={(() => {
+              const themeDefaults = getThemeDefaults();
+              return element.borderTheme || 
+                     element.questionSettings?.borderTheme || 
+                     element.answerSettings?.borderTheme || 
+                     element.border?.borderTheme || 
+                     themeDefaults.borderTheme || 
+                     'default';
+            })()}
+            updateSetting={(key, value) => updateSharedSetting(key, value)}
+          />
           
           <div>
             <Tooltip content="Border Color" side="left">

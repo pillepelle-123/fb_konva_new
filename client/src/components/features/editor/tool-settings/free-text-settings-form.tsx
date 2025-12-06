@@ -18,6 +18,7 @@ import { ColorSelector } from './color-selector';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { useEditor } from '../../../../context/editor-context';
 import { getToolDefaults } from '../../../../utils/tool-defaults';
+import { ThemeSettingsRenderer } from './theme-settings-renderer';
 
 const getCurrentFontName = (fontFamily: string) => {
   for (const group of FONT_GROUPS) {
@@ -382,6 +383,27 @@ export function FreeTextSettingsForm({
             />
           </div>
           
+          {/* Theme-specific settings for Ruled Lines */}
+          <ThemeSettingsRenderer
+            element={element}
+            theme={computedCurrentStyle.ruledLinesTheme}
+            updateSetting={(key, value) => {
+              const textSettingsUpdates = {
+                ...element.textSettings,
+                [key]: value
+              };
+              dispatch({
+                type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                payload: {
+                  id: element.id,
+                  updates: {
+                    textSettings: textSettingsUpdates
+                  }
+                }
+              });
+            }}
+          />
+          
           <div>
             <Button
               variant="outline"
@@ -441,6 +463,27 @@ export function FreeTextSettingsForm({
               onChange={(value) => updateTextSetting('borderTheme', value)}
             />
           </div>
+          
+          {/* Theme-specific settings for Border */}
+          <ThemeSettingsRenderer
+            element={element}
+            theme={computedCurrentStyle.borderTheme}
+            updateSetting={(key, value) => {
+              const textSettingsUpdates = {
+                ...element.textSettings,
+                [key]: value
+              };
+              dispatch({
+                type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                payload: {
+                  id: element.id,
+                  updates: {
+                    textSettings: textSettingsUpdates
+                  }
+                }
+              });
+            }}
+          />
           
           <div>
             <Button

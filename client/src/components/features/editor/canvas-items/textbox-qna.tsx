@@ -5,10 +5,9 @@ import BaseCanvasItem, { type CanvasItemProps } from './base-canvas-item';
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import { getToolDefaults } from '../../../../utils/tool-defaults';
-import { getThemeRenderer, type Theme } from '../../../../utils/themes';
+import { getThemeRenderer, type Theme, renderThemedLine } from '../../../../utils/themes';
 import type { CanvasElement } from '../../../../context/editor-context';
 import type Konva from 'konva';
-import rough from 'roughjs';
 import { useCanvasOverlayElement } from '../canvas/canvas-overlay';
 
 type ParagraphSpacing = 'small' | 'medium' | 'large';
@@ -1274,68 +1273,42 @@ export default function TextboxQna(props: CanvasItemProps) {
 
     const elements: React.ReactElement[] = [];
 
-    const generateRuledLineElement = (y: number, startX: number, endX: number): React.ReactElement => {
-      if (ruledLinesTheme === 'rough') {
-        try {
-          const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-          const rc = rough.svg(svg);
-          
-          const roughLine = rc.line(startX, y, endX, y, {
-            roughness: 2,
-            strokeWidth: ruledLinesWidth,
-            stroke: ruledLinesColor,
-            seed: seed + y
-          });
-          
-          const paths = roughLine.querySelectorAll('path');
-          let combinedPath = '';
-          paths.forEach(path => {
-            const d = path.getAttribute('d');
-            if (d) combinedPath += d + ' ';
-          });
-          
-          if (combinedPath) {
-            return (
-              <Path
-                key={`ruled-line-${y}`}
-                data={combinedPath.trim()}
-                stroke={ruledLinesColor}
-                strokeWidth={ruledLinesWidth}
-                opacity={ruledLinesOpacity}
-                strokeScaleEnabled={true}
-                listening={false}
-              />
-            );
-          }
-        } catch {
-          // Fallback to simple line if rough.js fails
-          return (
-            <Path
-              key={`ruled-line-${y}`}
-              data={`M ${startX} ${y} L ${endX} ${y}`}
-              stroke={ruledLinesColor}
-              strokeWidth={ruledLinesWidth}
-              opacity={ruledLinesOpacity}
-              strokeScaleEnabled={true}
-              listening={false}
-            />
-          );
-        }
-      }
+    const generateRuledLineElement = (y: number, startX: number, endX: number): React.ReactElement | null => {
+      const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+      // Ensure theme is one of the supported themes
+      const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
+      const theme = (supportedThemes.includes(ruledLinesTheme as Theme) ? ruledLinesTheme : 'default') as Theme;
       
-      // Default: simple line
-      return (
-        <Path
-          key={`ruled-line-${y}`}
-          data={`M ${startX} ${y} L ${endX} ${y}`}
-          stroke={ruledLinesColor}
-          strokeWidth={ruledLinesWidth}
-          opacity={ruledLinesOpacity}
-          strokeScaleEnabled={true}
-          listening={false}
-        />
-      );
+      // Create a temporary element for theme-specific settings
+      const tempElement: CanvasElement = {
+        ...element,
+        type: 'line',
+        id: element.id + '-ruled-line',
+        x: 0,
+        y: 0,
+        width: Math.abs(endX - startX),
+        height: 0,
+        strokeWidth: ruledLinesWidth,
+        stroke: ruledLinesColor,
+        theme: theme
+      };
+      
+      return renderThemedLine({
+        x1: startX,
+        y1: y,
+        x2: endX,
+        y2: y,
+        strokeWidth: ruledLinesWidth,
+        stroke: ruledLinesColor,
+        opacity: ruledLinesOpacity,
+        theme: theme,
+        seed: seed + y,
+        roughness: theme === 'rough' ? 2 : 1,
+        strokeScaleEnabled: true,
+        listening: false,
+        element: tempElement,
+        key: `ruled-line-${y}`
+      });
     };
 
     layout.linePositions.forEach((linePos) => {
@@ -1348,7 +1321,9 @@ export default function TextboxQna(props: CanvasItemProps) {
           const lineStartX = targetArea.x;
           const lineEndX = targetArea.x + targetArea.width;
           const lineElement = generateRuledLineElement(linePos.y, lineStartX, lineEndX);
-          elements.push(lineElement);
+          if (lineElement) {
+            elements.push(lineElement);
+          }
         }
       } else {
         // For inline layout, use full width with padding
@@ -1359,7 +1334,9 @@ export default function TextboxQna(props: CanvasItemProps) {
         // This ensures ruled lines only appear inside the visible border area
         if (linePos.y >= 0 && linePos.y <= boxHeight) {
           const lineElement = generateRuledLineElement(linePos.y, startX, endX);
-          elements.push(lineElement);
+          if (lineElement) {
+            elements.push(lineElement);
+          }
         }
       }
     });
@@ -2208,6 +2185,7 @@ export default function TextboxQna(props: CanvasItemProps) {
           } as CanvasElement;
           
           const pathData = themeRenderer.generatePath(borderElement);
+          const strokeProps = themeRenderer.getStrokeProps(borderElement);
           
           if (pathData) {
             return (
@@ -2216,7 +2194,7 @@ export default function TextboxQna(props: CanvasItemProps) {
                 stroke={borderColor}
                 strokeWidth={borderWidth}
                 opacity={borderOpacity}
-                fill="transparent"
+                fill={strokeProps.fill || 'transparent'}
                 strokeScaleEnabled={true}
                 listening={false}
                 lineCap="round"

@@ -1,0 +1,47 @@
+import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+
+interface ZoomContextType {
+  zoom: number;
+  setZoom: (zoom: number, centerPoint?: { x: number; y: number }) => void;
+  minZoom: number;
+  maxZoom: number;
+  registerSetZoom: (setZoomFn: (zoom: number, centerPoint?: { x: number; y: number }) => void) => void;
+}
+
+const ZoomContext = createContext<ZoomContextType | null>(null);
+
+export function ZoomProvider({ children, initialZoom = 0.8 }: { children: React.ReactNode; initialZoom?: number }) {
+  const [zoom, setZoomState] = useState(initialZoom);
+  const minZoom = 0.1;
+  const maxZoom = 3;
+  const setZoomRef = useRef<((zoom: number, centerPoint?: { x: number; y: number }) => void) | null>(null);
+  
+  const registerSetZoom = useCallback((setZoomFn: (zoom: number, centerPoint?: { x: number; y: number }) => void) => {
+    setZoomRef.current = setZoomFn;
+  }, []);
+  
+  const setZoom = useCallback((newZoom: number, centerPoint?: { x: number; y: number }) => {
+    const clampedZoom = Math.max(minZoom, Math.min(maxZoom, newZoom));
+    // Always update zoom state
+    setZoomState(clampedZoom);
+    // If a setZoom function is registered (from canvas.tsx), call it for position updates
+    if (setZoomRef.current) {
+      setZoomRef.current(clampedZoom, centerPoint);
+    }
+  }, [minZoom, maxZoom]);
+  
+  return (
+    <ZoomContext.Provider value={{ zoom, setZoom, minZoom, maxZoom, registerSetZoom }}>
+      {children}
+    </ZoomContext.Provider>
+  );
+}
+
+export function useZoom() {
+  const context = useContext(ZoomContext);
+  if (!context) {
+    throw new Error('useZoom must be used within ZoomProvider');
+  }
+  return context;
+}
+

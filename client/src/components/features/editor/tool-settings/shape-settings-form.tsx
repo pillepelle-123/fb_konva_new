@@ -1,6 +1,5 @@
 import { Button } from '../../../ui/primitives/button';
 import { Palette } from 'lucide-react';
-import { ButtonGroup } from '../../../ui/composites/button-group';
 import { Slider } from '../../../ui/primitives/slider';
 import { Separator } from '../../../ui/primitives/separator';
 import { Label } from '../../../ui/primitives/label';
@@ -10,6 +9,7 @@ import { ThemeSelect } from '../../../../utils/theme-options';
 import { commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth, getMinActualStrokeWidth } from '../../../../utils/stroke-width-converter';
 import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE } from '../../../../utils/corner-radius-converter';
 import { getElementTheme } from '../../../../utils/theme-utils';
+import { ThemeSettingsRenderer } from './theme-settings-renderer';
 
 interface ShapeSettingsFormProps {
   element: any;
@@ -266,45 +266,12 @@ export function ShapeSettingsForm({
             </IndentedSection>
           )}
           
-          {element.theme === 'candy' && (
-            <div>
-              <Separator />
-              <div className="flex items-center gap-2 h-12">
-                <Label className="flex items-center gap-1" variant="xs">
-                  <Checkbox
-                    checked={element.candyRandomness || false}
-                    onCheckedChange={(checked) => updateSetting('candyRandomness', checked === true)}
-                  />
-                  Randomness
-                </Label>
-                {element.candyRandomness && (
-                  <ButtonGroup>
-                    <Button
-                      variant={(!element.candyIntensity || element.candyIntensity === 'weak') ? 'default' : 'outline'}
-                      size="xs"
-                      onClick={() => updateSetting('candyIntensity', 'weak')}
-                    >
-                      weak
-                    </Button>
-                    <Button
-                      variant={element.candyIntensity === 'middle' ? 'default' : 'outline'}
-                      size="xs"
-                      onClick={() => updateSetting('candyIntensity', 'middle')}
-                    >
-                      middle
-                    </Button>
-                    <Button
-                      variant={element.candyIntensity === 'strong' ? 'default' : 'outline'}
-                      size="xs"
-                      onClick={() => updateSetting('candyIntensity', 'strong')}
-                    >
-                      strong
-                    </Button>
-                  </ButtonGroup>
-                )}
-              </div>
-            </div>
-          )}
+          {/* Theme-specific settings */}
+          <ThemeSettingsRenderer
+            element={element}
+            theme={getElementTheme(element)}
+            updateSetting={updateSetting}
+          />
           
           {element.type === 'rect' && (element.theme !== 'candy' && element.theme !== 'zigzag' && element.theme !== 'wobbly') && ( 
             <Slider

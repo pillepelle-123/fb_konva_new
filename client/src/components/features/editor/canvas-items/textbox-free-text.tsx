@@ -5,8 +5,8 @@ import { useEditor } from '../../../../context/editor-context';
 import BaseCanvasItem from './base-canvas-item';
 import type { CanvasItemProps } from './base-canvas-item';
 import { getToolDefaults } from '../../../../utils/tool-defaults';
-import { getThemeRenderer } from '../../../../utils/themes';
-import rough from 'roughjs';
+import { getThemeRenderer, type Theme, renderThemedLine } from '../../../../utils/themes';
+import type { CanvasElement } from '../../../../context/editor-context';
 import { KonvaSkeleton } from '../../../ui/primitives/skeleton';
 
 export default function TextboxFreeText(props: CanvasItemProps) {
@@ -174,61 +174,44 @@ export default function TextboxFreeText(props: CanvasItemProps) {
     const lineElements = [];
     const lineEndX = element.width - startX;
     
-    if (theme === 'rough') {
-      const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      const rc = rough.svg(svg);
-      
-      try {
-        const roughLine = rc.line(startX, y, lineEndX, y, {
-          roughness: 2,
-          strokeWidth: ruledLineWidth,
-          stroke: ruledLineColor,
-          seed: seed + y
-        });
-        
-        const paths = roughLine.querySelectorAll('path');
-        let combinedPath = '';
-        paths.forEach(path => {
-          const d = path.getAttribute('d');
-          if (d) combinedPath += d + ' ';
-        });
-        
-        if (combinedPath) {
-          lineElements.push(
-            <Path
-              key={y}
-              data={combinedPath.trim()}
-              stroke={ruledLineColor}
-              strokeWidth={ruledLineWidth}
-              opacity={ruledLineOpacity}
-              listening={false}
-            />
-          );
-        }
-      } catch (error) {
-        lineElements.push(
-          <Path
-            key={y}
-            data={`M ${startX} ${y} L ${lineEndX} ${y}`}
-            stroke={ruledLineColor}
-            strokeWidth={ruledLineWidth}
-            opacity={ruledLineOpacity}
-            listening={false}
-          />
-        );
-      }
-    } else {
-      lineElements.push(
-        <Path
-          key={y}
-          data={`M ${startX} ${y} L ${lineEndX} ${y}`}
-          stroke={ruledLineColor}
-          strokeWidth={ruledLineWidth}
-          opacity={ruledLineOpacity}
-          listening={false}
-        />
-      );
+    const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+    // Ensure theme is one of the supported themes
+    const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
+    const themeValue = (supportedThemes.includes(theme as Theme) ? theme : 'default') as Theme;
+    
+    // Create a temporary element for theme-specific settings
+    const tempElement: CanvasElement = {
+      ...element,
+      type: 'line',
+      id: element.id + '-ruled-line',
+      x: 0,
+      y: 0,
+      width: Math.abs(lineEndX - startX),
+      height: 0,
+      strokeWidth: ruledLineWidth,
+      stroke: ruledLineColor,
+      theme: themeValue
+    };
+    
+    const lineElement = renderThemedLine({
+      x1: startX,
+      y1: y,
+      x2: lineEndX,
+      y2: y,
+      strokeWidth: ruledLineWidth,
+      stroke: ruledLineColor,
+      opacity: ruledLineOpacity,
+      theme: themeValue,
+      seed: seed + y,
+      roughness: themeValue === 'rough' ? 2 : 1,
+      strokeScaleEnabled: true,
+      listening: false,
+      element: tempElement,
+      key: `ruled-line-${y}`
+    });
+    
+    if (lineElement) {
+      lineElements.push(lineElement);
     }
     
     return lineElements;

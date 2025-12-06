@@ -15,6 +15,7 @@ import { PreviewLine, PreviewShape, PreviewTextbox, PreviewBrush, MaterializedBr
 import { CanvasContainer } from './canvas-container';
 import { SnapGuidelines } from './snap-guidelines';
 import { CanvasOverlayProvider, CanvasOverlayContainer, CanvasOverlayPortal } from './canvas-overlay';
+import { ZoomProvider, useZoom } from './zoom-context';
 import ContextMenu from '../../../ui/overlays/context-menu';
 import { Modal } from '../../../ui/overlays/modal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../ui/overlays/dialog';
@@ -111,7 +112,8 @@ const createBadgeStyleWithoutProfile = (isActive: boolean, disabled?: boolean): 
   display: 'inline-flex',
   alignItems: 'center',
   gap: '8px',
-  flexWrap: 'wrap',
+  flexWrap: 'nowrap',
+  whiteSpace: 'nowrap',
   fontSize: '12px',
   fontWeight: 600,
   boxShadow: '0 10px 25px rgba(15, 23, 42, 0.12)',
@@ -142,7 +144,8 @@ const createBadgeStyleWithProfile = (isActive: boolean, disabled?: boolean, assi
     display: 'inline-flex',
     alignItems: 'center',
     gap: '8px',
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',
+    whiteSpace: 'nowrap',
     fontSize: '12px',
     fontWeight: 600,
     boxShadow: '0 10px 25px rgba(15, 23, 42, 0.12)',
@@ -256,7 +259,10 @@ export default function Canvas() {
   const [lastClickTime, setLastClickTime] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
 
-  const [zoom, setZoom] = useState(0.8);
+  // Use ZoomContext for zoom state management
+  const { zoom, setZoom: setZoomFromContext, registerSetZoom } = useZoom();
+  
+  // Define stagePos before setZoom so it can be used in the callback
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
@@ -636,7 +642,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
   }, [partnerPage, previewTargetLocked, previewPageOffsetX, canvasWidth, canvasHeight, pageOffsetY, stagePos.x, stagePos.y, zoom]);
   const renderBadgeSegments = useCallback(
     (meta: PageBadgeMeta, isActive: boolean, assignedUser?: { name: string; id?: number } | null) => (
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
         <span style={{ fontWeight: 600 }}>{meta.label}</span>
         {assignedUser && (
           <ProfilePicture
@@ -718,6 +724,50 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
 
     return { x: clampedX, y: clampedY };
   }, [canvasHeight, containerSize.height, containerSize.width, spreadWidthCanvas, zoom, state.isMiniPreview]);
+
+  // Local setZoom function that updates stage position for zoom-to-pointer behavior
+  // Must be defined after clampStagePosition
+  // This function is registered in ZoomContext and called after zoom state is updated
+  const setZoomPosition = useCallback((newZoom: number, centerPoint?: { x: number; y: number }) => {
+    const stage = stageRef.current;
+    const clampedScale = Math.max(0.1, Math.min(3, newZoom));
+    
+    // If no center point provided, calculate center of active page
+    let targetCenterPoint = centerPoint;
+    if (!targetCenterPoint && stage) {
+      // Calculate center of active page in screen coordinates
+      const pageCenterX = activePageOffsetX + canvasWidth / 2;
+      const pageCenterY = pageOffsetY + canvasHeight / 2;
+      
+      // Convert to screen coordinates
+      targetCenterPoint = {
+        x: stagePos.x + pageCenterX * zoom,
+        y: stagePos.y + pageCenterY * zoom,
+      };
+    }
+    
+    if (stage && targetCenterPoint) {
+      // Zoom to specific point (like mouse pointer or page center)
+      const oldScale = zoom;
+      const mousePointTo = {
+        x: (targetCenterPoint.x - stagePos.x) / oldScale,
+        y: (targetCenterPoint.y - stagePos.y) / oldScale,
+      };
+      
+      const newPos = {
+        x: targetCenterPoint.x - mousePointTo.x * clampedScale,
+        y: targetCenterPoint.y - mousePointTo.y * clampedScale,
+      };
+      
+      setHasManualZoom(true);
+      setStagePos(clampStagePosition(newPos, clampedScale));
+    }
+  }, [zoom, stagePos, clampStagePosition, activePageOffsetX, canvasWidth, canvasHeight, pageOffsetY]);
+
+  // Register setZoomPosition function in ZoomContext so it can be used by zoom-popover
+  useEffect(() => {
+    registerSetZoom(setZoomPosition);
+  }, [registerSetZoom, setZoomPosition]);
 
   useEffect(() => {
     if (isDragging) return; // Don't update transformer during drag
@@ -2424,16 +2474,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       };
       
       const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
-      const clampedScale = Math.max(0.1, Math.min(3, newScale));
-      
-      const newPos = {
-        x: pointer.x - mousePointTo.x * clampedScale,
-        y: pointer.y - mousePointTo.y * clampedScale,
-      };
-      
-      setZoom(clampedScale);
-      setHasManualZoom(true); // Mark that user has manually zoomed
-      setStagePos(clampStagePosition(newPos, clampedScale));
+      setZoomFromContext(newScale, pointer);
     } else {
       // Pan with two-finger touchpad (mousewheel without Ctrl)
       setStagePos(
@@ -3364,9 +3405,9 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     const centerX = (containerWidth - scaledSpreadWidth) / 2;
     const centerY = (containerHeight - scaledPageHeight) / 2;
     
-    setZoom(optimalZoom);
+    setZoomFromContext(optimalZoom);
     setStagePos(clampStagePosition({ x: centerX, y: centerY }, optimalZoom));
-  }, [canvasWidth, canvasHeight, clampStagePosition, hasPartnerPage, state.isMiniPreview, state.currentBook?.orientation]);
+  }, [canvasWidth, canvasHeight, clampStagePosition, hasPartnerPage, state.isMiniPreview, state.currentBook?.orientation, setZoomFromContext]);
 
   // Auto-fit when entering the canvas editor or when container size changes
   useEffect(() => {
@@ -4399,7 +4440,9 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                 left: activePageBadgePosition.x,
                 top: activePageBadgePosition.y,
                 transform: 'translate(-50%, -100%)',
-                pointerEvents: 'none'
+                pointerEvents: 'none',
+                minWidth: 0,
+                width: 'max-content'
               }}
             >
               {state.pageAssignments[activePageNumber] ? (
@@ -4422,7 +4465,9 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                 left: previewPageBadgePosition.x,
                 top: previewPageBadgePosition.y,
                 transform: 'translate(-50%, -100%)',
-                pointerEvents: previewTargetLocked ? 'none' : 'auto'
+                pointerEvents: previewTargetLocked ? 'none' : 'auto',
+                minWidth: 0,
+                width: 'max-content'
               }}
             >
               {partnerPage?.pageNumber && state.pageAssignments[partnerPage.pageNumber] ? (

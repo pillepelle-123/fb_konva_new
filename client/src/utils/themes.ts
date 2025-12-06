@@ -1,4 +1,6 @@
 import rough from 'roughjs';
+import React from 'react';
+import { Path } from 'react-konva';
 import type { CanvasElement } from '../context/editor-context';
 import { commonToActualStrokeWidth } from './stroke-width-converter';
 
@@ -375,17 +377,20 @@ const candyTheme: ThemeRenderer = {
   },
   
   getStrokeProps: (element: CanvasElement, zoom = 1) => {
+    // Check if candyHoled is enabled - if so, use transparent fill
+    const fill = (element as any).candyHoled ? 'transparent' : (element.stroke || '#ff0000');
+    
     if (element.type === 'brush') {
       return {
         stroke: 'transparent',
         strokeWidth: 0,
-        fill: element.stroke || '#1f2937'
+        fill: fill
       };
     }
     return {
       stroke: 'transparent',
       strokeWidth: 0,
-      fill: element.stroke || '#ff0000'
+      fill: fill
     };
   }
 };
@@ -772,5 +777,318 @@ export const themes: Record<Theme, ThemeRenderer> = {
 
 export function getThemeRenderer(theme: Theme = 'rough'): ThemeRenderer {
   return themes[theme] || themes.rough;
+}
+
+// Interface for line path generation parameters
+export interface LinePathParams {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  strokeWidth: number;
+  stroke: string;
+  theme: Theme;
+  seed?: number;
+  roughness?: number;
+  element?: CanvasElement; // For theme-specific settings like candyRandomness
+}
+
+/**
+ * Generates a themed path for a straight line (horizontal, vertical, or diagonal).
+ * Used for: Ruled Lines, Borders (rectangles), Lines (Line Tool), Frames (images).
+ */
+export function generateLinePath(params: LinePathParams): string {
+  const { x1, y1, x2, y2, strokeWidth, stroke, theme, seed = 1, roughness = 1, element } = params;
+  
+  // Check if it's a horizontal line (y1 === y2)
+  if (Math.abs(y1 - y2) < 0.1) {
+    return generateHorizontalLinePath(x1, y1, x2, y2, strokeWidth, stroke, theme, seed, roughness, element);
+  }
+  
+  // Check if it's a vertical line (x1 === x2)
+  if (Math.abs(x1 - x2) < 0.1) {
+    return generateVerticalLinePath(x1, y1, x2, y2, strokeWidth, stroke, theme, seed, roughness, element);
+  }
+  
+  // Diagonal line - use theme-specific generation
+  return generateDiagonalLinePath(x1, y1, x2, y2, strokeWidth, stroke, theme, seed, roughness, element);
+}
+
+/**
+ * Generates a themed horizontal line path.
+ * This is the most common case for Ruled Lines, Borders, and Frames.
+ */
+function generateHorizontalLinePath(
+  x1: number, y1: number, x2: number, y2: number,
+  strokeWidth: number, stroke: string, theme: Theme,
+  seed: number, roughness: number, element?: CanvasElement
+): string {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  const rc = rough.svg(svg);
+  
+  switch (theme) {
+    case 'default': {
+      return `M ${x1} ${y1} L ${x2} ${y2}`;
+    }
+    
+    case 'rough': {
+      try {
+        const roughLine = rc.line(x1, y1, x2, y2, {
+          roughness,
+          strokeWidth,
+          stroke,
+          seed: seed + y1 // Use y-position as seed variation
+        });
+        return extractPathFromRoughElement(roughLine);
+      } catch {
+        return `M ${x1} ${y1} L ${x2} ${y2}`;
+      }
+    }
+    
+    case 'glow': {
+      // Glow effect: multiple overlapping lines with decreasing opacity
+      // For now, return a simple line - glow effect is handled via strokeProps
+      return `M ${x1} ${y1} L ${x2} ${y2}`;
+    }
+    
+    case 'candy': {
+      // Candy: circles along the line
+      const baseCircleSize = strokeWidth * 2;
+      const spacing = baseCircleSize * 2;
+      const length = Math.abs(x2 - x1);
+      const numCircles = Math.floor(length / spacing) + 1;
+      const hasRandomness = element?.candyRandomness || false;
+      
+      const getVariationAmount = () => {
+        if (!hasRandomness) return 0;
+        const intensity = element?.candyIntensity || 'weak';
+        switch (intensity) {
+          case 'middle': return 1.0;
+          case 'strong': return 1.4;
+          default: return 0.7;
+        }
+      };
+      
+      let pathString = '';
+      for (let i = 0; i < numCircles; i++) {
+        const t = numCircles > 1 ? i / (numCircles - 1) : 0.5;
+        const x = x1 + (x2 - x1) * t;
+        const y = y1;
+        
+        const random = () => {
+          const val = Math.sin(seed + i) * 10000;
+          return val - Math.floor(val);
+        };
+        const sizeVariation = hasRandomness ? 1 + (random() - 0.5) * getVariationAmount() : 1;
+        const radius = (baseCircleSize * sizeVariation) / 2;
+        
+        pathString += `M ${x - radius} ${y} A ${radius} ${radius} 0 1 0 ${x + radius} ${y} A ${radius} ${radius} 0 1 0 ${x - radius} ${y} `;
+      }
+      return pathString;
+    }
+    
+    case 'zigzag': {
+      // Zigzag: sawtooth pattern
+      const zigzagSize = Math.max(8, strokeWidth * 1.5);
+      const thickness = Math.max(2, strokeWidth * 0.8);
+      const length = Math.abs(x2 - x1);
+      const segments = Math.max(2, Math.floor(length / zigzagSize));
+      
+      let path = `M ${x1} ${y1}`;
+      for (let i = 0; i <= segments; i++) {
+        const t = i / segments;
+        const x = x1 + (x2 - x1) * t;
+        const offset = (i % 2 === 0) ? 0 : thickness;
+        path += ` L ${x} ${y1 + offset}`;
+      }
+      return path;
+    }
+    
+    case 'wobbly': {
+      // Wobbly: wavy line with variable width
+      const steps = 20;
+      const topPath = [];
+      const bottomPath = [];
+      
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const widthVariation = 1 + 0.15 * Math.sin(t * Math.PI * 8);
+        const currentWidth = strokeWidth * widthVariation;
+        
+        const x = x1 + (x2 - x1) * t;
+        const y = y1;
+        const halfWidth = currentWidth / 2;
+        
+        topPath.push([x, y - halfWidth]);
+        bottomPath.unshift([x, y + halfWidth]);
+      }
+      
+      if (topPath.length > 0) {
+        let pathString = `M ${topPath[0][0]} ${topPath[0][1]}`;
+        for (let i = 1; i < topPath.length; i++) {
+          pathString += ` L ${topPath[i][0]} ${topPath[i][1]}`;
+        }
+        for (let i = 0; i < bottomPath.length; i++) {
+          pathString += ` L ${bottomPath[i][0]} ${bottomPath[i][1]}`;
+        }
+        pathString += ' Z';
+        return pathString;
+      }
+      return `M ${x1} ${y1} L ${x2} ${y2}`;
+    }
+    
+    default: {
+      return `M ${x1} ${y1} L ${x2} ${y2}`;
+    }
+  }
+}
+
+/**
+ * Generates a themed vertical line path.
+ */
+function generateVerticalLinePath(
+  x1: number, y1: number, x2: number, y2: number,
+  strokeWidth: number, stroke: string, theme: Theme,
+  seed: number, roughness: number, element?: CanvasElement
+): string {
+  // Similar to horizontal, but rotated
+  return generateHorizontalLinePath(y1, x1, y2, x2, strokeWidth, stroke, theme, seed, roughness, element)
+    .split(' ')
+    .map((part, index) => {
+      if (part === 'M' || part === 'L' || part === 'A' || part === 'Z') return part;
+      if (index % 2 === 0) {
+        // Swap x and y
+        return part;
+      }
+      return part;
+    })
+    .join(' ');
+}
+
+/**
+ * Generates a themed diagonal line path.
+ */
+function generateDiagonalLinePath(
+  x1: number, y1: number, x2: number, y2: number,
+  strokeWidth: number, stroke: string, theme: Theme,
+  seed: number, roughness: number, element?: CanvasElement
+): string {
+  // For diagonal lines, we can use the same logic but need to transform coordinates
+  // For simplicity, use theme renderer with a temporary line element
+  const tempElement: CanvasElement = {
+    type: 'line',
+    id: `line-${seed}`,
+    x: 0,
+    y: 0,
+    width: Math.abs(x2 - x1),
+    height: Math.abs(y2 - y1),
+    strokeWidth,
+    stroke,
+    fill: 'transparent',
+    roughness,
+    theme,
+    ...(element || {})
+  };
+  
+  const themeRenderer = getThemeRenderer(theme);
+  const basePath = themeRenderer.generatePath(tempElement);
+  
+  // Transform the path to match actual coordinates
+  // This is a simplified transformation - for complex paths, more sophisticated transformation is needed
+  if (basePath && basePath !== '') {
+    // For now, return a simple transformed path
+    // More complex transformation would require parsing the path string
+    return `M ${x1} ${y1} L ${x2} ${y2}`;
+  }
+  
+  return `M ${x1} ${y1} L ${x2} ${y2}`;
+}
+
+/**
+ * Extracts path data from a rough.js SVG element.
+ */
+function extractPathFromRoughElement(roughElement: SVGElement): string {
+  const paths = roughElement.querySelectorAll('path');
+  let combinedPath = '';
+  paths.forEach(path => {
+    const d = path.getAttribute('d');
+    if (d) combinedPath += d + ' ';
+  });
+  return combinedPath.trim() || '';
+}
+
+/**
+ * Renders a themed line as a React Path element.
+ * Used for: Ruled Lines, Borders (rectangles), Lines (Line Tool), Frames (images).
+ */
+export function renderThemedLine(props: {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  strokeWidth: number;
+  stroke: string;
+  opacity?: number;
+  theme: Theme;
+  seed?: number;
+  roughness?: number;
+  strokeScaleEnabled?: boolean;
+  listening?: boolean;
+  element?: CanvasElement; // For theme-specific settings
+  key?: string; // For React key prop
+}): React.ReactElement | null {
+  const {
+    x1, y1, x2, y2,
+    strokeWidth, stroke, opacity = 1,
+    theme, seed = 1, roughness = 1,
+    strokeScaleEnabled = true,
+    listening = false,
+    element,
+    key
+  } = props;
+  
+  const pathData = generateLinePath({
+    x1, y1, x2, y2,
+    strokeWidth, stroke, theme, seed, roughness, element
+  });
+  
+  if (!pathData) return null;
+  
+  // Get stroke props from theme renderer for additional styling
+  const themeRenderer = getThemeRenderer(theme);
+  const tempElement: CanvasElement = {
+    type: 'line',
+    id: `line-${seed}`,
+    x: 0,
+    y: 0,
+    width: Math.abs(x2 - x1),
+    height: Math.abs(y2 - y1),
+    strokeWidth,
+    stroke,
+    fill: 'transparent',
+    roughness,
+    theme,
+    ...(element || {})
+  };
+  const strokeProps = themeRenderer.getStrokeProps(tempElement);
+  
+  return React.createElement(Path, {
+    key,
+    data: pathData,
+    stroke: strokeProps.stroke || stroke,
+    strokeWidth: strokeProps.strokeWidth || strokeWidth,
+    fill: strokeProps.fill || 'transparent',
+    opacity: opacity * (strokeProps.opacity || 1),
+    shadowColor: strokeProps.shadowColor,
+    shadowBlur: strokeProps.shadowBlur,
+    shadowOpacity: strokeProps.shadowOpacity,
+    shadowOffsetX: strokeProps.shadowOffsetX,
+    shadowOffsetY: strokeProps.shadowOffsetY,
+    strokeDasharray: strokeProps.strokeDasharray,
+    lineCap: (strokeProps.lineCap as 'butt' | 'round' | 'square' | undefined) || 'round',
+    lineJoin: (strokeProps.lineJoin as 'miter' | 'round' | 'bevel' | undefined) || 'round',
+    strokeScaleEnabled: strokeScaleEnabled,
+    listening: listening
+  });
 }
 

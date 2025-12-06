@@ -1,6 +1,7 @@
 import { ToolButton } from './tool-button';
 import { ToolPopover } from './tool-popover';
 import { ToolSettingsPopover } from './tool-settings-popover';
+import { ZoomPopover } from './zoom-popover';
 import { type Icon, Info, Hand, Brush, Pipette, Square, Sticker, MessageCircle, MessageCircleQuestionMark, MessageCircleMore, MessageCirclePlus, Search, SquareMousePointer, Magnet, MessageCircleHeart, Paintbrush, Image } from 'lucide-react';
 import { useState, forwardRef, useImperativeHandle } from 'react';
 import { Button } from '../../../ui/primitives/button';
@@ -57,16 +58,22 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
               isOnAssignedPage={isOnAssignedPage}
               onClick={() => onToolSelect('pan')}
             />
-            <ToolButton
-              id="zoom"
-              label="Zoom"
-              icon={Search}
-              isActive={activeTool === 'zoom'}
-              isExpanded={false}
-              userRole={userRole}
-              isOnAssignedPage={isOnAssignedPage}
-              onClick={() => onToolSelect('zoom')}
-            />
+            <ZoomPopover
+              activeTool={activeTool}
+              onToolSelect={onToolSelect}
+            >
+              <ToolButton
+                id="zoom"
+                label="Zoom"
+                icon={Search}
+                isActive={activeTool === 'zoom'}
+                isExpanded={false}
+                userRole={userRole}
+                isOnAssignedPage={isOnAssignedPage}
+                hasPopover={true}
+                onClick={() => {}}
+              />
+            </ZoomPopover>
           </div>
         </div>
       </>
@@ -176,16 +183,22 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
 
         {/* Row 4: Zoom + QnA */}
         <div className={`${isExpanded ? 'grid grid-cols-2 gap-1' : 'space-y-1'} mb-1`}>
-          <ToolButton
-            id="zoom"
-            label="Zoom"
-            icon={Search}
-            isActive={activeTool === 'zoom'}
-            isExpanded={false}
-            userRole={userRole}
-            isOnAssignedPage={isOnAssignedPage}
-            onClick={() => onToolSelect('zoom')}
-          />
+          <ZoomPopover
+            activeTool={activeTool}
+            onToolSelect={onToolSelect}
+          >
+            <ToolButton
+              id="zoom"
+              label="Zoom"
+              icon={Search}
+              isActive={activeTool === 'zoom'}
+              isExpanded={false}
+              userRole={userRole}
+              isOnAssignedPage={isOnAssignedPage}
+              hasPopover={true}
+              onClick={() => {}}
+            />
+          </ZoomPopover>
           <ToolButton
             id="qna"
             label="Q&A"

@@ -8,6 +8,7 @@ import { IndentedSection } from '../../../ui/primitives/indented-section';
 import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE } from '../../../../utils/corner-radius-converter';
 import { ThemeSelect } from '../../../../utils/theme-options';
 import { commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth, getMinActualStrokeWidth } from '../../../../utils/stroke-width-converter';
+import { ThemeSettingsRenderer } from './theme-settings-renderer';
 
 interface ImageSettingsFormProps {
   element: any;
@@ -127,6 +128,13 @@ export function ImageSettingsForm({
                   }}
                 />
               </div>
+              
+              {/* Theme-specific settings for Frame */}
+              <ThemeSettingsRenderer
+                element={element}
+                theme={frameTheme}
+                updateSetting={updateSetting}
+              />
               
               {/* Frame Width */}
               <Slider

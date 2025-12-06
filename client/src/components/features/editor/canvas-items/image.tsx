@@ -381,7 +381,7 @@ export default function Image(props: CanvasItemProps) {
                     stroke={strokeProps.stroke || stroke}
                     strokeWidth={strokeProps.strokeWidth || strokeWidth}
                     opacity={strokeOpacity}
-                    fill="transparent"
+                    fill={strokeProps.fill || 'transparent'}
                     strokeScaleEnabled={true}
                     listening={false}
                     lineCap="round"
