@@ -511,15 +511,39 @@ function createLayout(params: {
           // We need to adjust it to the combined baseline (larger of the two)
           const combinedBaselineY = lastQuestionLineY + (combinedBaselineOffset - questionBaselineOffset);
           
-          // Update the last question line Y position to use combined baseline
+          // Calculate combined width (question + gap + answer)
+          const inlineTextWidth = measureText(inlineText, answerStyle, ctx);
+          const combinedWidth = lastQuestionLineWidth + inlineGap + inlineTextWidth;
+          
+          // Get alignment (use question style alignment, or answer style if question doesn't have one)
+          const align = questionStyle.align || answerStyle.align || 'left';
+          
+          // Calculate X positions based on alignment
+          let questionX: number;
+          let inlineTextX: number;
+          
+          if (align === 'center') {
+            // Center the combined text (question + gap + answer)
+            const combinedStartX = padding + (availableWidth - combinedWidth) / 2;
+            questionX = combinedStartX;
+            inlineTextX = combinedStartX + lastQuestionLineWidth + inlineGap;
+          } else if (align === 'right') {
+            // Right-align the combined text
+            const combinedStartX = padding + availableWidth - combinedWidth;
+            questionX = combinedStartX;
+            inlineTextX = combinedStartX + lastQuestionLineWidth + inlineGap;
+          } else {
+            // Left alignment (default)
+            questionX = padding;
+            inlineTextX = padding + lastQuestionLineWidth + inlineGap;
+          }
+          
+          // Update the last question line Y position and X position to use combined baseline and alignment
           const lastQuestionRunIndex = runs.length - 1;
           if (lastQuestionRunIndex >= 0 && runs[lastQuestionRunIndex].style === questionStyle) {
             runs[lastQuestionRunIndex].y = combinedBaselineY;
+            runs[lastQuestionRunIndex].x = questionX;
           }
-          
-          // For inline text on the same line, use left alignment (after question text)
-          // Text alignment only applies to full lines, not inline text
-          const inlineTextX = padding + lastQuestionLineWidth + inlineGap;
           
           // Add answer text aligned to the same baseline
           // Both texts use the same baseline Y position
@@ -678,6 +702,7 @@ function getClickArea(
     return null;
   } else {
     // For inline layout, determine based on text runs
+    // This works regardless of text alignment (left, center, right) because we check Y positions
     const answerRuns = layout.runs.filter(run => run.style === answerStyle);
     const questionRuns = layout.runs.filter(run => run.style === questionStyle);
     
@@ -685,21 +710,69 @@ function getClickArea(
       return null;
     }
     
-    // Calculate answer area bounds
+    // Helper to check if a Y position is within a run's line
+    const isYInRunLine = (y: number, run: TextRun, style: RichTextStyle) => {
+      const baselineOffset = style.fontSize * 0.8;
+      const lineHeight = getLineHeight(style);
+      const lineTop = run.y - baselineOffset;
+      const lineBottom = lineTop + lineHeight;
+      return y >= lineTop && y <= lineBottom;
+    };
+    
+    // First, check if click is on a combined line (question and answer on same line)
+    // For combined lines, we need to check X position to determine which part was clicked
+    const answerBaselineOffset = answerStyle.fontSize * 0.8;
+    const answerLineHeight = getLineHeight(answerStyle);
+    
+    // Check each question run to see if answer is on the same line
+    for (const questionRun of questionRuns) {
+      if (isYInRunLine(y, questionRun, questionStyle)) {
+        // Check if there's an answer run on the same line (same Y baseline)
+        const combinedAnswerRun = answerRuns.find(answerRun => 
+          Math.abs(answerRun.y - questionRun.y) < 1 // Same baseline (within 1px tolerance)
+        );
+        
+        if (combinedAnswerRun) {
+          // This is a combined line - need to check X position
+          // For combined lines, question is typically on the left, answer on the right
+          // Works regardless of text alignment because we compare X positions directly
+          const answerRunStartX = combinedAnswerRun.x;
+          
+          // If click is before answer run starts (with margin), it's question
+          // Otherwise it's answer
+          // This works for left, center, and right alignment
+          if (x < answerRunStartX - 10) { // Small margin for easier clicking
+            return 'question';
+          } else {
+            return 'answer';
+          }
+        }
+      }
+    }
+    
+    // Check if click is in answer-only lines (not combined with question)
     if (answerRuns.length > 0) {
-      const answerBaselineOffset = answerStyle.fontSize * 0.8;
-      const answerLineHeight = getLineHeight(answerStyle);
       const minAnswerY = Math.min(...answerRuns.map(run => run.y - answerBaselineOffset));
       const maxAnswerY = Math.max(...answerRuns.map(run => run.y - answerBaselineOffset + answerLineHeight));
       
-      // Check if click is in answer area
-      if (
-        x >= padding &&
-        x <= width - padding &&
-        y >= minAnswerY &&
-        y <= maxAnswerY
-      ) {
-        return 'answer';
+      // Check if Y is in answer area
+      if (y >= minAnswerY && y <= maxAnswerY) {
+        // Check if this Y position corresponds to an answer-only line (not combined)
+        const answerRunOnLine = answerRuns.find(run => isYInRunLine(y, run, answerStyle));
+        if (answerRunOnLine) {
+          // Check if there's a question run on the same line
+          const questionRunOnSameLine = questionRuns.find(qRun => 
+            Math.abs(qRun.y - answerRunOnLine.y) < 1
+          );
+          
+          // If no question run on same line, this is answer-only
+          if (!questionRunOnSameLine) {
+            // X check: works for all alignments (left, center, right) - full width between padding
+            if (x >= padding && x <= width - padding) {
+              return 'answer';
+            }
+          }
+        }
       }
     }
     
@@ -716,7 +789,7 @@ function getClickArea(
       const answerStartY = lastQuestionY + (answerLineHeight * 0.2);
       const answerEndY = height - padding; // Until bottom edge (with padding)
       
-      // Check if click is in expected answer area
+      // Check if click is in expected answer area (works for all alignments)
       if (
         x >= padding &&
         x <= width - padding &&
@@ -727,21 +800,31 @@ function getClickArea(
       }
     }
     
-    // Calculate question area bounds
+    // Calculate question area bounds (question-only lines)
     if (questionRuns.length > 0) {
       const questionBaselineOffset = questionStyle.fontSize * 0.8;
       const questionLineHeight = getLineHeight(questionStyle);
       const minQuestionY = Math.min(...questionRuns.map(run => run.y - questionBaselineOffset));
       const maxQuestionY = Math.max(...questionRuns.map(run => run.y - questionBaselineOffset + questionLineHeight));
       
-      // Check if click is in question area
-      if (
-        x >= padding &&
-        x <= width - padding &&
-        y >= minQuestionY &&
-        y <= maxQuestionY
-      ) {
-        return 'question';
+      // Check if Y is in question area
+      if (y >= minQuestionY && y <= maxQuestionY) {
+        // Check if this is a question-only line (not combined with answer)
+        const questionRunOnLine = questionRuns.find(run => isYInRunLine(y, run, questionStyle));
+        if (questionRunOnLine) {
+          // Check if there's an answer run on the same line
+          const answerRunOnSameLine = answerRuns.find(aRun => 
+            Math.abs(aRun.y - questionRunOnLine.y) < 1
+          );
+          
+          // If no answer run on same line, this is question-only
+          if (!answerRunOnSameLine) {
+            // X check: works for all alignments (left, center, right) - full width between padding
+            if (x >= padding && x <= width - padding) {
+              return 'question';
+            }
+          }
+        }
       }
     }
     
@@ -1033,35 +1116,80 @@ export default function TextboxQna(props: CanvasItemProps) {
     return layout.runs;
   }, [layout.runs, isAnswerEditorOpen, effectiveQuestionStyle]);
   
-  // Calculate answer area bounds for placeholder and hover detection
-  const answerAreaBounds = useMemo(() => {
-    if (!element.questionId || answerContent.trim().length > 0 || isAnswerEditorOpen) {
-      return null; // No placeholder needed if no question, answer exists, or editor is open
-    }
-    
-    if (layoutVariant === 'block' && layout.answerArea) {
-      return layout.answerArea;
+  // Calculate question area bounds for tooltip and hover detection
+  const questionAreaBounds = useMemo(() => {
+    if (layoutVariant === 'block' && layout.questionArea) {
+      return layout.questionArea;
     } else if (layoutVariant === 'inline') {
       const questionRuns = layout.runs.filter(run => run.style === effectiveQuestionStyle);
       if (questionRuns.length === 0) return null;
       
       const questionBaselineOffset = effectiveQuestionStyle.fontSize * 0.8;
       const questionLineHeight = getLineHeight(effectiveQuestionStyle);
-      const answerLineHeight = getLineHeight(answerStyle);
-      
-      const lastQuestionY = Math.max(...questionRuns.map(run => run.y - questionBaselineOffset + questionLineHeight));
-      const answerStartY = lastQuestionY + (answerLineHeight * 0.2);
+      const minQuestionY = Math.min(...questionRuns.map(run => run.y - questionBaselineOffset));
+      const maxQuestionY = Math.max(...questionRuns.map(run => run.y - questionBaselineOffset + questionLineHeight));
       
       return {
         x: padding,
-        y: answerStartY,
+        y: minQuestionY,
         width: boxWidth - padding * 2,
-        height: Math.max(answerLineHeight, boxHeight - answerStartY - padding)
+        height: maxQuestionY - minQuestionY
       };
+    }
+    return null;
+  }, [layoutVariant, layout.questionArea, layout.runs, effectiveQuestionStyle, padding, boxWidth]);
+
+  // Calculate answer area bounds for placeholder, hover detection, and tooltip
+  const answerAreaBounds = useMemo(() => {
+    // Disable answer area if no question is assigned
+    if (!element.questionId) {
+      return null;
+    }
+    // Don't show bounds if editor is open
+    if (isAnswerEditorOpen) {
+      return null;
+    }
+    
+    if (layoutVariant === 'block' && layout.answerArea) {
+      return layout.answerArea;
+    } else if (layoutVariant === 'inline') {
+      // Calculate bounds based on answer runs if they exist, otherwise use expected position
+      const answerRuns = layout.runs.filter(run => run.style === answerStyle);
+      const questionRuns = layout.runs.filter(run => run.style === effectiveQuestionStyle);
+      
+      if (answerRuns.length > 0) {
+        // Answer exists - calculate bounds from actual answer runs
+        const answerBaselineOffset = answerStyle.fontSize * 0.8;
+        const answerLineHeight = getLineHeight(answerStyle);
+        const minAnswerY = Math.min(...answerRuns.map(run => run.y - answerBaselineOffset));
+        const maxAnswerY = Math.max(...answerRuns.map(run => run.y - answerBaselineOffset + answerLineHeight));
+        
+        return {
+          x: padding,
+          y: minAnswerY,
+          width: boxWidth - padding * 2,
+          height: maxAnswerY - minAnswerY
+        };
+      } else if (questionRuns.length > 0) {
+        // No answer yet - calculate expected position
+        const questionBaselineOffset = effectiveQuestionStyle.fontSize * 0.8;
+        const questionLineHeight = getLineHeight(effectiveQuestionStyle);
+        const answerLineHeight = getLineHeight(answerStyle);
+        
+        const lastQuestionY = Math.max(...questionRuns.map(run => run.y - questionBaselineOffset + questionLineHeight));
+        const answerStartY = lastQuestionY + (answerLineHeight * 0.2);
+        
+        return {
+          x: padding,
+          y: answerStartY,
+          width: boxWidth - padding * 2,
+          height: Math.max(answerLineHeight, boxHeight - answerStartY - padding)
+        };
+      }
     }
     
     return null;
-  }, [layoutVariant, layout.answerArea, layout.runs, effectiveQuestionStyle, answerStyle, padding, boxWidth, boxHeight, element.questionId, answerContent, isAnswerEditorOpen]);
+  }, [layoutVariant, layout.answerArea, layout.runs, effectiveQuestionStyle, answerStyle, padding, boxWidth, boxHeight, element.questionId, isAnswerEditorOpen]);
 
   // Generate ruled lines if enabled
   const ruledLines = qnaElement.ruledLines ?? false;
@@ -1730,8 +1858,12 @@ export default function TextboxQna(props: CanvasItemProps) {
     if (!stage) return;
     
     const container = stage.container();
-    if (hoveredArea === 'answer' && assignedUser && assignedUser.id === user?.id && state.activeTool === 'select') {
+    // Only show text cursor for answer area if question is assigned and user is authorized
+    if (hoveredArea === 'answer' && element.questionId && assignedUser && assignedUser.id === user?.id && state.activeTool === 'select') {
       container.style.cursor = 'text';
+    } else if (hoveredArea === 'question' && state.activeTool === 'select') {
+      // Show pointer cursor for question area
+      container.style.cursor = 'pointer';
     } else {
       container.style.cursor = '';
     }
@@ -1741,13 +1873,25 @@ export default function TextboxQna(props: CanvasItemProps) {
         container.style.cursor = '';
       }
     };
-  }, [hoveredArea, assignedUser, user?.id, state.activeTool]);
+  }, [hoveredArea, assignedUser, user?.id, state.activeTool, element.questionId]);
   
   // Render tooltip directly in DOM (outside Konva canvas)
   useEffect(() => {
     if (typeof document === 'undefined') return;
     
-    const shouldShowTooltip = hoveredArea === 'answer' && tooltipPosition && answerAreaBounds && assignedUser && assignedUser.id === user?.id;
+    // Determine if tooltip should be shown and what text to display
+    let shouldShowTooltip = false;
+    let tooltipContentText = '';
+    
+    if (hoveredArea === 'question' && tooltipPosition && questionAreaBounds && state.activeTool === 'select') {
+      // Question area tooltip - always show if hovering over question area
+      shouldShowTooltip = true;
+      tooltipContentText = element.questionId ? 'Change question' : 'Add a question';
+    } else if (hoveredArea === 'answer' && tooltipPosition && answerAreaBounds && element.questionId && assignedUser && assignedUser.id === user?.id && state.activeTool === 'select') {
+      // Answer area tooltip - only show if question is assigned and user is authorized
+      shouldShowTooltip = true;
+      tooltipContentText = answerContent.trim().length > 0 ? 'Edit answer' : 'Add an answer';
+    }
     
     if (!shouldShowTooltip) {
       // Remove existing tooltip if any
@@ -1765,6 +1909,8 @@ export default function TextboxQna(props: CanvasItemProps) {
     }
     
     // Create tooltip element
+    if (!tooltipPosition) return;
+    
     const tooltip = document.createElement('div');
     tooltip.id = `qna-tooltip-${element.id}`;
     tooltip.className = 'fixed z-50 pointer-events-none';
@@ -1774,7 +1920,7 @@ export default function TextboxQna(props: CanvasItemProps) {
     
     const tooltipContent = document.createElement('div');
     tooltipContent.className = 'bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap';
-    tooltipContent.textContent = 'Doppelklick zum Bearbeiten';
+    tooltipContent.textContent = tooltipContentText;
     tooltip.appendChild(tooltipContent);
     
     document.body.appendChild(tooltip);
@@ -1785,7 +1931,7 @@ export default function TextboxQna(props: CanvasItemProps) {
         tooltipToRemove.remove();
       }
     };
-  }, [hoveredArea, tooltipPosition, answerAreaBounds, assignedUser, user?.id, element.id]);
+  }, [hoveredArea, tooltipPosition, answerAreaBounds, questionAreaBounds, assignedUser, user?.id, element.id, element.questionId, answerContent, state.activeTool]);
 
   // Helper function to get click area from mouse position
   const getClickAreaFromEvent = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -1826,32 +1972,51 @@ export default function TextboxQna(props: CanvasItemProps) {
     const clickArea = getClickAreaFromEvent(e);
     const stage = e.target.getStage();
     
-    if (clickArea === 'answer' && stage) {
+    if (!stage) {
+      setHoveredArea(null);
+      setTooltipPosition(null);
+      return;
+    }
+    
+    // Calculate tooltip position based on hovered area
+    const groupNode = textRef.current?.getParent();
+    if (!groupNode) {
+      setHoveredArea(clickArea);
+      setTooltipPosition(null);
+      return;
+    }
+    
+    const groupTransform = groupNode.getAbsoluteTransform();
+    const stageBox = stage.container().getBoundingClientRect();
+    
+    if (clickArea === 'question' && questionAreaBounds) {
+      setHoveredArea('question');
+      const centerLocalPos = {
+        x: questionAreaBounds.x + questionAreaBounds.width / 2,
+        y: questionAreaBounds.y + questionAreaBounds.height / 2
+      };
+      const centerStagePos = groupTransform.point(centerLocalPos);
+      setTooltipPosition({
+        x: stageBox.left + centerStagePos.x,
+        y: stageBox.top + centerStagePos.y
+      });
+    } else if (clickArea === 'answer' && answerAreaBounds && element.questionId) {
+      // Only show answer tooltip if question is assigned
       setHoveredArea('answer');
-      
-      // Calculate tooltip position (center of answer area)
-      if (answerAreaBounds) {
-        const groupNode = textRef.current?.getParent();
-        if (groupNode) {
-          const groupTransform = groupNode.getAbsoluteTransform();
-          const centerLocalPos = {
-            x: answerAreaBounds.x + answerAreaBounds.width / 2,
-            y: answerAreaBounds.y + answerAreaBounds.height / 2
-          };
-          const centerStagePos = groupTransform.point(centerLocalPos);
-          const stageBox = stage.container().getBoundingClientRect();
-          
-          setTooltipPosition({
-            x: stageBox.left + centerStagePos.x,
-            y: stageBox.top + centerStagePos.y
-          });
-        }
-      }
+      const centerLocalPos = {
+        x: answerAreaBounds.x + answerAreaBounds.width / 2,
+        y: answerAreaBounds.y + answerAreaBounds.height / 2
+      };
+      const centerStagePos = groupTransform.point(centerLocalPos);
+      setTooltipPosition({
+        x: stageBox.left + centerStagePos.x,
+        y: stageBox.top + centerStagePos.y
+      });
     } else {
       setHoveredArea(clickArea);
       setTooltipPosition(null);
     }
-  }, [props.interactive, state.activeTool, getClickAreaFromEvent, answerAreaBounds]);
+  }, [props.interactive, state.activeTool, getClickAreaFromEvent, answerAreaBounds, questionAreaBounds, element.questionId]);
   
   const handleMouseLeave = useCallback(() => {
     setHoveredArea(null);
@@ -1880,6 +2045,11 @@ export default function TextboxQna(props: CanvasItemProps) {
         }));
       }
     } else if (clickArea === 'answer') {
+      // Disable answer editing if no question is assigned
+      if (!element.questionId) {
+        return; // No question assigned, cannot add answer
+      }
+      
       // Check if user is assigned to this page
       if (!assignedUser || assignedUser.id !== user?.id) {
         return; // User not assigned or not the assigned user
