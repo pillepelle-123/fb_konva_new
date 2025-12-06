@@ -476,104 +476,130 @@ function createLayout(params: {
 
   // Check if answer can start on the same line as the last question line
   // Skip this check if answerInNewRow is true
-  if (!answerInNewRow && questionLines.length > 0 && answerText && answerText.trim()) {
+  // Also skip if answer text starts with a line break (manual Enter key) - respect user's line break
+  const answerStartsWithLineBreak = answerText && (answerText.startsWith('\n') || answerText.trim().split('\n')[0] === '');
+  if (!answerInNewRow && questionLines.length > 0 && answerText && answerText.trim() && !answerStartsWithLineBreak) {
     const inlineAvailable = availableWidth - lastQuestionLineWidth - inlineGap;
     
-    // Split answer into words to check if at least the first word fits
-    const answerWords = answerText.split(' ').filter(Boolean);
-    if (answerWords.length > 0) {
-      const firstWordWidth = measureText(answerWords[0], answerStyle, ctx);
-      
-      if (inlineAvailable > firstWordWidth) {
-        startAtSameLine = true;
+    // Get the first paragraph (before first line break) to check if it fits
+    const firstParagraph = answerText.split('\n')[0].trim();
+    if (!firstParagraph) {
+      // First paragraph is empty (starts with line break) - don't start on same line
+      startAtSameLine = false;
+    } else {
+      // Split first paragraph into words to check if at least the first word fits
+      const answerWords = firstParagraph.split(' ').filter(Boolean);
+      if (answerWords.length > 0) {
+        const firstWordWidth = measureText(answerWords[0], answerStyle, ctx);
         
-        // Build text that fits on the same line
-        let inlineText = '';
-        let wordsUsed = 0;
-        
-        for (const word of answerWords) {
-          const testText = inlineText ? `${inlineText} ${word}` : word;
-          const testWidth = measureText(testText, answerStyle, ctx);
+        if (inlineAvailable > firstWordWidth) {
+          startAtSameLine = true;
           
-          if (testWidth <= inlineAvailable) {
-            inlineText = testText;
-            wordsUsed++;
+          // Build text that fits on the same line
+          let inlineText = '';
+          let wordsUsed = 0;
+          
+          for (const word of answerWords) {
+            const testText = inlineText ? `${inlineText} ${word}` : word;
+            const testWidth = measureText(testText, answerStyle, ctx);
+            
+            if (testWidth <= inlineAvailable) {
+              inlineText = testText;
+              wordsUsed++;
+            } else {
+              break;
+            }
+          }
+          
+          // Add inline text if we have at least one word
+          if (inlineText && wordsUsed > 0) {
+            // Calculate Y position for combined line: align both texts to the same baseline
+            // Use the larger baseline offset to ensure both texts align properly
+            // lastQuestionLineY is already a baseline position (from questionBaselineOffset)
+            // We need to adjust it to the combined baseline (larger of the two)
+            const combinedBaselineY = lastQuestionLineY + (combinedBaselineOffset - questionBaselineOffset);
+            
+            // Calculate combined width (question + gap + answer)
+            const inlineTextWidth = measureText(inlineText, answerStyle, ctx);
+            const combinedWidth = lastQuestionLineWidth + inlineGap + inlineTextWidth;
+            
+            // Get alignment (use question style alignment, or answer style if question doesn't have one)
+            const align = questionStyle.align || answerStyle.align || 'left';
+            
+            // Calculate X positions based on alignment
+            let questionX: number;
+            let inlineTextX: number;
+            
+            if (align === 'center') {
+              // Center the combined text (question + gap + answer)
+              const combinedStartX = padding + (availableWidth - combinedWidth) / 2;
+              questionX = combinedStartX;
+              inlineTextX = combinedStartX + lastQuestionLineWidth + inlineGap;
+            } else if (align === 'right') {
+              // Right-align the combined text
+              const combinedStartX = padding + availableWidth - combinedWidth;
+              questionX = combinedStartX;
+              inlineTextX = combinedStartX + lastQuestionLineWidth + inlineGap;
+            } else {
+              // Left alignment (default)
+              questionX = padding;
+              inlineTextX = padding + lastQuestionLineWidth + inlineGap;
+            }
+            
+            // Update the last question line Y position and X position to use combined baseline and alignment
+            const lastQuestionRunIndex = runs.length - 1;
+            if (lastQuestionRunIndex >= 0 && runs[lastQuestionRunIndex].style === questionStyle) {
+              runs[lastQuestionRunIndex].y = combinedBaselineY;
+              runs[lastQuestionRunIndex].x = questionX;
+            }
+            
+            // Add answer text aligned to the same baseline
+            // Both texts use the same baseline Y position
+            runs.push({
+              text: inlineText,
+              x: inlineTextX,
+              y: combinedBaselineY, // Same baseline as question
+              style: answerStyle
+            });
+            
+            // Update cursorY to account for combined line height (use larger line height)
+            const combinedLineHeight = Math.max(questionLineHeight, answerLineHeight);
+            cursorY = padding + ((questionLines.length - 1) * questionLineHeight) + combinedLineHeight;
+            
+            // Update the last line position for ruled lines (use combined line height)
+            if (linePositions.length > 0) {
+              linePositions[linePositions.length - 1] = {
+                y: combinedBaselineY + Math.max(questionStyle.fontSize, answerStyle.fontSize) * 0.15,
+                lineHeight: combinedLineHeight,
+                style: answerStyle // Use answer style for combined line
+              };
+            }
+            
+            // Get remaining text (words not used + rest of answer)
+            const remainingWords = answerWords.slice(wordsUsed);
+            const remainingFromFirstParagraph = remainingWords.join(' ');
+            // If there's more content after the first paragraph (line breaks), include it
+            const paragraphs = answerText.split('\n');
+            if (paragraphs.length > 1) {
+              // There are line breaks - include everything after the first paragraph
+              const restOfAnswer = paragraphs.slice(1).join('\n');
+              remainingAnswerText = remainingFromFirstParagraph 
+                ? `${remainingFromFirstParagraph}\n${restOfAnswer}`
+                : restOfAnswer;
+            } else {
+              remainingAnswerText = remainingFromFirstParagraph;
+            }
           } else {
-            break;
+            // No words fit, don't start on same line
+            startAtSameLine = false;
           }
-        }
-        
-        // Add inline text if we have at least one word
-        if (inlineText && wordsUsed > 0) {
-          // Calculate Y position for combined line: align both texts to the same baseline
-          // Use the larger baseline offset to ensure both texts align properly
-          // lastQuestionLineY is already a baseline position (from questionBaselineOffset)
-          // We need to adjust it to the combined baseline (larger of the two)
-          const combinedBaselineY = lastQuestionLineY + (combinedBaselineOffset - questionBaselineOffset);
-          
-          // Calculate combined width (question + gap + answer)
-          const inlineTextWidth = measureText(inlineText, answerStyle, ctx);
-          const combinedWidth = lastQuestionLineWidth + inlineGap + inlineTextWidth;
-          
-          // Get alignment (use question style alignment, or answer style if question doesn't have one)
-          const align = questionStyle.align || answerStyle.align || 'left';
-          
-          // Calculate X positions based on alignment
-          let questionX: number;
-          let inlineTextX: number;
-          
-          if (align === 'center') {
-            // Center the combined text (question + gap + answer)
-            const combinedStartX = padding + (availableWidth - combinedWidth) / 2;
-            questionX = combinedStartX;
-            inlineTextX = combinedStartX + lastQuestionLineWidth + inlineGap;
-          } else if (align === 'right') {
-            // Right-align the combined text
-            const combinedStartX = padding + availableWidth - combinedWidth;
-            questionX = combinedStartX;
-            inlineTextX = combinedStartX + lastQuestionLineWidth + inlineGap;
-          } else {
-            // Left alignment (default)
-            questionX = padding;
-            inlineTextX = padding + lastQuestionLineWidth + inlineGap;
-          }
-          
-          // Update the last question line Y position and X position to use combined baseline and alignment
-          const lastQuestionRunIndex = runs.length - 1;
-          if (lastQuestionRunIndex >= 0 && runs[lastQuestionRunIndex].style === questionStyle) {
-            runs[lastQuestionRunIndex].y = combinedBaselineY;
-            runs[lastQuestionRunIndex].x = questionX;
-          }
-          
-          // Add answer text aligned to the same baseline
-          // Both texts use the same baseline Y position
-          runs.push({
-            text: inlineText,
-            x: inlineTextX,
-            y: combinedBaselineY, // Same baseline as question
-            style: answerStyle
-          });
-          
-          // Update cursorY to account for combined line height (use larger line height)
-          const combinedLineHeight = Math.max(questionLineHeight, answerLineHeight);
-          cursorY = padding + ((questionLines.length - 1) * questionLineHeight) + combinedLineHeight;
-          
-          // Update the last line position for ruled lines (use combined line height)
-          if (linePositions.length > 0) {
-            linePositions[linePositions.length - 1] = {
-              y: combinedBaselineY + Math.max(questionStyle.fontSize, answerStyle.fontSize) * 0.15,
-              lineHeight: combinedLineHeight,
-              style: answerStyle // Use answer style for combined line
-            };
-          }
-          
-          // Get remaining text (words not used + rest of answer)
-          const remainingWords = answerWords.slice(wordsUsed);
-          remainingAnswerText = remainingWords.join(' ');
         } else {
-          // No words fit, don't start on same line
+          // First word doesn't fit, don't start on same line
           startAtSameLine = false;
         }
+      } else {
+        // No words in first paragraph (shouldn't happen due to check above, but handle it)
+        startAtSameLine = false;
       }
     }
   }
@@ -611,16 +637,15 @@ function createLayout(params: {
         lineHeight: answerLineHeight,
         style: answerStyle
       });
+      // Advance cursor by line height (same spacing as natural line breaks)
+      answerCursorY += answerLineHeight;
     } else {
-      // Track empty line position for ruled lines
-      const answerBaselineY = answerCursorY + answerBaselineOffset;
-      linePositions.push({
-        y: answerBaselineY + answerStyle.fontSize * 0.15,
-        lineHeight: answerLineHeight,
-        style: answerStyle
-      });
+      // Empty line from line break (Enter key): skip without adding spacing
+      // The spacing between text lines is already handled by answerLineHeight when rendering text
+      // Empty lines should not create additional spacing - they just mark a paragraph break
+      // The next text line will naturally have the correct spacing from the previous text line
+      // Do nothing - don't advance cursor, don't add linePosition
     }
-    answerCursorY += answerLineHeight;
   });
 
   contentHeight = Math.max(contentHeight, answerCursorY, height);
@@ -1159,17 +1184,48 @@ export default function TextboxQna(props: CanvasItemProps) {
       
       if (answerRuns.length > 0) {
         // Answer exists - calculate bounds from actual answer runs
+        // Need to cover all lines including gaps between them for proper hover detection
         const answerBaselineOffset = answerStyle.fontSize * 0.8;
         const answerLineHeight = getLineHeight(answerStyle);
-        const minAnswerY = Math.min(...answerRuns.map(run => run.y - answerBaselineOffset));
-        const maxAnswerY = Math.max(...answerRuns.map(run => run.y - answerBaselineOffset + answerLineHeight));
         
-        return {
-          x: padding,
-          y: minAnswerY,
-          width: boxWidth - padding * 2,
-          height: maxAnswerY - minAnswerY
-        };
+        // Use linePositions to get all answer lines (only lines with text)
+        // Empty lines from line breaks don't create separate linePositions, but spacing is handled by lineHeight
+        const answerLinePositions = layout.linePositions.filter(lp => lp.style === answerStyle);
+        
+        if (answerLinePositions.length > 0) {
+          // Calculate top of first line and bottom of last line using linePositions
+          // linePositions.y is the position of the ruled line (slightly below baseline)
+          const firstLinePosition = answerLinePositions[0];
+          const lastLinePosition = answerLinePositions[answerLinePositions.length - 1];
+          
+          // Calculate top of first line: linePosition.y - fontSize * 0.15 (offset from baseline) - baselineOffset
+          const firstLineTop = firstLinePosition.y - answerStyle.fontSize * 0.15 - answerBaselineOffset;
+          // Calculate bottom of last line: linePosition.y + lineHeight - fontSize * 0.15
+          const lastLineBottom = lastLinePosition.y + lastLinePosition.lineHeight - answerStyle.fontSize * 0.15;
+          
+          // Total height covers all lines including gaps between lines
+          const totalHeight = lastLineBottom - firstLineTop;
+          
+          return {
+            x: padding,
+            y: firstLineTop,
+            width: boxWidth - padding * 2,
+            height: totalHeight
+          };
+        } else {
+          // Fallback: calculate from runs if no linePositions available
+          const firstAnswerY = Math.min(...answerRuns.map(run => run.y));
+          const lastAnswerY = Math.max(...answerRuns.map(run => run.y));
+          const firstLineTop = firstAnswerY - answerBaselineOffset;
+          const lastLineBottom = lastAnswerY - answerBaselineOffset + answerLineHeight;
+          
+          return {
+            x: padding,
+            y: firstLineTop,
+            width: boxWidth - padding * 2,
+            height: lastLineBottom - firstLineTop
+          };
+        }
       } else if (questionRuns.length > 0) {
         // No answer yet - calculate expected position
         const questionBaselineOffset = effectiveQuestionStyle.fontSize * 0.8;
@@ -1189,7 +1245,7 @@ export default function TextboxQna(props: CanvasItemProps) {
     }
     
     return null;
-  }, [layoutVariant, layout.answerArea, layout.runs, effectiveQuestionStyle, answerStyle, padding, boxWidth, boxHeight, element.questionId, isAnswerEditorOpen]);
+  }, [layoutVariant, layout.answerArea, layout.runs, layout.linePositions, effectiveQuestionStyle, answerStyle, padding, boxWidth, boxHeight, element.questionId, isAnswerEditorOpen]);
 
   // Generate ruled lines if enabled
   const ruledLines = qnaElement.ruledLines ?? false;
@@ -1669,23 +1725,9 @@ export default function TextboxQna(props: CanvasItemProps) {
     // Use answerArea width for textarea (full available width for wrapping)
     // This ensures textarea has the same width as the text area on canvas
     const scaledWidth = answerArea.width * zoom;
-    // Calculate text height based on actual content (number of lines)
-    const canvasContext = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
-    const minimumHeight = scaledLineHeight * 2; // Minimum height (two lines) for better usability
-    let textHeight = minimumHeight;
-    
-    if (canvasContext) {
-      // Always calculate height based on wrapped lines, even if no text exists
-      const textToMeasure = answerText || '';
-      canvasContext.font = `${answerStyle.fontBold ? 'bold ' : ''}${answerStyle.fontItalic ? 'italic ' : ''}${scaledFontSize}px ${answerStyle.fontFamily}`;
-      const wrappedLines = wrapText(textToMeasure, answerStyle, scaledWidth, canvasContext);
-      // Height is based on number of lines, not words
-      // Ensure minimum height of 2 lines for better usability
-      textHeight = Math.max(minimumHeight, wrappedLines.length * scaledLineHeight);
-    }
-    
-    // Use exact text height without additional padding
-    const scaledHeight = textHeight;
+    // Initial height will be calculated using scrollHeight after textarea is styled
+    const initialMinimumHeight = scaledLineHeight * 2; // Minimum height (two lines) for better usability
+    const scaledHeight = initialMinimumHeight; // Will be updated by scrollHeight calculation
     
     // Create textarea
     const textarea = document.createElement('textarea');
@@ -1789,7 +1831,8 @@ export default function TextboxQna(props: CanvasItemProps) {
     
     // Handle keydown events
     textarea.addEventListener('keydown', function (e: KeyboardEvent) {
-      if (e.key === 'Enter' && !e.shiftKey) {
+      // Ctrl+Enter: Save and close editor
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         const newText = textarea.value;
         dispatch({
@@ -1817,32 +1860,54 @@ export default function TextboxQna(props: CanvasItemProps) {
 
         removeTextarea();
       }
+      // Enter without Ctrl: Allow default behavior (new line) - don't prevent default
+      // Shift+Enter: Also allow default behavior (new line) - don't prevent default
+      // Escape: Close editor without saving
       if (e.key === 'Escape') {
+        e.preventDefault();
         removeTextarea();
       }
     });
     
     // Handle input events for auto-wrapping and height adjustment
-    // Create a persistent canvas context for text measurement
-    const inputCanvasContext = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
+    // Use scrollHeight to accurately measure the actual content height
+    // This is more reliable than calculating based on line count
+    const minimumHeight = scaledLineHeight * 2; // Minimum height (two lines) for better usability
+    const heightBuffer = scaledLineHeight * 0.5; // Small buffer on top for better visibility
     
-    textarea.addEventListener('input', function () {
-      // Calculate text height based on number of lines (not words)
-      const minimumHeight = scaledLineHeight * 2; // Minimum height (two lines) for better usability
-      let newTextHeight = minimumHeight;
+    // Set initial height
+    const updateHeight = () => {
+      // Reset height to auto to get accurate scrollHeight measurement
+      textarea.style.height = 'auto';
       
-      if (inputCanvasContext) {
-        // Use same canvas context and font as in layout
-        inputCanvasContext.font = `${answerStyle.fontBold ? 'bold ' : ''}${answerStyle.fontItalic ? 'italic ' : ''}${scaledFontSize}px ${answerStyle.fontFamily}`;
-        const textToMeasure = textarea.value || '';
-        const wrappedLines = wrapText(textToMeasure, answerStyle, scaledWidth, inputCanvasContext);
-        // Height is based on number of lines, not words
-        // Ensure minimum height of 2 lines for better usability
-        newTextHeight = Math.max(minimumHeight, wrappedLines.length * scaledLineHeight);
+      // Get the actual scroll height (content height)
+      const scrollHeight = textarea.scrollHeight;
+      
+      // Calculate new height: scrollHeight + buffer, but at least minimumHeight
+      const newHeight = Math.max(minimumHeight, scrollHeight + heightBuffer);
+      
+      // Only update if height actually changed to prevent unnecessary reflows
+      const currentHeight = parseFloat(textarea.style.height) || 0;
+      if (Math.abs(newHeight - currentHeight) > 1) { // 1px tolerance to avoid micro-adjustments
+        textarea.style.height = newHeight + 'px';
+      }
+    };
+    
+    // Initial height calculation
+    updateHeight();
+    
+    // Update height on input - use a small debounce to batch rapid changes
+    let updateHeightTimeout: ReturnType<typeof setTimeout> | null = null;
+    textarea.addEventListener('input', function () {
+      if (updateHeightTimeout) {
+        clearTimeout(updateHeightTimeout);
       }
       
-      // Use exact text height without additional padding
-      textarea.style.height = newTextHeight + 'px';
+      // Use a very short delay to allow the browser to update scrollHeight
+      updateHeightTimeout = setTimeout(() => {
+        updateHeight();
+        updateHeightTimeout = null;
+      }, 10); // Very short delay to allow DOM update
     });
     
     // Add outside click handler with delay to prevent immediate trigger
@@ -1860,7 +1925,7 @@ export default function TextboxQna(props: CanvasItemProps) {
     const container = stage.container();
     // Only show text cursor for answer area if question is assigned and user is authorized
     if (hoveredArea === 'answer' && element.questionId && assignedUser && assignedUser.id === user?.id && state.activeTool === 'select') {
-      container.style.cursor = 'text';
+      container.style.cursor = 'pointer';
     } else if (hoveredArea === 'question' && state.activeTool === 'select') {
       // Show pointer cursor for question area
       container.style.cursor = 'pointer';
@@ -1886,11 +1951,11 @@ export default function TextboxQna(props: CanvasItemProps) {
     if (hoveredArea === 'question' && tooltipPosition && questionAreaBounds && state.activeTool === 'select') {
       // Question area tooltip - always show if hovering over question area
       shouldShowTooltip = true;
-      tooltipContentText = element.questionId ? 'Change question' : 'Add a question';
+      tooltipContentText = element.questionId ? 'Double-click to change question' : 'Double-click to add a question';
     } else if (hoveredArea === 'answer' && tooltipPosition && answerAreaBounds && element.questionId && assignedUser && assignedUser.id === user?.id && state.activeTool === 'select') {
       // Answer area tooltip - only show if question is assigned and user is authorized
       shouldShowTooltip = true;
-      tooltipContentText = answerContent.trim().length > 0 ? 'Edit answer' : 'Add an answer';
+      tooltipContentText = answerContent.trim().length > 0 ? 'Double-click to edit answer' : 'Double-click to add an answer';
     }
     
     if (!shouldShowTooltip) {
@@ -1919,7 +1984,7 @@ export default function TextboxQna(props: CanvasItemProps) {
     tooltip.style.transform = 'translateX(-50%)';
     
     const tooltipContent = document.createElement('div');
-    tooltipContent.className = 'bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap';
+    tooltipContent.className = 'text-sm bg-background text-foreground text-xs px-2 py-1 rounded-md shadow-lg whitespace-nowrap';
     tooltipContent.textContent = tooltipContentText;
     tooltip.appendChild(tooltipContent);
     
