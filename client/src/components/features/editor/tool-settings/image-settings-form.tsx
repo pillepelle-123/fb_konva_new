@@ -7,7 +7,7 @@ import { Checkbox } from '../../../ui/primitives/checkbox';
 import { IndentedSection } from '../../../ui/primitives/indented-section';
 import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE } from '../../../../utils/corner-radius-converter';
 import { ThemeSelect } from '../../../../utils/theme-options';
-import { commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth } from '../../../../utils/stroke-width-converter';
+import { commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth, getMinActualStrokeWidth } from '../../../../utils/stroke-width-converter';
 
 interface ImageSettingsFormProps {
   element: any;
@@ -116,8 +116,14 @@ export function ImageSettingsForm({
                 <ThemeSelect 
                   value={frameTheme}
                   onChange={(value) => {
+                    // When frame theme changes, set strokeWidth to minimum value of new theme
+                    const minWidth = getMinActualStrokeWidth(value);
                     updateSetting('frameTheme', value);
                     updateSetting('theme', value);
+                    // Only update strokeWidth if frame is enabled (strokeWidth > 0)
+                    if ((element.strokeWidth || 0) > 0) {
+                      updateSetting('strokeWidth', minWidth);
+                    }
                   }}
                 />
               </div>
@@ -127,7 +133,7 @@ export function ImageSettingsForm({
                 label="Frame Width"
                 value={actualToCommonStrokeWidth(element.strokeWidth || 2, frameTheme)}
                 onChange={(value) => updateSetting('strokeWidth', commonToActualStrokeWidth(value, frameTheme))}
-                min={1}
+                min={0}
                 max={getMaxStrokeWidth()}
               />
               

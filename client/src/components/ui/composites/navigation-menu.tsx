@@ -9,7 +9,7 @@ const NavigationMenu = React.forwardRef<
   <nav
     ref={ref}
     className={cn(
-      "relative z-10 flex max-w-max flex-1 items-center justify-center",
+      "relative z-[100] flex max-w-max flex-1 items-center justify-center",
       className
     )}
     {...props}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Modal } from '../../ui/overlays/modal';
 import { QuestionList, type Question } from '../questions/question-list';
 import { Button } from '../../ui/primitives/button';
@@ -27,10 +27,20 @@ interface QuestionSelectorModalProps {
 export function QuestionSelectorModal({
   isOpen,
   onClose,
-  onQuestionSelect
+  onQuestionSelect,
+  elementId
 }: QuestionSelectorModalProps) {
   const { state, dispatch } = useEditor();
   const { token } = useAuth();
+  
+  // Find the question ID assigned to the element
+  const highlightedQuestionId = useMemo(() => {
+    if (!elementId || !state.currentBook) return undefined;
+    const currentPage = state.currentBook.pages[state.activePageIndex];
+    if (!currentPage) return undefined;
+    const element = currentPage.elements.find(el => el.id === elementId);
+    return element?.questionId;
+  }, [elementId, state.currentBook, state.activePageIndex]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [questionsLoading, setQuestionsLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -442,6 +452,7 @@ export function QuestionSelectorModal({
                       }
                       return null;
                     }}
+                    highlightedQuestionId={highlightedQuestionId}
                   />
                 </div>
               </>

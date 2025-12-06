@@ -5,6 +5,7 @@ import { Input } from '../../ui/primitives/input';
 import { Checkbox } from '../../ui/primitives/checkbox';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '../../ui/primitives/select';
 import { SortableList } from '../../ui/composites/sortable-list';
+import { Badge } from '../../ui/composites/badge';
 import { MessageCircleQuestionMark, Calendar, Edit, Trash2, Save, X, Users, Library, MessageSquare } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 
@@ -78,6 +79,7 @@ export interface QuestionListProps {
   getUserAnswer?: (questionId: string) => { answer_text: string } | null;
   userRole?: 'owner' | 'publisher' | 'author';
   onViewAnswers?: (questionId: string, questionText: string) => void;
+  highlightedQuestionId?: string;
   // For pool mode
   searchTerm?: string;
   onSearchChange?: (term: string) => void;
@@ -157,6 +159,7 @@ export function QuestionList({
   onQuestionChange,
   maxQuestions,
   onNavigate,
+  highlightedQuestionId,
 }: QuestionListProps) {
   const [localEditingId, setLocalEditingId] = useState<string | null>(null);
   const [localEditText, setLocalEditText] = useState('');
@@ -707,24 +710,49 @@ export function QuestionList({
         const userAnswer = getUserAnswer?.(question.id);
         const isEditingThis = isEditing(question.id);
         const isDisabled = disabledQuestionIds.has(question.id);
-        const unavailableReason = validateQuestionSelection && !validateQuestionSelection(question.id).valid
-          ? validateQuestionSelection(question.id).reason
+        const validationResult = validateQuestionSelection && !validateQuestionSelection(question.id).valid
+          ? validateQuestionSelection(question.id)
           : null;
+        const unavailableReason = validationResult?.reason || null;
 
-        if (mode === 'select' && isDisabled && unavailableReason) {
+        const isHighlighted = highlightedQuestionId === question.id;
+        // If highlighted, show as active (not disabled) but still not clickable
+        const shouldShowAsDisabled = isDisabled && !isHighlighted;
+        
+        // Determine badge text: combine "Zugewiesen" and unavailableReason if both exist
+        // Always check unavailableReason even if highlighted, to show combined badge
+        let statusBadgeText: string | null = null;
+        if (isHighlighted) {
+          statusBadgeText = 'Assigned to textbox';
+        } else if (unavailableReason) {
+          statusBadgeText = unavailableReason;
+        }
+        const showStatusBadge = mode === 'select' && statusBadgeText;
+
+        if (mode === 'select' && shouldShowAsDisabled && unavailableReason) {
           return (
-            <Card key={question.id} className="border shadow-sm opacity-50">
-              <CardContent className="p-3">
-                <div className="flex items-start justify-between">
+            <Card 
+              key={question.id} 
+              className="border shadow-sm opacity-50"
+            >
+              <CardContent className="p-3" style={{ cursor: 'not-allowed' }}>
+                <div className="flex items-start justify-between" >
                   <div className="space-y-1 flex-1">
                     <div className="flex items-start justify-between mb-2">
-                      <p className="text-foreground leading-relaxed flex-1 line-through">
+                      <p className="text-sm text-foreground leading-relaxed flex-1">
                         {question.question_text}
                       </p>
-                      {unavailableReason && (
-                        <span className="ml-2 px-2 py-1 text-xs rounded-full bg-destructive/10 text-destructive border border-destructive/20">
-                          {unavailableReason}
-                        </span>
+                      {showStatusBadge && (
+                        <Badge 
+                          variant="outline" 
+                          className={`ml-2 ${
+                            isHighlighted 
+                              ? 'bg-secondary text-secondary-foreground border-secondary/20' 
+                              : 'bg-destructive/10 text-destructive border-destructive/20'
+                          }`}
+                        >
+                          {statusBadgeText}
+                        </Badge>
                       )}
                     </div>
                     {showDates && (
@@ -739,20 +767,22 @@ export function QuestionList({
             </Card>
           );
         }
-
+        
         return (
           <Card 
             key={question.id} 
             className={
               mode === 'view' 
                 ? 'border shadow-sm hover:shadow-md transition-all duration-200 hover:border-primary/20' 
-                : mode === 'select' && !isDisabled
-                  ? 'border shadow-sm cursor-pointer hover:shadow-md transition-all duration-200 hover:border-primary/20 hover:bg-primary/5'
+                : mode === 'select' && !shouldShowAsDisabled
+                  ? isHighlighted
+                    ? 'border shadow-sm cursor-not-allowed hover:shadow-md transition-all duration-200 hover:border-primary/20 bg-secondary'
+                    : 'border shadow-sm cursor-pointer hover:shadow-md transition-all duration-200 hover:border-primary/20 hover:bg-primary/5'
                   : 'border shadow-sm'
             }
             onClick={(e) => {
-              // Only handle clicks in select mode and if not disabled
-              if (mode === 'select' && !isDisabled) {
+              // Only handle clicks in select mode and if not disabled and not highlighted
+              if (mode === 'select' && !shouldShowAsDisabled && !isHighlighted) {
                 const target = e.target as HTMLElement;
                 // Don't trigger selection if clicking on buttons or interactive elements
                 if (target.closest('button')) return;
@@ -786,7 +816,7 @@ export function QuestionList({
                     className="w-full"
                     autoFocus
                   />
-                  <div className="flex gap-2 justify-end">
+                  <div className="flex gap-2 justify-end ">
                     <Button
                       variant="outline"
                       size="sm"
@@ -805,7 +835,8 @@ export function QuestionList({
               ) : (
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <h3 className={`${mode === 'view' ? 'text-lg' : 'text-sm'} font-medium text-foreground`}>
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <h3 className={`${mode === 'view' ? 'text-lg' : 'text-sm'} font-medium text-foreground flex-1`}>
                         {question.question_text}
                         {question.isNew && (
                           <span className="ml-2 px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 border border-blue-200">
@@ -822,7 +853,20 @@ export function QuestionList({
                             Answered by you
                           </span>
                         )}
-                    </h3>
+                      </h3>
+                      {showStatusBadge && (
+                        <Badge 
+                          variant="highlight" 
+                          // className={`${
+                          //   isHighlighted 
+                          //     ? 'bg-secondary text-secondary-foreground border-secondary/20' 
+                          //     : 'bg-destructive/10 text-destructive border-destructive/20'
+                          // }`}
+                        >
+                          {statusBadgeText}
+                        </Badge>
+                      )}
+                    </div>
                     {showStats && stat && (
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
                         {userRole === 'author' ? (

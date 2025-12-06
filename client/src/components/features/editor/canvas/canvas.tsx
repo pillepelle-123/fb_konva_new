@@ -14,6 +14,7 @@ import { SelectionRectangle } from './selection-rectangle';
 import { PreviewLine, PreviewShape, PreviewTextbox, PreviewBrush, MaterializedBrush } from './preview-elements';
 import { CanvasContainer } from './canvas-container';
 import { SnapGuidelines } from './snap-guidelines';
+import { CanvasOverlayProvider, CanvasOverlayContainer, CanvasOverlayPortal } from './canvas-overlay';
 import ContextMenu from '../../../ui/overlays/context-menu';
 import { Modal } from '../../../ui/overlays/modal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../ui/overlays/dialog';
@@ -3531,7 +3532,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
   }
 
   return (
-    <>
+    <CanvasOverlayProvider>
       <CanvasPageContainer assignedUser={state.pageAssignments[state.activePageIndex + 1] || null}>
         <CanvasContainer 
           ref={containerRef} 
@@ -3541,6 +3542,9 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           isMiniPreview={state.isMiniPreview}
           editorInteractionLevel={state.editorInteractionLevel}
         >
+        {/* Canvas Overlay Container - direkt im Canvas-Container, nicht als Portal */}
+        <CanvasOverlayContainer />
+        
         {/* Lock Elements Toggle Button - positioned left of tool settings panel */}
         {!state.isMiniPreview && (
           <div 
@@ -4388,71 +4392,76 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           </Layer>
         </CanvasStage>
         {!state.isMiniPreview && activePageBadgeMeta && activePageBadgePosition && (
-          <div
-            className="absolute z-20"
-            style={{
-              left: activePageBadgePosition.x,
-              top: activePageBadgePosition.y,
-              transform: 'translate(-50%, -100%)',
-              pointerEvents: 'none'
-            }}
-          >
-            {state.pageAssignments[activePageNumber] ? (
-              <div style={createBadgeStyleWithProfile(true, false, state.pageAssignments[activePageNumber])}>
-                {renderBadgeSegments(activePageBadgeMeta, true, state.pageAssignments[activePageNumber])}
-              </div>
-            ) : (
-              <div style={createBadgeStyleWithoutProfile(true, false)}>
-                {renderBadgeSegments(activePageBadgeMeta, true, null)}
-              </div>
-            )}
-          </div>
+          <CanvasOverlayPortal>
+            <div
+              className="absolute"
+              style={{
+                left: activePageBadgePosition.x,
+                top: activePageBadgePosition.y,
+                transform: 'translate(-50%, -100%)',
+                pointerEvents: 'none'
+              }}
+            >
+              {state.pageAssignments[activePageNumber] ? (
+                <div style={createBadgeStyleWithProfile(true, false, state.pageAssignments[activePageNumber])}>
+                  {renderBadgeSegments(activePageBadgeMeta, true, state.pageAssignments[activePageNumber])}
+                </div>
+              ) : (
+                <div style={createBadgeStyleWithoutProfile(true, false)}>
+                  {renderBadgeSegments(activePageBadgeMeta, true, null)}
+                </div>
+              )}
+            </div>
+          </CanvasOverlayPortal>
         )}
         {!state.isMiniPreview && previewPageBadgeMeta && previewPageBadgePosition && (
-          <div
-            className="absolute z-20"
-            style={{
-              left: previewPageBadgePosition.x,
-              top: previewPageBadgePosition.y,
-              transform: 'translate(-50%, -100%)',
-              pointerEvents: previewTargetLocked ? 'none' : 'auto'
-            }}
-          >
-            {partnerPage?.pageNumber && state.pageAssignments[partnerPage.pageNumber] ? (
-              <button
-                type="button"
-                onClick={previewTargetLocked ? undefined : handlePreviewBadgeClick}
-                disabled={previewTargetLocked}
-                style={createBadgeStyleWithProfile(false, previewTargetLocked, state.pageAssignments[partnerPage.pageNumber])}
-              >
-                {renderBadgeSegments(previewPageBadgeMeta, false, state.pageAssignments[partnerPage.pageNumber])}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={previewTargetLocked ? undefined : handlePreviewBadgeClick}
-                disabled={previewTargetLocked}
-                style={createBadgeStyleWithoutProfile(false, previewTargetLocked)}
-              >
-                {renderBadgeSegments(previewPageBadgeMeta, false, null)}
-              </button>
-            )}
-          </div>
+          <CanvasOverlayPortal>
+            <div
+              className="absolute"
+              style={{
+                left: previewPageBadgePosition.x,
+                top: previewPageBadgePosition.y,
+                transform: 'translate(-50%, -100%)',
+                pointerEvents: previewTargetLocked ? 'none' : 'auto'
+              }}
+            >
+              {partnerPage?.pageNumber && state.pageAssignments[partnerPage.pageNumber] ? (
+                <button
+                  type="button"
+                  onClick={previewTargetLocked ? undefined : handlePreviewBadgeClick}
+                  disabled={previewTargetLocked}
+                  style={createBadgeStyleWithProfile(false, previewTargetLocked, state.pageAssignments[partnerPage.pageNumber])}
+                >
+                  {renderBadgeSegments(previewPageBadgeMeta, false, state.pageAssignments[partnerPage.pageNumber])}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={previewTargetLocked ? undefined : handlePreviewBadgeClick}
+                  disabled={previewTargetLocked}
+                  style={createBadgeStyleWithoutProfile(false, previewTargetLocked)}
+                >
+                  {renderBadgeSegments(previewPageBadgeMeta, false, null)}
+                </button>
+              )}
+            </div>
+          </CanvasOverlayPortal>
         )}
         {!state.isMiniPreview && previewLockBadgeScreen && (
-          <div
-            className="pointer-events-none absolute z-20 flex items-center justify-center"
-            style={{
-              width: 120,
-              height: 40,
-              left: previewLockBadgeScreen.x - 60,
-              top: previewLockBadgeScreen.y - 20,
-              borderRadius: 44,
-              backgroundColor: '#ffffff',
-              border: '1px solid #E5E7EB',
-              boxShadow: '0 20px 45px rgba(15,23,42,0.08)',
-            }}
-          >
+          <CanvasOverlayPortal>
+            <div
+              className="pointer-events-none absolute flex items-center justify-center"
+              style={{
+                width: 120,
+                height: 40,
+                left: previewLockBadgeScreen.x - 60,
+                top: previewLockBadgeScreen.y - 20,
+                borderRadius: 44,
+                backgroundColor: '#ffffff',
+                border: '1px solid #E5E7EB',
+                boxShadow: '0 20px 45px rgba(15,23,42,0.08)',
+              }}
+            >
             <span
               style={{
                 fontSize: 12,
@@ -4464,6 +4473,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
               Not editable
             </span>
           </div>
+          </CanvasOverlayPortal>
         )}
         
         <ContextMenu
@@ -4797,7 +4807,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           <Alert>{alertMessage}</Alert>
         </div>
       )}
-    </>
+    </CanvasOverlayProvider>
   );
 }
 // Re-export components for external use

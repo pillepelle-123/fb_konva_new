@@ -323,7 +323,7 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
             isRestrictedView={state.pageAccessLevel === 'own_page'}
           />
         ) : (
-          <div className="flex items-center justify-between w-full h-12 px-4 py-1 gap-4">
+          <div className="flex items-center justify-between w-full h-12 px-4 py-1 gap-4 relative z-[100]">
             {/* Left Section - Page Controls */}
             <div className="flex items-center gap-3">
               <PageNavigation

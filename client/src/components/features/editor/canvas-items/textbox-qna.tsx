@@ -5,9 +5,11 @@ import BaseCanvasItem, { type CanvasItemProps } from './base-canvas-item';
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import { getToolDefaults } from '../../../../utils/tool-defaults';
+import { getThemeRenderer, type Theme } from '../../../../utils/themes';
 import type { CanvasElement } from '../../../../context/editor-context';
 import type Konva from 'konva';
 import rough from 'roughjs';
+import { useCanvasOverlayElement } from '../canvas/canvas-overlay';
 
 type ParagraphSpacing = 'small' | 'medium' | 'large';
 
@@ -65,6 +67,7 @@ interface QnaCanvasElement extends CanvasElement {
   borderColor?: string;
   borderWidth?: number;
   borderOpacity?: number;
+  borderTheme?: string;
   cornerRadius?: number;
   ruledLines?: boolean;
   ruledLinesWidth?: number;
@@ -489,38 +492,38 @@ function createLayout(params: {
     } else {
       // Split first paragraph into words to check if at least the first word fits
       const answerWords = firstParagraph.split(' ').filter(Boolean);
-      if (answerWords.length > 0) {
-        const firstWordWidth = measureText(answerWords[0], answerStyle, ctx);
+    if (answerWords.length > 0) {
+      const firstWordWidth = measureText(answerWords[0], answerStyle, ctx);
+      
+      if (inlineAvailable > firstWordWidth) {
+        startAtSameLine = true;
         
-        if (inlineAvailable > firstWordWidth) {
-          startAtSameLine = true;
+        // Build text that fits on the same line
+        let inlineText = '';
+        let wordsUsed = 0;
+        
+        for (const word of answerWords) {
+          const testText = inlineText ? `${inlineText} ${word}` : word;
+          const testWidth = measureText(testText, answerStyle, ctx);
           
-          // Build text that fits on the same line
-          let inlineText = '';
-          let wordsUsed = 0;
-          
-          for (const word of answerWords) {
-            const testText = inlineText ? `${inlineText} ${word}` : word;
-            const testWidth = measureText(testText, answerStyle, ctx);
-            
-            if (testWidth <= inlineAvailable) {
-              inlineText = testText;
-              wordsUsed++;
-            } else {
-              break;
-            }
+          if (testWidth <= inlineAvailable) {
+            inlineText = testText;
+            wordsUsed++;
+          } else {
+            break;
           }
+        }
+        
+        // Add inline text if we have at least one word
+        if (inlineText && wordsUsed > 0) {
+          // Calculate Y position for combined line: align both texts to the same baseline
+          // Use the larger baseline offset to ensure both texts align properly
+          // lastQuestionLineY is already a baseline position (from questionBaselineOffset)
+          // We need to adjust it to the combined baseline (larger of the two)
+          const combinedBaselineY = lastQuestionLineY + (combinedBaselineOffset - questionBaselineOffset);
           
-          // Add inline text if we have at least one word
-          if (inlineText && wordsUsed > 0) {
-            // Calculate Y position for combined line: align both texts to the same baseline
-            // Use the larger baseline offset to ensure both texts align properly
-            // lastQuestionLineY is already a baseline position (from questionBaselineOffset)
-            // We need to adjust it to the combined baseline (larger of the two)
-            const combinedBaselineY = lastQuestionLineY + (combinedBaselineOffset - questionBaselineOffset);
-            
             // Calculate combined width (question + gap + answer)
-            const inlineTextWidth = measureText(inlineText, answerStyle, ctx);
+          const inlineTextWidth = measureText(inlineText, answerStyle, ctx);
             const combinedWidth = lastQuestionLineWidth + inlineGap + inlineTextWidth;
             
             // Get alignment (use question style alignment, or answer style if question doesn't have one)
@@ -551,32 +554,32 @@ function createLayout(params: {
             if (lastQuestionRunIndex >= 0 && runs[lastQuestionRunIndex].style === questionStyle) {
               runs[lastQuestionRunIndex].y = combinedBaselineY;
               runs[lastQuestionRunIndex].x = questionX;
-            }
-            
-            // Add answer text aligned to the same baseline
-            // Both texts use the same baseline Y position
-            runs.push({
-              text: inlineText,
-              x: inlineTextX,
-              y: combinedBaselineY, // Same baseline as question
-              style: answerStyle
-            });
-            
-            // Update cursorY to account for combined line height (use larger line height)
-            const combinedLineHeight = Math.max(questionLineHeight, answerLineHeight);
-            cursorY = padding + ((questionLines.length - 1) * questionLineHeight) + combinedLineHeight;
-            
-            // Update the last line position for ruled lines (use combined line height)
-            if (linePositions.length > 0) {
-              linePositions[linePositions.length - 1] = {
-                y: combinedBaselineY + Math.max(questionStyle.fontSize, answerStyle.fontSize) * 0.15,
-                lineHeight: combinedLineHeight,
-                style: answerStyle // Use answer style for combined line
-              };
-            }
-            
-            // Get remaining text (words not used + rest of answer)
-            const remainingWords = answerWords.slice(wordsUsed);
+          }
+          
+          // Add answer text aligned to the same baseline
+          // Both texts use the same baseline Y position
+          runs.push({
+            text: inlineText,
+            x: inlineTextX,
+            y: combinedBaselineY, // Same baseline as question
+            style: answerStyle
+          });
+          
+          // Update cursorY to account for combined line height (use larger line height)
+          const combinedLineHeight = Math.max(questionLineHeight, answerLineHeight);
+          cursorY = padding + ((questionLines.length - 1) * questionLineHeight) + combinedLineHeight;
+          
+          // Update the last line position for ruled lines (use combined line height)
+          if (linePositions.length > 0) {
+            linePositions[linePositions.length - 1] = {
+              y: combinedBaselineY + Math.max(questionStyle.fontSize, answerStyle.fontSize) * 0.15,
+              lineHeight: combinedLineHeight,
+              style: answerStyle // Use answer style for combined line
+            };
+          }
+          
+          // Get remaining text (words not used + rest of answer)
+          const remainingWords = answerWords.slice(wordsUsed);
             const remainingFromFirstParagraph = remainingWords.join(' ');
             // If there's more content after the first paragraph (line breaks), include it
             const paragraphs = answerText.split('\n');
@@ -589,10 +592,10 @@ function createLayout(params: {
             } else {
               remainingAnswerText = remainingFromFirstParagraph;
             }
-          } else {
-            // No words fit, don't start on same line
-            startAtSameLine = false;
-          }
+        } else {
+          // No words fit, don't start on same line
+          startAtSameLine = false;
+        }
         } else {
           // First word doesn't fit, don't start on same line
           startAtSameLine = false;
@@ -885,6 +888,16 @@ export default function TextboxQna(props: CanvasItemProps) {
   const [hoveredArea, setHoveredArea] = useState<'question' | 'answer' | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
   
+  // Get canvas overlay for tooltips
+  const addElementRef = useRef<((element: HTMLElement) => () => void) | null>(null);
+  try {
+    const overlay = useCanvasOverlayElement();
+    addElementRef.current = overlay.addElement;
+  } catch {
+    // CanvasOverlayProvider not available, fallback to document.body
+    addElementRef.current = null;
+  }
+  
   // Sync ref with state
   useEffect(() => {
     transformDimensionsRef.current = transformDimensions;
@@ -1073,7 +1086,7 @@ export default function TextboxQna(props: CanvasItemProps) {
     if (!elementPageNumber) return null;
     return state.pageAssignments[elementPageNumber];
   }, [state.pageAssignments, elementPageNumber]);
-
+  
   const answerText = useMemo(() => {
     if (element.formattedText) {
       return stripHtml(element.formattedText);
@@ -1647,7 +1660,7 @@ export default function TextboxQna(props: CanvasItemProps) {
             width: boxWidth - padding * 2,
             height: Math.max(answerLineHeight, boxHeight - answerStartY - padding)
           };
-        } else {
+          } else {
           // No question text either, use default area
           answerArea = { x: padding, y: padding, width: boxWidth - padding * 2, height: boxHeight - padding * 2 };
         }
@@ -1767,7 +1780,7 @@ export default function TextboxQna(props: CanvasItemProps) {
     textarea.style.overflow = 'hidden';
     textarea.style.whiteSpace = 'pre-wrap';
     textarea.style.transformOrigin = 'left top';
-    textarea.style.zIndex = '1000'; // Set z-index to be above canvas but not too high
+    textarea.style.zIndex = '0'; // Set z-index to match canvas overlay layer
     textarea.style.boxSizing = 'border-box';
     
     // Remove any focus styles that might add borders
@@ -1802,16 +1815,16 @@ export default function TextboxQna(props: CanvasItemProps) {
       if (target !== textarea && !textarea.contains(target)) {
         // Save changes
         const newText = textarea.value;
-        dispatch({
-          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-          payload: {
-            id: element.id,
-            updates: {
+          dispatch({
+            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+            payload: {
+              id: element.id,
+              updates: {
               text: newText,
               formattedText: newText
+              }
             }
-          }
-        });
+          });
 
         if (element.questionId && user?.id) {
           dispatch({
@@ -1835,28 +1848,28 @@ export default function TextboxQna(props: CanvasItemProps) {
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         const newText = textarea.value;
-        dispatch({
-          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-          payload: {
-            id: element.id,
-            updates: {
+          dispatch({
+            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+            payload: {
+              id: element.id,
+              updates: {
               text: newText,
               formattedText: newText
-            }
-          }
-        });
-
-        if (element.questionId && user?.id) {
-          dispatch({
-            type: 'UPDATE_TEMP_ANSWER',
-            payload: {
-              questionId: element.questionId,
-              text: newText,
-              userId: user.id,
-              answerId: element.answerId || uuidv4()
+              }
             }
           });
-        }
+
+        if (element.questionId && user?.id) {
+            dispatch({
+              type: 'UPDATE_TEMP_ANSWER',
+              payload: {
+              questionId: element.questionId,
+              text: newText,
+                userId: user.id,
+                answerId: element.answerId || uuidv4()
+              }
+            });
+          }
 
         removeTextarea();
       }
@@ -1978,22 +1991,34 @@ export default function TextboxQna(props: CanvasItemProps) {
     
     const tooltip = document.createElement('div');
     tooltip.id = `qna-tooltip-${element.id}`;
-    tooltip.className = 'fixed z-50 pointer-events-none';
+    tooltip.className = 'fixed pointer-events-none';
     tooltip.style.left = `${tooltipPosition.x}px`;
     tooltip.style.top = `${tooltipPosition.y - 30}px`;
-    tooltip.style.transform = 'translateX(-50%)';
+    tooltip.style.transform = 'translateX(-100%)'; // Align to right side
+    tooltip.style.zIndex = '10'; // Gleicher z-index wie Canvas-Overlay, damit es hinter Toolbars (1000) liegt
     
     const tooltipContent = document.createElement('div');
-    tooltipContent.className = 'text-sm bg-background text-foreground text-xs px-2 py-1 rounded-md shadow-lg whitespace-nowrap';
+    tooltipContent.className = 'text-xs bg-background text-foreground px-2 py-1 rounded shadow-lg whitespace-nowrap';
     tooltipContent.textContent = tooltipContentText;
     tooltip.appendChild(tooltipContent);
     
-    document.body.appendChild(tooltip);
+    // Add to canvas overlay if available, otherwise fallback to document.body
+    let removeElement: (() => void) | null = null;
+    if (addElementRef.current) {
+      removeElement = addElementRef.current(tooltip);
+          } else {
+      document.body.appendChild(tooltip);
+      removeElement = () => {
+        const tooltipToRemove = document.getElementById(`qna-tooltip-${element.id}`);
+        if (tooltipToRemove) {
+          tooltipToRemove.remove();
+        }
+      };
+    }
     
     return () => {
-      const tooltipToRemove = document.getElementById(`qna-tooltip-${element.id}`);
-      if (tooltipToRemove) {
-        tooltipToRemove.remove();
+      if (removeElement) {
+        removeElement();
       }
     };
   }, [hoveredArea, tooltipPosition, answerAreaBounds, questionAreaBounds, assignedUser, user?.id, element.id, element.questionId, answerContent, state.activeTool]);
@@ -2044,6 +2069,7 @@ export default function TextboxQna(props: CanvasItemProps) {
     }
     
     // Calculate tooltip position based on hovered area
+    // Position tooltip above the element, aligned to the right side
     const groupNode = textRef.current?.getParent();
     if (!groupNode) {
       setHoveredArea(clickArea);
@@ -2054,34 +2080,31 @@ export default function TextboxQna(props: CanvasItemProps) {
     const groupTransform = groupNode.getAbsoluteTransform();
     const stageBox = stage.container().getBoundingClientRect();
     
+    // Calculate the top-right corner of the element (boxWidth, 0 in local coordinates)
+    const topRightLocalPos = {
+      x: boxWidth,
+      y: 0
+    };
+    const topRightStagePos = groupTransform.point(topRightLocalPos);
+    
     if (clickArea === 'question' && questionAreaBounds) {
       setHoveredArea('question');
-      const centerLocalPos = {
-        x: questionAreaBounds.x + questionAreaBounds.width / 2,
-        y: questionAreaBounds.y + questionAreaBounds.height / 2
-      };
-      const centerStagePos = groupTransform.point(centerLocalPos);
       setTooltipPosition({
-        x: stageBox.left + centerStagePos.x,
-        y: stageBox.top + centerStagePos.y
+        x: stageBox.left + topRightStagePos.x,
+        y: stageBox.top + topRightStagePos.y
       });
     } else if (clickArea === 'answer' && answerAreaBounds && element.questionId) {
       // Only show answer tooltip if question is assigned
       setHoveredArea('answer');
-      const centerLocalPos = {
-        x: answerAreaBounds.x + answerAreaBounds.width / 2,
-        y: answerAreaBounds.y + answerAreaBounds.height / 2
-      };
-      const centerStagePos = groupTransform.point(centerLocalPos);
       setTooltipPosition({
-        x: stageBox.left + centerStagePos.x,
-        y: stageBox.top + centerStagePos.y
+        x: stageBox.left + topRightStagePos.x,
+        y: stageBox.top + topRightStagePos.y
       });
     } else {
       setHoveredArea(clickArea);
       setTooltipPosition(null);
     }
-  }, [props.interactive, state.activeTool, getClickAreaFromEvent, answerAreaBounds, questionAreaBounds, element.questionId]);
+  }, [props.interactive, state.activeTool, getClickAreaFromEvent, answerAreaBounds, questionAreaBounds, element.questionId, boxWidth]);
   
   const handleMouseLeave = useCallback(() => {
     setHoveredArea(null);
@@ -2104,7 +2127,7 @@ export default function TextboxQna(props: CanvasItemProps) {
       const directFn = globalWindow[`openQuestionSelector_${element.id}`];
       if (typeof directFn === 'function') {
         (directFn as () => void)();
-      } else {
+        } else {
         globalWindow.dispatchEvent(new CustomEvent('openQuestionDialog', {
           detail: { elementId: element.id }
         }));
@@ -2138,12 +2161,12 @@ export default function TextboxQna(props: CanvasItemProps) {
 
   return (
     <>
-      <BaseCanvasItem
-        {...props}
-        onDoubleClick={handleDoubleClick}
+    <BaseCanvasItem
+      {...props}
+      onDoubleClick={handleDoubleClick}
         onMouseLeave={handleMouseLeave}
-        hitArea={hitArea}
-      >
+      hitArea={hitArea}
+    >
       {showBackground && (
         <Rect
           width={boxWidth}
@@ -2155,17 +2178,67 @@ export default function TextboxQna(props: CanvasItemProps) {
         />
       )}
 
-      {showBorder && (
-        <Rect
-          width={boxWidth}
-          height={boxHeight}
-          stroke={qnaElement.borderColor}
-          strokeWidth={qnaElement.borderWidth}
-          opacity={qnaElement.borderOpacity ?? 1}
-          cornerRadius={qnaElement.cornerRadius ?? qnaDefaults.cornerRadius ?? 0}
-          listening={false}
-        />
-      )}
+      {showBorder && (() => {
+        const borderColor = qnaElement.borderColor || '#000000';
+        const borderWidth = qnaElement.borderWidth || 1;
+        const borderOpacity = qnaElement.borderOpacity ?? 1;
+        const cornerRadius = qnaElement.cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
+        // Get theme from element or defaults
+        // Check element.borderTheme first, then fallback to element.theme, then 'default'
+        const themeValue = qnaElement.borderTheme || element.theme || 'default';
+        const theme = (themeValue === 'default' ? 'rough' : themeValue) as Theme;
+        
+        // Use theme renderer for consistent border rendering
+        const themeRenderer = getThemeRenderer(theme);
+        if (themeRenderer && theme !== 'default') {
+          // Create a temporary element-like object for generatePath
+          // Set roughness to 8 for 'rough' theme to match client-side rendering
+          const borderElement = {
+            type: 'rect' as const,
+            id: element.id + '-border',
+            x: 0,
+            y: 0,
+            width: boxWidth,
+            height: boxHeight,
+            cornerRadius: cornerRadius,
+            stroke: borderColor,
+            strokeWidth: borderWidth,
+            fill: 'transparent',
+            roughness: theme === 'rough' ? 8 : undefined
+          } as CanvasElement;
+          
+          const pathData = themeRenderer.generatePath(borderElement);
+          
+          if (pathData) {
+            return (
+              <Path
+                data={pathData}
+                stroke={borderColor}
+                strokeWidth={borderWidth}
+                opacity={borderOpacity}
+                fill="transparent"
+                strokeScaleEnabled={true}
+                listening={false}
+                lineCap="round"
+                lineJoin="round"
+              />
+            );
+          }
+        }
+        
+        // Default: simple rect border
+        return (
+          <Rect
+            width={boxWidth}
+            height={boxHeight}
+            stroke={borderColor}
+            strokeWidth={borderWidth}
+            opacity={borderOpacity}
+            cornerRadius={cornerRadius}
+            listening={false}
+          />
+        );
+      })()}
 
       {/* Text that can extend beyond the box */}
       {/* When answer editor is open, only show question runs */}

@@ -21,6 +21,8 @@ import { ColorSelector } from './color-selector';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { getQnAThemeDefaults, getQnAInlineThemeDefaults } from '../../../../utils/global-themes';
 import { getToolDefaults } from '../../../../utils/tool-defaults';
+import { getMinActualStrokeWidth, commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth } from '../../../../utils/stroke-width-converter';
+import { getBorderTheme } from '../../../../utils/theme-utils';
 
 const getCurrentFontName = (fontFamily: string) => {
   for (const group of FONT_GROUPS) {
@@ -217,12 +219,19 @@ export function QnAInlineSettingsForm({
       updates.borderTheme = borderTheme;
     } else if (key === 'borderTheme') {
       const borderColor = element.borderColor || element.questionSettings?.border?.borderColor || element.answerSettings?.border?.borderColor || themeDefaults.borderColor || '#000000';
-      const borderWidth = element.borderWidth || element.questionSettings?.borderWidth || element.answerSettings?.borderWidth || (themeDefaults.borderWidth ?? 1);
+      // When border theme changes, set borderWidth to minimum value of new theme
+      const minWidth = getMinActualStrokeWidth(value);
       const borderOpacity = element.borderOpacity ?? element.questionSettings?.borderOpacity ?? element.answerSettings?.borderOpacity ?? (themeDefaults.borderOpacity ?? 1);
       
       // Only set on top-level (only individual properties, no border object)
       updates.borderTheme = value;
-      updates.borderWidth = borderWidth;
+      // Only update borderWidth if border is enabled
+      const currentBorderWidth = element.borderWidth || element.questionSettings?.borderWidth || element.answerSettings?.borderWidth || 0;
+      if (currentBorderWidth > 0) {
+        updates.borderWidth = minWidth;
+      } else {
+        updates.borderWidth = currentBorderWidth;
+      }
       updates.borderColor = borderColor;
       updates.borderOpacity = borderOpacity;
     } else if (key === 'borderOpacity') {
@@ -1481,14 +1490,33 @@ export function QnAInlineSettingsForm({
                 label="Border Width"
                 value={(() => {
                   const themeDefaults = getThemeDefaults();
-                  return element.borderWidth || 
+                  const currentBorderWidth = element.borderWidth || 
                          element.questionSettings?.borderWidth || 
                          element.answerSettings?.borderWidth || 
                          (element.border?.borderWidth ?? (themeDefaults.borderWidth ?? 1));
+                  const borderTheme = element.borderTheme || 
+                         element.questionSettings?.borderTheme || 
+                         element.answerSettings?.borderTheme || 
+                         element.border?.borderTheme || 
+                         themeDefaults.borderTheme || 
+                         'default';
+                  // Convert actual width to common scale (0-100) for the slider
+                  return actualToCommonStrokeWidth(currentBorderWidth, borderTheme);
                 })()}
-                onChange={(value) => updateSharedSetting('borderWidth', value)}
+                onChange={(value) => {
+                  const themeDefaults = getThemeDefaults();
+                  const borderTheme = element.borderTheme || 
+                         element.questionSettings?.borderTheme || 
+                         element.answerSettings?.borderTheme || 
+                         element.border?.borderTheme || 
+                         themeDefaults.borderTheme || 
+                         'default';
+                  // Convert common scale (0-100) back to actual theme-specific width
+                  const actualWidth = commonToActualStrokeWidth(value, borderTheme);
+                  updateSharedSetting('borderWidth', actualWidth);
+                }}
                 min={0}
-                max={50}
+                max={getMaxCommonWidth()}
                 step={1}
                 className="w-full"
               />

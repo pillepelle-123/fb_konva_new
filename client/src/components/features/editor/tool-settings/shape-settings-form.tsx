@@ -7,7 +7,7 @@ import { Label } from '../../../ui/primitives/label';
 import { Checkbox } from '../../../ui/primitives/checkbox';
 import { IndentedSection } from '../../../ui/primitives/indented-section';
 import { ThemeSelect } from '../../../../utils/theme-options';
-import { commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth } from '../../../../utils/stroke-width-converter';
+import { commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth, getMinActualStrokeWidth } from '../../../../utils/stroke-width-converter';
 import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE } from '../../../../utils/corner-radius-converter';
 import { getElementTheme } from '../../../../utils/theme-utils';
 
@@ -74,8 +74,14 @@ export function ShapeSettingsForm({
             <ThemeSelect 
               value={getElementTheme(element)}
               onChange={(value) => {
+                // When theme changes, set strokeWidth to minimum value of new theme
+                const minWidth = getMinActualStrokeWidth(value);
                 updateSetting('theme', value);
                 updateSetting('inheritTheme', value);
+                // Only update strokeWidth if border is enabled (strokeWidth > 0)
+                if ((element.strokeWidth || 0) > 0) {
+                  updateSetting('strokeWidth', minWidth);
+                }
               }}
             />
           </div>
@@ -86,7 +92,7 @@ export function ShapeSettingsForm({
             label="Stroke Width"
             value={actualToCommonStrokeWidth(element.strokeWidth || 2, getElementTheme(element))}
             onChange={(value) => updateSetting('strokeWidth', commonToActualStrokeWidth(value, getElementTheme(element)))}
-            min={1}
+            min={0}
             max={getMaxStrokeWidth()}
           />
           
@@ -137,8 +143,14 @@ export function ShapeSettingsForm({
             <ThemeSelect 
               value={getElementTheme(element)}
               onChange={(value) => {
+                // When theme changes, set strokeWidth to minimum value of new theme
+                const minWidth = getMinActualStrokeWidth(value);
                 updateSetting('inheritTheme', value);
                 updateSetting('theme', value);
+                // Only update strokeWidth if border is enabled (strokeWidth > 0)
+                if ((element.strokeWidth || 0) > 0) {
+                  updateSetting('strokeWidth', minWidth);
+                }
               }}
             />
           </div>
@@ -180,7 +192,7 @@ export function ShapeSettingsForm({
                   updateSetting('strokeWidth', actualWidth);
                   localStorage.setItem(`shape-border-width-${element.id}`, String(actualWidth));
                 }}
-                min={1}
+                min={0}
                 max={getMaxStrokeWidth()}
               />
               

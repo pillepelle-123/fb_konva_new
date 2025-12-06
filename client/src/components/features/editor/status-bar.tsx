@@ -207,7 +207,14 @@ export function StatusBar() {
   );
 
   return (
-    <div className="bg-card border-t border-border text-muted-foreground shrink-0">
+    <div 
+      className="bg-card border-t border-border text-muted-foreground shrink-0 relative z-[1000]"
+      style={{ 
+        isolation: 'isolate',
+        position: 'relative',
+        zIndex: 1000
+      }}
+    >
       <div className="flex flex-col">
         <div className="flex items-center gap-3 px-4 h-12">
           <Button

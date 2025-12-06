@@ -51,6 +51,19 @@ export const shapePresets: ShapePreset[] = [
       inheritTheme: 'default'
     }
   },
+  {
+    id: 'default-line',
+    name: 'Simple Line',
+    description: 'Clean straight line',
+    theme: 'default',
+    shapeType: 'line',
+    style: {
+      strokeWidth: 2,
+      stroke: '#1f2937',
+      fill: 'transparent',
+      inheritTheme: 'default'
+    }
+  },
 
   // SKETCHY THEME PRESETS
   {
@@ -91,6 +104,19 @@ export const shapePresets: ShapePreset[] = [
       strokeWidth: 3,
       stroke: '#8b4513',
       fill: '#f5deb3',
+      inheritTheme: 'rough'
+    }
+  },
+  {
+    id: 'sketchy-line',
+    name: 'Hand-drawn Line',
+    description: 'Rough, sketchy line',
+    theme: 'sketchy',
+    shapeType: 'line',
+    style: {
+      strokeWidth: 3,
+      stroke: '#8b4513',
+      fill: 'transparent',
       inheritTheme: 'rough'
     }
   },
@@ -138,6 +164,19 @@ export const shapePresets: ShapePreset[] = [
       inheritTheme: 'glow'
     }
   },
+  {
+    id: 'colorful-line',
+    name: 'Glowing Line',
+    description: 'Bright line with glow effect',
+    theme: 'colorful',
+    shapeType: 'line',
+    style: {
+      strokeWidth: 4,
+      stroke: '#ff1744',
+      fill: 'transparent',
+      inheritTheme: 'glow'
+    }
+  },
 
   // MINIMAL THEME PRESETS
   {
@@ -160,6 +199,19 @@ export const shapePresets: ShapePreset[] = [
     description: 'Simple circle outline',
     theme: 'minimal',
     shapeType: 'circle',
+    style: {
+      strokeWidth: 1,
+      stroke: '#6c757d',
+      fill: 'transparent',
+      inheritTheme: 'default'
+    }
+  },
+  {
+    id: 'minimal-line',
+    name: 'Clean Line',
+    description: 'Minimal straight line',
+    theme: 'minimal',
+    shapeType: 'line',
     style: {
       strokeWidth: 1,
       stroke: '#6c757d',
@@ -196,6 +248,19 @@ export const shapePresets: ShapePreset[] = [
       fill: '#f5deb3',
       inheritTheme: 'wobbly',
       backgroundEnabled: true
+    }
+  },
+  {
+    id: 'vintage-line',
+    name: 'Vintage Line',
+    description: 'Aged wobbly line',
+    theme: 'vintage',
+    shapeType: 'line',
+    style: {
+      strokeWidth: 2,
+      stroke: '#654321',
+      fill: 'transparent',
+      inheritTheme: 'wobbly'
     }
   },
 
@@ -235,6 +300,19 @@ export const shapePresets: ShapePreset[] = [
     description: 'Sharp digital triangle',
     theme: 'dark',
     shapeType: 'triangle',
+    style: {
+      strokeWidth: 6,
+      stroke: '#00ffff',
+      fill: 'transparent',
+      inheritTheme: 'zigzag'
+    }
+  },
+  {
+    id: 'dark-line',
+    name: 'Neon Line',
+    description: 'Glowing neon line',
+    theme: 'dark',
+    shapeType: 'line',
     style: {
       strokeWidth: 6,
       stroke: '#00ffff',
