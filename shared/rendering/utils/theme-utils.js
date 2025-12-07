@@ -13,11 +13,19 @@ function loadThemes() {
   if (THEMES_DATA) return THEMES_DATA;
   
   try {
-    // Try to load from client directory (for server-side)
+    // Try to load from shared directory first (preferred)
+    const sharedPath = path.join(__dirname, '../../data/templates/themes.json');
+    if (fs.existsSync(sharedPath)) {
+      const data = JSON.parse(fs.readFileSync(sharedPath, 'utf-8'));
+      THEMES_DATA = data.themes || data || {};
+      return THEMES_DATA;
+    }
+    
+    // Fallback to client directory (for backward compatibility)
     const clientPath = path.join(__dirname, '../../../client/src/data/templates/themes.json');
     if (fs.existsSync(clientPath)) {
       const data = JSON.parse(fs.readFileSync(clientPath, 'utf-8'));
-      THEMES_DATA = data.themes || {};
+      THEMES_DATA = data.themes || data || {};
       return THEMES_DATA;
     }
   } catch (error) {

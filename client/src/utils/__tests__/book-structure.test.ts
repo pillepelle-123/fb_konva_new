@@ -68,7 +68,9 @@ describe('book-structure utilities', () => {
     const ensured = ensureSpecialPages(pages);
     const specialTypes = ensured.filter((page) => page.pageType && page.pageType !== 'content');
 
-    expect(specialTypes.length).toBeGreaterThanOrEqual(6);
+    // ensureSpecialPages creates 4 special pages: back-cover, front-cover, inner-front, inner-back
+    // first-page and last-page are not automatically created (they are regular content pages)
+    expect(specialTypes.length).toBeGreaterThanOrEqual(4);
     specialTypes.forEach((page) => {
       if (!page.pageType) return;
       const config = SPECIAL_PAGE_CONFIG[page.pageType];

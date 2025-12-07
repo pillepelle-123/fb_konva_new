@@ -9,40 +9,11 @@ import { getThemeRenderer, type Theme, renderThemedLine } from '../../../../util
 import type { CanvasElement } from '../../../../context/editor-context';
 import type Konva from 'konva';
 import { useCanvasOverlayElement } from '../canvas/canvas-overlay';
-
-type ParagraphSpacing = 'small' | 'medium' | 'large';
-
-interface RichTextStyle {
-  fontSize: number;
-  fontFamily: string;
-  fontBold?: boolean;
-  fontItalic?: boolean;
-  fontColor: string;
-  fontOpacity?: number;
-  paragraphSpacing?: ParagraphSpacing;
-  align?: 'left' | 'center' | 'right' | 'justify';
-}
-
-interface TextRun {
-  text: string;
-  x: number;
-  y: number;
-  style: RichTextStyle;
-}
-
-interface LinePosition {
-  y: number;
-  lineHeight: number;
-  style: RichTextStyle;
-}
-
-interface LayoutResult {
-  runs: TextRun[];
-  contentHeight: number;
-  linePositions: LinePosition[];
-  questionArea?: { x: number; y: number; width: number; height: number };
-  answerArea?: { x: number; y: number; width: number; height: number };
-}
+import { FEATURE_FLAGS } from '../../../../utils/feature-flags';
+import type { RichTextStyle, TextRun, ParagraphSpacing } from '../../../../../../shared/types/text-layout';
+import type { LinePosition, LayoutResult } from '../../../../../../shared/types/layout';
+import { buildFont as sharedBuildFont, getLineHeight as sharedGetLineHeight, measureText as sharedMeasureText, calculateTextX as sharedCalculateTextX, wrapText as sharedWrapText } from '../../../../../../shared/utils/text-layout';
+import { createLayout as sharedCreateLayout, createBlockLayout as sharedCreateBlockLayout } from '../../../../../../shared/utils/qna-layout';
 
 type QnaSettings = {
   fontSize?: number;
@@ -117,22 +88,23 @@ type ExtendedWindow = Window &
     Quill?: QuillConstructor;
   };
 
-const LINE_HEIGHT: Record<ParagraphSpacing, number> = {
+// Use shared functions with feature flag fallback
+const buildFont = FEATURE_FLAGS.USE_SHARED_TEXT_LAYOUT ? sharedBuildFont : (style: RichTextStyle) => {
+  const weight = style.fontBold ? 'bold ' : '';
+  const italic = style.fontItalic ? 'italic ' : '';
+  return `${weight}${italic}${style.fontSize}px ${style.fontFamily}`;
+};
+
+const LINE_HEIGHT: Record<'small' | 'medium' | 'large', number> = {
   small: 1,
   medium: 1.2,
   large: 1.5
 };
 
-function buildFont(style: RichTextStyle) {
-  const weight = style.fontBold ? 'bold ' : '';
-  const italic = style.fontItalic ? 'italic ' : '';
-  return `${weight}${italic}${style.fontSize}px ${style.fontFamily}`;
-}
-
-function getLineHeight(style: RichTextStyle) {
-  const spacing = style.paragraphSpacing || 'medium';
+const getLineHeight = FEATURE_FLAGS.USE_SHARED_TEXT_LAYOUT ? sharedGetLineHeight : (style: RichTextStyle) => {
+  const spacing: 'small' | 'medium' | 'large' = style.paragraphSpacing || 'medium';
   return style.fontSize * (LINE_HEIGHT[spacing] ?? 1.2);
-}
+};
 
 function stripHtml(text: string) {
   if (!text) return '';
@@ -157,7 +129,8 @@ function parseQuestionPayload(payload: string | undefined | null) {
   return payload;
 }
 
-function measureText(text: string, style: RichTextStyle, ctx: CanvasRenderingContext2D | null) {
+// Use shared functions with feature flag fallback
+const measureText = FEATURE_FLAGS.USE_SHARED_TEXT_LAYOUT ? sharedMeasureText : (text: string, style: RichTextStyle, ctx: CanvasRenderingContext2D | null) => {
   if (!ctx) {
     return text.length * (style.fontSize * 0.6);
   }
@@ -166,9 +139,9 @@ function measureText(text: string, style: RichTextStyle, ctx: CanvasRenderingCon
   const width = ctx.measureText(text).width;
   ctx.restore();
   return width;
-}
+};
 
-function calculateTextX(text: string, style: RichTextStyle, startX: number, availableWidth: number, ctx: CanvasRenderingContext2D | null): number {
+const calculateTextX = FEATURE_FLAGS.USE_SHARED_TEXT_LAYOUT ? sharedCalculateTextX : (text: string, style: RichTextStyle, startX: number, availableWidth: number, ctx: CanvasRenderingContext2D | null): number => {
   const align = style.align || 'left';
   const textWidth = measureText(text, style, ctx);
   
@@ -185,9 +158,9 @@ function calculateTextX(text: string, style: RichTextStyle, startX: number, avai
     default:
       return startX;
   }
-}
+};
 
-function wrapText(text: string, style: RichTextStyle, maxWidth: number, ctx: CanvasRenderingContext2D | null) {
+const wrapText = FEATURE_FLAGS.USE_SHARED_TEXT_LAYOUT ? sharedWrapText : (text: string, style: RichTextStyle, maxWidth: number, ctx: CanvasRenderingContext2D | null) => {
   const lines: { text: string; width: number }[] = [];
   if (!text) return lines;
   const paragraphs = text.split('\n');
@@ -215,9 +188,10 @@ function wrapText(text: string, style: RichTextStyle, maxWidth: number, ctx: Can
     }
   });
   return lines;
-}
+};
 
-function createBlockLayout(params: {
+// Local implementation for fallback
+function createBlockLayoutLocal(params: {
   questionText: string;
   answerText: string;
   questionStyle: RichTextStyle;
@@ -287,7 +261,7 @@ function createBlockLayout(params: {
     const questionLines = wrapText(questionText, questionStyle, questionArea.width, ctx);
     let cursorY = questionArea.y;
     
-    questionLines.forEach((line) => {
+    questionLines.forEach((line: { text: string; width: number }) => {
       if (line.text) {
         const baselineY = cursorY + questionBaselineOffset;
         const textX = calculateTextX(line.text, questionStyle, questionArea.x, questionArea.width, ctx);
@@ -326,7 +300,7 @@ function createBlockLayout(params: {
     const answerLines = wrapText(answerText, answerStyle, answerArea.width, ctx);
     let cursorY = answerArea.y;
     
-    answerLines.forEach((line) => {
+    answerLines.forEach((line: { text: string; width: number }) => {
       if (line.text) {
         const baselineY = cursorY + answerBaselineOffset;
         const textX = calculateTextX(line.text, answerStyle, answerArea.x, answerArea.width, ctx);
@@ -371,7 +345,8 @@ function createBlockLayout(params: {
   };
 }
 
-function createLayout(params: {
+// Local implementation for fallback
+function createLayoutLocal(params: {
   questionText: string;
   answerText: string;
   questionStyle: RichTextStyle;
@@ -392,7 +367,9 @@ function createLayout(params: {
   
   // Block layout uses different logic
   if (layoutVariant === 'block') {
-    return createBlockLayout({
+    // Use shared or local createBlockLayout based on feature flag
+    const blockLayoutFn = FEATURE_FLAGS.USE_SHARED_QNA_LAYOUT ? sharedCreateBlockLayout : createBlockLayoutLocal;
+    return blockLayoutFn({
       questionText,
       answerText,
       questionStyle,
@@ -433,7 +410,7 @@ function createLayout(params: {
   const questionLinePositions: number[] = [];
   
       // First pass: render question lines and track their baseline positions
-  questionLines.forEach((line) => {
+  questionLines.forEach((line: { text: string; width: number }) => {
     if (line.text) {
       // Calculate baseline Y position: cursorY (top of line) + baseline offset
       const baselineY = cursorY + questionBaselineOffset;
@@ -622,7 +599,7 @@ function createLayout(params: {
   const baseVerticalSpacing = questionLines.length ? answerLineHeight * 0.2 : 0;
   let answerCursorY = startAtSameLine ? cursorY : cursorY + baseVerticalSpacing + verticalGap;
 
-  remainingAnswerLines.forEach((line) => {
+  remainingAnswerLines.forEach((line: { text: string; width: number }) => {
     if (line.text) {
       // Calculate baseline Y position for answer-only lines
       const answerBaselineY = answerCursorY + answerBaselineOffset;
@@ -659,6 +636,9 @@ function createLayout(params: {
   };
 }
 
+// Use shared functions with feature flag fallback
+const createLayout = FEATURE_FLAGS.USE_SHARED_QNA_LAYOUT ? sharedCreateLayout : createLayoutLocal;
+
 const RichTextShape = forwardRef<Konva.Shape, {
   runs: TextRun[];
   width: number;
@@ -674,9 +654,9 @@ const RichTextShape = forwardRef<Konva.Shape, {
       // Use 'alphabetic' baseline for proper text alignment
       // Y positions in runs are already baseline positions
       ctx.textBaseline = 'alphabetic';
-      runs.forEach((run) => {
+      runs.forEach((run: TextRun) => {
         ctx.font = buildFont(run.style);
-        ctx.fillStyle = run.style.fontColor;
+        ctx.fillStyle = run.style.fontColor || '#000000';
         ctx.globalAlpha = run.style.fontOpacity ?? 1;
         // Y position is already the baseline position
         ctx.fillText(run.text, run.x, run.y);
@@ -730,8 +710,8 @@ function getClickArea(
   } else {
     // For inline layout, determine based on text runs
     // This works regardless of text alignment (left, center, right) because we check Y positions
-    const answerRuns = layout.runs.filter(run => run.style === answerStyle);
-    const questionRuns = layout.runs.filter(run => run.style === questionStyle);
+    const answerRuns = layout.runs.filter((run: TextRun) => run.style === answerStyle);
+    const questionRuns = layout.runs.filter((run: TextRun) => run.style === questionStyle);
     
     if (answerRuns.length === 0 && questionRuns.length === 0) {
       return null;
@@ -755,7 +735,7 @@ function getClickArea(
     for (const questionRun of questionRuns) {
       if (isYInRunLine(y, questionRun, questionStyle)) {
         // Check if there's an answer run on the same line (same Y baseline)
-        const combinedAnswerRun = answerRuns.find(answerRun => 
+        const combinedAnswerRun = answerRuns.find((answerRun: TextRun) => 
           Math.abs(answerRun.y - questionRun.y) < 1 // Same baseline (within 1px tolerance)
         );
         
@@ -779,16 +759,16 @@ function getClickArea(
     
     // Check if click is in answer-only lines (not combined with question)
     if (answerRuns.length > 0) {
-      const minAnswerY = Math.min(...answerRuns.map(run => run.y - answerBaselineOffset));
-      const maxAnswerY = Math.max(...answerRuns.map(run => run.y - answerBaselineOffset + answerLineHeight));
+      const minAnswerY = Math.min(...answerRuns.map((run: TextRun) => run.y - answerBaselineOffset));
+      const maxAnswerY = Math.max(...answerRuns.map((run: TextRun) => run.y - answerBaselineOffset + answerLineHeight));
       
       // Check if Y is in answer area
       if (y >= minAnswerY && y <= maxAnswerY) {
         // Check if this Y position corresponds to an answer-only line (not combined)
-        const answerRunOnLine = answerRuns.find(run => isYInRunLine(y, run, answerStyle));
+        const answerRunOnLine = answerRuns.find((run: TextRun) => isYInRunLine(y, run, answerStyle));
         if (answerRunOnLine) {
           // Check if there's a question run on the same line
-          const questionRunOnSameLine = questionRuns.find(qRun => 
+          const questionRunOnSameLine = questionRuns.find((qRun: TextRun) => 
             Math.abs(qRun.y - answerRunOnLine.y) < 1
           );
           
@@ -810,7 +790,7 @@ function getClickArea(
       const answerLineHeight = getLineHeight(answerStyle);
       
       // Find the last question line position
-      const lastQuestionY = Math.max(...questionRuns.map(run => run.y - questionBaselineOffset + questionLineHeight));
+      const lastQuestionY = Math.max(...questionRuns.map((run: TextRun) => run.y - questionBaselineOffset + questionLineHeight));
       
       // Answer area starts after the question (with some spacing)
       const answerStartY = lastQuestionY + (answerLineHeight * 0.2);
@@ -831,16 +811,16 @@ function getClickArea(
     if (questionRuns.length > 0) {
       const questionBaselineOffset = questionStyle.fontSize * 0.8;
       const questionLineHeight = getLineHeight(questionStyle);
-      const minQuestionY = Math.min(...questionRuns.map(run => run.y - questionBaselineOffset));
-      const maxQuestionY = Math.max(...questionRuns.map(run => run.y - questionBaselineOffset + questionLineHeight));
+      const minQuestionY = Math.min(...questionRuns.map((run: TextRun) => run.y - questionBaselineOffset));
+      const maxQuestionY = Math.max(...questionRuns.map((run: TextRun) => run.y - questionBaselineOffset + questionLineHeight));
       
       // Check if Y is in question area
       if (y >= minQuestionY && y <= maxQuestionY) {
         // Check if this is a question-only line (not combined with answer)
-        const questionRunOnLine = questionRuns.find(run => isYInRunLine(y, run, questionStyle));
+        const questionRunOnLine = questionRuns.find((run: TextRun) => isYInRunLine(y, run, questionStyle));
         if (questionRunOnLine) {
           // Check if there's an answer run on the same line
-          const answerRunOnSameLine = answerRuns.find(aRun => 
+          const answerRunOnSameLine = answerRuns.find((aRun: TextRun) => 
             Math.abs(aRun.y - questionRunOnLine.y) < 1
           );
           
@@ -886,6 +866,8 @@ export default function TextboxQna(props: CanvasItemProps) {
   // State for hover detection and tooltip
   const [hoveredArea, setHoveredArea] = useState<'question' | 'answer' | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isTooltipVisible, setIsTooltipVisible] = useState(false);
+  const [isTooltipMounted, setIsTooltipMounted] = useState(false);
   
   // Get canvas overlay for tooltips
   const addElementRef = useRef<((element: HTMLElement) => () => void) | null>(null);
@@ -1147,7 +1129,7 @@ export default function TextboxQna(props: CanvasItemProps) {
   const visibleRuns = useMemo(() => {
     if (isAnswerEditorOpen) {
       // When editor is open, show only question runs
-      return layout.runs.filter(run => run.style === effectiveQuestionStyle);
+      return layout.runs.filter((run: TextRun) => run.style === effectiveQuestionStyle);
     }
     // When editor is closed, show all runs
     return layout.runs;
@@ -1158,13 +1140,13 @@ export default function TextboxQna(props: CanvasItemProps) {
     if (layoutVariant === 'block' && layout.questionArea) {
       return layout.questionArea;
     } else if (layoutVariant === 'inline') {
-      const questionRuns = layout.runs.filter(run => run.style === effectiveQuestionStyle);
+      const questionRuns = layout.runs.filter((run: TextRun) => run.style === effectiveQuestionStyle);
       if (questionRuns.length === 0) return null;
       
       const questionBaselineOffset = effectiveQuestionStyle.fontSize * 0.8;
       const questionLineHeight = getLineHeight(effectiveQuestionStyle);
-      const minQuestionY = Math.min(...questionRuns.map(run => run.y - questionBaselineOffset));
-      const maxQuestionY = Math.max(...questionRuns.map(run => run.y - questionBaselineOffset + questionLineHeight));
+      const minQuestionY = Math.min(...questionRuns.map((run: TextRun) => run.y - questionBaselineOffset));
+      const maxQuestionY = Math.max(...questionRuns.map((run: TextRun) => run.y - questionBaselineOffset + questionLineHeight));
       
       return {
         x: padding,
@@ -1191,8 +1173,8 @@ export default function TextboxQna(props: CanvasItemProps) {
       return layout.answerArea;
     } else if (layoutVariant === 'inline') {
       // Calculate bounds based on answer runs if they exist, otherwise use expected position
-      const answerRuns = layout.runs.filter(run => run.style === answerStyle);
-      const questionRuns = layout.runs.filter(run => run.style === effectiveQuestionStyle);
+      const answerRuns = layout.runs.filter((run: TextRun) => run.style === answerStyle);
+      const questionRuns = layout.runs.filter((run: TextRun) => run.style === effectiveQuestionStyle);
       
       if (answerRuns.length > 0) {
         // Answer exists - calculate bounds from actual answer runs
@@ -1202,7 +1184,7 @@ export default function TextboxQna(props: CanvasItemProps) {
         
         // Use linePositions to get all answer lines (only lines with text)
         // Empty lines from line breaks don't create separate linePositions, but spacing is handled by lineHeight
-        const answerLinePositions = layout.linePositions.filter(lp => lp.style === answerStyle);
+        const answerLinePositions = layout.linePositions.filter((lp: LinePosition) => lp.style === answerStyle);
         
         if (answerLinePositions.length > 0) {
           // Calculate top of first line and bottom of last line using linePositions
@@ -1226,8 +1208,8 @@ export default function TextboxQna(props: CanvasItemProps) {
           };
         } else {
           // Fallback: calculate from runs if no linePositions available
-          const firstAnswerY = Math.min(...answerRuns.map(run => run.y));
-          const lastAnswerY = Math.max(...answerRuns.map(run => run.y));
+          const firstAnswerY = Math.min(...answerRuns.map((run: TextRun) => run.y));
+          const lastAnswerY = Math.max(...answerRuns.map((run: TextRun) => run.y));
           const firstLineTop = firstAnswerY - answerBaselineOffset;
           const lastLineBottom = lastAnswerY - answerBaselineOffset + answerLineHeight;
           
@@ -1244,7 +1226,7 @@ export default function TextboxQna(props: CanvasItemProps) {
         const questionLineHeight = getLineHeight(effectiveQuestionStyle);
         const answerLineHeight = getLineHeight(answerStyle);
         
-        const lastQuestionY = Math.max(...questionRuns.map(run => run.y - questionBaselineOffset + questionLineHeight));
+        const lastQuestionY = Math.max(...questionRuns.map((run: TextRun) => run.y - questionBaselineOffset + questionLineHeight));
         const answerStartY = lastQuestionY + (answerLineHeight * 0.2);
         
         return {
@@ -1290,7 +1272,7 @@ export default function TextboxQna(props: CanvasItemProps) {
         height: 0,
         strokeWidth: ruledLinesWidth,
         stroke: ruledLinesColor,
-        theme: theme
+        theme: theme as CanvasElement['theme']
       };
       
       return renderThemedLine({
@@ -1311,7 +1293,7 @@ export default function TextboxQna(props: CanvasItemProps) {
       });
     };
 
-    layout.linePositions.forEach((linePos) => {
+    layout.linePositions.forEach((linePos: LinePosition) => {
       // For block layout, only render lines within the target area
       if (layoutVariant === 'block' && layout.questionArea && layout.answerArea) {
         const targetArea = ruledLinesTarget === 'question' ? layout.questionArea : layout.answerArea;
@@ -1593,18 +1575,18 @@ export default function TextboxQna(props: CanvasItemProps) {
     if (layoutVariant === 'block' && layout.answerArea) {
       answerArea = layout.answerArea;
       // For block layout, calculate actual text bounds from runs
-      const answerRuns = layout.runs.filter(run => run.style === answerStyle);
+      const answerRuns = layout.runs.filter((run: TextRun) => run.style === answerStyle);
       if (answerRuns.length > 0) {
         const answerBaselineOffset = answerStyle.fontSize * 0.8;
         const answerLineHeight = getLineHeight(answerStyle);
         const canvasContext = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
-        const minAnswerX = Math.min(...answerRuns.map(run => run.x));
-        const maxAnswerX = Math.max(...answerRuns.map(run => {
+        const minAnswerX = Math.min(...answerRuns.map((run: TextRun) => run.x));
+        const maxAnswerX = Math.max(...answerRuns.map((run: TextRun) => {
           const textWidth = measureText(run.text, answerStyle, canvasContext);
           return run.x + textWidth;
         }));
-        const minAnswerY = Math.min(...answerRuns.map(run => run.y - answerBaselineOffset));
-        const maxAnswerY = Math.max(...answerRuns.map(run => run.y - answerBaselineOffset + answerLineHeight));
+        const minAnswerY = Math.min(...answerRuns.map((run: TextRun) => run.y - answerBaselineOffset));
+        const maxAnswerY = Math.max(...answerRuns.map((run: TextRun) => run.y - answerBaselineOffset + answerLineHeight));
         
         actualTextBounds = {
           x: minAnswerX,
@@ -1615,8 +1597,8 @@ export default function TextboxQna(props: CanvasItemProps) {
       }
     } else {
       // For inline layout, calculate answer area from runs
-      const answerRuns = layout.runs.filter(run => run.style === answerStyle);
-      const questionRuns = layout.runs.filter(run => run.style === effectiveQuestionStyle);
+      const answerRuns = layout.runs.filter((run: TextRun) => run.style === answerStyle);
+      const questionRuns = layout.runs.filter((run: TextRun) => run.style === effectiveQuestionStyle);
       
       if (answerRuns.length === 0) {
         // No answer text, calculate position below question text
@@ -1626,7 +1608,7 @@ export default function TextboxQna(props: CanvasItemProps) {
           const answerLineHeight = getLineHeight(answerStyle);
           
           // Find the last question line position
-          const lastQuestionY = Math.max(...questionRuns.map(run => run.y - questionBaselineOffset + questionLineHeight));
+          const lastQuestionY = Math.max(...questionRuns.map((run: TextRun) => run.y - questionBaselineOffset + questionLineHeight));
           
           // Answer area starts after the question (with some spacing)
           const answerStartY = lastQuestionY + (answerLineHeight * 0.2);
@@ -1645,12 +1627,12 @@ export default function TextboxQna(props: CanvasItemProps) {
       } else {
         const answerBaselineOffset = answerStyle.fontSize * 0.8;
         const answerLineHeight = getLineHeight(answerStyle);
-        const minAnswerY = Math.min(...answerRuns.map(run => run.y - answerBaselineOffset));
-        const maxAnswerY = Math.max(...answerRuns.map(run => run.y - answerBaselineOffset + answerLineHeight));
+        const minAnswerY = Math.min(...answerRuns.map((run: TextRun) => run.y - answerBaselineOffset));
+        const maxAnswerY = Math.max(...answerRuns.map((run: TextRun) => run.y - answerBaselineOffset + answerLineHeight));
         // Create canvas context for text measurement
         const canvasContext = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
-        const minAnswerX = Math.min(...answerRuns.map(run => run.x));
-        const maxAnswerX = Math.max(...answerRuns.map(run => {
+        const minAnswerX = Math.min(...answerRuns.map((run: TextRun) => run.x));
+        const maxAnswerX = Math.max(...answerRuns.map((run: TextRun) => {
           const textWidth = measureText(run.text, answerStyle, canvasContext);
           return run.x + textWidth;
         }));
@@ -1776,48 +1758,281 @@ export default function TextboxQna(props: CanvasItemProps) {
     // Focus textarea
     textarea.focus();
     
+    // Create container for buttons
+    const buttonContainer = document.createElement('div');
+    buttonContainer.className = 'flex gap-1';
+    buttonContainer.style.position = 'fixed';
+    buttonContainer.style.zIndex = '1';
+    buttonContainer.style.pointerEvents = 'auto';
+    document.body.appendChild(buttonContainer);
+    
+    // Function to save changes
+    function saveChanges() {
+      const newText = textarea.value;
+      dispatch({
+        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+        payload: {
+          id: element.id,
+          updates: {
+            text: newText,
+            formattedText: newText
+          }
+        }
+      });
+
+      if (element.questionId && user?.id) {
+        dispatch({
+          type: 'UPDATE_TEMP_ANSWER',
+          payload: {
+            questionId: element.questionId,
+            text: newText,
+            userId: user.id,
+            answerId: element.answerId || uuidv4()
+          }
+        });
+      }
+
+      removeTextarea();
+    }
+    
+    // Function to discard changes
+    function discardChanges() {
+      removeTextarea();
+    }
+    
+    // Create resize observer for button positioning
+    let resizeObserver: ResizeObserver | null = null;
+    
+    // Tooltip cleanup functions (will be set when buttons are created)
+    let discardTooltipCleanup: (() => void) | null = null;
+    let saveTooltipCleanup: (() => void) | null = null;
+    
     function removeTextarea() {
       if (textarea.parentNode) {
         textarea.parentNode.removeChild(textarea);
       }
-      window.removeEventListener('click', handleOutsideClick);
-      window.removeEventListener('touchstart', handleOutsideClick);
+      if (buttonContainer.parentNode) {
+        buttonContainer.parentNode.removeChild(buttonContainer);
+      }
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+        resizeObserver = null;
+      }
+      // Cleanup tooltips
+      if (discardTooltipCleanup) {
+        discardTooltipCleanup();
+      }
+      if (saveTooltipCleanup) {
+        saveTooltipCleanup();
+      }
       // Show answer text again by resetting state
       setIsAnswerEditorOpen(false);
       stageInstance.draw();
     }
     
-    function handleOutsideClick(e: MouseEvent | TouchEvent) {
-      const target = e.target as Node;
-      if (target !== textarea && !textarea.contains(target)) {
-        // Save changes
-        const newText = textarea.value;
-          dispatch({
-            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-            payload: {
-              id: element.id,
-              updates: {
-              text: newText,
-              formattedText: newText
-              }
-            }
-          });
-
-        if (element.questionId && user?.id) {
-          dispatch({
-            type: 'UPDATE_TEMP_ANSWER',
-            payload: {
-              questionId: element.questionId,
-              text: newText,
-              userId: user.id,
-              answerId: element.answerId || uuidv4()
-            }
-          });
+    // Update button container position when textarea position/size changes
+    // Position buttons on bottom border of textarea, halfway between inside and outside
+    const updateButtonPosition = () => {
+      const textareaRect = textarea.getBoundingClientRect();
+      const buttonHeight = 32; // h-7 = 28px
+      const borderWidth = 3; // textarea border is 3px
+      // Position on bottom border, halfway inside/outside: bottom - borderWidth/2 - buttonHeight/2
+      buttonContainer.style.left = (textareaRect.right - 8) + 'px';
+      buttonContainer.style.top = (textareaRect.bottom - borderWidth / 2 - buttonHeight / 2) + 'px';
+      buttonContainer.style.transform = 'translate(-100%, 0)';
+    };
+    
+    // Initial position
+    updateButtonPosition();
+    
+    // Helper function to create and manage tooltip for buttons
+    const createButtonTooltip = (button: HTMLElement, text: string) => {
+      let tooltipElement: HTMLElement | null = null;
+      let tooltipVisible = false;
+      let tooltipTimeout: ReturnType<typeof setTimeout> | null = null;
+      
+      const showTooltip = () => {
+        if (tooltipVisible) return;
+        
+        // Clear any existing timeout
+        if (tooltipTimeout) {
+          clearTimeout(tooltipTimeout);
+          tooltipTimeout = null;
         }
-
-        removeTextarea();
-      }
-    }
+        
+        // Remove existing tooltip if any
+        if (tooltipElement && tooltipElement.parentNode) {
+          tooltipElement.parentNode.removeChild(tooltipElement);
+        }
+        
+        // Create tooltip element
+        tooltipElement = document.createElement('div');
+        tooltipElement.className = 'fixed pointer-events-none transition-all duration-200 ease-out opacity-0 scale-95';
+        tooltipElement.style.zIndex = '11'; // Above buttons
+        
+        const tooltipContent = document.createElement('div');
+        tooltipContent.className = 'text-xs bg-background text-foreground px-2 py-1 rounded whitespace-nowrap';
+        tooltipContent.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)';
+        tooltipContent.textContent = text;
+        tooltipElement.appendChild(tooltipContent);
+        
+        document.body.appendChild(tooltipElement);
+        
+        // Calculate position (above button, centered)
+        const buttonRect = button.getBoundingClientRect();
+        tooltipElement.style.left = (buttonRect.left + buttonRect.width / 2) + 'px';
+        tooltipElement.style.top = (buttonRect.top - 8) + 'px';
+        tooltipElement.style.transform = 'translate(-50%, -100%)';
+        
+        // Show with transition
+        tooltipTimeout = setTimeout(() => {
+          if (tooltipElement) {
+            tooltipElement.className = 'fixed pointer-events-none transition-all duration-200 ease-out opacity-100 scale-100';
+            tooltipVisible = true;
+          }
+        }, 10);
+      };
+      
+      const hideTooltip = () => {
+        if (tooltipTimeout) {
+          clearTimeout(tooltipTimeout);
+          tooltipTimeout = null;
+        }
+        
+        if (tooltipElement) {
+          tooltipElement.className = 'fixed pointer-events-none transition-all duration-200 ease-out opacity-0 scale-95';
+          tooltipVisible = false;
+          
+          // Remove after transition
+          setTimeout(() => {
+            if (tooltipElement && tooltipElement.parentNode) {
+              tooltipElement.parentNode.removeChild(tooltipElement);
+              tooltipElement = null;
+            }
+          }, 200);
+        }
+      };
+      
+      button.addEventListener('mouseenter', showTooltip);
+      button.addEventListener('mouseleave', hideTooltip);
+      
+      // Cleanup function
+      return () => {
+        button.removeEventListener('mouseenter', showTooltip);
+        button.removeEventListener('mouseleave', hideTooltip);
+        if (tooltipTimeout) {
+          clearTimeout(tooltipTimeout);
+        }
+        if (tooltipElement && tooltipElement.parentNode) {
+          tooltipElement.parentNode.removeChild(tooltipElement);
+        }
+      };
+    };
+    
+    // Create discard button (X icon, outline variant, xs size)
+    const discardButton = document.createElement('button');
+    discardButton.className = 'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm h-7 px-3 text-xs border border-input bg-background hover:bg-secondary hover:text-accent-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 w-7 p-0';
+    discardButton.setAttribute('aria-label', 'Discard changes');
+    // Set color with fallback
+    const computedStyle = getComputedStyle(document.documentElement);
+    const foregroundColor = computedStyle.getPropertyValue('--foreground').trim() || '#000000';
+    discardButton.style.color = foregroundColor ? `hsl(${foregroundColor})` : '#000000';
+    
+    // Create SVG icon for X
+    const xIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    xIcon.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    xIcon.setAttribute('width', '16');
+    xIcon.setAttribute('height', '16');
+    xIcon.setAttribute('viewBox', '0 0 24 24');
+    xIcon.setAttribute('fill', 'none');
+    xIcon.setAttribute('stroke', 'currentColor');
+    xIcon.setAttribute('stroke-width', '2');
+    xIcon.setAttribute('stroke-linecap', 'round');
+    xIcon.setAttribute('stroke-linejoin', 'round');
+    xIcon.style.display = 'block';
+    xIcon.style.color = 'inherit';
+    xIcon.style.verticalAlign = 'middle';
+    xIcon.style.flexShrink = '0';
+    xIcon.style.width = '16px';
+    xIcon.style.height = '16px';
+    
+    const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line1.setAttribute('x1', '18');
+    line1.setAttribute('y1', '6');
+    line1.setAttribute('x2', '6');
+    line1.setAttribute('y2', '18');
+    xIcon.appendChild(line1);
+    
+    const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line2.setAttribute('x1', '6');
+    line2.setAttribute('y1', '6');
+    line2.setAttribute('x2', '18');
+    line2.setAttribute('y2', '18');
+    xIcon.appendChild(line2);
+    
+    discardButton.appendChild(xIcon);
+    discardButton.addEventListener('click', (e) => {
+      e.stopPropagation();
+      discardChanges();
+    });
+    buttonContainer.appendChild(discardButton);
+    
+    // Add tooltip to discard button
+    discardTooltipCleanup = createButtonTooltip(discardButton, 'Discard changes');
+    
+    // Create save button (Save icon, primary variant, xs size)
+    const saveButton = document.createElement('button');
+    saveButton.className = 'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm h-7 px-3 text-xs border border-primary bg-primary text-primary-foreground hover:bg-primary/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 w-7 p-0';
+    saveButton.setAttribute('aria-label', 'Save changes');
+    // Set color with fallback
+    const primaryForegroundColor = computedStyle.getPropertyValue('--primary-foreground').trim() || '#ffffff';
+    saveButton.style.color = primaryForegroundColor ? `hsl(${primaryForegroundColor})` : '#ffffff';
+    
+    // Create SVG icon for Save
+    const saveIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    saveIcon.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    saveIcon.setAttribute('width', '16');
+    saveIcon.setAttribute('height', '16');
+    saveIcon.setAttribute('viewBox', '0 0 24 24');
+    saveIcon.setAttribute('fill', 'none');
+    saveIcon.setAttribute('stroke', 'currentColor');
+    saveIcon.setAttribute('stroke-width', '2');
+    saveIcon.setAttribute('stroke-linecap', 'round');
+    saveIcon.setAttribute('stroke-linejoin', 'round');
+    saveIcon.style.display = 'block';
+    saveIcon.style.color = 'inherit';
+    saveIcon.style.verticalAlign = 'middle';
+    saveIcon.style.flexShrink = '0';
+    saveIcon.style.width = '16px';
+    saveIcon.style.height = '16px';
+    
+    const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path1.setAttribute('d', 'M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z');
+    saveIcon.appendChild(path1);
+    
+    const polyline1 = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    polyline1.setAttribute('points', '17 21 17 13 7 13 7 21');
+    saveIcon.appendChild(polyline1);
+    
+    const polyline2 = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    polyline2.setAttribute('points', '7 3 7 8 15 8');
+    saveIcon.appendChild(polyline2);
+    
+    saveButton.appendChild(saveIcon);
+    saveButton.addEventListener('click', (e) => {
+      e.stopPropagation();
+      saveChanges();
+    });
+    buttonContainer.appendChild(saveButton);
+    
+    // Add tooltip to save button
+    saveTooltipCleanup = createButtonTooltip(saveButton, 'Save changes');
+    
+    // Update button position when textarea resizes
+    resizeObserver = new ResizeObserver(() => {
+      updateButtonPosition();
+    });
+    resizeObserver.observe(textarea);
     
     // Handle keydown events
     textarea.addEventListener('keydown', function (e: KeyboardEvent) {
@@ -1899,12 +2114,6 @@ export default function TextboxQna(props: CanvasItemProps) {
         updateHeightTimeout = null;
       }, 10); // Very short delay to allow DOM update
     });
-    
-    // Add outside click handler with delay to prevent immediate trigger
-    setTimeout(() => {
-      window.addEventListener('click', handleOutsideClick);
-      window.addEventListener('touchstart', handleOutsideClick);
-    }, 0);
   }, [answerText, answerStyle, effectiveQuestionStyle, layout, layoutVariant, padding, boxWidth, boxHeight, element.id, element.questionId, element.answerId, user?.id, dispatch, textRef]);
   
   // Update cursor style based on hovered area
@@ -1934,27 +2143,51 @@ export default function TextboxQna(props: CanvasItemProps) {
   useEffect(() => {
     if (typeof document === 'undefined') return;
     
-    // Determine if tooltip should be shown and what text to display
+    // Determine if tooltip should be shown
     let shouldShowTooltip = false;
-    let tooltipContentText = '';
     
     if (hoveredArea === 'question' && tooltipPosition && questionAreaBounds && state.activeTool === 'select') {
       // Question area tooltip - always show if hovering over question area
       shouldShowTooltip = true;
-      tooltipContentText = element.questionId ? 'Double-click to change question' : 'Double-click to add a question';
     } else if (hoveredArea === 'answer' && tooltipPosition && answerAreaBounds && element.questionId && assignedUser && assignedUser.id === user?.id && state.activeTool === 'select') {
       // Answer area tooltip - only show if question is assigned and user is authorized
       shouldShowTooltip = true;
-      tooltipContentText = answerContent.trim().length > 0 ? 'Double-click to edit answer' : 'Double-click to add an answer';
     }
     
     if (!shouldShowTooltip) {
-      // Remove existing tooltip if any
-      const existingTooltip = document.getElementById(`qna-tooltip-${element.id}`);
-      if (existingTooltip) {
-        existingTooltip.remove();
-      }
-      return;
+      // Start disappearing transition
+      setIsTooltipVisible(false);
+      const hideTimeout = setTimeout(() => {
+        setIsTooltipMounted(false);
+        // Remove existing tooltip after transition
+        const existingTooltip = document.getElementById(`qna-tooltip-${element.id}`);
+        if (existingTooltip) {
+          existingTooltip.remove();
+        }
+      }, 200);
+      return () => clearTimeout(hideTimeout);
+    }
+    
+    // Start appearing transition
+    setIsTooltipMounted(true);
+    const showTimeout = setTimeout(() => setIsTooltipVisible(true), 10);
+    
+    return () => {
+      clearTimeout(showTimeout);
+    };
+  }, [hoveredArea, tooltipPosition, answerAreaBounds, questionAreaBounds, assignedUser, user?.id, element.id, element.questionId, answerContent, state.activeTool]);
+  
+  // Separate effect to render tooltip with transition
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (!isTooltipMounted || !tooltipPosition) return;
+    
+    // Determine tooltip content
+    let tooltipContentText = '';
+    if (hoveredArea === 'question' && questionAreaBounds && state.activeTool === 'select') {
+      tooltipContentText = element.questionId ? 'Double-click to change question' : 'Double-click to add a question';
+    } else if (hoveredArea === 'answer' && answerAreaBounds && element.questionId && assignedUser && assignedUser.id === user?.id && state.activeTool === 'select') {
+      tooltipContentText = answerContent.trim().length > 0 ? 'Double-click to edit answer' : 'Double-click to add an answer';
     }
     
     // Remove existing tooltip if any
@@ -1964,18 +2197,19 @@ export default function TextboxQna(props: CanvasItemProps) {
     }
     
     // Create tooltip element
-    if (!tooltipPosition) return;
-    
     const tooltip = document.createElement('div');
     tooltip.id = `qna-tooltip-${element.id}`;
-    tooltip.className = 'fixed pointer-events-none';
+    tooltip.className = `fixed pointer-events-none transition-all duration-200 ease-out ${
+      isTooltipVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+    }`;
     tooltip.style.left = `${tooltipPosition.x}px`;
     tooltip.style.top = `${tooltipPosition.y - 30}px`;
     tooltip.style.transform = 'translateX(-100%)'; // Align to right side
     tooltip.style.zIndex = '10'; // Gleicher z-index wie Canvas-Overlay, damit es hinter Toolbars (1000) liegt
     
     const tooltipContent = document.createElement('div');
-    tooltipContent.className = 'text-xs bg-background text-foreground px-2 py-1 rounded shadow-lg whitespace-nowrap';
+    tooltipContent.className = 'text-xs bg-background text-foreground px-2 py-1 rounded whitespace-nowrap';
+    tooltipContent.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)';
     tooltipContent.textContent = tooltipContentText;
     tooltip.appendChild(tooltipContent);
     
@@ -1983,7 +2217,7 @@ export default function TextboxQna(props: CanvasItemProps) {
     let removeElement: (() => void) | null = null;
     if (addElementRef.current) {
       removeElement = addElementRef.current(tooltip);
-          } else {
+    } else {
       document.body.appendChild(tooltip);
       removeElement = () => {
         const tooltipToRemove = document.getElementById(`qna-tooltip-${element.id}`);
@@ -1998,7 +2232,22 @@ export default function TextboxQna(props: CanvasItemProps) {
         removeElement();
       }
     };
-  }, [hoveredArea, tooltipPosition, answerAreaBounds, questionAreaBounds, assignedUser, user?.id, element.id, element.questionId, answerContent, state.activeTool]);
+  }, [isTooltipMounted, tooltipPosition, hoveredArea, questionAreaBounds, answerAreaBounds, assignedUser, user?.id, element.id, element.questionId, answerContent, state.activeTool]);
+  
+  // Separate effect to update visibility class when isTooltipVisible changes
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (!isTooltipMounted) return;
+    
+    const tooltipElement = document.getElementById(`qna-tooltip-${element.id}`);
+    if (tooltipElement) {
+      if (isTooltipVisible) {
+        tooltipElement.className = `fixed pointer-events-none transition-all duration-200 ease-out opacity-100 scale-100`;
+      } else {
+        tooltipElement.className = `fixed pointer-events-none transition-all duration-200 ease-out opacity-0 scale-95`;
+      }
+    }
+  }, [isTooltipVisible, isTooltipMounted, element.id]);
 
   // Helper function to get click area from mouse position
   const getClickAreaFromEvent = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {

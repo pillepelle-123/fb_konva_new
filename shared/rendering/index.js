@@ -24,6 +24,17 @@ async function renderPageWithKonva(pageData, bookData, canvasWidth, canvasHeight
   const Konva = konvaInstance;
   const roughInstance = options.rough;
   
+  // Debug: Log rough instance availability - ALWAYS log
+  console.log('[DEBUG renderPageWithKonva] ⚠️ ROUGH INSTANCE CHECK:', {
+    hasRoughInstance: !!roughInstance,
+    roughInstanceType: typeof roughInstance,
+    roughInstanceExists: roughInstance !== null && roughInstance !== undefined,
+    hasSvgFunction: roughInstance && typeof roughInstance.svg === 'function',
+    hasCanvasFunction: roughInstance && typeof roughInstance.canvas === 'function',
+    pageTheme: pageData.theme || bookData.theme || 'default',
+    willNeedRough: (pageData.theme === 'rough' || bookData.theme === 'rough')
+  });
+  
   // Load themes and color palettes
   const themesData = loadThemes();
   const colorPalettes = loadColorPalettes();
@@ -50,7 +61,16 @@ async function renderPageWithKonva(pageData, bookData, canvasWidth, canvasHeight
   
   // Render all elements
   // Sort elements to ensure correct z-order (like client-side rendering)
+  // Priority: zIndex > questionOrder (for qna_inline) > y position
   const elements = (pageData.elements || []).slice().sort((a, b) => {
+    // First, sort by zIndex if available (like PDFRenderer does)
+    const aZ = a.zIndex ?? 0;
+    const bZ = b.zIndex ?? 0;
+    if (aZ !== bZ) {
+      return aZ - bZ;
+    }
+    
+    // If zIndex is the same, apply special rules for qna_inline elements
     // Sort qna_inline elements by questionOrder, then by y position
     if (a.textType === 'qna_inline' && b.textType === 'qna_inline') {
       const orderA = a.questionOrder ?? Infinity;

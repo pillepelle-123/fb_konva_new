@@ -1,8 +1,25 @@
-import rough from 'roughjs';
 import React from 'react';
 import { Path } from 'react-konva';
 import type { CanvasElement } from '../context/editor-context';
 import { commonToActualStrokeWidth } from './stroke-width-converter';
+
+// Handle rough.js import: use ES6 import if available, otherwise fallback to global window.rough
+// This allows it to work both in client context (npm import) and browser context (global script)
+// Note: We use dynamic import check instead of static import to handle browser context
+let rough: any;
+try {
+  // Try ES6 import first (client context - will be bundled by Vite)
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const roughjs = require('roughjs');
+  rough = roughjs.default || roughjs;
+} catch {
+  // Fallback to global (browser context like Puppeteer where rough.js is loaded via script tag)
+  if (typeof window !== 'undefined' && (window as any).rough) {
+    rough = (window as any).rough;
+  } else if (typeof global !== 'undefined' && (global as any).rough) {
+    rough = (global as any).rough;
+  }
+}
 
 export type Theme = 'rough' | 'default' | 'glow' | 'candy' | 'zigzag' | 'wobbly';
 
@@ -61,6 +78,14 @@ const defaultTheme: ThemeRenderer = {
 // Rough theme - hand-drawn style using rough.js
 const roughTheme: ThemeRenderer = {
   generatePath: (element: CanvasElement, zoom = 1) => {
+    // Get rough instance - try window.rough first (browser context), then fallback to imported rough
+    const roughInstance = (typeof window !== 'undefined' && (window as any).rough) || rough;
+    
+    if (!roughInstance) {
+      console.warn('[themes.ts] Rough.js not available, falling back to default theme');
+      return defaultTheme.generatePath(element, zoom);
+    }
+    
     const roughness = element.roughness || 1;
     const strokeWidth = element.strokeWidth ? element.strokeWidth * zoom : 0;
     const stroke = element.stroke || '#1f2937';
@@ -68,7 +93,7 @@ const roughTheme: ThemeRenderer = {
     const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
     
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    const rc = rough.svg(svg);
+    const rc = roughInstance.svg(svg);
     
     try {
       let roughElement;
@@ -823,8 +848,16 @@ function generateHorizontalLinePath(
   strokeWidth: number, stroke: string, theme: Theme,
   seed: number, roughness: number, element?: CanvasElement
 ): string {
+  // Get rough instance - try window.rough first (browser context), then fallback to imported rough
+  const roughInstance = (typeof window !== 'undefined' && (window as any).rough) || rough;
+  
+  if (!roughInstance && theme === 'rough') {
+    // Fallback to default if rough is not available
+    return `M ${x1} ${y1} L ${x2} ${y2}`;
+  }
+  
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  const rc = rough.svg(svg);
+  const rc = roughInstance ? roughInstance.svg(svg) : null;
   
   switch (theme) {
     case 'default': {
@@ -832,6 +865,9 @@ function generateHorizontalLinePath(
     }
     
     case 'rough': {
+      if (!rc) {
+        return `M ${x1} ${y1} L ${x2} ${y2}`;
+      }
       try {
         const roughLine = rc.line(x1, y1, x2, y2, {
           roughness,

@@ -94,3 +94,48 @@ export interface AdminBackgroundImageInput {
   metadata?: Record<string, unknown>
 }
 
+export interface AdminStickerCategory {
+  id: number
+  name: string
+  slug: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AdminSticker {
+  id: string
+  slug: string
+  name: string
+  description: string | null
+  category: AdminStickerCategory
+  format: string
+  storage: {
+    type: 'local' | 's3'
+    filePath: string | null
+    thumbnailPath: string | null
+    bucket: string | null
+    objectKey: string | null
+    publicUrl?: string | null
+    thumbnailUrl?: string | null
+  }
+  tags: string[]
+  metadata: Record<string, unknown>
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AdminStickerInput {
+  name: string
+  slug?: string
+  categoryId: number
+  description?: string | null
+  format?: string
+  storageType?: 'local' | 's3'
+  filePath?: string | null
+  thumbnailPath?: string | null
+  bucket?: string | null
+  objectKey?: string | null
+  tags?: string[]
+  metadata?: Record<string, unknown>
+}
+

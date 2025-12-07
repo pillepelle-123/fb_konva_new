@@ -6,6 +6,7 @@ import './styles/app.css'
 import './utils/theme-verification'
 import { FONT_GROUPS } from './utils/font-families'
 import { loadBackgroundImageRegistry } from './data/templates/background-images'
+import { loadStickerRegistry } from './data/templates/stickers'
 
 const extractFontName = (family: string) => {
   const match = family.match(/['"]([^'"]+)['"]/);
@@ -26,6 +27,9 @@ Promise.all(
     document.fonts.load(`12px "${name}"`).catch(() => console.warn(`Failed: ${name}`)),
   ),
 ).then(async () => {
-  await loadBackgroundImageRegistry()
+  await Promise.all([
+    loadBackgroundImageRegistry(),
+    loadStickerRegistry()
+  ])
   createRoot(document.getElementById('root')!).render(<App />)
 })

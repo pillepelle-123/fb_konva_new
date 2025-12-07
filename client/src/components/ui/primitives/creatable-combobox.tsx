@@ -141,7 +141,7 @@ export function CreatableCombobox({
           </div>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[320px] p-2" align="start">
+      <PopoverContent className="w-[320px] p-2 z-[10002]" align="start">
         <div className="space-y-2">
           <Input
             placeholder={inputPlaceholder}

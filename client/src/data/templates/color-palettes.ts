@@ -1,5 +1,12 @@
 import type { ColorPalette } from '../../types/template-types';
-import colorPalettesJson from './color-palettes.json';
+import { FEATURE_FLAGS } from '../../utils/feature-flags';
+import localColorPalettes from './color-palettes.json';
+import sharedColorPalettes from '../../../../shared/data/templates/color-palettes.json';
+
+// Import from shared if feature flag is enabled, otherwise use local
+const colorPalettesJson: { palettes: ColorPalette[] } = FEATURE_FLAGS.USE_SHARED_PALETTES 
+  ? sharedColorPalettes 
+  : localColorPalettes;
 
 type PaletteColorSlot = keyof ColorPalette['colors'];
 

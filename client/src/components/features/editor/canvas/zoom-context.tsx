@@ -40,6 +40,20 @@ export function ZoomProvider({ children, initialZoom = 0.8 }: { children: React.
 export function useZoom() {
   const context = useContext(ZoomContext);
   if (!context) {
+    // Check if we're in a React Fast Refresh scenario or during initial render
+    // During hot reload or initial render, components may render before providers are ready
+    if (import.meta.env.DEV) {
+      // In development, return a safe fallback instead of crashing
+      // This prevents the app from breaking during hot reload
+      return {
+        zoom: 0.8,
+        setZoom: () => {},
+        minZoom: 0.1,
+        maxZoom: 3,
+        registerSetZoom: () => {},
+      };
+    }
+    // In production, still throw to catch actual bugs
     throw new Error('useZoom must be used within ZoomProvider');
   }
   return context;

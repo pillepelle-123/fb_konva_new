@@ -38,18 +38,21 @@ async function generateFileName(dirPath, desiredName) {
   }
 }
 
-async function saveLocalBackgroundImage({ category, originalName, buffer }) {
+async function saveLocalBackgroundImage({ category, originalName, buffer, uploadPath = 'background-images' }) {
   const categorySlug = slugify(category, 'uncategorized')
   const ext = path.extname(originalName) || '.svg'
   const baseName = slugify(path.basename(originalName, ext), randomUUID())
-  const targetDir = path.join(STORAGE_ROOT, categorySlug)
+  
+  // Use STORAGE_ROOT but override the upload path
+  const storageDir = path.join(__dirname, '..', '..', 'uploads', uploadPath)
+  const targetDir = path.join(storageDir, categorySlug)
   await ensureDir(targetDir)
   const fileName = await generateFileName(targetDir, `${baseName}${ext}`)
   const filePath = path.join(targetDir, fileName)
   await fs.writeFile(filePath, buffer)
   const relativePath = path.join(categorySlug, fileName).replace(/\\/g, '/')
   const normalizedRelative = relativePath.replace(/^\/+/, '')
-  const publicUrl = `/uploads/background-images/${normalizedRelative}`
+  const publicUrl = `/uploads/${uploadPath}/${normalizedRelative}`
 
   return {
     storageType: 'local',
@@ -74,11 +77,11 @@ async function deleteLocalBackgroundImage({ filePath }) {
   }
 }
 
-async function saveBackgroundImageFile({ category, originalName, buffer }) {
+async function saveBackgroundImageFile({ category, originalName, buffer, uploadPath = 'background-images' }) {
   if (STORAGE_TYPE === 's3') {
     throw new Error('S3 storage not yet implemented. Configure local storage or extend file-storage.js')
   }
-  return saveLocalBackgroundImage({ category, originalName, buffer })
+  return saveLocalBackgroundImage({ category, originalName, buffer, uploadPath })
 }
 
 async function deleteBackgroundImageFile({ storageType, filePath, bucket, objectKey }) {

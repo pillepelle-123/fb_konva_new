@@ -3,8 +3,25 @@ const { Pool } = require('pg');
 const { authenticateToken: auth } = require('../middleware/auth');
 
 const router = express.Router();
+
+// Parse schema from DATABASE_URL
+let schema = 'public';
+try {
+  const url = new URL(process.env.DATABASE_URL);
+  schema = url.searchParams.get('schema') || 'public';
+} catch (error) {
+  // If DATABASE_URL is not a valid URL format (e.g., direct connection string),
+  // default to 'public' schema
+  console.warn('Could not parse DATABASE_URL as URL, defaulting to public schema:', error.message);
+}
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL
+});
+
+// Set search path from DATABASE_URL schema parameter
+pool.on('connect', (client) => {
+  client.query(`SET search_path TO ${schema}`);
 });
 
 // Get editor settings for user and book

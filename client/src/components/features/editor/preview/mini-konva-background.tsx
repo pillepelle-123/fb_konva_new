@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Group, Rect, Image as KonvaImage } from 'react-konva';
-import themesData from '../../../../data/templates/themes.json';
+import themesData from '../../../../data/templates/themes';
 import { colorPalettes, getPalettePartColor } from '../../../../data/templates/color-palettes';
 import { resolveBackgroundImageUrl } from '../../../../utils/background-image-utils';
 

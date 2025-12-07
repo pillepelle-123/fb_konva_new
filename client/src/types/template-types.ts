@@ -1,6 +1,7 @@
 export type TemplateCategory = 'structured' | 'playful' | 'minimal' | 'creative';
 export type ThemeVariant = 'default' | 'sketchy' | 'minimal' | 'colorful' | 'vintage' | 'dark';
 export type BackgroundImageCategory = string;
+export type StickerCategory = string;
 
 export interface ColorPalette {
   id: string;
@@ -158,6 +159,23 @@ export interface BackgroundImage {
 }
 
 export interface BackgroundImageWithUrl extends BackgroundImage {
+  url: string;
+  thumbnailUrl: string;
+}
+
+export interface Sticker {
+  id: string;
+  name: string;
+  category: StickerCategory;
+  format: 'vector' | 'pixel';
+  filePath: string;
+  thumbnail: string;
+  description?: string;
+  tags?: string[];
+  storageType?: 'local' | 's3';
+}
+
+export interface StickerWithUrl extends Sticker {
   url: string;
   thumbnailUrl: string;
 }

@@ -483,9 +483,9 @@ export function PagesSubmenu({
               return (
                 <Button
                   key={page.id}
-                  variant="outline"
+                  variant={isActivePage ? "primary" : "outline"} //"outline"
                   size="xs"
-                  className={`h-7 w-7 p-0 text-xs ${isActivePage ? 'bg-primary/10 border-primary text-primary' : ''}`}
+                  className="h-7 w-7 p-0 text-xs"
                   disabled={isNonEditable}
                   onClick={
                     isNonEditable

@@ -21,6 +21,8 @@ import { Modal } from '../../../ui/overlays/modal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../ui/overlays/dialog';
 import ImagesContent from '../../images/images-content';
 import { QuestionSelectorModal } from '../question-selector-modal';
+import { StickerSelector } from '../tool-settings/sticker-selector';
+import { getStickerById, loadStickerRegistry } from '../../../../data/templates/stickers';
 
 import { getToolDefaults, TOOL_DEFAULTS } from '../../../../utils/tool-defaults';
 import { Alert, AlertDescription } from '../../../ui/composites/alert';
@@ -280,6 +282,8 @@ export default function Canvas() {
   const [showImageModal, setShowImageModal] = useState(false);
   const [pendingImagePosition, setPendingImagePosition] = useState<{ x: number; y: number } | null>(null);
   const [pendingImageElementId, setPendingImageElementId] = useState<string | null>(null);
+  const [showStickerModal, setShowStickerModal] = useState(false);
+  const [pendingStickerPosition, setPendingStickerPosition] = useState<{ x: number; y: number } | null>(null);
   const [editingElement, setEditingElement] = useState<CanvasElement | null>(null);
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
   const [showQuestionSelectorModal, setShowQuestionSelectorModal] = useState(false);
@@ -1342,6 +1346,12 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         if (state.activeTool === 'image') {
           setPendingImagePosition({ x: x - 300, y: y - 200 });
           setShowImageModal(true);
+          return;
+        }
+        
+        if (state.activeTool === 'sticker') {
+          setPendingStickerPosition({ x: x - 300, y: y - 200 });
+          setShowStickerModal(true);
           return;
         }
         
@@ -3553,6 +3563,106 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
   };
 
+  const handleStickerSelect = async (stickerId: string | null) => {
+    if (!stickerId || !pendingStickerPosition) return;
+    
+    // Load sticker registry if needed
+    await loadStickerRegistry();
+    
+    const sticker = getStickerById(stickerId);
+    if (!sticker || !sticker.url) {
+      console.error('Sticker not found or missing URL:', { stickerId, sticker });
+      setShowStickerModal(false);
+      setPendingStickerPosition(null);
+      dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+      return;
+    }
+    
+    console.log('Loading sticker:', { id: sticker.id, url: sticker.url, thumbnailUrl: sticker.thumbnailUrl });
+    
+    // Load sticker image to get dimensions
+    const img = new window.Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      console.log('Sticker image loaded successfully:', { width: img.width, height: img.height, url: sticker.url });
+      const maxWidth = 300;
+      const aspectRatio = img.width / img.height;
+      const width = maxWidth;
+      const height = maxWidth / aspectRatio;
+      
+      const newElement: CanvasElement = {
+        id: uuidv4(),
+        type: 'sticker',
+        x: pendingStickerPosition.x,
+        y: pendingStickerPosition.y,
+        width,
+        height,
+        src: sticker.url,
+        cornerRadius: 0,
+        imageClipPosition: 'center-middle' // Enable crop behavior for stickers, same as images
+      };
+      
+      dispatch({ type: 'ADD_ELEMENT', payload: newElement });
+      dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+      setShowStickerModal(false);
+      setPendingStickerPosition(null);
+    };
+    img.onerror = (error) => {
+      console.error('Failed to load sticker image:', { 
+        url: sticker.url, 
+        thumbnailUrl: sticker.thumbnailUrl,
+        error,
+        sticker 
+      });
+      // Try using thumbnailUrl as fallback
+      if (sticker.thumbnailUrl && sticker.thumbnailUrl !== sticker.url) {
+        console.log('Trying thumbnailUrl as fallback:', sticker.thumbnailUrl);
+        const fallbackImg = new window.Image();
+        fallbackImg.crossOrigin = 'anonymous';
+        fallbackImg.onload = () => {
+          const maxWidth = 300;
+          const aspectRatio = fallbackImg.width / fallbackImg.height;
+          const width = maxWidth;
+          const height = maxWidth / aspectRatio;
+          
+          const newElement: CanvasElement = {
+            id: uuidv4(),
+            type: 'sticker',
+            x: pendingStickerPosition.x,
+            y: pendingStickerPosition.y,
+            width,
+            height,
+            src: sticker.thumbnailUrl,
+            cornerRadius: 0
+          };
+          
+          dispatch({ type: 'ADD_ELEMENT', payload: newElement });
+          dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+          setShowStickerModal(false);
+          setPendingStickerPosition(null);
+        };
+        fallbackImg.onerror = () => {
+          console.error('Failed to load sticker thumbnail as well:', sticker.thumbnailUrl);
+          setShowStickerModal(false);
+          setPendingStickerPosition(null);
+          dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+        };
+        fallbackImg.src = sticker.thumbnailUrl;
+      } else {
+        setShowStickerModal(false);
+        setPendingStickerPosition(null);
+        dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+      }
+    };
+    img.src = sticker.url;
+  };
+
+  const handleStickerModalClose = () => {
+    setShowStickerModal(false);
+    setPendingStickerPosition(null);
+    dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+  };
+
   if (!currentPage || shouldBlockCanvasRendering) {
     const messageTitle = isReverseCoverPage
       ? 'This page cannot be edited'
@@ -4234,10 +4344,10 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                       const elementId = groupNode.id();
                       const element = currentPage?.elements.find(el => el.id === elementId);
                       
-                      if (element?.type === 'image') {
+                      if (element?.type === 'image' || element?.type === 'sticker') {
                         const imageNode = groupNode.findOne('Image') as Konva.Image;
                         if (imageNode) {
-                          // For image elements, calculate effective size from Group scale
+                          // For image and sticker elements, calculate effective size from Group scale
                           // DO NOT reset Group scale during transform - this causes conflicts with Transformer
                           // DO NOT modify Image node during transform - let React-Konva handle it via props
                           // Only update the size state so crop can be recalculated
@@ -4333,11 +4443,11 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                     
                     const updates: any = {};
                     
-                    // For text and image elements, convert scale to width/height changes
-                    if (element.type === 'text' || element.type === 'image') {
-                      // For image elements, the Transformer is now on the Group, not the Image node
+                    // For text, image, and sticker elements, convert scale to width/height changes
+                    if (element.type === 'text' || element.type === 'image' || element.type === 'sticker') {
+                      // For image and sticker elements, the Transformer is now on the Group, not the Image node
                       // We need to get size from Image node, but position and rotation from Group
-                      if (element.type === 'image' && node.getClassName() === 'Group') {
+                      if ((element.type === 'image' || element.type === 'sticker') && node.getClassName() === 'Group') {
                         const groupNode = node as Konva.Group;
                         const imageNode = groupNode.findOne('Image') as Konva.Image;
                         
@@ -4576,6 +4686,16 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         />
       </Modal>
       
+      <Modal
+        isOpen={showStickerModal}
+        onClose={handleStickerModalClose}
+        title="Select Sticker"
+      >
+        <StickerSelector
+          onBack={handleStickerModalClose}
+          onStickerSelect={handleStickerSelect}
+        />
+      </Modal>
 
       
       {showQuestionDialog && state.currentBook && token && user?.role !== 'author' && (

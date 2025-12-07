@@ -4,7 +4,7 @@ import type { ColorPalette } from '../types/template-types.ts';
 import { commonToActual } from './font-size-converter.ts';
 import { themeJsonToActualStrokeWidth } from './stroke-width-converter.ts';
 import { commonToActualRadius } from './corner-radius-converter.ts';
-import themesData from '../data/templates/themes.json';
+import themesData from '../data/templates/themes';
 
 // Get palette from color-palettes.ts (single source of truth)
 function getPalette(paletteId: string): ColorPalette | undefined {

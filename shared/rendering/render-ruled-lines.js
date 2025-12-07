@@ -36,13 +36,36 @@ function renderRuledLines(layer, element, questionText, answerText, questionSett
   const Konva = konvaInstance;
   const rough = roughInstance;
   
+  // Debug: Log entry - ALWAYS log
+  console.log('[DEBUG renderRuledLines] ⚠️ FUNCTION ENTRY:', {
+    elementId: element.id,
+    hasRoughInstance: !!roughInstance,
+    roughInstanceType: typeof roughInstance,
+    ruledLinesTheme: element.ruledLinesTheme || 'rough',
+    functionCalled: true
+  });
+  
   // Check if ruled lines are enabled
   // Ruled lines are now only on element level
   const isEnabled = element.ruledLines === true;
   
+  // Debug: Log if not enabled
   if (!isEnabled) {
+    console.log('[DEBUG renderRuledLines] ❌ RULED LINES DISABLED:', {
+      elementId: element.id,
+      ruledLines: element.ruledLines,
+      isEnabled: isEnabled,
+      reason: 'element.ruledLines !== true'
+    });
     return 0;
   }
+  
+  // Log if enabled
+  console.log('[DEBUG renderRuledLines] ✅ RULED LINES ENABLED, proceeding with render:', {
+    elementId: element.id,
+    ruledLines: element.ruledLines,
+    isEnabled: isEnabled
+  });
   
   const layoutVariant = element.layoutVariant || 'inline';
   const answerFontSize = answerSettings.fontSize || 50;

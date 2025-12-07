@@ -101,7 +101,7 @@ export default function CanvasItemComponent(props: CanvasItemComponentProps) {
     return <TextboxQnAInline {...props} />;
   }
 
-  if (element.type === 'placeholder' || element.type === 'image') {
+  if (element.type === 'placeholder' || element.type === 'image' || element.type === 'sticker') {
     return <Image {...props} />;
   }
 

@@ -86,6 +86,17 @@ function createPatternImage(pattern, color, size, strokeWidth, document) {
  */
 function renderBackground(layer, pageData, bookData, width, height, konvaInstance, document, Image, callback, imagePromises) {
   const Konva = konvaInstance;
+  
+  // Debug: Log background rendering start
+  console.log('[DEBUG renderBackground] ⚠️ STARTING BACKGROUND RENDERING:', {
+    pageNumber: pageData.pageNumber,
+    hasBackground: !!pageData.background,
+    backgroundType: pageData.background?.type,
+    backgroundValue: pageData.background?.value,
+    backgroundOpacity: pageData.background?.opacity,
+    width: width,
+    height: height
+  });
   const background = pageData.background || {};
   
   return new Promise((resolve, reject) => {
@@ -128,13 +139,17 @@ function renderBackground(layer, pageData, bookData, width, height, konvaInstanc
         const hasBackgroundColor = background.backgroundColorEnabled !== false; // Default to true if not specified
         
         // Render background color first if enabled
+        // Match client-side: background color should use main opacity, not separate opacity
         if (hasBackgroundColor && backgroundColor && backgroundColor !== 'transparent') {
+          // Use background.opacity for the background color (like client does)
+          const bgColorOpacity = background.opacity !== undefined ? background.opacity : 1;
           const bgColorRect = new Konva.Rect({
             x: 0,
             y: 0,
             width: width,
             height: height,
             fill: backgroundColor,
+            opacity: bgColorOpacity,
             listening: false
           });
           layer.add(bgColorRect);
@@ -188,6 +203,16 @@ function renderBackground(layer, pageData, bookData, width, height, konvaInstanc
         paletteColors: activePalette?.colors
       }) || background.value;
       
+      // Debug: Log image background information - ALWAYS log
+      console.log('[DEBUG renderBackground] ⚠️ IMAGE BACKGROUND DETECTED:', {
+        backgroundType: background.type,
+        backgroundValue: background.value,
+        backgroundImageTemplateId: background.backgroundImageTemplateId,
+        resolvedImageUrl: imageUrl,
+        isS3Url: imageUrl && (imageUrl.includes('s3.amazonaws.com') || imageUrl.includes('s3.us-east-1.amazonaws.com')),
+        willAttemptLoad: !!imageUrl
+      });
+      
       // Check if background color is enabled
       const hasBackgroundColor = background.backgroundColorEnabled === true;
       const paletteBackgroundColor = getPalettePartColor(
@@ -218,9 +243,24 @@ function renderBackground(layer, pageData, bookData, width, height, konvaInstanc
         const img = new Image();
         img.crossOrigin = 'anonymous';
         
+        // Debug: Log before starting image load
+        console.log('[DEBUG renderBackground] ⚠️ STARTING IMAGE LOAD:', {
+          imageUrl: imageUrl,
+          crossOrigin: img.crossOrigin,
+          timestamp: new Date().toISOString()
+        });
+        
         // Create promise for image loading
         const imagePromise = new Promise((resolveImg, rejectImg) => {
           img.onload = function() {
+            console.log('[DEBUG renderBackground] ✅ IMAGE LOADED SUCCESSFULLY:', {
+              imageUrl: imageUrl,
+              imageWidth: img.width,
+              imageHeight: img.height,
+              naturalWidth: img.naturalWidth,
+              naturalHeight: img.naturalHeight,
+              timestamp: new Date().toISOString()
+            });
             try {
               const bgImage = new Konva.Image({
                 x: 0,
@@ -281,7 +321,15 @@ function renderBackground(layer, pageData, bookData, width, height, konvaInstanc
           };
           
           img.onerror = function(error) {
-            console.warn('Background image failed to load:', imageUrl, error);
+            console.error('[DEBUG renderBackground] ❌ IMAGE LOAD FAILED:', {
+              imageUrl: imageUrl,
+              error: error,
+              errorMessage: error?.message || 'Unknown error',
+              errorType: error?.type || 'unknown',
+              isS3Url: imageUrl && (imageUrl.includes('s3.amazonaws.com') || imageUrl.includes('s3.us-east-1.amazonaws.com')),
+              timestamp: new Date().toISOString(),
+              likelyCorsIssue: imageUrl && (imageUrl.includes('s3.amazonaws.com') || imageUrl.includes('s3.us-east-1.amazonaws.com'))
+            });
             // Fallback: if backgroundColorEnabled is true, use backgroundColor, otherwise use white
             if (!hasBackgroundColor && (!activePalette || backgroundColor === '#ffffff')) {
               const bgRect = new Konva.Rect({

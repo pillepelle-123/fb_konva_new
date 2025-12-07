@@ -1,5 +1,5 @@
 import { PropsWithChildren, useMemo } from 'react'
-import { Menu, Settings, Users, LibraryBig, FileText, Image } from 'lucide-react'
+import { Menu, Settings, Users, LibraryBig, FileText, Image, Sticker } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { Button, Sheet, SheetContent, SheetTrigger } from '../../components/ui'
 import { useAuth } from '../../context/auth-context'
@@ -34,6 +34,12 @@ export function AdminLayout({ children }: PropsWithChildren) {
         to: '/admin/background-images',
         icon: Image,
         description: 'Hintergrundbilder verwalten & hochladen',
+      },
+      {
+        label: 'Sticker',
+        to: '/admin/stickers',
+        icon: Sticker,
+        description: 'Sticker verwalten & hochladen',
       },
     ],
     [],
@@ -116,7 +122,9 @@ export function AdminLayout({ children }: PropsWithChildren) {
                           ? 'Seitenstatus'
                           : location.pathname.startsWith('/admin/background-images')
                             ? 'Background Images'
-                            : 'Übersicht'}
+                            : location.pathname.startsWith('/admin/stickers')
+                              ? 'Sticker'
+                              : 'Übersicht'}
                   </span>
                   <span className="text-xs text-muted-foreground">Systemweite Administration & Monitoring</span>
                 </div>

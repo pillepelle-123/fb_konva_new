@@ -137,7 +137,7 @@ export default function Image(props: CanvasItemProps) {
 
   // Load existing image when src changes
   useEffect(() => {
-    if (element.type === 'image' && element.src) {
+    if ((element.type === 'image' || element.type === 'sticker') && element.src) {
       // Check if this is an S3 URL that might have CORS issues
       const isS3Url = element.src.includes('s3.amazonaws.com') || element.src.includes('s3.us-east-1.amazonaws.com');
       

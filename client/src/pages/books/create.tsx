@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../componen
 import { FormField } from '../../components/ui/layout/form-field';
 import { apiService } from '../../services/api';
 import { pageTemplates as builtinPageTemplates } from '../../data/templates/page-templates';
-import themesData from '../../data/templates/themes.json';
+import themesData from '../../data/templates/themes';
 import MiniEditorCanvas from '../../components/features/editor/preview/mini-editor-canvas';
 import { mirrorTemplate } from '../../utils/layout-mirroring';
 import { getThemePaletteId } from '../../utils/global-themes';

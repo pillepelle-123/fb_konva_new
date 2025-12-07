@@ -11,6 +11,10 @@ import { PATTERNS } from '../../utils/patterns.ts';
 import { getToolDefaults } from '../../utils/tool-defaults.ts';
 import { getThemeRenderer } from '../../utils/themes.ts';
 import type { PageBackground } from '../../context/editor-context.tsx';
+import { FEATURE_FLAGS } from '../../utils/feature-flags';
+import type { RichTextStyle } from '../../../../shared/types/text-layout';
+import { buildFont as sharedBuildFont, getLineHeight as sharedGetLineHeight, measureText as sharedMeasureText, calculateTextX as sharedCalculateTextX, wrapText as sharedWrapText } from '../../../../shared/utils/text-layout';
+import { createLayout as sharedCreateLayout, createBlockLayout as sharedCreateBlockLayout } from '../../../../shared/utils/qna-layout';
 
 interface PDFRendererProps {
   page: Page;
@@ -513,16 +517,28 @@ export function PDFRenderer({
       const opacity = background.opacity ?? 1;
       
       if (background.type === 'color') {
+        const bgColor = background.value || '#ffffff';
         const bgRect = new Konva.Rect({
           x: 0,
           y: 0,
           width: width,
           height: height,
-          fill: background.value || '#ffffff',
+          fill: bgColor,
           opacity: opacity,
           listening: false,
         });
         layer.add(bgRect);
+        
+        // Debug: Log background rendering
+        console.log('[DEBUG PDFRenderer] Background rendered:', {
+          type: 'color',
+          color: bgColor,
+          opacity: opacity,
+          width: width,
+          height: height,
+          layerIndex: layer.getZIndex(),
+          childrenCount: layer.getChildren().length
+        });
       } else if (background.type === 'pattern' && patternImage) {
         const pattern = PATTERNS.find(p => p.id === background.value);
         if (pattern) {
@@ -773,19 +789,41 @@ export function PDFRenderer({
                 questionText = questionData;
               }
             }
+          } else if ((element as any).questionText) {
+            // Support direct questionText property (for server-side rendering)
+            questionText = (element as any).questionText;
           }
           
-          // Get answer text
-          let answerText = element.formattedText || element.text || '';
+          // Get answer text - support multiple properties
+          let answerText = (element as any).answerText || element.formattedText || element.text || '';
           if (answerText.includes('<')) {
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = answerText;
             answerText = tempDiv.textContent || tempDiv.innerText || '';
           }
           
+          // Debug: Log QnA Inline text extraction
+          console.log('[DEBUG PDFRenderer] QnA Inline text extraction:', {
+            elementId: element.id,
+            pageNumber: page.pageNumber,
+            hasQuestionId: !!element.questionId,
+            questionTextFromProperty: (element as any).questionText,
+            questionText: questionText,
+            answerTextFromProperty: (element as any).answerText,
+            answerTextFromText: element.text,
+            answerText: answerText,
+            willSkip: !questionText && !answerText
+          });
+          
           // Calculate dynamic height based on content
           const calculateHeight = () => {
-            if (!questionText && !answerText) return elementHeight;
+            if (!questionText && !answerText) {
+              console.warn('[DEBUG PDFRenderer] ⚠️ Skipping QnA Inline - no text:', {
+                elementId: element.id,
+                pageNumber: page.pageNumber
+              });
+              return elementHeight;
+            }
             
             const canvas = document.createElement('canvas');
             const context = canvas.getContext('2d')!;
@@ -853,23 +891,71 @@ export function PDFRenderer({
           
           // Render background if enabled
           const showBackground = element.backgroundEnabled ?? (questionStyle.background?.enabled || answerStyle.background?.enabled) ?? false;
+          
+          // Debug: Log background check (first path)
+          console.log('[DEBUG PDFRenderer] QnA Background check (first path):');
+          console.log('  elementId:', element.id);
+          console.log('  element.backgroundEnabled:', element.backgroundEnabled);
+          console.log('  questionStyle.background?.enabled:', questionStyle.background?.enabled);
+          console.log('  answerStyle.background?.enabled:', answerStyle.background?.enabled);
+          console.log('  showBackground:', showBackground);
+          
           if (showBackground) {
             const backgroundColor = element.backgroundColor || questionStyle.background?.backgroundColor || answerStyle.background?.backgroundColor || 'transparent';
             const backgroundOpacity = element.backgroundOpacity ?? questionStyle.backgroundOpacity ?? answerStyle.backgroundOpacity ?? 1;
             const cornerRadius = element.cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
             
-            const bgRect = new Konva.Rect({
-              x: elementX,
-              y: elementY,
-              width: elementWidth,
-              height: dynamicHeight,
-              fill: backgroundColor,
-              opacity: backgroundOpacity,
-              cornerRadius: cornerRadius,
-              rotation: elementRotation,
-              listening: false,
-            });
-            layer.add(bgRect);
+            // Debug: Log background rendering
+            console.log('[DEBUG PDFRenderer] QnA Background rendered (first path):');
+            console.log('  elementId:', element.id);
+            console.log('  backgroundColor:', backgroundColor);
+            console.log('  backgroundOpacity:', backgroundOpacity);
+            console.log('  elementOpacity:', elementOpacity);
+            console.log('  finalOpacity:', backgroundOpacity * elementOpacity);
+            
+            if (backgroundColor !== 'transparent' && backgroundColor) {
+              const bgRect = new Konva.Rect({
+                x: elementX,
+                y: elementY,
+                width: elementWidth,
+                height: dynamicHeight,
+                fill: backgroundColor,
+                opacity: backgroundOpacity * elementOpacity,
+                cornerRadius: cornerRadius,
+                rotation: elementRotation,
+                listening: false,
+              });
+              
+              // Add background and position it after page background, but before other elements
+              layer.add(bgRect);
+              
+              // Find all page background nodes (full canvas size at 0,0) and move bgRect after them
+              const stage = layer.getStage();
+              const stageWidth = stage ? stage.width() : width;
+              const stageHeight = stage ? stage.height() : height;
+              
+              let lastPageBgIndex = -1;
+              layer.getChildren().forEach((node, idx) => {
+                if (node === bgRect) return; // Skip self
+                if (node.getClassName() !== 'Rect' && node.getClassName() !== 'Image') return;
+                const nodeX = node.x ? node.x() : 0;
+                const nodeY = node.y ? node.y() : 0;
+                const nodeWidth = node.width ? node.width() : 0;
+                const nodeHeight = node.height ? node.height() : 0;
+                if (nodeX === 0 && nodeY === 0 && nodeWidth === stageWidth && nodeHeight === stageHeight) {
+                  lastPageBgIndex = Math.max(lastPageBgIndex, idx);
+                }
+              });
+              
+              // Move bgRect to position right after last page background node
+              if (lastPageBgIndex !== -1) {
+                const bgRectIndex = layer.getChildren().indexOf(bgRect);
+                if (bgRectIndex !== -1 && bgRectIndex !== lastPageBgIndex + 1) {
+                  layer.getChildren().splice(bgRectIndex, 1);
+                  layer.getChildren().splice(lastPageBgIndex + 1, 0, bgRect);
+                }
+              }
+            }
           }
           
           // Render border if enabled
@@ -1558,7 +1644,21 @@ export function PDFRenderer({
           
           // Render ruled lines if enabled
           const answerRuledLines = element.ruledLines ?? false;
+          
+          // Debug: Log ruled lines check (first path)
+          console.log('[DEBUG PDFRenderer] Ruled lines check (first path):');
+          console.log('  elementId:', element.id);
+          console.log('  element.ruledLines:', element.ruledLines);
+          console.log('  answerRuledLines:', answerRuledLines);
+          console.log('  layoutVariant:', layoutVariant);
+          console.log('  hasQuestionText:', !!questionText);
+          console.log('  hasAnswerText:', !!answerText);
+          
           if (answerRuledLines) {
+            // Debug: Log starting ruled lines rendering
+            console.log('[DEBUG PDFRenderer] Starting ruled lines rendering (first path):');
+            console.log('  elementId:', element.id);
+            console.log('  layoutVariant:', layoutVariant);
             const aTheme = element.ruledLinesTheme || 'rough';
             const aColor = element.ruledLinesColor || '#1f2937';
             const aWidth = element.ruledLinesWidth || 0.8;
@@ -1569,6 +1669,9 @@ export function PDFRenderer({
             const aLineHeight = aFontSize * getLineHeightMultiplier(aSpacing);
             const startX = elementX + padding;
             const endX = elementX + elementWidth - padding;
+            
+            // Track how many lines are rendered
+            let ruledLinesRenderedCount = 0;
             
             if (layoutVariant === 'block') {
               // Block layout: ruled lines in answer area
@@ -1667,6 +1770,7 @@ export function PDFRenderer({
                         listening: false,
                       });
                       layer.add(linePath);
+                      ruledLinesRenderedCount++;
                     } else {
                       // Fallback to straight line
                       const line = new Konva.Line({
@@ -1679,6 +1783,7 @@ export function PDFRenderer({
                         listening: false,
                       });
                       layer.add(line);
+                      ruledLinesRenderedCount++;
                     }
                   } catch (error) {
                     console.warn('[PDFRenderer] Error generating rough ruled line:', error);
@@ -1693,6 +1798,7 @@ export function PDFRenderer({
                       listening: false,
                     });
                     layer.add(line);
+                    ruledLinesRenderedCount++;
                   }
                 } else {
                   // Default straight line
@@ -1706,9 +1812,15 @@ export function PDFRenderer({
                     listening: false,
                   });
                   layer.add(line);
+                  ruledLinesRenderedCount++;
                 }
                 lineY += aLineHeight;
               }
+              
+              // Debug: Log block layout ruled lines count
+              console.log('[DEBUG PDFRenderer] Block layout ruled lines rendered:');
+              console.log('  elementId:', element.id);
+              console.log('  linesCount:', ruledLinesRenderedCount);
             } else {
               // Inline layout: position ruled lines based on actual text layout
               // This matches the logic from textbox-qna-inline.tsx
@@ -1813,6 +1925,7 @@ export function PDFRenderer({
                               listening: false,
                             });
                             layer.add(linePath);
+                            ruledLinesRenderedCount++;
                           } else {
                             const line = new Konva.Line({
                               points: [startX, lineY, endX, lineY],
@@ -1824,6 +1937,7 @@ export function PDFRenderer({
                               listening: false,
                             });
                             layer.add(line);
+                            ruledLinesRenderedCount++;
                           }
                         } catch (error) {
                           const line = new Konva.Line({
@@ -1836,6 +1950,7 @@ export function PDFRenderer({
                             listening: false,
                           });
                           layer.add(line);
+                          ruledLinesRenderedCount++;
                         }
                       } else {
                         const line = new Konva.Line({
@@ -1848,6 +1963,7 @@ export function PDFRenderer({
                           listening: false,
                         });
                         layer.add(line);
+                        ruledLinesRenderedCount++;
                       }
                     }
                   }
@@ -1856,6 +1972,14 @@ export function PDFRenderer({
                 // Generate lines for answer lines
                 let answerLineIndex = canFitOnSameLine ? 0 : 1;
                 const endY = elementY + dynamicHeight - padding;
+                
+                console.log('[DEBUG PDFRenderer] Inline layout - starting answer lines generation:');
+                console.log('  elementId:', element.id);
+                console.log('  canFitOnSameLine:', canFitOnSameLine);
+                console.log('  answerLineIndex start:', answerLineIndex);
+                console.log('  aLineHeight:', aLineHeight);
+                console.log('  endY:', endY);
+                console.log('  combinedLineBaseline:', combinedLineBaseline);
                 
                 while (answerLineIndex < 1000) { // Safety limit
                   const answerBaseline = combinedLineBaseline + (answerLineIndex * aLineHeight) + answerBaselineOffset + (aFontSize * 0.6);
@@ -1896,6 +2020,7 @@ export function PDFRenderer({
                           listening: false,
                         });
                         layer.add(linePath);
+                        ruledLinesRenderedCount++;
                       } else {
                         const line = new Konva.Line({
                           points: [startX, lineY, endX, lineY],
@@ -1907,6 +2032,7 @@ export function PDFRenderer({
                           listening: false,
                         });
                         layer.add(line);
+                        ruledLinesRenderedCount++;
                       }
                     } catch (error) {
                       const line = new Konva.Line({
@@ -1919,6 +2045,7 @@ export function PDFRenderer({
                         listening: false,
                       });
                       layer.add(line);
+                      ruledLinesRenderedCount++;
                     }
                   } else {
                     const line = new Konva.Line({
@@ -1931,9 +2058,17 @@ export function PDFRenderer({
                       listening: false,
                     });
                     layer.add(line);
+                    ruledLinesRenderedCount++;
                   }
                   answerLineIndex++;
                 }
+                
+                // Debug: Log inline layout ruled lines count
+                console.log('[DEBUG PDFRenderer] Inline layout ruled lines rendered:');
+                console.log('  elementId:', element.id);
+                console.log('  linesCount:', ruledLinesRenderedCount);
+                console.log('  questionLineCount:', questionLineCount);
+                console.log('  canFitOnSameLine:', canFitOnSameLine);
               } else {
                 // Only one type of text - generate simple lines
                 const activeFontSize = answerText ? aFontSize : (questionStyle.fontSize || 45);
@@ -2011,9 +2146,15 @@ export function PDFRenderer({
                     layer.add(line);
                   }
                   lineY += aLineHeight;
+                  ruledLinesRenderedCount++;
                 }
               }
             }
+            
+            // Debug: Log total ruled lines count
+            console.log('[DEBUG PDFRenderer] Total ruled lines rendered (first path):');
+            console.log('  elementId:', element.id);
+            console.log('  totalLinesCount:', ruledLinesRenderedCount);
           }
         }
         // Render QnA elements (standard QnA textbox - textbox-qna.tsx logic)
@@ -2121,25 +2262,25 @@ export function PDFRenderer({
           const sanitizedAnswer = answerText || '';
           const answerContent = sanitizedAnswer || 'Antwort hinzufügen...';
           
-          // Helper functions from textbox-qna.tsx
+          // Use shared functions with feature flag fallback
           const LINE_HEIGHT: Record<string, number> = {
             small: 1,
             medium: 1.2,
             large: 1.5
           };
           
-          function buildFont(style: typeof questionStyle) {
+          const buildFont = FEATURE_FLAGS.USE_SHARED_TEXT_LAYOUT ? sharedBuildFont : (style: RichTextStyle) => {
             const weight = style.fontBold ? 'bold ' : '';
             const italic = style.fontItalic ? 'italic ' : '';
             return `${weight}${italic}${style.fontSize}px ${style.fontFamily}`;
-          }
+          };
           
-          function getLineHeight(style: typeof questionStyle) {
-            const spacing = style.paragraphSpacing || 'medium';
+          const getLineHeight = FEATURE_FLAGS.USE_SHARED_TEXT_LAYOUT ? sharedGetLineHeight : (style: RichTextStyle) => {
+            const spacing: 'small' | 'medium' | 'large' = style.paragraphSpacing || 'medium';
             return style.fontSize * (LINE_HEIGHT[spacing] || 1.2);
-          }
+          };
           
-          function measureText(text: string, style: typeof questionStyle, ctx: CanvasRenderingContext2D | null) {
+          const measureText = FEATURE_FLAGS.USE_SHARED_TEXT_LAYOUT ? sharedMeasureText : (text: string, style: RichTextStyle, ctx: CanvasRenderingContext2D | null) => {
             if (!ctx) {
               return text.length * (style.fontSize * 0.6);
             }
@@ -2148,9 +2289,9 @@ export function PDFRenderer({
             const width = ctx.measureText(text).width;
             ctx.restore();
             return width;
-          }
+          };
           
-          function wrapText(text: string, style: typeof questionStyle, maxWidth: number, ctx: CanvasRenderingContext2D | null) {
+          const wrapText = FEATURE_FLAGS.USE_SHARED_TEXT_LAYOUT ? sharedWrapText : (text: string, style: RichTextStyle, maxWidth: number, ctx: CanvasRenderingContext2D | null) => {
             const lines: { text: string; width: number }[] = [];
             if (!text) return lines;
             const paragraphs = text.split('\n');
@@ -2178,7 +2319,7 @@ export function PDFRenderer({
               }
             });
             return lines;
-          }
+          };
           
           // Extract layout settings from element (layoutVariant already defined above)
           const questionPosition = (element as any).questionPosition || 'left';
@@ -2192,7 +2333,7 @@ export function PDFRenderer({
             : ((element as any).questionAnswerGapHorizontal ?? (element as any).questionAnswerGap ?? 0);
           
           // Helper function to calculate text X position based on alignment
-          function calculateTextX(text: string, style: typeof questionStyle, startX: number, availableWidth: number, ctx: CanvasRenderingContext2D | null): number {
+          const calculateTextX = FEATURE_FLAGS.USE_SHARED_TEXT_LAYOUT ? sharedCalculateTextX : (text: string, style: RichTextStyle, startX: number, availableWidth: number, ctx: CanvasRenderingContext2D | null): number => {
             const align = style.align || 'left';
             const textWidth = measureText(text, style, ctx);
             
@@ -2207,7 +2348,7 @@ export function PDFRenderer({
               default:
                 return startX;
             }
-          }
+          };
           
           // Create layout using createLayout logic from textbox-qna.tsx
           const canvas = document.createElement('canvas');
@@ -2700,25 +2841,85 @@ export function PDFRenderer({
           }
           
           // Render background if enabled
-          const showBackground = (element as any).backgroundEnabled && (element as any).backgroundColor;
+          // Match client-side logic: check backgroundEnabled first, then fallback to style settings
+          const showBackground = (element as any).backgroundEnabled ?? 
+            (questionStyle.background?.enabled || answerStyle.background?.enabled) ?? false;
+          
+          // Debug: Log background check
+          console.log('[DEBUG PDFRenderer] QnA Background check:');
+          console.log('  elementId:', element.id);
+          console.log('  element.backgroundEnabled:', (element as any).backgroundEnabled);
+          console.log('  questionStyle.background?.enabled:', questionStyle.background?.enabled);
+          console.log('  answerStyle.background?.enabled:', answerStyle.background?.enabled);
+          console.log('  showBackground:', showBackground);
+          
           let bgRect: Konva.Rect | null = null;
           if (showBackground) {
-            const backgroundColor = (element as any).backgroundColor || 'transparent';
-            const backgroundOpacity = (element as any).backgroundOpacity !== undefined ? (element as any).backgroundOpacity : 1;
-            const cornerRadius = (element as any).cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
-            
-            bgRect = new Konva.Rect({
-              x: elementX,
-              y: elementY,
-              width: elementWidth,
-              height: contentHeight,
-              fill: backgroundColor,
-              opacity: backgroundOpacity * elementOpacity,
-              cornerRadius: cornerRadius,
-              rotation: elementRotation,
-              listening: false,
-            });
-            layer.add(bgRect);
+            // Get backgroundColor from element, questionStyle, or answerStyle
+            const backgroundColor = (element as any).backgroundColor || 
+              questionStyle.background?.backgroundColor || 
+              answerStyle.background?.backgroundColor || 
+              'transparent';
+            // Don't render if backgroundColor is transparent or empty
+            if (backgroundColor !== 'transparent' && backgroundColor) {
+              const backgroundOpacity = (element as any).backgroundOpacity !== undefined 
+                ? (element as any).backgroundOpacity 
+                : questionStyle.backgroundOpacity ?? answerStyle.backgroundOpacity ?? 1;
+              const cornerRadius = (element as any).cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
+              
+              bgRect = new Konva.Rect({
+                x: elementX,
+                y: elementY,
+                width: elementWidth,
+                height: contentHeight,
+                fill: backgroundColor,
+                opacity: backgroundOpacity * elementOpacity,
+                cornerRadius: cornerRadius,
+                rotation: elementRotation,
+                listening: false,
+              });
+              
+              // Add background and position it after page background, but before other elements
+              layer.add(bgRect);
+              
+              // Find all page background nodes (full canvas size at 0,0) and move bgRect after them
+              const stage = layer.getStage();
+              const stageWidth = stage ? stage.width() : width;
+              const stageHeight = stage ? stage.height() : height;
+              
+              let lastPageBgIndex = -1;
+              layer.getChildren().forEach((node, idx) => {
+                if (node === bgRect) return; // Skip self
+                if (node.getClassName() !== 'Rect' && node.getClassName() !== 'Image') return;
+                const nodeX = node.x ? node.x() : 0;
+                const nodeY = node.y ? node.y() : 0;
+                const nodeWidth = node.width ? node.width() : 0;
+                const nodeHeight = node.height ? node.height() : 0;
+                if (nodeX === 0 && nodeY === 0 && nodeWidth === stageWidth && nodeHeight === stageHeight) {
+                  lastPageBgIndex = Math.max(lastPageBgIndex, idx);
+                }
+              });
+              
+              // Move bgRect to position right after last page background node
+              if (lastPageBgIndex !== -1) {
+                const bgRectIndex = layer.getChildren().indexOf(bgRect);
+                if (bgRectIndex !== -1 && bgRectIndex !== lastPageBgIndex + 1) {
+                  layer.getChildren().splice(bgRectIndex, 1);
+                  layer.getChildren().splice(lastPageBgIndex + 1, 0, bgRect);
+                }
+              }
+              
+              // Debug: Log background rendering - Log values directly
+              console.log('[DEBUG PDFRenderer] QnA Background rendered:');
+              console.log('  elementId:', element.id);
+              console.log('  backgroundColor:', backgroundColor);
+              console.log('  backgroundOpacity:', backgroundOpacity);
+              console.log('  elementOpacity:', elementOpacity);
+              console.log('  finalOpacity:', backgroundOpacity * elementOpacity);
+              console.log('  showBackground:', showBackground);
+              console.log('  bgRectIndex:', layer.getChildren().indexOf(bgRect));
+              console.log('  lastPageBgIndex:', lastPageBgIndex);
+            }
           }
           
           // Collect all ruled lines nodes (block and inline) for z-index management
@@ -2744,17 +2945,15 @@ export function PDFRenderer({
           const ruledLines = (element as any).ruledLines ?? false;
           const ruledLinesNodes: Array<Konva.Path | Konva.Line> = [];
           
-          // Debug logging for ruled lines
-          console.log('[PDFRenderer] Ruled lines check:', {
-            id: element.id,
-            ruledLines: ruledLines,
-            layoutVariant: layoutVariant,
-            hasLinePositions: !!linePositions,
-            linePositionsCount: linePositions ? linePositions.length : 0,
-            linePositions: linePositions,
-            elementHeight: elementHeight,
-            elementWidth: elementWidth
-          });
+          // Debug logging for ruled lines - Log values directly
+          console.log('[DEBUG PDFRenderer] Ruled lines check:');
+          console.log('  elementId:', element.id);
+          console.log('  ruledLines:', ruledLines);
+          console.log('  layoutVariant:', layoutVariant);
+          console.log('  hasLinePositions:', !!linePositions);
+          console.log('  linePositionsCount:', linePositions ? linePositions.length : 0);
+          console.log('  elementHeight:', elementHeight);
+          console.log('  elementWidth:', elementWidth);
           
           if (ruledLines && linePositions && linePositions.length > 0 && layoutVariant !== 'block') {
             const ruledLinesWidth = (element as any).ruledLinesWidth ?? 0.8;
@@ -3183,6 +3382,22 @@ export function PDFRenderer({
             
             const pathData = themeRenderer.generatePath(shapeElement);
             
+            // Debug: Log circle dimensions - ALWAYS log for circles, regardless of theme
+            if (element.type === 'circle') {
+              const circleRadius = Math.min(elementWidth, elementHeight) / 2;
+              console.log('[DEBUG PDFRenderer] Circle rendered:');
+              console.log('  elementId:', element.id);
+              console.log('  elementWidth:', elementWidth);
+              console.log('  elementHeight:', elementHeight);
+              console.log('  radius:', circleRadius, '(calculated: Math.min(' + elementWidth + ', ' + elementHeight + ') / 2 = ' + circleRadius + ')');
+              console.log('  centerX:', elementX + elementWidth / 2);
+              console.log('  centerY:', elementY + elementHeight / 2);
+              console.log('  strokeWidth:', strokeWidth);
+              console.log('  useTheme:', useTheme);
+              console.log('  theme:', theme);
+              console.log('  hasPathData:', !!pathData);
+            }
+            
             if (pathData) {
               const shapePath = new Konva.Path({
                 data: pathData,
@@ -3203,10 +3418,11 @@ export function PDFRenderer({
               // Fallback to regular shape
               let shapeNode;
               if (element.type === 'circle') {
+                const circleRadius = Math.min(elementWidth, elementHeight) / 2;
                 shapeNode = new Konva.Circle({
                   x: elementX + elementWidth / 2,
                   y: elementY + elementHeight / 2,
-                  radius: Math.min(elementWidth, elementHeight) / 2,
+                  radius: circleRadius,
                   fill: fill !== 'transparent' ? fill : undefined,
                   stroke: strokeWidth > 0 ? stroke : undefined,
                   strokeWidth: strokeWidth,
@@ -3244,10 +3460,23 @@ export function PDFRenderer({
             // Default rendering without theme
             let shapeNode;
             if (element.type === 'circle') {
+              const circleRadius = Math.min(elementWidth, elementHeight) / 2;
+              
+              // Debug: Log circle dimensions - ALWAYS log for circles
+              console.log('[DEBUG PDFRenderer] Circle rendered (no theme):');
+              console.log('  elementId:', element.id);
+              console.log('  elementWidth:', elementWidth);
+              console.log('  elementHeight:', elementHeight);
+              console.log('  radius:', circleRadius, '(calculated: Math.min(' + elementWidth + ', ' + elementHeight + ') / 2 = ' + circleRadius + ')');
+              console.log('  centerX:', elementX + elementWidth / 2);
+              console.log('  centerY:', elementY + elementHeight / 2);
+              console.log('  strokeWidth:', strokeWidth);
+              console.log('  useTheme: false');
+              
               shapeNode = new Konva.Circle({
                 x: elementX + elementWidth / 2,
                 y: elementY + elementHeight / 2,
-                radius: Math.min(elementWidth, elementHeight) / 2,
+                radius: circleRadius,
                 fill: fill !== 'transparent' ? fill : undefined,
                 stroke: strokeWidth > 0 ? stroke : undefined,
                 strokeWidth: strokeWidth,

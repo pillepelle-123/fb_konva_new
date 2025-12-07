@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { EditorContext } from '../../../../context/editor-context';
 import type { PageTemplate } from '../../../../types/template-types';
-import themesData from '../../../../data/templates/themes.json';
+import themesData from '../../../../data/templates/themes';
 import { mirrorTemplate } from '../../../../utils/layout-mirroring';
 import type { BookOrientation, BookPageSize } from '../../../../constants/book-formats';
 import { convertTemplateToElements } from '../../../../utils/template-to-elements';

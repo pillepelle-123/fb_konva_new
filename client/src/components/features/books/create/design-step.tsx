@@ -12,7 +12,7 @@ import type { WizardState } from './types';
 
 import { colorPalettes } from '../../../../data/templates/color-palettes';
 import { pageTemplates as builtinPageTemplates } from '../../../../data/templates/page-templates';
-import themesData from '../../../../data/templates/themes.json';
+import themesData from '../../../../data/templates/themes';
 import { getThemePaletteId } from '../../../../utils/global-themes';
 
 type CategoryFilter = 'all' | 'structured' | 'playful' | 'creative' | 'minimal';

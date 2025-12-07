@@ -56,9 +56,21 @@ function AppContent() {
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
     const baseUrl = apiUrl.replace('/api', '')
     fetch(baseUrl)
-      .then(res => res.json())
-      .then(data => setServerMessage(data.message))
-      .catch(err => console.error('Error connecting to server:', err))
+      .then(res => {
+        // Check if response is JSON before parsing
+        const contentType = res.headers.get('content-type')
+        if (contentType && contentType.includes('application/json')) {
+          return res.json()
+        } else {
+          // If not JSON, return a default message
+          return { message: 'Server is running' }
+        }
+      })
+      .then(data => setServerMessage(data.message || 'Server is running'))
+      .catch(err => {
+        console.error('Error connecting to server:', err)
+        setServerMessage('Unable to connect to server')
+      })
   }, [])
 
   return (

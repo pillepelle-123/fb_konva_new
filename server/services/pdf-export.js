@@ -500,10 +500,26 @@ async function renderPageWithKonva(page, pageData, bookData, canvasWidth, canvas
       
       window.initKonvaCalled = true;
       
+      // Debug: Test log to verify console.log works
+      console.log('[DEBUG] 🔍 TEST LOG - initKonva called, about to start rendering');
+      console.log('[DEBUG] Available functions:', {
+        hasRenderPageWithKonva: typeof renderPageWithKonva !== 'undefined',
+        hasKonva: typeof Konva !== 'undefined',
+        hasRough: typeof rough !== 'undefined'
+      });
+      
       // Use IIFE to avoid variable conflicts, but keep stage in global scope
       (async function() {
         const pageData = ${JSON.stringify(pageData)};
         const bookData = ${JSON.stringify(bookData)};
+        
+        // Debug: Log page data
+        console.log('[DEBUG] 📄 Page data loaded:', {
+          pageNumber: pageData.pageNumber,
+          elementsCount: pageData.elements?.length || 0,
+          hasBackground: !!pageData.background,
+          theme: pageData.theme || bookData.theme || 'default'
+        });
         
         // Embed theme data (available from shared modules)
         const COLOR_PALETTES = ${JSON.stringify(colorPalettesJson.palettes)};
@@ -531,6 +547,15 @@ async function renderPageWithKonva(page, pageData, bookData, canvasWidth, canvas
         // Use shared rendering function
         try {
           const roughInstance = typeof rough !== 'undefined' ? rough : null;
+          
+          // Debug: Log before calling renderPageWithKonva
+          console.log('[DEBUG] ⚠️ ABOUT TO CALL renderPageWithKonva:', {
+            hasRoughInstance: !!roughInstance,
+            roughType: typeof roughInstance,
+            elementsCount: pageData.elements?.length || 0,
+            pageTheme: pageData.theme || bookData.theme || 'default'
+          });
+          
           const result = await renderPageWithKonva(
             pageData,
             bookData,
@@ -542,8 +567,31 @@ async function renderPageWithKonva(page, pageData, bookData, canvasWidth, canvas
             { rough: roughInstance }
           );
           
+          // Debug: Log after calling renderPageWithKonva
+          console.log('[DEBUG] ✅ renderPageWithKonva completed:', {
+            hasLayer: !!result.layer,
+            hasImagePromises: !!result.imagePromises,
+            imagePromisesCount: result.imagePromises?.length || 0
+          });
+          
+          // Debug: Log before adding layer to stage
+          console.log('[DEBUG] ⚠️ ADDING LAYER TO STAGE:', {
+            pageNumber: pageData.pageNumber,
+            hasLayer: !!result.layer,
+            layerChildrenCount: result.layer?.getChildren().length || 0,
+            stageLayersBefore: window.stage.getLayers().length
+          });
+          
           // Add layer to stage
           window.stage.add(result.layer);
+          
+          // Debug: Log after adding layer to stage
+          console.log('[DEBUG] ✅ LAYER ADDED TO STAGE:', {
+            pageNumber: pageData.pageNumber,
+            stageLayersAfter: window.stage.getLayers().length,
+            layerChildrenCount: result.layer?.getChildren().length || 0,
+            stageChildrenCount: window.stage.getLayers().reduce((sum, l) => sum + l.getChildren().length, 0)
+          });
           
           // Wait for all images to load
           const allImagePromises = result.imagePromises || [];

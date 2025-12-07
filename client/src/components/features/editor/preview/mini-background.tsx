@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import themesData from '../../../../data/templates/themes.json';
+import themesData from '../../../../data/templates/themes';
 import { colorPalettes, getPalettePartColor } from '../../../../data/templates/color-palettes';
 import { resolveBackgroundImageUrl } from '../../../../utils/background-image-utils';
 

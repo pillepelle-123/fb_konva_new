@@ -10,6 +10,7 @@ import {
 } from '../../../../data/templates/background-images';
 import type { BackgroundImageCategory, BackgroundImageWithUrl } from '../../../../types/template-types';
 import { useEditor } from '../../../../context/editor-context';
+import { ImageGrid, type ImageGridItem } from '../../../shared/image-grid';
 
 interface BackgroundImageSelectorProps {
   onBack: () => void;
@@ -146,53 +147,19 @@ export function BackgroundImageSelector({ onBack, onUpload, selectedImageId, onI
       <Separator />
 
       {/* Image Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 overflow-y-auto">
-        {filteredImages.map((image) => (
-          <button
-            key={image.id}
-            onClick={() => handleImageSelect(image)}
-            className={`p-3 border-2 rounded-lg transition-colors text-left space-y-2 h-full ${
-              selectedImage === image.id
-                ? 'border-blue-500 bg-blue-50'
-                : currentBackgroundImageId === image.id
-                ? 'border-green-500 bg-green-50'
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
-          >
-            <div className="aspect-square bg-gray-100 rounded-md flex items-center justify-center overflow-hidden">
-              {image.format === 'vector' ? (
-                <img 
-                  src={image.thumbnailUrl} 
-                  alt={image.name}
-                  className="w-full h-full object-contain"
-                />
-              ) : (
-                <img 
-                  src={image.thumbnailUrl} 
-                  alt={image.name}
-                  className="w-full h-full object-cover"
-                />
-              )}
-            </div>
-            <div className="text-xs font-medium leading-snug text-foreground whitespace-normal break-words">
-              {image.name}
-            </div>
-            <div className="text-[11px] text-gray-500 capitalize whitespace-normal break-words">
-              {image.category}
-            </div>
-            {currentBackgroundImageId === image.id && (
-              <div className="text-xs text-green-600 mt-1">Active</div>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {filteredImages.length === 0 && (
-        <div className="text-center py-8 text-gray-500">
-          <ImageIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
-          <p>No images found</p>
-        </div>
-      )}
+      <ImageGrid
+        items={filteredImages.map((image): ImageGridItem => ({
+          id: image.id,
+          thumbnailUrl: image.thumbnailUrl,
+          name: image.name,
+          category: image.category,
+          format: image.format,
+        }))}
+        selectedItemId={selectedImage}
+        activeItemId={currentBackgroundImageId}
+        onItemSelect={handleImageSelect}
+        emptyStateMessage="No images found"
+      />
 
       {/* Preview & Settings */}
       {selectedImageData && (

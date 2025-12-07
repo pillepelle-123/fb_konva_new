@@ -12,7 +12,15 @@ function loadColorPalettes() {
   if (COLOR_PALETTES) return COLOR_PALETTES;
   
   try {
-    // Try to load from client directory (for server-side)
+    // Try to load from shared directory first (preferred)
+    const sharedPath = path.join(__dirname, '../../data/templates/color-palettes.json');
+    if (fs.existsSync(sharedPath)) {
+      const data = JSON.parse(fs.readFileSync(sharedPath, 'utf-8'));
+      COLOR_PALETTES = data.palettes || [];
+      return COLOR_PALETTES;
+    }
+    
+    // Fallback to client directory (for backward compatibility)
     const clientPath = path.join(__dirname, '../../../client/src/data/templates/color-palettes.json');
     if (fs.existsSync(clientPath)) {
       const data = JSON.parse(fs.readFileSync(clientPath, 'utf-8'));

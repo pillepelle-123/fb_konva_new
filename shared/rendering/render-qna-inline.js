@@ -4,6 +4,7 @@
 
 const { renderRuledLines } = require('./render-ruled-lines');
 const { getGlobalThemeDefaults, deepMerge, getThemeRenderer } = require('./utils/theme-utils');
+const { getLineHeight } = require('../utils/text-layout.server');
 
 /**
  * Extract plain text from HTML
@@ -140,6 +141,18 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
   const Konva = konvaInstance;
   const rough = roughInstance;
   
+  // Debug: Log QnA Inline rendering start
+  console.log('[DEBUG renderQnAInline] ⚠️ STARTING QnA INLINE RENDERING:', {
+    elementId: element.id,
+    pageNumber: pageData.pageNumber,
+    questionText: element.questionText || element.questionId,
+    answerText: element.text || element.answerText,
+    x: x,
+    y: y,
+    width: width,
+    height: height
+  });
+  
   // Find question text
   let questionText = '';
   if (element.questionId) {
@@ -249,6 +262,15 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
   // Ruled lines are now only on element level
   const ruledLinesEnabled = element.ruledLines === true;
   
+  // Debug: Log ruled lines information - ALWAYS log
+  console.log('[DEBUG renderQnAInline] ⚠️ RULED LINES CHECK:', {
+    elementId: element.id,
+    ruledLines: element.ruledLines,
+    ruledLinesEnabled: ruledLinesEnabled,
+    ruledLinesType: typeof element.ruledLines,
+    willRenderRuledLines: ruledLinesEnabled === true
+  });
+  
   const layoutVariant = element.layoutVariant || 'inline';
   // Priority: element.padding > questionSettings/answerSettings > default
   const padding = element.padding || questionSettings.padding || answerSettings.padding || 4;
@@ -261,6 +283,17 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
   // Fallback to questionSettings/answerSettings for backward compatibility with old data
   const showBackground = element.backgroundEnabled ?? (questionSettings.background?.enabled || answerSettings.background?.enabled) ?? false;
   
+  // Debug: Log background information - ALWAYS log
+  console.log('[DEBUG renderQnAInline] ⚠️ BACKGROUND CHECK:', {
+    elementId: element.id,
+    backgroundEnabled: element.backgroundEnabled,
+    questionBackgroundEnabled: questionSettings.background?.enabled,
+    answerBackgroundEnabled: answerSettings.background?.enabled,
+    showBackground: showBackground,
+    willRenderBackground: showBackground === true,
+    backgroundColor: element.backgroundColor || questionSettings.backgroundColor || answerSettings.backgroundColor,
+    backgroundColorSource: element.backgroundColor ? 'element' : (questionSettings.backgroundColor ? 'question' : (answerSettings.backgroundColor ? 'answer' : 'none'))
+  });
   
   // Render background if showBackground is true (match client-side logic)
   // Client-side renders background even if backgroundColor is 'transparent' (as long as showBackground is true)
@@ -657,28 +690,37 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
   const qParagraphSpacing = element.paragraphSpacing || questionSettings.paragraphSpacing || 'small';
   const aParagraphSpacing = element.paragraphSpacing || answerSettings.paragraphSpacing || 'medium';
   
-  // Get line height multiplier function
-  function getLineHeightMultiplier(spacing) {
-    switch (spacing) {
-      case 'small': return 1.0;
-      case 'medium': return 1.2;
-      case 'large': return 1.5;
-      default: return 1.0;
-    }
-  }
+  // Use shared getLineHeight function instead of local getLineHeightMultiplier
+  // Convert settings to RichTextStyle format for shared function
+  const questionStyle = {
+    fontSize: qFontSize,
+    fontFamily: questionSettings.fontFamily || 'Arial, sans-serif',
+    fontBold: questionSettings.fontBold || false,
+    fontItalic: questionSettings.fontItalic || false,
+    paragraphSpacing: qParagraphSpacing
+  };
+  const answerStyle = {
+    fontSize: aFontSize,
+    fontFamily: answerSettings.fontFamily || 'Arial, sans-serif',
+    fontBold: answerSettings.fontBold || false,
+    fontItalic: answerSettings.fontItalic || false,
+    paragraphSpacing: aParagraphSpacing
+  };
   
   // Calculate baseline alignment for question and answer text (for inline layout)
   const maxFontSize = Math.max(qFontSize, aFontSize);
   const effectivePadding = layoutVariant === 'inline' ? padding + (maxFontSize * 0.2) : padding;
+  const qLineHeightValue = getLineHeight(questionStyle);
+  const aLineHeightValue = getLineHeight(answerStyle);
   const combinedLineHeight = layoutVariant === 'inline' ? 
-    maxFontSize * Math.max(getLineHeightMultiplier(qParagraphSpacing), getLineHeightMultiplier(aParagraphSpacing)) :
-    qFontSize * getLineHeightMultiplier(qParagraphSpacing);
-  const qLineHeight = layoutVariant === 'inline' ? combinedLineHeight : qFontSize * getLineHeightMultiplier(qParagraphSpacing);
-  const aLineHeight = aFontSize * getLineHeightMultiplier(aParagraphSpacing);
+    Math.max(qLineHeightValue, aLineHeightValue) :
+    qLineHeightValue;
+  const qLineHeight = layoutVariant === 'inline' ? combinedLineHeight : qLineHeightValue;
+  const aLineHeight = aLineHeightValue;
   
   // Text baseline offset calculation (matches client-side exactly)
   const maxFontSizeUsed = Math.max(qFontSize, aFontSize);
-  const maxLineHeightMultiplier = Math.max(getLineHeightMultiplier(qParagraphSpacing), getLineHeightMultiplier(aParagraphSpacing));
+  const maxLineHeightMultiplier = Math.max(qLineHeightValue / qFontSize, aLineHeightValue / aFontSize);
   const factor = aFontSize >= 50 ? aFontSize >= 96 ? aFontSize >= 145 ? -0.07 : 0.01 : 0.07 : 0.1;
   const textBaselineOffset = -(maxFontSizeUsed * maxLineHeightMultiplier * 0.15) + (maxFontSizeUsed * factor);
   
@@ -1288,6 +1330,15 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
   
   // Render ruled lines if enabled
   if (ruledLinesEnabled) {
+    // Debug: Log before rendering ruled lines
+    console.log('[DEBUG renderQnAInline] ⚠️ STARTING RULED LINES RENDERING:', {
+      elementId: element.id,
+      ruledLinesEnabled: ruledLinesEnabled,
+      layoutVariant: layoutVariant,
+      hasRoughInstance: !!roughInstance,
+      roughInstanceType: typeof roughInstance
+    });
+    
     // Use global function if available (browser context), otherwise fallback to local require (Node.js context)
     const renderRuledLinesFunc = (typeof window !== 'undefined' && window.renderRuledLines) ? window.renderRuledLines : renderRuledLines;
     const ruledLinesCount = renderRuledLinesFunc(
@@ -1307,7 +1358,32 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
       roughInstance
     );
     nodesAdded += ruledLinesCount;
+    
+    // Debug: Log after rendering ruled lines
+    console.log('[DEBUG renderQnAInline] ✅ RULED LINES RENDERED:', {
+      elementId: element.id,
+      ruledLinesCount: ruledLinesCount,
+      success: ruledLinesCount > 0
+    });
+  } else {
+    // Debug: Log why ruled lines are not rendered
+    console.log('[DEBUG renderQnAInline] ❌ RULED LINES NOT RENDERED (disabled):', {
+      elementId: element.id,
+      ruledLinesEnabled: ruledLinesEnabled,
+      ruledLines: element.ruledLines,
+      reason: ruledLinesEnabled === false ? 'ruledLinesEnabled is false' : 'ruledLines property is not true'
+    });
   }
+  
+  // Debug: Log QnA Inline rendering complete
+  console.log('[DEBUG renderQnAInline] ✅ QnA INLINE RENDERING COMPLETE:', {
+    elementId: element.id,
+    pageNumber: pageData.pageNumber,
+    nodesAdded: nodesAdded,
+    layerChildrenCount: layer.getChildren().length,
+    hasRuns: layout && layout.runs && layout.runs.length > 0,
+    runsCount: layout?.runs?.length || 0
+  });
   
   return nodesAdded;
 }

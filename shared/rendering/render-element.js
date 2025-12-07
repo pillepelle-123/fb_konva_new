@@ -289,6 +289,31 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
     const elementTheme = element.theme || pageData.theme || bookData.theme || 'default';
     const useRough = elementTheme === 'rough' && roughInstance;
     
+    // Debug: Log rough theme information - ALWAYS log for rect
+    console.log('[DEBUG renderElement] Rendering rect:', {
+      elementId: element.id,
+      elementType: 'rect',
+      elementTheme: elementTheme,
+      hasRoughInstance: !!roughInstance,
+      useRough: useRough,
+      roughInstanceType: typeof roughInstance,
+      roughInstanceExists: roughInstance !== null && roughInstance !== undefined,
+      roughSvgMethod: roughInstance && typeof roughInstance.svg === 'function' ? 'exists' : 'missing'
+    });
+    
+    if (elementTheme === 'rough') {
+      console.log('[DEBUG renderElement] ⚠️ ROUGH THEME DETECTED FOR RECT:', {
+        elementId: element.id,
+        willUseRough: useRough,
+        hasRoughInstance: !!roughInstance
+      });
+    } else {
+      console.log('[DEBUG renderElement] Using default theme for rect:', {
+        elementId: element.id,
+        theme: elementTheme
+      });
+    }
+    
     if (useRough) {
       try {
         const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
@@ -374,6 +399,36 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
     // Check if rough theme should be applied
     const elementTheme = element.theme || pageData.theme || bookData.theme || 'default';
     const useRough = elementTheme === 'rough' && roughInstance;
+    
+    // Debug: Log circle dimensions and rendering info - ALWAYS log for circle
+    // Log values directly (not as object) to avoid JSHandle serialization issues
+    console.log('[DEBUG renderElement] Rendering circle:');
+    console.log('  elementId:', element.id);
+    console.log('  elementWidth:', element.width);
+    console.log('  elementHeight:', element.height);
+    console.log('  width:', width);
+    console.log('  height:', height);
+    console.log('  radius:', radius, '(calculated: Math.min(' + width + ', ' + height + ') / 2 = ' + radius + ')');
+    console.log('  x:', x);
+    console.log('  y:', y);
+    console.log('  centerX:', x + width / 2);
+    console.log('  centerY:', y + height / 2);
+    console.log('  strokeWidth:', strokeWidth);
+    console.log('  elementTheme:', elementTheme);
+    console.log('  useRough:', useRough);
+    
+    if (elementTheme === 'rough') {
+      console.log('[DEBUG renderElement] ⚠️ ROUGH THEME DETECTED FOR CIRCLE:', {
+        elementId: element.id,
+        willUseRough: useRough,
+        hasRoughInstance: !!roughInstance
+      });
+    } else {
+      console.log('[DEBUG renderElement] Using default theme for circle:', {
+        elementId: element.id,
+        theme: elementTheme
+      });
+    }
     
     if (useRough) {
       try {

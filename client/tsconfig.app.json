@@ -25,5 +25,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src", "../.pillepelle/backups/fb_konva_new/client/src_components_features_books/page-user-sheet.tsx"]
+  "include": ["src", "../shared/types", "../shared/utils", "../.pillepelle/backups/fb_konva_new/client/src_components_features_books/page-user-sheet.tsx"]
 }
