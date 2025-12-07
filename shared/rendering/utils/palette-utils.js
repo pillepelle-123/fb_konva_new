@@ -128,11 +128,35 @@ function getPalette(paletteId) {
   return palettes.find(p => p.id === paletteId);
 }
 
+/**
+ * Resolve image URL through proxy if it's an S3 URL and token is available
+ * This helps avoid CORS issues when loading images from S3 into Konva canvas
+ * @param {string} imageUrl - Original image URL
+ * @param {string|null} token - Authentication token (optional)
+ * @param {string} apiUrl - API base URL (optional, defaults to /api)
+ * @returns {string} Resolved image URL (proxy URL if S3, original URL otherwise)
+ */
+function resolveImageUrlThroughProxy(imageUrl, token = null, apiUrl = '/api') {
+  if (!imageUrl) return imageUrl;
+  
+  // Check if this is an S3 URL that might have CORS issues
+  const isS3Url = imageUrl.includes('s3.amazonaws.com') || imageUrl.includes('s3.us-east-1.amazonaws.com');
+  
+  // For S3 URLs, use the proxy endpoint to avoid CORS issues
+  if (isS3Url && token) {
+    return `${apiUrl}/images/proxy?url=${encodeURIComponent(imageUrl)}&token=${encodeURIComponent(token)}`;
+  }
+  
+  // Return original URL if not S3 or no token available
+  return imageUrl;
+}
+
 module.exports = {
   getPalettePartColor,
   resolveBackgroundImageUrl,
   getPalette,
-  loadColorPalettes
+  loadColorPalettes,
+  resolveImageUrlThroughProxy
 };
 
 

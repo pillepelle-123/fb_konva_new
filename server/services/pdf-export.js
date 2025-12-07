@@ -266,7 +266,7 @@ function writeSharedRenderingModulesToFiles(themesData, colorPalettes) {
   browserPaletteUtils = browserPaletteUtils.replace(/const\s+palettes\s*=\s*loadColorPalettes\(\);?\s*/g, 'const palettes = COLOR_PALETTES;');
   
   browserPaletteUtils = removeModuleExports(browserPaletteUtils);
-  browserPaletteUtils += '\n// Make functions globally available\nwindow.getPalettePartColor = getPalettePartColor;\nwindow.resolveBackgroundImageUrl = resolveBackgroundImageUrl;\nwindow.getPalette = getPalette;';
+  browserPaletteUtils += '\n// Make functions globally available\nwindow.getPalettePartColor = getPalettePartColor;\nwindow.resolveBackgroundImageUrl = resolveBackgroundImageUrl;\nwindow.getPalette = getPalette;\nwindow.resolveImageUrlThroughProxy = resolveImageUrlThroughProxy;';
   const paletteUtilsFile = path.join(tempDir, 'palette-utils.js');
   fs.writeFileSync(paletteUtilsFile, browserPaletteUtils);
   moduleFiles.push(paletteUtilsFile);

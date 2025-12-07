@@ -34,6 +34,11 @@ A full-stack web application with React frontend and Node.js/Express backend for
 - **Password Hashing** (bcryptjs)
 - **File Upload** (multer)
 - **CORS** middleware
+- **Puppeteer** (PDF generation from HTML/Canvas)
+
+### Shared Code
+- **TypeScript/JavaScript** - Platform-independent utilities
+- **Shared Rendering Logic** - Consistent rendering between client and server
 
 ## Getting Started
 
@@ -90,11 +95,40 @@ fb_konva_new/
 ├── server/                 # Express backend
 │   ├── routes/             # API routes
 │   ├── middleware/         # Express middleware
+│   ├── services/           # Business logic (PDF export, etc.)
 │   ├── uploads/            # File upload directory
 │   └── package.json
+├── shared/                 # Platform-independent shared code
+│   ├── data/               # Shared data (themes, palettes)
+│   ├── types/              # TypeScript type definitions
+│   ├── utils/              # Shared utilities (text-layout, qna-layout)
+│   └── rendering/          # Shared rendering logic (server-side PDF export)
+├── docs/                   # Documentation
+│   ├── architecture/       # Architecture documentation
+│   ├── migration/          # Migration documentation
+│   └── testing/            # Testing documentation
 ├── package.json            # Root package.json with scripts
 └── README.md
 ```
+
+## Architecture
+
+### Shared Utilities
+
+Die Anwendung verwendet plattformunabhängige shared Utilities für konsistentes Rendering zwischen Client und Server:
+
+- **Text Layout:** `shared/utils/text-layout.ts` - Text-Layout-Berechnungen
+- **QnA Layout:** `shared/utils/qna-layout.ts` - QnA-Layout-Berechnungen
+- **Themes & Palettes:** `shared/data/templates/` - Zentralisierte Theme- und Palette-Definitionen
+- **Rendering Logic:** `shared/rendering/` - Server-seitiges PDF-Rendering
+
+**Weitere Informationen:** Siehe `docs/architecture/shared-utilities.md`
+
+## Documentation
+
+- **Architecture:** `docs/architecture/shared-utilities.md` - Shared Utilities Architecture
+- **Migration:** `docs/migration/` - Migration documentation and status
+- **Testing:** `docs/testing/` - Testing documentation and guides
 
 ## API Endpoints
 

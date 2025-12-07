@@ -5,6 +5,7 @@ import { useEditor } from '../../context/editor-context.tsx';
 import type { Page, Book, CanvasElement } from '../../context/editor-context.tsx';
 import CanvasItemComponent from '../features/editor/canvas-items/index.tsx';
 import { resolveBackgroundImageUrl } from '../../utils/background-image-utils.ts';
+import { useAuth } from './pdf-export-auth-provider';
 import { getPalettePartColor } from '../../data/templates/color-palettes.ts';
 import { colorPalettes } from '../../data/templates/color-palettes.ts';
 import { PATTERNS } from '../../utils/patterns.ts';
@@ -99,6 +100,8 @@ export function PDFRenderer({
 }: PDFRendererProps) {
   // Access editor context - this should work with PDFExportEditorProvider
   const { state } = useEditor();
+  // Access auth context to get token for proxy requests
+  const { token } = useAuth();
   
   const stageRef = useRef<Konva.Stage>(null);
   const [backgroundImage, setBackgroundImage] = useState<HTMLImageElement | null>(null);
@@ -126,14 +129,34 @@ export function PDFRenderer({
   const palettePatternFill =
     getPalettePartColor(normalizedPalette, 'pagePatternBackground', 'background', 'transparent') || 'transparent';
 
+  // Helper function to resolve image URL through proxy if it's an S3 URL
+  const resolveImageUrlWithProxy = useCallback((imageUrl: string | undefined): string | undefined => {
+    if (!imageUrl) return imageUrl;
+    
+    // Check if this is an S3 URL that might have CORS issues
+    const isS3Url = imageUrl.includes('s3.amazonaws.com') || imageUrl.includes('s3.us-east-1.amazonaws.com');
+    
+    // For S3 URLs, use the proxy endpoint to avoid CORS issues
+    if (isS3Url && token) {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      return `${apiUrl}/images/proxy?url=${encodeURIComponent(imageUrl)}&token=${encodeURIComponent(token)}`;
+    }
+    
+    // Return original URL if not S3 or no token available
+    return imageUrl;
+  }, [token]);
+
   // Load background image if needed
   useEffect(() => {
     const background = page.background;
     if (background?.type === 'image') {
-      const imageUrl = resolveBackgroundImageUrl(background, {
+      let imageUrl = resolveBackgroundImageUrl(background, {
         paletteId: pagePaletteId || undefined,
         paletteColors: palette?.colors,
       });
+
+      // Resolve S3 URLs through proxy if token is available
+      imageUrl = resolveImageUrlWithProxy(imageUrl);
 
       if (imageUrl) {
         const img = new Image();
@@ -153,7 +176,7 @@ export function PDFRenderer({
     } else {
       setBackgroundImage(null);
     }
-  }, [page.background, pagePaletteId, palette]);
+  }, [page.background, pagePaletteId, palette, resolveImageUrlWithProxy]);
 
   // Load pattern tile if needed
   useEffect(() => {

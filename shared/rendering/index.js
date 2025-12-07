@@ -21,6 +21,11 @@ const { loadColorPalettes } = require('./utils/palette-utils');
  * @returns {Promise<Object>} Promise that resolves with { layer, imagePromises }
  */
 async function renderPageWithKonva(pageData, bookData, canvasWidth, canvasHeight, konvaInstance, document, Image, options = {}) {
+  // Extract token and apiUrl from options for background rendering
+  const backgroundOptions = {
+    token: options.token || null,
+    apiUrl: options.apiUrl || '/api'
+  };
   const Konva = konvaInstance;
   const roughInstance = options.rough;
   
@@ -56,7 +61,8 @@ async function renderPageWithKonva(pageData, bookData, canvasWidth, canvasHeight
     document,
     Image,
     null, // callback
-    imagePromises // Pass imagePromises to track background image loading
+    imagePromises, // Pass imagePromises to track background image loading
+    backgroundOptions // Pass options with token and apiUrl for proxy
   );
   
   // Render all elements

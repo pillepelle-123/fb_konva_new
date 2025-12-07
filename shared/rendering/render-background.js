@@ -3,7 +3,7 @@
  */
 
 const { PATTERNS } = require('./utils/constants');
-const { resolveBackgroundImageUrl, getPalettePartColor, getPalette } = require('./utils/palette-utils');
+const { resolveBackgroundImageUrl, getPalettePartColor, getPalette, resolveImageUrlThroughProxy } = require('./utils/palette-utils');
 
 /**
  * Create pattern image tile
@@ -84,7 +84,7 @@ function createPatternImage(pattern, color, size, strokeWidth, document) {
  * @param {Function} callback - Callback function when done
  * @returns {Promise} Promise that resolves when background is rendered
  */
-function renderBackground(layer, pageData, bookData, width, height, konvaInstance, document, Image, callback, imagePromises) {
+function renderBackground(layer, pageData, bookData, width, height, konvaInstance, document, Image, callback, imagePromises, options = {}) {
   const Konva = konvaInstance;
   
   // Debug: Log background rendering start
@@ -203,13 +203,23 @@ function renderBackground(layer, pageData, bookData, width, height, konvaInstanc
         paletteColors: activePalette?.colors
       }) || background.value;
       
+      // Resolve S3 URLs through proxy if token is available
+      const token = options.token || null;
+      const apiUrl = options.apiUrl || '/api';
+      if (imageUrl) {
+        imageUrl = resolveImageUrlThroughProxy(imageUrl, token, apiUrl);
+      }
+      
       // Debug: Log image background information - ALWAYS log
       console.log('[DEBUG renderBackground] ⚠️ IMAGE BACKGROUND DETECTED:', {
         backgroundType: background.type,
         backgroundValue: background.value,
         backgroundImageTemplateId: background.backgroundImageTemplateId,
         resolvedImageUrl: imageUrl,
+        originalImageUrl: background.value,
         isS3Url: imageUrl && (imageUrl.includes('s3.amazonaws.com') || imageUrl.includes('s3.us-east-1.amazonaws.com')),
+        hasToken: !!token,
+        willUseProxy: !!token && imageUrl && (imageUrl.includes('/api/images/proxy') || (imageUrl.includes('s3.amazonaws.com') || imageUrl.includes('s3.us-east-1.amazonaws.com'))),
         willAttemptLoad: !!imageUrl
       });
       

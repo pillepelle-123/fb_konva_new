@@ -55,7 +55,7 @@ export function PDFExportAuthProvider({
     // No-op in PDF export context
   };
 
-  const value: PDFExportAuthContextType = {
+  const value: AuthContextType = {
     user,
     token,
     login,
