@@ -476,6 +476,7 @@ async function deleteBackgroundImageFileWithLookup(identifier) {
       filePath: image.storage.filePath,
       bucket: image.storage.bucket,
       objectKey: image.storage.objectKey,
+      uploadPath: 'background-images',
     })
   }
 }

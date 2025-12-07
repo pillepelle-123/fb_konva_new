@@ -260,3 +260,5 @@ export function AdminStickerEditDialog({
     </Dialog>
   )
 }
+
+

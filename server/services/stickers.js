@@ -423,6 +423,7 @@ async function deleteStickerFileWithLookup(identifier) {
       filePath: sticker.storage.filePath,
       bucket: sticker.storage.bucket,
       objectKey: sticker.storage.objectKey,
+      uploadPath: 'stickers',
     })
   }
 }
@@ -470,3 +471,5 @@ module.exports = {
   slugify,
   pool,
 }
+
+

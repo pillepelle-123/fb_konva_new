@@ -10,7 +10,8 @@ const fs = require('fs').promises;
 const path = require('path');
 const { PDFDocument } = require('pdf-lib');
 
-const PDF_PATH = path.join(__dirname, '../uploads/pdf-exports/999/999.pdf');
+const { getUploadsSubdir } = require('../utils/uploads-path');
+const PDF_PATH = path.join(getUploadsSubdir('pdf-exports'), '999', '999.pdf');
 
 async function checkPDF() {
   console.log('='.repeat(80));

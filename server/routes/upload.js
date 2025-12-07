@@ -5,10 +5,11 @@ const fs = require('fs');
 const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
+const { getUploadsDir } = require('../utils/uploads-path');
 
 // Create uploads directory if it doesn't exist
 // Use the same uploads directory as configured in server/index.js (root/uploads)
-const uploadsDir = process.env.UPLOADS_DIR || path.join(__dirname, '..', '..', 'uploads');
+const uploadsDir = getUploadsDir();
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }

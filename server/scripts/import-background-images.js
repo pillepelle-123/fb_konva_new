@@ -8,9 +8,11 @@ const dotenv = require('dotenv')
 dotenv.config()
 dotenv.config({ path: path.join(__dirname, '..', '.env') })
 
+const { getUploadsSubdir } = require('../utils/uploads-path')
+
 const DATA_PATH = path.join(__dirname, '..', '..', 'client', 'src', 'data', 'templates', 'background-images.json')
 const SOURCE_ASSET_ROOT = path.join(__dirname, '..', '..', 'client', 'src', 'assets', 'background-images')
-const DEST_ASSET_ROOT = process.env.BACKGROUND_IMAGE_STORAGE_PATH || path.join(process.cwd(), 'uploads', 'background-images')
+const DEST_ASSET_ROOT = getUploadsSubdir('background-images')
 
 function titleCase(value) {
   return value

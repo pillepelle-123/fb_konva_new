@@ -39,9 +39,8 @@ pool.connect((err, client, release) => {
 });
 
 // Static file serving
-const UPLOADS_DIR =
-  process.env.UPLOADS_DIR ||
-  path.join(__dirname, '..', 'uploads');
+const { getUploadsDir } = require('./utils/uploads-path');
+const UPLOADS_DIR = getUploadsDir();
 app.use('/uploads', express.static(UPLOADS_DIR));
 
 // PDF Renderer static assets

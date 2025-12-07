@@ -101,8 +101,8 @@ async function generatePDFFromBook(bookData, options, exportId, updateProgress) 
 
     // Save PDF to file
     const pdfBytes = await pdfDoc.save();
-    const uploadsDir = process.env.UPLOADS_DIR || path.join(__dirname, '..', 'uploads');
-    const pdfExportsDir = path.join(uploadsDir, 'pdf-exports', bookData.id.toString());
+    const { getUploadsSubdir } = require('../utils/uploads-path');
+    const pdfExportsDir = path.join(getUploadsSubdir('pdf-exports'), bookData.id.toString());
     await fs.mkdir(pdfExportsDir, { recursive: true });
     
     const pdfPath = path.join(pdfExportsDir, `${exportId}.pdf`);
@@ -908,8 +908,8 @@ async function renderPageWithKonva(page, pageData, bookData, canvasWidth, canvas
     
     // Debug: Take a screenshot before PDF export to see what's actually rendered
     try {
-      const uploadsDir = process.env.UPLOADS_DIR || path.join(__dirname, '..', 'uploads');
-      const debugScreenshotPath = path.join(uploadsDir, `debug-screenshot-${Date.now()}.png`);
+      const { getUploadsDir } = require('../utils/uploads-path');
+      const debugScreenshotPath = path.join(getUploadsDir(), `debug-screenshot-${Date.now()}.png`);
       const debugScreenshot = await page.screenshot({ 
         path: debugScreenshotPath,
         fullPage: false 

@@ -64,6 +64,7 @@ npm run install-deps
    - Copy `server/.env.example` to `server/.env`
    - Update database connection string
    - Set a secure JWT secret
+   - (Optional) Set `UPLOADS_DIR` if you want to use a custom upload directory path
 
 4. **Start development servers**
 ```bash
@@ -96,8 +97,14 @@ fb_konva_new/
 │   ├── routes/             # API routes
 │   ├── middleware/         # Express middleware
 │   ├── services/           # Business logic (PDF export, etc.)
-│   ├── uploads/            # File upload directory
+│   ├── utils/              # Utility functions (uploads-path, etc.)
 │   └── package.json
+├── uploads/                # File upload directory (root level)
+│   ├── profile_pictures/   # User profile pictures
+│   ├── images/             # User-uploaded images
+│   ├── background-images/  # Background images (admin uploads)
+│   ├── stickers/           # Stickers (admin uploads)
+│   └── pdf-exports/        # Generated PDF files
 ├── shared/                 # Platform-independent shared code
 │   ├── data/               # Shared data (themes, palettes)
 │   ├── types/              # TypeScript type definitions
@@ -110,6 +117,50 @@ fb_konva_new/
 ├── package.json            # Root package.json with scripts
 └── README.md
 ```
+
+## Upload Directory Structure
+
+All uploaded files are stored in `[root]/uploads/` (or the path specified in `UPLOADS_DIR` environment variable).
+
+### Directory Structure
+
+```
+uploads/
+├── profile_pictures/       # User profile pictures (organized by userId)
+│   └── {userId}/
+├── images/                 # User-uploaded images (organized by userId)
+│   └── {userId}/
+├── background-images/      # Background images (admin uploads, organized by category)
+│   └── {category}/
+├── stickers/               # Stickers (admin uploads, organized by category)
+│   └── {category}/
+├── pdf-exports/            # Generated PDF files (organized by bookId)
+│   └── {bookId}/
+└── app/                    # App-specific assets (logos, icons, etc.)
+```
+
+### Configuration
+
+- **UPLOADS_DIR**: Environment variable to specify custom upload directory path
+  - If not set, defaults to `[root]/uploads/`
+  - All uploads will be stored relative to this directory
+  - Example: `UPLOADS_DIR=/var/www/uploads`
+
+### URL Access
+
+All files are publicly accessible via `/uploads/{subdirectory}/...` URLs. For example:
+- Profile pictures: `/uploads/profile_pictures/{userId}/{filename}`
+- Background images: `/uploads/background-images/{category}/{filename}`
+
+### Migration
+
+If you have existing files in `server/uploads/`, use the migration script:
+
+```bash
+node server/scripts/migrate-uploads.js
+```
+
+This script will move all files from `server/uploads/` to `[root]/uploads/` (or `UPLOADS_DIR`).
 
 ## Architecture
 

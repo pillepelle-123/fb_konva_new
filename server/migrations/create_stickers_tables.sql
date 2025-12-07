@@ -28,3 +28,5 @@ CREATE TABLE IF NOT EXISTS stickers (
 
 CREATE INDEX IF NOT EXISTS idx_stickers_category_id ON stickers(category_id);
 CREATE INDEX IF NOT EXISTS idx_stickers_storage_type ON stickers(storage_type);
+
+

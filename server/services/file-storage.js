@@ -1,10 +1,8 @@
 const path = require('path')
 const fs = require('fs/promises')
 const { randomUUID } = require('crypto')
+const { getUploadsSubdir } = require('../utils/uploads-path')
 
-const STORAGE_ROOT =
-  process.env.BACKGROUND_IMAGE_STORAGE_PATH ||
-  path.join(__dirname, '..', '..', 'uploads', 'background-images')
 const STORAGE_TYPE = process.env.BACKGROUND_IMAGE_STORAGE_TYPE || 'local'
 
 function slugify(value, fallback = 'file') {
@@ -43,8 +41,8 @@ async function saveLocalBackgroundImage({ category, originalName, buffer, upload
   const ext = path.extname(originalName) || '.svg'
   const baseName = slugify(path.basename(originalName, ext), randomUUID())
   
-  // Use STORAGE_ROOT but override the upload path
-  const storageDir = path.join(__dirname, '..', '..', 'uploads', uploadPath)
+  // Use UPLOADS_DIR from environment or fallback to root/uploads
+  const storageDir = getUploadsSubdir(uploadPath)
   const targetDir = path.join(storageDir, categorySlug)
   await ensureDir(targetDir)
   const fileName = await generateFileName(targetDir, `${baseName}${ext}`)
@@ -65,9 +63,11 @@ async function saveLocalBackgroundImage({ category, originalName, buffer, upload
   }
 }
 
-async function deleteLocalBackgroundImage({ filePath }) {
+async function deleteLocalBackgroundImage({ filePath, uploadPath = 'background-images' }) {
   if (!filePath) return
-  const absolutePath = path.join(STORAGE_ROOT, filePath)
+  // filePath is relative (e.g., "category/image.svg"), so we need to construct the full path
+  const storageDir = getUploadsSubdir(uploadPath)
+  const absolutePath = path.join(storageDir, filePath)
   try {
     await fs.unlink(absolutePath)
   } catch (error) {
@@ -84,12 +84,12 @@ async function saveBackgroundImageFile({ category, originalName, buffer, uploadP
   return saveLocalBackgroundImage({ category, originalName, buffer, uploadPath })
 }
 
-async function deleteBackgroundImageFile({ storageType, filePath, bucket, objectKey }) {
+async function deleteBackgroundImageFile({ storageType, filePath, bucket, objectKey, uploadPath = 'background-images' }) {
   if (storageType === 's3') {
     // Placeholder for S3 deletion when implemented
     return
   }
-  await deleteLocalBackgroundImage({ filePath })
+  await deleteLocalBackgroundImage({ filePath, uploadPath })
 }
 
 module.exports = {
