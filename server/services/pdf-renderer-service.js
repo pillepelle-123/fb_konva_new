@@ -26,7 +26,10 @@ class PDFRendererService {
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--disable-gpu'
+        '--disable-gpu',
+        '--disable-web-security',
+        '--font-render-hinting=none',
+        '--force-color-profile=srgb'
       ]
     });
   }
@@ -85,25 +88,19 @@ class PDFRendererService {
         scale: scale
       });
 
-      // Load fonts before navigating to template
-      // Add Google Fonts stylesheets
-      const googleFontsUrls = [
-        'https://fonts.googleapis.com/css2?family=Amatic+SC:wght@400;700&family=Aguafina+Script&family=Arizonia&family=Astloch:wght@400;700&family=Audiowide&family=Ballet&family=Barrio&family=Bigelow+Rules&family=Bilbo+Swash+Caps&family=Bodoni+Moda:ital,wght@0,400;0,700;1,400&family=Bonheur+Royale&family=Bowlby+One+SC&family=Bungee&family=Bungee+Hairline&family=Bungee+Outline&family=Bungee+Shade&family=Caesar+Dressing&family=Calligraffitti&display=swap',
-        'https://fonts.googleapis.com/css2?family=Chewy&family=Cherish&family=Climate+Crisis&family=Comic+Neue:ital,wght@0,400;0,700;1,400&family=Corinthia:wght@400;700&family=Creepster&family=Delicious+Handrawn&family=Diplomata+SC&family=Doto:wght@400;700&family=Dr+Sugiyama&family=DynaPuff:wght@400;700&family=Electrolize&family=Emblema+One&family=Emilys+Candy&family=Fascinate&family=Give+You+Glory&family=Gloria+Hallelujah&family=Gochi+Hand&family=Grape+Nuts&display=swap',
-        'https://fonts.googleapis.com/css2?family=Henny+Penny&family=Homemade+Apple&family=Inclusive+Sans&family=Italiana&family=Julius+Sans+One&family=Kablammo&family=Knewave&family=Lacquer&family=Lobster&family=Luckiest+Guy&family=Meddon&family=Megrim&family=Miltonian&family=Mohave:wght@400;700&family=Molle:ital@1&family=Monofett&family=Monsieur+La+Doulaise&family=Monoton&family=Mynerve&display=swap',
-        'https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&family=Noto+Sans+Symbols:wght@400;700&family=Noto+Sans+Symbols+2:wght@400;700&family=Permanent+Marker&family=Playwrite+DE+VA&family=Poiret+One&family=Ribeye+Marrow&family=Rock+Salt&family=Rubik+Dirt&family=Rubik+Glitch&family=Rubik+Wet+Paint&family=Rye&family=Saira+Stencil+One&family=Schoolbell&family=Shadows+Into+Light+Two&display=swap'
-      ];
-      
-      // Load fonts in parallel
-      await Promise.all(googleFontsUrls.map(async (fontUrl) => {
-        try {
-          await page.addStyleTag({ url: fontUrl });
-        } catch (error) {
-          console.warn(`[PDFRendererService] Failed to load font stylesheet ${fontUrl}:`, error.message);
+      // Extra logging for failed requests (e.g. blocked or 404 fonts)
+      page.on('requestfailed', req => {
+        const url = req.url();
+        if (url.includes('fonts.googleapis') || url.includes('fonts.gstatic')) {
+          console.warn('[PDFRendererService] Font request failed:', url, req.failure()?.errorText);
         }
-      }));
-      
-      console.log('[PDFRendererService] Font stylesheets loaded');
+      });
+      page.on('response', resp => {
+        const url = resp.url();
+        if ((url.includes('fonts.googleapis') || url.includes('fonts.gstatic')) && resp.status() >= 400) {
+          console.warn('[PDFRendererService] Font response error:', resp.status(), url);
+        }
+      });
 
       // Navigate to HTML template
       const templateUrl = `${this.baseUrl}/pdf-renderer.html`;
@@ -123,6 +120,26 @@ class PDFRendererService {
       if (status !== 200 && status !== 304) {
         throw new Error(`Failed to load template: ${status}`);
       }
+      // After template is loaded, inject Google Fonts stylesheets (must be after navigation to persist)
+      // Consolidated URLs to cover all families from font-families.ts that are Google Fonts
+      const googleFontsUrls = [
+        // Block 1
+        'https://fonts.googleapis.com/css2?family=Amatic+SC:wght@400;700&family=Aguafina+Script&family=Arizonia&family=Astloch:wght@400;700&family=Audiowide&family=Ballet&family=Barrio&family=Bigelow+Rules&family=Bilbo+Swash+Caps&family=Bodoni+Moda:ital,wght@0,400;0,700;1,400&family=Bonheur+Royale&family=Bowlby+One+SC&family=Bungee&family=Bungee+Hairline&family=Bungee+Outline&family=Bungee+Shade&family=Caesar+Dressing&family=Calligraffitti&display=swap',
+        // Block 2
+        'https://fonts.googleapis.com/css2?family=Chewy&family=Cherish&family=Climate+Crisis&family=Comic+Neue:ital,wght@0,400;0,700;1,400&family=Corinthia:wght@400;700&family=Creepster&family=Delicious+Handrawn&family=Diplomata+SC&family=Doto:wght@400;700&family=Dr+Sugiyama&family=DynaPuff:wght@400;700&family=Electrolize&family=Emblema+One&family=Emilys+Candy&family=Fascinate&family=Give+You+Glory&family=Gloria+Hallelujah&family=Gochi+Hand&family=Grape+Nuts&display=swap',
+        // Block 3 (includes Molle, Mynerve)
+        'https://fonts.googleapis.com/css2?family=Henny+Penny&family=Homemade+Apple&family=Inclusive+Sans&family=Italiana&family=Julius+Sans+One&family=Kablammo&family=Knewave&family=Lacquer&family=Lobster&family=Luckiest+Guy&family=Meddon&family=Megrim&family=Miltonian&family=Mohave:wght@400;700&family=Molle:ital,wght@0,400;1,400&family=Monofett&family=Monsieur+La+Doulaise&family=Monoton&family=Mynerve&display=swap',
+        // Block 4
+        'https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&family=Noto+Sans+Symbols:wght@400;700&family=Noto+Sans+Symbols+2:wght@400;700&family=Permanent+Marker&family=Playwrite+DE+VA&family=Poiret+One&family=Ribeye+Marrow&family=Rock+Salt&family=Rubik+Dirt&family=Rubik+Glitch&family=Rubik+Wet+Paint&family=Rye&family=Saira+Stencil+One&family=Schoolbell&family=Shadows+Into+Light+Two&display=swap'
+      ];
+      await Promise.all(googleFontsUrls.map(async (fontUrl) => {
+        try {
+          await page.addStyleTag({ url: fontUrl });
+        } catch (error) {
+          console.warn(`[PDFRendererService] Failed to load font stylesheet ${fontUrl}:`, error.message);
+        }
+      }));
+      console.log('[PDFRendererService] Font stylesheets injected after template load');
 
       // Wait for script to load and execute
       await page.evaluate(() => {
@@ -479,132 +496,39 @@ class PDFRendererService {
         });
       });
 
-      // Wait for fonts to load completely
+      // Wait for fonts to load completely (single pass, timeout-protected)
       await page.evaluate(async () => {
-        // Wait for document.fonts.ready
-        await document.fonts.ready;
-        
-        // Also wait for all font faces to be loaded
-        const fontFaces = Array.from(document.fonts);
-        await Promise.all(fontFaces.map(font => font.loaded.catch(() => {
-          // Ignore errors for fonts that fail to load
-        })));
-        
-        // Additional check: ensure fonts are actually loaded
-        // Also check for specific fonts that might need more time
-        return new Promise(async (resolve) => {
-          // First, wait for Mynerve fonts specifically
-          const mynerveFonts = Array.from(document.fonts).filter(font => 
-            font.family.toLowerCase().includes('mynerve')
-          );
-          
-          if (mynerveFonts.length > 0) {
-            console.log(`[PDFRendererService] Found ${mynerveFonts.length} Mynerve font(s):`, 
-              mynerveFonts.map(f => ({ family: f.family, status: f.status })));
-            
-            // Wait for Mynerve fonts to load
-            await Promise.all(mynerveFonts.map(font => font.loaded.catch(() => {
-              console.warn(`[PDFRendererService] Mynerve font failed to load: ${font.family}`);
-            })));
-            
-            // Verify they're loaded
-            const loadedMynerve = mynerveFonts.filter(f => f.status === 'loaded');
-            console.log(`[PDFRendererService] Mynerve fonts loaded: ${loadedMynerve.length}/${mynerveFonts.length}`);
-            } else {
-              console.warn('[PDFRendererService] Mynerve font not found in document.fonts');
-              // List all available fonts for debugging
-              const allFonts = Array.from(document.fonts).map(f => ({ family: f.family, status: f.status }));
-              console.log('[PDFRendererService] Available fonts:', JSON.stringify(allFonts.slice(0, 30), null, 2));
-              
-              // Try to load Mynerve font explicitly using the correct URL from Google Fonts
-              console.log('[PDFRendererService] Attempting to load Mynerve font explicitly...');
-              // The correct URL format for Google Fonts is: https://fonts.gstatic.com/s/fontname/v1/filename.woff2
-              // Let's try multiple possible URLs
-              const fontUrls = [
-                'https://fonts.gstatic.com/s/mynerve/v1/7cH1v4Uiz5qdl1MvLwQ.woff2',
-                'https://fonts.gstatic.com/s/mynerve/v2/7cH1v4Uiz5qdl1MvLwQ.woff2',
-                'https://fonts.googleapis.com/css2?family=Mynerve&display=swap'
-              ];
-              
-              let fontLoaded = false;
-              for (const fontUrl of fontUrls) {
-                try {
-                  if (fontUrl.includes('css2')) {
-                    // If it's a CSS URL, add it as a stylesheet
-                    const link = document.createElement('link');
-                    link.rel = 'stylesheet';
-                    link.href = fontUrl;
-                    document.head.appendChild(link);
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                    fontLoaded = true;
-                    console.log('[PDFRendererService] Mynerve font stylesheet loaded');
-                    break;
-                  } else {
-                    // If it's a woff2 URL, try to load it as FontFace
-                    const fontFace = new FontFace('Mynerve', `url(${fontUrl})`);
-                    await fontFace.load();
-                    document.fonts.add(fontFace);
-                    fontLoaded = true;
-                    console.log('[PDFRendererService] Mynerve font loaded from:', fontUrl);
-                    break;
-                  }
-                } catch (err) {
-                  console.warn(`[PDFRendererService] Failed to load Mynerve font from ${fontUrl}:`, err.message);
-                }
-              }
-              
-              if (!fontLoaded) {
-                console.error('[PDFRendererService] Could not load Mynerve font from any URL');
-              }
-              
-              // Wait a bit for the font to be ready
-              await new Promise(resolve => setTimeout(resolve, 500));
-              
-              // Check again
-              const mynerveFontsAfter = Array.from(document.fonts).filter(font => 
-                font.family.toLowerCase().includes('mynerve')
-              );
-              console.log(`[PDFRendererService] Mynerve fonts after explicit load: ${mynerveFontsAfter.length}`);
-            }
-          
-          let attempts = 0;
-          const checkFonts = setInterval(() => {
-            attempts++;
-            const allLoaded = Array.from(document.fonts).every(font => {
-              // For system fonts like "Bauhaus 93", status might be 'unloaded' but that's OK
-              // Only check Google Fonts (those that were loaded via stylesheets)
-              const fontFamily = font.family.toLowerCase();
-              const isSystemFont = fontFamily.includes('bauhaus') || 
-                                   fontFamily.includes('arial') || 
-                                   fontFamily.includes('times') || 
-                                   fontFamily.includes('georgia') ||
-                                   fontFamily.includes('verdana') ||
-                                   fontFamily.includes('tahoma') ||
-                                   fontFamily.includes('impact') ||
-                                   fontFamily.includes('courier') ||
-                                   fontFamily.includes('consolas') ||
-                                   fontFamily.includes('cambria') ||
-                                   fontFamily.includes('garamond') ||
-                                   fontFamily.includes('baskerville') ||
-                                   fontFamily.includes('rockwell') ||
-                                   fontFamily.includes('century gothic') ||
-                                   fontFamily.includes('berlin sans');
-              
-              if (isSystemFont) {
-                return true; // System fonts are always considered loaded
-              }
-              
-              // For Google Fonts, check if status is 'loaded' or 'loading' (loading is OK, browser will use fallback)
-              // But we want to wait a bit more for 'loading' fonts to become 'loaded'
-              return font.status === 'loaded' || font.status === 'loading';
-            });
-            
-            if (allLoaded || attempts > 100) {
-              clearInterval(checkFonts);
-              resolve();
-            }
-          }, 100);
+        const timeout = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        // Wait for document.fonts.ready, cap at 5s
+        await Promise.race([document.fonts.ready, timeout(5000)]);
+
+        // Proaktiv alle relevanten Google-Familien laden (normal + italic)
+        const googleFamilies = [
+          'Mynerve','Molle','Chewy','Grape Nuts','Gochi Hand','Lacquer','Amatic SC','Comic Neue','Schoolbell',
+          'Playwrite DE VA','Inclusive Sans','Mohave','Luckiest Guy','DynaPuff','Bungee','Bungee Outline',
+          'Bungee Shade','Bungee Hairline','Henny Penny','Kablammo','Knewave','Lobster','Rock Salt',
+          'Gloria Hallelujah','Rye','Rubik Dirt','Rubik Glitch','Rubik Wet Paint','Poiret One','Emilys Candy',
+          'Bigelow Rules','Vast Shadow','Noto Sans Symbols','Noto Color Emoji','Noto Sans Symbols 2',
+          'Permanent Marker','Monoton','Megrim','Fascinate','Electrolize','Doto','Bodoni Moda','Italiana',
+          'Saira Stencil One','Emblema One','Monofett','Shojumaru'
+        ];
+
+        const uniqueFamilies = Array.from(new Set(googleFamilies));
+        const loadPromises = [];
+        uniqueFamilies.forEach(name => {
+          loadPromises.push(document.fonts.load(`400 48px "${name}"`).catch(() => {}));
+          loadPromises.push(document.fonts.load(`700 48px "${name}"`).catch(() => {}));
+          loadPromises.push(document.fonts.load(`400 italic 48px "${name}"`).catch(() => {}));
+          loadPromises.push(document.fonts.load(`700 italic 48px "${name}"`).catch(() => {}));
         });
+
+        const waitAll = Promise.all(Array.from(document.fonts).map(f => f.loaded.catch(() => {})));
+        const waitCritical = Promise.all(loadPromises);
+        await Promise.race([Promise.all([waitAll, waitCritical]), timeout(5000)]);
+
+        const finalFonts = Array.from(document.fonts).map(f => ({ family: f.family, status: f.status }));
+        console.log('[PDFRendererService] Fonts status after load attempt:', JSON.stringify(finalFonts.slice(0, 50), null, 2));
       });
 
       console.log('[PDFRendererService] Fonts loaded');
