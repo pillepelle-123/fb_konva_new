@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { EditorPreviewProvider } from './editor-preview-provider';
 import Canvas from '../canvas/canvas';
-import { ZoomProvider } from '../canvas/zoom-context';
 import type { PageTemplate } from '../../../../types/template-types';
 import type { BookOrientation, BookPageSize } from '../../../../constants/book-formats';
 
@@ -61,22 +60,20 @@ export default function MiniEditorCanvas(props: MiniEditorCanvasProps) {
             .mini-editor-preview .pointer-events-none.absolute.z-20 { display: none !important; }
           `}
         </style>
-        <ZoomProvider>
-          <EditorPreviewProvider
-            pageSize={props.pageSize}
-            orientation={props.orientation}
-            themeId={props.themeId}
-            paletteId={props.paletteId}
-            baseTemplate={props.baseTemplate}
-            pickLeftRight={props.pickLeftRight}
-            leftTemplate={props.leftTemplate}
-            rightTemplate={props.rightTemplate}
-            mirrorRight={props.mirrorRight}
-            allowInteractions={isModal}
-          >
-            <Canvas />
-          </EditorPreviewProvider>
-        </ZoomProvider>
+        <EditorPreviewProvider
+          pageSize={props.pageSize}
+          orientation={props.orientation}
+          themeId={props.themeId}
+          paletteId={props.paletteId}
+          baseTemplate={props.baseTemplate}
+          pickLeftRight={props.pickLeftRight}
+          leftTemplate={props.leftTemplate}
+          rightTemplate={props.rightTemplate}
+          mirrorRight={props.mirrorRight}
+          allowInteractions={isModal}
+        >
+          <Canvas />
+        </EditorPreviewProvider>
       </div>
     </div>
   );

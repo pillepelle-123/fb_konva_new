@@ -10,12 +10,13 @@ import { getPalettePartColor } from '../../data/templates/color-palettes.ts';
 import { colorPalettes } from '../../data/templates/color-palettes.ts';
 import { PATTERNS } from '../../utils/patterns.ts';
 import { getToolDefaults } from '../../utils/tool-defaults.ts';
-import { getThemeRenderer } from '../../utils/themes.ts';
+import { getThemeRenderer, renderThemedLine, generateLinePath, type Theme } from '../../utils/themes.ts';
 import type { PageBackground } from '../../context/editor-context.tsx';
 import { FEATURE_FLAGS } from '../../utils/feature-flags';
 import type { RichTextStyle } from '../../../../shared/types/text-layout';
 import { buildFont as sharedBuildFont, getLineHeight as sharedGetLineHeight, measureText as sharedMeasureText, calculateTextX as sharedCalculateTextX, wrapText as sharedWrapText } from '../../../../shared/utils/text-layout';
 import { createLayout as sharedCreateLayout, createBlockLayout as sharedCreateBlockLayout } from '../../../../shared/utils/qna-layout';
+import { getFontFamilyByName } from '../../utils/font-families.ts';
 
 interface PDFRendererProps {
   page: Page;
@@ -25,6 +26,50 @@ interface PDFRendererProps {
   scale?: number;
   onRenderComplete?: () => void;
 }
+
+// Helper function to resolve font family using getFontFamilyByName
+// Extracts font name from font family string and resolves it properly
+// IMPORTANT: If fontFamilyRaw is already a full CSS string (contains comma), use it directly
+// Only use getFontFamilyByName if it's just a font name without fallback
+const resolveFontFamily = (fontFamilyRaw: string | undefined, isBold: boolean, isItalic: boolean): string => {
+  if (!fontFamilyRaw) {
+    return 'Arial, sans-serif';
+  }
+  
+  // Remove outer quotes but keep internal structure
+  let cleaned = fontFamilyRaw.replace(/^['"]|['"]$/g, '').trim();
+  
+  // If it's already a full CSS font family string (contains comma), use it directly
+  // This matches client-side behavior where fontFamily is stored as full CSS string
+  if (cleaned.includes(',')) {
+    // Already a full CSS font family string - use it directly (like client does)
+    // Ensure font names with spaces are properly quoted for CSS
+    const parts = cleaned.split(',').map(part => part.trim());
+    if (parts.length > 0) {
+      let fontName = parts[0];
+      // Remove any existing quotes first (might be malformed like "Mynerve')
+      fontName = fontName.replace(/^['"]|['"]$/g, '');
+      // If font name contains spaces, quote it
+      if (fontName.includes(' ')) {
+        parts[0] = `'${fontName}'`;
+      } else {
+        parts[0] = fontName;
+      }
+      cleaned = parts.join(', ');
+    }
+    return cleaned;
+  }
+  
+  // Otherwise, treat it as a font name and resolve it using getFontFamilyByName
+  // This handles cases where only the font name is stored (e.g., "Bauhaus 93")
+  try {
+    const resolved = getFontFamilyByName(cleaned, isBold, isItalic);
+    return resolved;
+  } catch (error) {
+    // Fallback to cleaned string if getFontFamilyByName fails
+    return cleaned || 'Arial, sans-serif';
+  }
+};
 
 // Helper function to create pattern tile (same as in canvas.tsx)
 const createPatternTile = (pattern: typeof PATTERNS[0], color: string, size: number, strokeWidth: number = 1): HTMLCanvasElement => {
@@ -854,9 +899,9 @@ export function PDFRenderer({
             
             if (questionText) {
               const qFontSize = questionStyle.fontSize || 45;
-              const qFontFamily = (questionStyle.fontFamily || 'Arial, sans-serif').replace(/^['"]|['"]$/g, '').replace(/['"]/g, '');
               const qFontBold = questionStyle.fontBold ?? false;
               const qFontItalic = questionStyle.fontItalic ?? false;
+              const qFontFamily = resolveFontFamily(questionStyle.fontFamily, qFontBold, qFontItalic);
               context.font = `${qFontBold ? 'bold ' : ''}${qFontItalic ? 'italic ' : ''}${qFontSize}px ${qFontFamily}`;
               
               const words = questionText.split(' ');
@@ -879,9 +924,9 @@ export function PDFRenderer({
             
             if (answerText) {
               const aFontSize = answerStyle.fontSize || 50;
-              const aFontFamily = (answerStyle.fontFamily || 'Arial, sans-serif').replace(/^['"]|['"]$/g, '').replace(/['"]/g, '');
               const aFontBold = answerStyle.fontBold ?? false;
               const aFontItalic = answerStyle.fontItalic ?? false;
+              const aFontFamily = resolveFontFamily(answerStyle.fontFamily, aFontBold, aFontItalic);
               context.font = `${aFontBold ? 'bold ' : ''}${aFontItalic ? 'italic ' : ''}${aFontSize}px ${aFontFamily}`;
               
               const answerLines = answerText.split('\n');
@@ -1110,17 +1155,17 @@ export function PDFRenderer({
             const qLineHeight = qFontSize * getLineHeightMultiplier(qParagraphSpacing);
             const aLineHeight = aFontSize * getLineHeightMultiplier(aParagraphSpacing);
             
-            const qFontFamily = (questionStyle.fontFamily || 'Arial, sans-serif').replace(/^['"]|['"]$/g, '').replace(/['"]/g, '');
-            const qFontColor = questionStyle.fontColor || '#666666';
-            const qFontOpacity = questionStyle.fontOpacity ?? 1;
             const qFontBold = questionStyle.fontBold ?? false;
             const qFontItalic = questionStyle.fontItalic ?? false;
+            const qFontFamily = resolveFontFamily(questionStyle.fontFamily, qFontBold, qFontItalic);
+            const qFontColor = questionStyle.fontColor || '#666666';
+            const qFontOpacity = questionStyle.fontOpacity ?? 1;
             
-            const aFontFamily = (answerStyle.fontFamily || 'Arial, sans-serif').replace(/^['"]|['"]$/g, '').replace(/['"]/g, '');
-            const aFontColor = answerStyle.fontColor || '#1f2937';
-            const aFontOpacity = answerStyle.fontOpacity ?? 1;
             const aFontBold = answerStyle.fontBold ?? false;
             const aFontItalic = answerStyle.fontItalic ?? false;
+            const aFontFamily = resolveFontFamily(answerStyle.fontFamily, aFontBold, aFontItalic);
+            const aFontColor = answerStyle.fontColor || '#1f2937';
+            const aFontOpacity = answerStyle.fontOpacity ?? 1;
             
             let questionArea = { x: elementX + padding, y: elementY + padding, width: textWidth, height: dynamicHeight - padding * 2 };
             let answerArea = { x: elementX + padding, y: elementY + padding, width: textWidth, height: dynamicHeight - padding * 2 };
@@ -1320,14 +1365,11 @@ export function PDFRenderer({
             // Render question text first
             if (questionText && questionText.trim() !== '') {
               const questionFontSize = questionStyle.fontSize || 45;
-              let questionFontFamily = (questionStyle.fontFamily || 'Arial, sans-serif').replace(/^['"]|['"]$/g, '').replace(/['"]/g, '');
-              if (questionFontFamily.includes('Mynerve')) {
-                questionFontFamily = 'Mynerve, cursive';
-              }
-              const questionFontColor = questionStyle.fontColor || '#666666';
-              const questionFontOpacity = questionStyle.fontOpacity ?? 1;
               const questionFontBold = questionStyle.fontBold ?? false;
               const questionFontItalic = questionStyle.fontItalic ?? false;
+              const questionFontFamily = resolveFontFamily(questionStyle.fontFamily, questionFontBold, questionFontItalic);
+              const questionFontColor = questionStyle.fontColor || '#666666';
+              const questionFontOpacity = questionStyle.fontOpacity ?? 1;
               
               context.font = `${questionFontBold ? 'bold ' : ''}${questionFontItalic ? 'italic ' : ''}${questionFontSize}px ${questionFontFamily}`;
               
@@ -1425,14 +1467,11 @@ export function PDFRenderer({
               // Render answer text with inline layout logic
               if (answerText && answerText.trim() !== '') {
                 const answerFontSize = answerStyle.fontSize || 50;
-                let answerFontFamily = (answerStyle.fontFamily || 'Arial, sans-serif').replace(/^['"]|['"]$/g, '').replace(/['"]/g, '');
-                if (answerFontFamily.includes('Mynerve')) {
-                  answerFontFamily = 'Mynerve, cursive';
-                }
-                const answerFontColor = answerStyle.fontColor || '#1f2937';
-                const answerFontOpacity = answerStyle.fontOpacity ?? 1;
                 const answerFontBold = answerStyle.fontBold ?? false;
                 const answerFontItalic = answerStyle.fontItalic ?? false;
+                const answerFontFamily = resolveFontFamily(answerStyle.fontFamily, answerFontBold, answerFontItalic);
+                const answerFontColor = answerStyle.fontColor || '#1f2937';
+                const answerFontOpacity = answerStyle.fontOpacity ?? 1;
                 
                 context.font = `${answerFontBold ? 'bold ' : ''}${answerFontItalic ? 'italic ' : ''}${answerFontSize}px ${answerFontFamily}`;
                 
@@ -1634,14 +1673,11 @@ export function PDFRenderer({
             } else if (answerText && answerText.trim() !== '') {
               // Only answer text, no question
               const answerFontSize = answerStyle.fontSize || 50;
-              let answerFontFamily = (answerStyle.fontFamily || 'Arial, sans-serif').replace(/^['"]|['"]$/g, '').replace(/['"]/g, '');
-              if (answerFontFamily.includes('Mynerve')) {
-                answerFontFamily = 'Mynerve, cursive';
-              }
-              const answerFontColor = answerStyle.fontColor || '#1f2937';
-              const answerFontOpacity = answerStyle.fontOpacity ?? 1;
               const answerFontBold = answerStyle.fontBold ?? false;
               const answerFontItalic = answerStyle.fontItalic ?? false;
+              const answerFontFamily = resolveFontFamily(answerStyle.fontFamily, answerFontBold, answerFontItalic);
+              const answerFontColor = answerStyle.fontColor || '#1f2937';
+              const answerFontOpacity = answerStyle.fontOpacity ?? 1;
               
               const answerNode = new Konva.Text({
                 x: elementX + padding,
@@ -1720,9 +1756,9 @@ export function PDFRenderer({
                   const qLineHeight = qFontSize * getLineHeightMultiplier(qParagraphSpacing);
                   const canvas = document.createElement('canvas');
                   const context = canvas.getContext('2d')!;
-                  const qFontFamily = (questionStyle.fontFamily || 'Arial, sans-serif').replace(/^['"]|['"]$/g, '').replace(/['"]/g, '');
                   const qFontBold = questionStyle.fontBold ?? false;
                   const qFontItalic = questionStyle.fontItalic ?? false;
+                  const qFontFamily = resolveFontFamily(questionStyle.fontFamily, qFontBold, qFontItalic);
                   context.font = `${qFontBold ? 'bold ' : ''}${qFontItalic ? 'italic ' : ''}${qFontSize}px ${qFontFamily}`;
                   
                   const words = questionText.split(' ');
@@ -1851,12 +1887,9 @@ export function PDFRenderer({
                 const canvas = document.createElement('canvas');
                 const context = canvas.getContext('2d')!;
                 const questionFontSize = questionStyle.fontSize || 45;
-                let questionFontFamily = (questionStyle.fontFamily || 'Arial, sans-serif').replace(/^['"]|['"]$/g, '').replace(/['"]/g, '');
-                if (questionFontFamily.includes('Mynerve')) {
-                  questionFontFamily = 'Mynerve, cursive';
-                }
                 const questionFontBold = questionStyle.fontBold ?? false;
                 const questionFontItalic = questionStyle.fontItalic ?? false;
+                const questionFontFamily = resolveFontFamily(questionStyle.fontFamily, questionFontBold, questionFontItalic);
                 context.font = `${questionFontBold ? 'bold ' : ''}${questionFontItalic ? 'italic ' : ''}${questionFontSize}px ${questionFontFamily}`;
                 
                 // Calculate question lines
@@ -1887,12 +1920,9 @@ export function PDFRenderer({
                 const availableWidthAfterQuestion = textWidth - lastQuestionLineWidth - gap;
                 
                 // Check if answer fits on same line
-                let answerFontFamily = (answerStyle.fontFamily || 'Arial, sans-serif').replace(/^['"]|['"]$/g, '').replace(/['"]/g, '');
-                if (answerFontFamily.includes('Mynerve')) {
-                  answerFontFamily = 'Mynerve, cursive';
-                }
                 const answerFontBold = answerStyle.fontBold ?? false;
                 const answerFontItalic = answerStyle.fontItalic ?? false;
+                const answerFontFamily = resolveFontFamily(answerStyle.fontFamily, answerFontBold, answerFontItalic);
                 const answerContext = document.createElement('canvas').getContext('2d')!;
                 answerContext.font = `${answerFontBold ? 'bold ' : ''}${answerFontItalic ? 'italic ' : ''}${aFontSize}px ${answerFontFamily}`;
                 const firstAnswerLine = answerText.split('\n')[0] || '';
@@ -2236,7 +2266,7 @@ export function PDFRenderer({
           
           const questionStyle = {
             fontSize: questionSettings.fontSize || qnaDefaults.questionSettings?.fontSize || qnaDefaults.fontSize || 42,
-            fontFamily: questionSettings.fontFamily || qnaDefaults.questionSettings?.fontFamily || qnaDefaults.fontFamily || 'Arial, sans-serif',
+            fontFamily: resolveFontFamily(questionSettings.fontFamily || qnaDefaults.questionSettings?.fontFamily || qnaDefaults.fontFamily, questionSettings.fontBold ?? false, questionSettings.fontItalic ?? false),
             fontBold: questionSettings.fontBold ?? qnaDefaults.questionSettings?.fontBold ?? false,
             fontItalic: questionSettings.fontItalic ?? qnaDefaults.questionSettings?.fontItalic ?? false,
             fontColor: questionSettings.fontColor || qnaDefaults.questionSettings?.fontColor || '#666666',
@@ -2247,7 +2277,7 @@ export function PDFRenderer({
           
           const answerStyle = {
             fontSize: answerSettings.fontSize || qnaDefaults.answerSettings?.fontSize || qnaDefaults.fontSize || 48,
-            fontFamily: answerSettings.fontFamily || qnaDefaults.answerSettings?.fontFamily || qnaDefaults.fontFamily || 'Arial, sans-serif',
+            fontFamily: resolveFontFamily(answerSettings.fontFamily || qnaDefaults.answerSettings?.fontFamily || qnaDefaults.fontFamily, answerSettings.fontBold ?? false, answerSettings.fontItalic ?? false),
             fontBold: answerSettings.fontBold ?? qnaDefaults.answerSettings?.fontBold ?? false,
             fontItalic: answerSettings.fontItalic ?? qnaDefaults.answerSettings?.fontItalic ?? false,
             fontColor: answerSettings.fontColor || qnaDefaults.answerSettings?.fontColor || '#1f2937',
@@ -2530,54 +2560,60 @@ export function PDFRenderer({
                   const startX = elementX + targetArea.x;
                   const endX = elementX + targetArea.x + targetArea.width;
                   
-                  // Generate ruled line
+                  // Generate ruled line using generateLinePath (matching client-side behavior)
+                  const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+                  const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
+                  const theme = (supportedThemes.includes(ruledLinesTheme as Theme) ? ruledLinesTheme : 'default') as Theme;
+                  
+                  // Create a temporary element for theme-specific settings
+                  const tempElement: CanvasElement = {
+                    ...element,
+                    type: 'line',
+                    id: element.id + '-ruled-line',
+                    x: 0,
+                    y: 0,
+                    width: Math.abs(endX - startX),
+                    height: 0,
+                    strokeWidth: ruledLinesWidth,
+                    stroke: ruledLinesColor,
+                    theme: theme as CanvasElement['theme']
+                  };
+                  
+                  // Generate path using generateLinePath (same as renderThemedLine uses internally)
+                  const pathData = generateLinePath({
+                    x1: startX,
+                    y1: elementY + linePos.y,
+                    x2: endX,
+                    y2: elementY + linePos.y,
+                    strokeWidth: ruledLinesWidth,
+                    stroke: ruledLinesColor,
+                    theme: theme,
+                    seed: seed + linePos.y,
+                    roughness: theme === 'rough' ? 2 : 1,
+                    element: tempElement
+                  });
+                  
                   let lineNode: Konva.Path | Konva.Line | null = null;
-                  if (ruledLinesTheme === 'rough' && (window as any).rough) {
-                    try {
-                      const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-                      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-                      const rc = (window as any).rough.svg(svg);
-                      
-                      const roughLine = rc.line(startX, elementY + linePos.y, endX, elementY + linePos.y, {
-                        roughness: 2,
-                        strokeWidth: ruledLinesWidth,
-                        stroke: ruledLinesColor,
-                        seed: seed + linePos.y
-                      });
-                      
-                      const paths = roughLine.querySelectorAll('path');
-                      let combinedPath = '';
-                      paths.forEach((path: SVGPathElement) => {
-                        const d = path.getAttribute('d');
-                        if (d) combinedPath += d + ' ';
-                      });
-                      
-                      if (combinedPath) {
-                        lineNode = new Konva.Path({
-                          data: combinedPath.trim(),
-                          stroke: ruledLinesColor,
-                          strokeWidth: ruledLinesWidth,
-                          opacity: ruledLinesOpacity * elementOpacity,
-                          strokeScaleEnabled: true,
-                          rotation: elementRotation,
-                          listening: false,
-                          visible: true
-                        });
-                      }
-                    } catch (err) {
-                      // Fallback to simple line if rough.js fails
-                      lineNode = new Konva.Line({
-                        points: [startX, elementY + linePos.y, endX, elementY + linePos.y],
-                        stroke: ruledLinesColor,
-                        strokeWidth: ruledLinesWidth,
-                        opacity: ruledLinesOpacity * elementOpacity,
-                        rotation: elementRotation,
-                        listening: false,
-                        visible: true
-                      });
-                    }
+                  if (pathData) {
+                    // Get stroke props from theme renderer (important for candy theme which uses fill instead of stroke)
+                    const themeRenderer = getThemeRenderer(theme);
+                    const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                    
+                    lineNode = new Konva.Path({
+                      data: pathData,
+                      stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : ruledLinesColor,
+                      strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : ruledLinesWidth,
+                      fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
+                      opacity: ruledLinesOpacity * elementOpacity,
+                      strokeScaleEnabled: true,
+                      rotation: elementRotation,
+                      listening: false,
+                      visible: true,
+                      lineCap: strokeProps.lineCap || 'round',
+                      lineJoin: strokeProps.lineJoin || 'round'
+                    });
                   } else {
-                    // Default: simple line
+                    // Fallback to simple line if path generation fails
                     lineNode = new Konva.Line({
                       points: [startX, elementY + linePos.y, endX, elementY + linePos.y],
                       stroke: ruledLinesColor,
@@ -3011,54 +3047,60 @@ export function PDFRenderer({
                 absoluteY: elementY + linePos.y
               });
               
-              // Generate ruled line
+              // Generate ruled line using generateLinePath (matching client-side behavior)
+              const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+              const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
+              const theme = (supportedThemes.includes(ruledLinesTheme as Theme) ? ruledLinesTheme : 'default') as Theme;
+              
+              // Create a temporary element for theme-specific settings
+              const tempElement: CanvasElement = {
+                ...element,
+                type: 'line',
+                id: element.id + '-ruled-line',
+                x: 0,
+                y: 0,
+                width: Math.abs(endX - startX),
+                height: 0,
+                strokeWidth: ruledLinesWidth,
+                stroke: ruledLinesColor,
+                theme: theme as CanvasElement['theme']
+              };
+              
+              // Generate path using generateLinePath (same as renderThemedLine uses internally)
+              const pathData = generateLinePath({
+                x1: startX,
+                y1: elementY + linePos.y,
+                x2: endX,
+                y2: elementY + linePos.y,
+                strokeWidth: ruledLinesWidth,
+                stroke: ruledLinesColor,
+                theme: theme,
+                seed: seed + linePos.y,
+                roughness: theme === 'rough' ? 2 : 1,
+                element: tempElement
+              });
+              
               let lineNode: Konva.Path | Konva.Line | null = null;
-              if (ruledLinesTheme === 'rough' && (window as any).rough) {
-                try {
-                  const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-                  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-                  const rc = (window as any).rough.svg(svg);
-                  
-                  const roughLine = rc.line(startX, elementY + linePos.y, endX, elementY + linePos.y, {
-                    roughness: 2,
-                    strokeWidth: ruledLinesWidth,
-                    stroke: ruledLinesColor,
-                    seed: seed + linePos.y
-                  });
-                  
-                  const paths = roughLine.querySelectorAll('path');
-                  let combinedPath = '';
-                  paths.forEach((path: SVGPathElement) => {
-                    const d = path.getAttribute('d');
-                    if (d) combinedPath += d + ' ';
-                  });
-                  
-                  if (combinedPath) {
-                    lineNode = new Konva.Path({
-                      data: combinedPath.trim(),
-                      stroke: ruledLinesColor,
-                      strokeWidth: ruledLinesWidth,
-                      opacity: ruledLinesOpacity * elementOpacity,
-                      strokeScaleEnabled: true,
-                      rotation: elementRotation,
-                      listening: false,
-                      visible: true
-                    });
-                  }
-                } catch (err) {
-                  // Fallback to simple line if rough.js fails
-                  lineNode = new Konva.Line({
-                    points: [startX, elementY + linePos.y, endX, elementY + linePos.y],
-                    stroke: ruledLinesColor,
-                    strokeWidth: ruledLinesWidth,
-                    opacity: ruledLinesOpacity * elementOpacity,
-                    rotation: elementRotation,
-                    listening: false,
-                    visible: true
-                  });
-                }
+              if (pathData) {
+                // Get stroke props from theme renderer (important for candy theme which uses fill instead of stroke)
+                const themeRenderer = getThemeRenderer(theme);
+                const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                
+                lineNode = new Konva.Path({
+                  data: pathData,
+                  stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : ruledLinesColor,
+                  strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : ruledLinesWidth,
+                  fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
+                  opacity: ruledLinesOpacity * elementOpacity,
+                  strokeScaleEnabled: true,
+                  rotation: elementRotation,
+                  listening: false,
+                  visible: true,
+                  lineCap: strokeProps.lineCap || 'round',
+                  lineJoin: strokeProps.lineJoin || 'round'
+                });
               } else {
-                // Default: simple line
+                // Fallback to simple line if path generation fails
                 lineNode = new Konva.Line({
                   points: [startX, elementY + linePos.y, endX, elementY + linePos.y],
                   stroke: ruledLinesColor,
@@ -3123,20 +3165,23 @@ export function PDFRenderer({
               
               const pathData = themeRenderer.generatePath(borderElement);
               
+              // Get stroke props from theme renderer (important for candy theme which uses fill instead of stroke)
+              const strokeProps = themeRenderer.getStrokeProps(borderElement);
+              
               if (pathData) {
                 const borderPath = new Konva.Path({
                   data: pathData,
                   x: elementX,
                   y: elementY,
-                  stroke: borderColor,
-                  strokeWidth: borderWidth,
+                  stroke: strokeProps.stroke || borderColor,
+                  strokeWidth: strokeProps.strokeWidth || borderWidth,
+                  fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
                   opacity: borderOpacity * elementOpacity,
-                  fill: 'transparent',
                   strokeScaleEnabled: true,
                   rotation: elementRotation,
                   listening: false,
-                  lineCap: 'round',
-                  lineJoin: 'round',
+                  lineCap: strokeProps.lineCap || 'round',
+                  lineJoin: strokeProps.lineJoin || 'round',
                 });
                 layer.add(borderPath);
                 
@@ -3203,42 +3248,141 @@ export function PDFRenderer({
           }
           
           // Render text runs using Konva.Text nodes (matching textbox-qna.tsx RichTextShape behavior)
-          runs.forEach((run) => {
-            const style = run.style;
-            const fontFamily = (style.fontFamily || 'Arial, sans-serif').replace(/^['"]|['"]$/g, '').replace(/['"]/g, '');
-            const fontStyle = style.fontItalic ? 'italic' : 'normal';
-            const fontWeight = style.fontBold ? 'bold' : 'normal';
-            
-            // Build font string to ensure proper font loading
-            const fontString = `${fontWeight} ${fontStyle} ${style.fontSize}px ${fontFamily}`;
-            
-            // Convert baseline Y position to top Y position for Konva.Text
-            // Client uses textBaseline = 'alphabetic' with baseline Y position
-            // Server uses verticalAlign = 'top', so we need to subtract baseline offset
-            const baselineOffset = style.fontSize * 0.8;
-            const topY = run.y - baselineOffset;
-            
-            const textNode = new Konva.Text({
-              x: elementX + run.x,
-              y: elementY + topY,
-              text: run.text,
-              fontSize: style.fontSize,
-              fontFamily: fontFamily,
-              fontStyle: fontStyle,
-              fontWeight: fontWeight,
-              fill: style.fontColor || '#000000',
-              opacity: (style.fontOpacity !== undefined ? style.fontOpacity : 1) * elementOpacity,
-              align: style.align || 'left',
-              verticalAlign: 'top',
-              rotation: elementRotation,
-              listening: false,
-              visible: true
-            });
-            
-            // Set font explicitly using setAttr to ensure it's applied
-            textNode.setAttr('font', fontString);
-            
-            layer.add(textNode);
+          runs.forEach((run, runIndex) => {
+            try {
+              const style = run.style;
+              const fontBold = style.fontBold ?? false;
+              const fontItalic = style.fontItalic ?? false;
+              let fontFamily = resolveFontFamily(style.fontFamily, fontBold, fontItalic);
+              
+              // IMPORTANT: Konva.Text can accept the full CSS font-family string with fallback
+              // This matches the behavior in shared/rendering/render-qna.js and page-preview-generator.ts
+              // Remove outer quotes but keep the full CSS string structure (e.g., "Mynerve, cursive")
+              // Match client-side: fontFamily.replace(/^['"]|['"]$/g, '').replace(/['"]/g, '')
+              fontFamily = fontFamily.replace(/^['"]|['"]$/g, '').replace(/['"]/g, '').trim();
+              
+              // Ensure fontFamily is not empty
+              if (!fontFamily || fontFamily === '') {
+                fontFamily = 'Arial, sans-serif';
+              }
+              
+              // Ensure fontSize is valid
+              const fontSize = style.fontSize || 16;
+              if (!fontSize || fontSize <= 0 || !isFinite(fontSize)) {
+                console.error('[PDFRenderer] Invalid fontSize:', fontSize, 'for run:', run);
+                return;
+              }
+              
+              const fontStyle = fontItalic ? 'italic' : 'normal';
+              const fontWeight = fontBold ? 'bold' : 'normal';
+              
+              // Build font string to ensure proper font loading
+              const fontString = `${fontWeight} ${fontStyle} ${fontSize}px ${fontFamily}`;
+              
+              // Convert baseline Y position to top Y position for Konva.Text
+              // Client uses textBaseline = 'alphabetic' with baseline Y position
+              // Server uses verticalAlign = 'top', so we need to subtract baseline offset
+              // The baseline offset is approximately 0.8 * fontSize for alphabetic baseline
+              // But we need to account for the actual font metrics
+              const baselineOffset = fontSize * 0.8;
+              const topY = run.y - baselineOffset;
+              
+              // Debug: Log first few runs with full details
+              if (runIndex < 3) {
+                console.log('[PDFRenderer] Creating text node:', JSON.stringify({
+                  runIndex,
+                  text: run.text ? run.text.substring(0, 30) : '(empty)',
+                  fontSize: fontSize,
+                  fontFamily: fontFamily,
+                  fontString: fontString,
+                  styleFontFamily: style.fontFamily,
+                  fontBold: fontBold,
+                  fontItalic: fontItalic,
+                  fontStyle: fontStyle,
+                  fontWeight: fontWeight,
+                  baselineY: run.y,
+                  topY: topY,
+                  x: elementX + run.x,
+                  y: elementY + topY
+                }, null, 2));
+              }
+              
+              const textNode = new Konva.Text({
+                x: elementX + run.x,
+                y: elementY + topY,
+                text: run.text || '',
+                fontSize: fontSize,
+                fontFamily: fontFamily,
+                fontStyle: fontStyle,
+                fontWeight: fontWeight,
+                fill: style.fontColor || '#000000',
+                opacity: (style.fontOpacity !== undefined ? style.fontOpacity : 1) * elementOpacity,
+                align: style.align || 'left',
+                verticalAlign: 'top',
+                rotation: elementRotation,
+                listening: false,
+                visible: true
+              });
+              
+              // IMPORTANT: Don't use setAttr('font') as it might override individual properties
+              // Konva.Text should use fontFamily, fontStyle, fontWeight, fontSize separately
+              // The fontString is only for reference/debugging
+              
+              // Debug: Verify font was set
+              if (runIndex < 3) {
+                console.log('[PDFRenderer] Text node created:', JSON.stringify({
+                  runIndex,
+                  nodeFontSize: textNode.fontSize(),
+                  nodeFontFamily: textNode.fontFamily(),
+                  nodeFontStyle: textNode.fontStyle(),
+                  nodeText: textNode.text() ? textNode.text().substring(0, 30) : '(empty)',
+                  nodeX: textNode.x(),
+                  nodeY: textNode.y()
+                }, null, 2));
+                
+                // Check if font is actually loaded
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                  ctx.font = `${fontWeight} ${fontStyle} ${fontSize}px ${fontFamily}`;
+                  const metrics = ctx.measureText('M');
+                  console.log('[PDFRenderer] Font metrics:', {
+                    font: ctx.font,
+                    width: metrics.width,
+                    actualBoundingBoxAscent: metrics.actualBoundingBoxAscent,
+                    actualBoundingBoxDescent: metrics.actualBoundingBoxDescent
+                  });
+                  
+                  // Check if font is actually being used (compare with fallback)
+                  ctx.font = `${fontWeight} ${fontStyle} ${fontSize}px cursive`;
+                  const fallbackMetrics = ctx.measureText('M');
+                  const isUsingFallback = Math.abs(metrics.width - fallbackMetrics.width) < 0.1;
+                  console.log('[PDFRenderer] Font check:', {
+                    isUsingFallback,
+                    customWidth: metrics.width,
+                    fallbackWidth: fallbackMetrics.width
+                  });
+                }
+              }
+              
+              layer.add(textNode);
+            } catch (runError: any) {
+              // Extract error message properly for Puppeteer
+              const errorMessage = runError?.message || runError?.toString() || 'Unknown error';
+              const errorStack = runError?.stack || 'No stack trace';
+              
+              console.error('[PDFRenderer] Error rendering text run:', runIndex);
+              console.error('[PDFRenderer] Error message:', errorMessage);
+              console.error('[PDFRenderer] Error stack:', errorStack);
+              console.error('[PDFRenderer] Run data:', {
+                text: run?.text,
+                x: run?.x,
+                y: run?.y,
+                styleFontSize: style?.fontSize,
+                styleFontFamily: style?.fontFamily
+              });
+              // Continue with next run instead of breaking entire element rendering
+            }
           });
         }
         // Render free_text elements
@@ -3279,11 +3423,11 @@ export function PDFRenderer({
             };
             
             const fontSize = textStyle.fontSize || freeTextDefaults.fontSize || 50;
-            const fontFamily = (textStyle.fontFamily || freeTextDefaults.fontFamily || 'Arial, sans-serif').replace(/^['"]|['"]$/g, '').replace(/['"]/g, '');
-            const fontColor = textStyle.fontColor || '#000000';
-            const fontOpacity = textStyle.fontOpacity ?? 1;
             const fontBold = textStyle.fontBold ?? false;
             const fontItalic = textStyle.fontItalic ?? false;
+            const fontFamily = resolveFontFamily(textStyle.fontFamily || freeTextDefaults.fontFamily, fontBold, fontItalic);
+            const fontColor = textStyle.fontColor || '#000000';
+            const fontOpacity = textStyle.fontOpacity ?? 1;
             const padding = textStyle.padding || element.padding || 4;
             
             const textNode = new Konva.Text({
@@ -3323,10 +3467,12 @@ export function PDFRenderer({
             // Use element properties with better defaults
             const fontSize = element.fontSize || element.font?.fontSize || 50;
             const fontColor = element.fontColor || element.font?.fontColor || '#000000';
-            let fontFamilyRaw = element.fontFamily || element.font?.fontFamily || 'Arial, sans-serif';
-            const fontFamily = fontFamilyRaw.replace(/^['"]|['"]$/g, '').replace(/['"]/g, '');
-            const fontWeight = element.fontWeight || element.font?.fontWeight || (element.font?.fontBold ? 'bold' : 'normal');
-            const fontStyle = element.fontStyle || element.font?.fontStyle || (element.font?.fontItalic ? 'italic' : 'normal');
+            const fontBold = element.font?.fontBold ?? false;
+            const fontItalic = element.font?.fontItalic ?? false;
+            const fontFamilyRaw = element.fontFamily || element.font?.fontFamily || 'Arial, sans-serif';
+            const fontFamily = resolveFontFamily(fontFamilyRaw, fontBold, fontItalic);
+            const fontWeight = element.fontWeight || element.font?.fontWeight || (fontBold ? 'bold' : 'normal');
+            const fontStyle = element.fontStyle || element.font?.fontStyle || (fontItalic ? 'italic' : 'normal');
             
             const textNode = new Konva.Text({
               x: elementX,

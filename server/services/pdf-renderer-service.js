@@ -492,7 +492,81 @@ class PDFRendererService {
         
         // Additional check: ensure fonts are actually loaded
         // Also check for specific fonts that might need more time
-        return new Promise((resolve) => {
+        return new Promise(async (resolve) => {
+          // First, wait for Mynerve fonts specifically
+          const mynerveFonts = Array.from(document.fonts).filter(font => 
+            font.family.toLowerCase().includes('mynerve')
+          );
+          
+          if (mynerveFonts.length > 0) {
+            console.log(`[PDFRendererService] Found ${mynerveFonts.length} Mynerve font(s):`, 
+              mynerveFonts.map(f => ({ family: f.family, status: f.status })));
+            
+            // Wait for Mynerve fonts to load
+            await Promise.all(mynerveFonts.map(font => font.loaded.catch(() => {
+              console.warn(`[PDFRendererService] Mynerve font failed to load: ${font.family}`);
+            })));
+            
+            // Verify they're loaded
+            const loadedMynerve = mynerveFonts.filter(f => f.status === 'loaded');
+            console.log(`[PDFRendererService] Mynerve fonts loaded: ${loadedMynerve.length}/${mynerveFonts.length}`);
+            } else {
+              console.warn('[PDFRendererService] Mynerve font not found in document.fonts');
+              // List all available fonts for debugging
+              const allFonts = Array.from(document.fonts).map(f => ({ family: f.family, status: f.status }));
+              console.log('[PDFRendererService] Available fonts:', JSON.stringify(allFonts.slice(0, 30), null, 2));
+              
+              // Try to load Mynerve font explicitly using the correct URL from Google Fonts
+              console.log('[PDFRendererService] Attempting to load Mynerve font explicitly...');
+              // The correct URL format for Google Fonts is: https://fonts.gstatic.com/s/fontname/v1/filename.woff2
+              // Let's try multiple possible URLs
+              const fontUrls = [
+                'https://fonts.gstatic.com/s/mynerve/v1/7cH1v4Uiz5qdl1MvLwQ.woff2',
+                'https://fonts.gstatic.com/s/mynerve/v2/7cH1v4Uiz5qdl1MvLwQ.woff2',
+                'https://fonts.googleapis.com/css2?family=Mynerve&display=swap'
+              ];
+              
+              let fontLoaded = false;
+              for (const fontUrl of fontUrls) {
+                try {
+                  if (fontUrl.includes('css2')) {
+                    // If it's a CSS URL, add it as a stylesheet
+                    const link = document.createElement('link');
+                    link.rel = 'stylesheet';
+                    link.href = fontUrl;
+                    document.head.appendChild(link);
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    fontLoaded = true;
+                    console.log('[PDFRendererService] Mynerve font stylesheet loaded');
+                    break;
+                  } else {
+                    // If it's a woff2 URL, try to load it as FontFace
+                    const fontFace = new FontFace('Mynerve', `url(${fontUrl})`);
+                    await fontFace.load();
+                    document.fonts.add(fontFace);
+                    fontLoaded = true;
+                    console.log('[PDFRendererService] Mynerve font loaded from:', fontUrl);
+                    break;
+                  }
+                } catch (err) {
+                  console.warn(`[PDFRendererService] Failed to load Mynerve font from ${fontUrl}:`, err.message);
+                }
+              }
+              
+              if (!fontLoaded) {
+                console.error('[PDFRendererService] Could not load Mynerve font from any URL');
+              }
+              
+              // Wait a bit for the font to be ready
+              await new Promise(resolve => setTimeout(resolve, 500));
+              
+              // Check again
+              const mynerveFontsAfter = Array.from(document.fonts).filter(font => 
+                font.family.toLowerCase().includes('mynerve')
+              );
+              console.log(`[PDFRendererService] Mynerve fonts after explicit load: ${mynerveFontsAfter.length}`);
+            }
+          
           let attempts = 0;
           const checkFonts = setInterval(() => {
             attempts++;
@@ -520,7 +594,9 @@ class PDFRendererService {
                 return true; // System fonts are always considered loaded
               }
               
-              return font.status === 'loaded';
+              // For Google Fonts, check if status is 'loaded' or 'loading' (loading is OK, browser will use fallback)
+              // But we want to wait a bit more for 'loading' fonts to become 'loaded'
+              return font.status === 'loaded' || font.status === 'loading';
             });
             
             if (allLoaded || attempts > 100) {
