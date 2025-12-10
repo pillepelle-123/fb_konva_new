@@ -2498,6 +2498,10 @@ export function PDFRenderer({
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
           
+          // NOTE: Font loading is handled by pdf-renderer-service.js before rendering
+          // The fonts should already be loaded when this code executes
+          // If fonts are not loaded, the measurement will use fallback metrics
+          
           // Use sharedCreateLayout to get runs and linePositions (matching textbox-qna.tsx)
           const layout = sharedCreateLayout({
             questionText: questionText || '',

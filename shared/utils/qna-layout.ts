@@ -6,7 +6,7 @@
 import type { RichTextStyle } from '../types/text-layout';
 import type { LayoutResult, LinePosition } from '../types/layout';
 import type { TextRun } from '../types/text-layout';
-import { wrapText, measureText, calculateTextX, getLineHeight } from './text-layout.ts';
+import { wrapText, measureText, calculateTextX, getLineHeight, buildFont } from './text-layout.ts';
 
 export interface CreateBlockLayoutParams {
   questionText: string;
@@ -222,7 +222,51 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
   
   let cursorY = padding;
   const questionLines = wrapText(questionText, questionStyle, availableWidth, ctx);
-  const lastQuestionLineWidth = questionLines.length ? questionLines[questionLines.length - 1].width : 0;
+  
+  // Calculate lastQuestionLineWidth using actualBoundingBoxRight to account for glyph overhangs and swashes
+  // This is critical for fonts like "Audiowide" (overhangs) and "Bilbo Swash Caps" (swashes)
+  // IMPORTANT: For positioning, we need actualBoundingBoxRight (distance from origin to right edge)
+  // NOT actualBoundingBoxRight - actualBoundingBoxLeft (which is the bounding box width)
+  // The right edge position is what we need to position the answer text correctly
+  let lastQuestionLineWidth = 0;
+  if (questionLines.length > 0 && ctx) {
+    const lastQuestionLine = questionLines[questionLines.length - 1];
+    if (lastQuestionLine.text) {
+      ctx.save();
+      ctx.font = buildFont(questionStyle);
+      ctx.textBaseline = 'alphabetic'; // Match rendering baseline
+      const metrics = ctx.measureText(lastQuestionLine.text);
+      
+      // Use actualBoundingBoxRight for positioning (distance from text origin to right edge)
+      // This is the actual rendered right edge including all overhangs/swashes
+      // This is what we need to calculate where the answer text should start
+      if (metrics.actualBoundingBoxRight !== undefined) {
+        // actualBoundingBoxRight is the distance from the text origin (left edge) to the right edge
+        // This is exactly what we need for positioning the answer text
+        lastQuestionLineWidth = metrics.actualBoundingBoxRight;
+      } else {
+        // Fallback: use standard width measurement
+        lastQuestionLineWidth = metrics.width;
+      }
+      
+      // Debug logging for font metrics - extract values explicitly to avoid JSHandle@object serialization issues
+      // Always log to help diagnose issues in both client and server
+      const debugMetrics = {
+        text: lastQuestionLine.text.substring(0, 30),
+        fontFamily: questionStyle.fontFamily,
+        fontSize: questionStyle.fontSize,
+        width: metrics.width,
+        actualBoundingBoxRight: metrics.actualBoundingBoxRight !== undefined ? metrics.actualBoundingBoxRight : null,
+        actualBoundingBoxLeft: metrics.actualBoundingBoxLeft !== undefined ? metrics.actualBoundingBoxLeft : null,
+        calculatedWidth: lastQuestionLineWidth,
+        fontString: buildFont(questionStyle),
+        environment: typeof window !== 'undefined' ? 'client' : 'server'
+      };
+      console.log('[qna-layout] Font metrics for last question line:', JSON.stringify(debugMetrics, null, 2));
+      
+      ctx.restore();
+    }
+  }
   
   // Store Y positions for each question line
   const questionLinePositions: number[] = [];
@@ -367,6 +411,43 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
             if (lastQuestionRunIndex >= 0 && runs[lastQuestionRunIndex].style === questionStyle) {
               runs[lastQuestionRunIndex].y = combinedBaselineY;
               runs[lastQuestionRunIndex].x = questionX;
+              
+              // CRITICAL: Recalculate inlineTextX using the actual run's X position + measured width
+              // This ensures we use the actual rendered position, not just the calculated position
+              // This accounts for font-specific rendering differences and ensures accuracy
+              if (ctx && runs[lastQuestionRunIndex].text) {
+                ctx.save();
+                ctx.font = buildFont(questionStyle);
+                ctx.textBaseline = 'alphabetic';
+                const runMetrics = ctx.measureText(runs[lastQuestionRunIndex].text);
+                
+                // Use actualBoundingBoxRight for the right edge position
+                const questionRightEdge = runMetrics.actualBoundingBoxRight !== undefined 
+                  ? runMetrics.actualBoundingBoxRight 
+                  : runMetrics.width;
+                
+                // Calculate inlineTextX as: question run X position + question right edge + gap
+                // This uses the actual run position, not the calculated position
+                inlineTextX = questionX + questionRightEdge + inlineGap;
+                
+                // Debug logging - extract values explicitly to avoid JSHandle@object serialization issues
+                // Always log to help diagnose issues in both client and server
+                const debugRecalc = {
+                  text: runs[lastQuestionRunIndex].text.substring(0, 30),
+                  questionX,
+                  questionRightEdge,
+                  actualBoundingBoxRight: runMetrics.actualBoundingBoxRight !== undefined ? runMetrics.actualBoundingBoxRight : null,
+                  actualBoundingBoxLeft: runMetrics.actualBoundingBoxLeft !== undefined ? runMetrics.actualBoundingBoxLeft : null,
+                  width: runMetrics.width,
+                  inlineGap,
+                  calculatedInlineTextX: inlineTextX,
+                  align,
+                  environment: typeof window !== 'undefined' ? 'client' : 'server'
+                };
+                console.log('[qna-layout] Recalculated inlineTextX using run position:', JSON.stringify(debugRecalc, null, 2));
+                
+                ctx.restore();
+              }
             }
             
             // Add answer text aligned to the same baseline

@@ -155,6 +155,49 @@ class PDFRendererService {
       }));
       console.log('[PDFRendererService] Font stylesheets injected after template load');
 
+      // CRITICAL: Load fonts BEFORE rendering to ensure accurate text measurement
+      // This is essential for fonts with overhangs/swashes (e.g., Audiowide, Bilbo Swash Caps)
+      // The layout calculation happens during rendering, so fonts must be loaded first
+      await page.evaluate(async () => {
+        const timeout = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        // Wait for document.fonts.ready, cap at 5s
+        await Promise.race([document.fonts.ready, timeout(5000)]);
+
+        // Proactively load all relevant Google Font families (normal + bold + italic)
+        const googleFamilies = [
+          'Mynerve','Molle','Chewy','Grape Nuts','Gochi Hand','Lacquer','Amatic SC','Comic Neue','Schoolbell',
+          'Playwrite DE VA','Inclusive Sans','Mohave','Luckiest Guy','DynaPuff','Bungee','Bungee Outline',
+          'Bungee Shade','Bungee Hairline','Henny Penny','Kablammo','Knewave','Lobster','Rock Salt',
+          'Gloria Hallelujah','Rye','Rubik Dirt','Rubik Glitch','Rubik Wet Paint','Poiret One','Emilys Candy',
+          'Bigelow Rules','Vast Shadow','Noto Sans Symbols','Noto Color Emoji','Noto Sans Symbols 2',
+          'Permanent Marker','Monoton','Megrim','Fascinate','Electrolize','Doto','Bodoni Moda','Italiana',
+          'Saira Stencil One','Emblema One','Monofett','Shojumaru','Audiowide','Bilbo Swash Caps'
+        ];
+
+        const uniqueFamilies = Array.from(new Set(googleFamilies));
+        const loadPromises = [];
+        // Load fonts with multiple sizes to cover all possible font sizes used in the document
+        const fontSizes = [16, 24, 32, 40, 48, 50, 60, 72, 96, 100, 125, 150];
+        uniqueFamilies.forEach(name => {
+          fontSizes.forEach(size => {
+            loadPromises.push(document.fonts.load(`400 ${size}px "${name}"`).catch(() => {}));
+            loadPromises.push(document.fonts.load(`700 ${size}px "${name}"`).catch(() => {}));
+            loadPromises.push(document.fonts.load(`400 italic ${size}px "${name}"`).catch(() => {}));
+            loadPromises.push(document.fonts.load(`700 italic ${size}px "${name}"`).catch(() => {}));
+          });
+        });
+
+        const waitAll = Promise.all(Array.from(document.fonts).map(f => f.loaded.catch(() => {})));
+        const waitCritical = Promise.all(loadPromises);
+        await Promise.race([Promise.all([waitAll, waitCritical]), timeout(10000)]); // Increased timeout to 10s
+
+        const finalFonts = Array.from(document.fonts).map(f => ({ family: f.family, status: f.status }));
+        console.log('[PDFRendererService] Fonts preloaded before rendering:', JSON.stringify(finalFonts.filter(f => f.status === 'loaded').slice(0, 20), null, 2));
+      });
+
+      console.log('[PDFRendererService] Fonts preloaded before rendering');
+
       // Wait for script to load and execute
       await page.evaluate(() => {
         return new Promise((resolve, reject) => {
