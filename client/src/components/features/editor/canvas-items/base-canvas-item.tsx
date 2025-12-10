@@ -56,14 +56,16 @@ export default function BaseCanvasItem({
 
   // Prevent scaling for question-answer pairs but allow qna textboxes to be resized
   useEffect(() => {
-    if (groupRef.current && (element.textType === 'question' || element.textType === 'answer')) {
+    if (groupRef.current && element && (element.textType === 'question' || element.textType === 'answer')) {
       // Always ensure scale is 1 for question/answer elements
       groupRef.current.scaleX(1);
       groupRef.current.scaleY(1);
     }
-  }, [element.textType, element.type, element.width, element.height, element.scaleX, element.scaleY]);
+  }, [element, element?.textType, element?.type, element?.width, element?.height, element?.scaleX, element?.scaleY]);
 
   useEffect(() => {
+    if (!element) return;
+    
     const handlePartnerHover = (event: CustomEvent) => {
       const { elementId, hover } = event.detail;
       
@@ -85,7 +87,7 @@ export default function BaseCanvasItem({
     
     window.addEventListener('hoverPartner', handlePartnerHover as EventListener);
     return () => window.removeEventListener('hoverPartner', handlePartnerHover as EventListener);
-  }, [element.id, element.textType, element.questionElementId, state.currentBook, state.activePageIndex]);
+  }, [element, element?.id, element?.textType, element?.questionElementId, state.currentBook, state.activePageIndex]);
   const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (!interactive) return; // Skip interactions in non-interactive mode
     if (isInsideGroup) return; // Don't handle clicks for grouped elements
@@ -96,7 +98,7 @@ export default function BaseCanvasItem({
         // For other elements with Ctrl+click, always call onSelect to handle multi-selection/deselection
         // For other elements without Ctrl, call onSelect if not already selected OR if lockElements is enabled
         // This ensures selection is properly updated even when lockElements is active
-        if (element.textType === 'question' || element.textType === 'answer' || !isSelected || e.evt.ctrlKey || e.evt.metaKey || state.editorSettings?.editor?.lockElements) {
+        if (element && ((element.textType === 'question' || element.textType === 'answer') || !isSelected || e.evt.ctrlKey || e.evt.metaKey || state.editorSettings?.editor?.lockElements)) {
           onSelect(e);
         }
       } else if (e.evt.button === 2) {
@@ -136,7 +138,7 @@ export default function BaseCanvasItem({
       // Skip for question-answer pairs as they use onClick for sequential selection
       // Skip if Ctrl/Cmd is pressed (multi-selection is handled in onClick)
       // When lockElements is enabled, always call onSelect to ensure selection is updated
-      if ((!isSelected || state.editorSettings?.editor?.lockElements) && !(element.textType === 'question' || element.textType === 'answer') && !e.evt.ctrlKey && !e.evt.metaKey) {
+      if (element && (!isSelected || state.editorSettings?.editor?.lockElements) && !(element.textType === 'question' || element.textType === 'answer') && !e.evt.ctrlKey && !e.evt.metaKey) {
         onSelect(e);
       }
     }
@@ -162,6 +164,11 @@ export default function BaseCanvasItem({
     onDragEnd?.(e);
   };
 
+  // Early return if element is undefined
+  if (!element) {
+    return null;
+  }
+
   const defaultHitArea = hitArea || { x: 0, y: 0, width: element.width || 100, height: element.height || 100 };
 
   const groupName = element.type === 'placeholder'
@@ -175,9 +182,9 @@ export default function BaseCanvasItem({
       name={groupName}
       x={element.x}
       y={element.y}
-      scaleX={(element.textType === 'question' || element.textType === 'answer') ? 1 : (element.scaleX || 1)}
-      scaleY={(element.textType === 'question' || element.textType === 'answer') ? 1 : (element.scaleY || 1)}
-      rotation={typeof element.rotation === 'number' ? element.rotation : 0}
+      scaleX={(element && (element.textType === 'question' || element.textType === 'answer')) ? 1 : (element?.scaleX || 1)}
+      scaleY={(element && (element.textType === 'question' || element.textType === 'answer')) ? 1 : (element?.scaleY || 1)}
+      rotation={typeof element?.rotation === 'number' ? element.rotation : 0}
       draggable={interactive && state.activeTool === 'select' && !isMovingGroup && !isInsideGroup && state.editorInteractionLevel !== 'answer_only' && state.selectedElementIds.length <= 1 && !(state.editorSettings?.editor?.lockElements)}
       onMouseDown={interactive ? handleMouseDown : undefined}
       onClick={interactive ? handleClick : undefined}
@@ -186,7 +193,7 @@ export default function BaseCanvasItem({
         e.cancelBubble = true;
         // For question-answer pairs, always call onSelect for sequential selection
         // For other elements, only call if not already selected
-        if (element.textType === 'question' || element.textType === 'answer' || !isSelected) {
+        if (element && ((element.textType === 'question' || element.textType === 'answer') || !isSelected)) {
           onSelect();
         }
       } : undefined}
@@ -202,7 +209,7 @@ export default function BaseCanvasItem({
         setIsHovered(true);
         onMouseEnter?.();
         // Trigger hover on partner element for question-answer pairs
-        if (element.textType === 'question' || element.textType === 'answer') {
+        if (element && (element.textType === 'question' || element.textType === 'answer')) {
           window.dispatchEvent(new CustomEvent('hoverPartner', { detail: { elementId: element.id, hover: true } }));
         }
       } : undefined}
@@ -210,7 +217,7 @@ export default function BaseCanvasItem({
         setIsHovered(false);
         onMouseLeave?.();
         // Remove hover from partner element for question-answer pairs
-        if (element.textType === 'question' || element.textType === 'answer') {
+        if (element && (element.textType === 'question' || element.textType === 'answer')) {
           window.dispatchEvent(new CustomEvent('hoverPartner', { detail: { elementId: element.id, hover: false } }));
         }
       } : undefined}
@@ -235,7 +242,7 @@ export default function BaseCanvasItem({
           y={defaultHitArea.y}
           width={defaultHitArea.width}
           height={defaultHitArea.height}
-          lighter={element.textType === 'qna'}
+          lighter={element?.textType === 'qna' || element?.textType === 'qna2'}
         />
       )}
       
@@ -250,15 +257,40 @@ export default function BaseCanvasItem({
           y={defaultHitArea.y}
           width={defaultHitArea.width}
           height={defaultHitArea.height}
-          lighter={element.textType === 'qna'}
+          lighter={element?.textType === 'qna' || element?.textType === 'qna2'}
         />
       )}
       
       {/* Pass isDragging to children if they are React elements */}
       {React.Children.map(children, (child) => {
-        if (React.isValidElement(child) && typeof child.type !== 'string' && child.type !== React.Fragment) {
-          const typedChild = child as React.ReactElement<Record<string, unknown>>;
-          return React.cloneElement(typedChild, { isDragging });
+        if (React.isValidElement(child)) {
+          // Handle Fragments by recursively mapping their children
+          if (child.type === React.Fragment) {
+            const fragmentProps = child.props as { children?: ReactNode };
+            const mappedFragmentChildren = React.Children.map(fragmentProps.children, (fragmentChild) => {
+              if (React.isValidElement(fragmentChild) && typeof fragmentChild.type !== 'string') {
+                try {
+                  return React.cloneElement(fragmentChild as React.ReactElement<Record<string, unknown>>, { isDragging });
+                } catch {
+                  return fragmentChild;
+                }
+              }
+              return fragmentChild;
+            });
+            return React.cloneElement(child, {}, mappedFragmentChildren);
+          }
+          // Only clone elements that are not Konva components (which have string types)
+          if (typeof child.type === 'string') {
+            return child;
+          }
+          // For React components, try to pass isDragging if they accept it
+          try {
+            const typedChild = child as React.ReactElement<Record<string, unknown>>;
+            return React.cloneElement(typedChild, { isDragging });
+          } catch {
+            // If cloning fails, return the child as-is
+            return child;
+          }
         }
         return child;
       })}

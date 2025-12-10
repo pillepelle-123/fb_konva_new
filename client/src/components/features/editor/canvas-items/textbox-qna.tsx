@@ -1,6 +1,5 @@
 import React, { useMemo, useRef, useEffect, forwardRef, useState, useCallback } from 'react';
 import { Shape, Rect, Path, Text as KonvaText } from 'react-konva';
-import { v4 as uuidv4 } from 'uuid';
 import BaseCanvasItem, { type CanvasItemProps } from './base-canvas-item';
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
@@ -14,6 +13,7 @@ import type { RichTextStyle, TextRun, ParagraphSpacing } from '../../../../../..
 import type { LinePosition, LayoutResult } from '../../../../../../shared/types/layout';
 import { buildFont as sharedBuildFont, getLineHeight as sharedGetLineHeight, measureText as sharedMeasureText, calculateTextX as sharedCalculateTextX, wrapText as sharedWrapText } from '../../../../../../shared/utils/text-layout';
 import { createLayout as sharedCreateLayout, createBlockLayout as sharedCreateBlockLayout } from '../../../../../../shared/utils/qna-layout';
+import { createInlineTextEditor } from './inline-text-editor';
 
 type QnaSettings = {
   fontSize?: number;
@@ -1350,7 +1350,7 @@ export default function TextboxQna(props: CanvasItemProps) {
   const ruledLinesWidth = qnaElement.ruledLinesWidth ?? 0.8;
   // Use theme defaults from qnaDefaults - prioritize element value, then theme defaults, then fallback
   const ruledLinesTheme = qnaElement.ruledLinesTheme || qnaDefaults.ruledLinesTheme || 'rough';
-  const ruledLinesColor = qnaElement.ruledLinesColor || '#1f2937';
+  const ruledLinesColor = qnaElement.ruledLinesColor || qnaDefaults.ruledLinesColor || '#1f2937';
   const ruledLinesOpacity = qnaElement.ruledLinesOpacity ?? 1;
 
   const ruledLinesElements = useMemo(() => {
@@ -1400,7 +1400,13 @@ export default function TextboxQna(props: CanvasItemProps) {
       });
     };
 
-    layout.linePositions.forEach((linePos: LinePosition) => {
+    // Filter line positions by target (question or answer)
+    const targetLinePositions = layout.linePositions.filter((linePos: LinePosition) => {
+      return linePos.style === (ruledLinesTarget === 'question' ? effectiveQuestionStyle : answerStyle);
+    });
+
+    // Render existing lines
+    targetLinePositions.forEach((linePos: LinePosition) => {
       // For block layout, only render lines within the target area
       if (layoutVariant === 'block' && layout.questionArea && layout.answerArea) {
         const targetArea = ruledLinesTarget === 'question' ? layout.questionArea : layout.answerArea;
@@ -1430,8 +1436,39 @@ export default function TextboxQna(props: CanvasItemProps) {
       }
     });
 
+    // For answer lines, extend to bottom of textbox
+    if (ruledLinesTarget === 'answer' && targetLinePositions.length > 0) {
+      const answerLineHeight = getLineHeight(answerStyle);
+      const lastLinePosition = targetLinePositions[targetLinePositions.length - 1];
+      let nextLineY = lastLinePosition.y + lastLinePosition.lineHeight;
+      
+      // Determine start and end X positions
+      let startX: number;
+      let endX: number;
+      let bottomY: number;
+      
+      if (layoutVariant === 'block' && layout.answerArea) {
+        startX = layout.answerArea.x;
+        endX = layout.answerArea.x + layout.answerArea.width;
+        bottomY = layout.answerArea.y + layout.answerArea.height;
+      } else {
+        startX = padding;
+        endX = boxWidth - padding;
+        bottomY = boxHeight - padding;
+      }
+      
+      // Generate additional lines until we reach the bottom
+      while (nextLineY <= bottomY) {
+        const lineElement = generateRuledLineElement(nextLineY, startX, endX);
+        if (lineElement) {
+          elements.push(lineElement);
+        }
+        nextLineY += answerLineHeight;
+      }
+    }
+
     return elements;
-  }, [ruledLines, layout.linePositions, layout.questionArea, layout.answerArea, padding, boxWidth, boxHeight, ruledLinesWidth, ruledLinesTheme, ruledLinesColor, ruledLinesOpacity, element.id, layoutVariant, ruledLinesTarget, qnaDefaults]);
+  }, [ruledLines, layout.linePositions, layout.questionArea, layout.answerArea, padding, boxWidth, boxHeight, ruledLinesWidth, ruledLinesTheme, ruledLinesColor, ruledLinesOpacity, element.id, layoutVariant, ruledLinesTarget, qnaDefaults, effectiveQuestionStyle, answerStyle]);
 
   const showBackground = qnaElement.backgroundEnabled && qnaElement.backgroundColor;
   const showBorder = qnaElement.borderEnabled && qnaElement.borderColor && qnaElement.borderWidth !== undefined;
@@ -1671,557 +1708,24 @@ export default function TextboxQna(props: CanvasItemProps) {
   }, [element.id]);
 
   const enableInlineAnswerEditing = useCallback(() => {
-    const stage = textRef.current?.getStage();
-    if (!stage) return;
-    const stageInstance: Konva.Stage = stage;
-
-    // Get answer area and calculate actual text bounds
-    let answerArea: { x: number; y: number; width: number; height: number };
-    let actualTextBounds: { x: number; y: number; width: number; height: number } | null = null;
-    
-    if (layoutVariant === 'block' && layout.answerArea) {
-      answerArea = layout.answerArea;
-      // For block layout, calculate actual text bounds from runs
-      const answerRuns = layout.runs.filter((run: TextRun) => run.style === answerStyle);
-      if (answerRuns.length > 0) {
-        const answerBaselineOffset = answerStyle.fontSize * 0.8;
-        const answerLineHeight = getLineHeight(answerStyle);
-        const canvasContext = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
-        const minAnswerX = Math.min(...answerRuns.map((run: TextRun) => run.x));
-        const maxAnswerX = Math.max(...answerRuns.map((run: TextRun) => {
-          const textWidth = measureText(run.text, answerStyle, canvasContext);
-          return run.x + textWidth;
-        }));
-        const minAnswerY = Math.min(...answerRuns.map((run: TextRun) => run.y - answerBaselineOffset));
-        const maxAnswerY = Math.max(...answerRuns.map((run: TextRun) => run.y - answerBaselineOffset + answerLineHeight));
-        
-        actualTextBounds = {
-          x: minAnswerX,
-          y: minAnswerY,
-          width: maxAnswerX - minAnswerX,
-          height: maxAnswerY - minAnswerY
-        };
-      }
-    } else {
-      // For inline layout, calculate answer area from runs
-      const answerRuns = layout.runs.filter((run: TextRun) => run.style === answerStyle);
-      const questionRuns = layout.runs.filter((run: TextRun) => run.style === effectiveQuestionStyle);
-      
-      if (answerRuns.length === 0) {
-        // No answer text, calculate position below question text
-        if (questionRuns.length > 0) {
-          const questionBaselineOffset = effectiveQuestionStyle.fontSize * 0.8;
-          const questionLineHeight = getLineHeight(effectiveQuestionStyle);
-          const answerLineHeight = getLineHeight(answerStyle);
-          
-          // Find the last question line position
-          const lastQuestionY = Math.max(...questionRuns.map((run: TextRun) => run.y - questionBaselineOffset + questionLineHeight));
-          
-          // Answer area starts after the question (with some spacing)
-          const answerStartY = lastQuestionY + (answerLineHeight * 0.2);
-          
-          answerArea = {
-            x: padding,
-            y: answerStartY,
-            width: boxWidth - padding * 2,
-            height: Math.max(answerLineHeight, boxHeight - answerStartY - padding)
-          };
-          } else {
-          // No question text either, use default area
-          answerArea = { x: padding, y: padding, width: boxWidth - padding * 2, height: boxHeight - padding * 2 };
-        }
-        actualTextBounds = null;
-      } else {
-        const answerBaselineOffset = answerStyle.fontSize * 0.8;
-        const answerLineHeight = getLineHeight(answerStyle);
-        const minAnswerY = Math.min(...answerRuns.map((run: TextRun) => run.y - answerBaselineOffset));
-        const maxAnswerY = Math.max(...answerRuns.map((run: TextRun) => run.y - answerBaselineOffset + answerLineHeight));
-        // Create canvas context for text measurement
-        const canvasContext = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
-        const minAnswerX = Math.min(...answerRuns.map((run: TextRun) => run.x));
-        const maxAnswerX = Math.max(...answerRuns.map((run: TextRun) => {
-          const textWidth = measureText(run.text, answerStyle, canvasContext);
-          return run.x + textWidth;
-        }));
-        
-        actualTextBounds = {
-          x: minAnswerX,
-          y: minAnswerY,
-          width: maxAnswerX - minAnswerX,
-          height: maxAnswerY - minAnswerY
-        };
-        
-        answerArea = {
-          x: minAnswerX,
-          y: minAnswerY,
-          width: Math.max(maxAnswerX - minAnswerX, boxWidth - padding * 2),
-          height: maxAnswerY - minAnswerY
-        };
-      }
-    }
-    
-    // Set state to hide only answer text (not question) during editing
-    setIsAnswerEditorOpen(true);
-    
-    const groupNode = textRef.current?.getParent();
-    if (!groupNode) return;
-    
-    // Calculate absolute position relative to viewport
-    const stageBox = stage.container().getBoundingClientRect();
-    
-    // Get zoom factor from stage (scaleX and scaleY should be the same for uniform scaling)
-    const zoom = stage.scaleX();
-    
-    // Apply zoom to dimensions and font size (needed for line height calculation)
-    const scaledFontSize = answerStyle.fontSize * zoom;
-    const lineHeightValue = getLineHeight(answerStyle);
-    const scaledLineHeight = lineHeightValue * zoom;
-    
-    // Use actual text bounds if available, otherwise use answerArea
-    const textBounds = actualTextBounds || answerArea;
-    
-    // Position textarea horizontally at the left edge of the textbox (padding)
-    // This ensures the textarea always aligns with the textbox's horizontal position,
-    // regardless of where the answer text starts (e.g., in a combined question-answer row)
-    const runX = padding;
-    // Position textarea one line below the first answer text row (only if text exists)
-    const runY = actualTextBounds 
-      ? textBounds.y + lineHeightValue // Add one line height to position below first row when text exists
-      : textBounds.y; // Use normal position when no text exists yet
-    
-    // Transform run position through the group's transform to get stage coordinates
-    const groupTransform = groupNode.getAbsoluteTransform();
-    const runStagePos = groupTransform.point({ x: runX, y: runY });
-    
-    // Convert to viewport coordinates (stage container position + transformed run position)
-    // Apply small offsets to fine-tune positioning
-    // Textarea needs to shift slightly right (positive X) and down (positive Y) for correct alignment
-    const areaPosition = {
-      x: stageBox.left + runStagePos.x + (1 * zoom), // Shift slightly right
-      y: stageBox.top + runStagePos.y + (4 * zoom), // Shift down a bit more
-    };
-    
-    // Use answerArea width for textarea (full available width for wrapping)
-    // This ensures textarea has the same width as the text area on canvas
-    const scaledWidth = answerArea.width * zoom;
-    // Initial height will be calculated using scrollHeight after textarea is styled
-    const initialMinimumHeight = scaledLineHeight * 2; // Minimum height (two lines) for better usability
-    const scaledHeight = initialMinimumHeight; // Will be updated by scrollHeight calculation
-    
-    // Create textarea
-    const textarea = document.createElement('textarea');
-    // Remove any classes that might add borders
-    textarea.className = '';
-    textarea.removeAttribute('class');
-    document.body.appendChild(textarea);
-    
-    // Set initial value
-    textarea.value = answerText || '';
-    
-    // Style textarea exactly like canvas rendering (with zoom applied)
-    textarea.style.position = 'fixed'; // Use fixed instead of absolute for viewport-relative positioning
-    textarea.style.top = areaPosition.y + 'px';
-    textarea.style.left = areaPosition.x + 'px';
-    textarea.style.width = scaledWidth + 'px';
-    textarea.style.height = scaledHeight + 'px';
-    textarea.style.fontSize = scaledFontSize + 'px';
-    textarea.style.fontFamily = answerStyle.fontFamily;
-    textarea.style.fontWeight = answerStyle.fontBold ? 'bold' : 'normal';
-    textarea.style.fontStyle = answerStyle.fontItalic ? 'italic' : 'normal';
-    textarea.style.color = 'var(--foreground)'; // Always use foreground color for editor textarea
-    textarea.style.opacity = '0.7'; // Set opacity to 0.7 for editor textarea
-    textarea.style.lineHeight = scaledLineHeight + 'px'; // Set lineHeight as pixel value (scaled)
-    textarea.style.textAlign = answerStyle.align || 'left';
-    textarea.style.padding = '0px';
-    textarea.style.margin = '0px';
-    textarea.style.border = '3px dashed #d1d5db'; // Light gray dashed border, 3px width
-    textarea.style.borderWidth = '3px';
-    textarea.style.borderStyle = 'dashed';
-    textarea.style.borderColor = '#d1d5db'; // Light gray color
-    textarea.style.outline = 'none';
-    textarea.style.boxShadow = 'none';
-    textarea.style.backgroundColor = '#ffffff'; // White background
-    textarea.style.background = '#ffffff';
-    textarea.style.resize = 'none';
-    textarea.style.overflow = 'hidden';
-    textarea.style.whiteSpace = 'pre-wrap';
-    textarea.style.transformOrigin = 'left top';
-    textarea.style.zIndex = '0'; // Set z-index to match canvas overlay layer
-    textarea.style.boxSizing = 'border-box';
-    
-    // Remove any focus styles that might add borders
-    textarea.style.setProperty('--tw-ring-width', '0');
-    textarea.style.setProperty('--tw-ring-offset-width', '0');
-    
-    // Handle rotation if needed
-    const rotation = textRef.current?.rotation() || 0;
-    let transform = '';
-    if (rotation) {
-      transform += 'rotateZ(' + rotation + 'deg)';
-    }
-    transform += 'translateY(-2px)';
-    textarea.style.transform = transform;
-    
-    // Focus textarea
-    textarea.focus();
-    
-    // Create container for buttons
-    const buttonContainer = document.createElement('div');
-    buttonContainer.className = 'flex gap-1';
-    buttonContainer.style.position = 'fixed';
-    buttonContainer.style.zIndex = '1';
-    buttonContainer.style.pointerEvents = 'auto';
-    document.body.appendChild(buttonContainer);
-    
-    // Function to save changes
-    function saveChanges() {
-      const newText = textarea.value;
-      dispatch({
-        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-        payload: {
-          id: element.id,
-          updates: {
-            text: newText,
-            formattedText: newText
-          }
-        }
-      });
-
-      if (element.questionId && user?.id) {
-        dispatch({
-          type: 'UPDATE_TEMP_ANSWER',
-          payload: {
-            questionId: element.questionId,
-            text: newText,
-            userId: user.id,
-            answerId: element.answerId || uuidv4()
-          }
-        });
-      }
-
-      removeTextarea();
-    }
-    
-    // Function to discard changes
-    function discardChanges() {
-      removeTextarea();
-    }
-    
-    // Create resize observer for button positioning
-    let resizeObserver: ResizeObserver | null = null;
-    
-    // Tooltip cleanup functions (will be set when buttons are created)
-    let discardTooltipCleanup: (() => void) | null = null;
-    let saveTooltipCleanup: (() => void) | null = null;
-    
-    function removeTextarea() {
-      if (textarea.parentNode) {
-        textarea.parentNode.removeChild(textarea);
-      }
-      if (buttonContainer.parentNode) {
-        buttonContainer.parentNode.removeChild(buttonContainer);
-      }
-      if (resizeObserver) {
-        resizeObserver.disconnect();
-        resizeObserver = null;
-      }
-      // Cleanup tooltips
-      if (discardTooltipCleanup) {
-        discardTooltipCleanup();
-      }
-      if (saveTooltipCleanup) {
-        saveTooltipCleanup();
-      }
-      // Show answer text again by resetting state
-      setIsAnswerEditorOpen(false);
-      stageInstance.draw();
-    }
-    
-    // Update button container position when textarea position/size changes
-    // Position buttons on bottom border of textarea, halfway between inside and outside
-    const updateButtonPosition = () => {
-      const textareaRect = textarea.getBoundingClientRect();
-      const buttonHeight = 32; // h-7 = 28px
-      const borderWidth = 3; // textarea border is 3px
-      // Position on bottom border, halfway inside/outside: bottom - borderWidth/2 - buttonHeight/2
-      buttonContainer.style.left = (textareaRect.right - 8) + 'px';
-      buttonContainer.style.top = (textareaRect.bottom - borderWidth / 2 - buttonHeight / 2) + 'px';
-      buttonContainer.style.transform = 'translate(-100%, 0)';
-    };
-    
-    // Initial position
-    updateButtonPosition();
-    
-    // Helper function to create and manage tooltip for buttons
-    const createButtonTooltip = (button: HTMLElement, text: string) => {
-      let tooltipElement: HTMLElement | null = null;
-      let tooltipVisible = false;
-      let tooltipTimeout: ReturnType<typeof setTimeout> | null = null;
-      
-      const showTooltip = () => {
-        if (tooltipVisible) return;
-        
-        // Clear any existing timeout
-        if (tooltipTimeout) {
-          clearTimeout(tooltipTimeout);
-          tooltipTimeout = null;
-        }
-        
-        // Remove existing tooltip if any
-        if (tooltipElement && tooltipElement.parentNode) {
-          tooltipElement.parentNode.removeChild(tooltipElement);
-        }
-        
-        // Create tooltip element
-        tooltipElement = document.createElement('div');
-        tooltipElement.className = 'fixed pointer-events-none transition-all duration-200 ease-out opacity-0 scale-95';
-        tooltipElement.style.zIndex = '11'; // Above buttons
-        
-        const tooltipContent = document.createElement('div');
-        tooltipContent.className = 'text-xs bg-background text-foreground px-2 py-1 rounded whitespace-nowrap';
-        tooltipContent.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)';
-        tooltipContent.textContent = text;
-        tooltipElement.appendChild(tooltipContent);
-        
-        document.body.appendChild(tooltipElement);
-        
-        // Calculate position (above button, centered)
-        const buttonRect = button.getBoundingClientRect();
-        tooltipElement.style.left = (buttonRect.left + buttonRect.width / 2) + 'px';
-        tooltipElement.style.top = (buttonRect.top - 8) + 'px';
-        tooltipElement.style.transform = 'translate(-50%, -100%)';
-        
-        // Show with transition
-        tooltipTimeout = setTimeout(() => {
-          if (tooltipElement) {
-            tooltipElement.className = 'fixed pointer-events-none transition-all duration-200 ease-out opacity-100 scale-100';
-            tooltipVisible = true;
-          }
-        }, 10);
-      };
-      
-      const hideTooltip = () => {
-        if (tooltipTimeout) {
-          clearTimeout(tooltipTimeout);
-          tooltipTimeout = null;
-        }
-        
-        if (tooltipElement) {
-          tooltipElement.className = 'fixed pointer-events-none transition-all duration-200 ease-out opacity-0 scale-95';
-          tooltipVisible = false;
-          
-          // Remove after transition
-          setTimeout(() => {
-            if (tooltipElement && tooltipElement.parentNode) {
-              tooltipElement.parentNode.removeChild(tooltipElement);
-              tooltipElement = null;
-            }
-          }, 200);
-        }
-      };
-      
-      button.addEventListener('mouseenter', showTooltip);
-      button.addEventListener('mouseleave', hideTooltip);
-      
-      // Cleanup function
-      return () => {
-        button.removeEventListener('mouseenter', showTooltip);
-        button.removeEventListener('mouseleave', hideTooltip);
-        if (tooltipTimeout) {
-          clearTimeout(tooltipTimeout);
-        }
-        if (tooltipElement && tooltipElement.parentNode) {
-          tooltipElement.parentNode.removeChild(tooltipElement);
-        }
-      };
-    };
-    
-    // Create discard button (X icon, outline variant, xs size)
-    const discardButton = document.createElement('button');
-    discardButton.className = 'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm h-7 px-3 text-xs border border-input bg-background hover:bg-secondary hover:text-accent-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 w-7 p-0';
-    discardButton.setAttribute('aria-label', 'Discard changes');
-    // Set color with fallback
-    const computedStyle = getComputedStyle(document.documentElement);
-    const foregroundColor = computedStyle.getPropertyValue('--foreground').trim() || '#000000';
-    discardButton.style.color = foregroundColor ? `hsl(${foregroundColor})` : '#000000';
-    
-    // Create SVG icon for X
-    const xIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    xIcon.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-    xIcon.setAttribute('width', '16');
-    xIcon.setAttribute('height', '16');
-    xIcon.setAttribute('viewBox', '0 0 24 24');
-    xIcon.setAttribute('fill', 'none');
-    xIcon.setAttribute('stroke', 'currentColor');
-    xIcon.setAttribute('stroke-width', '2');
-    xIcon.setAttribute('stroke-linecap', 'round');
-    xIcon.setAttribute('stroke-linejoin', 'round');
-    xIcon.style.display = 'block';
-    xIcon.style.color = 'inherit';
-    xIcon.style.verticalAlign = 'middle';
-    xIcon.style.flexShrink = '0';
-    xIcon.style.width = '16px';
-    xIcon.style.height = '16px';
-    
-    const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line1.setAttribute('x1', '18');
-    line1.setAttribute('y1', '6');
-    line1.setAttribute('x2', '6');
-    line1.setAttribute('y2', '18');
-    xIcon.appendChild(line1);
-    
-    const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line2.setAttribute('x1', '6');
-    line2.setAttribute('y1', '6');
-    line2.setAttribute('x2', '18');
-    line2.setAttribute('y2', '18');
-    xIcon.appendChild(line2);
-    
-    discardButton.appendChild(xIcon);
-    discardButton.addEventListener('click', (e) => {
-      e.stopPropagation();
-      discardChanges();
+    createInlineTextEditor({
+      element: qnaElement,
+      answerText,
+      answerStyle,
+      effectiveQuestionStyle,
+      layout,
+      layoutVariant,
+      padding,
+      boxWidth,
+      boxHeight,
+      textRef,
+      setIsAnswerEditorOpen,
+      user: user || null,
+      dispatch,
+      getLineHeight,
+      measureText
     });
-    buttonContainer.appendChild(discardButton);
-    
-    // Add tooltip to discard button
-    discardTooltipCleanup = createButtonTooltip(discardButton, 'Discard changes');
-    
-    // Create save button (Save icon, primary variant, xs size)
-    const saveButton = document.createElement('button');
-    saveButton.className = 'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm h-7 px-3 text-xs border border-primary bg-primary text-primary-foreground hover:bg-primary/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 w-7 p-0';
-    saveButton.setAttribute('aria-label', 'Save changes');
-    // Set color with fallback
-    const primaryForegroundColor = computedStyle.getPropertyValue('--primary-foreground').trim() || '#ffffff';
-    saveButton.style.color = primaryForegroundColor ? `hsl(${primaryForegroundColor})` : '#ffffff';
-    
-    // Create SVG icon for Save
-    const saveIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    saveIcon.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-    saveIcon.setAttribute('width', '16');
-    saveIcon.setAttribute('height', '16');
-    saveIcon.setAttribute('viewBox', '0 0 24 24');
-    saveIcon.setAttribute('fill', 'none');
-    saveIcon.setAttribute('stroke', 'currentColor');
-    saveIcon.setAttribute('stroke-width', '2');
-    saveIcon.setAttribute('stroke-linecap', 'round');
-    saveIcon.setAttribute('stroke-linejoin', 'round');
-    saveIcon.style.display = 'block';
-    saveIcon.style.color = 'inherit';
-    saveIcon.style.verticalAlign = 'middle';
-    saveIcon.style.flexShrink = '0';
-    saveIcon.style.width = '16px';
-    saveIcon.style.height = '16px';
-    
-    const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path1.setAttribute('d', 'M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z');
-    saveIcon.appendChild(path1);
-    
-    const polyline1 = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-    polyline1.setAttribute('points', '17 21 17 13 7 13 7 21');
-    saveIcon.appendChild(polyline1);
-    
-    const polyline2 = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-    polyline2.setAttribute('points', '7 3 7 8 15 8');
-    saveIcon.appendChild(polyline2);
-    
-    saveButton.appendChild(saveIcon);
-    saveButton.addEventListener('click', (e) => {
-      e.stopPropagation();
-      saveChanges();
-    });
-    buttonContainer.appendChild(saveButton);
-    
-    // Add tooltip to save button
-    saveTooltipCleanup = createButtonTooltip(saveButton, 'Save changes');
-    
-    // Update button position when textarea resizes
-    resizeObserver = new ResizeObserver(() => {
-      updateButtonPosition();
-    });
-    resizeObserver.observe(textarea);
-    
-    // Handle keydown events
-    textarea.addEventListener('keydown', function (e: KeyboardEvent) {
-      // Ctrl+Enter: Save and close editor
-      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        const newText = textarea.value;
-          dispatch({
-            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-            payload: {
-              id: element.id,
-              updates: {
-              text: newText,
-              formattedText: newText
-              }
-            }
-          });
-
-        if (element.questionId && user?.id) {
-            dispatch({
-              type: 'UPDATE_TEMP_ANSWER',
-              payload: {
-              questionId: element.questionId,
-              text: newText,
-                userId: user.id,
-                answerId: element.answerId || uuidv4()
-              }
-            });
-          }
-
-        removeTextarea();
-      }
-      // Enter without Ctrl: Allow default behavior (new line) - don't prevent default
-      // Shift+Enter: Also allow default behavior (new line) - don't prevent default
-      // Escape: Close editor without saving
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        removeTextarea();
-      }
-    });
-    
-    // Handle input events for auto-wrapping and height adjustment
-    // Use scrollHeight to accurately measure the actual content height
-    // This is more reliable than calculating based on line count
-    const minimumHeight = scaledLineHeight * 2; // Minimum height (two lines) for better usability
-    const heightBuffer = scaledLineHeight * 0.5; // Small buffer on top for better visibility
-    
-    // Set initial height
-    const updateHeight = () => {
-      // Reset height to auto to get accurate scrollHeight measurement
-      textarea.style.height = 'auto';
-      
-      // Get the actual scroll height (content height)
-      const scrollHeight = textarea.scrollHeight;
-      
-      // Calculate new height: scrollHeight + buffer, but at least minimumHeight
-      const newHeight = Math.max(minimumHeight, scrollHeight + heightBuffer);
-      
-      // Only update if height actually changed to prevent unnecessary reflows
-      const currentHeight = parseFloat(textarea.style.height) || 0;
-      if (Math.abs(newHeight - currentHeight) > 1) { // 1px tolerance to avoid micro-adjustments
-        textarea.style.height = newHeight + 'px';
-      }
-    };
-    
-    // Initial height calculation
-    updateHeight();
-    
-    // Update height on input - use a small debounce to batch rapid changes
-    let updateHeightTimeout: ReturnType<typeof setTimeout> | null = null;
-    textarea.addEventListener('input', function () {
-      if (updateHeightTimeout) {
-        clearTimeout(updateHeightTimeout);
-      }
-      
-      // Use a very short delay to allow the browser to update scrollHeight
-      updateHeightTimeout = setTimeout(() => {
-        updateHeight();
-        updateHeightTimeout = null;
-      }, 10); // Very short delay to allow DOM update
-    });
-  }, [answerText, answerStyle, effectiveQuestionStyle, layout, layoutVariant, padding, boxWidth, boxHeight, element.id, element.questionId, element.answerId, user?.id, dispatch, textRef]);
+  }, [answerText, answerStyle, effectiveQuestionStyle, layout, layoutVariant, padding, boxWidth, boxHeight, qnaElement, user, dispatch, textRef, getLineHeight, measureText]);
   
   // Update cursor style based on hovered area
   useEffect(() => {

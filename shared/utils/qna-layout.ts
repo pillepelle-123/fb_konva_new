@@ -249,20 +249,6 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
         lastQuestionLineWidth = metrics.width;
       }
       
-      // Debug logging for font metrics - extract values explicitly to avoid JSHandle@object serialization issues
-      // Always log to help diagnose issues in both client and server
-      const debugMetrics = {
-        text: lastQuestionLine.text.substring(0, 30),
-        fontFamily: questionStyle.fontFamily,
-        fontSize: questionStyle.fontSize,
-        width: metrics.width,
-        actualBoundingBoxRight: metrics.actualBoundingBoxRight !== undefined ? metrics.actualBoundingBoxRight : null,
-        actualBoundingBoxLeft: metrics.actualBoundingBoxLeft !== undefined ? metrics.actualBoundingBoxLeft : null,
-        calculatedWidth: lastQuestionLineWidth,
-        fontString: buildFont(questionStyle),
-        environment: typeof window !== 'undefined' ? 'client' : 'server'
-      };
-      console.log('[qna-layout] Font metrics for last question line:', JSON.stringify(debugMetrics, null, 2));
       
       ctx.restore();
     }
@@ -430,21 +416,6 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
                 // This uses the actual run position, not the calculated position
                 inlineTextX = questionX + questionRightEdge + inlineGap;
                 
-                // Debug logging - extract values explicitly to avoid JSHandle@object serialization issues
-                // Always log to help diagnose issues in both client and server
-                const debugRecalc = {
-                  text: runs[lastQuestionRunIndex].text.substring(0, 30),
-                  questionX,
-                  questionRightEdge,
-                  actualBoundingBoxRight: runMetrics.actualBoundingBoxRight !== undefined ? runMetrics.actualBoundingBoxRight : null,
-                  actualBoundingBoxLeft: runMetrics.actualBoundingBoxLeft !== undefined ? runMetrics.actualBoundingBoxLeft : null,
-                  width: runMetrics.width,
-                  inlineGap,
-                  calculatedInlineTextX: inlineTextX,
-                  align,
-                  environment: typeof window !== 'undefined' ? 'client' : 'server'
-                };
-                console.log('[qna-layout] Recalculated inlineTextX using run position:', JSON.stringify(debugRecalc, null, 2));
                 
                 ctx.restore();
               }

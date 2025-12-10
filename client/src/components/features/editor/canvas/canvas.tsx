@@ -284,6 +284,7 @@ export default function Canvas() {
   const [pendingImageElementId, setPendingImageElementId] = useState<string | null>(null);
   const [showStickerModal, setShowStickerModal] = useState(false);
   const [pendingStickerPosition, setPendingStickerPosition] = useState<{ x: number; y: number } | null>(null);
+  const [pendingStickerElementId, setPendingStickerElementId] = useState<string | null>(null);
   const [editingElement, setEditingElement] = useState<CanvasElement | null>(null);
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
   const [showQuestionSelectorModal, setShowQuestionSelectorModal] = useState(false);
@@ -2985,12 +2986,20 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       setShowImageModal(true);
     };
     
+    const handleOpenStickerModal = (event: CustomEvent<{ elementId: string; position: { x: number; y: number } }>) => {
+      const { elementId, position } = event.detail;
+      setPendingStickerElementId(elementId);
+      setPendingStickerPosition(position);
+      setShowStickerModal(true);
+    };
+    
     window.addEventListener('click', handleClickOutside);
     window.addEventListener('changePage', handlePageChange as EventListener);
     window.addEventListener('brushDone', handleBrushDone as EventListener);
     window.addEventListener('brushCancel', handleBrushCancel as EventListener);
     window.addEventListener('brushUndo', handleBrushUndo as EventListener);
     window.addEventListener('openImageModal', handleOpenImageModal as EventListener);
+    window.addEventListener('openStickerModal', handleOpenStickerModal as EventListener);
     
     return () => {
       window.removeEventListener('click', handleClickOutside);
@@ -2999,6 +3008,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       window.removeEventListener('brushCancel', handleBrushCancel as EventListener);
       window.removeEventListener('brushUndo', handleBrushUndo as EventListener);
       window.removeEventListener('openImageModal', handleOpenImageModal as EventListener);
+      window.removeEventListener('openStickerModal', handleOpenStickerModal as EventListener);
     };
   }, [brushStrokes, state.currentBook, state.activePageIndex, state.toolSettings]);
   
@@ -3564,7 +3574,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
   };
 
   const handleStickerSelect = async (stickerId: string | null) => {
-    if (!stickerId || !pendingStickerPosition) return;
+    if (!stickerId) return;
     
     // Load sticker registry if needed
     await loadStickerRegistry();
@@ -3574,11 +3584,50 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       console.error('Sticker not found or missing URL:', { stickerId, sticker });
       setShowStickerModal(false);
       setPendingStickerPosition(null);
+      setPendingStickerElementId(null);
       dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
       return;
     }
     
     console.log('Loading sticker:', { id: sticker.id, url: sticker.url, thumbnailUrl: sticker.thumbnailUrl });
+    
+    // If we have a pending element ID, update the existing sticker element
+    if (pendingStickerElementId) {
+      // Load sticker image to get original dimensions
+      const img = new window.Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const element = currentPage?.elements.find(el => el.id === pendingStickerElementId);
+        if (element) {
+          const maxWidth = 300;
+          const aspectRatio = img.width / img.height;
+          const width = maxWidth;
+          const height = maxWidth / aspectRatio;
+          
+          dispatch({
+            type: 'UPDATE_ELEMENT',
+            payload: {
+              id: pendingStickerElementId,
+              updates: {
+                src: sticker.url,
+                width: element.width || width,
+                height: element.height || height
+              }
+            }
+          });
+        }
+      };
+      img.src = sticker.url;
+      
+      dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+      setShowStickerModal(false);
+      setPendingStickerPosition(null);
+      setPendingStickerElementId(null);
+      return;
+    }
+    
+    // Otherwise, create a new element (existing behavior)
+    if (!pendingStickerPosition) return;
     
     // Load sticker image to get dimensions
     const img = new window.Image();
@@ -3606,6 +3655,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
       setShowStickerModal(false);
       setPendingStickerPosition(null);
+      setPendingStickerElementId(null);
     };
     img.onerror = (error) => {
       console.error('Failed to load sticker image:', { 
@@ -3660,6 +3710,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
   const handleStickerModalClose = () => {
     setShowStickerModal(false);
     setPendingStickerPosition(null);
+    setPendingStickerElementId(null);
     dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
   };
 

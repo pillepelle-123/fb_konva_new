@@ -132,6 +132,17 @@ export default function Image(props: CanvasItemProps) {
           }
         }
       }));
+    } else if (element.type === 'sticker') {
+      // Open sticker selector modal
+      window.dispatchEvent(new CustomEvent('openStickerModal', {
+        detail: {
+          elementId: element.id,
+          position: {
+            x: element.x,
+            y: element.y
+          }
+        }
+      }));
     }
   };
 
@@ -140,6 +151,11 @@ export default function Image(props: CanvasItemProps) {
     if ((element.type === 'image' || element.type === 'sticker') && element.src) {
       // Check if this is an S3 URL that might have CORS issues
       const isS3Url = element.src.includes('s3.amazonaws.com') || element.src.includes('s3.us-east-1.amazonaws.com');
+      
+      // Check if this is a local URL (localhost or same origin)
+      const isLocalUrl = element.src.startsWith('http://localhost') || element.src.startsWith('https://localhost') || 
+                        element.src.startsWith('http://127.0.0.1') || element.src.startsWith('https://127.0.0.1') ||
+                        (!element.src.startsWith('http://') && !element.src.startsWith('https://'));
       
       // For S3 URLs, use the proxy endpoint to avoid CORS issues
       // Include token as query parameter for authentication
@@ -150,13 +166,19 @@ export default function Image(props: CanvasItemProps) {
       }
       
       const img = new window.Image();
-      img.crossOrigin = 'anonymous';
+      // Only set crossOrigin for S3 URLs or external URLs, not for local URLs
+      // SVG files from localhost can have CORS issues even with crossOrigin = 'anonymous'
+      if (isS3Url || (!isLocalUrl && !element.src.startsWith('/'))) {
+        img.crossOrigin = 'anonymous';
+      }
+      
       img.onload = () => setImage(img);
       img.onerror = (error) => {
         console.warn('Failed to load image with CORS, trying without:', error);
         // Fallback: try loading without CORS (only for non-S3 URLs)
         if (!isS3Url) {
           const fallbackImg = new window.Image();
+          // Don't set crossOrigin for fallback
           fallbackImg.onload = () => setImage(fallbackImg);
           fallbackImg.onerror = () => console.error('Failed to load image:', element.src);
           fallbackImg.src = element.src;

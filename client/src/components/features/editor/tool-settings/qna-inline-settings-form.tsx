@@ -298,22 +298,22 @@ export function QnAInlineSettingsForm({
     // When individualSettings is false, use answer style for display
     const displayStyle = (!individualSettings && sectionType === 'shared') ? computedAnswerStyle : currentStyle;
     
-    // Debug logging
-    console.log('[qna-inline-settings-form] renderFontControls:', {
-      elementId: element.id,
-      textType: element.textType,
-      individualSettings,
-      sectionType,
-      activeSection,
-      elementQuestionSettings: element.questionSettings,
-      elementAnswerSettings: element.answerSettings,
-      computedQuestionStyle: computedQuestionStyle,
-      computedAnswerStyle: computedAnswerStyle,
-      currentStyle,
-      displayStyle,
-      displayStyleFontSize: displayStyle.fontSize,
-      actualToCommonResult: actualToCommon(displayStyle.fontSize || 16)
-    });
+    // // Debug logging
+    // console.log('[qna-inline-settings-form] renderFontControls:', {
+    //   elementId: element.id,
+    //   textType: element.textType,
+    //   individualSettings,
+    //   sectionType,
+    //   activeSection,
+    //   elementQuestionSettings: element.questionSettings,
+    //   elementAnswerSettings: element.answerSettings,
+    //   computedQuestionStyle: computedQuestionStyle,
+    //   computedAnswerStyle: computedAnswerStyle,
+    //   currentStyle,
+    //   displayStyle,
+    //   displayStyleFontSize: displayStyle.fontSize,
+    //   actualToCommonResult: actualToCommon(displayStyle.fontSize || 16)
+    // });
     
     return (
       <>
@@ -1186,42 +1186,44 @@ export function QnAInlineSettingsForm({
                 const aSettings = element.answerSettings || {};
                 const currentAlign = element.align || element.format?.textAlign || qSettings.align || aSettings.align || 'left';
                 
-                return (
-                  <>
-                    <Button
-                      variant={currentAlign === 'left' ? 'default' : 'outline'}
-                      size="xxs"
-                      onClick={() => updateSharedSetting('align', 'left')}
-                      className="px-1 h-6 flex-1"
-                    >
-                      <AlignLeft className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant={currentAlign === 'center' ? 'default' : 'outline'}
-                      size="xxs"
-                      onClick={() => updateSharedSetting('align', 'center')}
-                      className="px-1 h-6 flex-1"
-                    >
-                      <AlignCenter className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant={currentAlign === 'right' ? 'default' : 'outline'}
-                      size="xxs"
-                      onClick={() => updateSharedSetting('align', 'right')}
-                      className="px-1 h-6 flex-1"
-                    >
-                      <AlignRight className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant={currentAlign === 'justify' ? 'default' : 'outline'}
-                      size="xxs"
-                      onClick={() => updateSharedSetting('align', 'justify')}
-                      className="px-1 h-6 flex-1"
-                    >
-                      <AlignJustify className="h-3 w-3" />
-                    </Button>
-                  </>
-                );
+                return [
+                  <Button
+                    key="left"
+                    variant={currentAlign === 'left' ? 'default' : 'outline'}
+                    size="xxs"
+                    onClick={() => updateSharedSetting('align', 'left')}
+                    className="px-1 h-6 flex-1"
+                  >
+                    <AlignLeft className="h-3 w-3" />
+                  </Button>,
+                  <Button
+                    key="center"
+                    variant={currentAlign === 'center' ? 'default' : 'outline'}
+                    size="xxs"
+                    onClick={() => updateSharedSetting('align', 'center')}
+                    className="px-1 h-6 flex-1"
+                  >
+                    <AlignCenter className="h-3 w-3" />
+                  </Button>,
+                  <Button
+                    key="right"
+                    variant={currentAlign === 'right' ? 'default' : 'outline'}
+                    size="xxs"
+                    onClick={() => updateSharedSetting('align', 'right')}
+                    className="px-1 h-6 flex-1"
+                  >
+                    <AlignRight className="h-3 w-3" />
+                  </Button>,
+                  <Button
+                    key="justify"
+                    variant={currentAlign === 'justify' ? 'default' : 'outline'}
+                    size="xxs"
+                    onClick={() => updateSharedSetting('align', 'justify')}
+                    className="px-1 h-6 flex-1"
+                  >
+                    <AlignJustify className="h-3 w-3" />
+                  </Button>
+                ];
               })()}
             </ButtonGroup>
             </Tooltip>
