@@ -132,5 +132,16 @@ export function Tooltip({ children, content, title, description, side = "right",
 
 // For compatibility with existing code
 export const TooltipProvider = ({ children }: { children: React.ReactNode }) => <>{children}</>;
-export const TooltipTrigger = ({ children }: { children: React.ReactNode }) => <>{children}</>;
+
+// Allow className/props without passing them to Fragment
+export const TooltipTrigger = ({
+  children,
+  className,
+  ...rest
+}: { children: React.ReactNode; className?: string } & React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={className} {...rest}>
+    {children}
+  </div>
+);
+
 export const TooltipContent = ({ children }: { children: React.ReactNode }) => <>{children}</>;

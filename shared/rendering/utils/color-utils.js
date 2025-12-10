@@ -3,14 +3,65 @@
  */
 
 /**
+ * Normalize color to hex format for consistent rendering
+ * Converts various color formats (rgb, rgba, hsl, named colors) to hex
+ * @param {string} color - Color in any format (hex, rgb, rgba, hsl, named)
+ * @returns {string} Normalized hex color (e.g., '#ff0000')
+ */
+function normalizeColor(color) {
+  if (!color) return '#000000';
+  
+  // Already hex format
+  if (color.startsWith('#')) {
+    const hex = color.slice(1);
+    // Normalize 3-digit hex to 6-digit
+    if (hex.length === 3) {
+      return '#' + hex.split('').map(c => c + c).join('').toLowerCase();
+    }
+    // Normalize 6-digit hex
+    if (hex.length === 6) {
+      return '#' + hex.toLowerCase();
+    }
+    return '#000000';
+  }
+  
+  // RGB/RGBA format
+  if (color.startsWith('rgb')) {
+    const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+    if (match) {
+      const r = parseInt(match[1], 10);
+      const g = parseInt(match[2], 10);
+      const b = parseInt(match[3], 10);
+      // Convert to hex (ignore alpha for now, as Konva handles opacity separately)
+      const toHex = (n) => {
+        const hex = n.toString(16);
+        return hex.length === 1 ? '0' + hex : hex;
+      };
+      return '#' + toHex(r) + toHex(g) + toHex(b);
+    }
+  }
+  
+  // HSL format (simplified - convert to RGB then hex)
+  if (color.startsWith('hsl')) {
+    // For now, return as-is and let Konva handle it
+    // Full HSL to RGB conversion would be more complex
+    return color;
+  }
+  
+  // Named colors - return as-is (Konva supports CSS named colors)
+  return color;
+}
+
+/**
  * Convert hex color to RGBA
  * @param {string} hex - Hex color (e.g., '#ff0000' or 'ff0000')
  * @param {number} opacity - Opacity value (0-1)
  * @returns {string} RGBA color string
  */
 function hexToRgba(hex, opacity) {
-  // Remove # if present
-  hex = hex.replace('#', '');
+  // Normalize hex first
+  const normalized = normalizeColor(hex);
+  hex = normalized.replace('#', '');
   
   // Parse RGB values
   const r = parseInt(hex.substring(0, 2), 16);
@@ -99,7 +150,8 @@ function applyStrokeOpacity(stroke, strokeOpacity, elementOpacity = 1) {
 module.exports = {
   hexToRgba,
   applyFillOpacity,
-  applyStrokeOpacity
+  applyStrokeOpacity,
+  normalizeColor
 };
 
 

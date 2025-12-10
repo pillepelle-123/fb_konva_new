@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import type { Page, Book } from '../../context/editor-context.tsx';
 import { PDFExportAuthProvider } from './pdf-export-auth-provider';
 import { PDFExportEditorProvider } from './pdf-export-editor-provider';
 import { PDFRenderer } from './pdf-renderer';
+import { loadBackgroundImageRegistry } from '../../data/templates/background-images';
 
 interface PDFRendererAppProps {
   pageData: {
@@ -67,6 +68,28 @@ export function PDFRendererApp({
   token = null,
   onRenderComplete,
 }: PDFRendererAppProps) {
+  const [assetsReady, setAssetsReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        await loadBackgroundImageRegistry();
+      } catch (err) {
+        console.error('[PDFRendererApp] Failed to load background images registry:', err);
+      } finally {
+        if (!cancelled) setAssetsReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!assetsReady) {
+    return null;
+  }
+
   return (
     <PDFRendererErrorBoundary>
       <PDFExportAuthProvider user={user} token={token}>

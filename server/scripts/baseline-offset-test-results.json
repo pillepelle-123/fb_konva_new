@@ -1,0 +1,74 @@
+[
+  {
+    "fontSize": 16,
+    "description": "Kleine Schrift",
+    "preciseOffset": "12.45",
+    "approximateOffset": "12.80",
+    "difference": "0.35",
+    "differencePercent": "2.71%",
+    "usesMetrics": true
+  },
+  {
+    "fontSize": 24,
+    "description": "Normale Schrift",
+    "preciseOffset": "18.18",
+    "approximateOffset": "19.20",
+    "difference": "1.02",
+    "differencePercent": "5.31%",
+    "usesMetrics": true
+  },
+  {
+    "fontSize": 32,
+    "description": "Mittlere Schrift",
+    "preciseOffset": "23.91",
+    "approximateOffset": "25.60",
+    "difference": "1.69",
+    "differencePercent": "6.62%",
+    "usesMetrics": true
+  },
+  {
+    "fontSize": 42,
+    "description": "Große Schrift (Question)",
+    "preciseOffset": "31.06",
+    "approximateOffset": "33.60",
+    "difference": "2.54",
+    "differencePercent": "7.55%",
+    "usesMetrics": true
+  },
+  {
+    "fontSize": 48,
+    "description": "Große Schrift (Answer)",
+    "preciseOffset": "35.36",
+    "approximateOffset": "38.40",
+    "difference": "3.04",
+    "differencePercent": "7.92%",
+    "usesMetrics": true
+  },
+  {
+    "fontSize": 58,
+    "description": "Sehr große Schrift (Question)",
+    "preciseOffset": "42.52",
+    "approximateOffset": "46.40",
+    "difference": "3.88",
+    "differencePercent": "8.37%",
+    "usesMetrics": true
+  },
+  {
+    "fontSize": 50,
+    "description": "Sehr große Schrift (Answer)",
+    "preciseOffset": "36.79",
+    "approximateOffset": "40.00",
+    "difference": "3.21",
+    "differencePercent": "8.02%",
+    "usesMetrics": true
+  },
+  {
+    "fontSize": 72,
+    "description": "Extra große Schrift",
+    "preciseOffset": "52.54",
+    "approximateOffset": "57.60",
+    "difference": "5.06",
+    "differencePercent": "8.79%",
+    "usesMetrics": true
+  }
+]

@@ -40,7 +40,7 @@ async function pdfPageToImage(pdfPath, pageNumber, dpi = 150) {
     throw new Error('canvas is required for image comparison');
   }
 
-  const browser = await puppeteer.launch({ headless: true });
+  const browser = await puppeteer.launch({ headless: 'new' });
   const page = await browser.newPage();
   
   try {
@@ -230,7 +230,7 @@ async function getPDFPageCount(pdfPath) {
  * Convert PDF page to image using Puppeteer with PDF.js
  */
 async function pdfPageToImageImproved(pdfPath, pageNumber, dpi = 150) {
-  const browser = await puppeteer.launch({ headless: true });
+  const browser = await puppeteer.launch({ headless: 'new' });
   const page = await browser.newPage();
   
   try {
@@ -347,6 +347,14 @@ async function pdfPageToImageImproved(pdfPath, pageNumber, dpi = 150) {
 
 /**
  * Main comparison function
+ * @param {string} clientPDFPath - Path to client PDF
+ * @param {string} serverPDFPath - Path to server PDF
+ * @param {Object} options - Comparison options
+ * @param {string} options.outputDir - Output directory for images
+ * @param {number} options.threshold - Pixel difference threshold (0-1)
+ * @param {number} options.dpi - DPI for conversion
+ * @param {number} options.page - Specific page to compare (optional)
+ * @returns {Promise<Array>} Comparison results
  */
 async function comparePDFsVisually(clientPDFPath, serverPDFPath, options = {}) {
   const {

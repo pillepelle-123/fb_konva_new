@@ -12,6 +12,7 @@ Diese Dokumentation ist nach Kategorien organisiert:
 - [Template-System](features/template-system.md) - Dokumentation des Template-Systems
 - [Question Pool](features/question-pool.md) - Question Pool Implementierung
 - [Wizard Integration](features/wizard-integration.md) - Wizard-Integration Dokumentation
+- [PDF Export Queue](features/pdf-export-queue.md) - Optimierte PDF-Export-Queue mit Parallelisierung
 
 ### Testing
 - [PDF Export Testing Guide](testing/pdf-export-testing-guide.md) - Anleitung zum Testen von PDF-Exports

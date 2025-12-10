@@ -2,6 +2,7 @@ const express = require('express');
 const { Pool } = require('pg');
 const { authenticateToken } = require('../middleware/auth');
 const { generatePDFFromBook } = require('../services/pdf-export');
+const PDFExportQueue = require('../services/pdf-export-queue');
 const fs = require('fs').promises;
 const path = require('path');
 
@@ -34,93 +35,75 @@ const parseJsonField = (value) => {
   return value;
 };
 
-// Background job queue for PDF exports
-const exportQueue = [];
-let isProcessingQueue = false;
+// Erstelle Queue-Instanz mit konfigurierbaren Limits
+const exportQueue = new PDFExportQueue({
+  maxConcurrentExports: parseInt(process.env.MAX_CONCURRENT_PDF_EXPORTS || '2'), // 2-3 je nach RAM
+  maxQueueSize: 50,
+  rateLimitPerUser: 3, // Max 3 gleichzeitige Exports pro User
+  rateLimitWindow: 60 * 1000 // 1 Minute
+});
 
-async function processExportQueue() {
-  if (isProcessingQueue || exportQueue.length === 0) {
-    return;
+// Export-Prozessor Funktion
+async function processExport(job) {
+  const { exportId, bookId, userId, options, io } = job;
+  
+  // Update status to processing
+  await pool.query(
+    'UPDATE public.pdf_exports SET status = $1 WHERE id = $2',
+    ['processing', exportId]
+  );
+
+  // Load complete book data from database
+  const bookData = await loadBookDataFromDB(bookId, userId);
+
+  if (!bookData) {
+    throw new Error('Failed to load book data');
   }
 
-  isProcessingQueue = true;
-
-  while (exportQueue.length > 0) {
-    const { exportId, bookId, userId, options, io } = exportQueue.shift();
-    
-    try {
-      // Update status to processing
-      await pool.query(
-        'UPDATE public.pdf_exports SET status = $1 WHERE id = $2',
-        ['processing', exportId]
-      );
-
-      // Load complete book data from database
-      const bookData = await loadBookDataFromDB(bookId, userId);
-
-      if (!bookData) {
-        throw new Error('Failed to load book data');
-      }
-
-      // Generate PDF
-      const pdfPath = await generatePDFFromBook(
-        bookData,
-        options,
-        exportId,
-        (progress) => {
-          // Could update progress in DB if needed
-        }
-      );
-
-      // Get file size
-      const stats = await fs.stat(pdfPath);
-      const fileSize = stats.size;
-
-      // Update export record
-      await pool.query(
-        `UPDATE public.pdf_exports 
-         SET status = $1, file_path = $2, file_size = $3, completed_at = CURRENT_TIMESTAMP 
-         WHERE id = $4`,
-        ['completed', pdfPath, fileSize, exportId]
-      );
-
-      // Get book name for notification
-      const bookResult = await pool.query('SELECT name FROM public.books WHERE id = $1', [bookId]);
-      const bookName = bookResult.rows[0]?.name || 'Book';
-
-      // Send Socket.IO notification
+  // Generate PDF
+  const pdfPath = await generatePDFFromBook(
+    bookData,
+    options,
+    exportId,
+    (progress) => {
+      // Optional: Update progress in DB
+      // Could emit progress via Socket.IO here
       if (io) {
-        io.to(`user_${userId}`).emit('pdf_export_completed', {
+        io.to(`user_${userId}`).emit('pdf_export_progress', {
           exportId,
-          bookId,
-          bookName,
-          status: 'completed'
-        });
-      }
-    } catch (error) {
-      console.error('PDF export error:', error);
-      
-      // Update status to failed
-      await pool.query(
-        `UPDATE public.pdf_exports 
-         SET status = $1, error_message = $2, completed_at = CURRENT_TIMESTAMP 
-         WHERE id = $3`,
-        ['failed', error.message, exportId]
-      );
-
-      // Send failure notification
-      if (io) {
-        io.to(`user_${userId}`).emit('pdf_export_completed', {
-          exportId,
-          bookId,
-          status: 'failed',
-          error: error.message
+          progress: Math.round(progress)
         });
       }
     }
+  );
+
+  // Get file size
+  const stats = await fs.stat(pdfPath);
+  const fileSize = stats.size;
+
+  // Update export record
+  await pool.query(
+    `UPDATE public.pdf_exports 
+     SET status = $1, file_path = $2, file_size = $3, completed_at = CURRENT_TIMESTAMP 
+     WHERE id = $4`,
+    ['completed', pdfPath, fileSize, exportId]
+  );
+
+  // Get book name for notification
+  const bookResult = await pool.query('SELECT name FROM public.books WHERE id = $1', [bookId]);
+  const bookName = bookResult.rows[0]?.name || 'Book';
+
+  // Send Socket.IO notification
+  if (io) {
+    io.to(`user_${userId}`).emit('pdf_export_completed', {
+      exportId,
+      bookId,
+      bookName,
+      status: 'completed'
+    });
   }
 
-  isProcessingQueue = false;
+  return { exportId, pdfPath, fileSize };
 }
 
 async function loadBookDataFromDB(bookId, userId) {
@@ -293,9 +276,12 @@ router.post('/', authenticateToken, async (req, res) => {
 
     const exportRecord = result.rows[0];
 
-    // Add to queue
+    // Bestimme Priorität (könnte später Premium-User bevorzugen)
+    const priority = isOwner ? 10 : 5;
+
+    // Füge zur optimierten Queue hinzu
     const io = req.app.get('io');
-    exportQueue.push({
+    await exportQueue.addExport({
       exportId: exportRecord.id,
       bookId,
       userId,
@@ -306,20 +292,54 @@ router.post('/', authenticateToken, async (req, res) => {
         endPage,
         currentPageIndex
       },
-      io
-    });
+      io,
+      priority,
+      processor: async (job) => {
+        try {
+          return await processExport(job);
+        } catch (error) {
+          // Update status to failed
+          await pool.query(
+            `UPDATE public.pdf_exports 
+             SET status = $1, error_message = $2, completed_at = CURRENT_TIMESTAMP 
+             WHERE id = $3`,
+            ['failed', error.message, exportRecord.id]
+          );
 
-    // Start processing queue if not already processing
-    setImmediate(() => processExportQueue());
+          // Send failure notification
+          if (io) {
+            io.to(`user_${userId}`).emit('pdf_export_completed', {
+              exportId: exportRecord.id,
+              bookId,
+              status: 'failed',
+              error: error.message
+            });
+          }
+          
+          throw error;
+        }
+      }
+    });
 
     res.json({
       id: exportRecord.id,
       bookId: exportRecord.book_id,
       status: exportRecord.status,
-      createdAt: exportRecord.created_at
+      createdAt: exportRecord.created_at,
+      queuePosition: exportQueue.queue.length,
+      estimatedWaitTime: exportQueue.queue.length * 30 // Grobe Schätzung: 30s pro Export
     });
   } catch (error) {
     console.error('Error creating PDF export:', error);
+    
+    // Spezifische Fehlerbehandlung
+    if (error.message.includes('queue is full')) {
+      return res.status(503).json({ error: 'Export queue is full. Please try again later.' });
+    }
+    if (error.message.includes('Too many exports')) {
+      return res.status(429).json({ error: error.message });
+    }
+    
     res.status(500).json({ error: 'Failed to create PDF export' });
   }
 });
@@ -516,6 +536,27 @@ router.delete('/:id', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error deleting PDF export:', error);
     res.status(500).json({ error: 'Failed to delete PDF export' });
+  }
+});
+
+// Get queue status (Monitoring)
+router.get('/queue/status', authenticateToken, async (req, res) => {
+  try {
+    // Optional: Nur für Admins
+    // if (req.user.role !== 'admin') {
+    //   return res.status(403).json({ error: 'Not authorized' });
+    // }
+    
+    const status = exportQueue.getStatus();
+    const activeExports = exportQueue.getActiveExports();
+    
+    res.json({
+      ...status,
+      activeExports
+    });
+  } catch (error) {
+    console.error('Error fetching queue status:', error);
+    res.status(500).json({ error: 'Failed to fetch queue status' });
   }
 });
 

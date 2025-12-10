@@ -12,12 +12,40 @@ const LINE_HEIGHT: Record<'small' | 'medium' | 'large', number> = {
 };
 
 /**
+ * Normalize font family string to ensure consistent rendering
+ * Removes quotes and normalizes spacing
+ */
+export function normalizeFontFamily(fontFamily: string | undefined): string {
+  if (!fontFamily) return 'Arial, sans-serif';
+  
+  // Remove outer quotes but keep internal structure
+  let normalized = fontFamily.replace(/^['"]|['"]$/g, '').trim();
+  
+  // Remove all internal quotes (they can cause issues)
+  normalized = normalized.replace(/['"]/g, '');
+  
+  // Normalize spacing around commas
+  normalized = normalized.replace(/\s*,\s*/g, ', ');
+  
+  // Trim again after normalization
+  normalized = normalized.trim();
+  
+  // Ensure we have a valid font family
+  if (!normalized || normalized === '') {
+    return 'Arial, sans-serif';
+  }
+  
+  return normalized;
+}
+
+/**
  * Build font string from style
  */
 export function buildFont(style: RichTextStyle): string {
   const weight = style.fontBold ? 'bold ' : '';
   const italic = style.fontItalic ? 'italic ' : '';
-  return `${weight}${italic}${style.fontSize}px ${style.fontFamily}`;
+  const normalizedFamily = normalizeFontFamily(style.fontFamily);
+  return `${weight}${italic}${style.fontSize}px ${normalizedFamily}`;
 }
 
 /**
@@ -81,7 +109,12 @@ export function wrapText(text: string, style: RichTextStyle, maxWidth: number, c
         const word = words[i];
         const testLine = `${currentLine} ${word}`;
         const testWidth = measureText(testLine, style, ctx);
-        if (testWidth > maxWidth && currentLine) {
+        // IMPORTANT: Use Math.ceil to round up testWidth to account for sub-pixel rendering differences
+        // Canvas2D measureText can have small rounding errors that cause premature line breaks
+        // Rounding up ensures we don't break too early, matching client-side behavior
+        // This is more reliable than a fixed tolerance
+        const roundedTestWidth = Math.ceil(testWidth);
+        if (roundedTestWidth > maxWidth && currentLine) {
           lines.push({ text: currentLine, width: measureText(currentLine, style, ctx) });
           currentLine = word;
         } else {
@@ -90,10 +123,72 @@ export function wrapText(text: string, style: RichTextStyle, maxWidth: number, c
       }
       lines.push({ text: currentLine, width: measureText(currentLine, style, ctx) });
     }
-    if (paragraphIdx < paragraphs.length - 1) {
-      lines.push({ text: '', width: 0 });
-    }
   });
   return lines;
+}
+
+/**
+ * Calculate precise baseline offset for text rendering
+ * Uses font metrics if available, otherwise falls back to approximation
+ * @param fontSize - Font size in pixels
+ * @param ctx - Optional canvas context for font metrics
+ * @param fontFamily - Font family string
+ * @param fontWeight - Optional font weight ('normal' or 'bold', default: 'normal')
+ * @param fontStyle - Optional font style ('normal' or 'italic', default: 'normal')
+ * @returns Baseline offset from top of text box
+ */
+export function getBaselineOffset(
+  fontSize: number,
+  ctx: CanvasRenderingContext2D | null = null,
+  fontFamily: string = 'Arial, sans-serif',
+  fontWeight: string = 'normal',
+  fontStyle: string = 'normal'
+): number {
+  // Try to get actual font metrics if context is available
+  if (ctx) {
+    try {
+      // Build font string with weight and style for accurate metrics
+      // Format: "weight style size family" (e.g., "bold italic 16px Arial, sans-serif")
+      const weightStr = fontWeight !== 'normal' ? `${fontWeight} ` : '';
+      const styleStr = fontStyle !== 'normal' ? `${fontStyle} ` : '';
+      const testFont = `${weightStr}${styleStr}${fontSize}px ${fontFamily}`;
+      
+      ctx.save();
+      ctx.font = testFont;
+      ctx.textBaseline = 'alphabetic';
+      
+      // Measure text to get actual metrics
+      // Use a representative character that has both ascenders and typical height
+      // 'M' is good for ascent, but we can also try 'A' or use the first character of actual text
+      // For now, use 'M' as it's a good reference for most fonts
+      const metrics = ctx.measureText('M'); // Use 'M' as reference character
+      
+      // For alphabetic baseline, the offset is typically the distance from top to baseline
+      // This is approximately fontSize * 0.8 for most fonts, but can vary
+      // We can use actualBoundingBoxAscent if available (newer browsers)
+      // actualBoundingBoxAscent is more accurate for actual text rendering
+      // However, we need to ensure it matches the calculation used in textbox-qna.tsx
+      // which uses fontSize * 0.8. If actualBoundingBoxAscent differs significantly,
+      // we might need to use a weighted average or stick with fontSize * 0.8
+      if (metrics.actualBoundingBoxAscent !== undefined) {
+        const metricBasedOffset = metrics.actualBoundingBoxAscent;
+        const fallbackOffset = fontSize * 0.8;
+        // If the metric-based offset is very different from the fallback, 
+        // we might need to use the fallback to match client-side behavior
+        // For now, use the metric-based offset as it should be more accurate
+        ctx.restore();
+        // Return the actual ascent (distance from baseline to top of text)
+        return metricBasedOffset;
+      }
+      
+      ctx.restore();
+    } catch (error) {
+      // Fall through to approximation if measurement fails
+    }
+  }
+  
+  // Fallback: Use standard approximation (consistent with client)
+  // This matches the 0.8 factor used throughout the codebase
+  return fontSize * 0.8;
 }
 

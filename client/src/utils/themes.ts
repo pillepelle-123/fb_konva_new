@@ -2,22 +2,23 @@ import React from 'react';
 import { Path } from 'react-konva';
 import type { CanvasElement } from '../context/editor-context';
 import { commonToActualStrokeWidth } from './stroke-width-converter';
+// Import roughjs using ES6 import for Vite bundling
+import rough from 'roughjs';
 
-// Handle rough.js import: use ES6 import if available, otherwise fallback to global window.rough
-// This allows it to work both in client context (npm import) and browser context (global script)
-// Note: We use dynamic import check instead of static import to handle browser context
-let rough: any;
-try {
-  // Try ES6 import first (client context - will be bundled by Vite)
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const roughjs = require('roughjs');
-  rough = roughjs.default || roughjs;
-} catch {
+// Verify that rough.js is actually available and create a consistent reference
+let roughInstance: any = rough;
+
+if (!roughInstance || typeof roughInstance.svg !== 'function') {
   // Fallback to global (browser context like Puppeteer where rough.js is loaded via script tag)
   if (typeof window !== 'undefined' && (window as any).rough) {
-    rough = (window as any).rough;
+    roughInstance = (window as any).rough;
   } else if (typeof global !== 'undefined' && (global as any).rough) {
-    rough = (global as any).rough;
+    roughInstance = (global as any).rough;
+  }
+  
+  // Only warn if it's still not available
+  if (!roughInstance || typeof roughInstance.svg !== 'function') {
+    console.warn('[themes.ts] rough.js not available - rough-themed lines will fall back to default');
   }
 }
 
@@ -242,8 +243,11 @@ const glowTheme: ThemeRenderer = {
 
 const candyTheme: ThemeRenderer = {
   generatePath: (element: CanvasElement, zoom = 1) => {
+    // Revert to original circle size calculation
     const baseCircleSize = element.strokeWidth ? element.strokeWidth * 2 : 4;
-    const spacing = baseCircleSize * 2;
+    // Apply spacing multiplier if provided (server-side only, to reduce gaps between circles)
+    const spacingMultiplier = (element as any).candySpacingMultiplier ?? 1;
+    const spacing = baseCircleSize * 2 * spacingMultiplier;
     const hasRandomness = element.candyRandomness || false;
     const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 4), 10) || 1;
     
@@ -866,6 +870,8 @@ function generateHorizontalLinePath(
     
     case 'rough': {
       if (!rc) {
+        // Fallback to default line if rough.js is not available
+        console.warn('[themes.ts] rough.js not available for rough theme, falling back to default line');
         return `M ${x1} ${y1} L ${x2} ${y2}`;
       }
       try {
@@ -875,8 +881,15 @@ function generateHorizontalLinePath(
           stroke,
           seed: seed + y1 // Use y-position as seed variation
         });
-        return extractPathFromRoughElement(roughLine);
-      } catch {
+        const pathData = extractPathFromRoughElement(roughLine);
+        if (!pathData || pathData.trim() === '') {
+          // If extraction fails, fallback to default
+          console.warn('[themes.ts] Failed to extract path from rough element, falling back to default line');
+          return `M ${x1} ${y1} L ${x2} ${y2}`;
+        }
+        return pathData;
+      } catch (error) {
+        console.warn('[themes.ts] Error generating rough line:', error);
         return `M ${x1} ${y1} L ${x2} ${y2}`;
       }
     }

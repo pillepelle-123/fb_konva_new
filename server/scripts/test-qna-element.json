@@ -1,0 +1,69 @@
+{
+  "element": {
+    "id": "test-qna-1",
+    "type": "text",
+    "textType": "qna",
+    "x": 100,
+    "y": 100,
+    "width": 600,
+    "height": 400,
+    "padding": 8,
+    "questionId": "test-question-1",
+    "text": "Das ist eine Test-Antwort mit mehreren Zeilen.\nZweite Zeile der Antwort.",
+    "formattedText": "Das ist eine Test-Antwort mit mehreren Zeilen.\nZweite Zeile der Antwort.",
+    "questionSettings": {
+      "fontSize": 58,
+      "fontFamily": "Arial, sans-serif",
+      "fontBold": false,
+      "fontItalic": false,
+      "fontColor": "#1f2937",
+      "fontOpacity": 1,
+      "paragraphSpacing": "small",
+      "align": "left"
+    },
+    "answerSettings": {
+      "fontSize": 50,
+      "fontFamily": "Arial, sans-serif",
+      "fontBold": false,
+      "fontItalic": false,
+      "fontColor": "#1f2937",
+      "fontOpacity": 1,
+      "paragraphSpacing": "medium",
+      "align": "left"
+    },
+    "qnaIndividualSettings": false,
+    "layoutVariant": "inline",
+    "answerInNewRow": false,
+    "questionAnswerGap": 0,
+    "ruledLines": false,
+    "backgroundEnabled": false,
+    "borderEnabled": false
+  },
+  "toolDefaults": {
+    "fontSize": 50,
+    "fontFamily": "Arial, sans-serif",
+    "padding": 8,
+    "questionSettings": {
+      "fontSize": 58,
+      "fontFamily": "Arial, sans-serif",
+      "fontBold": false,
+      "fontItalic": false,
+      "fontColor": "#1f2937",
+      "fontOpacity": 1,
+      "paragraphSpacing": "small",
+      "align": "left"
+    },
+    "answerSettings": {
+      "fontSize": 50,
+      "fontFamily": "Arial, sans-serif",
+      "fontBold": false,
+      "fontItalic": false,
+      "fontColor": "#1f2937",
+      "fontOpacity": 1,
+      "paragraphSpacing": "medium",
+      "align": "left"
+    }
+  }
+}
+
+

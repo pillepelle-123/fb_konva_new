@@ -1,0 +1,10 @@
+{
+  "elementId": "test-qna-various",
+  "elementType": "text",
+  "differences": [],
+  "yPositionSuggestions": [],
+  "clientRunCount": 5,
+  "serverRunCount": 5,
+  "clientContentHeight": 600,
+  "serverContentHeight": 600
+}

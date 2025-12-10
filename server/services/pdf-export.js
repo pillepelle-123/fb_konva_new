@@ -194,7 +194,6 @@ function writeSharedRenderingModulesToFiles(themesData, colorPalettes) {
   const themeUtilsCode = fs.readFileSync(path.join(__dirname, '../../shared/rendering/utils/theme-utils.js'), 'utf-8');
   const imageUtilsCode = fs.readFileSync(path.join(__dirname, '../../shared/rendering/utils/image-utils.js'), 'utf-8');
   const renderRuledLinesCode = fs.readFileSync(path.join(__dirname, '../../shared/rendering/render-ruled-lines.js'), 'utf-8');
-  const renderQnaInlineCode = fs.readFileSync(path.join(__dirname, '../../shared/rendering/render-qna-inline.js'), 'utf-8');
   const renderQnaCode = fs.readFileSync(path.join(__dirname, '../../shared/rendering/render-qna.js'), 'utf-8');
   const renderBackgroundCode = fs.readFileSync(path.join(__dirname, '../../shared/rendering/render-background.js'), 'utf-8');
   const renderElementCode = fs.readFileSync(path.join(__dirname, '../../shared/rendering/render-element.js'), 'utf-8');
@@ -346,22 +345,6 @@ function writeSharedRenderingModulesToFiles(themesData, colorPalettes) {
   fs.writeFileSync(renderRuledLinesFile, browserRenderRuledLines);
   moduleFiles.push(renderRuledLinesFile);
   
-  // Process render-qna-inline.js - make functions globally available
-  // Remove require statements but keep function calls as-is - they will use global functions
-  let browserRenderQnaInline = renderQnaInlineCode
-    .replace(/const\s+\{\s*renderRuledLines\s*\}\s*=\s*require\([^)]+\);?\s*/g, '')
-    .replace(/const\s+\{\s*getGlobalThemeDefaults,\s*deepMerge,\s*getThemeRenderer\s*\}\s*=\s*require\([^)]+\);?\s*/g, '')
-    .replace(/const\s+\{\s*getGlobalThemeDefaults,\s*deepMerge\s*\}\s*=\s*require\([^)]+\);?\s*/g, '')
-    .replace(/const\s+\{\s*applyPaletteToElement\s*\}\s*=\s*require\([^)]+\);?\s*/g, '')
-    // Remove require statements inside functions (like in getToolDefaults)
-    .replace(/const\s+\{\s*applyPaletteToElement\s*\}\s*=\s*require\([^)]+\);?\s*/g, '');
-  
-  browserRenderQnaInline = removeModuleExports(browserRenderQnaInline);
-  browserRenderQnaInline += '\n// Make functions globally available\nwindow.renderQnAInline = renderQnAInline;\nwindow.extractPlainText = extractPlainText;\nwindow.getToolDefaults = getToolDefaults;';
-  const renderQnaInlineFile = path.join(tempDir, 'render-qna-inline.js');
-  fs.writeFileSync(renderQnaInlineFile, browserRenderQnaInline);
-  moduleFiles.push(renderQnaInlineFile);
-  
   // Process render-qna.js - make functions globally available
   // Remove require statements but keep function calls as-is - they will use global functions
   let browserRenderQna = renderQnaCode
@@ -393,7 +376,6 @@ function writeSharedRenderingModulesToFiles(themesData, colorPalettes) {
   // Process render-element.js - make functions globally available
   // Remove require statements but keep function calls as-is - they will use global functions
   let browserRenderElement = renderElementCode
-    .replace(/const\s+\{\s*renderQnAInline\s*\}\s*=\s*require\([^)]+\);?\s*/g, '')
     .replace(/const\s+\{\s*renderQnA\s*\}\s*=\s*require\([^)]+\);?\s*/g, '')
     .replace(/const\s+\{\s*getCrop\s*\}\s*=\s*require\([^)]+\);?\s*/g, '')
     .replace(/const\s+\{\s*applyFillOpacity,\s*applyStrokeOpacity\s*\}\s*=\s*require\([^)]+\);?\s*/g, '')
@@ -747,7 +729,7 @@ async function renderPageWithKonva(page, pageData, bookData, canvasWidth, canvas
     
     const children = layer.getChildren();
       
-      // Find qna_inline background and border nodes
+      // Find qna background and border nodes
       const qnaBackgroundNodes = [];
       const qnaBorderNodes = [];
       const pageBackgroundNodes = [];
@@ -781,7 +763,7 @@ async function renderPageWithKonva(page, pageData, bookData, canvasWidth, canvas
             zIndex: node.zIndex()
           });
         }
-        // Check if it's a qna_inline background (Rect with fill, not at 0,0)
+        // Check if it's a qna background (Rect with fill, not at 0,0)
         else if (className === 'Rect' && 
                  (nodeX !== 0 || nodeY !== 0 || nodeWidth !== stageWidth || nodeHeight !== stageHeight)) {
           const fill = node.fill ? node.fill() : 'transparent';
@@ -918,7 +900,7 @@ async function renderPageWithKonva(page, pageData, bookData, canvasWidth, canvas
       console.warn('Could not save debug screenshot:', e.message);
     }
   
-  // Fix z-order: Move qna_inline background and border nodes after page background
+  // Fix z-order: Move qna background and border nodes after page background
   await page.evaluate(() => {
     const stage = window.stage;
     if (!stage) return;
@@ -948,7 +930,7 @@ async function renderPageWithKonva(page, pageData, bookData, canvasWidth, canvas
     
     const lastPageBgIndex = Math.max(...pageBackgroundIndices);
     
-    // Find qna_inline background and border nodes (not at 0,0, not full canvas size)
+    // Find qna background and border nodes (not at 0,0, not full canvas size)
     const qnaNodes = [];
     children.forEach((node, idx) => {
       if (idx <= lastPageBgIndex) return; // Skip page background nodes
@@ -958,7 +940,7 @@ async function renderPageWithKonva(page, pageData, bookData, canvasWidth, canvas
       const nodeWidth = node.width ? node.width() : 0;
       const nodeHeight = node.height ? node.height() : 0;
       
-      // Check if it's a qna_inline background (Rect with fill, not at 0,0)
+      // Check if it's a qna background (Rect with fill, not at 0,0)
       if (className === 'Rect') {
         const fill = node.fill ? node.fill() : 'transparent';
         if (fill !== 'transparent' && fill !== undefined && fill !== null &&
@@ -966,7 +948,7 @@ async function renderPageWithKonva(page, pageData, bookData, canvasWidth, canvas
           qnaNodes.push({ node, idx, type: 'background' });
         }
       }
-      // Check if it's a qna_inline border (Path or Rect with stroke)
+      // Check if it's a qna border (Path or Rect with stroke)
       else if (className === 'Path' || className === 'Rect') {
         const stroke = node.stroke ? node.stroke() : 'transparent';
         if (stroke !== 'transparent' && stroke !== undefined && stroke !== null &&

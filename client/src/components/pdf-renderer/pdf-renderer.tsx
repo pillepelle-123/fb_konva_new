@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
-import { Stage, Layer, Rect, Image as KonvaImage, Group } from 'react-konva';
+import { Stage, Layer, Rect, Image as KonvaImage, Group, Shape } from 'react-konva';
 import Konva from 'konva';
 import { useEditor } from '../../context/editor-context.tsx';
 import type { Page, Book, CanvasElement } from '../../context/editor-context.tsx';
@@ -11,10 +11,11 @@ import { colorPalettes } from '../../data/templates/color-palettes.ts';
 import { PATTERNS } from '../../utils/patterns.ts';
 import { getToolDefaults } from '../../utils/tool-defaults.ts';
 import { getThemeRenderer, renderThemedLine, generateLinePath, type Theme } from '../../utils/themes.ts';
+import { getCrop } from '../features/editor/canvas-items/image.tsx';
 import type { PageBackground } from '../../context/editor-context.tsx';
 import { FEATURE_FLAGS } from '../../utils/feature-flags';
 import type { RichTextStyle } from '../../../../shared/types/text-layout';
-import { buildFont as sharedBuildFont, getLineHeight as sharedGetLineHeight, measureText as sharedMeasureText, calculateTextX as sharedCalculateTextX, wrapText as sharedWrapText } from '../../../../shared/utils/text-layout';
+import { buildFont as sharedBuildFont, getLineHeight as sharedGetLineHeight, measureText as sharedMeasureText, calculateTextX as sharedCalculateTextX, wrapText as sharedWrapText, getBaselineOffset as sharedGetBaselineOffset } from '../../../../shared/utils/text-layout';
 import { createLayout as sharedCreateLayout, createBlockLayout as sharedCreateBlockLayout } from '../../../../shared/utils/qna-layout';
 import { getFontFamilyByName } from '../../utils/font-families.ts';
 
@@ -523,42 +524,56 @@ export function PDFRenderer({
     }
   }, [stageRef.current]);
 
-  // Create layer manually (workaround for react-konva Layer not mounting in Puppeteer)
+  // Separate layers (background below, content above)
+  const bgLayerRef = useRef<Konva.Layer | null>(null);
   const layerRef = useRef<Konva.Layer | null>(null);
   const [layerReady, setLayerReady] = useState(false);
 
   useEffect(() => {
-    if (stageRef.current && !layerRef.current) {
-      // Create layer manually
-      const layer = new Konva.Layer();
-      stageRef.current.add(layer);
-      layerRef.current = layer;
-      
-      console.log('[PDFRenderer] Manually created layer, stage now has', stageRef.current.getLayers().length, 'layers');
-      
-      // Set stage globally
+    if (stageRef.current) {
+      if (!bgLayerRef.current) {
+        const bgLayer = new Konva.Layer();
+        stageRef.current.add(bgLayer);
+        bgLayerRef.current = bgLayer;
+      }
+      if (!layerRef.current) {
+        const layer = new Konva.Layer();
+        stageRef.current.add(layer);
+        layerRef.current = layer;
+      }
+
+      // Ensure stacking: background at bottom, content above
+      bgLayerRef.current?.moveToBottom();
+      layerRef.current?.moveToTop();
+
+      console.log('[PDFRenderer] Manually created layers, stage now has', stageRef.current.getLayers().length, 'layers');
+
       (window as any).konvaStage = stageRef.current;
-      
-      // Mark layer as ready
       setLayerReady(true);
     }
     
     return () => {
-      if (layerRef.current && stageRef.current) {
+      if (layerRef.current) {
         layerRef.current.destroy();
         layerRef.current = null;
-        setLayerReady(false);
       }
+      if (bgLayerRef.current) {
+        bgLayerRef.current.destroy();
+        bgLayerRef.current = null;
+      }
+      setLayerReady(false);
     };
   }, [stageRef.current]);
 
   // Render content to manually created layer
   useEffect(() => {
-    if (!layerRef.current || !layerReady || !stageRef.current) return;
+    if (!layerRef.current || !bgLayerRef.current || !layerReady || !stageRef.current) return;
     
+    const bgLayer = bgLayerRef.current;
     const layer = layerRef.current;
     
     // Clear existing content
+    bgLayer.destroyChildren();
     layer.destroyChildren();
     
     console.log('[PDFRenderer] Rendering to manual layer');
@@ -580,7 +595,7 @@ export function PDFRenderer({
         fill: '#ffffff',
         listening: false,
       });
-      layer.add(bgRect);
+      bgLayer.add(bgRect);
     } else {
       const opacity = background.opacity ?? 1;
       
@@ -595,7 +610,7 @@ export function PDFRenderer({
           opacity: opacity,
           listening: false,
         });
-        layer.add(bgRect);
+        bgLayer.add(bgRect);
         
         // Debug: Log background rendering
         console.log('[DEBUG PDFRenderer] Background rendered:', {
@@ -614,16 +629,16 @@ export function PDFRenderer({
           const patternOpacity = background.patternBackgroundOpacity ?? 1;
           
           if (spaceColor !== 'transparent') {
-        const bgRect1 = new Konva.Rect({
-          x: 0,
-          y: 0,
-          width: width,
-          height: height,
+            const bgRect1 = new Konva.Rect({
+              x: 0,
+              y: 0,
+              width: width,
+              height: height,
               fill: spaceColor,
-          opacity: opacity,
-          listening: false,
-        });
-        layer.add(bgRect1);
+              opacity: opacity,
+              listening: false,
+            });
+            bgLayer.add(bgRect1);
           }
         
         const bgRect2 = new Konva.Rect({
@@ -640,7 +655,7 @@ export function PDFRenderer({
           opacity: patternOpacity,
           listening: false,
         });
-        layer.add(bgRect2);
+        bgLayer.add(bgRect2);
         }
       } else if (background.type === 'image' && backgroundImage) {
         const hasBackgroundColor = (background as any).backgroundColorEnabled && (background as any).backgroundColor;
@@ -655,6 +670,7 @@ export function PDFRenderer({
         let fillPatternOffsetX = 0;
         let fillPatternOffsetY = 0;
         let fillPatternRepeat: 'repeat' | 'no-repeat' = 'no-repeat';
+        let useDirectImage = false; // Flag to track if we use direct Image instead of pattern fill
 
         const imageWidth = backgroundImage.naturalWidth || backgroundImage.width || 1;
         const imageHeight = backgroundImage.naturalHeight || backgroundImage.height || 1;
@@ -676,7 +692,9 @@ export function PDFRenderer({
             fillPatternScaleX = fillPatternScaleY = scale;
             fillPatternRepeat = 'repeat';
           } else {
-            // For contain mode without repeat, use direct Image element
+            // For contain mode without repeat, use direct Image element (match client canvas)
+            // This matches client canvas behavior - no pattern fill should be created
+            useDirectImage = true;
             const scaledImageWidth = imageWidth * scale;
             const scaledImageHeight = imageHeight * scale;
             const position = background.imagePosition || 'top-left';
@@ -696,16 +714,16 @@ export function PDFRenderer({
             const bgRect = new Konva.Rect({
               x: 0,
               y: 0,
-          width: width,
-          height: height,
+              width: width,
+              height: height,
               fill: baseBackgroundColor,
               opacity: opacity,
               listening: false,
             });
-            layer.add(bgRect);
+            bgLayer.add(bgRect);
             
             const bgImage = new Konva.Image({
-          image: backgroundImage,
+              image: backgroundImage,
               x: mirrorBackground ? imageX + finalWidth + transformOffsetX : imageX + transformOffsetX,
               y: imageY + transformOffsetY,
               width: finalWidth,
@@ -715,53 +733,52 @@ export function PDFRenderer({
               scaleX: mirrorBackground ? -1 : 1,
               scaleY: 1,
             });
-            layer.add(bgImage);
-            
-            layer.draw();
-            stageRef.current.draw();
-            return;
+            bgLayer.add(bgImage);
           }
         } else if (background.imageSize === 'stretch') {
           fillPatternScaleX = width / imageWidth;
           fillPatternScaleY = height / imageHeight;
         }
         
-        // Apply transform adjustments for pattern fill
-        fillPatternScaleX *= transformScale;
-        fillPatternScaleY *= transformScale;
-        fillPatternOffsetX += transformOffsetX;
-        fillPatternOffsetY += transformOffsetY;
-        if (mirrorBackground) {
-          fillPatternScaleX = -fillPatternScaleX;
-          fillPatternOffsetX -= width * transformScale;
+        // Only create pattern fill if we didn't use direct Image (contain without repeat)
+        if (!useDirectImage) {
+          // Apply transform adjustments for pattern fill
+          fillPatternScaleX *= transformScale;
+          fillPatternScaleY *= transformScale;
+          fillPatternOffsetX += transformOffsetX;
+          fillPatternOffsetY += transformOffsetY;
+          if (mirrorBackground) {
+            fillPatternScaleX = -fillPatternScaleX;
+            fillPatternOffsetX -= width * transformScale;
+          }
+          
+          const bgRect = new Konva.Rect({
+            x: 0,
+            y: 0,
+            width: width,
+            height: height,
+            fill: baseBackgroundColor,
+            opacity: opacity,
+            listening: false,
+          });
+          bgLayer.add(bgRect);
+          
+          const bgImage = new Konva.Rect({
+            x: 0,
+            y: 0,
+            width: width,
+            height: height,
+            fillPatternImage: backgroundImage,
+            fillPatternScaleX: fillPatternScaleX,
+            fillPatternScaleY: fillPatternScaleY,
+            fillPatternOffsetX: fillPatternOffsetX,
+            fillPatternOffsetY: fillPatternOffsetY,
+            fillPatternRepeat: fillPatternRepeat,
+            opacity: opacity,
+            listening: false,
+          });
+          bgLayer.add(bgImage);
         }
-        
-        const bgRect = new Konva.Rect({
-          x: 0,
-          y: 0,
-          width: width,
-          height: height,
-          fill: baseBackgroundColor,
-          opacity: opacity,
-          listening: false,
-        });
-        layer.add(bgRect);
-        
-        const bgImage = new Konva.Rect({
-          x: 0,
-          y: 0,
-          width: width,
-          height: height,
-          fillPatternImage: backgroundImage,
-          fillPatternScaleX: fillPatternScaleX,
-          fillPatternScaleY: fillPatternScaleY,
-          fillPatternOffsetX: fillPatternOffsetX,
-          fillPatternOffsetY: fillPatternOffsetY,
-          fillPatternRepeat: fillPatternRepeat,
-          opacity: opacity,
-          listening: false,
-        });
-        layer.add(bgImage);
       } else {
         // Fallback
         const bgRect = new Konva.Rect({
@@ -773,7 +790,7 @@ export function PDFRenderer({
           opacity: opacity,
           listening: false,
         });
-        layer.add(bgRect);
+        bgLayer.add(bgRect);
       }
     }
     
@@ -783,15 +800,12 @@ export function PDFRenderer({
     
     for (const element of elements) {
       try {
-        // Skip placeholder elements
-        if (element.type === 'placeholder') {
-          continue;
-        }
-        
         // Skip brush-multicolor elements (they are rendered as groups)
         if (element.type === 'brush-multicolor') {
           continue;
         }
+        
+        // Note: placeholder elements are now rendered (see image rendering section below)
         
         // Ensure element position is correctly set
         const elementX = typeof element.x === 'number' ? element.x : 0;
@@ -801,9 +815,11 @@ export function PDFRenderer({
         const elementRotation = typeof element.rotation === 'number' ? element.rotation : 0;
         const elementOpacity = typeof element.opacity === 'number' ? element.opacity : 1;
         
-        // Render QnA Inline elements with proper formatting
-        if (element.textType === 'qna_inline') {
-          // Get tool defaults for qna_inline
+        // Render QnA elements (standard QnA textbox - textbox-qna.tsx logic)
+        // qna_inline is deprecated and treated as qna
+        // NOTE: First block removed - using second block with sharedCreateLayout instead
+        if (false && (element.textType === 'qna' || element.textType === 'qna2' || element.textType === 'qna_inline')) {
+          // Get tool defaults for qna
           const currentPage = state.currentBook?.pages?.find(p => p.id === page.id) || page;
           const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
           const bookTheme = bookData?.themeId || bookData?.bookTheme;
@@ -813,7 +829,7 @@ export function PDFRenderer({
           const bookColorPaletteId = bookData?.colorPaletteId;
           
           const qnaDefaults = getToolDefaults(
-            'qna_inline',
+            'qna',
             pageTheme,
             bookTheme,
             element,
@@ -1250,7 +1266,8 @@ export function PDFRenderer({
                     text: currentLine,
                     fontSize: qFontSize,
                     fontFamily: qFontFamilyClean,
-                    fontStyle: `${qFontBold ? 'bold ' : ''}${qFontItalic ? 'italic' : ''}`.trim() || 'normal',
+                    fontStyle: qFontItalic ? 'italic' : 'normal',
+                    fontWeight: qFontBold ? 'bold' : 'normal',
                     fill: qFontColor,
                     opacity: elementOpacity * qFontOpacity,
                     align: questionAlign,
@@ -1274,7 +1291,8 @@ export function PDFRenderer({
                   text: currentLine,
                   fontSize: qFontSize,
                   fontFamily: qFontFamilyClean,
-                  fontStyle: `${qFontBold ? 'bold ' : ''}${qFontItalic ? 'italic' : ''}`.trim() || 'normal',
+                  fontStyle: qFontItalic ? 'italic' : 'normal',
+                  fontWeight: qFontBold ? 'bold' : 'normal',
                   fill: qFontColor,
                   opacity: elementOpacity * qFontOpacity,
                   align: questionAlign,
@@ -1319,7 +1337,8 @@ export function PDFRenderer({
                       text: currentLine,
                       fontSize: aFontSize,
                       fontFamily: aFontFamilyClean,
-                      fontStyle: `${aFontBold ? 'bold ' : ''}${aFontItalic ? 'italic' : ''}`.trim() || 'normal',
+                      fontStyle: aFontItalic ? 'italic' : 'normal',
+                      fontWeight: aFontBold ? 'bold' : 'normal',
                       fill: aFontColor,
                       opacity: elementOpacity * aFontOpacity,
                       align: answerAlign,
@@ -1343,7 +1362,8 @@ export function PDFRenderer({
                     text: currentLine,
                     fontSize: aFontSize,
                     fontFamily: aFontFamilyClean,
-                    fontStyle: `${aFontBold ? 'bold ' : ''}${aFontItalic ? 'italic' : ''}`.trim() || 'normal',
+                    fontStyle: aFontItalic ? 'italic' : 'normal',
+                    fontWeight: aFontBold ? 'bold' : 'normal',
                     fill: aFontColor,
                     opacity: elementOpacity * aFontOpacity,
                     align: answerAlign,
@@ -1446,13 +1466,47 @@ export function PDFRenderer({
                   ? questionStartX 
                   : elementX + padding;
                 
+                // Debug: Log font metrics for first few question lines
+                if (index < 3) {
+                  const canvas = document.createElement('canvas');
+                  const ctx = canvas.getContext('2d');
+                  if (ctx) {
+                    const weightStr = questionFontBold ? 'bold ' : '';
+                    const styleStr = questionFontItalic ? 'italic ' : '';
+                    const testFont = `${weightStr}${styleStr}${questionFontSize}px ${questionFontFamily}`;
+                    ctx.font = testFont;
+                    ctx.textBaseline = 'alphabetic';
+                    const metrics = ctx.measureText('M');
+                    const actualBoundingBoxAscent = metrics.actualBoundingBoxAscent;
+                    const actualBoundingBoxDescent = metrics.actualBoundingBoxDescent;
+                    const width = metrics.width;
+                    console.log('[CLIENT PDFRenderer] Question font metrics:', JSON.stringify({
+                      lineIndex: index,
+                      text: line ? line.substring(0, 30) : '(empty)',
+                      font: testFont,
+                      fontSize: questionFontSize,
+                      fontFamily: questionFontFamily,
+                      fontWeight: questionFontBold ? 'bold' : 'normal',
+                      fontStyle: questionFontItalic ? 'italic' : 'normal',
+                      actualBoundingBoxAscent: actualBoundingBoxAscent !== undefined ? actualBoundingBoxAscent : null,
+                      actualBoundingBoxDescent: actualBoundingBoxDescent !== undefined ? actualBoundingBoxDescent : null,
+                      width: width,
+                      baselineY: sharedBaseline,
+                      topY: questionY,
+                      x: questionX,
+                      y: elementY + questionY
+                    }, null, 2));
+                  }
+                }
+                
                 const questionNode = new Konva.Text({
                   x: questionX,
                   y: elementY + questionY,
                   text: line,
                   fontSize: questionFontSize,
                   fontFamily: questionFontFamily,
-                  fontStyle: `${questionFontBold ? 'bold ' : ''}${questionFontItalic ? 'italic' : ''}`.trim() || 'normal',
+                  fontStyle: questionFontItalic ? 'italic' : 'normal',
+                  fontWeight: questionFontBold ? 'bold' : 'normal',
                   fill: questionFontColor,
                   opacity: elementOpacity * questionFontOpacity,
                   align: questionAlign,
@@ -1598,6 +1652,39 @@ export function PDFRenderer({
                           const sharedBaseline = effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.8) - (number / 7);
                           const answerY = sharedBaseline - (aFontSize * 0.8);
                           
+                          // Debug: Log font metrics for first answer text node
+                          if (firstLineSegmentCount === 1) {
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            if (ctx) {
+                              const weightStr = answerFontBold ? 'bold ' : '';
+                              const styleStr = answerFontItalic ? 'italic ' : '';
+                              const testFont = `${weightStr}${styleStr}${answerFontSize}px ${answerFontFamily}`;
+                              ctx.font = testFont;
+                              ctx.textBaseline = 'alphabetic';
+                              const metrics = ctx.measureText('M');
+                              const actualBoundingBoxAscent = metrics.actualBoundingBoxAscent;
+                              const actualBoundingBoxDescent = metrics.actualBoundingBoxDescent;
+                              const width = metrics.width;
+                              console.log('[CLIENT PDFRenderer] Answer font metrics (first segment):', JSON.stringify({
+                                segmentIndex: firstLineSegmentCount,
+                                text: lineText ? lineText.substring(0, 30) : '(empty)',
+                                font: testFont,
+                                fontSize: answerFontSize,
+                                fontFamily: answerFontFamily,
+                                fontWeight: answerFontBold ? 'bold' : 'normal',
+                                fontStyle: answerFontItalic ? 'italic' : 'normal',
+                                actualBoundingBoxAscent: actualBoundingBoxAscent !== undefined ? actualBoundingBoxAscent : null,
+                                actualBoundingBoxDescent: actualBoundingBoxDescent !== undefined ? actualBoundingBoxDescent : null,
+                                width: width,
+                                baselineY: sharedBaseline,
+                                topY: answerY,
+                                x: startX + qWidth + gap,
+                                y: elementY + answerY
+                              }, null, 2));
+                            }
+                          }
+                          
                           // Render answer after question with shared baseline alignment
                           const answerNode = new Konva.Text({
                             x: startX + qWidth + gap,
@@ -1605,7 +1692,8 @@ export function PDFRenderer({
                             text: lineText,
                             fontSize: answerFontSize,
                             fontFamily: answerFontFamily,
-                            fontStyle: `${answerFontBold ? 'bold ' : ''}${answerFontItalic ? 'italic' : ''}`.trim() || 'normal',
+                            fontStyle: answerFontItalic ? 'italic' : 'normal',
+                            fontWeight: answerFontBold ? 'bold' : 'normal',
                             fill: answerFontColor,
                             opacity: elementOpacity * answerFontOpacity,
                             align: 'left',
@@ -1618,10 +1706,10 @@ export function PDFRenderer({
                         } else {
                           // Wrapped segments of first line
                           const combinedLineBaseline = effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6);
-                          const answerBaselineOffset = -(aFontSize * getLineHeightMultiplier(aParagraphSpacing) * 0.15) + (aFontSize * (aFontSize >= 50 ? aFontSize >= 96 ? aFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1));
+                          const answerBaselineOffsetLocal = -(aFontSize * getLineHeightMultiplier(aParagraphSpacing) * 0.15) + (aFontSize * (aFontSize >= 50 ? aFontSize >= 96 ? aFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1));
                           totalAnswerLineCount = firstLineSegmentCount - 1;
                           const answerLineIndex = totalAnswerLineCount - 1;
-                          const answerBaseline = combinedLineBaseline + (answerLineIndex * aLineHeight) + answerBaselineOffset + (aFontSize * 0.6);
+                          const answerBaseline = combinedLineBaseline + (answerLineIndex * aLineHeight) + answerBaselineOffsetLocal + (aFontSize * 0.6);
                           const answerY = answerBaseline - (aFontSize * 0.8);
                           
                           const answerNode = new Konva.Text({
@@ -1630,7 +1718,8 @@ export function PDFRenderer({
                             text: lineText,
                             fontSize: answerFontSize,
                             fontFamily: answerFontFamily,
-                            fontStyle: `${answerFontBold ? 'bold ' : ''}${answerFontItalic ? 'italic' : ''}`.trim() || 'normal',
+                            fontStyle: answerFontItalic ? 'italic' : 'normal',
+                            fontWeight: answerFontBold ? 'bold' : 'normal',
                             fill: answerFontColor,
                             opacity: elementOpacity * answerFontOpacity,
                             align: answerAlign,
@@ -1644,9 +1733,9 @@ export function PDFRenderer({
                       } else {
                         // Answer-only lines (after first line)
                         const combinedLineBaseline = effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6);
-                        const answerBaselineOffset = -(aFontSize * getLineHeightMultiplier(aParagraphSpacing) * 0.15) + (aFontSize * (aFontSize >= 50 ? aFontSize >= 96 ? aFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1));
+                        const answerBaselineOffsetLocal = -(aFontSize * getLineHeightMultiplier(aParagraphSpacing) * 0.15) + (aFontSize * (aFontSize >= 50 ? aFontSize >= 96 ? aFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1));
                         totalAnswerLineCount++;
-                        const answerBaseline = combinedLineBaseline + (totalAnswerLineCount * aLineHeight) + answerBaselineOffset + (aFontSize * 0.6);
+                        const answerBaseline = combinedLineBaseline + (totalAnswerLineCount * aLineHeight) + answerBaselineOffsetLocal + (aFontSize * 0.6);
                         const answerY = answerBaseline - (aFontSize * 0.8);
                         
                         const answerNode = new Konva.Text({
@@ -1655,7 +1744,8 @@ export function PDFRenderer({
                           text: lineText,
                           fontSize: answerFontSize,
                           fontFamily: answerFontFamily,
-                          fontStyle: `${answerFontBold ? 'bold ' : ''}${answerFontItalic ? 'italic' : ''}`.trim() || 'normal',
+                          fontStyle: answerFontItalic ? 'italic' : 'normal',
+                          fontWeight: answerFontBold ? 'bold' : 'normal',
                           fill: answerFontColor,
                           opacity: elementOpacity * answerFontOpacity,
                           align: answerAlign,
@@ -1685,7 +1775,8 @@ export function PDFRenderer({
                 text: answerText,
                 fontSize: answerFontSize,
                 fontFamily: answerFontFamily,
-                fontStyle: `${answerFontBold ? 'bold ' : ''}${answerFontItalic ? 'italic' : ''}`.trim() || 'normal',
+                fontStyle: answerFontItalic ? 'italic' : 'normal',
+                fontWeight: answerFontBold ? 'bold' : 'normal',
                 fill: answerFontColor,
                 width: textWidth,
                 align: answerAlign,
@@ -2211,8 +2302,9 @@ export function PDFRenderer({
           }
         }
         // Render QnA elements (standard QnA textbox - textbox-qna.tsx logic)
-        else if (element.textType === 'qna' || element.textType === 'qna2') {
-          // Get tool defaults for qna (use qna_inline defaults as base)
+        // qna_inline is deprecated and treated as qna
+        if (element.textType === 'qna' || element.textType === 'qna2' || element.textType === 'qna_inline') {
+          // Get tool defaults for qna
           const currentPage = state.currentBook?.pages?.find(p => p.id === page.id) || page;
           const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
           const bookTheme = bookData?.themeId || bookData?.bookTheme;
@@ -2222,7 +2314,7 @@ export function PDFRenderer({
           const bookColorPaletteId = bookData?.colorPaletteId;
           
           const qnaDefaults = getToolDefaults(
-            'qna_inline',
+            'qna',
             pageTheme,
             bookTheme,
             element,
@@ -2380,10 +2472,9 @@ export function PDFRenderer({
           const ruledLinesTarget = (element as any).ruledLinesTarget || 'answer';
           const blockQuestionAnswerGap = (element as any).blockQuestionAnswerGap ?? 10;
           const answerInNewRow = (element as any).answerInNewRow ?? false;
-          // Use the appropriate gap value based on mode, with fallback to questionAnswerGap for backward compatibility
-          const questionAnswerGap = answerInNewRow 
-            ? ((element as any).questionAnswerGapVertical ?? (element as any).questionAnswerGap ?? 0)
-            : ((element as any).questionAnswerGapHorizontal ?? (element as any).questionAnswerGap ?? 0);
+          // IMPORTANT: Match client-side logic exactly - use questionAnswerGap directly, no Horizontal/Vertical variants
+          // Client uses: const questionAnswerGap = qnaElement.questionAnswerGap ?? 0;
+          const questionAnswerGap = (element as any).questionAnswerGap ?? 0;
           
           // Helper function to calculate text X position based on alignment
           const calculateTextX = FEATURE_FLAGS.USE_SHARED_TEXT_LAYOUT ? sharedCalculateTextX : (text: string, style: RichTextStyle, startX: number, availableWidth: number, ctx: CanvasRenderingContext2D | null): number => {
@@ -2403,144 +2494,39 @@ export function PDFRenderer({
             }
           };
           
-          // Create layout using createLayout logic from textbox-qna.tsx
+          // Create layout using sharedCreateLayout (same as textbox-qna.tsx)
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
-          const runs: Array<{ text: string; x: number; y: number; style: typeof questionStyle }> = [];
-          let contentHeight = elementHeight;
-          let linePositions: Array<{ y: number; lineHeight: number; style: typeof questionStyle }> = [];
+          
+          // Use sharedCreateLayout to get runs and linePositions (matching textbox-qna.tsx)
+          const layout = sharedCreateLayout({
+            questionText: questionText || '',
+            answerText: answerContent,
+            questionStyle: effectiveQuestionStyle,
+            answerStyle: answerStyle,
+            width: elementWidth,
+            height: elementHeight,
+            padding: padding,
+            ctx: ctx,
+            layoutVariant: layoutVariant,
+            questionPosition: questionPosition,
+            questionWidth: questionWidth,
+            ruledLinesTarget: ruledLinesTarget,
+            blockQuestionAnswerGap: blockQuestionAnswerGap,
+            answerInNewRow: answerInNewRow,
+            questionAnswerGap: questionAnswerGap
+          });
+          
+          const runs = layout.runs;
+          const linePositions = layout.linePositions;
+          const contentHeight = layout.contentHeight;
           let blockRuledLinesNodes: Array<Konva.Path | Konva.Line> = [];
           
-          // Block layout uses different logic
+          // Block layout uses different logic for ruled lines
           if (layoutVariant === 'block') {
-            // Calculate line heights
-            const questionLineHeight = getLineHeight(effectiveQuestionStyle);
-            const answerLineHeight = getLineHeight(answerStyle);
-            
-            // Baseline offsets
-            const questionBaselineOffset = effectiveQuestionStyle.fontSize * 0.8;
-            const answerBaselineOffset = answerStyle.fontSize * 0.8;
-            
-            // Calculate question and answer areas based on position
-            let questionArea = { x: padding, y: padding, width: elementWidth - padding * 2, height: elementHeight - padding * 2 };
-            let answerArea = { x: padding, y: padding, width: elementWidth - padding * 2, height: elementHeight - padding * 2 };
-            
-            // Calculate question dimensions
-            let calculatedQuestionHeight = 0;
-            
-            if (questionText && ctx) {
-              const questionLines = wrapText(questionText, effectiveQuestionStyle, elementWidth - padding * 2, ctx);
-              calculatedQuestionHeight = questionLines.length * questionLineHeight + padding * 2;
-            }
-            
-            // Calculate areas based on position
-            if (questionPosition === 'left' || questionPosition === 'right') {
-              const finalQuestionWidth = (elementWidth * questionWidth) / 100;
-              const gap = blockQuestionAnswerGap;
-              const answerWidth = elementWidth - finalQuestionWidth - padding * 2 - gap;
-              
-              if (questionPosition === 'left') {
-                questionArea = { x: padding, y: padding, width: finalQuestionWidth, height: elementHeight - padding * 2 };
-                answerArea = { x: finalQuestionWidth + padding + gap, y: padding, width: answerWidth, height: elementHeight - padding * 2 };
-              } else {
-                answerArea = { x: padding, y: padding, width: answerWidth, height: elementHeight - padding * 2 };
-                questionArea = { x: answerWidth + padding + gap, y: padding, width: finalQuestionWidth, height: elementHeight - padding * 2 };
-              }
-            } else {
-              const finalQuestionHeight = Math.max(calculatedQuestionHeight, effectiveQuestionStyle.fontSize + padding * 2);
-              const gap = blockQuestionAnswerGap;
-              const answerHeight = elementHeight - finalQuestionHeight - padding * 2 - gap;
-              
-              if (questionPosition === 'top') {
-                questionArea = { x: padding, y: padding, width: elementWidth - padding * 2, height: finalQuestionHeight };
-                answerArea = { x: padding, y: finalQuestionHeight + padding + gap, width: elementWidth - padding * 2, height: answerHeight };
-              } else {
-                answerArea = { x: padding, y: padding, width: elementWidth - padding * 2, height: answerHeight };
-                questionArea = { x: padding, y: answerHeight + padding + gap, width: elementWidth - padding * 2, height: finalQuestionHeight };
-              }
-            }
-            
-            // Track line positions for ruled lines
-            linePositions = [];
-            
-            // Render question text in question area (first, like in client)
-            if (questionText) {
-              const questionLines = wrapText(questionText, effectiveQuestionStyle, questionArea.width, ctx);
-              let cursorY = questionArea.y;
-              
-              questionLines.forEach((line) => {
-                if (line.text) {
-                  const baselineY = cursorY + questionBaselineOffset;
-                  // Use calculateTextX to respect text alignment
-                  const textX = calculateTextX(line.text, effectiveQuestionStyle, questionArea.x, questionArea.width, ctx);
-                  runs.push({
-                    text: line.text,
-                    x: textX,
-                    y: baselineY,
-                    style: effectiveQuestionStyle
-                  });
-                  // Track line position for ruled lines
-                  if (ruledLinesTarget === 'question') {
-                    linePositions.push({
-                      y: baselineY + effectiveQuestionStyle.fontSize * 0.15,
-                      lineHeight: questionLineHeight,
-                      style: effectiveQuestionStyle
-                    });
-                  }
-                } else {
-                  // Track empty line position for ruled lines
-                  if (ruledLinesTarget === 'question') {
-                    const baselineY = cursorY + questionBaselineOffset;
-                    linePositions.push({
-                      y: baselineY + effectiveQuestionStyle.fontSize * 0.15,
-                      lineHeight: questionLineHeight,
-                      style: effectiveQuestionStyle
-                    });
-                  }
-                }
-                cursorY += questionLineHeight;
-              });
-            }
-            
-            // Render answer text in answer area (after question)
-            if (answerContent) {
-              const answerLines = wrapText(answerContent, answerStyle, answerArea.width, ctx);
-              let cursorY = answerArea.y;
-              
-              answerLines.forEach((line) => {
-                if (line.text) {
-                  const baselineY = cursorY + answerBaselineOffset;
-                  const textX = calculateTextX(line.text, answerStyle, answerArea.x, answerArea.width, ctx);
-                  runs.push({
-                    text: line.text,
-                    x: textX,
-                    y: baselineY,
-                    style: answerStyle
-                  });
-                  // Track line position for ruled lines
-                  if (ruledLinesTarget === 'answer') {
-                    linePositions.push({
-                      y: baselineY + answerStyle.fontSize * 0.15,
-                      lineHeight: answerLineHeight,
-                      style: answerStyle
-                    });
-                  }
-                } else {
-                  // Track empty line position for ruled lines
-                  if (ruledLinesTarget === 'answer') {
-                    const baselineY = cursorY + answerBaselineOffset;
-                    linePositions.push({
-                      y: baselineY + answerStyle.fontSize * 0.15,
-                      lineHeight: answerLineHeight,
-                      style: answerStyle
-                    });
-                  }
-                }
-                cursorY += answerLineHeight;
-              });
-            }
-            
-            contentHeight = elementHeight;
+            // Get question and answer areas from layout (if available)
+            const questionArea = layout.questionArea || { x: padding, y: padding, width: elementWidth - padding * 2, height: elementHeight - padding * 2 };
+            const answerArea = layout.answerArea || { x: padding, y: padding, width: elementWidth - padding * 2, height: elementHeight - padding * 2 };
             
             // Collect ruled lines nodes for block layout (will be inserted after background)
             blockRuledLinesNodes = [];
@@ -2631,273 +2617,9 @@ export function PDFRenderer({
                 }
               });
             }
-          } else {
-            // Inline layout (existing logic)
-            const availableWidth = Math.max(10, elementWidth - padding * 2);
-            const questionLineHeight = getLineHeight(effectiveQuestionStyle);
-            const answerLineHeight = getLineHeight(answerStyle);
-            
-            // Baseline offsets
-            const questionBaselineOffset = effectiveQuestionStyle.fontSize * 0.8;
-            const answerBaselineOffset = answerStyle.fontSize * 0.8;
-            // For combined lines, use the larger baseline offset to align both texts
-            const combinedBaselineOffset = Math.max(questionBaselineOffset, answerBaselineOffset);
-            
-            // Store Y positions for each question line
-            const questionLinePositions: number[] = [];
-            // Store X positions for each question line (to handle text alignment)
-            const questionLineXPositions: number[] = [];
-            
-            let cursorY = padding;
-            const questionLines = wrapText(questionText || '', effectiveQuestionStyle, availableWidth, ctx);
-            const linePositionsInline: Array<{ y: number; lineHeight: number; style: typeof questionStyle }> = [];
-            
-            questionLines.forEach((line) => {
-              if (line.text) {
-                const baselineY = cursorY + questionBaselineOffset;
-                questionLinePositions.push(baselineY);
-                const textX = calculateTextX(line.text, effectiveQuestionStyle, padding, availableWidth, ctx);
-                questionLineXPositions.push(textX); // Store actual X position
-                runs.push({
-                  text: line.text,
-                  x: textX,
-                  y: baselineY,
-                  style: effectiveQuestionStyle
-                });
-                // Track line position for ruled lines
-                linePositionsInline.push({
-                  y: baselineY + effectiveQuestionStyle.fontSize * 0.15,
-                  lineHeight: questionLineHeight,
-                  style: effectiveQuestionStyle
-                });
-              } else {
-                // Track empty line position for ruled lines
-                const baselineY = cursorY + questionBaselineOffset;
-                questionLinePositions.push(baselineY);
-                questionLineXPositions.push(padding); // For empty lines, use left alignment position
-                linePositionsInline.push({
-                  y: baselineY + effectiveQuestionStyle.fontSize * 0.15,
-                  lineHeight: questionLineHeight,
-                  style: effectiveQuestionStyle
-                });
-              }
-              cursorY += questionLineHeight;
-            });
-            
-            // Calculate gap: base gap + user-defined gap
-            // If answerInNewRow is true, questionAnswerGap applies vertically (not horizontally)
-            const baseInlineGap = Math.min(32, answerStyle.fontSize * 0.5);
-            const inlineGap = answerInNewRow ? baseInlineGap : baseInlineGap + questionAnswerGap;
-            let contentHeight = cursorY;
-            
-            let startAtSameLine = false;
-            let remainingAnswerText = answerContent;
-            const lastQuestionLineY = questionLinePositions.length > 0 ? questionLinePositions[questionLinePositions.length - 1] : padding;
-            
-            // Check if answer can start on the same line as the last question line
-            // Skip this check if answerInNewRow is true
-            if (!answerInNewRow && questionLines.length > 0 && answerContent && answerContent.trim()) {
-              // Get the actual X position and width of the last question line
-              const lastQuestionLineIndex = questionLines.length - 1;
-              const lastQuestionLine = questionLines[lastQuestionLineIndex];
-              const lastQuestionLineActualX = questionLineXPositions[lastQuestionLineIndex] || padding;
-              const lastQuestionLineActualWidth = lastQuestionLine.width;
-              const lastQuestionLineEndX = lastQuestionLineActualX + lastQuestionLineActualWidth;
-              
-              // Calculate available space for answer text
-              // The right edge of the available area is: padding + availableWidth
-              const rightEdge = padding + availableWidth;
-              
-              // Check alignment to determine placement strategy
-              const align = effectiveQuestionStyle.align || 'left';
-              const isRightAligned = align === 'right';
-              const isCenterAligned = align === 'center';
-              
-              let inlineAvailable: number;
-              
-              if (isRightAligned) {
-                // For right alignment: question and answer together form a right-aligned block
-                // Question text is already right-aligned, so we need space before it for answer text
-                // The combined width (question + gap + answer) should fit within availableWidth
-                const spaceBefore = lastQuestionLineActualX - padding - inlineGap;
-                inlineAvailable = spaceBefore;
-              } else if (isCenterAligned) {
-                // For center alignment: both texts together will be centered
-                // We need space after the question text for the answer text
-                const spaceAfter = rightEdge - lastQuestionLineEndX - inlineGap;
-                inlineAvailable = spaceAfter;
-              } else {
-                // For left alignment: place answer text after question text (to the right)
-                const spaceAfter = rightEdge - lastQuestionLineEndX - inlineGap;
-                inlineAvailable = spaceAfter;
-              }
-              
-              // Split answer into words to check if at least the first word fits
-              const answerWords = answerContent.split(' ').filter(Boolean);
-              if (answerWords.length > 0) {
-                const firstWordWidth = measureText(answerWords[0], answerStyle, ctx);
-                
-                if (inlineAvailable > firstWordWidth) {
-                  startAtSameLine = true;
-                  
-                  // Build text that fits on the same line
-                  let inlineText = '';
-                  let wordsUsed = 0;
-                  
-                  for (let i = 0; i < answerWords.length; i++) {
-                    const word = answerWords[i];
-                    const testText = inlineText ? inlineText + ' ' + word : word;
-                    const testWidth = measureText(testText, answerStyle, ctx);
-                    
-                    if (testWidth <= inlineAvailable) {
-                      inlineText = testText;
-                      wordsUsed++;
-                    } else {
-                      break;
-                    }
-                  }
-                  
-                  // Add inline text if we have at least one word
-                  if (inlineText && wordsUsed > 0) {
-                    // Calculate Y position for combined line: align both texts to the same baseline
-                    // Use the larger baseline offset to ensure both texts align properly
-                    const combinedBaselineY = lastQuestionLineY + (combinedBaselineOffset - questionBaselineOffset);
-                    
-                    // Update the last question line Y position to use combined baseline
-                    const lastQuestionRunIndex = runs.length - 1;
-                    if (lastQuestionRunIndex >= 0 && runs[lastQuestionRunIndex].style === effectiveQuestionStyle) {
-                      runs[lastQuestionRunIndex].y = combinedBaselineY;
-                    }
-                    
-                    // Position answer text based on alignment
-                    // Question text is always left of answer text, regardless of alignment
-                    const inlineTextWidth = measureText(inlineText, answerStyle, ctx);
-                    let inlineTextX: number;
-                    let questionTextX: number;
-                    
-                    if (isRightAligned) {
-                      // For right alignment: both texts together form a right-aligned block
-                      // Question text is left, answer text is right
-                      // Calculate combined width: question + gap + answer
-                      const combinedWidth = lastQuestionLineActualWidth + inlineGap + inlineTextWidth;
-                      
-                      // Position the combined block so it ends at the right edge
-                      const combinedBlockStartX = rightEdge - combinedWidth;
-                      
-                      // Question text starts at the beginning of the combined block (left side)
-                      questionTextX = Math.max(combinedBlockStartX, padding);
-                      
-                      // Answer text starts after question text + gap (right side)
-                      inlineTextX = questionTextX + lastQuestionLineActualWidth + inlineGap;
-                      
-                      // Update question text position to maintain right alignment of combined block
-                      if (lastQuestionRunIndex >= 0 && runs[lastQuestionRunIndex].style === effectiveQuestionStyle) {
-                        runs[lastQuestionRunIndex].x = questionTextX;
-                      }
-                    } else if (isCenterAligned) {
-                      // For center alignment: both texts together form a centered block
-                      // Calculate combined width: question + gap + answer
-                      const combinedWidth = lastQuestionLineActualWidth + inlineGap + inlineTextWidth;
-                      
-                      // Center the combined block within the available width
-                      const combinedBlockStartX = padding + (availableWidth - combinedWidth) / 2;
-                      
-                      // Question text starts at the beginning of the combined block (left side)
-                      questionTextX = Math.max(combinedBlockStartX, padding);
-                      
-                      // Answer text starts after question text + gap (right side)
-                      inlineTextX = questionTextX + lastQuestionLineActualWidth + inlineGap;
-                      
-                      // Update question text position to maintain center alignment of combined block
-                      if (lastQuestionRunIndex >= 0 && runs[lastQuestionRunIndex].style === effectiveQuestionStyle) {
-                        runs[lastQuestionRunIndex].x = questionTextX;
-                      }
-                    } else {
-                      // For left alignment: place answer text after question text
-                      inlineTextX = lastQuestionLineEndX + inlineGap;
-                      
-                      // Ensure answer text doesn't exceed the right edge
-                      inlineTextX = Math.min(inlineTextX, rightEdge - inlineTextWidth);
-                    }
-                    
-                    // Add answer text aligned to the same baseline
-                    // Both texts use the same baseline Y position
-                    runs.push({
-                      text: inlineText,
-                      x: inlineTextX,
-                      y: combinedBaselineY,
-                      style: answerStyle
-                    });
-                    
-                    // Update the last line position for ruled lines (use combined line height)
-                    // Match client-side logic: update the last linePositions entry instead of adding a new one
-                    if (linePositionsInline.length > 0) {
-                      linePositionsInline[linePositionsInline.length - 1] = {
-                        y: combinedBaselineY + Math.max(effectiveQuestionStyle.fontSize, answerStyle.fontSize) * 0.15,
-                        lineHeight: Math.max(questionLineHeight, answerLineHeight),
-                        style: answerStyle // Use answer style for combined line
-                      };
-                    }
-                    
-                    // Update cursorY to account for combined line height
-                    const combinedLineHeight = Math.max(questionLineHeight, answerLineHeight);
-                    cursorY = padding + ((questionLines.length - 1) * questionLineHeight) + combinedLineHeight;
-                    
-                    // Get remaining text (words not used + rest of answer)
-                    const remainingWords = answerWords.slice(wordsUsed);
-                    remainingAnswerText = remainingWords.join(' ');
-                  } else {
-                    startAtSameLine = false;
-                  }
-                }
-              }
-            }
-            
-            // Wrap remaining answer text for new lines
-            const remainingAnswerLines = startAtSameLine && remainingAnswerText 
-              ? wrapText(remainingAnswerText, answerStyle, availableWidth, ctx)
-              : wrapText(answerContent, answerStyle, availableWidth, ctx);
-            
-            // Start answer on new line if not on same line as question
-            // If answerInNewRow is true, questionAnswerGap applies vertically
-            // Otherwise, use standard spacing (questionAnswerGap only applies horizontally via inlineGap)
-            const verticalGap = answerInNewRow ? questionAnswerGap : 0;
-            const baseVerticalSpacing = questionLines.length ? answerLineHeight * 0.2 : 0;
-            let answerCursorY = startAtSameLine ? cursorY : cursorY + baseVerticalSpacing + verticalGap;
-            
-            remainingAnswerLines.forEach((line) => {
-              if (line.text) {
-                const baselineY = answerCursorY + answerBaselineOffset;
-                const textX = calculateTextX(line.text, answerStyle, padding, availableWidth, ctx);
-                runs.push({
-                  text: line.text,
-                  x: textX,
-                  y: baselineY,
-                  style: answerStyle
-                });
-                // Track line position for ruled lines
-                linePositionsInline.push({
-                  y: baselineY + answerStyle.fontSize * 0.15,
-                  lineHeight: answerLineHeight,
-                  style: answerStyle
-                });
-              } else {
-                // Track empty line position for ruled lines
-                const baselineY = answerCursorY + answerBaselineOffset;
-                linePositionsInline.push({
-                  y: baselineY + answerStyle.fontSize * 0.15,
-                  lineHeight: answerLineHeight,
-                  style: answerStyle
-                });
-              }
-              answerCursorY += answerLineHeight;
-            });
-            
-            contentHeight = Math.max(contentHeight, answerCursorY, elementHeight);
-            
-            // Store linePositions for ruled lines rendering
-            linePositions = linePositionsInline;
           }
+          // Inline layout - runs and linePositions are already created by sharedCreateLayout
+          // No manual creation needed - sharedCreateLayout handles everything
           
           // Render background if enabled
           // Match client-side logic: check backgroundEnabled first, then fallback to style settings
@@ -3149,6 +2871,11 @@ export function PDFRenderer({
             if (themeRenderer && borderTheme !== 'default') {
               // Create a temporary element-like object for generatePath
               // Set roughness to 8 for 'rough' theme to match client-side rendering
+              // IMPORTANT: For 'candy' theme, increase strokeWidth server-side to make circles larger
+              // This compensates for rendering differences between client and server
+              // Also reduce spacing between circles by using a spacing multiplier
+              const adjustedBorderWidth = borderTheme === 'candy' ? borderWidth * 1.45 : borderWidth;
+              
               const borderElement = {
                 type: 'rect' as const,
                 id: (element as any).id + '-border',
@@ -3158,9 +2885,12 @@ export function PDFRenderer({
                 height: contentHeight,
                 cornerRadius: cornerRadius,
                 stroke: borderColor,
-                strokeWidth: borderWidth,
+                strokeWidth: adjustedBorderWidth,
                 fill: 'transparent',
-                roughness: borderTheme === 'rough' ? 8 : undefined
+                roughness: borderTheme === 'rough' ? 8 : undefined,
+                // Add spacing multiplier for candy theme to reduce gaps between circles
+                // This is only used server-side, client-side spacing remains unchanged
+                candySpacingMultiplier: borderTheme === 'candy' ? 0.7 : undefined
               } as CanvasElement;
               
               const pathData = themeRenderer.generatePath(borderElement);
@@ -3169,12 +2899,17 @@ export function PDFRenderer({
               const strokeProps = themeRenderer.getStrokeProps(borderElement);
               
               if (pathData) {
+                // For candy theme, use adjusted borderWidth for strokeWidth to match larger circles
+                // Candy theme uses fill instead of stroke, so strokeWidth doesn't affect rendering
+                // but we keep it consistent for potential future changes
+                const pathStrokeWidth = borderTheme === 'candy' ? adjustedBorderWidth : (strokeProps.strokeWidth || borderWidth);
+                
                 const borderPath = new Konva.Path({
                   data: pathData,
                   x: elementX,
                   y: elementY,
                   stroke: strokeProps.stroke || borderColor,
-                  strokeWidth: strokeProps.strokeWidth || borderWidth,
+                  strokeWidth: pathStrokeWidth,
                   fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
                   opacity: borderOpacity * elementOpacity,
                   strokeScaleEnabled: true,
@@ -3247,143 +2982,43 @@ export function PDFRenderer({
             }
           }
           
-          // Render text runs using Konva.Text nodes (matching textbox-qna.tsx RichTextShape behavior)
-          runs.forEach((run, runIndex) => {
-            try {
-              const style = run.style;
-              const fontBold = style.fontBold ?? false;
-              const fontItalic = style.fontItalic ?? false;
-              let fontFamily = resolveFontFamily(style.fontFamily, fontBold, fontItalic);
-              
-              // IMPORTANT: Konva.Text can accept the full CSS font-family string with fallback
-              // This matches the behavior in shared/rendering/render-qna.js and page-preview-generator.ts
-              // Remove outer quotes but keep the full CSS string structure (e.g., "Mynerve, cursive")
-              // Match client-side: fontFamily.replace(/^['"]|['"]$/g, '').replace(/['"]/g, '')
-              fontFamily = fontFamily.replace(/^['"]|['"]$/g, '').replace(/['"]/g, '').trim();
-              
-              // Ensure fontFamily is not empty
-              if (!fontFamily || fontFamily === '') {
-                fontFamily = 'Arial, sans-serif';
-              }
-              
-              // Ensure fontSize is valid
-              const fontSize = style.fontSize || 16;
-              if (!fontSize || fontSize <= 0 || !isFinite(fontSize)) {
-                console.error('[PDFRenderer] Invalid fontSize:', fontSize, 'for run:', run);
-                return;
-              }
-              
-              const fontStyle = fontItalic ? 'italic' : 'normal';
-              const fontWeight = fontBold ? 'bold' : 'normal';
-              
-              // Build font string to ensure proper font loading
-              const fontString = `${fontWeight} ${fontStyle} ${fontSize}px ${fontFamily}`;
-              
-              // Convert baseline Y position to top Y position for Konva.Text
-              // Client uses textBaseline = 'alphabetic' with baseline Y position
-              // Server uses verticalAlign = 'top', so we need to subtract baseline offset
-              // The baseline offset is approximately 0.8 * fontSize for alphabetic baseline
-              // But we need to account for the actual font metrics
-              const baselineOffset = fontSize * 0.8;
-              const topY = run.y - baselineOffset;
-              
-              // Debug: Log first few runs with full details
-              if (runIndex < 3) {
-                console.log('[PDFRenderer] Creating text node:', JSON.stringify({
-                  runIndex,
-                  text: run.text ? run.text.substring(0, 30) : '(empty)',
-                  fontSize: fontSize,
-                  fontFamily: fontFamily,
-                  fontString: fontString,
-                  styleFontFamily: style.fontFamily,
-                  fontBold: fontBold,
-                  fontItalic: fontItalic,
-                  fontStyle: fontStyle,
-                  fontWeight: fontWeight,
-                  baselineY: run.y,
-                  topY: topY,
-                  x: elementX + run.x,
-                  y: elementY + topY
-                }, null, 2));
-              }
-              
-              const textNode = new Konva.Text({
-                x: elementX + run.x,
-                y: elementY + topY,
-                text: run.text || '',
-                fontSize: fontSize,
-                fontFamily: fontFamily,
-                fontStyle: fontStyle,
-                fontWeight: fontWeight,
-                fill: style.fontColor || '#000000',
-                opacity: (style.fontOpacity !== undefined ? style.fontOpacity : 1) * elementOpacity,
-                align: style.align || 'left',
-                verticalAlign: 'top',
-                rotation: elementRotation,
-                listening: false,
-                visible: true
-              });
-              
-              // IMPORTANT: Don't use setAttr('font') as it might override individual properties
-              // Konva.Text should use fontFamily, fontStyle, fontWeight, fontSize separately
-              // The fontString is only for reference/debugging
-              
-              // Debug: Verify font was set
-              if (runIndex < 3) {
-                console.log('[PDFRenderer] Text node created:', JSON.stringify({
-                  runIndex,
-                  nodeFontSize: textNode.fontSize(),
-                  nodeFontFamily: textNode.fontFamily(),
-                  nodeFontStyle: textNode.fontStyle(),
-                  nodeText: textNode.text() ? textNode.text().substring(0, 30) : '(empty)',
-                  nodeX: textNode.x(),
-                  nodeY: textNode.y()
-                }, null, 2));
-                
-                // Check if font is actually loaded
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                if (ctx) {
-                  ctx.font = `${fontWeight} ${fontStyle} ${fontSize}px ${fontFamily}`;
-                  const metrics = ctx.measureText('M');
-                  console.log('[PDFRenderer] Font metrics:', {
-                    font: ctx.font,
-                    width: metrics.width,
-                    actualBoundingBoxAscent: metrics.actualBoundingBoxAscent,
-                    actualBoundingBoxDescent: metrics.actualBoundingBoxDescent
-                  });
+          // Render text runs using a single Konva.Shape (matching textbox-qna.tsx RichTextShape behavior)
+          // IMPORTANT: Client uses a SINGLE Shape for ALL runs, not one Shape per run
+          // The Shape is positioned at (elementX, elementY), then all runs are drawn within it
+          if (runs.length > 0) {
+            const textShape = new Konva.Shape({
+              x: elementX,
+              y: elementY,
+              sceneFunc: (ctx, shape) => {
+                ctx.save();
+                // Use 'alphabetic' baseline for proper text alignment (matching client)
+                ctx.textBaseline = 'alphabetic';
+                // Draw all runs within this single shape (like client-side RichTextShape)
+                runs.forEach((run) => {
+                  const style = run.style;
+                  // Build font string with bold/italic support (like client)
+                  const fontString = sharedBuildFont(style);
+                  const textColor = style.fontColor || '#000000';
+                  const textOpacity = (style.fontOpacity !== undefined ? style.fontOpacity : 1) * elementOpacity;
                   
-                  // Check if font is actually being used (compare with fallback)
-                  ctx.font = `${fontWeight} ${fontStyle} ${fontSize}px cursive`;
-                  const fallbackMetrics = ctx.measureText('M');
-                  const isUsingFallback = Math.abs(metrics.width - fallbackMetrics.width) < 0.1;
-                  console.log('[PDFRenderer] Font check:', {
-                    isUsingFallback,
-                    customWidth: metrics.width,
-                    fallbackWidth: fallbackMetrics.width
-                  });
-                }
-              }
-              
-              layer.add(textNode);
-            } catch (runError: any) {
-              // Extract error message properly for Puppeteer
-              const errorMessage = runError?.message || runError?.toString() || 'Unknown error';
-              const errorStack = runError?.stack || 'No stack trace';
-              
-              console.error('[PDFRenderer] Error rendering text run:', runIndex);
-              console.error('[PDFRenderer] Error message:', errorMessage);
-              console.error('[PDFRenderer] Error stack:', errorStack);
-              console.error('[PDFRenderer] Run data:', {
-                text: run?.text,
-                x: run?.x,
-                y: run?.y,
-                styleFontSize: style?.fontSize,
-                styleFontFamily: style?.fontFamily
-              });
-              // Continue with next run instead of breaking entire element rendering
-            }
-          });
+                  ctx.font = fontString;
+                  ctx.fillStyle = textColor;
+                  ctx.globalAlpha = textOpacity;
+                  // Y position is already the baseline position (from sharedCreateLayout)
+                  ctx.fillText(run.text || '', run.x, run.y);
+                });
+                ctx.restore();
+                ctx.fillStrokeShape(shape);
+              },
+              width: elementWidth,
+              height: contentHeight,
+              rotation: elementRotation,
+              listening: false,
+              visible: true
+            });
+            
+            layer.add(textShape);
+          }
         }
         // Render free_text elements
         else if (element.textType === 'free_text') {
@@ -3497,30 +3132,270 @@ export function PDFRenderer({
             layer.add(textNode);
           }
         }
-        // Render image elements
-        else if (element.type === 'image' && element.src) {
-          // Load image asynchronously
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          img.onload = () => {
-            const imageNode = new Konva.Image({
+        // Render image elements (including stickers and placeholders)
+        else if (element.type === 'image' || element.type === 'sticker' || element.type === 'placeholder') {
+          console.log('[PDFRenderer] Rendering image element:', {
+            elementId: element.id,
+            elementType: element.type,
+            hasSrc: !!element.src,
+            src: element.src,
+            x: elementX,
+            y: elementY,
+            width: elementWidth,
+            height: elementHeight
+          });
+          
+          // Handle placeholder: render placeholder UI
+          if (element.type === 'placeholder') {
+            const placeholderGroup = new Konva.Group({
               x: elementX,
               y: elementY,
-              image: img,
-              width: elementWidth,
-              height: elementHeight,
               rotation: elementRotation,
               opacity: elementOpacity,
               listening: false
             });
-            layer.add(imageNode);
+            
+            // Background rectangle
+            const bgRect = new Konva.Rect({
+              width: elementWidth,
+              height: elementHeight,
+              fill: '#f3f4f6',
+              stroke: '#e5e7eb',
+              strokeWidth: 1,
+              cornerRadius: element.cornerRadius || 4,
+              listening: false
+            });
+            placeholderGroup.add(bgRect);
+            
+            // Image-plus icon (simplified)
+            const iconSize = Math.min(elementWidth, elementHeight) * 0.3;
+            const iconGroup = new Konva.Group({
+              x: elementWidth / 2,
+              y: elementHeight / 2,
+              listening: false
+            });
+            
+            // Image frame icon
+            const iconRect = new Konva.Rect({
+              x: -iconSize / 2,
+              y: -iconSize / 2,
+              width: iconSize,
+              height: iconSize,
+              fill: 'transparent',
+              stroke: '#9ca3af',
+              strokeWidth: 2,
+              cornerRadius: 2,
+              listening: false
+            });
+            iconGroup.add(iconRect);
+            
+            // Plus icon
+            const lineThickness = Math.max(1, iconSize * 0.1);
+            const plusSize = iconSize * 0.4;
+            iconGroup.add(new Konva.Line({
+              points: [0, -plusSize, 0, plusSize],
+              stroke: '#9ca3af',
+              strokeWidth: lineThickness,
+              lineCap: 'round',
+              listening: false
+            }));
+            iconGroup.add(new Konva.Line({
+              points: [-plusSize, 0, plusSize, 0],
+              stroke: '#9ca3af',
+              strokeWidth: lineThickness,
+              lineCap: 'round',
+              listening: false
+            }));
+            
+            placeholderGroup.add(iconGroup);
+            layer.add(placeholderGroup);
+            continue;
+          }
+          
+          // Handle actual images and stickers
+          // Stickers might have 'url' property instead of 'src', check both
+          const imageSrc = (element as any).src || (element as any).url;
+          if (!imageSrc) {
+            console.warn('[PDFRenderer] Image/Sticker element missing src/url:', {
+              elementId: element.id,
+              elementType: element.type,
+              hasSrc: !!(element as any).src,
+              hasUrl: !!(element as any).url,
+              elementKeys: Object.keys(element)
+            });
+            continue;
+          }
+          
+          // Resolve image URL with proxy if needed (for S3 URLs)
+          let imageUrl = imageSrc;
+          const isS3Url = imageUrl.includes('s3.amazonaws.com') || imageUrl.includes('s3.us-east-1.amazonaws.com');
+          if (isS3Url && token) {
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+            imageUrl = `${apiUrl}/images/proxy?url=${encodeURIComponent(imageUrl)}&token=${encodeURIComponent(token)}`;
+          }
+          
+          console.log('[PDFRenderer] Loading image:', {
+            elementId: element.id,
+            elementType: element.type,
+            originalSrc: imageSrc,
+            resolvedUrl: imageUrl,
+            isS3Url: isS3Url,
+            hasToken: !!token
+          });
+          
+          // Load image asynchronously
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          
+          img.onload = () => {
+            console.log('[PDFRenderer] Image loaded successfully:', {
+              elementId: element.id,
+              imageWidth: img.width,
+              imageHeight: img.height,
+              naturalWidth: img.naturalWidth,
+              naturalHeight: img.naturalHeight
+            });
+            try {
+              // Calculate crop if needed
+              let cropProps = {};
+              if (element.imageClipPosition) {
+                try {
+                  const crop = getCrop(img, { width: elementWidth, height: elementHeight }, element.imageClipPosition as any);
+                  if (crop) {
+                    cropProps = {
+                      cropX: crop.cropX,
+                      cropY: crop.cropY,
+                      cropWidth: crop.cropWidth,
+                      cropHeight: crop.cropHeight
+                    };
+                  }
+                } catch (error) {
+                  console.warn('[PDFRenderer] Error calculating crop:', error);
+                }
+              }
+              
+              // Create image node
+              const imageNode = new Konva.Image({
+                x: elementX,
+                y: elementY,
+                image: img,
+                width: elementWidth,
+                height: elementHeight,
+                rotation: elementRotation,
+                opacity: (element.imageOpacity !== undefined ? element.imageOpacity : 1) * elementOpacity,
+                cornerRadius: element.cornerRadius || 0,
+                listening: false,
+                ...cropProps
+              });
+              layer.add(imageNode);
+              console.log('[PDFRenderer] Image node added to layer:', {
+                elementId: element.id,
+                layerChildrenCount: layer.getChildren().length
+              });
+              
+              // Render frame if enabled
+              const frameEnabled = element.frameEnabled !== undefined 
+                ? element.frameEnabled 
+                : (element.strokeWidth || 0) > 0;
+              const strokeWidth = element.strokeWidth || 0;
+              
+              if (frameEnabled && strokeWidth > 0) {
+                const stroke = element.stroke || '#1f2937';
+                const strokeOpacity = element.strokeOpacity !== undefined ? element.strokeOpacity : 1;
+                const frameTheme = element.frameTheme || element.theme || 'default';
+                const cornerRadius = element.cornerRadius || 0;
+                
+                // Use theme renderer for themed frames
+                if (frameTheme !== 'default') {
+                  const themeRenderer = getThemeRenderer(frameTheme);
+                  if (themeRenderer) {
+                    const frameElement = {
+                      type: 'rect',
+                      id: element.id + '-frame',
+                      x: 0,
+                      y: 0,
+                      width: elementWidth,
+                      height: elementHeight,
+                      cornerRadius: cornerRadius,
+                      stroke: stroke,
+                      strokeWidth: strokeWidth,
+                      fill: 'transparent',
+                      theme: frameTheme
+                    };
+                    
+                    const pathData = themeRenderer.generatePath(frameElement);
+                    const strokeProps = themeRenderer.getStrokeProps(frameElement);
+                    
+                    if (pathData) {
+                      const frameNode = new Konva.Path({
+                        data: pathData,
+                        x: elementX,
+                        y: elementY,
+                        rotation: elementRotation,
+                        stroke: strokeProps.stroke || stroke,
+                        strokeWidth: strokeProps.strokeWidth || strokeWidth,
+                        opacity: strokeOpacity * elementOpacity,
+                        fill: 'transparent',
+                        strokeScaleEnabled: true,
+                        listening: false,
+                        lineCap: 'round',
+                        lineJoin: 'round'
+                      });
+                      layer.add(frameNode);
+                    }
+                  }
+                } else {
+                  // Default frame (simple rect)
+                  const frameNode = new Konva.Rect({
+                    x: elementX,
+                    y: elementY,
+                    width: elementWidth,
+                    height: elementHeight,
+                    rotation: elementRotation,
+                    fill: 'transparent',
+                    stroke: stroke,
+                    strokeWidth: strokeWidth,
+                    opacity: strokeOpacity * elementOpacity,
+                    cornerRadius: cornerRadius,
+                    strokeScaleEnabled: true,
+                    listening: false
+                  });
+                  layer.add(frameNode);
+                }
+              }
+              
+              layer.draw();
+              stageRef.current?.draw();
+            } catch (error) {
+              console.error('[PDFRenderer] Error creating image node:', error);
+            }
+          };
+          
+          img.onerror = (error) => {
+            console.warn('[PDFRenderer] Failed to load image:', {
+              elementId: element.id,
+              elementType: element.type,
+              originalSrc: imageSrc,
+              resolvedUrl: imageUrl,
+              error: error
+            });
+            // Optionally render a placeholder rectangle for failed images
+            const errorRect = new Konva.Rect({
+              x: elementX,
+              y: elementY,
+              width: elementWidth,
+              height: elementHeight,
+              fill: '#f3f4f6',
+              stroke: '#d1d5db',
+              strokeWidth: 1,
+              listening: false
+            });
+            layer.add(errorRect);
             layer.draw();
             stageRef.current?.draw();
           };
-          img.onerror = () => {
-            console.warn('[PDFRenderer] Failed to load image:', element.src);
-          };
-          img.src = element.src;
+          
+          img.src = imageUrl;
         }
         // Render shape elements (rect, circle, etc.)
         else if (['rect', 'circle', 'line', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(element.type)) {

@@ -88,9 +88,6 @@ function wrapText(text, style, maxWidth, ctx) {
       }
       lines.push({ text: currentLine, width: measureText(currentLine, style, ctx) });
     }
-    if (paragraphIdx < paragraphs.length - 1) {
-      lines.push({ text: '', width: 0 });
-    }
   });
   return lines;
 }

@@ -2,7 +2,6 @@
  * Element rendering function for PDF export
  */
 
-const { renderQnAInline } = require('./render-qna-inline');
 const { renderQnA } = require('./render-qna');
 const { getCrop } = require('./utils/image-utils');
 const { applyFillOpacity, applyStrokeOpacity } = require('./utils/color-utils');
@@ -68,66 +67,14 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
   
   const strokeWidth = element.strokeWidth || 0;
   
-  // Render QnA inline elements
-  if (element.type === 'text' && element.textType === 'qna_inline') {
-    // Use global function if available (browser context), otherwise fallback to local require (Node.js context)
-    const renderQnAInlineFunc = (typeof window !== 'undefined' && window.renderQnAInline) ? window.renderQnAInline : renderQnAInline;
-    if (!renderQnAInlineFunc) {
-      console.error('renderQnAInline is not defined');
-      return null;
-    }
-    const nodesAdded = renderQnAInlineFunc(
-      layer,
-      element,
-      pageData,
-      bookData,
-      x,
-      y,
-      width,
-      height,
-      rotation,
-      opacity,
-      konvaInstance,
-      document,
-      roughInstance,
-      themesData,
-      colorPalettes
-    );
-    return { type: 'qna_inline', nodesAdded: nodesAdded };
-  }
-  
   // Render QnA elements (standard QnA textbox)
-  // Note: In client, textType === 'qna' falls back to TextboxQnAInline, but for PDF export
-  // we want to use the standard QnA rendering (textbox-qna.tsx logic)
-  if (element.type === 'text' && (element.textType === 'qna' || element.textType === 'qna2')) {
+  // qna_inline is deprecated and treated as qna
+  if (element.type === 'text' && (element.textType === 'qna' || element.textType === 'qna2' || element.textType === 'qna_inline')) {
     console.log('Rendering QnA element:', element.id, 'textType:', element.textType);
     // Use global function if available (browser context), otherwise fallback to local require (Node.js context)
     const renderQnAFunc = (typeof window !== 'undefined' && window.renderQnA) ? window.renderQnA : renderQnA;
     if (!renderQnAFunc) {
       console.error('renderQnA is not defined. window.renderQnA:', typeof window !== 'undefined' ? (window.renderQnA ? 'exists' : 'undefined') : 'N/A', 'local renderQnA:', typeof renderQnA);
-      // Fallback to qna_inline if renderQnA is not available
-      console.log('Falling back to renderQnAInline for element:', element.id);
-      const renderQnAInlineFunc = (typeof window !== 'undefined' && window.renderQnAInline) ? window.renderQnAInline : renderQnAInline;
-      if (renderQnAInlineFunc) {
-        const nodesAdded = renderQnAInlineFunc(
-          layer,
-          element,
-          pageData,
-          bookData,
-          x,
-          y,
-          width,
-          height,
-          rotation,
-          opacity,
-          konvaInstance,
-          document,
-          roughInstance,
-          themesData,
-          colorPalettes
-        );
-        return { type: 'qna_inline', nodesAdded: nodesAdded };
-      }
       return null;
     }
     console.log('Calling renderQnAFunc for element:', element.id);

@@ -4,7 +4,7 @@
  */
 
 const { getGlobalThemeDefaults, deepMerge, getThemeRenderer } = require('./utils/theme-utils');
-const { buildFont, getLineHeight, measureText, calculateTextX, wrapText } = require('../utils/text-layout.server');
+const { buildFont, getLineHeight, measureText, calculateTextX, wrapText, getBaselineOffset, resolveFontFamily } = require('../utils/text-layout.server');
 const { createLayout, createBlockLayout } = require('../utils/qna-layout.server');
 
 /**
@@ -81,7 +81,7 @@ function getToolDefaults(tool, pageTheme, bookTheme, existingElement, pageColorP
   const baseDefaults = TOOL_DEFAULTS_QNA;
   const activeTheme = pageTheme || bookTheme || 'default';
   const getGlobalThemeDefaultsFunc = (typeof window !== 'undefined' && window.getGlobalThemeDefaults) ? window.getGlobalThemeDefaults : getGlobalThemeDefaults;
-  const themeDefaults = getGlobalThemeDefaultsFunc(activeTheme, 'qna_inline', existingElement, undefined, undefined, undefined, undefined, themesData, colorPalettes);
+  const themeDefaults = getGlobalThemeDefaultsFunc(activeTheme, 'qna', existingElement, undefined, undefined, undefined, undefined, themesData, colorPalettes);
   
   const deepMergeFunc = (typeof window !== 'undefined' && window.deepMerge) ? window.deepMerge : deepMerge;
   let mergedDefaults = deepMergeFunc(baseDefaults, themeDefaults);
@@ -226,10 +226,9 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
   const ruledLinesTarget = element.ruledLinesTarget || 'answer';
   const blockQuestionAnswerGap = element.blockQuestionAnswerGap ?? 10;
   const answerInNewRow = element.answerInNewRow ?? false;
-  // Use the appropriate gap value based on mode, with fallback to questionAnswerGap for backward compatibility
-  const questionAnswerGap = answerInNewRow 
-    ? (element.questionAnswerGapVertical ?? element.questionAnswerGap ?? 0)
-    : (element.questionAnswerGapHorizontal ?? element.questionAnswerGap ?? 0);
+  // IMPORTANT: Match client-side logic exactly - use questionAnswerGap directly, no Horizontal/Vertical variants
+  // Client uses: const questionAnswerGap = qnaElement.questionAnswerGap ?? 0;
+  const questionAnswerGap = element.questionAnswerGap ?? 0;
   
   // Create layout
   const layout = createLayout({
@@ -260,6 +259,22 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
     contentHeight: layout.contentHeight,
     height: height
   });
+  
+  // Debug: Log first few runs to verify they exist
+  if (layout.runs && layout.runs.length > 0) {
+    console.log('[SERVER render-qna] Layout has runs:', layout.runs.length);
+    layout.runs.slice(0, 3).forEach((run, idx) => {
+      console.log(`[SERVER render-qna] Run ${idx}:`, {
+        text: run.text ? run.text.substring(0, 30) : '(empty)',
+        x: run.x,
+        y: run.y,
+        fontSize: run.style?.fontSize,
+        fontFamily: run.style?.fontFamily
+      });
+    });
+  } else {
+    console.log('[SERVER render-qna] WARNING: layout.runs is empty or undefined!');
+  }
   
   let nodesAdded = 0;
   
@@ -674,44 +689,53 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
     }
   }
   
-  // Render text runs
-  layout.runs.forEach((run) => {
-    const style = run.style;
-    // Match client-side: fontFamily.replace(/^['"]|['"]$/g, '').replace(/['"]/g, '')
-    let fontFamilyRaw = style.fontFamily || 'Arial, sans-serif';
-    const fontFamily = fontFamilyRaw.replace(/^['"]|['"]$/g, '').replace(/['"]/g, '');
+  // Create canvas context for precise baseline offset calculation
+  // This ensures consistent text positioning between client and server
+  const canvas = typeof document !== 'undefined' 
+    ? document.createElement('canvas')
+    : require('canvas').createCanvas(1, 1);
+  const ctx = canvas.getContext('2d');
+  
+  // Render text runs using a single Konva.Shape (matching client-side RichTextShape behavior)
+  // IMPORTANT: Client uses a SINGLE Shape for ALL runs, not one Shape per run
+  // The Shape is positioned at (x, y), then all runs are drawn within it
+  if (layout.runs && layout.runs.length > 0) {
+    const { buildFont } = require('../utils/text-layout.server');
     
-    // Konva uses separate fontStyle and fontWeight attributes
-    // fontStyle: 'normal' or 'italic'
-    // fontWeight: 'normal' or 'bold'
-    const fontStyle = style.fontItalic ? 'italic' : 'normal';
-    const fontWeight = style.fontBold ? 'bold' : 'normal';
-    
-    // Convert baseline Y position to top Y position for Konva.Text
-    // Client uses textBaseline = 'alphabetic' with baseline Y position
-    // Server uses verticalAlign = 'top', so we need to subtract baseline offset
-    const baselineOffset = style.fontSize * 0.8;
-    const topY = run.y - baselineOffset;
-    
-    const textNode = new Konva.Text({
-      x: x + run.x,
-      y: y + topY,
-      text: run.text,
-      fontSize: style.fontSize || 16,
-      fontFamily: fontFamily,
-      fontStyle: fontStyle,
-      fontWeight: fontWeight,
-      fill: style.fontColor || '#000000',
-      opacity: (style.fontOpacity !== undefined ? style.fontOpacity : 1) * opacity,
-      align: style.align || 'left',
-      verticalAlign: 'top',
+    const textShape = new Konva.Shape({
+      x: x,
+      y: y,
+      sceneFunc: (ctx, shape) => {
+        ctx.save();
+        // Use 'alphabetic' baseline for proper text alignment (matching client)
+        ctx.textBaseline = 'alphabetic';
+        // Draw all runs within this single shape (like client-side RichTextShape)
+        layout.runs.forEach((run) => {
+          const style = run.style;
+          // Build font string with bold/italic support (like client)
+          const fontString = buildFont(style);
+          const fontColor = style.fontColor || '#000000';
+          const fontOpacity = (style.fontOpacity !== undefined ? style.fontOpacity : 1) * opacity;
+          
+          ctx.font = fontString;
+          ctx.fillStyle = fontColor;
+          ctx.globalAlpha = fontOpacity;
+          // Y position is already the baseline position (from sharedCreateLayout)
+          ctx.fillText(run.text || '', run.x, run.y);
+        });
+        ctx.restore();
+        ctx.fillStrokeShape(shape);
+      },
+      width: width,
+      height: height,
+      rotation: rotation,
       listening: false,
       visible: true
     });
     
-    layer.add(textNode);
+    layer.add(textShape);
     nodesAdded++;
-  });
+  }
   
   return nodesAdded;
 }

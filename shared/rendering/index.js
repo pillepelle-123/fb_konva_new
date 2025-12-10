@@ -67,7 +67,7 @@ async function renderPageWithKonva(pageData, bookData, canvasWidth, canvasHeight
   
   // Render all elements
   // Sort elements to ensure correct z-order (like client-side rendering)
-  // Priority: zIndex > questionOrder (for qna_inline) > y position
+  // Priority: zIndex > y position
   const elements = (pageData.elements || []).slice().sort((a, b) => {
     // First, sort by zIndex if available (like PDFRenderer does)
     const aZ = a.zIndex ?? 0;
@@ -76,27 +76,7 @@ async function renderPageWithKonva(pageData, bookData, canvasWidth, canvasHeight
       return aZ - bZ;
     }
     
-    // If zIndex is the same, apply special rules for qna_inline elements
-    // Sort qna_inline elements by questionOrder, then by y position
-    if (a.textType === 'qna_inline' && b.textType === 'qna_inline') {
-      const orderA = a.questionOrder ?? Infinity;
-      const orderB = b.questionOrder ?? Infinity;
-      if (orderA !== orderB) {
-        return orderA - orderB;
-      }
-      // If order is the same, sort by y position
-      return (a.y ?? 0) - (b.y ?? 0);
-    }
-    // If only one is qna_inline, prioritize it based on questionOrder
-    if (a.textType === 'qna_inline') {
-      const orderA = a.questionOrder ?? Infinity;
-      return orderA === Infinity ? 1 : -1; // qna_inline with order comes first
-    }
-    if (b.textType === 'qna_inline') {
-      const orderB = b.questionOrder ?? Infinity;
-      return orderB === Infinity ? -1 : 1; // qna_inline with order comes first
-    }
-    // For other elements, maintain original order (by y position)
+    // For all elements, maintain original order (by y position)
     return (a.y ?? 0) - (b.y ?? 0);
   });
   

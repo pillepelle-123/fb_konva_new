@@ -183,9 +183,6 @@ const wrapText = FEATURE_FLAGS.USE_SHARED_TEXT_LAYOUT ? sharedWrapText : (text: 
       }
       lines.push({ text: currentLine, width: measureText(currentLine, style, ctx) });
     }
-    if (paragraphIdx < paragraphs.length - 1) {
-      lines.push({ text: '', width: 0 });
-    }
   });
   return lines;
 };
@@ -449,15 +446,33 @@ function createLayoutLocal(params: {
   const inlineGap = answerInNewRow ? baseInlineGap : baseInlineGap + questionAnswerGap;
   let contentHeight = cursorY;
 
+  // Count leading newlines in answer text
+  const countLeadingNewlines = (text: string): number => {
+    if (!text) return 0;
+    let count = 0;
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] === '\n') {
+        count++;
+      } else {
+        break;
+      }
+    }
+    return count;
+  };
+
   let startAtSameLine = false;
   let remainingAnswerText = answerText;
   const lastQuestionLineY = questionLinePositions.length > 0 ? questionLinePositions[questionLinePositions.length - 1] : padding;
 
+  // Count leading newlines and adjust for answerInNewRow
+  let leadingBreaks = countLeadingNewlines(answerText);
+  if (answerInNewRow) {
+    leadingBreaks += 1; // Shift everything down by one line
+  }
+
   // Check if answer can start on the same line as the last question line
-  // Skip this check if answerInNewRow is true
-  // Also skip if answer text starts with a line break (manual Enter key) - respect user's line break
-  const answerStartsWithLineBreak = answerText && (answerText.startsWith('\n') || answerText.trim().split('\n')[0] === '');
-  if (!answerInNewRow && questionLines.length > 0 && answerText && answerText.trim() && !answerStartsWithLineBreak) {
+  // Only combine if leadingBreaks === 0 and first paragraph fits
+  if (!answerInNewRow && leadingBreaks === 0 && questionLines.length > 0 && answerText && answerText.trim()) {
     const inlineAvailable = availableWidth - lastQuestionLineWidth - inlineGap;
     
     // Get the first paragraph (before first line break) to check if it fits
@@ -583,14 +598,15 @@ function createLayoutLocal(params: {
     }
   }
 
+  // Remove leading newlines from answer text for further processing
+  const answerTextWithoutLeadingBreaks = answerText.replace(/^\n+/, '');
+
   // Wrap remaining answer text for new lines
-  // Only wrap remaining text if startAtSameLine is true AND there is remaining text
-  // If startAtSameLine is true but remainingAnswerText is empty, don't render any additional lines
   const remainingAnswerLines = startAtSameLine && remainingAnswerText && remainingAnswerText.trim()
     ? wrapText(remainingAnswerText, answerStyle, availableWidth, ctx)
     : startAtSameLine
     ? [] // If startAtSameLine is true but no remaining text, don't render additional lines
-    : wrapText(answerText, answerStyle, availableWidth, ctx);
+    : wrapText(answerTextWithoutLeadingBreaks, answerStyle, availableWidth, ctx);
 
   // Start answer on new line if not on same line as question
   // If answerInNewRow is true, questionAnswerGap applies vertically
@@ -599,33 +615,67 @@ function createLayoutLocal(params: {
   const baseVerticalSpacing = questionLines.length ? answerLineHeight * 0.2 : 0;
   let answerCursorY = startAtSameLine ? cursorY : cursorY + baseVerticalSpacing + verticalGap;
 
-  remainingAnswerLines.forEach((line: { text: string; width: number }) => {
-    if (line.text) {
-      // Calculate baseline Y position for answer-only lines
+  // Render leading empty lines based on leadingBreaks count
+  // One \n means answer starts on next line (no empty line)
+  // Two \n means one empty line between question and answer
+  // Three \n means two empty lines, etc.
+  // So we render (leadingBreaks - 1) empty lines
+  const emptyLinesToRender = Math.max(0, leadingBreaks - 1);
+  for (let i = 0; i < emptyLinesToRender; i++) {
+    const answerBaselineY = answerCursorY + answerBaselineOffset;
+    linePositions.push({
+      y: answerBaselineY + answerStyle.fontSize * 0.15,
+      lineHeight: answerLineHeight,
+      style: answerStyle
+    });
+    answerCursorY += answerLineHeight;
+  }
+
+  // Handle empty runs from wrapText: these are additional empty lines within the text
+  let emptyRun = 0;
+
+  const flushEmptyRun = () => {
+    if (emptyRun === 0) return;
+    const blanksToRender = emptyRun; // render exactly as many empty lines as collected
+    for (let i = 0; i < blanksToRender; i += 1) {
       const answerBaselineY = answerCursorY + answerBaselineOffset;
-      const textX = calculateTextX(line.text, answerStyle, padding, availableWidth, ctx);
-      runs.push({
-        text: line.text,
-        x: textX,
-        y: answerBaselineY, // Store baseline position directly
-        style: answerStyle
-      });
-      // Track line position for ruled lines (position line slightly below text baseline)
       linePositions.push({
         y: answerBaselineY + answerStyle.fontSize * 0.15,
         lineHeight: answerLineHeight,
         style: answerStyle
       });
-      // Advance cursor by line height (same spacing as natural line breaks)
       answerCursorY += answerLineHeight;
-    } else {
-      // Empty line from line break (Enter key): skip without adding spacing
-      // The spacing between text lines is already handled by answerLineHeight when rendering text
-      // Empty lines should not create additional spacing - they just mark a paragraph break
-      // The next text line will naturally have the correct spacing from the previous text line
-      // Do nothing - don't advance cursor, don't add linePosition
     }
+    emptyRun = 0;
+  };
+
+  remainingAnswerLines.forEach((line: { text: string; width: number }) => {
+    if (!line.text) {
+      emptyRun += 1;
+      return;
+    }
+
+    // flush pending empties before placing text
+    flushEmptyRun();
+
+    const answerBaselineY = answerCursorY + answerBaselineOffset;
+    const textX = calculateTextX(line.text, answerStyle, padding, availableWidth, ctx);
+    runs.push({
+      text: line.text,
+      x: textX,
+      y: answerBaselineY, // Store baseline position directly
+      style: answerStyle
+    });
+    linePositions.push({
+      y: answerBaselineY + answerStyle.fontSize * 0.15,
+      lineHeight: answerLineHeight,
+      style: answerStyle
+    });
+    answerCursorY += answerLineHeight;
   });
+
+  // flush trailing empties
+  flushEmptyRun();
 
   contentHeight = Math.max(contentHeight, answerCursorY, height);
 
@@ -906,8 +956,10 @@ export default function TextboxQna(props: CanvasItemProps) {
   const bookColorPaletteId = state.currentBook?.colorPaletteId;
 
   const qnaDefaults = useMemo(() => {
+    // Use 'qna_inline' if element is qna_inline, otherwise 'qna'
+    const toolType = (element.textType === 'qna_inline' || element.type === 'qna_inline') ? 'qna_inline' : 'qna';
     return getToolDefaults(
-      'qna',
+      toolType,
       pageTheme,
       bookTheme,
       element,
@@ -922,6 +974,8 @@ export default function TextboxQna(props: CanvasItemProps) {
     bookTheme,
     bookColorPaletteId,
     element,
+    element.textType,
+    element.type,
     pageLayoutTemplateId,
     pageTheme,
     pageColorPaletteId,
@@ -1244,7 +1298,8 @@ export default function TextboxQna(props: CanvasItemProps) {
   // Generate ruled lines if enabled
   const ruledLines = qnaElement.ruledLines ?? false;
   const ruledLinesWidth = qnaElement.ruledLinesWidth ?? 0.8;
-  const ruledLinesTheme = qnaElement.ruledLinesTheme || 'rough';
+  // Use theme defaults from qnaDefaults - prioritize element value, then theme defaults, then fallback
+  const ruledLinesTheme = qnaElement.ruledLinesTheme || qnaDefaults.ruledLinesTheme || 'rough';
   const ruledLinesColor = qnaElement.ruledLinesColor || '#1f2937';
   const ruledLinesOpacity = qnaElement.ruledLinesOpacity ?? 1;
 
@@ -1259,7 +1314,9 @@ export default function TextboxQna(props: CanvasItemProps) {
       const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
       // Ensure theme is one of the supported themes
       const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
-      const theme = (supportedThemes.includes(ruledLinesTheme as Theme) ? ruledLinesTheme : 'default') as Theme;
+      // Convert to string and check if it's a valid theme
+      const themeString = String(ruledLinesTheme || 'default').toLowerCase().trim();
+      const theme = (supportedThemes.includes(themeString as Theme) ? themeString : 'default') as Theme;
       
       // Create a temporary element for theme-specific settings
       const tempElement: CanvasElement = {
@@ -1324,7 +1381,7 @@ export default function TextboxQna(props: CanvasItemProps) {
     });
 
     return elements;
-  }, [ruledLines, layout.linePositions, layout.questionArea, layout.answerArea, padding, boxWidth, boxHeight, ruledLinesWidth, ruledLinesTheme, ruledLinesColor, ruledLinesOpacity, element.id, layoutVariant, ruledLinesTarget]);
+  }, [ruledLines, layout.linePositions, layout.questionArea, layout.answerArea, padding, boxWidth, boxHeight, ruledLinesWidth, ruledLinesTheme, ruledLinesColor, ruledLinesOpacity, element.id, layoutVariant, ruledLinesTarget, qnaDefaults]);
 
   const showBackground = qnaElement.backgroundEnabled && qnaElement.backgroundColor;
   const showBorder = qnaElement.borderEnabled && qnaElement.borderColor && qnaElement.borderWidth !== undefined;

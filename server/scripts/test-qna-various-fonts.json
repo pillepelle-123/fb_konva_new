@@ -1,0 +1,47 @@
+{
+  "element": {
+    "id": "test-qna-various",
+    "type": "text",
+    "textType": "qna",
+    "x": 100,
+    "y": 100,
+    "width": 800,
+    "height": 600,
+    "padding": 10,
+    "questionId": "test-question-various",
+    "text": "Antwort mit verschiedenen Font-Größen testen.\nZweite Zeile.\nDritte Zeile für längeren Text.",
+    "formattedText": "Antwort mit verschiedenen Font-Größen testen.\nZweite Zeile.\nDritte Zeile für längeren Text.",
+    "questionSettings": {
+      "fontSize": 42,
+      "fontFamily": "Arial, sans-serif",
+      "fontBold": false,
+      "fontItalic": false,
+      "fontColor": "#1f2937",
+      "fontOpacity": 1,
+      "paragraphSpacing": "small",
+      "align": "left"
+    },
+    "answerSettings": {
+      "fontSize": 48,
+      "fontFamily": "Arial, sans-serif",
+      "fontBold": false,
+      "fontItalic": false,
+      "fontColor": "#1f2937",
+      "fontOpacity": 1,
+      "paragraphSpacing": "medium",
+      "align": "left"
+    },
+    "qnaIndividualSettings": false,
+    "layoutVariant": "inline",
+    "answerInNewRow": false,
+    "questionAnswerGap": 5,
+    "ruledLines": false
+  },
+  "toolDefaults": {
+    "fontSize": 50,
+    "fontFamily": "Arial, sans-serif",
+    "padding": 8
+  }
+}
+
+

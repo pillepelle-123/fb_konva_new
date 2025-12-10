@@ -20,17 +20,31 @@ class PDFRendererService {
       return; // Bereits initialisiert
     }
 
+    // Konfiguration: Neuer Headless-Modus für besseres Rendering
+    // Um auf alten Headless-Modus zurückzugehen: headless: true
+    // Um Headful-Modus zu aktivieren: headless: false (benötigt Display-Server)
+    const headlessMode = process.env.PDF_EXPORT_HEADFUL === 'true' 
+      ? false 
+      : (process.env.PDF_EXPORT_NEW_HEADLESS !== 'false' ? 'new' : true);
+
+    const args = [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-web-security',
+      '--font-render-hinting=none',
+      '--force-color-profile=srgb'
+    ];
+
+    // GPU nur deaktivieren, wenn explizit gewünscht oder in alter Headless-Modus
+    // Der neue Headless-Modus kann GPU-Beschleunigung nutzen (falls verfügbar)
+    if (process.env.PDF_EXPORT_DISABLE_GPU === 'true' || headlessMode === true) {
+      args.push('--disable-gpu');
+    }
+
     this.browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--disable-web-security',
-        '--font-render-hinting=none',
-        '--force-color-profile=srgb'
-      ]
+      headless: headlessMode,
+      args
     });
   }
 
