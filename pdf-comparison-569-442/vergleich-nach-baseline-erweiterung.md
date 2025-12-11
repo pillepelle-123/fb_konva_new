@@ -53,3 +53,4 @@ Die Unterschiede bleiben bei **4.08%**, was darauf hindeutet, dass:
 
 
 
+
