@@ -8,6 +8,7 @@ import TextboxQnAInline from './textbox-qna-inline.tsx';
 import TextboxQna from './textbox-qna.tsx';
 import TextboxFreeText from './textbox-free-text.tsx';
 import Image from './image.tsx';
+import Sticker from './sticker.tsx';
 
 interface CanvasItemComponentProps extends CanvasItemProps {
   element: CanvasElement;
@@ -101,8 +102,12 @@ export default function CanvasItemComponent(props: CanvasItemComponentProps) {
     return <TextboxQnAInline {...props} />;
   }
 
-  if (element.type === 'placeholder' || element.type === 'image' || element.type === 'sticker') {
+  if (element.type === 'placeholder' || element.type === 'image') {
     return <Image {...props} />;
+  }
+
+  if (element.type === 'sticker') {
+    return <Sticker {...props} />;
   }
 
   // Fallback for other element types

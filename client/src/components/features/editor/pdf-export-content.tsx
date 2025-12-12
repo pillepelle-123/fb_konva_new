@@ -1,11 +1,10 @@
-import { useState } from 'react';
 import { QualitySelector } from '../../shared/forms/quality-selector';
 import { PageRangeSelector } from '../../shared/forms/page-range-selector';
 import { ExportProgress } from './export-progress';
 
 interface PDFExportContentProps {
-  quality: 'preview' | 'medium' | 'printing';
-  setQuality: (value: 'preview' | 'medium' | 'printing') => void;
+  quality: 'preview' | 'medium' | 'printing' | 'excellent';
+  setQuality: (value: 'preview' | 'medium' | 'printing' | 'excellent') => void;
   pageRange: 'all' | 'range' | 'current';
   setPageRange: (value: 'all' | 'range' | 'current') => void;
   startPage: number;
@@ -13,7 +12,8 @@ interface PDFExportContentProps {
   endPage: number;
   setEndPage: (value: number) => void;
   maxPages: number;
-  userRole?: 'author' | 'publisher' | null;
+  userRole?: 'author' | 'publisher' | 'owner' | null; // book_friends.book_role
+  userAdminRole?: string | null; // users.role
   isExporting?: boolean;
   progress?: number;
 }
@@ -29,22 +29,29 @@ export function PDFExportContent({
   setEndPage,
   maxPages,
   userRole,
+  userAdminRole,
   isExporting = false,
   progress = 0
 }: PDFExportContentProps) {
   return (
     <div className="p-1">
-      <QualitySelector value={quality} onChange={setQuality} userRole={userRole} />
-      
-      <PageRangeSelector
-        pageRange={pageRange}
-        startPage={startPage}
-        endPage={endPage}
-        maxPages={maxPages}
-        onPageRangeChange={setPageRange}
-        onStartPageChange={setStartPage}
-        onEndPageChange={setEndPage}
-      />
+      <div className="flex gap-4 items-start">
+        <div className="w-1/2">
+          <QualitySelector value={quality} onChange={setQuality} userRole={userRole} userAdminRole={userAdminRole} />
+        </div>
+        
+        <div className="w-1/2">
+          <PageRangeSelector
+            pageRange={pageRange}
+            startPage={startPage}
+            endPage={endPage}
+            maxPages={maxPages}
+            onPageRangeChange={setPageRange}
+            onStartPageChange={setStartPage}
+            onEndPageChange={setEndPage}
+          />
+        </div>
+      </div>
       
       {isExporting && <ExportProgress progress={progress} />}
     </div>

@@ -1,5 +1,5 @@
 import { Button } from '../../../ui/primitives/button';
-import { Download, Eye, Save } from 'lucide-react';
+import { Download, Eye, Printer, Save } from 'lucide-react';
 import { Tooltip } from '../../../ui/composites/tooltip';
 import { useEditor } from '../../../../context/editor-context';
 
@@ -55,7 +55,7 @@ export function BookActions({
           onClick={onExport}
           className="h-8 md:h-9 px-2 md:px-3"
         >
-          <Download className="h-4 w-4 md:h-5 md:w-5" />
+          <Printer className="h-4 w-4 md:h-5 md:w-5" />
           {/* <span className="hidden md:inline ml-2">Export</span> */}
         </Button>
       </Tooltip>

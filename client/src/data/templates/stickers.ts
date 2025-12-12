@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { Sticker, StickerWithUrl } from '../../types/template-types.ts'
+import { OPENMOJI_STICKERS, getOpenMojiUrl, type OpenMojiSticker } from './openmoji-stickers'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
@@ -136,7 +137,23 @@ export async function loadStickerRegistry(force = false) {
     }
     const payload = apiListResponseSchema.parse(await response.json())
     const transformed = payload.items.map(transformApiRecord)
-    rebuildDerivedState(transformed)
+    // OpenMoji-Sticker hinzufügen
+    const openMojiStickers: StickerWithUrl[] = OPENMOJI_STICKERS.map(sticker => ({
+      id: `openmoji-${sticker.hexcode}`,
+      name: sticker.name,
+      category: sticker.category as Sticker['category'],
+      format: 'vector' as const,
+      filePath: getOpenMojiUrl(sticker.hexcode),
+      thumbnail: getOpenMojiUrl(sticker.hexcode),
+      description: `${sticker.emoji} ${sticker.name}`,
+      tags: sticker.tags,
+      storageType: 'external' as const,
+      url: getOpenMojiUrl(sticker.hexcode),
+    }));
+
+    // Kombiniere API-Sticker und OpenMoji-Sticker
+    const allStickers = [...transformed, ...openMojiStickers];
+    rebuildDerivedState(allStickers)
 
     await Promise.all(
       transformed

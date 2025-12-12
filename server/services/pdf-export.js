@@ -2,6 +2,7 @@ const puppeteer = require('puppeteer');
 const { PDFDocument } = require('pdf-lib');
 const fs = require('fs').promises;
 const path = require('path');
+const sharp = require('sharp');
 const PDFRendererService = require('./pdf-renderer-service');
 
 // Load theme data files
@@ -63,6 +64,29 @@ async function generatePDFFromBook(bookData, options, exportId, updateProgress) 
         updateProgress(((i + 1) / pagesToExport.length) * 100);
       }
 
+      // Calculate PDF page dimensions in points
+      // CRITICAL: pdf-lib addPage expects dimensions in POINTS, not mm!
+      // 1 point = 1/72 inch = 0.352778 mm
+      const widthPt = pdfWidth / 0.352778;
+      const heightPt = pdfHeight / 0.352778;
+      
+      // Determine target DPI based on quality
+      // Canvas is already at 300 DPI, so we render at scale 1.0 and then resize to target DPI
+      let targetDpi = 100;
+      if (options.quality === 'excellent') {
+        targetDpi = 300; // 300 DPI for excellent print quality (use canvas resolution)
+      } else if (options.quality === 'printing') {
+        targetDpi = 200; // 200 DPI for good print quality
+      } else if (options.quality === 'medium') {
+        targetDpi = 150; // 150 DPI for medium quality
+      } else {
+        // preview
+        targetDpi = 100; // 100 DPI for preview (increased from 72 DPI for better quality)
+      }
+      
+      // Always render at scale 1.0 (canvas resolution)
+      const scale = 1.0;
+      
       // Render page with PDFRendererService
       const pageImage = await pdfRendererService.renderPage({
         page: bookPage,
@@ -70,7 +94,7 @@ async function generatePDFFromBook(bookData, options, exportId, updateProgress) 
         canvasWidth: canvasWidth,
         canvasHeight: canvasHeight
       }, {
-        scale: options.quality === 'high' ? 2 : 1,
+        scale: scale,
         user: options.user || null,
         token: options.token || null
       });
@@ -79,18 +103,65 @@ async function generatePDFFromBook(bookData, options, exportId, updateProgress) 
         throw new Error(`Failed to render page ${bookPage.pageNumber}`);
       }
       
+      // Get actual rendered image dimensions
+      const imageMetadata = await sharp(pageImage).metadata();
+      const renderedWidth = imageMetadata.width;
+      const renderedHeight = imageMetadata.height;
+      
+      // Calculate target image dimensions in pixels based on target DPI
+      // targetDpi / 72 = pixels per point
+      const pixelsPerPoint = targetDpi / 72;
+      const targetWidthPx = Math.round(widthPt * pixelsPerPoint);
+      const targetHeightPx = Math.round(heightPt * pixelsPerPoint);
+      
+      // Debug logging
+      console.log(`[PDF Export] Quality: ${options.quality}, Rendered: ${renderedWidth}x${renderedHeight}, Target: ${targetWidthPx}x${targetHeightPx}, PDF Page: ${widthPt.toFixed(2)}x${heightPt.toFixed(2)}pt`);
+      
+      // Optimize image based on quality setting
+      let optimizedImage = pageImage;
+      let useJpeg = false;
+      
+      if (options.quality === 'preview' || options.quality === 'medium') {
+        // Use JPEG for preview and medium quality (smaller file size)
+        const jpegQuality = options.quality === 'preview' ? 80 : 90; // Preview: 80% (increased from 70%), Medium: 90%
+        optimizedImage = await sharp(pageImage)
+          .resize(targetWidthPx, targetHeightPx, {
+            fit: 'fill',
+            withoutEnlargement: false
+          })
+          .jpeg({ 
+            quality: jpegQuality,
+            mozjpeg: true
+          })
+          .toBuffer();
+        useJpeg = true;
+      } else {
+        // Use PNG with compression for printing and excellent (lossless)
+        // Scale down from rendered size to target size
+        optimizedImage = await sharp(pageImage)
+          .resize(targetWidthPx, targetHeightPx, {
+            fit: 'fill',
+            withoutEnlargement: false
+          })
+          .png({ 
+            compressionLevel: 9,
+            adaptiveFiltering: true
+          })
+          .toBuffer();
+        useJpeg = false;
+      }
+      
       // Add page to PDF
-      // CRITICAL: pdf-lib addPage expects dimensions in POINTS, not mm!
-      // 1 point = 1/72 inch = 0.352778 mm
-      const widthPt = pdfWidth / 0.352778;
-      const heightPt = pdfHeight / 0.352778;
       const pdfPage = pdfDoc.addPage([widthPt, heightPt]);
       
-      // Convert buffer to Uint8Array for pdf-lib
-      const uint8Array = new Uint8Array(pageImage);
-      const imageEmbed = await pdfDoc.embedPng(uint8Array);
+      // Convert buffer to Uint8Array for pdf-lib and embed
+      const uint8Array = new Uint8Array(optimizedImage);
+      const imageEmbed = useJpeg 
+        ? await pdfDoc.embedJpg(uint8Array)
+        : await pdfDoc.embedPng(uint8Array);
       
-      // pdf-lib drawImage also expects dimensions in points
+      // pdf-lib drawImage scales the image to fit the specified dimensions
+      // All images are now resized to appropriate DPI before embedding
       pdfPage.drawImage(imageEmbed, {
         x: 0,
         y: 0,
@@ -437,7 +508,7 @@ async function renderPageWithKonva(page, pageData, bookData, canvasWidth, canvas
   <link href="https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&family=Noto+Sans+Symbols:wght@400;700&family=Noto+Sans+Symbols+2:wght@400;700&family=Permanent+Marker&family=Playwrite+DE+VA&family=Poiret+One&family=Ribeye+Marrow&family=Rock+Salt&family=Rubik+Dirt&family=Rubik+Glitch&family=Rubik+Wet+Paint&family=Rye&family=Saira+Stencil+One&family=Schoolbell&family=Shadows+Into+Light+Two&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Shojumaru&family=Sigmar+One&family=Silkscreen:wght@400;700&family=Stalemate&family=Sunflower:wght@400;700&family=Syne+Mono&family=Tourney:wght@400;700&family=Turret+Road:wght@400;700&family=UnifrakturCook:wght@400;700&family=Vast+Shadow&family=WindSong&family=Yarndings+12&family=Zeyada&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/konva@9/konva.min.js"></script>
-  <script src="https://unpkg.com/roughjs@4/bundled/rough.js"></script>
+  <script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script>
   <style>
     body {
       margin: 0;
@@ -528,7 +599,8 @@ async function renderPageWithKonva(page, pageData, bookData, canvasWidth, canvas
         
         // Use shared rendering function
         try {
-          const roughInstance = typeof rough !== 'undefined' ? rough : null;
+          // Try to get rough from global scope (window.rough or just rough)
+          const roughInstance = (typeof window !== 'undefined' && window.rough) || (typeof rough !== 'undefined' ? rough : null);
           
           // Debug: Log before calling renderPageWithKonva
           console.log('[DEBUG] ⚠️ ABOUT TO CALL renderPageWithKonva:', {

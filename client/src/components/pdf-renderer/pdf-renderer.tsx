@@ -2843,6 +2843,115 @@ export function PDFRenderer({
               }
             });
             
+            // Generate additional ruled lines to fill the rest of the textbox (matching client-side logic)
+            // This only applies to answer lines (ruledLinesTarget === 'answer')
+            if (ruledLinesTarget === 'answer' && linePositions && linePositions.length > 0) {
+              // Filter line positions by target (answer)
+              // For inline layout, we need to filter by style properties
+              const targetLinePositions = linePositions.filter((linePos) => {
+                if (!linePos.style) return false;
+                // Compare style properties to identify answer lines
+                // Use fontSize as primary identifier (most reliable)
+                const styleMatches = linePos.style.fontSize === answerStyle.fontSize;
+                // Also check fontFamily if available
+                const familyMatches = !linePos.style.fontFamily || !answerStyle.fontFamily || 
+                                     linePos.style.fontFamily === answerStyle.fontFamily;
+                return styleMatches && familyMatches;
+              });
+              
+              if (targetLinePositions.length > 0) {
+                const answerLineHeight = sharedGetLineHeight(answerStyle);
+                const lastLinePosition = targetLinePositions[targetLinePositions.length - 1];
+                let nextLineY = lastLinePosition.y + lastLinePosition.lineHeight;
+                
+                // Determine start and end X positions and bottom Y (all relative to element)
+                const relativeStartX = padding;
+                const relativeEndX = elementWidth - padding;
+                const relativeBottomY = elementHeight - padding;
+                
+                // Generate additional lines until we reach the bottom
+                // nextLineY is relative to element (0 = top of element)
+                while (nextLineY <= relativeBottomY) {
+                  // Generate ruled line
+                  // Convert relative coordinates to absolute for rendering
+                  const absoluteStartX = elementX + relativeStartX;
+                  const absoluteEndX = elementX + relativeEndX;
+                  const absoluteLineY = elementY + nextLineY;
+                  
+                  // Generate ruled line using generateLinePath (matching client-side behavior)
+                  const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+                  const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
+                  const theme = (supportedThemes.includes(ruledLinesTheme as Theme) ? ruledLinesTheme : 'default') as Theme;
+                  
+                  // Create a temporary element for theme-specific settings
+                  const tempElement: CanvasElement = {
+                    ...element,
+                    type: 'line' as const,
+                    id: element.id + '-ruled-line-extra',
+                    x: 0,
+                    y: 0,
+                    width: Math.abs(absoluteEndX - absoluteStartX),
+                    height: 0,
+                    strokeWidth: ruledLinesWidth,
+                    stroke: ruledLinesColor,
+                    theme: theme as CanvasElement['theme']
+                  };
+                  
+                  // Generate path using generateLinePath (same as renderThemedLine uses internally)
+                  const pathData = generateLinePath({
+                    x1: absoluteStartX,
+                    y1: absoluteLineY,
+                    x2: absoluteEndX,
+                    y2: absoluteLineY,
+                    strokeWidth: ruledLinesWidth,
+                    stroke: ruledLinesColor,
+                    theme: theme,
+                    seed: seed + nextLineY,
+                    roughness: theme === 'rough' ? 2 : 1,
+                    element: tempElement
+                  });
+                  
+                  let lineNode: Konva.Path | Konva.Line | null = null;
+                  if (pathData) {
+                    // Get stroke props from theme renderer (important for candy theme which uses fill instead of stroke)
+                    const themeRenderer = getThemeRenderer(theme);
+                    const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                    
+                    lineNode = new Konva.Path({
+                      data: pathData,
+                      stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : ruledLinesColor,
+                      strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : ruledLinesWidth,
+                      fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
+                      opacity: ruledLinesOpacity * elementOpacity,
+                      strokeScaleEnabled: true,
+                      rotation: elementRotation,
+                      listening: false,
+                      visible: true,
+                      lineCap: strokeProps.lineCap || 'round',
+                      lineJoin: strokeProps.lineJoin || 'round'
+                    });
+                  } else {
+                    // Fallback to simple line if path generation fails
+                    lineNode = new Konva.Line({
+                      points: [absoluteStartX, absoluteLineY, absoluteEndX, absoluteLineY],
+                      stroke: ruledLinesColor,
+                      strokeWidth: ruledLinesWidth,
+                      opacity: ruledLinesOpacity * elementOpacity,
+                      rotation: elementRotation,
+                      listening: false,
+                      visible: true
+                    });
+                  }
+                  
+                  if (lineNode) {
+                    ruledLinesNodes.push(lineNode);
+                  }
+                  
+                  nextLineY += answerLineHeight;
+                }
+              }
+            }
+            
             // Insert all ruled lines after background
             if (ruledLinesNodes.length > 0) {
               const insertIndex = bgRect ? layer.getChildren().indexOf(bgRect) + 1 : layer.getChildren().length;
@@ -2864,15 +2973,21 @@ export function PDFRenderer({
             const borderWidth = (element as any).borderWidth || 1;
             const borderOpacity = (element as any).borderOpacity !== undefined ? (element as any).borderOpacity : 1;
             const cornerRadius = (element as any).cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
+            // Match client-side logic: Check element.borderTheme first, then fallback to element.theme, then 'default'
+            // This matches textbox-qna.tsx line 2025: const themeValue = qnaElement.borderTheme || element.theme || 'default';
             const borderThemeRaw = (element as any).borderTheme || 
+                                  element.theme ||
                                   (element as any).questionSettings?.borderTheme || 
                                   (element as any).answerSettings?.borderTheme || 
                                   'default';
-            // Map 'sketchy' to 'rough' if needed, or use as-is if valid Theme
-            const borderTheme = (borderThemeRaw === 'sketchy' ? 'rough' : borderThemeRaw) as 'default' | 'rough' | 'glow' | 'candy' | 'zigzag' | 'wobbly';
+            // Map 'sketchy' to 'rough' if needed (matching textbox-qna.tsx)
+            const borderThemeRawMapped = borderThemeRaw === 'sketchy' ? 'rough' : borderThemeRaw;
+            const borderTheme = borderThemeRawMapped as 'default' | 'rough' | 'glow' | 'candy' | 'zigzag' | 'wobbly'; // Use the selected theme directly (don't map 'default' to 'rough')
             
             const themeRenderer = getThemeRenderer(borderTheme);
-            if (themeRenderer && borderTheme !== 'default') {
+
+            // Use themeRenderer directly - 'default' is now a valid theme that renders straight lines
+            if (themeRenderer) {
               // Create a temporary element-like object for generatePath
               // Set roughness to 8 for 'rough' theme to match client-side rendering
               // IMPORTANT: For 'candy' theme, increase strokeWidth server-side to make circles larger
@@ -2891,7 +3006,8 @@ export function PDFRenderer({
                 stroke: borderColor,
                 strokeWidth: adjustedBorderWidth,
                 fill: 'transparent',
-                roughness: borderTheme === 'rough' ? 8 : undefined,
+                roughness: borderTheme === 'rough' ? 8 : (borderTheme === 'sketchy' ? 2 : 1),
+                theme: borderTheme,
                 // Add spacing multiplier for candy theme to reduce gaps between circles
                 // This is only used server-side, client-side spacing remains unchanged
                 candySpacingMultiplier: borderTheme === 'candy' ? 0.7 : undefined
@@ -3313,8 +3429,9 @@ export function PDFRenderer({
                 if (frameTheme !== 'default') {
                   const themeRenderer = getThemeRenderer(frameTheme);
                   if (themeRenderer) {
+                    const frameRoughness = frameTheme === 'rough' ? 8 : (frameTheme === 'sketchy' ? 2 : (frameTheme === 'wobbly' ? 3 : undefined));
                     const frameElement = {
-                      type: 'rect',
+                      type: 'rect' as const,
                       id: element.id + '-frame',
                       x: 0,
                       y: 0,
@@ -3324,8 +3441,10 @@ export function PDFRenderer({
                       stroke: stroke,
                       strokeWidth: strokeWidth,
                       fill: 'transparent',
-                      theme: frameTheme
-                    };
+                      theme: frameTheme,
+                      // Set roughness for rough theme to match client-side rendering
+                      roughness: frameRoughness
+                    } as CanvasElement;
                     
                     const pathData = themeRenderer.generatePath(frameElement);
                     const strokeProps = themeRenderer.getStrokeProps(frameElement);

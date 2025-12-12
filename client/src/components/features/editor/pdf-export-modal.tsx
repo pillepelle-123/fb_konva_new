@@ -12,7 +12,7 @@ interface PDFExportModalProps {
 
 export default function PDFExportModal({ isOpen, onClose }: PDFExportModalProps) {
   const { state } = useEditor();
-  const [quality, setQuality] = useState<'preview' | 'medium' | 'printing'>('medium');
+  const [quality, setQuality] = useState<'preview' | 'medium' | 'printing' | 'excellent'>('medium');
   const [pageRange, setPageRange] = useState<'all' | 'range' | 'current'>('all');
   const [startPage, setStartPage] = useState(1);
   const [endPage, setEndPage] = useState(state.currentBook?.pages.length || 1);
@@ -91,6 +91,7 @@ export default function PDFExportModal({ isOpen, onClose }: PDFExportModalProps)
         setEndPage={setEndPage}
         maxPages={state.currentBook.pages.length}
         userRole={state.userRole}
+        userAdminRole={state.user?.role || null}
         isExporting={isExporting}
         progress={progress}
       />

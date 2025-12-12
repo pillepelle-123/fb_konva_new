@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Navigate } from 'react-router-dom';
+import { useParams, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
 import { Textarea } from '../../components/ui/primitives/textarea';
@@ -20,6 +20,7 @@ interface Answer {
 export default function AnswerForm() {
   const { bookId } = useParams<{ bookId: string }>();
   const { token, user } = useAuth();
+  const location = useLocation();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -116,7 +117,8 @@ export default function AnswerForm() {
   };
 
   if (!token || !user) {
-    return <Navigate to="/login" replace />;
+    // Speichere die aktuelle URL als redirect Parameter
+    return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`} replace />;
   }
 
   if (loading) {

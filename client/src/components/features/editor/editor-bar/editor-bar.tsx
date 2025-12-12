@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useEditor } from '../../../../context/editor-context';
 import type { Page } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
-import PDFExportModal from '../pdf-export-modal';
+import BookExportModal from '../book-export-modal';
 import { BookPreviewModal } from '../preview/book-preview-modal';
 import { Modal } from '../../../ui/overlays/modal';
 import BookManagerContent from '../../books/book-manager-content';
@@ -404,7 +404,7 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
         )}
       </EditorBarContainer>
       
-      <PDFExportModal 
+      <BookExportModal 
         isOpen={showPDFModal} 
         onClose={() => setShowPDFModal(false)} 
       />

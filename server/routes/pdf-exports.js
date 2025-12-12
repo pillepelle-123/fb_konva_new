@@ -247,22 +247,32 @@ router.post('/', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    // Check user role for printing quality restriction
+    // Check user role for quality restrictions
     const book = bookAccess.rows[0];
     const isOwner = book.owner_id === userId;
-    let userRole = 'publisher';
+    const isAdmin = req.user.role === 'admin';
+    
+    let bookRole = 'publisher';
     if (!isOwner) {
       const collaborator = await pool.query(
         'SELECT book_role FROM public.book_friends WHERE book_id = $1 AND user_id = $2',
         [bookId, userId]
       );
       if (collaborator.rows.length > 0) {
-        userRole = collaborator.rows[0].book_role;
+        bookRole = collaborator.rows[0].book_role;
       }
     }
 
-    if (userRole === 'author' && quality === 'printing') {
-      return res.status(403).json({ error: 'Authors cannot export in printing quality' });
+    // Check quality restrictions based on role
+    if (quality === 'excellent' && !isAdmin) {
+      return res.status(403).json({ error: 'Only admins can export in excellent quality' });
+    }
+    
+    if (quality === 'printing') {
+      // Only owner, publisher, or admin can use printing quality
+      if (bookRole === 'author' && !isAdmin) {
+        return res.status(403).json({ error: 'Authors cannot export in printing quality' });
+      }
     }
 
     // Create export record
@@ -561,4 +571,5 @@ router.get('/queue/status', authenticateToken, async (req, res) => {
 });
 
 module.exports = router;
+
 

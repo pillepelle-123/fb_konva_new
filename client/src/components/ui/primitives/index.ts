@@ -6,7 +6,7 @@ export { IndentedSection } from './indented-section';
 export { Input } from './input';
 export { Label } from './label';
 export { NumberInput } from './number-input';
-export { RadioGroup } from './radio-group';
+export { RadioGroup, type RadioOption, type RadioGroupProps } from './radio-group';
 export { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from './select';
 export { Separator } from './separator';
 export { Slider } from './slider';

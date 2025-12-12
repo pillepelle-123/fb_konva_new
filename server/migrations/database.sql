@@ -437,7 +437,7 @@ CREATE TABLE IF NOT EXISTS public.pdf_exports (
     book_id INTEGER NOT NULL REFERENCES public.books(id) ON DELETE CASCADE,
     user_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     status VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
-    quality VARCHAR(50) NOT NULL CHECK (quality IN ('preview', 'medium', 'printing')),
+    quality VARCHAR(50) NOT NULL CHECK (quality IN ('preview', 'medium', 'printing', 'excellent')),
     page_range VARCHAR(50) NOT NULL CHECK (page_range IN ('all', 'range', 'current')),
     start_page INTEGER,
     end_page INTEGER,

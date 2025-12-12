@@ -4,7 +4,7 @@ import type { Book, PageBackground } from '../context/editor-context';
 import { PAGE_DIMENSIONS, CANVAS_DIMS, PATTERNS, createPatternTile } from './shared-rendering';
 
 export interface PDFExportOptions {
-  quality: 'preview' | 'medium' | 'printing';
+  quality: 'preview' | 'medium' | 'printing' | 'excellent';
   pageRange: 'all' | 'range' | 'current';
   startPage?: number;
   endPage?: number;

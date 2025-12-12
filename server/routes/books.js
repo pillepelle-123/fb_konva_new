@@ -343,6 +343,13 @@ router.get('/:id', authenticateToken, async (req, res) => {
       }
     }
 
+    // Get user's admin role (users.role) for PDF export quality restrictions
+    const userResult = await pool.query(
+      'SELECT role FROM public.users WHERE id = $1',
+      [userId]
+    );
+    const userAdminRole = userResult.rows[0]?.role || null;
+
     // Build response object
     const response = {
       id: book.id,
@@ -367,6 +374,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
       answers: allAnswers,
       pageAssignments: pageAssignments,
       userRole: userRole,
+      userAdminRole: userAdminRole, // users.role for PDF export quality restrictions
       totalPages,
       pages: pages.rows.map(page => {
         // Parse page.elements - it's JSONB, so it might be an object or need parsing

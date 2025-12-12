@@ -258,7 +258,7 @@ export function SelectItem({ value, className, children, disabled, tooltip }: Se
         disabled && "opacity-50 cursor-not-allowed",
         className
       )}
-      data-disabled={disabled}
+      {...(disabled ? { 'data-disabled': true } : {})}
     >
       <span className="flex-1">{children}</span>
       {showInfoIcon && tooltipText && (

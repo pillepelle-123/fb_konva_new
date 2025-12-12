@@ -379,6 +379,7 @@ export default function Image(props: CanvasItemProps) {
             const themeRenderer = getThemeRenderer(frameTheme);
             if (themeRenderer && frameTheme !== 'default') {
               // Create a temporary element-like object for generatePath
+              // Set higher roughness for 'rough' theme to make the frame more hand-drawn looking
               const frameElement = {
                 type: 'rect' as const,
                 id: element.id + '-frame',
@@ -389,7 +390,8 @@ export default function Image(props: CanvasItemProps) {
                 cornerRadius: cornerRadius,
                 stroke: stroke,
                 strokeWidth: strokeWidth,
-                fill: 'transparent'
+                fill: 'transparent',
+                roughness: frameTheme === 'rough' ? 8 : undefined
               } as CanvasElement;
               
               // Generate path and stroke props (zoom handling via strokeScaleEnabled)

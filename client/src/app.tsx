@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useSearchParams } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/auth-context'
 import { EditorProvider } from './context/editor-context'
 import { SocketProvider } from './context/socket-context'
@@ -43,6 +43,15 @@ function App() {
   )
 }
 
+function LoginRedirect() {
+  const [searchParams] = useSearchParams();
+  const redirectUrl = searchParams.get('redirect');
+  if (redirectUrl) {
+    return <Navigate to={decodeURIComponent(redirectUrl)} replace />;
+  }
+  return <Navigate to="/dashboard" replace />;
+}
+
 function AppContent() {
   const { user } = useAuth()
   const [serverMessage, setServerMessage] = useState('')
@@ -79,7 +88,7 @@ function AppContent() {
       <main className={`flex-1 min-h-0 ${shouldHideOverflow ? 'overflow-hidden' : 'overflow-auto'} w-full`}>
         <Routes>
           <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Home serverMessage={serverMessage} />} />
-          <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <Login />} />
+          <Route path="/login" element={user ? <LoginRedirect /> : <Login />} />
           <Route path="/register" element={user ? <Navigate to="/dashboard" /> : <Register />} />
           <Route path="/invitations/respond" element={<InvitationResponse />} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

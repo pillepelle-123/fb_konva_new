@@ -2023,7 +2023,7 @@ export default function TextboxQna(props: CanvasItemProps) {
         // Get theme from element or defaults
         // Check element.borderTheme first, then fallback to element.theme, then 'default'
         const themeValue = qnaElement.borderTheme || element.theme || 'default';
-        const theme = (themeValue === 'default' ? 'rough' : themeValue) as Theme;
+        const theme = themeValue as Theme; // Use the selected theme directly (don't map 'default' to 'rough')
         
         // Use theme renderer for consistent border rendering
         const themeRenderer = getThemeRenderer(theme);

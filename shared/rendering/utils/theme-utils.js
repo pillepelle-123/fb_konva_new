@@ -194,27 +194,108 @@ function getGlobalThemeDefaults(themeId, elementType) {
 }
 
 /**
- * Get theme renderer (simplified version for server-side)
- * For full theme rendering, we rely on rough.js in the browser context
+ * Get theme renderer (full version with rough.js support)
+ * Uses rough.js in the browser context for theme rendering
  * @param {string} theme - Theme name (e.g., 'rough', 'default')
  * @returns {Object} Theme renderer object
  */
-function getThemeRenderer(theme = 'rough') {
-  // For server-side rendering, we return a simplified renderer
-  // The actual path generation happens in the browser context with rough.js
-  return {
+function getThemeRenderer(theme = 'rough', roughInstanceParam = null) {
+  // Get rough instance from parameter first, then from window (browser context)
+  const roughInstance = roughInstanceParam || (typeof window !== 'undefined' && window.rough) || null;
+  
+  // Default theme renderer
+  const defaultTheme = {
     generatePath: (element) => {
-      // Return empty path - actual rendering happens in browser
+      if (element.type === 'rect') {
+        if (element.cornerRadius && element.cornerRadius > 0) {
+          const r = Math.min(element.cornerRadius, element.width / 2, element.height / 2);
+          return `M ${r} 0 L ${element.width - r} 0 Q ${element.width} 0 ${element.width} ${r} L ${element.width} ${element.height - r} Q ${element.width} ${element.height} ${element.width - r} ${element.height} L ${r} ${element.height} Q 0 ${element.height} 0 ${element.height - r} L 0 ${r} Q 0 0 ${r} 0 Z`;
+        }
+        return `M 0 0 L ${element.width} 0 L ${element.width} ${element.height} L 0 ${element.height} Z`;
+      }
       return '';
     },
     getStrokeProps: (element) => {
       return {
         stroke: element.stroke || '#1f2937',
-        strokeWidth: element.strokeWidth || 0,
-        fill: element.fill !== 'transparent' ? element.fill : undefined
+        strokeWidth: element.strokeWidth ? commonToActualStrokeWidth(element.strokeWidth, element.theme || 'default') : 0,
+        fill: element.type === 'line' ? undefined : (element.fill !== 'transparent' ? element.fill : undefined)
       };
     }
   };
+  
+  // Rough theme renderer with full rough.js support
+  const roughTheme = {
+    generatePath: (element) => {
+      if (!roughInstance) {
+        console.warn('[theme-utils] Rough.js not available, falling back to default theme');
+        return defaultTheme.generatePath(element);
+      }
+      
+      const roughness = element.roughness || 1;
+      const strokeWidth = element.strokeWidth || 0;
+      const stroke = element.stroke || '#1f2937';
+      const fill = element.fill || 'transparent';
+      const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+      
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      const rc = roughInstance.svg(svg);
+      
+      try {
+        let roughElement;
+        
+        if (element.type === 'rect') {
+          if (element.cornerRadius && element.cornerRadius > 0) {
+            const r = Math.min(element.cornerRadius, element.width / 2, element.height / 2);
+            const roundedRectPath = `M ${r} 0 L ${element.width - r} 0 Q ${element.width} 0 ${element.width} ${r} L ${element.width} ${element.height - r} Q ${element.width} ${element.height} ${element.width - r} ${element.height} L ${r} ${element.height} Q 0 ${element.height} 0 ${element.height - r} L 0 ${r} Q 0 0 ${r} 0 Z`;
+            roughElement = rc.path(roundedRectPath, {
+              roughness, strokeWidth, stroke, fill: fill !== 'transparent' ? fill : undefined, fillStyle: 'solid', seed
+            });
+          } else {
+            roughElement = rc.rectangle(0, 0, element.width, element.height, {
+              roughness, strokeWidth, stroke, fill: fill !== 'transparent' ? fill : undefined, fillStyle: 'solid', seed
+            });
+          }
+        } else {
+          return defaultTheme.generatePath(element);
+        }
+        
+        if (roughElement) {
+          const paths = roughElement.querySelectorAll('path');
+          let combinedPath = '';
+          paths.forEach(path => {
+            const d = path.getAttribute('d');
+            if (d) combinedPath += d + ' ';
+          });
+          return combinedPath.trim();
+        }
+      } catch (error) {
+        console.error('[theme-utils] Error generating rough path:', error);
+      }
+      
+      return defaultTheme.generatePath(element);
+    },
+    getStrokeProps: (element) => {
+      return {
+        stroke: element.stroke || '#1f2937',
+        strokeWidth: element.strokeWidth ? commonToActualStrokeWidth(element.strokeWidth, element.theme || 'rough') : 0,
+        fill: element.type === 'line' ? undefined : (element.fill !== 'transparent' ? element.fill : undefined)
+      };
+    }
+  };
+  
+  // Return appropriate theme renderer
+  const themes = {
+    default: defaultTheme,
+    rough: roughTheme,
+    sketchy: roughTheme, // Use rough theme for sketchy too
+    wobbly: roughTheme, // Use rough theme for wobbly too
+    glow: defaultTheme,
+    candy: defaultTheme,
+    zigzag: defaultTheme
+  };
+  
+  return themes[theme] || themes.rough;
 }
 
 module.exports = {

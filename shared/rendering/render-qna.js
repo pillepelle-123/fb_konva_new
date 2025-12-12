@@ -337,63 +337,76 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
     const borderWidth = element.borderWidth || 1;
     const borderOpacity = element.borderOpacity !== undefined ? element.borderOpacity : 1;
     const cornerRadius = element.cornerRadius ?? toolDefaults.cornerRadius ?? 0;
-    const borderTheme = element.borderTheme || 
+    const borderThemeRaw = element.borderTheme || 
                        (element.questionSettings && element.questionSettings.borderTheme) || 
                        (element.answerSettings && element.answerSettings.borderTheme) || 
                        'default';
+    // Map 'sketchy' to 'rough' if needed, or use as-is if valid Theme
+    const borderTheme = (borderThemeRaw === 'sketchy' ? 'rough' : borderThemeRaw);
     
     // Use layout.contentHeight for border (matches text height)
     const borderHeight = layout.contentHeight || height;
     
-    // Render border with theme support
-    // For rough/sketchy themes, use rough.js directly (matches client-side logic)
-    if (roughInstance && (borderTheme === 'rough' || borderTheme === 'sketchy')) {
+    // Render border with theme support using getThemeRenderer (matching PDFRenderer component)
+    // Pass roughInstance to getThemeRenderer to ensure it uses the correct instance
+    const themeRenderer = getThemeRenderer(borderTheme, roughInstance);
+    if (themeRenderer) {
       try {
-        const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        const rc = roughInstance.svg(svg);
+        // Create a temporary element-like object for generatePath
+        // Set roughness to 8 for 'rough' theme to match client-side rendering
+        // IMPORTANT: For 'candy' theme, increase strokeWidth server-side to make circles larger
+        // This compensates for rendering differences between client and server
+        // Also reduce spacing between circles by using a spacing multiplier
+        const adjustedBorderWidth = borderTheme === 'candy' ? borderWidth * 1.45 : borderWidth;
         
-        let roughElement;
-        if (cornerRadius > 0) {
-          const roundedRectPath = 'M ' + cornerRadius + ' 0 L ' + (width - cornerRadius) + ' 0 Q ' + width + ' 0 ' + width + ' ' + cornerRadius + ' L ' + width + ' ' + (borderHeight - cornerRadius) + ' Q ' + width + ' ' + borderHeight + ' ' + (width - cornerRadius) + ' ' + borderHeight + ' L ' + cornerRadius + ' ' + borderHeight + ' Q 0 ' + borderHeight + ' 0 ' + (borderHeight - cornerRadius) + ' L 0 ' + cornerRadius + ' Q 0 0 ' + cornerRadius + ' 0 Z';
-          roughElement = rc.path(roundedRectPath, {
-            roughness: borderTheme === 'sketchy' ? 2 : 8, // Use roughness 8 for 'rough' theme to match client-side rendering
-            strokeWidth: borderWidth,
-            stroke: borderColor,
-            fill: 'transparent',
-            seed: seed
-          });
-        } else {
-          roughElement = rc.rectangle(0, 0, width, borderHeight, {
-            roughness: borderTheme === 'sketchy' ? 2 : 8, // Use roughness 8 for 'rough' theme to match client-side rendering
-            strokeWidth: borderWidth,
-            stroke: borderColor,
-            fill: 'transparent',
-            seed: seed
-          });
-        }
+        const borderElement = {
+          type: 'rect',
+          id: element.id + '-border',
+          x: 0,
+          y: 0,
+          width: width,
+          height: borderHeight,
+          cornerRadius: cornerRadius,
+          stroke: borderColor,
+          strokeWidth: adjustedBorderWidth,
+          fill: 'transparent',
+          roughness: borderTheme === 'rough' ? 8 : (borderTheme === 'sketchy' ? 2 : 1),
+          theme: borderTheme,
+          // Add spacing multiplier for candy theme to reduce gaps between circles
+          // This is only used server-side, client-side spacing remains unchanged
+          candySpacingMultiplier: borderTheme === 'candy' ? 0.7 : undefined
+        };
         
-        const paths = roughElement.querySelectorAll('path');
-        let combinedPath = '';
-        paths.forEach(path => {
-          const d = path.getAttribute('d');
-          if (d) combinedPath += d + ' ';
+        const pathData = themeRenderer.generatePath(borderElement);
+        console.log('[renderQnA] Border path data:', {
+          elementId: element.id,
+          hasPathData: !!pathData,
+          pathDataLength: pathData ? pathData.length : 0,
+          pathDataPreview: pathData ? pathData.substring(0, 100) : null
         });
         
-        if (combinedPath) {
+        // Get stroke props from theme renderer (important for candy theme which uses fill instead of stroke)
+        const strokeProps = themeRenderer.getStrokeProps(borderElement);
+        
+        if (pathData) {
+          // For candy theme, use adjusted borderWidth for strokeWidth to match larger circles
+          // Candy theme uses fill instead of stroke, so strokeWidth doesn't affect rendering
+          // but we keep it consistent for potential future changes
+          const pathStrokeWidth = borderTheme === 'candy' ? adjustedBorderWidth : (strokeProps.strokeWidth || borderWidth);
+          
           const borderPath = new Konva.Path({
             x: x,
             y: y,
-            data: combinedPath.trim(),
-            stroke: borderColor,
-            strokeWidth: borderWidth,
+            data: pathData,
+            stroke: strokeProps.stroke || borderColor,
+            strokeWidth: pathStrokeWidth,
+            fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
             opacity: borderOpacity * opacity,
-            fill: 'transparent',
             strokeScaleEnabled: true,
             rotation: rotation,
             listening: false,
-            lineCap: 'round',
-            lineJoin: 'round',
+            lineCap: strokeProps.lineCap || 'round',
+            lineJoin: strokeProps.lineJoin || 'round',
             visible: true
           });
           layer.add(borderPath);
@@ -461,7 +474,7 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
           nodesAdded++;
         }
       } catch (error) {
-        // Fallback to Rect if rough.js fails
+        // Fallback to Rect if theme renderer fails
         const borderRect = new Konva.Rect({
           x: x,
           y: y,
@@ -675,6 +688,175 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
       }
     });
     
+    // Generate additional ruled lines to fill the rest of the textbox (matching client-side logic)
+    // This only applies to answer lines (ruledLinesTarget === 'answer')
+    console.log('[renderQnA] Checking for additional ruled lines:', {
+      elementId: element.id,
+      ruledLinesTarget: ruledLinesTarget,
+      hasLinePositions: !!layout.linePositions,
+      linePositionsLength: layout.linePositions ? layout.linePositions.length : 0,
+      conditionMet: ruledLinesTarget === 'answer' && layout.linePositions && layout.linePositions.length > 0
+    });
+    
+    if (ruledLinesTarget === 'answer' && layout.linePositions && layout.linePositions.length > 0) {
+      console.log('[renderQnA] Generating additional ruled lines for answer area', {
+        elementId: element.id,
+        totalLinePositions: layout.linePositions.length
+      });
+      // Filter line positions by target (answer)
+      // For block layout, linePositions are already filtered by ruledLinesTarget in createBlockLayout
+      // For inline layout, we need to filter by style properties
+      const targetLinePositions = layout.linePositions.filter((linePos) => {
+        if (!linePos.style) return false;
+        // For block layout, all linePositions are already answer lines (filtered in createBlockLayout)
+        if (layoutVariant === 'block') {
+          return true; // All linePositions in block layout with ruledLinesTarget='answer' are answer lines
+        }
+        // For inline layout, compare style properties to identify answer lines
+        // Use fontSize as primary identifier (most reliable)
+        const styleMatches = linePos.style.fontSize === answerStyle.fontSize;
+        // Also check fontFamily if available
+        const familyMatches = !linePos.style.fontFamily || !answerStyle.fontFamily || 
+                             linePos.style.fontFamily === answerStyle.fontFamily;
+        return styleMatches && familyMatches;
+      });
+      
+      console.log('[renderQnA] Filtered target line positions:', {
+        elementId: element.id,
+        targetLinePositionsCount: targetLinePositions.length,
+        lastLinePosition: targetLinePositions.length > 0 ? targetLinePositions[targetLinePositions.length - 1] : null
+      });
+      
+      if (targetLinePositions.length > 0) {
+        const answerLineHeight = getLineHeight(answerStyle);
+        const lastLinePosition = targetLinePositions[targetLinePositions.length - 1];
+        let nextLineY = lastLinePosition.y + lastLinePosition.lineHeight;
+        
+        console.log('[renderQnA] Starting additional lines generation:', {
+          elementId: element.id,
+          lastLineY: lastLinePosition.y,
+          lastLineHeight: lastLinePosition.lineHeight,
+          nextLineY: nextLineY,
+          answerLineHeight: answerLineHeight
+        });
+        
+        // Determine start and end X positions and bottom Y (all relative to element)
+        let relativeStartX, relativeEndX, relativeBottomY;
+        
+        if (layoutVariant === 'block' && layout.answerArea) {
+          relativeStartX = layout.answerArea.x;
+          relativeEndX = layout.answerArea.x + layout.answerArea.width;
+          relativeBottomY = layout.answerArea.y + layout.answerArea.height;
+        } else {
+          // Inline layout
+          relativeStartX = padding;
+          relativeEndX = width - padding;
+          relativeBottomY = height - padding;
+        }
+        
+        // Generate additional lines until we reach the bottom
+        // nextLineY is relative to element (0 = top of element)
+        let additionalLinesGenerated = 0;
+        console.log('[renderQnA] Generating additional lines loop:', {
+          elementId: element.id,
+          nextLineY: nextLineY,
+          relativeBottomY: relativeBottomY,
+          relativeStartX: relativeStartX,
+          relativeEndX: relativeEndX,
+          condition: nextLineY <= relativeBottomY
+        });
+        
+        while (nextLineY <= relativeBottomY) {
+          // Generate ruled line
+          // Convert relative coordinates to absolute for rendering
+          const absoluteStartX = x + relativeStartX;
+          const absoluteEndX = x + relativeEndX;
+          const absoluteLineY = y + nextLineY;
+          
+          let lineNode = null;
+          if (ruledLinesTheme === 'rough' && roughInstance) {
+            try {
+              const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+              const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+              const rc = roughInstance.svg(svg);
+              
+              const roughLine = rc.line(absoluteStartX, absoluteLineY, absoluteEndX, absoluteLineY, {
+                roughness: 2,
+                strokeWidth: ruledLinesWidth,
+                stroke: ruledLinesColor,
+                seed: seed + nextLineY
+              });
+              
+              const paths = roughLine.querySelectorAll('path');
+              let combinedPath = '';
+              paths.forEach(path => {
+                const d = path.getAttribute('d');
+                if (d) combinedPath += d + ' ';
+              });
+              
+              if (combinedPath) {
+                lineNode = new Konva.Path({
+                  data: combinedPath.trim(),
+                  stroke: ruledLinesColor,
+                  strokeWidth: ruledLinesWidth,
+                  opacity: ruledLinesOpacity * opacity,
+                  strokeScaleEnabled: true,
+                  listening: false,
+                  visible: true
+                });
+              }
+            } catch (err) {
+              // Fallback to simple line if rough.js fails
+              lineNode = new Konva.Line({
+                points: [absoluteStartX, absoluteLineY, absoluteEndX, absoluteLineY],
+                stroke: ruledLinesColor,
+                strokeWidth: ruledLinesWidth,
+                opacity: ruledLinesOpacity * opacity,
+                listening: false,
+                visible: true
+              });
+            }
+          } else {
+            // Default: simple line
+            lineNode = new Konva.Line({
+              points: [absoluteStartX, absoluteLineY, absoluteEndX, absoluteLineY],
+              stroke: ruledLinesColor,
+              strokeWidth: ruledLinesWidth,
+              opacity: ruledLinesOpacity * opacity,
+              listening: false,
+              visible: true
+            });
+          }
+          
+          if (lineNode) {
+            ruledLinesNodes.push(lineNode);
+            nodesAdded++;
+            additionalLinesGenerated++;
+          }
+          
+          nextLineY += answerLineHeight;
+        }
+        
+        console.log('[renderQnA] Generated additional ruled lines:', {
+          elementId: element.id,
+          additionalLinesGenerated: additionalLinesGenerated,
+          totalRuledLinesNodes: ruledLinesNodes.length
+        });
+      } else {
+        console.log('[renderQnA] No target line positions found for additional lines', {
+          elementId: element.id,
+          totalLinePositions: layout.linePositions.length
+        });
+      }
+    } else {
+      console.log('[renderQnA] Additional ruled lines condition not met', {
+        elementId: element.id,
+        ruledLinesTarget: ruledLinesTarget,
+        hasLinePositions: !!layout.linePositions,
+        linePositionsLength: layout.linePositions ? layout.linePositions.length : 0
+      });
+    }
+    
     // Insert all ruled lines after background
     if (ruledLinesNodes.length > 0) {
       const insertIndex = bgRect ? layer.getChildren().indexOf(bgRect) + 1 : layer.getChildren().length;
@@ -738,6 +920,7 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
   }
   
   return nodesAdded;
+}
 }
 
 module.exports = {

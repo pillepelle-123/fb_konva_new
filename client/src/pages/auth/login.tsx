@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/auth-context';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/primitives/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/composites/card';
 import { Input } from '../../components/ui/primitives/input';
@@ -9,11 +9,12 @@ import { Alert, AlertDescription } from '../../components/ui/composites/alert';
 
 export default function Login() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const { login } = useAuth();
+  const { login, user } = useAuth();
 
   useEffect(() => {
     const message = searchParams.get('message');
@@ -22,10 +23,23 @@ export default function Login() {
     }
   }, [searchParams]);
 
+  // Redirect nach erfolgreichem Login
+  useEffect(() => {
+    if (user) {
+      const redirectUrl = searchParams.get('redirect');
+      if (redirectUrl) {
+        navigate(decodeURIComponent(redirectUrl), { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
+    }
+  }, [user, navigate, searchParams]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await login(email, password);
+      // Die Weiterleitung erfolgt jetzt über den useEffect, der auf user-Änderungen reagiert
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     }

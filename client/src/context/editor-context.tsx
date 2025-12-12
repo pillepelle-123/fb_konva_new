@@ -40,6 +40,7 @@ const apiService = {
         questions: responseQuestions,
         answers: responseAnswers,
         userRole: responseUserRole,
+        userAdminRole: responseUserAdminRole,
         pageAssignments: responseAssignments,
         ...book
       } = responseData;
