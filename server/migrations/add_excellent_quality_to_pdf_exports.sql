@@ -12,3 +12,4 @@ ALTER TABLE public.pdf_exports
 ADD CONSTRAINT pdf_exports_quality_check 
 CHECK (quality IN ('preview', 'medium', 'printing', 'excellent'));
 
+
