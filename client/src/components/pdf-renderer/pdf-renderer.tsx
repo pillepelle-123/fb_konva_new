@@ -2554,7 +2554,20 @@ export function PDFRenderer({
               const ruledLinesOpacity = (element as any).ruledLinesOpacity ?? 1;
               const targetArea = ruledLinesTarget === 'question' ? questionArea : answerArea;
               
-              linePositions.forEach((linePos) => {
+              // Filter line positions by target (question or answer)
+              const targetLinePositions = linePositions.filter((linePos) => {
+                if (!linePos.style) return false;
+                // Compare style properties to identify target lines
+                const targetStyle = ruledLinesTarget === 'question' ? questionStyle : answerStyle;
+                // Use fontSize as primary identifier (most reliable)
+                const styleMatches = linePos.style.fontSize === targetStyle.fontSize;
+                // Also check fontFamily if available
+                const familyMatches = !linePos.style.fontFamily || !targetStyle.fontFamily || 
+                                     linePos.style.fontFamily === targetStyle.fontFamily;
+                return styleMatches && familyMatches;
+              });
+              
+              targetLinePositions.forEach((linePos) => {
                 // Check if line is within the target area (vertically)
                 if (linePos.y >= targetArea.y && linePos.y <= targetArea.y + targetArea.height) {
                   // Use the target area's x position and width, not the full width
@@ -2632,6 +2645,101 @@ export function PDFRenderer({
                   }
                 }
               });
+              
+              // Generate additional ruled lines to fill the rest of the target area (matching client-side logic)
+              // This only applies to answer lines (ruledLinesTarget === 'answer')
+              if (ruledLinesTarget === 'answer' && targetLinePositions.length > 0) {
+                const answerLineHeight = sharedGetLineHeight(answerStyle);
+                const lastLinePosition = targetLinePositions[targetLinePositions.length - 1];
+                let nextLineY = lastLinePosition.y + lastLinePosition.lineHeight;
+                
+                // Determine start and end X positions and bottom Y (all relative to element)
+                // targetArea coordinates are already relative to element (x, y are relative to element origin)
+                const relativeStartX = targetArea.x;
+                const relativeEndX = targetArea.x + targetArea.width;
+                const relativeBottomY = targetArea.y + targetArea.height;
+                
+                // Generate additional lines until we reach the bottom
+                // nextLineY is relative to element (0 = top of element)
+                while (nextLineY <= relativeBottomY) {
+                  // Generate ruled line
+                  // Convert relative coordinates to absolute for rendering
+                  const absoluteStartX = elementX + relativeStartX;
+                  const absoluteEndX = elementX + relativeEndX;
+                  const absoluteLineY = elementY + nextLineY;
+                  
+                  // Generate ruled line using generateLinePath (matching client-side behavior)
+                  const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+                  const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
+                  const theme = (supportedThemes.includes(ruledLinesTheme as Theme) ? ruledLinesTheme : 'default') as Theme;
+                  
+                  // Create a temporary element for theme-specific settings
+                  const tempElement: CanvasElement = {
+                    ...element,
+                    type: 'line' as const,
+                    id: element.id + '-ruled-line-extra',
+                    x: 0,
+                    y: 0,
+                    width: Math.abs(absoluteEndX - absoluteStartX),
+                    height: 0,
+                    strokeWidth: ruledLinesWidth,
+                    stroke: ruledLinesColor,
+                    theme: theme as CanvasElement['theme']
+                  };
+                  
+                  // Generate path using generateLinePath (same as renderThemedLine uses internally)
+                  const pathData = generateLinePath({
+                    x1: absoluteStartX,
+                    y1: absoluteLineY,
+                    x2: absoluteEndX,
+                    y2: absoluteLineY,
+                    strokeWidth: ruledLinesWidth,
+                    stroke: ruledLinesColor,
+                    theme: theme,
+                    seed: seed + nextLineY,
+                    roughness: theme === 'rough' ? 2 : 1,
+                    element: tempElement
+                  });
+                  
+                  let lineNode: Konva.Path | Konva.Line | null = null;
+                  if (pathData) {
+                    // Get stroke props from theme renderer (important for candy theme which uses fill instead of stroke)
+                    const themeRenderer = getThemeRenderer(theme);
+                    const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                    
+                    lineNode = new Konva.Path({
+                      data: pathData,
+                      stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : ruledLinesColor,
+                      strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : ruledLinesWidth,
+                      fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
+                      opacity: ruledLinesOpacity * elementOpacity,
+                      strokeScaleEnabled: true,
+                      rotation: elementRotation,
+                      listening: false,
+                      visible: true,
+                      lineCap: strokeProps.lineCap || 'round',
+                      lineJoin: strokeProps.lineJoin || 'round'
+                    });
+                  } else {
+                    // Fallback to simple line if path generation fails
+                    lineNode = new Konva.Line({
+                      points: [absoluteStartX, absoluteLineY, absoluteEndX, absoluteLineY],
+                      stroke: ruledLinesColor,
+                      strokeWidth: ruledLinesWidth,
+                      opacity: ruledLinesOpacity * elementOpacity,
+                      rotation: elementRotation,
+                      listening: false,
+                      visible: true
+                    });
+                  }
+                  
+                  if (lineNode) {
+                    blockRuledLinesNodes.push(lineNode);
+                  }
+                  
+                  nextLineY += answerLineHeight;
+                }
+              }
             }
           }
           // Inline layout - runs and linePositions are already created by sharedCreateLayout

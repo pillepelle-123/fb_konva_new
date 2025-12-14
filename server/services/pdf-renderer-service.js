@@ -144,7 +144,9 @@ class PDFRendererService {
         // Block 3 (includes Molle, Mynerve)
         'https://fonts.googleapis.com/css2?family=Henny+Penny&family=Homemade+Apple&family=Inclusive+Sans&family=Italiana&family=Julius+Sans+One&family=Kablammo&family=Knewave&family=Lacquer&family=Lobster&family=Luckiest+Guy&family=Meddon&family=Megrim&family=Miltonian&family=Mohave:wght@400;700&family=Molle:ital,wght@0,400;1,400&family=Monofett&family=Monsieur+La+Doulaise&family=Monoton&family=Mynerve&display=swap',
         // Block 4
-        'https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&family=Noto+Sans+Symbols:wght@400;700&family=Noto+Sans+Symbols+2:wght@400;700&family=Permanent+Marker&family=Playwrite+DE+VA&family=Poiret+One&family=Ribeye+Marrow&family=Rock+Salt&family=Rubik+Dirt&family=Rubik+Glitch&family=Rubik+Wet+Paint&family=Rye&family=Saira+Stencil+One&family=Schoolbell&family=Shadows+Into+Light+Two&display=swap'
+        'https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&family=Noto+Sans+Symbols:wght@400;700&family=Noto+Sans+Symbols+2:wght@400;700&family=Permanent+Marker&family=Playwrite+DE+VA&family=Poiret+One&family=Ribeye+Marrow&family=Rock+Salt&family=Rubik+Dirt&family=Rubik+Glitch&family=Rubik+Wet+Paint&family=Rye&family=Saira+Stencil+One&family=Schoolbell&family=Shadows+Into+Light+Two&display=swap',
+        // Block 5 (includes Stalemate and other fonts)
+        'https://fonts.googleapis.com/css2?family=Shojumaru&family=Sigmar+One&family=Silkscreen:wght@400;700&family=Stalemate&family=Sunflower:wght@400;700&family=Syne+Mono&family=Tourney:wght@400;700&family=Turret+Road:wght@400;700&family=UnifrakturCook:wght@400;700&family=Vast+Shadow&family=WindSong&family=Yarndings+12&family=Zeyada&display=swap'
       ];
       await Promise.all(googleFontsUrls.map(async (fontUrl) => {
         try {
@@ -172,7 +174,7 @@ class PDFRendererService {
           'Gloria Hallelujah','Rye','Rubik Dirt','Rubik Glitch','Rubik Wet Paint','Poiret One','Emilys Candy',
           'Bigelow Rules','Vast Shadow','Noto Sans Symbols','Noto Color Emoji','Noto Sans Symbols 2',
           'Permanent Marker','Monoton','Megrim','Fascinate','Electrolize','Doto','Bodoni Moda','Italiana',
-          'Saira Stencil One','Emblema One','Monofett','Shojumaru','Audiowide','Bilbo Swash Caps'
+          'Saira Stencil One','Emblema One','Monofett','Shojumaru','Audiowide','Bilbo Swash Caps','Stalemate'
         ];
 
         const uniqueFamilies = Array.from(new Set(googleFamilies));

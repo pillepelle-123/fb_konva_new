@@ -122,19 +122,23 @@ async function generatePDFFromBook(bookData, options, exportId, updateProgress) 
       let useJpeg = false;
       
       if (options.quality === 'preview' || options.quality === 'medium') {
-        // Use JPEG for preview and medium quality (smaller file size)
-        const jpegQuality = options.quality === 'preview' ? 80 : 90; // Preview: 80% (increased from 70%), Medium: 90%
+        // CRITICAL FIX: Use PNG instead of JPEG for preview/medium to prevent color shifts
+        // JPEG compression causes color shifts, especially with background images
+        // PNG preserves colors accurately, and we can still compress it
+        // The file size difference is acceptable for better color accuracy
         optimizedImage = await sharp(pageImage)
           .resize(targetWidthPx, targetHeightPx, {
             fit: 'fill',
-            withoutEnlargement: false
+            withoutEnlargement: false,
+            kernel: 'lanczos3' // Use high-quality resampling to preserve colors
           })
-          .jpeg({ 
-            quality: jpegQuality,
-            mozjpeg: true
+          .png({ 
+            compressionLevel: options.quality === 'preview' ? 6 : 7, // Lower compression for preview, higher for medium
+            adaptiveFiltering: true,
+            palette: false // Don't use palette mode to preserve full color accuracy
           })
           .toBuffer();
-        useJpeg = true;
+        useJpeg = false;
       } else {
         // Use PNG with compression for printing and excellent (lossless)
         // Scale down from rendered size to target size
