@@ -11,7 +11,7 @@ const sharedPath = path.resolve(__dirname, '../shared')
 const preferTypeScriptInShared = () => {
   return {
     name: 'prefer-typescript-in-shared',
-    enforce: 'pre',
+    enforce: 'pre' as const,
     resolveId(source: string, importer?: string) {
       // Only handle relative imports
       if (!source.startsWith('.') || !importer) {

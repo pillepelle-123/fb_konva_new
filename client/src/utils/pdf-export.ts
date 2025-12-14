@@ -3,6 +3,74 @@ import { PDFDocument } from 'pdf-lib';
 import type { Book, PageBackground } from '../context/editor-context';
 import { PAGE_DIMENSIONS, CANVAS_DIMS, PATTERNS, createPatternTile } from './shared-rendering';
 
+// Function to convert image URLs to base64 data URLs to avoid CORS issues
+async function convertImagesToBase64(layer: Konva.Layer): Promise<void> {
+  const imageNodes = layer.find<Konva.Image>('Image');
+
+  const conversionPromises = imageNodes.map(async (imageNode) => {
+    const imageElement = imageNode.image();
+    if (imageElement && imageElement.src && !imageElement.src.startsWith('data:')) {
+      try {
+        let imageUrl = imageElement.src;
+
+        // Check if this is already a proxy URL, extract the original URL
+        let originalUrl = imageUrl;
+        if (imageUrl.includes('/images/proxy?url=')) {
+          try {
+            const urlObj = new URL(imageUrl);
+            const encodedUrl = urlObj.searchParams.get('url');
+            if (encodedUrl) {
+              originalUrl = decodeURIComponent(encodedUrl);
+            }
+          } catch (error) {
+            console.warn('Failed to parse proxy URL:', error);
+          }
+        }
+
+        // Check if this is an S3 URL that needs proxy
+        const isS3Url = originalUrl.includes('s3.amazonaws.com') || originalUrl.includes('s3.us-east-1.amazonaws.com');
+
+        // For S3 URLs, use the proxy endpoint to avoid CORS issues
+        if (isS3Url) {
+          // Get token from localStorage
+          const token = localStorage.getItem('token') || '';
+          const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+          imageUrl = `${apiUrl}/images/proxy?url=${encodeURIComponent(originalUrl)}&token=${encodeURIComponent(token)}`;
+        }
+
+        // Fetch the image as blob and convert to base64
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
+
+        // Convert blob to base64
+        const base64Data = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+
+        // Create new image from base64
+        const base64Image = new window.Image();
+        base64Image.src = base64Data;
+
+        await new Promise<void>((resolve, reject) => {
+          base64Image.onload = () => {
+            imageNode.image(base64Image);
+            resolve();
+          };
+          base64Image.onerror = reject;
+        });
+      } catch (error) {
+        console.warn('Failed to convert image to base64:', error);
+        // Continue with original image if conversion fails
+      }
+    }
+  });
+
+  await Promise.all(conversionPromises);
+}
+
 export interface PDFExportOptions {
   quality: 'preview' | 'medium' | 'printing' | 'excellent';
   pageRange: 'all' | 'range' | 'current';
@@ -176,37 +244,44 @@ export const exportBookToPDF = async (
         }
         
         tempStage.draw();
+
+        // Convert all images to base64 to avoid CORS issues with toDataURL()
+        await convertImagesToBase64(clonedLayer);
+
+        // Export to data URL
+        const dataURL = tempStage.toDataURL({
+          mimeType: 'image/png',
+          quality: 1.0,
+          pixelRatio: 1
+        });
+
+        // Convert data URL to Uint8Array for pdf-lib
+        const response = await fetch(dataURL);
+        const arrayBuffer = await response.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+
+        // Embed PNG image in PDF
+        const imageEmbed = await pdfDoc.embedPng(uint8Array);
+
+        // Add page with correct dimensions (in points)
+        const pdfPage = pdfDoc.addPage([widthPt, heightPt]);
+
+        // Draw image to fill the entire page
+        pdfPage.drawImage(imageEmbed, {
+          x: 0,
+          y: 0,
+          width: widthPt,
+          height: heightPt,
+        });
+
+        // Clean up temporary stage
+        tempStage.destroy();
+        document.body.removeChild(tempContainer);
+      } else {
+        // If no main layer found, skip this page
+        console.warn('No main layer found for page, skipping PDF export for this page');
+        continue;
       }
-
-      // Export to data URL
-      const dataURL = tempStage.toDataURL({
-        mimeType: 'image/png',
-        quality: 1.0,
-        pixelRatio: 1
-      });
-
-      // Convert data URL to Uint8Array for pdf-lib
-      const response = await fetch(dataURL);
-      const arrayBuffer = await response.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
-      
-      // Embed PNG image in PDF
-      const imageEmbed = await pdfDoc.embedPng(uint8Array);
-      
-      // Add page with correct dimensions (in points)
-      const pdfPage = pdfDoc.addPage([widthPt, heightPt]);
-      
-      // Draw image to fill the entire page
-      pdfPage.drawImage(imageEmbed, {
-        x: 0,
-        y: 0,
-        width: widthPt,
-        height: heightPt,
-      });
-
-      // Clean up temporary stage
-      tempStage.destroy();
-      document.body.removeChild(tempContainer);
       
       if (onProgress) {
         onProgress(((i + 1) / pagesToExport.length) * 100);

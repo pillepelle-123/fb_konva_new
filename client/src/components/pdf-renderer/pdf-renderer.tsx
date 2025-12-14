@@ -36,10 +36,10 @@ const resolveFontFamily = (fontFamilyRaw: string | undefined, isBold: boolean, i
   if (!fontFamilyRaw) {
     return 'Arial, sans-serif';
   }
-  
+
   // Remove outer quotes but keep internal structure
   let cleaned = fontFamilyRaw.replace(/^['"]|['"]$/g, '').trim();
-  
+
   // If it's already a full CSS font family string (contains comma), use it directly
   // This matches client-side behavior where fontFamily is stored as full CSS string
   if (cleaned.includes(',')) {
@@ -60,13 +60,24 @@ const resolveFontFamily = (fontFamilyRaw: string | undefined, isBold: boolean, i
     }
     return cleaned;
   }
-  
+
   // Otherwise, treat it as a font name and resolve it using getFontFamilyByName
   // This handles cases where only the font name is stored (e.g., "Bauhaus 93")
   try {
     const resolved = getFontFamilyByName(cleaned, isBold, isItalic);
+    // Additional fallback: If the resolved font family doesn't match what we expect,
+    // try to construct it manually for known Google Fonts
+    if (resolved === 'Arial, sans-serif' && cleaned.includes(' ')) {
+      // For Google Fonts with spaces, ensure proper quoting
+      return `'${cleaned}', cursive`;
+    }
     return resolved;
   } catch (error) {
+    // Enhanced fallback for Google Fonts
+    if (cleaned.includes(' ')) {
+      // Likely a Google Font with spaces - quote it properly
+      return `'${cleaned}', cursive`;
+    }
     // Fallback to cleaned string if getFontFamilyByName fails
     return cleaned || 'Arial, sans-serif';
   }
@@ -2312,7 +2323,7 @@ export function PDFRenderer({
           const bookLayoutTemplateId = bookData?.layoutTemplateId;
           const pageColorPaletteId = currentPage?.colorPaletteId;
           const bookColorPaletteId = bookData?.colorPaletteId;
-          
+
           const qnaDefaults = getToolDefaults(
             'qna',
             pageTheme,
@@ -2324,7 +2335,8 @@ export function PDFRenderer({
             pageColorPaletteId,
             bookColorPaletteId
           );
-          
+
+
           // Match client-side style extraction from textbox-qna.tsx
           const questionSettings = (element as any).questionSettings || {};
           const answerSettings = (element as any).answerSettings || {};
@@ -2969,7 +2981,7 @@ export function PDFRenderer({
           // Render border if enabled
           const showBorder = (element as any).borderEnabled && (element as any).borderColor && (element as any).borderWidth !== undefined;
           if (showBorder) {
-            const borderColor = (element as any).borderColor || '#000000';
+            const borderColor = (element as any).borderColor || qnaDefaults.borderColor || '#000000';
             const borderWidth = (element as any).borderWidth || 1;
             const borderOpacity = (element as any).borderOpacity !== undefined ? (element as any).borderOpacity : 1;
             const cornerRadius = (element as any).cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
@@ -3413,14 +3425,47 @@ export function PDFRenderer({
                 layerChildrenCount: layer.getChildren().length
               });
               
-              // Render frame if enabled
-              const frameEnabled = element.frameEnabled !== undefined 
-                ? element.frameEnabled 
-                : (element.strokeWidth || 0) > 0;
+              // Render frame if enabled (stickers never get frames)
+              console.log('[PDFRenderer] Frame check for element:', {
+                elementId: element.id,
+                elementType: element.type,
+                hasFrameEnabled: element.frameEnabled !== undefined,
+                frameEnabled: element.frameEnabled,
+                strokeWidth: element.strokeWidth,
+                willShowFrame: element.type !== 'sticker' && (element.frameEnabled !== undefined ? element.frameEnabled : (element.strokeWidth || 0) > 0)
+              });
+
+              const frameEnabled = element.type === 'sticker'
+                ? false
+                : (element.frameEnabled !== undefined
+                  ? element.frameEnabled
+                  : (element.strokeWidth || 0) > 0);
               const strokeWidth = element.strokeWidth || 0;
-              
+
               if (frameEnabled && strokeWidth > 0) {
-                const stroke = element.stroke || '#1f2937';
+                console.log('[PDFRenderer] Rendering frame for element:', element.id, element.type);
+                // Get color palette defaults for consistent frame coloring (same as QnA borders)
+                const currentPage = state.currentBook?.pages?.find(p => p.id === page.id) || page;
+                const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+                const bookTheme = bookData?.themeId || bookData?.bookTheme;
+                const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+                const bookLayoutTemplateId = bookData?.layoutTemplateId;
+                const pageColorPaletteId = currentPage?.colorPaletteId;
+                const bookColorPaletteId = bookData?.colorPaletteId;
+
+                const qnaDefaults = getToolDefaults(
+                  'qna',
+                  pageTheme,
+                  bookTheme,
+                  element,
+                  undefined, // toolSettings not needed for defaults
+                  pageLayoutTemplateId,
+                  bookLayoutTemplateId,
+                  pageColorPaletteId,
+                  bookColorPaletteId
+                );
+
+                const stroke = element.stroke && element.stroke !== '#1f2937' ? element.stroke : qnaDefaults.borderColor || '#1f2937';
                 const strokeOpacity = element.strokeOpacity !== undefined ? element.strokeOpacity : 1;
                 const frameTheme = element.frameTheme || element.theme || 'default';
                 const cornerRadius = element.cornerRadius || 0;

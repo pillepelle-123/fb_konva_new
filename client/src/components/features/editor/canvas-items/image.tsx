@@ -6,6 +6,8 @@ import type { CanvasItemProps } from './base-canvas-item';
 import { getThemeRenderer } from '../../../../utils/themes';
 import type { CanvasElement } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
+import { useEditor } from '../../../../context/editor-context';
+import { getToolDefaults } from '../../../../utils/tool-defaults';
 
 type ClipPosition = 
   | 'left-top' 
@@ -117,6 +119,37 @@ export default function Image(props: CanvasItemProps) {
   const isTransformingRef = useRef(false);
   // State to track if we're currently transforming (for hiding frame)
   const [isTransforming, setIsTransforming] = useState(false);
+
+  // Get color palette defaults for consistent frame coloring (same as QnA borders)
+  const { state } = useEditor();
+  const currentPage = state.currentBook?.pages[state.activePageIndex];
+  const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+  const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
+  const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+  const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+  const pageColorPaletteId = currentPage?.colorPaletteId;
+  const bookColorPaletteId = state.currentBook?.colorPaletteId;
+
+  const qnaDefaults = useMemo(() => getToolDefaults(
+    'qna',
+    pageTheme,
+    bookTheme,
+    element,
+    state.toolSettings,
+    pageLayoutTemplateId,
+    bookLayoutTemplateId,
+    pageColorPaletteId,
+    bookColorPaletteId
+  ), [
+    pageTheme,
+    bookTheme,
+    pageLayoutTemplateId,
+    bookLayoutTemplateId,
+    pageColorPaletteId,
+    bookColorPaletteId,
+    element,
+    state.toolSettings
+  ]);
 
   const handleDoubleClick = () => {
     // Don't open modals in non-interactive mode (e.g., PDF export)
@@ -356,14 +389,17 @@ export default function Image(props: CanvasItemProps) {
           
           {/* Frame around image */}
           {image && !isTransforming && (() => {
-            const frameEnabled = element.frameEnabled !== undefined 
-              ? element.frameEnabled 
-              : (element.strokeWidth || 0) > 0;
+            const frameEnabled = element.type === 'sticker'
+              ? false
+              : (element.frameEnabled !== undefined
+                ? element.frameEnabled
+                : (element.strokeWidth || 0) > 0);
             const strokeWidth = element.strokeWidth || 0;
-            const stroke = element.stroke || '#1f2937';
             const strokeOpacity = element.strokeOpacity !== undefined ? element.strokeOpacity : 1;
             const frameTheme = element.frameTheme || element.theme || 'default';
             const cornerRadius = element.cornerRadius || 0;
+
+            const stroke = element.stroke && element.stroke !== '#1f2937' ? element.stroke : qnaDefaults.borderColor || '#1f2937';
             
             if (!frameEnabled || strokeWidth === 0) {
               return null;

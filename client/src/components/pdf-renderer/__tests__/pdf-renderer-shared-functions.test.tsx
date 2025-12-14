@@ -21,12 +21,12 @@ vi.mock('@shared/utils/text-layout', () => ({
   measureText: mockMeasureText,
   calculateTextX: mockCalculateTextX,
   wrapText: mockWrapText,
-} }));
+}));
 
 vi.mock('@shared/utils/qna-layout', () => ({
   createLayout: mockCreateLayout,
   createBlockLayout: mockCreateBlockLayout,
-} }));
+}));
 
 // Mock Konva and React
 vi.mock('react-konva', () => ({
