@@ -55,6 +55,8 @@ export function BookExportManager({
   const [pageRange, setPageRange] = useState<'all' | 'range' | 'current'>('all');
   const [startPage, setStartPage] = useState(1);
   const [endPage, setEndPage] = useState(1);
+  const [useCMYK, setUseCMYK] = useState(false);
+  const [iccProfile, setIccProfile] = useState<'iso-coated-v2' | 'fogra39'>('iso-coated-v2');
   const [isCreating, setIsCreating] = useState(false);
   const [isClientExporting, setIsClientExporting] = useState(false);
   const [clientExportProgress, setClientExportProgress] = useState(0);
@@ -152,7 +154,9 @@ export function BookExportManager({
           pageRange,
           startPage: pageRange === 'range' ? startPage : undefined,
           endPage: pageRange === 'range' ? endPage : undefined,
-          currentPageIndex: pageRange === 'current' && currentPageIndex !== undefined ? currentPageIndex : undefined
+          currentPageIndex: pageRange === 'current' && currentPageIndex !== undefined ? currentPageIndex : undefined,
+          useCMYK,
+          iccProfile: useCMYK ? iccProfile : undefined
         })
       });
 
@@ -238,6 +242,8 @@ export function BookExportManager({
       startPage: pageRange === 'range' ? startPage : undefined,
       endPage: pageRange === 'range' ? endPage : undefined,
       currentPageIndex: pageRange === 'current' && currentPageIndex !== undefined ? currentPageIndex : undefined,
+      useCMYK,
+      iccProfile: useCMYK ? iccProfile : undefined,
     };
 
     try {
@@ -328,6 +334,10 @@ export function BookExportManager({
             userAdminRole={displayUserAdminRole}
             isExporting={isCreating || isClientExporting}
             progress={clientExportProgress}
+          useCMYK={useCMYK}
+          setUseCMYK={setUseCMYK}
+          iccProfile={iccProfile}
+          setIccProfile={setIccProfile}
           />
           <div className="mt-4 flex gap-2">
             <Button onClick={handleCreateExport} disabled={isCreating || isClientExporting} variant="default">

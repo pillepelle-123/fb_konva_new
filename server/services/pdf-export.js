@@ -5,6 +5,25 @@ const path = require('path');
 const sharp = require('sharp');
 const PDFRendererService = require('./pdf-renderer-service');
 
+// Paths to ICC profiles
+// Note: Use the 300% TAC variant for ISO Coated v2
+const ISO_COATED_V2_ICC_PATH = path.join(__dirname, '../assets/icc-profiles/ISOcoated_v2_300_eci.icc');
+const FOGRA39_ICC_PATH = path.join(__dirname, '../assets/icc-profiles/CoatedFOGRA39.icc');
+
+// ICC Profile mapping
+const ICC_PROFILES = {
+  'iso-coated-v2': {
+    name: 'ISO Coated v2 300% ECI',
+    path: ISO_COATED_V2_ICC_PATH,
+    description: 'Standard für europäischen Offsetdruck'
+  },
+  'fogra39': {
+    name: 'FOGRA 39 (Coated FOGRA39)',
+    path: FOGRA39_ICC_PATH,
+    description: 'Empfohlen für Prodigi Softcover-Fotobücher'
+  }
+};
+
 // Load theme data files
 const colorPalettesJson = require('../../client/src/data/templates/color-palettes.json');
 const themesJson = require('../../client/src/data/templates/themes.json');
@@ -115,23 +134,109 @@ async function generatePDFFromBook(bookData, options, exportId, updateProgress) 
       const targetHeightPx = Math.round(heightPt * pixelsPerPoint);
       
       // Debug logging
-      console.log(`[PDF Export] Quality: ${options.quality}, Rendered: ${renderedWidth}x${renderedHeight}, Target: ${targetWidthPx}x${targetHeightPx}, PDF Page: ${widthPt.toFixed(2)}x${heightPt.toFixed(2)}pt`);
+      const iccProfileName = options.iccProfile || 'iso-coated-v2';
+      console.log(`[PDF Export] Quality: ${options.quality}, CMYK: ${options.useCMYK || false}, ICC Profile: ${iccProfileName}, Rendered: ${renderedWidth}x${renderedHeight}, Target: ${targetWidthPx}x${targetHeightPx}, PDF Page: ${widthPt.toFixed(2)}x${heightPt.toFixed(2)}pt`);
       
-      // Optimize image based on quality setting
+      // Optimize image based on quality setting and CMYK option
       let optimizedImage = pageImage;
       let useJpeg = false;
       
-      if (options.quality === 'preview' || options.quality === 'medium') {
-        // CRITICAL FIX: Use PNG instead of JPEG for preview/medium to prevent color shifts
-        // JPEG compression causes color shifts, especially with background images
-        // PNG preserves colors accurately, and we can still compress it
-        // The file size difference is acceptable for better color accuracy
+      // Check if CMYK export is requested
+      const useCMYK = options.useCMYK === true;
+      
+      // Determine which ICC profile to use
+      let selectedIccProfile = null;
+      let iccProfilePath = null;
+      let iccProfileExists = false;
+      
+      if (useCMYK) {
+        // Get selected profile or default to ISO Coated v2
+        const profileKey = options.iccProfile || 'iso-coated-v2';
+        selectedIccProfile = ICC_PROFILES[profileKey];
+        
+        if (selectedIccProfile) {
+          iccProfilePath = selectedIccProfile.path;
+          try {
+            await fs.access(iccProfilePath);
+            iccProfileExists = true;
+          } catch (error) {
+            console.warn(`[PDF Export] Warning: ICC profile "${selectedIccProfile.name}" not found at ${iccProfilePath}. CMYK export will continue without ICC profile.`);
+          }
+        } else {
+          console.warn(`[PDF Export] Warning: Unknown ICC profile "${profileKey}". Using default ISO Coated v2.`);
+          // Fallback to ISO Coated v2
+          try {
+            await fs.access(ISO_COATED_V2_ICC_PATH);
+            iccProfilePath = ISO_COATED_V2_ICC_PATH;
+            iccProfileExists = true;
+            selectedIccProfile = ICC_PROFILES['iso-coated-v2'];
+          } catch (error) {
+            console.warn(`[PDF Export] Warning: Default ISO Coated v2 ICC profile not found. CMYK export will continue without ICC profile.`);
+          }
+        }
+      }
+      
+      if (useCMYK && iccProfileExists && selectedIccProfile) {
+        // CMYK export with selected ICC profile
+        // PNG mit CMYK ist in vielen Viewern problematisch; nutze JPEG ohne Alpha
+        const jpegQuality = options.quality === 'preview' || options.quality === 'medium' ? 88 : 92;
+
         optimizedImage = await sharp(pageImage)
           .resize(targetWidthPx, targetHeightPx, {
             fit: 'fill',
             withoutEnlargement: false,
             kernel: 'lanczos3' // Use high-quality resampling to preserve colors
           })
+          .flatten({ background: '#ffffff' }) // remove alpha before CMYK JPEG
+          .toColorspace('cmyk') // Convert to CMYK color space
+          .withMetadata({ icc: iccProfilePath }) // Apply selected ICC profile (use file path, not buffer)
+          .jpeg({
+            quality: jpegQuality,
+            chromaSubsampling: '4:4:4',
+            mozjpeg: true
+          })
+          .toBuffer();
+        useJpeg = true;
+      } else if (useCMYK && !iccProfileExists) {
+        // CMYK export without ICC profile (fallback)
+        console.warn(`[PDF Export] CMYK export requested but ICC profile not found. Converting to CMYK without profile.`);
+        const jpegQuality = options.quality === 'preview' || options.quality === 'medium' ? 88 : 92;
+
+        optimizedImage = await sharp(pageImage)
+          .resize(targetWidthPx, targetHeightPx, {
+            fit: 'fill',
+            withoutEnlargement: false,
+            kernel: 'lanczos3'
+          })
+          .flatten({ background: '#ffffff' }) // remove alpha before CMYK JPEG
+          .toColorspace('cmyk') // Convert to CMYK color space without ICC profile
+          .jpeg({
+            quality: jpegQuality,
+            chromaSubsampling: '4:4:4',
+            mozjpeg: true
+          })
+          .toBuffer();
+        useJpeg = true;
+      } else if (options.quality === 'preview' || options.quality === 'medium') {
+        // CRITICAL FIX: Use PNG instead of JPEG for preview/medium to prevent color shifts
+        // JPEG compression causes color shifts, especially with background images
+        // PNG preserves colors accurately, and we can still compress it
+        // The file size difference is acceptable for better color accuracy
+        // Remove color profiles and ensure sRGB to match browser rendering (without removing alpha for transparency)
+        // Apply gamma correction and saturation reduction to match browser rendering
+        optimizedImage = await sharp(pageImage)
+          .gamma(2.15) // Slightly lower gamma (from 2.2 to 2.15) to reduce red tendency and match browser rendering
+          .resize(targetWidthPx, targetHeightPx, {
+            fit: 'fill',
+            withoutEnlargement: false,
+            kernel: 'lanczos3' // Use high-quality resampling to preserve colors
+          })
+          .toColorspace('srgb') // Explicitly set sRGB color space to match browser rendering (removes custom ICC profiles)
+          .modulate({
+            saturation: 0.92, // Reduce saturation by 8% to match browser rendering (alpha channel is preserved)
+            brightness: 0.97  // Slightly darker to reduce red intensity (alpha channel is preserved)
+          })
+          // Note: withMetadata() cannot remove metadata with false values - toColorspace('srgb') already normalizes color space
           .png({ 
             compressionLevel: options.quality === 'preview' ? 6 : 7, // Lower compression for preview, higher for medium
             adaptiveFiltering: true,
@@ -142,11 +247,22 @@ async function generatePDFFromBook(bookData, options, exportId, updateProgress) 
       } else {
         // Use PNG with compression for printing and excellent (lossless)
         // Scale down from rendered size to target size
+        // Remove color profiles and ensure sRGB to match browser rendering (without removing alpha for transparency)
+        // Note: toColorspace('srgb') normalizes the color space, effectively removing custom ICC profiles
+        // Apply gamma correction and saturation reduction to match browser rendering
         optimizedImage = await sharp(pageImage)
+          .gamma(2.15) // Slightly lower gamma (from 2.2 to 2.15) to reduce red tendency and match browser rendering
           .resize(targetWidthPx, targetHeightPx, {
             fit: 'fill',
-            withoutEnlargement: false
+            withoutEnlargement: false,
+            kernel: 'lanczos3' // Use high-quality resampling to preserve colors
           })
+          .toColorspace('srgb') // Explicitly set sRGB color space to match browser rendering (removes custom ICC profiles)
+          .modulate({
+            saturation: 0.92, // Reduce saturation by 8% to match browser rendering (alpha channel is preserved)
+            brightness: 0.97  // Slightly darker to reduce red intensity (alpha channel is preserved)
+          })
+          // Note: withMetadata() cannot remove metadata with false values - toColorspace('srgb') already normalizes color space
           .png({ 
             compressionLevel: 9,
             adaptiveFiltering: true

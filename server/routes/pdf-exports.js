@@ -35,6 +35,29 @@ const parseJsonField = (value) => {
   return value;
 };
 
+// Helper function to safely convert error to string for database storage
+function safeErrorString(error) {
+  if (!error) return 'Unknown error';
+  
+  // If error.message exists and is a string, use it
+  if (error.message && typeof error.message === 'string') {
+    // Remove null bytes and other invalid UTF-8 characters
+    return error.message.replace(/\0/g, '').substring(0, 1000); // Limit length and remove null bytes
+  }
+  
+  // If error is a string, use it
+  if (typeof error === 'string') {
+    return error.replace(/\0/g, '').substring(0, 1000);
+  }
+  
+  // Fallback: convert to string and clean
+  try {
+    return String(error).replace(/\0/g, '').substring(0, 1000);
+  } catch (e) {
+    return 'Error occurred (could not convert to string)';
+  }
+}
+
 // Erstelle Queue-Instanz mit konfigurierbaren Limits
 const exportQueue = new PDFExportQueue({
   maxConcurrentExports: parseInt(process.env.MAX_CONCURRENT_PDF_EXPORTS || '2'), // 2-3 je nach RAM
@@ -233,7 +256,7 @@ async function loadBookDataFromDB(bookId, userId) {
 // Create new PDF export
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { bookId, quality, pageRange, startPage, endPage, currentPageIndex } = req.body;
+    const { bookId, quality, pageRange, startPage, endPage, currentPageIndex, useCMYK, iccProfile } = req.body;
     const userId = req.user.id;
 
     // Validate book access
@@ -289,31 +312,39 @@ router.post('/', authenticateToken, async (req, res) => {
     // Bestimme Priorität (könnte später Premium-User bevorzugen)
     const priority = isOwner ? 10 : 5;
 
+    // Prepare options object
+    const options = {
+      quality,
+      pageRange,
+      startPage: pageRange === 'range' ? startPage : undefined,
+      endPage: pageRange === 'range' ? endPage : undefined,
+      currentPageIndex: pageRange === 'current' ? currentPageIndex : undefined,
+      useCMYK: useCMYK === true,
+      iccProfile: useCMYK && iccProfile ? iccProfile : undefined
+    };
+
     // Füge zur optimierten Queue hinzu
     const io = req.app.get('io');
     await exportQueue.addExport({
       exportId: exportRecord.id,
       bookId,
       userId,
-      options: {
-        quality,
-        pageRange,
-        startPage,
-        endPage,
-        currentPageIndex
-      },
+      options,
       io,
       priority,
       processor: async (job) => {
         try {
           return await processExport(job);
         } catch (error) {
+          // Safely convert error to string for database storage
+          const errorMessage = safeErrorString(error);
+          
           // Update status to failed
           await pool.query(
             `UPDATE public.pdf_exports 
              SET status = $1, error_message = $2, completed_at = CURRENT_TIMESTAMP 
              WHERE id = $3`,
-            ['failed', error.message, exportRecord.id]
+            ['failed', errorMessage, exportRecord.id]
           );
 
           // Send failure notification
@@ -322,7 +353,7 @@ router.post('/', authenticateToken, async (req, res) => {
               exportId: exportRecord.id,
               bookId,
               status: 'failed',
-              error: error.message
+              error: errorMessage
             });
           }
           

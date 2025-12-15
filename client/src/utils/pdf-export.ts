@@ -77,6 +77,8 @@ export interface PDFExportOptions {
   startPage?: number;
   endPage?: number;
   currentPageIndex?: number;
+  useCMYK?: boolean; // Optional: Export in CMYK for printing
+  iccProfile?: 'iso-coated-v2' | 'fogra39'; // Optional: ICC profile to use (only when useCMYK is true)
 }
 
 export const exportBookToPDF = async (

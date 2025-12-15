@@ -16,6 +16,8 @@ export default function PDFExportModal({ isOpen, onClose }: PDFExportModalProps)
   const [pageRange, setPageRange] = useState<'all' | 'range' | 'current'>('all');
   const [startPage, setStartPage] = useState(1);
   const [endPage, setEndPage] = useState(state.currentBook?.pages.length || 1);
+  const [useCMYK, setUseCMYK] = useState(false);
+  const [iccProfile, setIccProfile] = useState<'iso-coated-v2' | 'fogra39'>('iso-coated-v2');
   const [isExporting, setIsExporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [exportController, setExportController] = useState<AbortController | null>(null);
@@ -34,6 +36,8 @@ export default function PDFExportModal({ isOpen, onClose }: PDFExportModalProps)
       startPage: pageRange === 'range' ? startPage : undefined,
       endPage: pageRange === 'range' ? endPage : undefined,
       currentPageIndex: pageRange === 'current' ? state.activePageIndex : undefined,
+      useCMYK,
+      iccProfile: useCMYK ? iccProfile : undefined,
     };
 
     try {
@@ -94,6 +98,10 @@ export default function PDFExportModal({ isOpen, onClose }: PDFExportModalProps)
         userAdminRole={state.user?.role || null}
         isExporting={isExporting}
         progress={progress}
+        useCMYK={useCMYK}
+        setUseCMYK={setUseCMYK}
+        iccProfile={iccProfile}
+        setIccProfile={setIccProfile}
       />
     </Modal>
   );
