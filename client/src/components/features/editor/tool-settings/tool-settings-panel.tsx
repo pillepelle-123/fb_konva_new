@@ -227,6 +227,8 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
       case 'ruled-lines-color':
       case 'element-ruled-lines-color':
         return 'Line Color';
+      case 'element-sticker-color':
+        return 'Sticker Color';
       default:
         return 'Color Selector';
     }

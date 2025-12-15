@@ -3611,7 +3611,12 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
               updates: {
                 src: sticker.url,
                 width: element.width || width,
-                height: element.height || height
+                height: element.height || height,
+                stickerId: sticker.id,
+                stickerFormat: sticker.format,
+                stickerFilePath: sticker.filePath,
+                stickerOriginalUrl: sticker.url,
+                stickerColor: undefined
               }
             }
           });
@@ -3646,7 +3651,12 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         y: pendingStickerPosition.y,
         width,
         height,
+        imageOpacity: 1,
         src: sticker.url,
+        stickerId: sticker.id,
+        stickerFormat: sticker.format,
+        stickerFilePath: sticker.filePath,
+        stickerOriginalUrl: sticker.url,
         cornerRadius: 0,
         imageClipPosition: 'center-middle' // Enable crop behavior for stickers, same as images
       };
@@ -3682,7 +3692,12 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
             y: pendingStickerPosition.y,
             width,
             height,
+            imageOpacity: 1,
             src: sticker.thumbnailUrl,
+            stickerId: sticker.id,
+            stickerFormat: sticker.format,
+            stickerFilePath: sticker.filePath,
+            stickerOriginalUrl: sticker.url,
             cornerRadius: 0
           };
           

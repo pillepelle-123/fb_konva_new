@@ -95,7 +95,8 @@ async function generatePDFFromBook(bookData, options, exportId, updateProgress) 
       if (options.quality === 'excellent') {
         targetDpi = 300; // 300 DPI for excellent print quality (use canvas resolution)
       } else if (options.quality === 'printing') {
-        targetDpi = 200; // 200 DPI for good print quality
+        // Für druckfähige PDFs auf Druckerei-Niveau ebenfalls 300 DPI verwenden
+        targetDpi = 300;
       } else if (options.quality === 'medium') {
         targetDpi = 150; // 150 DPI for medium quality
       } else {

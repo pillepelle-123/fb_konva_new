@@ -159,41 +159,43 @@ export function StickerSelector({ onBack, selectedStickerId, onStickerSelect }: 
 
       <Separator />
 
-      {/* Sticker Grid */}
-      <ImageGrid
-        items={filteredStickers.map((sticker): ImageGridItem => ({
-          id: sticker.id,
-          thumbnailUrl: sticker.thumbnailUrl,
-          name: sticker.name,
-          category: sticker.category,
-          format: sticker.format,
-        }))}
-        selectedItemId={selectedSticker}
-        onItemSelect={handleStickerSelect}
-        emptyStateMessage="No stickers found"
-      />
+      <div className="max-h-[60vh] overflow-y-auto pr-1 space-y-4">
+        {/* Sticker Grid */}
+        <ImageGrid
+          items={filteredStickers.map((sticker): ImageGridItem => ({
+            id: sticker.id,
+            thumbnailUrl: sticker.thumbnailUrl,
+            name: sticker.name,
+            category: sticker.category,
+            format: sticker.format,
+          }))}
+          selectedItemId={selectedSticker}
+          onItemSelect={handleStickerSelect}
+          emptyStateMessage="No stickers found"
+        />
 
-      {/* Preview */}
-      {selectedStickerData && (
-        <>
-          <Separator />
-          <div className="space-y-3">
-            <div>
-              <Label variant="xs" className="mb-1 block">Selected: {selectedStickerData.name}</Label>
-              <p className="text-xs text-gray-600">{selectedStickerData.description || 'No description'}</p>
-              {selectedStickerData.tags && selectedStickerData.tags.length > 0 && (
-                <div className="flex gap-1 flex-wrap mt-2">
-                  {selectedStickerData.tags.map(tag => (
-                    <span key={tag} className="px-2 py-0.5 bg-gray-100 rounded text-xs text-gray-600">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
+        {/* Preview */}
+        {selectedStickerData && (
+          <>
+            <Separator />
+            <div className="space-y-3">
+              <div>
+                <Label variant="xs" className="mb-1 block">Selected: {selectedStickerData.name}</Label>
+                <p className="text-xs text-gray-600">{selectedStickerData.description || 'No description'}</p>
+                {selectedStickerData.tags && selectedStickerData.tags.length > 0 && (
+                  <div className="flex gap-1 flex-wrap mt-2">
+                    {selectedStickerData.tags.map(tag => (
+                      <span key={tag} className="px-2 py-0.5 bg-gray-100 rounded text-xs text-gray-600">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

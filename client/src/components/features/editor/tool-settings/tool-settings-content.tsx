@@ -35,6 +35,7 @@ import { getBackgroundColor, getBackgroundOpacity, getBackgroundEnabled } from '
 import { getTextAlign, getParagraphSpacing, getPadding } from '../../../../utils/format-utils';
 import { getRuledLinesTheme } from '../../../../utils/theme-utils';
 import { getToolDefaults } from '../../../../utils/tool-defaults';
+import { svgRawImports } from '../../../../data/templates/stickers';
 import ChatWindow from '../../messenger/chat-window';
 import type { Conversation } from '../../messenger/types';
 
@@ -167,6 +168,70 @@ export function ToolSettingsContent({
     dispatch({
       type: 'UPDATE_TOOL_SETTINGS',
       payload: { tool: activeTool, settings: { [key]: value } }
+    });
+  };
+
+  const deriveStickerFilePath = (url?: string | null) => {
+    if (!url || url.startsWith('data:')) return null;
+    try {
+      const parsed = new URL(url);
+      return parsed.pathname.replace(/^\/+/, '');
+    } catch {
+      return url.replace(/^\/+/, '');
+    }
+  };
+
+  const buildStickerColorDataUrl = async (element: any, color: string) => {
+    const baseUrl = element.stickerOriginalUrl || element.src;
+    const stickerFilePath = element.stickerFilePath || deriveStickerFilePath(baseUrl);
+    const looksLikeSvg = (stickerFilePath && stickerFilePath.toLowerCase().endsWith('.svg')) || (baseUrl && baseUrl.toLowerCase().endsWith('.svg'));
+    if (!baseUrl || (element.stickerFormat && element.stickerFormat === 'pixel') || !looksLikeSvg) {
+      return null;
+    }
+
+    const cachedSvg = stickerFilePath ? svgRawImports[stickerFilePath] : undefined;
+    let svgContent = cachedSvg;
+
+    if (!svgContent && baseUrl && !baseUrl.startsWith('data:')) {
+      try {
+        const response = await fetch(baseUrl);
+        if (response.ok) {
+          svgContent = await response.text();
+        }
+      } catch (error) {
+        console.warn('Sticker-SVG konnte nicht geladen werden:', error);
+      }
+    }
+
+    if (!svgContent) return null;
+
+    const coloredSvg = svgContent.replace(/currentColor/gi, color || '#000000');
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(coloredSvg)}`;
+  };
+
+  const applyStickerColor = async (element: any, color: string) => {
+    const baseUrl = element.stickerOriginalUrl || element.src;
+    const stickerFilePath = element.stickerFilePath || deriveStickerFilePath(baseUrl);
+    const updates: Record<string, any> = {
+      stickerColor: color,
+      stickerOriginalUrl: baseUrl,
+    };
+    if (stickerFilePath) {
+      updates.stickerFilePath = stickerFilePath;
+    }
+
+    const coloredUrl = await buildStickerColorDataUrl(
+      { ...element, stickerOriginalUrl: baseUrl, stickerFilePath },
+      color
+    );
+    if (coloredUrl) {
+      updates.src = coloredUrl;
+    }
+
+    updateElementSetting(element.id, updates);
+    dispatch({
+      type: 'MARK_COLOR_OVERRIDE',
+      payload: { elementIds: [element.id], colorProperty: 'stickerColor' }
     });
   };
 
@@ -395,7 +460,7 @@ export function ToolSettingsContent({
 
   const updateElementSetting = (elementId: string, updates: Partial<any>) => {
     // Check if this is a color update and mark as override
-    const colorProperties = ['stroke', 'fill', 'fontColor', 'borderColor', 'backgroundColor'];
+    const colorProperties = ['stroke', 'fill', 'fontColor', 'borderColor', 'backgroundColor', 'stickerColor'];
     const hasColorUpdate = colorProperties.some(prop => updates[prop] !== undefined);
     
     if (hasColorUpdate) {
@@ -435,6 +500,8 @@ export function ToolSettingsContent({
           return element.fill || 'transparent';
         case 'element-image-frame-stroke':
           return element.stroke || '#1f2937';
+        case 'element-sticker-color':
+          return element.stickerColor || '#1f2937';
         default:
           return '#1f2937';
       }
@@ -448,6 +515,8 @@ export function ToolSettingsContent({
           return element.fillOpacity || element.opacity || 1;
         case 'element-image-frame-stroke':
           return element.strokeOpacity || 1;
+        case 'element-sticker-color':
+          return element.imageOpacity !== undefined ? element.imageOpacity : 1;
         default:
           return 1;
       }
@@ -462,6 +531,8 @@ export function ToolSettingsContent({
           return overrides.fill === true;
         case 'element-image-frame-stroke':
           return overrides.stroke === true;
+        case 'element-sticker-color':
+          return overrides.stickerColor === true;
         default:
           return false;
       }
@@ -493,6 +564,9 @@ export function ToolSettingsContent({
             payload: { elementIds: [element.id], colorProperty: 'stroke' }
           });
           break;
+        case 'element-sticker-color':
+          void applyStickerColor(element, color);
+          break;
       }
     };
     
@@ -507,11 +581,15 @@ export function ToolSettingsContent({
         case 'element-image-frame-stroke':
           updateElementSetting(element.id, { strokeOpacity: opacity });
           break;
+        case 'element-sticker-color':
+          updateElementSetting(element.id, { imageOpacity: opacity });
+          break;
       }
     };
     
     const handleResetOverride = () => {
       let colorProperty: string;
+      const updates: Record<string, any> = {};
       switch (colorType) {
         case 'element-shape-stroke':
         case 'element-image-frame-stroke':
@@ -520,9 +598,21 @@ export function ToolSettingsContent({
         case 'element-shape-fill':
           colorProperty = 'fill';
           break;
+        case 'element-sticker-color':
+          colorProperty = 'stickerColor';
+          updates.stickerColor = undefined;
+          if (element.stickerOriginalUrl) {
+            updates.src = element.stickerOriginalUrl;
+          }
+          break;
         default:
           colorProperty = 'stroke';
       }
+
+      if (Object.keys(updates).length > 0) {
+        updateElementSetting(element.id, updates);
+      }
+
       dispatch({
         type: 'RESET_COLOR_OVERRIDES',
         payload: { elementIds: [element.id], colorProperties: [colorProperty] }
@@ -541,6 +631,7 @@ export function ToolSettingsContent({
         onBack={() => setShowColorSelector(null)}
         isOverridden={getIsOverridden()}
         onResetOverride={handleResetOverride}
+        showOpacitySlider={colorType !== 'element-sticker-color'}
       />
     );
   };
@@ -1120,6 +1211,36 @@ export function ToolSettingsContent({
             setShowColorSelector={setShowColorSelector}
           />
         );
+
+      case 'sticker': {
+        const stickerOpacity = element.imageOpacity !== undefined ? element.imageOpacity : 1;
+        return (
+          <div className="space-y-3">
+            <div>
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={() => setShowColorSelector('element-sticker-color')}
+                className="w-full"
+              >
+                <Palette className="h-4 w-4 mr-2" />
+                Sticker Color
+              </Button>
+            </div>
+
+            <Slider
+              label="Opacity"
+              value={Math.round(stickerOpacity * 100)}
+              displayValue={Math.round(stickerOpacity * 100)}
+              onChange={(value) => updateElementSettingLocal('imageOpacity', value / 100)}
+              min={0}
+              max={100}
+              step={5}
+              unit="%"
+            />
+          </div>
+        );
+      }
 
       case 'text': {
         // Create a style object compatible with FreeTextSettingsForm

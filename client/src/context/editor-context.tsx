@@ -377,6 +377,12 @@ export interface CanvasElement {
   questionElementId?: string; // Legacy - for linking answer to question element
   questionOrder?: number; // Order/position of the question in orderedQuestions (for maintaining question order)
   src?: string;
+  imageOpacity?: number;
+  stickerId?: string;
+  stickerFormat?: 'vector' | 'pixel';
+  stickerFilePath?: string;
+  stickerOriginalUrl?: string;
+  stickerColor?: string;
   points?: number[];
   roughness?: number;
   strokeWidth?: number;
