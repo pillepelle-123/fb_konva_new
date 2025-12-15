@@ -180,7 +180,8 @@ async function generatePDFFromBook(bookData, options, exportId, updateProgress) 
       if (useCMYK && iccProfileExists && selectedIccProfile) {
         // CMYK export with selected ICC profile
         // PNG mit CMYK ist in vielen Viewern problematisch; nutze JPEG ohne Alpha
-        const jpegQuality = options.quality === 'preview' || options.quality === 'medium' ? 88 : 92;
+        // Verwende 4:2:0 Subsampling und Qualität 88 für bessere Dateigröße bei dennoch hoher Druckqualität
+        const jpegQuality = 88;
 
         optimizedImage = await sharp(pageImage)
           .resize(targetWidthPx, targetHeightPx, {
@@ -193,7 +194,7 @@ async function generatePDFFromBook(bookData, options, exportId, updateProgress) 
           .withMetadata({ icc: iccProfilePath }) // Apply selected ICC profile (use file path, not buffer)
           .jpeg({
             quality: jpegQuality,
-            chromaSubsampling: '4:4:4',
+            chromaSubsampling: '4:2:0',
             mozjpeg: true
           })
           .toBuffer();
@@ -201,7 +202,8 @@ async function generatePDFFromBook(bookData, options, exportId, updateProgress) 
       } else if (useCMYK && !iccProfileExists) {
         // CMYK export without ICC profile (fallback)
         console.warn(`[PDF Export] CMYK export requested but ICC profile not found. Converting to CMYK without profile.`);
-        const jpegQuality = options.quality === 'preview' || options.quality === 'medium' ? 88 : 92;
+        // Gleiche Einstellungen wie oben: 4:2:0 Subsampling und Qualität 88
+        const jpegQuality = 88;
 
         optimizedImage = await sharp(pageImage)
           .resize(targetWidthPx, targetHeightPx, {
@@ -213,63 +215,61 @@ async function generatePDFFromBook(bookData, options, exportId, updateProgress) 
           .toColorspace('cmyk') // Convert to CMYK color space without ICC profile
           .jpeg({
             quality: jpegQuality,
-            chromaSubsampling: '4:4:4',
+            chromaSubsampling: '4:2:0',
             mozjpeg: true
           })
           .toBuffer();
         useJpeg = true;
       } else if (options.quality === 'preview' || options.quality === 'medium') {
-        // CRITICAL FIX: Use PNG instead of JPEG for preview/medium to prevent color shifts
-        // JPEG compression causes color shifts, especially with background images
-        // PNG preserves colors accurately, and we can still compress it
-        // The file size difference is acceptable for better color accuracy
-        // Remove color profiles and ensure sRGB to match browser rendering (without removing alpha for transparency)
-        // Apply gamma correction and saturation reduction to match browser rendering
+        // RGB export for preview/medium quality
+        // Verwende JPEG (sRGB) mit moderater Kompression für kleinere Dateigrößen
+        const jpegQuality = 88;
+
         optimizedImage = await sharp(pageImage)
-          .gamma(2.15) // Slightly lower gamma (from 2.2 to 2.15) to reduce red tendency and match browser rendering
+          .gamma(2.15) // leicht angepasste Gamma-Einstellung, wie bisher
           .resize(targetWidthPx, targetHeightPx, {
             fit: 'fill',
             withoutEnlargement: false,
-            kernel: 'lanczos3' // Use high-quality resampling to preserve colors
+            kernel: 'lanczos3'
           })
-          .toColorspace('srgb') // Explicitly set sRGB color space to match browser rendering (removes custom ICC profiles)
+          .toColorspace('srgb')
           .modulate({
-            saturation: 0.92, // Reduce saturation by 8% to match browser rendering (alpha channel is preserved)
-            brightness: 0.97  // Slightly darker to reduce red intensity (alpha channel is preserved)
+            saturation: 0.92,
+            brightness: 0.97
           })
-          // Note: withMetadata() cannot remove metadata with false values - toColorspace('srgb') already normalizes color space
-          .png({ 
-            compressionLevel: options.quality === 'preview' ? 6 : 7, // Lower compression for preview, higher for medium
-            adaptiveFiltering: true,
-            palette: false // Don't use palette mode to preserve full color accuracy
+          .flatten({ background: '#ffffff' }) // entferne Alpha, da JPEG keinen Alphakanal unterstützt
+          .jpeg({
+            quality: jpegQuality,
+            chromaSubsampling: '4:2:0',
+            mozjpeg: true
           })
           .toBuffer();
-        useJpeg = false;
+        useJpeg = true;
       } else {
-        // Use PNG with compression for printing and excellent (lossless)
-        // Scale down from rendered size to target size
-        // Remove color profiles and ensure sRGB to match browser rendering (without removing alpha for transparency)
-        // Note: toColorspace('srgb') normalizes the color space, effectively removing custom ICC profiles
-        // Apply gamma correction and saturation reduction to match browser rendering
+        // RGB export for printing/excellent quality
+        // Verwende JPEG (sRGB) mit höherer Qualität für druckfertige PDFs
+        const jpegQuality = 92;
+
         optimizedImage = await sharp(pageImage)
-          .gamma(2.15) // Slightly lower gamma (from 2.2 to 2.15) to reduce red tendency and match browser rendering
+          .gamma(2.15)
           .resize(targetWidthPx, targetHeightPx, {
             fit: 'fill',
             withoutEnlargement: false,
-            kernel: 'lanczos3' // Use high-quality resampling to preserve colors
+            kernel: 'lanczos3'
           })
-          .toColorspace('srgb') // Explicitly set sRGB color space to match browser rendering (removes custom ICC profiles)
+          .toColorspace('srgb')
           .modulate({
-            saturation: 0.92, // Reduce saturation by 8% to match browser rendering (alpha channel is preserved)
-            brightness: 0.97  // Slightly darker to reduce red intensity (alpha channel is preserved)
+            saturation: 0.92,
+            brightness: 0.97
           })
-          // Note: withMetadata() cannot remove metadata with false values - toColorspace('srgb') already normalizes color space
-          .png({ 
-            compressionLevel: 9,
-            adaptiveFiltering: true
+          .flatten({ background: '#ffffff' })
+          .jpeg({
+            quality: jpegQuality,
+            chromaSubsampling: '4:2:0',
+            mozjpeg: true
           })
           .toBuffer();
-        useJpeg = false;
+        useJpeg = true;
       }
       
       // Add page to PDF

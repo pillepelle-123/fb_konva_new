@@ -1187,42 +1187,42 @@ export function QnAInlineSettingsForm({
                 const currentAlign = element.align || element.format?.textAlign || qSettings.align || aSettings.align || 'left';
                 
                 return [
-                  <Button
+                    <Button
                     key="left"
-                    variant={currentAlign === 'left' ? 'default' : 'outline'}
-                    size="xxs"
-                    onClick={() => updateSharedSetting('align', 'left')}
-                    className="px-1 h-6 flex-1"
-                  >
-                    <AlignLeft className="h-3 w-3" />
+                      variant={currentAlign === 'left' ? 'default' : 'outline'}
+                      size="xxs"
+                      onClick={() => updateSharedSetting('align', 'left')}
+                      className="px-1 h-6 flex-1"
+                    >
+                      <AlignLeft className="h-3 w-3" />
                   </Button>,
-                  <Button
+                    <Button
                     key="center"
-                    variant={currentAlign === 'center' ? 'default' : 'outline'}
-                    size="xxs"
-                    onClick={() => updateSharedSetting('align', 'center')}
-                    className="px-1 h-6 flex-1"
-                  >
-                    <AlignCenter className="h-3 w-3" />
+                      variant={currentAlign === 'center' ? 'default' : 'outline'}
+                      size="xxs"
+                      onClick={() => updateSharedSetting('align', 'center')}
+                      className="px-1 h-6 flex-1"
+                    >
+                      <AlignCenter className="h-3 w-3" />
                   </Button>,
-                  <Button
+                    <Button
                     key="right"
-                    variant={currentAlign === 'right' ? 'default' : 'outline'}
-                    size="xxs"
-                    onClick={() => updateSharedSetting('align', 'right')}
-                    className="px-1 h-6 flex-1"
-                  >
-                    <AlignRight className="h-3 w-3" />
+                      variant={currentAlign === 'right' ? 'default' : 'outline'}
+                      size="xxs"
+                      onClick={() => updateSharedSetting('align', 'right')}
+                      className="px-1 h-6 flex-1"
+                    >
+                      <AlignRight className="h-3 w-3" />
                   </Button>,
-                  <Button
+                    <Button
                     key="justify"
-                    variant={currentAlign === 'justify' ? 'default' : 'outline'}
-                    size="xxs"
-                    onClick={() => updateSharedSetting('align', 'justify')}
-                    className="px-1 h-6 flex-1"
-                  >
-                    <AlignJustify className="h-3 w-3" />
-                  </Button>
+                      variant={currentAlign === 'justify' ? 'default' : 'outline'}
+                      size="xxs"
+                      onClick={() => updateSharedSetting('align', 'justify')}
+                      className="px-1 h-6 flex-1"
+                    >
+                      <AlignJustify className="h-3 w-3" />
+                    </Button>
                 ];
               })()}
             </ButtonGroup>

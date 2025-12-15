@@ -285,8 +285,8 @@ export default function BaseCanvasItem({
           }
           // For React components, try to pass isDragging if they accept it
           try {
-            const typedChild = child as React.ReactElement<Record<string, unknown>>;
-            return React.cloneElement(typedChild, { isDragging });
+          const typedChild = child as React.ReactElement<Record<string, unknown>>;
+          return React.cloneElement(typedChild, { isDragging });
           } catch {
             // If cloning fails, return the child as-is
             return child;
