@@ -11,9 +11,24 @@ interface TooltipProps {
   backgroundColor?: string;
   textColor?: string;
   fullWidth?: boolean;
+  // Optional controlled visibility flag (bypasses hover events when set)
+  forceVisible?: boolean;
+  // Optional absolute screen position (in pixels relative to viewport)
+  screenPosition?: { x: number; y: number };
 }
 
-export function Tooltip({ children, content, title, description, side = "right", backgroundColor = "bg-background", textColor = "text-foreground", fullWidth = false }: TooltipProps) {
+export function Tooltip({
+  children,
+  content,
+  title,
+  description,
+  side = "right",
+  backgroundColor = "bg-background",
+  textColor = "text-foreground",
+  fullWidth = false,
+  forceVisible,
+  screenPosition,
+}: TooltipProps) {
   const [isVisible, setIsVisible] = React.useState(false);
   const [isMounted, setIsMounted] = React.useState(false);
   const [position, setPosition] = React.useState({ x: 0, y: 0 });
@@ -33,6 +48,11 @@ export function Tooltip({ children, content, title, description, side = "right",
   }, [children]);
 
   const updatePosition = () => {
+    // If we are given an explicit screen position, prefer that over DOM measurements
+    if (screenPosition) {
+      setPosition({ x: screenPosition.x, y: screenPosition.y });
+      return;
+    }
     // Use the actual child element for positioning - traverse through wrapper divs if needed
     let elementToMeasure: HTMLElement | null = null;
     if (triggerRef.current) {
@@ -63,15 +83,29 @@ export function Tooltip({ children, content, title, description, side = "right",
   };
 
   const handleMouseEnter = () => {
+    // In controlled mode we don't react to hover events
+    if (typeof forceVisible === "boolean") return;
     updatePosition();
     setIsMounted(true);
     setTimeout(() => setIsVisible(true), 10);
   };
 
   const handleMouseLeave = () => {
+    // In controlled mode we don't react to hover events
+    if (typeof forceVisible === "boolean") return;
     setIsVisible(false);
     setTimeout(() => setIsMounted(false), 200);
   };
+
+  // Keep internal position in sync when screenPosition changes
+  React.useEffect(() => {
+    if (screenPosition) {
+      setPosition({ x: screenPosition.x, y: screenPosition.y });
+    }
+  }, [screenPosition]);
+
+  const visible = typeof forceVisible === "boolean" ? forceVisible : isVisible;
+  const mounted = typeof forceVisible === "boolean" ? forceVisible : isMounted;
 
   return (
     <div 
@@ -88,18 +122,18 @@ export function Tooltip({ children, content, title, description, side = "right",
       }}>
         {children}
       </div>
-      {isMounted && createPortal(
+      {mounted && createPortal(
         <div
           className={cn(
             "fixed z-[10001] px-2 py-1 text-sm rounded-md shadow-lg break-words transition-all duration-200 ease-out pointer-events-none",
             backgroundColor?.startsWith('#') ? '' : backgroundColor,
             textColor?.startsWith('#') ? '' : textColor,
             side === "bottom_editor_bar" || side === "bottom" || side === "top" ? "transform -translate-x-1/2 max-w-xs" : side === "floating_button_fixed" ? "transform -translate-x-1/2 max-w-xs" : side === "left" ? "transform -translate-x-full -translate-y-1/2 max-w-xs" : "transform -translate-y-1/2 w-60",
-            isVisible ? "opacity-100 scale-100" : "opacity-0 scale-95"
+            visible ? "opacity-100 scale-100" : "opacity-0 scale-95"
           )}
           style={{
-            left: position.x,
-            top: position.y,
+            left: screenPosition?.x ?? position.x,
+            top: screenPosition?.y ?? position.y,
             ...(backgroundColor?.startsWith('#') ? { backgroundColor } : {}),
             ...(textColor?.startsWith('#') ? { color: textColor } : {}),
           }}

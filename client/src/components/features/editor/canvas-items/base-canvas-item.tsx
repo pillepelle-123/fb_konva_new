@@ -5,6 +5,7 @@ import { SelectionHoverRectangle } from '../canvas/selection-hover-rectangle';
 import Konva from 'konva';
 import { useEditor } from '../../../../context/editor-context';
 import type { CanvasElement } from '../../../../context/editor-context';
+import { BOOK_PAGE_DIMENSIONS, DEFAULT_BOOK_ORIENTATION, DEFAULT_BOOK_PAGE_SIZE } from '../../../../constants/book-formats';
 
 export interface CanvasItemProps {
   element: CanvasElement;
@@ -53,6 +54,13 @@ export default function BaseCanvasItem({
   const [isHovered, setIsHovered] = useState(false);
   const [partnerHovered, setPartnerHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+
+  // Calculate canvas dimensions for the active book/page
+  const orientation = state.currentBook?.orientation || DEFAULT_BOOK_ORIENTATION;
+  const pageSize = state.currentBook?.pageSize || DEFAULT_BOOK_PAGE_SIZE;
+  const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMENSIONS];
+  const canvasWidth = orientation === 'landscape' ? dimensions.height : dimensions.width;
+  const canvasHeight = orientation === 'landscape' ? dimensions.width : dimensions.height;
 
   // Prevent scaling for question-answer pairs but allow qna textboxes to be resized
   useEffect(() => {
@@ -153,12 +161,48 @@ export default function BaseCanvasItem({
       e.target.y(element.y);
       return;
     }
-    
+    const rawX = e.target.x();
+    const rawY = e.target.y();
+
+    const elementWidth = element.width || 100;
+    const elementHeight = element.height || 100;
+
+    // Erlaube Positionen außerhalb der Seite, solange das Element die aktive Seite noch schneidet.
+    // Page-Rect (in Seitennkoordinaten): [0, canvasWidth] x [0, canvasHeight]
+    const rectLeft = rawX;
+    const rectRight = rawX + elementWidth;
+    const rectTop = rawY;
+    const rectBottom = rawY + elementHeight;
+
+    const overlapsActivePage =
+      rectLeft < canvasWidth &&
+      rectRight > 0 &&
+      rectTop < canvasHeight &&
+      rectBottom > 0;
+
+    if (!overlapsActivePage) {
+      // Komplett außerhalb: Position zurücksetzen und Tooltip anfordern
+      e.target.x(element.x);
+      e.target.y(element.y);
+      if (typeof window !== 'undefined' && (e.evt as MouseEvent | DragEvent)?.clientX !== undefined) {
+        const nativeEvent = e.evt as MouseEvent | DragEvent;
+        window.dispatchEvent(
+          new CustomEvent('canvasOutsidePageAttempt', {
+            detail: {
+              clientX: nativeEvent.clientX,
+              clientY: nativeEvent.clientY,
+            },
+          }),
+        );
+      }
+      return;
+    }
+
     dispatch({
       type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
       payload: {
         id: element.id,
-        updates: { x: e.target.x(), y: e.target.y() }
+        updates: { x: rawX, y: rawY }
       }
     });
     onDragEnd?.(e);

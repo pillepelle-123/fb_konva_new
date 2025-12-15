@@ -317,6 +317,10 @@ export default function Canvas() {
   const [lastMousePos, setLastMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [alertPosition, setAlertPosition] = useState<{ x: number; y: number } | null>(null);
+  const [outsidePageTooltip, setOutsidePageTooltip] = useState<{ x: number; y: number } | null>(null);
+  // Verhindert, dass nach einem ungültigen Platzierungsversuch automatisch
+  // auf das Auswahl-Tool zurückgeschaltet wird (siehe handleStageClick)
+  const [suppressNextBackgroundClickSelect, setSuppressNextBackgroundClickSelect] = useState(false);
   const [snapGuidelines, setSnapGuidelines] = useState<SnapGuideline[]>([]);
   
   // Observe tool settings panel width to position lock icon correctly
@@ -613,6 +617,18 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     },
     [activePageOffsetX, canvasWidth, pageOffsetY]
   );
+
+  const showOutsidePageTooltip = useCallback(
+    (clientX: number, clientY: number) => {
+      setOutsidePageTooltip({ x: clientX, y: clientY - 40 });
+      setSuppressNextBackgroundClickSelect(true);
+      // Auto-hide after a short delay so the user can quickly try again
+      window.setTimeout(() => {
+        setOutsidePageTooltip(null);
+      }, 1800);
+    },
+    []
+  );
   const BADGE_VERTICAL_SCREEN_GAP = 32;
   const getBadgeScreenPosition = useCallback(
     (offsetX: number | null) => {
@@ -773,6 +789,21 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
   useEffect(() => {
     registerSetZoom(setZoomPosition);
   }, [registerSetZoom, setZoomPosition]);
+
+  // Listen for drag attempts that would move elements outside the active page
+  useEffect(() => {
+    const handleOutsideAttempt = (event: Event) => {
+      const custom = event as CustomEvent<{ clientX: number; clientY: number }>;
+      if (custom.detail?.clientX != null && custom.detail?.clientY != null) {
+        showOutsidePageTooltip(custom.detail.clientX, custom.detail.clientY);
+      }
+    };
+
+    window.addEventListener('canvasOutsidePageAttempt', handleOutsideAttempt as EventListener);
+    return () => {
+      window.removeEventListener('canvasOutsidePageAttempt', handleOutsideAttempt as EventListener);
+    };
+  }, [showOutsidePageTooltip]);
 
   useEffect(() => {
     if (isDragging) return; // Don't update transformer during drag
@@ -1209,6 +1240,12 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       if (pos) {
         const x = (pos.x - stagePos.x) / zoom - activePageOffsetX;
         const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
+        // Only allow drawing inside the active page
+        if (x < 0 || y < 0 || x > canvasWidth || y > canvasHeight) {
+          showOutsidePageTooltip(e.evt.clientX, e.evt.clientY);
+          setIsDrawing(false);
+          return;
+        }
         setCurrentPath([x, y]);
       }
     } else if (state.activeTool === 'line') {
@@ -1220,6 +1257,11 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           (e.target.getClassName() === 'Rect' && !e.target.id());
         
         if (isBackgroundClick) {
+          // Only allow starting lines inside the active page
+          if (x < 0 || y < 0 || x > canvasWidth || y > canvasHeight) {
+            showOutsidePageTooltip(e.evt.clientX, e.evt.clientY);
+            return;
+          }
           setIsDrawingLine(true);
           setLineStart({ x, y });
           setPreviewLine({ x1: x, y1: y, x2: x, y2: y });
@@ -1234,6 +1276,11 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           (e.target.getClassName() === 'Rect' && !e.target.id());
         
         if (isBackgroundClick) {
+          // Only allow starting shapes inside the active page
+          if (x < 0 || y < 0 || x > canvasWidth || y > canvasHeight) {
+            showOutsidePageTooltip(e.evt.clientX, e.evt.clientY);
+            return;
+          }
           setIsDrawingShape(true);
           setShapeStart({ x, y });
           setPreviewShape({ x, y, width: 0, height: 0, type: state.activeTool });
@@ -1248,6 +1295,11 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           (e.target.getClassName() === 'Rect' && !e.target.id());
         
         if (isBackgroundClick) {
+          // Only allow starting text boxes inside the active page
+          if (x < 0 || y < 0 || x > canvasWidth || y > canvasHeight) {
+            showOutsidePageTooltip(e.evt.clientX, e.evt.clientY);
+            return;
+          }
           if (state.activeTool === 'qna_inline' && isCoverPage) {
             showCoverRestrictionAlert('Q&A inline elements cannot be placed on cover pages.');
             return;
@@ -1345,12 +1397,22 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         let newElement: CanvasElement | null = null;
         
         if (state.activeTool === 'image') {
+          // Only allow images to be placed starting inside the active page
+          if (x < 0 || y < 0 || x > canvasWidth || y > canvasHeight) {
+            showOutsidePageTooltip(e.evt.clientX, e.evt.clientY);
+            return;
+          }
           setPendingImagePosition({ x: x - 300, y: y - 200 });
           setShowImageModal(true);
           return;
         }
         
         if (state.activeTool === 'sticker') {
+          // Only allow stickers to be placed starting inside the active page
+          if (x < 0 || y < 0 || x > canvasWidth || y > canvasHeight) {
+            showOutsidePageTooltip(e.evt.clientX, e.evt.clientY);
+            return;
+          }
           setPendingStickerPosition({ x: x - 300, y: y - 200 });
           setShowStickerModal(true);
           return;
@@ -1664,6 +1726,24 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       }
       
       if (previewShape.width > 5 || previewShape.height > 5) {
+        // Erlaube Formen außerhalb der Seite, solange sie die aktive Seite noch schneiden
+        const shapeLeft = previewShape.x;
+        const shapeRight = previewShape.x + previewShape.width;
+        const shapeTop = previewShape.y;
+        const shapeBottom = previewShape.y + previewShape.height;
+        const overlapsActivePage =
+          shapeLeft < canvasWidth &&
+          shapeRight > 0 &&
+          shapeTop < canvasHeight &&
+          shapeBottom > 0;
+
+        if (!overlapsActivePage) {
+          showOutsidePageTooltip(e.evt.clientX, e.evt.clientY);
+          setIsDrawingShape(false);
+          setShapeStart(null);
+          setPreviewShape(null);
+          return;
+        }
         const currentPage = state.currentBook?.pages[state.activePageIndex];
         const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
         const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
@@ -1708,6 +1788,24 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       }
       
       if (previewTextbox.width > 50 || previewTextbox.height > 20) {
+        // Erlaube Textboxen außerhalb der Seite, solange sie die aktive Seite noch schneiden
+        const boxLeft = previewTextbox.x;
+        const boxRight = previewTextbox.x + previewTextbox.width;
+        const boxTop = previewTextbox.y;
+        const boxBottom = previewTextbox.y + previewTextbox.height;
+        const overlapsActivePage =
+          boxLeft < canvasWidth &&
+          boxRight > 0 &&
+          boxTop < canvasHeight &&
+          boxBottom > 0;
+
+        if (!overlapsActivePage) {
+          showOutsidePageTooltip(e.evt.clientX, e.evt.clientY);
+          setIsDrawingTextbox(false);
+          setTextboxStart(null);
+          setPreviewTextbox(null);
+          return;
+        }
         let newElement: CanvasElement;
         
         if (previewTextbox.type === 'text') {
@@ -2498,6 +2596,14 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
   };
 
   const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    // Nach einem ungültigen Platzierungsversuch (Outside-Page-Tooltip)
+    // soll der aktuelle Modus erhalten bleiben und keine Selektion
+    // / Werkzeug-Umschaltung stattfinden.
+    if (suppressNextBackgroundClickSelect) {
+      setSuppressNextBackgroundClickSelect(false);
+      return;
+    }
+
     if (e.evt.button !== 2) {
       setContextMenu({ x: 0, y: 0, visible: false });
     }
@@ -5037,6 +5143,20 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         >
           <Alert>{alertMessage}</Alert>
         </div>
+      )}
+
+      {/* Tooltip when user attempts to place elements outside the active page */}
+      {outsidePageTooltip && (
+        <Tooltip
+          side="top"
+          content="You cannot place elements outside of the active page."
+          backgroundColor="bg-destructive"
+          textColor="text-destructive-foreground"
+          forceVisible
+          screenPosition={{ x: outsidePageTooltip.x, y: outsidePageTooltip.y }}
+        >
+          <div />
+        </Tooltip>
       )}
     </CanvasOverlayProvider>
   );
