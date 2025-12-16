@@ -199,10 +199,9 @@ function createBlockLayoutLocal(params: {
   ctx: CanvasRenderingContext2D | null;
   questionPosition?: 'left' | 'right' | 'top' | 'bottom';
   questionWidth?: number;
-  ruledLinesTarget?: 'question' | 'answer';
   blockQuestionAnswerGap?: number;
 }): LayoutResult {
-  const { questionText, answerText, questionStyle, answerStyle, width, height, padding, ctx, questionPosition = 'left', questionWidth = 40, ruledLinesTarget = 'answer', blockQuestionAnswerGap = 10 } = params;
+  const { questionText, answerText, questionStyle, answerStyle, width, height, padding, ctx, questionPosition = 'left', questionWidth = 40 } = params;
   const runs: TextRun[] = [];
   const linePositions: LinePosition[] = [];
   
@@ -268,25 +267,21 @@ function createBlockLayoutLocal(params: {
           y: baselineY,
           style: questionStyle
         });
-        // Only add line position if ruledLinesTarget is 'question'
-        if (ruledLinesTarget === 'question') {
-          linePositions.push({
-            y: baselineY + questionStyle.fontSize * 0.15,
-            lineHeight: questionLineHeight,
-            style: questionStyle
-          });
-        }
+        // Always add line position for canvas display (ruledLinesTarget is for PDF export)
+        linePositions.push({
+          y: baselineY + questionStyle.fontSize * 0.15,
+          lineHeight: questionLineHeight,
+          style: questionStyle
+        });
         cursorY += questionLineHeight;
       } else {
-        // Only add line position if ruledLinesTarget is 'question'
-        if (ruledLinesTarget === 'question') {
-          const baselineY = cursorY + questionBaselineOffset;
-          linePositions.push({
-            y: baselineY + questionStyle.fontSize * 0.15,
-            lineHeight: questionLineHeight,
-            style: questionStyle
-          });
-        }
+        // Always add line position for canvas display (ruledLinesTarget is for PDF export)
+        const baselineY = cursorY + questionBaselineOffset;
+        linePositions.push({
+          y: baselineY + questionStyle.fontSize * 0.15,
+          lineHeight: questionLineHeight,
+          style: questionStyle
+        });
         cursorY += questionLineHeight;
       }
     });
@@ -307,25 +302,21 @@ function createBlockLayoutLocal(params: {
           y: baselineY,
           style: answerStyle
         });
-        // Only add line position if ruledLinesTarget is 'answer'
-        if (ruledLinesTarget === 'answer') {
-          linePositions.push({
-            y: baselineY + answerStyle.fontSize * 0.15,
-            lineHeight: answerLineHeight,
-            style: answerStyle
-          });
-        }
+        // Always add line position for canvas display (ruledLinesTarget is for PDF export)
+        linePositions.push({
+          y: baselineY + answerStyle.fontSize * 0.15,
+          lineHeight: answerLineHeight,
+          style: answerStyle
+        });
         cursorY += answerLineHeight;
       } else {
-        // Only add line position if ruledLinesTarget is 'answer'
-        if (ruledLinesTarget === 'answer') {
-          const baselineY = cursorY + answerBaselineOffset;
-          linePositions.push({
-            y: baselineY + answerStyle.fontSize * 0.15,
-            lineHeight: answerLineHeight,
-            style: answerStyle
-          });
-        }
+        // Always add line position for canvas display (ruledLinesTarget is for PDF export)
+        const baselineY = cursorY + answerBaselineOffset;
+        linePositions.push({
+          y: baselineY + answerStyle.fontSize * 0.15,
+          lineHeight: answerLineHeight,
+          style: answerStyle
+        });
         cursorY += answerLineHeight;
       }
     });
@@ -357,10 +348,9 @@ function createLayoutLocal(params: {
   layoutVariant?: 'inline' | 'block';
   questionPosition?: 'left' | 'right' | 'top' | 'bottom';
   questionWidth?: number;
-  ruledLinesTarget?: 'question' | 'answer';
   blockQuestionAnswerGap?: number;
 }): LayoutResult {
-  const { questionText, answerText, questionStyle, answerStyle, width, height, padding, ctx, answerInNewRow = false, questionAnswerGap = 0, layoutVariant = 'inline', questionPosition = 'left', questionWidth = 40 } = params;
+  const { questionText, answerText, questionStyle, answerStyle, width, height, padding, ctx, answerInNewRow = false, questionAnswerGap = 0, layoutVariant = 'inline', questionPosition = 'left', questionWidth = 40, blockQuestionAnswerGap } = params;
   
   // Block layout uses different logic
   if (layoutVariant === 'block') {
@@ -377,7 +367,6 @@ function createLayoutLocal(params: {
       ctx,
       questionPosition,
       questionWidth,
-      ruledLinesTarget: params.ruledLinesTarget,
       blockQuestionAnswerGap: params.blockQuestionAnswerGap
     });
   }
@@ -1224,10 +1213,9 @@ export default function TextboxQna(props: CanvasItemProps) {
       layoutVariant,
       questionPosition,
       questionWidth,
-      ruledLinesTarget,
       blockQuestionAnswerGap
     });
-  }, [answerContent, answerStyle, effectiveQuestionStyle, boxHeight, boxWidth, padding, preparedQuestionText, answerInNewRow, questionAnswerGap, layoutVariant, questionPosition, questionWidth, ruledLinesTarget, blockQuestionAnswerGap]);
+  }, [answerContent, answerStyle, effectiveQuestionStyle, boxHeight, boxWidth, padding, preparedQuestionText, answerInNewRow, questionAnswerGap, layoutVariant, questionPosition, questionWidth, blockQuestionAnswerGap]);
   
   // Filter runs to show only question runs when answer editor is open
   const visibleRuns = useMemo(() => {
@@ -1400,10 +1388,9 @@ export default function TextboxQna(props: CanvasItemProps) {
       });
     };
 
-    // Filter line positions by target (question or answer)
-    const targetLinePositions = layout.linePositions.filter((linePos: LinePosition) => {
-      return linePos.style === (ruledLinesTarget === 'question' ? effectiveQuestionStyle : answerStyle);
-    });
+    // For canvas display, show ruled lines for all text when enabled
+    // The ruledLinesTarget is used for PDF export but for canvas we show all lines
+    const targetLinePositions = layout.linePositions;
 
     // Render existing lines
     targetLinePositions.forEach((linePos: LinePosition) => {
@@ -2015,6 +2002,9 @@ export default function TextboxQna(props: CanvasItemProps) {
         />
       )}
 
+      {/* Ruled lines underneath each text row - render before text so they appear behind */}
+      {ruledLines && ruledLinesElements}
+
       {showBorder && (() => {
         const borderColor = qnaElement.borderColor || '#000000';
         const borderWidth = qnaElement.borderWidth || 1;
@@ -2024,7 +2014,7 @@ export default function TextboxQna(props: CanvasItemProps) {
         // Check element.borderTheme first, then fallback to element.theme, then 'default'
         const themeValue = qnaElement.borderTheme || element.theme || 'default';
         const theme = themeValue as Theme; // Use the selected theme directly (don't map 'default' to 'rough')
-        
+
         // Use theme renderer for consistent border rendering
         const themeRenderer = getThemeRenderer(theme);
         if (themeRenderer && theme !== 'default') {
@@ -2043,10 +2033,10 @@ export default function TextboxQna(props: CanvasItemProps) {
             fill: 'transparent',
             roughness: theme === 'rough' ? 8 : undefined
           } as CanvasElement;
-          
+
           const pathData = themeRenderer.generatePath(borderElement);
           const strokeProps = themeRenderer.getStrokeProps(borderElement);
-          
+
           if (pathData) {
             return (
               <Path
@@ -2063,7 +2053,7 @@ export default function TextboxQna(props: CanvasItemProps) {
             );
           }
         }
-        
+
         // Default: simple rect border
         return (
           <Rect
@@ -2081,7 +2071,7 @@ export default function TextboxQna(props: CanvasItemProps) {
       {/* Text that can extend beyond the box */}
       {/* When answer editor is open, only show question runs */}
       <RichTextShape ref={textShapeRef} runs={visibleRuns} width={boxWidth} height={layout.contentHeight} />
-      
+
       {/* Placeholder text when no answer exists */}
       {answerAreaBounds && !answerContent && !isAnswerEditorOpen && (
         <KonvaText
@@ -2100,9 +2090,6 @@ export default function TextboxQna(props: CanvasItemProps) {
           listening={false}
         />
       )}
-      
-      {/* Ruled lines underneath each text row */}
-      {ruledLines && ruledLinesElements}
       
       {/* Hit area for double-click detection and mouse move - limited to box dimensions */}
       <Rect

@@ -24,7 +24,8 @@ import { QuestionSelectorModal } from '../question-selector-modal';
 import { StickerSelector } from '../tool-settings/sticker-selector';
 import { getStickerById, loadStickerRegistry } from '../../../../data/templates/stickers';
 
-import { getToolDefaults, TOOL_DEFAULTS } from '../../../../utils/tool-defaults';
+import { getToolDefaults } from '../../../../utils/tool-defaults';
+import { getActiveTemplateIds } from '../../../../utils/template-inheritance';
 import { Alert, AlertDescription } from '../../../ui/composites/alert';
 import { Tooltip } from '../../../ui/composites/tooltip';
 import { Lock, LockOpen } from 'lucide-react';
@@ -35,7 +36,7 @@ import type { PageBackground } from '../../../../context/editor-context';
 import { createPreviewImage, resolveBackgroundImageUrl } from '../../../../utils/background-image-utils';
 import { getPalettePartColor } from '../../../../data/templates/color-palettes';
 import { colorPalettes } from '../../../../data/templates/color-palettes';
-import { getThemePaletteId } from '../../../../utils/global-themes';
+import { getThemePaletteId, getGlobalThemeDefaults } from '../../../../utils/global-themes';
 import { BOOK_PAGE_DIMENSIONS, DEFAULT_BOOK_ORIENTATION, DEFAULT_BOOK_PAGE_SIZE } from '../../../../constants/book-formats';
 import { getConsistentColor } from '../../../../utils/consistent-color';
 import ProfilePicture from '../../users/profile-picture';
@@ -552,6 +553,31 @@ export default function Canvas() {
     const palette = colorPalettes.find((item) => item.id === effectivePaletteId) ?? null;
     return { paletteId: effectivePaletteId, palette };
   };
+
+  // Helper function to get template IDs for defaults (uses getActiveTemplateIds for proper inheritance)
+  const getTemplateIdsForDefaults = useCallback(() => {
+    const currentPage = state.currentBook?.pages[state.activePageIndex];
+    const activeTemplateIds = getActiveTemplateIds(currentPage, state.currentBook);
+    
+    // Get theme IDs
+    const pageTheme = activeTemplateIds.themeId;
+    const bookTheme = state.currentBook?.bookTheme || state.currentBook?.themeId || 'default';
+    
+    // Get palette IDs with theme fallback
+    const pageColorPaletteId = currentPage?.colorPaletteId ?? null;
+    const bookColorPaletteId = state.currentBook?.colorPaletteId ?? null;
+    const bookThemePaletteId = !bookColorPaletteId ? getThemePaletteId(bookTheme) : null;
+    const effectiveBookColorPaletteId = bookColorPaletteId ?? bookThemePaletteId;
+    
+    return {
+      pageTheme,
+      bookTheme,
+      pageColorPaletteId,
+      bookColorPaletteId: effectiveBookColorPaletteId,
+      pageLayoutTemplateId: currentPage?.layoutTemplateId ?? null,
+      bookLayoutTemplateId: state.currentBook?.layoutTemplateId ?? null
+    };
+  }, [state.currentBook, state.activePageIndex]);
 
   const buildPageBadgeMeta = useCallback(
     (page?: typeof currentPage | null): PageBadgeMeta | null => {
@@ -1658,14 +1684,18 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       }
       
       // Capture current tool settings for this stroke
-      const currentPage = state.currentBook?.pages[state.activePageIndex];
-      const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
-      const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
-      const pageLayoutTemplateId = currentPage?.layoutTemplateId;
-      const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
-      const pageColorPaletteId = currentPage?.colorPaletteId;
-      const bookColorPaletteId = state.currentBook?.colorPaletteId;
-      const brushDefaults = getToolDefaults('brush', pageTheme, bookTheme, undefined, state.toolSettings?.brush, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
+      const templateIds = getTemplateIdsForDefaults();
+      const brushDefaults = getToolDefaults(
+        'brush',
+        templateIds.pageTheme,
+        templateIds.bookTheme,
+        undefined,
+        state.toolSettings?.brush,
+        templateIds.pageLayoutTemplateId,
+        templateIds.bookLayoutTemplateId,
+        templateIds.pageColorPaletteId,
+        templateIds.bookColorPaletteId
+      );
       const toolSettings = state.toolSettings?.brush || {};
       
       const strokeData = {
@@ -1691,14 +1721,18 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       const height = previewLine.y2 - previewLine.y1;
       
       if (Math.abs(width) > 5 || Math.abs(height) > 5) {
-        const currentPage = state.currentBook?.pages[state.activePageIndex];
-        const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
-        const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
-        const pageLayoutTemplateId = currentPage?.layoutTemplateId;
-        const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
-        const pageColorPaletteId = currentPage?.colorPaletteId;
-        const bookColorPaletteId = state.currentBook?.colorPaletteId;
-        const lineDefaults = getToolDefaults('line', pageTheme, bookTheme, undefined, state.toolSettings?.line, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
+        const templateIds = getTemplateIdsForDefaults();
+        const lineDefaults = getToolDefaults(
+          'line',
+          templateIds.pageTheme,
+          templateIds.bookTheme,
+          undefined,
+          state.toolSettings?.line,
+          templateIds.pageLayoutTemplateId,
+          templateIds.bookLayoutTemplateId,
+          templateIds.pageColorPaletteId,
+          templateIds.bookColorPaletteId
+        );
         const toolSettings = state.toolSettings?.line || {};
         const newElement: CanvasElement = {
           id: uuidv4(),
@@ -1707,10 +1741,9 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           y: previewLine.y1,
           width: width,
           height: height,
-          stroke: lineDefaults.stroke || toolSettings.strokeColor || '#1f2937',
-          roughness: 3,
-          strokeWidth: lineDefaults.strokeWidth || toolSettings.strokeWidth || 2,
-          theme: lineDefaults.theme || 'default'
+          ...lineDefaults, // Apply ALL defaults
+          stroke: lineDefaults.stroke || toolSettings.strokeColor || lineDefaults.stroke,
+          strokeWidth: lineDefaults.strokeWidth || toolSettings.strokeWidth || lineDefaults.strokeWidth
         };
         dispatch({ type: 'ADD_ELEMENT', payload: newElement });
         dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
@@ -1746,14 +1779,18 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           setPreviewShape(null);
           return;
         }
-        const currentPage = state.currentBook?.pages[state.activePageIndex];
-        const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
-        const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
-        const pageLayoutTemplateId = currentPage?.layoutTemplateId;
-        const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
-        const pageColorPaletteId = currentPage?.colorPaletteId;
-        const bookColorPaletteId = state.currentBook?.colorPaletteId;
-        const shapeDefaults = getToolDefaults(previewShape.type as any, pageTheme, bookTheme, undefined, state.toolSettings?.[previewShape.type], pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
+        const templateIds = getTemplateIdsForDefaults();
+        const shapeDefaults = getToolDefaults(
+          previewShape.type as any,
+          templateIds.pageTheme,
+          templateIds.bookTheme,
+          undefined,
+          state.toolSettings?.[previewShape.type],
+          templateIds.pageLayoutTemplateId,
+          templateIds.bookLayoutTemplateId,
+          templateIds.pageColorPaletteId,
+          templateIds.bookColorPaletteId
+        );
         const toolSettings = state.toolSettings?.[previewShape.type] || {};
         const newElement: CanvasElement = {
           id: uuidv4(),
@@ -1762,17 +1799,13 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           y: previewShape.y,
           width: previewShape.width,
           height: previewShape.height,
+          ...shapeDefaults, // Apply ALL defaults
           fill: shapeDefaults.fill !== undefined && shapeDefaults.fill !== 'transparent'
             ? shapeDefaults.fill
-            : (toolSettings.fillColor !== undefined ? toolSettings.fillColor : 'transparent'),
-          stroke: shapeDefaults.stroke || toolSettings.strokeColor || '#1f2937',
-          roughness: 3,
-          strokeWidth: shapeDefaults.strokeWidth || toolSettings.strokeWidth || 2,
-          cornerRadius: shapeDefaults.cornerRadius || 0,
-          theme: shapeDefaults.theme || 'default',
-          strokeOpacity: shapeDefaults.strokeOpacity !== undefined ? shapeDefaults.strokeOpacity : undefined,
-          fillOpacity: shapeDefaults.fillOpacity !== undefined ? shapeDefaults.fillOpacity : undefined,
-          polygonSides: previewShape.type === 'polygon' ? (state.toolSettings?.polygon?.polygonSides || 5) : undefined
+            : (toolSettings.fillColor !== undefined ? toolSettings.fillColor : shapeDefaults.fill || 'transparent'),
+          stroke: shapeDefaults.stroke || toolSettings.strokeColor || shapeDefaults.stroke,
+          strokeWidth: shapeDefaults.strokeWidth || toolSettings.strokeWidth || shapeDefaults.strokeWidth,
+          polygonSides: previewShape.type === 'polygon' ? (state.toolSettings?.polygon?.polygonSides || shapeDefaults.polygonSides || 5) : shapeDefaults.polygonSides
         };
         dispatch({ type: 'ADD_ELEMENT', payload: newElement });
         dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
@@ -1811,14 +1844,18 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         let newElement: CanvasElement;
         
         if (previewTextbox.type === 'text') {
-          const currentPage = state.currentBook?.pages[state.activePageIndex];
-          const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
-          const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
-          const pageLayoutTemplateId = currentPage?.layoutTemplateId;
-          const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
-          const pageColorPaletteId = currentPage?.colorPaletteId;
-          const bookColorPaletteId = state.currentBook?.colorPaletteId;
-          const textDefaults = getToolDefaults('text', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
+          const templateIds = getTemplateIdsForDefaults();
+          const textDefaults = getToolDefaults(
+            'text',
+            templateIds.pageTheme,
+            templateIds.bookTheme,
+            undefined,
+            state.toolSettings?.text,
+            templateIds.pageLayoutTemplateId,
+            templateIds.bookLayoutTemplateId,
+            templateIds.pageColorPaletteId,
+            templateIds.bookColorPaletteId
+          );
           newElement = {
             id: uuidv4(),
             type: 'text',
@@ -1826,25 +1863,34 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
             y: previewTextbox.y,
             width: previewTextbox.width,
             height: previewTextbox.height,
-            fontColor: textDefaults.fontColor,
+            ...textDefaults, // Apply ALL defaults
             text: '',
-            fontSize: textDefaults.fontSize,
-            align: textDefaults.format?.textAlign || textDefaults.align,
-            fontFamily: textDefaults.fontFamily,
-            textType: 'text',
-            paragraphSpacing: textDefaults.paragraphSpacing,
-            cornerRadius: textDefaults.cornerRadius
+            textType: 'text'
           };
         } else if (previewTextbox.type === 'question') {
-          const currentPage = state.currentBook?.pages[state.activePageIndex];
-          const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
-          const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
-          const pageLayoutTemplateId = currentPage?.layoutTemplateId;
-          const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
-          const pageColorPaletteId = currentPage?.colorPaletteId;
-          const bookColorPaletteId = state.currentBook?.colorPaletteId;
-          const questionDefaults = getToolDefaults('question', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
-          const answerDefaults = getToolDefaults('answer', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
+          const templateIds = getTemplateIdsForDefaults();
+          const questionDefaults = getToolDefaults(
+            'question',
+            templateIds.pageTheme,
+            templateIds.bookTheme,
+            undefined,
+            state.toolSettings?.question,
+            templateIds.pageLayoutTemplateId,
+            templateIds.bookLayoutTemplateId,
+            templateIds.pageColorPaletteId,
+            templateIds.bookColorPaletteId
+          );
+          const answerDefaults = getToolDefaults(
+            'answer',
+            templateIds.pageTheme,
+            templateIds.bookTheme,
+            undefined,
+            state.toolSettings?.answer,
+            templateIds.pageLayoutTemplateId,
+            templateIds.bookLayoutTemplateId,
+            templateIds.pageColorPaletteId,
+            templateIds.bookColorPaletteId
+          );
           const questionHeight = Math.max(40, previewTextbox.height * 0.3);
           const answerHeight = previewTextbox.height - questionHeight - 10;
           
@@ -1856,13 +1902,9 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
             y: previewTextbox.y,
             width: previewTextbox.width,
             height: questionHeight,
+            ...questionDefaults, // Apply ALL defaults
             text: '',
-            fontSize: questionDefaults.fontSize,
-            align: questionDefaults.align,
-            fontFamily: questionDefaults.fontFamily,
-            textType: 'question',
-            fontColor: '#9ca3af',
-            cornerRadius: questionDefaults.cornerRadius
+            textType: 'question'
           };
           
           // Generate UUID for answer immediately
@@ -1876,29 +1918,28 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
             y: previewTextbox.y + questionHeight + 10,
             width: previewTextbox.width,
             height: answerHeight,
+            ...answerDefaults, // Apply ALL defaults
             text: '',
-            fontSize: answerDefaults.fontSize,
-            align: answerDefaults.align,
-            fontFamily: answerDefaults.fontFamily,
             textType: 'answer',
             questionElementId: questionElement.id,
-            answerId: answerUUID,
-            paragraphSpacing: answerDefaults.paragraphSpacing,
-            cornerRadius: answerDefaults.cornerRadius
+            answerId: answerUUID
           };
           
           // Add question element first
           dispatch({ type: 'ADD_ELEMENT', payload: questionElement });
         } else if (previewTextbox.type === 'qna') {
-          const currentPage = state.currentBook?.pages[state.activePageIndex];
-          const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
-          const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
-          const pageLayoutTemplateId = currentPage?.layoutTemplateId;
-          const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
-          const pageColorPaletteId = currentPage?.colorPaletteId;
-          const bookColorPaletteId = state.currentBook?.colorPaletteId;
-          const qnaDefaults = getToolDefaults('qna', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
-          const themeFontFamily = qnaDefaults.fontFamily || 'Arial, sans-serif';
+          const templateIds = getTemplateIdsForDefaults();
+          const qnaDefaults = getToolDefaults(
+            'qna',
+            templateIds.pageTheme,
+            templateIds.bookTheme,
+            undefined,
+            state.toolSettings?.qna,
+            templateIds.pageLayoutTemplateId,
+            templateIds.bookLayoutTemplateId,
+            templateIds.pageColorPaletteId,
+            templateIds.bookColorPaletteId
+          );
           
           newElement = {
             id: uuidv4(),
@@ -1907,31 +1948,25 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
             y: previewTextbox.y,
             width: previewTextbox.width,
             height: previewTextbox.height,
+            ...qnaDefaults, // Apply ALL defaults
             text: '',
-            fontSize: qnaDefaults.fontSize,
-            align: qnaDefaults.align,
-            fontFamily: qnaDefaults.fontFamily,
             textType: 'qna',
-            paragraphSpacing: qnaDefaults.paragraphSpacing,
-            cornerRadius: qnaDefaults.cornerRadius,
-            questionSettings: {
-              ...qnaDefaults.questionSettings,
-              fontFamily: qnaDefaults.questionSettings?.fontFamily || themeFontFamily
-            },
-            answerSettings: {
-              ...qnaDefaults.answerSettings,
-              fontFamily: qnaDefaults.answerSettings?.fontFamily || themeFontFamily
-            }
+            questionSettings: qnaDefaults.questionSettings,
+            answerSettings: qnaDefaults.answerSettings
           };
         } else if (previewTextbox.type === 'qna2') {
-          const currentPage = state.currentBook?.pages[state.activePageIndex];
-          const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
-          const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
-          const pageLayoutTemplateId = currentPage?.layoutTemplateId;
-          const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
-          const pageColorPaletteId = currentPage?.colorPaletteId;
-          const bookColorPaletteId = state.currentBook?.colorPaletteId;
-          const qna2Defaults = getToolDefaults('qna2', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
+          const templateIds = getTemplateIdsForDefaults();
+          const qna2Defaults = getToolDefaults(
+            'qna2',
+            templateIds.pageTheme,
+            templateIds.bookTheme,
+            undefined,
+            state.toolSettings?.qna2,
+            templateIds.pageLayoutTemplateId,
+            templateIds.bookLayoutTemplateId,
+            templateIds.pageColorPaletteId,
+            templateIds.bookColorPaletteId
+          );
           newElement = {
             id: uuidv4(),
             type: 'text',
@@ -1939,26 +1974,26 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
             y: previewTextbox.y,
             width: previewTextbox.width,
             height: previewTextbox.height,
+            ...qna2Defaults, // Apply ALL defaults
             text: '',
-            fontSize: qna2Defaults.fontSize,
-            align: qna2Defaults.align,
             fontFamily: qna2Defaults.fontFamily,
-            textStyle: 'qna2',
-            paragraphSpacing: qna2Defaults.paragraphSpacing,
-            cornerRadius: qna2Defaults.cornerRadius,
+            textType: 'qna2',
             questionSettings: qna2Defaults.questionSettings,
             answerSettings: qna2Defaults.answerSettings
           };
         } else if (previewTextbox.type === 'qna_inline') {
-          const currentPage = state.currentBook?.pages[state.activePageIndex];
-          const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
-          const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
-          const pageLayoutTemplateId = currentPage?.layoutTemplateId;
-          const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
-          const pageColorPaletteId = currentPage?.colorPaletteId;
-          const bookColorPaletteId = state.currentBook?.colorPaletteId;
-          const qnaInlineDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
-          const themeFontFamily = qnaInlineDefaults.fontFamily || 'Arial, sans-serif';
+          const templateIds = getTemplateIdsForDefaults();
+          const qnaInlineDefaults = getToolDefaults(
+            'qna_inline',
+            templateIds.pageTheme,
+            templateIds.bookTheme,
+            undefined,
+            state.toolSettings?.qna_inline,
+            templateIds.pageLayoutTemplateId,
+            templateIds.bookLayoutTemplateId,
+            templateIds.pageColorPaletteId,
+            templateIds.bookColorPaletteId
+          );
           newElement = {
             id: uuidv4(),
             type: 'text',
@@ -1966,31 +2001,25 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
             y: previewTextbox.y,
             width: previewTextbox.width,
             height: previewTextbox.height,
+            ...qnaInlineDefaults, // Apply ALL defaults
             text: '',
-            align: qnaInlineDefaults.align,
             textType: 'qna_inline',
-            paragraphSpacing: qnaInlineDefaults.paragraphSpacing,
-            cornerRadius: qnaInlineDefaults.cornerRadius,
-            questionSettings: {
-              ...qnaInlineDefaults.questionSettings,
-              fontFamily: qnaInlineDefaults.questionSettings?.fontFamily || themeFontFamily,
-              // Border/Background are shared properties - borderEnabled/backgroundEnabled are only on top-level
-            },
-            answerSettings: {
-              ...qnaInlineDefaults.answerSettings,
-              fontFamily: qnaInlineDefaults.answerSettings?.fontFamily || themeFontFamily
-              // Border/Background are shared properties - borderEnabled/backgroundEnabled are only on top-level
-            }
+            questionSettings: qnaInlineDefaults.questionSettings,
+            answerSettings: qnaInlineDefaults.answerSettings
           };
         } else if (previewTextbox.type === 'free_text') {
-          const currentPage = state.currentBook?.pages[state.activePageIndex];
-          const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
-          const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
-          const pageLayoutTemplateId = currentPage?.layoutTemplateId;
-          const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
-          const pageColorPaletteId = currentPage?.colorPaletteId;
-          const bookColorPaletteId = state.currentBook?.colorPaletteId;
-          const freeTextDefaults = getToolDefaults('free_text', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
+          const templateIds = getTemplateIdsForDefaults();
+          const freeTextDefaults = getToolDefaults(
+            'free_text',
+            templateIds.pageTheme,
+            templateIds.bookTheme,
+            undefined,
+            state.toolSettings?.free_text,
+            templateIds.pageLayoutTemplateId,
+            templateIds.bookLayoutTemplateId,
+            templateIds.pageColorPaletteId,
+            templateIds.bookColorPaletteId
+          );
           newElement = {
             id: uuidv4(),
             type: 'text',
@@ -1998,24 +2027,23 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
             y: previewTextbox.y,
             width: previewTextbox.width,
             height: previewTextbox.height,
+            ...freeTextDefaults, // Apply ALL defaults
             text: '',
-            fontSize: freeTextDefaults.fontSize,
-            align: freeTextDefaults.align,
-            fontFamily: freeTextDefaults.fontFamily,
-            textType: 'free_text',
-            paragraphSpacing: freeTextDefaults.paragraphSpacing,
-            cornerRadius: freeTextDefaults.cornerRadius,
-            textSettings: freeTextDefaults.textSettings
+            textType: 'free_text'
           };
         } else {
-          const currentPage = state.currentBook?.pages[state.activePageIndex];
-          const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
-          const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
-          const pageLayoutTemplateId = currentPage?.layoutTemplateId;
-          const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
-          const pageColorPaletteId = currentPage?.colorPaletteId;
-          const bookColorPaletteId = state.currentBook?.colorPaletteId;
-          const answerDefaults = getToolDefaults('answer', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
+          const templateIds = getTemplateIdsForDefaults();
+          const answerDefaults = getToolDefaults(
+            'answer',
+            templateIds.pageTheme,
+            templateIds.bookTheme,
+            undefined,
+            state.toolSettings?.answer,
+            templateIds.pageLayoutTemplateId,
+            templateIds.bookLayoutTemplateId,
+            templateIds.pageColorPaletteId,
+            templateIds.bookColorPaletteId
+          );
           
           // Generate UUID for answer immediately
           const answerUUID = uuidv4();
@@ -2027,14 +2055,10 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
             y: previewTextbox.y,
             width: previewTextbox.width,
             height: previewTextbox.height,
+            ...answerDefaults, // Apply ALL defaults
             text: '',
-            fontSize: answerDefaults.fontSize,
-            align: answerDefaults.align,
-            fontFamily: answerDefaults.fontFamily,
             textType: 'answer',
-            answerId: answerUUID,
-            paragraphSpacing: answerDefaults.paragraphSpacing,
-            cornerRadius: answerDefaults.cornerRadius
+            answerId: answerUUID
           };
         }
         
@@ -3030,14 +3054,18 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     
     const handleBrushDone = () => {
       if (brushStrokes.length > 0) {
-        const currentPage = state.currentBook?.pages[state.activePageIndex];
-        const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
-        const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
-        const pageLayoutTemplateId = currentPage?.layoutTemplateId;
-        const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
-        const pageColorPaletteId = currentPage?.colorPaletteId;
-        const bookColorPaletteId = state.currentBook?.colorPaletteId;
-        const brushDefaults = getToolDefaults('brush', pageTheme, bookTheme, undefined, state.toolSettings?.brush, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
+        const templateIds = getTemplateIdsForDefaults();
+        const brushDefaults = getToolDefaults(
+          'brush',
+          templateIds.pageTheme,
+          templateIds.bookTheme,
+          undefined,
+          state.toolSettings?.brush,
+          templateIds.pageLayoutTemplateId,
+          templateIds.bookLayoutTemplateId,
+          templateIds.pageColorPaletteId,
+          templateIds.bookColorPaletteId
+        );
         
         // Convert each stroke to individual brush elements for grouping
         const groupedBrushElements: CanvasElement[] = brushStrokes.map(strokeData => ({
@@ -3048,9 +3076,9 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           width: 0,
           height: 0,
           points: strokeData.points,
-          stroke: strokeData.strokeColor,
-          strokeWidth: strokeData.strokeWidth,
-          theme: brushDefaults.theme
+          ...brushDefaults, // Apply ALL defaults
+          stroke: strokeData.strokeColor || brushDefaults.stroke,
+          strokeWidth: strokeData.strokeWidth || brushDefaults.strokeWidth
         }));
         
         // Create brush-multicolor group element
@@ -3325,7 +3353,9 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
               return;
             }
               }
-          const fontColor = element.fontColor || element.fill || TOOL_DEFAULTS.qna.fontColor;          
+          // Get default font color from theme defaults as fallback
+          const qnaDefaults = getGlobalThemeDefaults('default', 'qna');
+          const fontColor = element.fontColor || element.fill || qnaDefaults.fontColor || '#000000';          
           dispatch({
             type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
             payload: {

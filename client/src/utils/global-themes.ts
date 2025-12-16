@@ -362,9 +362,277 @@ function getThemeCategory(elementType: string): keyof GlobalTheme['elementDefaul
   }
 }
 
+/**
+ * Get base default values for an element type (fallback when theme is not available)
+ * These are moved from TOOL_DEFAULTS in tool-defaults.ts to provide complete fallback values
+ */
+function getBaseDefaultsForType(elementType: string): any {
+  // Base defaults for all tool types - provides complete fallback values
+  const baseDefaults: Record<string, Partial<CanvasElement>> = {
+    line: {
+      theme: 'default',
+      strokeWidth: 2,
+      stroke: '#1f2937'
+    },
+    brush: {
+      theme: 'default',
+      strokeWidth: 3,
+      stroke: '#1f2937'
+    },
+    rect: {
+      theme: 'default',
+      strokeWidth: 2,
+      stroke: '#1f2937',
+      fill: 'transparent',
+      cornerRadius: 0
+    },
+    circle: {
+      theme: 'default',
+      strokeWidth: 2,
+      stroke: '#1f2937',
+      fill: 'transparent'
+    },
+    heart: {
+      theme: 'default',
+      strokeWidth: 2,
+      stroke: '#1f2937',
+      fill: 'transparent'
+    },
+    star: {
+      theme: 'default',
+      strokeWidth: 2,
+      stroke: '#1f2937',
+      fill: 'transparent'
+    },
+    'speech-bubble': {
+      theme: 'default',
+      strokeWidth: 2,
+      stroke: '#1f2937',
+      fill: 'transparent'
+    },
+    dog: {
+      theme: 'default',
+      strokeWidth: 2,
+      stroke: '#1f2937',
+      fill: 'transparent'
+    },
+    cat: {
+      theme: 'default',
+      strokeWidth: 2,
+      stroke: '#1f2937',
+      fill: 'transparent'
+    },
+    smiley: {
+      theme: 'default',
+      strokeWidth: 2,
+      stroke: '#1f2937',
+      fill: 'transparent'
+    },
+    triangle: {
+      theme: 'default',
+      strokeWidth: 2,
+      stroke: '#1f2937',
+      fill: 'transparent'
+    },
+    polygon: {
+      theme: 'default',
+      strokeWidth: 2,
+      stroke: '#1f2937',
+      fill: 'transparent',
+      polygonSides: 5
+    },
+    text: {
+      fontSize: 58,
+      fontFamily: 'Arial, sans-serif',
+      fontWeight: 'normal',
+      fontStyle: 'normal',
+      fontColor: '#000000',
+      align: 'left',
+      paragraphSpacing: 'medium',
+      ruledLines: false,
+      ruledLinesTheme: 'rough',
+      ruledLinesColor: '#1f2937',
+      ruledLinesWidth: 1,
+      cornerRadius: 0,
+      borderWidth: 0,
+      borderColor: '#000000',
+      backgroundColor: 'transparent',
+      padding: 4
+    },
+    question: {
+      fontSize: 58,
+      fontFamily: 'Arial, sans-serif',
+      fontWeight: 'normal',
+      fontStyle: 'normal',
+      fontColor: '#000000',
+      align: 'left',
+      cornerRadius: 0,
+      borderWidth: 0,
+      borderColor: '#000000',
+      backgroundColor: 'transparent',
+      padding: 4
+    },
+    answer: {
+      fontSize: 58,
+      fontFamily: 'Arial, sans-serif',
+      fontWeight: 'normal',
+      fontStyle: 'normal',
+      fontColor: '#000000',
+      align: 'left',
+      paragraphSpacing: 'medium',
+      ruledLines: false,
+      ruledLinesTheme: 'rough',
+      ruledLinesColor: '#1f2937',
+      ruledLinesWidth: 1,
+      cornerRadius: 0,
+      borderWidth: 0,
+      borderColor: '#000000',
+      backgroundColor: 'transparent',
+      padding: 4
+    },
+    qna: {
+      fontSize: 50,
+      fontFamily: 'Arial, sans-serif',
+      fontWeight: 'normal',
+      fontStyle: 'normal',
+      fontColor: '#000000',
+      align: 'left',
+      paragraphSpacing: 'medium',
+      ruledLines: false,
+      ruledLinesTheme: 'rough',
+      ruledLinesColor: '#1f2937',
+      ruledLinesWidth: 1,
+      cornerRadius: 0,
+      borderWidth: 0,
+      borderColor: '#000000',
+      backgroundColor: 'transparent',
+      padding: 4,
+      questionSettings: {
+        fontSize: 58
+      },
+      answerSettings: {
+        fontSize: 50
+      }
+    },
+    qna2: {
+      fontSize: 50,
+      fontFamily: 'Arial, sans-serif',
+      fontWeight: 'normal',
+      fontStyle: 'normal',
+      fontColor: '#000000',
+      align: 'left',
+      paragraphSpacing: 'medium',
+      ruledLines: false,
+      ruledLinesTheme: 'rough',
+      ruledLinesColor: '#1f2937',
+      ruledLinesWidth: 1,
+      cornerRadius: 0,
+      borderWidth: 0,
+      borderColor: '#000000',
+      backgroundColor: 'transparent',
+      padding: 4,
+      questionSettings: {
+        fontSize: 45,
+        fontColor: '#666666'
+      },
+      answerSettings: {
+        fontSize: 50,
+        fontColor: '#1f2937'
+      }
+    },
+    qna_inline: {
+      fontSize: 50,
+      fontFamily: 'Arial, sans-serif',
+      fontWeight: 'normal',
+      fontStyle: 'normal',
+      fontColor: '#000000',
+      align: 'left',
+      paragraphSpacing: 'medium',
+      ruledLines: false,
+      ruledLinesTheme: 'rough',
+      ruledLinesColor: '#1f2937',
+      ruledLinesWidth: 1,
+      cornerRadius: 0,
+      borderWidth: 0,
+      borderColor: '#000000',
+      backgroundColor: 'transparent',
+      padding: 4,
+      questionSettings: {
+        fontSize: 45,
+        fontFamily: 'Arial, sans-serif',
+        fontColor: '#666666',
+        fontBold: false,
+        fontItalic: false,
+        fontOpacity: 1,
+        align: 'left',
+        paragraphSpacing: 'small',
+        ruledLines: false,
+        padding: 4
+      },
+      answerSettings: {
+        fontSize: 50,
+        fontFamily: 'Arial, sans-serif',
+        fontColor: '#1f2937',
+        fontBold: false,
+        fontItalic: false,
+        fontOpacity: 1,
+        align: 'left',
+        paragraphSpacing: 'medium',
+        ruledLines: false,
+        padding: 4
+      }
+    },
+    free_text: {
+      fontSize: 50,
+      fontFamily: 'Arial, sans-serif',
+      fontWeight: 'normal',
+      fontStyle: 'normal',
+      fontColor: '#1f2937',
+      fontBold: false,
+      fontItalic: false,
+      fontOpacity: 1,
+      align: 'left',
+      paragraphSpacing: 'medium',
+      ruledLines: false,
+      ruledLinesTheme: 'rough',
+      ruledLinesColor: '#1f2937',
+      ruledLinesWidth: 1,
+      cornerRadius: 0,
+      borderWidth: 0,
+      borderColor: '#000000',
+      backgroundColor: 'transparent',
+      padding: 4,
+      textSettings: {
+        fontSize: 50,
+        fontColor: '#1f2937',
+        fontFamily: 'Arial, sans-serif',
+        fontBold: false,
+        fontItalic: false,
+        fontOpacity: 1,
+        align: 'left',
+        paragraphSpacing: 'medium',
+        ruledLines: false,
+        ruledLinesTheme: 'rough',
+        ruledLinesColor: '#1f2937',
+        ruledLinesWidth: 1,
+        background: { enabled: false, color: 'transparent', opacity: 1 },
+        border: { enabled: false, color: '#000000', width: 1, opacity: 1, theme: 'default' },
+        cornerRadius: 0,
+        padding: 4
+      }
+    }
+  };
+
+  // Return defaults for the specific type, or shape defaults as fallback
+  return baseDefaults[elementType] || baseDefaults.rect || {};
+}
+
 export function getGlobalThemeDefaults(themeId: string, elementType: string): Partial<CanvasElement> {
+  // Get base defaults as fallback (moved from TOOL_DEFAULTS)
+  const baseDefaults = getBaseDefaultsForType(elementType);
+  
   const theme = getGlobalTheme(themeId);
-  if (!theme) return {};
+  if (!theme) return baseDefaults; // Return base defaults, not empty object
   
   // Get theme palette first (needed for all element types)
   const themeConfig = (themesData as Record<string, any>)[themeId];
@@ -375,34 +643,43 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string): Pa
     const qnaDefaults = getQnAInlineThemeDefaults(themeId);
     // Add top-level palette colors for consistency
     // CRITICAL: Also add theme property so elements know which theme to use
+    // Merge with base defaults to ensure all properties are present
     return {
+      ...baseDefaults,
       ...qnaDefaults,
       theme: themeId, // Add theme property so elements know which theme to use
-      fontColor: palette ? (palette.colors.text || palette.colors.primary) : undefined,
-      borderColor: palette ? palette.colors.secondary : undefined,
-      backgroundColor: palette ? (palette.colors.surface || palette.colors.background) : undefined,
-      ruledLinesColor: palette ? (palette.colors.accent || palette.colors.primary) : undefined
+      fontColor: palette ? (palette.colors.text || palette.colors.primary) : baseDefaults.fontColor,
+      borderColor: palette ? palette.colors.secondary : baseDefaults.borderColor,
+      backgroundColor: palette ? (palette.colors.surface || palette.colors.background) : baseDefaults.backgroundColor,
+      ruledLinesColor: palette ? (palette.colors.accent || palette.colors.primary) : baseDefaults.ruledLinesColor
     };
   }
   
   // For QnA elements (qna, qna2), convert fontSize in questionSettings and answerSettings from common to actual
   if (elementType === 'qna' || elementType === 'qna2') {
     const category = getThemeCategory(elementType);
-    const baseDefaults = theme.elementDefaults[category] || {};
+    const themeDefaults = theme.elementDefaults[category] || {};
     
     // Convert fontSize in questionSettings and answerSettings if they exist
-    const convertedDefaults: any = { ...baseDefaults };
+    const convertedDefaults: any = { ...baseDefaults, ...themeDefaults };
     
-    if (baseDefaults.questionSettings) {
-      convertedDefaults.questionSettings = { ...baseDefaults.questionSettings };
-      if (convertedDefaults.questionSettings.fontSize !== undefined) {
+    // Merge questionSettings and answerSettings from base and theme
+    if (baseDefaults.questionSettings || themeDefaults.questionSettings) {
+      convertedDefaults.questionSettings = {
+        ...baseDefaults.questionSettings,
+        ...themeDefaults.questionSettings
+      };
+      if (convertedDefaults.questionSettings.fontSize !== undefined && themeDefaults.questionSettings?.fontSize !== undefined) {
         convertedDefaults.questionSettings.fontSize = commonToActual(convertedDefaults.questionSettings.fontSize);
       }
     }
     
-    if (baseDefaults.answerSettings) {
-      convertedDefaults.answerSettings = { ...baseDefaults.answerSettings };
-      if (convertedDefaults.answerSettings.fontSize !== undefined) {
+    if (baseDefaults.answerSettings || themeDefaults.answerSettings) {
+      convertedDefaults.answerSettings = {
+        ...baseDefaults.answerSettings,
+        ...themeDefaults.answerSettings
+      };
+      if (convertedDefaults.answerSettings.fontSize !== undefined && themeDefaults.answerSettings?.fontSize !== undefined) {
         convertedDefaults.answerSettings.fontSize = commonToActual(convertedDefaults.answerSettings.fontSize);
       }
     }
@@ -440,50 +717,53 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string): Pa
   // For free_text elements, build textSettings structure
   if (elementType === 'free_text') {
     const category = getThemeCategory(elementType);
-    const baseDefaults = theme.elementDefaults[category] || {};
+    const themeDefaults = theme.elementDefaults[category] || {};
+    
+    // Merge base defaults with theme defaults
+    const mergedDefaults = { ...baseDefaults, ...themeDefaults };
     
     // Convert fontSize from common scale to actual size if it exists
-    let fontSize = 50;
-    if (baseDefaults.font?.fontSize !== undefined) {
-      fontSize = commonToActual(baseDefaults.font.fontSize);
+    let fontSize = baseDefaults.fontSize || 50;
+    if (themeDefaults.font?.fontSize !== undefined) {
+      fontSize = commonToActual(themeDefaults.font.fontSize);
     }
     
     // Convert cornerRadius from common scale to actual size if it exists
-    let cornerRadius = 0;
-    if (baseDefaults.cornerRadius !== undefined) {
-      cornerRadius = commonToActualRadius(baseDefaults.cornerRadius);
+    let cornerRadius = baseDefaults.cornerRadius || 0;
+    if (themeDefaults.cornerRadius !== undefined) {
+      cornerRadius = commonToActualRadius(themeDefaults.cornerRadius);
     }
     
-    // Build textSettings from base defaults
+    // Build textSettings from merged defaults
     const textSettings: any = {
       fontSize: fontSize,
-      fontFamily: baseDefaults.font?.fontFamily || 'Arial, sans-serif',
-      fontBold: baseDefaults.font?.fontBold ?? false,
-      fontItalic: baseDefaults.font?.fontItalic ?? false,
-      fontOpacity: baseDefaults.font?.fontOpacity ?? 1,
-      align: baseDefaults.format?.textAlign || 'left',
-      paragraphSpacing: baseDefaults.format?.paragraphSpacing || 'medium',
-      padding: baseDefaults.format?.padding || 4,
+      fontFamily: themeDefaults.font?.fontFamily || baseDefaults.fontFamily || 'Arial, sans-serif',
+      fontBold: themeDefaults.font?.fontBold ?? baseDefaults.fontBold ?? false,
+      fontItalic: themeDefaults.font?.fontItalic ?? baseDefaults.fontItalic ?? false,
+      fontOpacity: themeDefaults.font?.fontOpacity ?? baseDefaults.fontOpacity ?? 1,
+      align: themeDefaults.format?.textAlign || baseDefaults.align || 'left',
+      paragraphSpacing: themeDefaults.format?.paragraphSpacing || baseDefaults.paragraphSpacing || 'medium',
+      padding: themeDefaults.format?.padding || baseDefaults.padding || 4,
       cornerRadius: cornerRadius,
-      border: baseDefaults.border ? {
-        enabled: baseDefaults.border.enabled ?? false,
-        borderWidth: baseDefaults.border.borderWidth || 0,
-        borderColor: baseDefaults.border.borderColor,
-        borderOpacity: baseDefaults.border.borderOpacity ?? 1,
-        borderTheme: baseDefaults.border.borderTheme || 'default'
-      } : { enabled: false, borderWidth: 0, borderColor: '#000000', borderOpacity: 1, borderTheme: 'default' },
-      background: baseDefaults.background ? {
-        enabled: baseDefaults.background.enabled ?? false,
-        backgroundColor: baseDefaults.background.backgroundColor,
-        backgroundOpacity: baseDefaults.background.backgroundOpacity ?? 1
-      } : { enabled: false, backgroundColor: 'transparent', backgroundOpacity: 1 },
-      ruledLines: baseDefaults.ruledLines ? {
-        enabled: baseDefaults.ruledLines.enabled ?? false,
-        lineWidth: baseDefaults.ruledLines.lineWidth || 0.8,
-        lineOpacity: baseDefaults.ruledLines.lineOpacity ?? 0.5,
-        ruledLinesTheme: baseDefaults.ruledLines.ruledLinesTheme || 'default',
-        lineColor: baseDefaults.ruledLines.lineColor
-      } : { enabled: false, lineWidth: 0.8, lineOpacity: 0.5, ruledLinesTheme: 'default', lineColor: '#1f2937' }
+      border: themeDefaults.border ? {
+        enabled: themeDefaults.border.enabled ?? false,
+        borderWidth: themeDefaults.border.borderWidth || 0,
+        borderColor: themeDefaults.border.borderColor,
+        borderOpacity: themeDefaults.border.borderOpacity ?? 1,
+        borderTheme: themeDefaults.border.borderTheme || 'default'
+      } : { enabled: false, borderWidth: 0, borderColor: baseDefaults.borderColor || '#000000', borderOpacity: 1, borderTheme: 'default' },
+      background: themeDefaults.background ? {
+        enabled: themeDefaults.background.enabled ?? false,
+        backgroundColor: themeDefaults.background.backgroundColor,
+        backgroundOpacity: themeDefaults.background.backgroundOpacity ?? 1
+      } : { enabled: false, backgroundColor: baseDefaults.backgroundColor || 'transparent', backgroundOpacity: 1 },
+      ruledLines: themeDefaults.ruledLines ? {
+        enabled: themeDefaults.ruledLines.enabled ?? false,
+        lineWidth: themeDefaults.ruledLines.lineWidth || 0.8,
+        lineOpacity: themeDefaults.ruledLines.lineOpacity ?? 0.5,
+        ruledLinesTheme: themeDefaults.ruledLines.ruledLinesTheme || 'default',
+        lineColor: themeDefaults.ruledLines.lineColor
+      } : { enabled: false, lineWidth: 0.8, lineOpacity: 0.5, ruledLinesTheme: 'default', lineColor: baseDefaults.ruledLinesColor || '#1f2937' }
     };
     
     // Initialize font object if it doesn't exist
@@ -504,17 +784,20 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string): Pa
     }
     
     return {
-      ...baseDefaults,
-      textSettings,
+      ...mergedDefaults,
+      textSettings: textSettings,
       // Top-level properties for backward compatibility
-      fontColor: palette ? (palette.colors.text || palette.colors.primary) : undefined,
-      borderColor: palette ? palette.colors.primary : undefined,
-      backgroundColor: palette ? palette.colors.accent : undefined
+      fontColor: palette ? (palette.colors.text || palette.colors.primary) : baseDefaults.fontColor,
+      borderColor: palette ? palette.colors.primary : baseDefaults.borderColor,
+      backgroundColor: palette ? palette.colors.accent : baseDefaults.backgroundColor
     };
   }
   
   const category = getThemeCategory(elementType);
-  const baseDefaults = theme.elementDefaults[category] || {};
+  const themeDefaults = theme.elementDefaults[category] || {};
+  
+  // Merge base defaults with theme defaults
+  const mergedDefaults = { ...baseDefaults, ...themeDefaults };
   
   // Apply palette colors automatically if palette exists
   if (palette) {
@@ -529,17 +812,17 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string): Pa
       paletteDefaults.ruledLinesColor = palette.colors.accent || palette.colors.primary;
       
       // Also apply to nested font object if it exists
-      if (baseDefaults.font) {
-        paletteDefaults.font = { ...baseDefaults.font, fontColor: palette.colors.text || palette.colors.primary };
+      if (mergedDefaults.font) {
+        paletteDefaults.font = { ...mergedDefaults.font, fontColor: palette.colors.text || palette.colors.primary };
       }
-      if (baseDefaults.border) {
-        paletteDefaults.border = { ...baseDefaults.border, borderColor: palette.colors.secondary };
+      if (mergedDefaults.border) {
+        paletteDefaults.border = { ...mergedDefaults.border, borderColor: palette.colors.secondary };
       }
-      if (baseDefaults.background) {
-        paletteDefaults.background = { ...baseDefaults.background, backgroundColor: palette.colors.surface || palette.colors.background };
+      if (mergedDefaults.background) {
+        paletteDefaults.background = { ...mergedDefaults.background, backgroundColor: palette.colors.surface || palette.colors.background };
       }
-      if (baseDefaults.ruledLines) {
-        paletteDefaults.ruledLines = { ...baseDefaults.ruledLines, lineColor: palette.colors.accent || palette.colors.primary };
+      if (mergedDefaults.ruledLines) {
+        paletteDefaults.ruledLines = { ...mergedDefaults.ruledLines, lineColor: palette.colors.accent || palette.colors.primary };
       }
     } else if (['brush', 'line'].includes(elementType)) {
       paletteDefaults.stroke = palette.colors.primary;
@@ -548,11 +831,11 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string): Pa
       paletteDefaults.fill = palette.colors.surface || palette.colors.accent;
     }
     
-    // Merge palette colors into base defaults
-    return { ...baseDefaults, ...paletteDefaults };
+    // Merge palette colors into merged defaults
+    return { ...mergedDefaults, ...paletteDefaults };
   }
   
-  return baseDefaults;
+  return mergedDefaults;
 }
 
 export function getQnAThemeDefaults(themeId: string, section: 'question' | 'answer'): any {
@@ -1116,6 +1399,5 @@ export function logThemeStructure(themeData: any): void {
 }
 
 // Re-export getToolDefaults functionality from tool-defaults.ts
-// This will be removed once tool-defaults.ts is fully migrated
-export { getToolDefaults, TOOL_DEFAULTS } from './tool-defaults';
+export { getToolDefaults } from './tool-defaults';
 export type { ToolType } from './tool-defaults';

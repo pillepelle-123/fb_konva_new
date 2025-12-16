@@ -6,8 +6,6 @@
  */
 export const FEATURE_FLAGS = {
   USE_SHARED_TEXT_LAYOUT: import.meta.env.VITE_USE_SHARED_TEXT_LAYOUT !== 'false',
-  USE_SHARED_THEMES: import.meta.env.VITE_USE_SHARED_THEMES !== 'false',
-  USE_SHARED_PALETTES: import.meta.env.VITE_USE_SHARED_PALETTES !== 'false',
   USE_SHARED_QNA_LAYOUT: import.meta.env.VITE_USE_SHARED_QNA_LAYOUT !== 'false',
 };
 

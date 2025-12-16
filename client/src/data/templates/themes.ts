@@ -1,16 +1,9 @@
 /**
- * Themes data wrapper
- * Imports from shared if feature flag is enabled, otherwise uses local file
+ * Themes data - imported directly from shared location
+ * Single source of truth for all theme definitions
  */
 
-import { FEATURE_FLAGS } from '../../utils/feature-flags';
-import localThemes from './themes.json';
-import sharedThemes from '../../../../shared/data/templates/themes.json';
-
-// Import from shared if feature flag is enabled, otherwise use local
-const themesData = FEATURE_FLAGS.USE_SHARED_THEMES 
-  ? sharedThemes 
-  : localThemes;
+import themesData from '../../../../shared/data/templates/themes.json';
 
 export default themesData;
 

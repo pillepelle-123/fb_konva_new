@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { PageTemplate, ColorPalette, TextboxStyle, ShapeStyle } from '../types/template-types';
 import type { CanvasElement } from '../context/editor-context';
 import { applyTextboxStyle, applyShapeStyle } from './template-style-applier';
-import { TOOL_DEFAULTS } from './tool-defaults';
+import { getGlobalThemeDefaults } from './global-themes';
 import { scaleTemplateToCanvas } from './template-utils';
 import { commonToActual } from './font-size-converter';
 
@@ -37,8 +37,9 @@ export function convertTemplateTextboxToElement(
   const textType: CanvasElement['textType'] = isQnaInline ? 'qna_inline' : 'free_text';
   
   // Use appropriate defaults with type guards
-  const qnaInlineDefaults = TOOL_DEFAULTS.qna_inline;
-  const freeTextDefaults = TOOL_DEFAULTS.free_text;
+  // getGlobalThemeDefaults() now includes base defaults, so we can use it with 'default' theme
+  const qnaInlineDefaults = getGlobalThemeDefaults('default', 'qna_inline');
+  const freeTextDefaults = getGlobalThemeDefaults('default', 'free_text');
   const defaults = isQnaInline ? qnaInlineDefaults : freeTextDefaults;
   
   const baseElement: CanvasElement = {
