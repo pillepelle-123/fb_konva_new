@@ -3961,16 +3961,19 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                 const sorted = elements
                   .slice() // Create a copy to avoid mutating the original array
                   .sort((a, b) => {
-                    // Sort qna_inline elements by questionOrder, then by y position
+                    // qna_inline elements: sort by questionOrder first
                     if (a.textType === 'qna_inline' && b.textType === 'qna_inline') {
                       const orderA = a.questionOrder ?? Infinity;
                       const orderB = b.questionOrder ?? Infinity;
                       if (orderA !== orderB) {
                         return orderA - orderB;
                       }
-                      // If order is the same, sort by y position
-                      return (a.y ?? 0) - (b.y ?? 0);
+                      // If order is the same, maintain array order (z-order)
+                      const indexA = elements.findIndex(el => el.id === a.id);
+                      const indexB = elements.findIndex(el => el.id === b.id);
+                      return indexA - indexB;
                     }
+                    
                     // If only one is qna_inline, prioritize it based on questionOrder
                     if (a.textType === 'qna_inline') {
                       const orderA = a.questionOrder ?? Infinity;
@@ -3980,8 +3983,12 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                       const orderB = b.questionOrder ?? Infinity;
                       return orderB === Infinity ? -1 : 1; // qna_inline with order comes first
                     }
-                    // For other elements, maintain original order (by y position)
-                    return (a.y ?? 0) - (b.y ?? 0);
+                    
+                    // For all other elements: maintain array order (z-order)
+                    // This preserves the z-order set by MOVE_ELEMENT actions
+                    const indexA = elements.findIndex(el => el.id === a.id);
+                    const indexB = elements.findIndex(el => el.id === b.id);
+                    return indexA - indexB;
                   });
                 
                 // In Konva, rendering order is determined by the order elements are added to the Layer,
@@ -4311,7 +4318,44 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                   ctx.closePath();
                 }}
               >
-                {partnerPage.elements.map(element => (
+                {(() => {
+                  const elements = partnerPage.elements || [];
+                  
+                  // Apply same sorting logic as active page for consistency
+                  const sorted = elements
+                    .slice()
+                    .sort((a, b) => {
+                      // qna_inline elements: sort by questionOrder first
+                      if (a.textType === 'qna_inline' && b.textType === 'qna_inline') {
+                        const orderA = a.questionOrder ?? Infinity;
+                        const orderB = b.questionOrder ?? Infinity;
+                        if (orderA !== orderB) {
+                          return orderA - orderB;
+                        }
+                        // If order is the same, maintain array order (z-order)
+                        const indexA = elements.findIndex(el => el.id === a.id);
+                        const indexB = elements.findIndex(el => el.id === b.id);
+                        return indexA - indexB;
+                      }
+                      
+                      // If only one is qna_inline, prioritize it based on questionOrder
+                      if (a.textType === 'qna_inline') {
+                        const orderA = a.questionOrder ?? Infinity;
+                        return orderA === Infinity ? 1 : -1;
+                      }
+                      if (b.textType === 'qna_inline') {
+                        const orderB = b.questionOrder ?? Infinity;
+                        return orderB === Infinity ? -1 : 1;
+                      }
+                      
+                      // For all other elements: maintain array order (z-order)
+                      const indexA = elements.findIndex(el => el.id === a.id);
+                      const indexB = elements.findIndex(el => el.id === b.id);
+                      return indexA - indexB;
+                    });
+                  
+                  return sorted;
+                })().map(element => (
                   <Group key={`preview-${element.id}`}>
                     <CanvasItemComponent
                       element={element}

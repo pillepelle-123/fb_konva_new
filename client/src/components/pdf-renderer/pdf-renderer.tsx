@@ -19,6 +19,19 @@ import { buildFont as sharedBuildFont, getLineHeight as sharedGetLineHeight, mea
 import { createLayout as sharedCreateLayout, createBlockLayout as sharedCreateBlockLayout } from '../../../../shared/utils/qna-layout';
 import { getFontFamilyByName } from '../../utils/font-families.ts';
 
+// Helper function to convert hex color to RGBA
+function hexToRgba(hex: string, opacity: number): string {
+  // Remove # if present
+  hex = hex.replace('#', '');
+  
+  // Parse RGB values
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}
+
 interface PDFRendererProps {
   page: Page;
   bookData: Book;
@@ -220,7 +233,6 @@ export function PDFRenderer({
         img.crossOrigin = 'anonymous';
         img.onload = () => {
           setBackgroundImage(img);
-          setImagesLoaded(prev => new Set(prev).add(imageUrl));
         };
         img.onerror = () => {
           console.error('[PDFRenderer] Failed to load background image:', imageUrl);
@@ -496,11 +508,43 @@ export function PDFRenderer({
   // Sort elements by z-index if available
   const sortedElements = useMemo(() => {
     const elements = page.elements || [];
-    return [...elements].sort((a, b) => {
-      const aZ = (a as any).zIndex ?? 0;
-      const bZ = (b as any).zIndex ?? 0;
-      return aZ - bZ;
+    console.log('[DEBUG z-order PDFRenderer] Original elements array:', elements.map((el, idx) => ({ idx, type: el.type, textType: el.textType, id: el.id })));
+    
+    // Sort elements respecting z-order (array order) and qna_inline questionOrder
+    const sorted = [...elements].sort((a, b) => {
+      // qna_inline elements: sort by questionOrder first
+      if (a.textType === 'qna_inline' && b.textType === 'qna_inline') {
+        const orderA = (a as any).questionOrder ?? Infinity;
+        const orderB = (b as any).questionOrder ?? Infinity;
+        if (orderA !== orderB) {
+          return orderA - orderB;
+        }
+        // If order is the same, maintain array order (z-order)
+        const indexA = elements.findIndex(el => el.id === a.id);
+        const indexB = elements.findIndex(el => el.id === b.id);
+        return indexA - indexB;
+      }
+      
+      // If only one is qna_inline, prioritize it based on questionOrder
+      if (a.textType === 'qna_inline') {
+        const orderA = (a as any).questionOrder ?? Infinity;
+        return orderA === Infinity ? 1 : -1; // qna_inline with order comes first
+      }
+      if (b.textType === 'qna_inline') {
+        const orderB = (b as any).questionOrder ?? Infinity;
+        return orderB === Infinity ? -1 : 1; // qna_inline with order comes first
+      }
+      
+      // For all other elements: maintain array order (z-order)
+      // This preserves the z-order set by MOVE_ELEMENT actions
+      const indexA = elements.findIndex(el => el.id === a.id);
+      const indexB = elements.findIndex(el => el.id === b.id);
+      return indexA - indexB;
     });
+    
+    console.log('[DEBUG z-order PDFRenderer] Sorted elements array:', sorted.map((el, idx) => ({ idx, type: el.type, textType: el.textType, id: el.id })));
+    
+    return sorted;
   }, [page.elements]);
 
   // No-op event handlers for non-interactive mode
@@ -809,6 +853,15 @@ export function PDFRenderer({
     const elements = sortedElements;
     console.log('[PDFRenderer] Rendering', elements.length, 'elements');
     
+    // Create a map of element IDs to their z-order index in the sorted array
+    const elementIdToZOrder = new Map<string, number>();
+    elements.forEach((el, idx) => {
+      elementIdToZOrder.set(el.id, idx);
+    });
+    
+    // Track image loading promises for final z-order fix
+    const imagePromises: Promise<void>[] = [];
+    
     for (const element of elements) {
       try {
         // Skip brush-multicolor elements (they are rendered as groups)
@@ -997,25 +1050,82 @@ export function PDFRenderer({
           
           if (showBackground) {
             const backgroundColor = element.backgroundColor || questionStyle.background?.backgroundColor || answerStyle.background?.backgroundColor || 'transparent';
-            const backgroundOpacity = element.backgroundOpacity ?? questionStyle.backgroundOpacity ?? answerStyle.backgroundOpacity ?? 1;
+            // Check for backgroundOpacity in multiple locations: element.fillOpacity, element.background.fillOpacity, element.backgroundOpacity, element.background.opacity, element.background.backgroundOpacity, questionSettings.fillOpacity, answerSettings.fillOpacity, questionStyle.background.opacity, answerStyle.background.opacity, questionStyle.backgroundOpacity, answerStyle.backgroundOpacity
+            const backgroundOpacity = (element as any).fillOpacity ?? 
+              (element as any).background?.fillOpacity ??
+              element.backgroundOpacity ?? 
+              (element as any).background?.opacity ??
+              (element as any).background?.backgroundOpacity ??
+              (element as any).questionSettings?.fillOpacity ??
+              (element as any).answerSettings?.fillOpacity ??
+              (element as any).questionSettings?.backgroundOpacity ??
+              (element as any).answerSettings?.backgroundOpacity ??
+              questionStyle.background?.opacity ?? 
+              answerStyle.background?.opacity ?? 
+              questionStyle.backgroundOpacity ?? 
+              answerStyle.backgroundOpacity ?? 
+              1;
             const cornerRadius = element.cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
             
-            // Debug: Log background rendering
+            // Debug: Log background rendering - show all opacity-related properties
             console.log('[DEBUG PDFRenderer] QnA Background rendered (first path):');
             console.log('  elementId:', element.id);
             console.log('  backgroundColor:', backgroundColor);
-            console.log('  backgroundOpacity:', backgroundOpacity);
+            console.log('  element.fillOpacity:', (element as any).fillOpacity);
+            console.log('  element.background.fillOpacity:', (element as any).background?.fillOpacity);
+            console.log('  element.backgroundOpacity:', element.backgroundOpacity);
+            console.log('  element.background.opacity:', (element as any).background?.opacity);
+            console.log('  element.background.backgroundOpacity:', (element as any).background?.backgroundOpacity);
+            console.log('  element.opacity:', element.opacity);
+            const opacityKeys = Object.keys(element).filter(k => k.toLowerCase().includes('opacity'));
+            const fillKeys = Object.keys(element).filter(k => k.toLowerCase().includes('fill'));
+            console.log('  All element opacity keys:', opacityKeys);
+            console.log('  All element fill keys:', fillKeys);
+            // Log actual values for opacity and fill keys
+            opacityKeys.forEach(key => {
+              console.log(`  element.${key}:`, (element as any)[key]);
+            });
+            fillKeys.forEach(key => {
+              console.log(`  element.${key}:`, (element as any)[key]);
+            });
+            // Log answerSettings and questionSettings
+            console.log('  element.answerSettings:', (element as any).answerSettings);
+            console.log('  element.questionSettings:', (element as any).questionSettings);
+            console.log('  element.answerSettings?.fillOpacity:', (element as any).answerSettings?.fillOpacity);
+            console.log('  element.questionSettings?.fillOpacity:', (element as any).questionSettings?.fillOpacity);
+            console.log('  element.answerSettings?.backgroundOpacity:', (element as any).answerSettings?.backgroundOpacity);
+            console.log('  element.questionSettings?.backgroundOpacity:', (element as any).questionSettings?.backgroundOpacity);
+            console.log('  questionStyle.background?.opacity:', questionStyle.background?.opacity);
+            console.log('  answerStyle.background?.opacity:', answerStyle.background?.opacity);
+            console.log('  questionStyle.backgroundOpacity:', questionStyle.backgroundOpacity);
+            console.log('  answerStyle.backgroundOpacity:', answerStyle.backgroundOpacity);
+            console.log('  backgroundOpacity (final):', backgroundOpacity);
             console.log('  elementOpacity:', elementOpacity);
             console.log('  finalOpacity:', backgroundOpacity * elementOpacity);
             
             if (backgroundColor !== 'transparent' && backgroundColor) {
+              const finalOpacity = backgroundOpacity * elementOpacity;
+              
+              // Apply opacity directly to fill color (RGBA) instead of using opacity property
+              // This ensures opacity is preserved during PDF export
+              let fillColor = backgroundColor;
+              if (finalOpacity < 1 && backgroundColor.startsWith('#')) {
+                fillColor = hexToRgba(backgroundColor, finalOpacity);
+              } else if (finalOpacity < 1 && backgroundColor.startsWith('rgb')) {
+                // Convert rgb to rgba
+                const rgbMatch = backgroundColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                if (rgbMatch) {
+                  fillColor = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${finalOpacity})`;
+                }
+              }
+              
               const bgRect = new Konva.Rect({
                 x: elementX,
                 y: elementY,
                 width: elementWidth,
                 height: dynamicHeight,
-                fill: backgroundColor,
-                opacity: backgroundOpacity * elementOpacity,
+                fill: fillColor,
+                opacity: 1, // Set to 1 since opacity is now in fill color
                 cornerRadius: cornerRadius,
                 rotation: elementRotation,
                 listening: false,
@@ -1023,6 +1133,25 @@ export function PDFRenderer({
               
               // Add background and position it after page background, but before other elements
               layer.add(bgRect);
+              
+              // Verify opacity is set correctly
+              console.log('[DEBUG PDFRenderer] QnA Background opacity verification:', {
+                elementId: element.id,
+                finalOpacity: finalOpacity,
+                fillColor: fillColor,
+                originalBackgroundColor: backgroundColor,
+                bgRectFill: bgRect.fill(),
+                bgRectOpacity: bgRect.opacity()
+              });
+              
+              // Store z-order on background rect
+              const zOrderIndex = elementIdToZOrder.get(element.id);
+              if (zOrderIndex !== undefined) {
+                bgRect.setAttr('__zOrderIndex', zOrderIndex);
+                bgRect.setAttr('__isQnaNode', true);
+                bgRect.setAttr('__elementId', element.id);
+                bgRect.setAttr('__nodeType', 'qna-background');
+              }
               
               // Find all page background nodes (full canvas size at 0,0) and move bgRect after them
               const stage = layer.getStage();
@@ -2767,18 +2896,53 @@ export function PDFRenderer({
               'transparent';
             // Don't render if backgroundColor is transparent or empty
             if (backgroundColor !== 'transparent' && backgroundColor) {
-              const backgroundOpacity = (element as any).backgroundOpacity !== undefined 
-                ? (element as any).backgroundOpacity 
-                : questionStyle.backgroundOpacity ?? answerStyle.backgroundOpacity ?? 1;
+              // Check for backgroundOpacity in multiple locations: element.fillOpacity, element.background.fillOpacity, element.backgroundOpacity, element.background.opacity, element.background.backgroundOpacity, questionSettings.fillOpacity, answerSettings.fillOpacity, questionStyle.background.opacity, answerStyle.background.opacity, questionStyle.backgroundOpacity, answerStyle.backgroundOpacity
+              const backgroundOpacity = (element as any).fillOpacity !== undefined
+                ? (element as any).fillOpacity
+                : (element as any).background?.fillOpacity !== undefined
+                  ? (element as any).background.fillOpacity
+                  : (element as any).backgroundOpacity !== undefined 
+                    ? (element as any).backgroundOpacity 
+                    : (element as any).background?.opacity !== undefined
+                      ? (element as any).background.opacity
+                      : (element as any).background?.backgroundOpacity !== undefined
+                        ? (element as any).background.backgroundOpacity
+                        : (element as any).questionSettings?.fillOpacity !== undefined
+                          ? (element as any).questionSettings.fillOpacity
+                          : (element as any).answerSettings?.fillOpacity !== undefined
+                            ? (element as any).answerSettings.fillOpacity
+                            : (element as any).questionSettings?.backgroundOpacity !== undefined
+                              ? (element as any).questionSettings.backgroundOpacity
+                              : (element as any).answerSettings?.backgroundOpacity !== undefined
+                                ? (element as any).answerSettings.backgroundOpacity
+                                : questionStyle.background?.opacity ?? 
+                                  answerStyle.background?.opacity ?? 
+                                  questionStyle.backgroundOpacity ?? 
+                                  answerStyle.backgroundOpacity ?? 
+                                  1;
               const cornerRadius = (element as any).cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
+              const finalOpacity = backgroundOpacity * elementOpacity;
+              
+              // Apply opacity directly to fill color (RGBA) instead of using opacity property
+              // This ensures opacity is preserved during PDF export
+              let fillColor = backgroundColor;
+              if (finalOpacity < 1 && backgroundColor.startsWith('#')) {
+                fillColor = hexToRgba(backgroundColor, finalOpacity);
+              } else if (finalOpacity < 1 && backgroundColor.startsWith('rgb')) {
+                // Convert rgb to rgba
+                const rgbMatch = backgroundColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                if (rgbMatch) {
+                  fillColor = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${finalOpacity})`;
+                }
+              }
               
               bgRect = new Konva.Rect({
                 x: elementX,
                 y: elementY,
                 width: elementWidth,
                 height: contentHeight,
-                fill: backgroundColor,
-                opacity: backgroundOpacity * elementOpacity,
+                fill: fillColor,
+                opacity: 1, // Set to 1 since opacity is now in fill color
                 cornerRadius: cornerRadius,
                 rotation: elementRotation,
                 listening: false,
@@ -2786,6 +2950,25 @@ export function PDFRenderer({
               
               // Add background and position it after page background, but before other elements
               layer.add(bgRect);
+              
+              // Verify opacity is set correctly
+              console.log('[DEBUG PDFRenderer] QnA Background opacity verification (second path):', {
+                elementId: element.id,
+                finalOpacity: finalOpacity,
+                fillColor: fillColor,
+                originalBackgroundColor: backgroundColor,
+                bgRectFill: bgRect.fill(),
+                bgRectOpacity: bgRect.opacity()
+              });
+              
+              // Store z-order on background rect
+              const zOrderIndex = elementIdToZOrder.get(element.id);
+              if (zOrderIndex !== undefined) {
+                bgRect.setAttr('__zOrderIndex', zOrderIndex);
+                bgRect.setAttr('__isQnaNode', true);
+                bgRect.setAttr('__elementId', element.id);
+                bgRect.setAttr('__nodeType', 'qna-background');
+              }
               
               // Find all page background nodes (full canvas size at 0,0) and move bgRect after them
               const stage = layer.getStage();
@@ -2795,6 +2978,8 @@ export function PDFRenderer({
               let lastPageBgIndex = -1;
               layer.getChildren().forEach((node, idx) => {
                 if (node === bgRect) return; // Skip self
+                // Skip QnA nodes - they should not be considered page backgrounds
+                if (node.getAttr('__isQnaNode')) return;
                 if (node.getClassName() !== 'Rect' && node.getClassName() !== 'Image') return;
                 const nodeX = node.x ? node.x() : 0;
                 const nodeY = node.y ? node.y() : 0;
@@ -2818,7 +3003,28 @@ export function PDFRenderer({
               console.log('[DEBUG PDFRenderer] QnA Background rendered:');
               console.log('  elementId:', element.id);
               console.log('  backgroundColor:', backgroundColor);
-              console.log('  backgroundOpacity:', backgroundOpacity);
+              console.log('  element.fillOpacity:', (element as any).fillOpacity);
+              console.log('  element.background.fillOpacity:', (element as any).background?.fillOpacity);
+              console.log('  element.backgroundOpacity:', (element as any).backgroundOpacity);
+              console.log('  element.background.opacity:', (element as any).background?.opacity);
+              console.log('  element.background.backgroundOpacity:', (element as any).background?.backgroundOpacity);
+              console.log('  element.opacity:', (element as any).opacity);
+              // Log answerSettings and questionSettings
+              console.log('  element.answerSettings:', (element as any).answerSettings);
+              console.log('  element.questionSettings:', (element as any).questionSettings);
+              console.log('  element.answerSettings?.fillOpacity:', (element as any).answerSettings?.fillOpacity);
+              console.log('  element.questionSettings?.fillOpacity:', (element as any).questionSettings?.fillOpacity);
+              console.log('  element.answerSettings?.background?.fillOpacity:', (element as any).answerSettings?.background?.fillOpacity);
+              console.log('  element.questionSettings?.background?.fillOpacity:', (element as any).questionSettings?.background?.fillOpacity);
+              console.log('  element.answerSettings?.backgroundOpacity:', (element as any).answerSettings?.backgroundOpacity);
+              console.log('  element.questionSettings?.backgroundOpacity:', (element as any).questionSettings?.backgroundOpacity);
+              console.log('  All element opacity keys:', Object.keys(element).filter(k => k.toLowerCase().includes('opacity')));
+              console.log('  All element fill keys:', Object.keys(element).filter(k => k.toLowerCase().includes('fill')));
+              console.log('  questionStyle.background?.opacity:', questionStyle.background?.opacity);
+              console.log('  answerStyle.background?.opacity:', answerStyle.background?.opacity);
+              console.log('  questionStyle.backgroundOpacity:', questionStyle.backgroundOpacity);
+              console.log('  answerStyle.backgroundOpacity:', answerStyle.backgroundOpacity);
+              console.log('  backgroundOpacity (final):', backgroundOpacity);
               console.log('  elementOpacity:', elementOpacity);
               console.log('  finalOpacity:', backgroundOpacity * elementOpacity);
               console.log('  showBackground:', showBackground);
@@ -3075,7 +3281,15 @@ export function PDFRenderer({
             // Insert all ruled lines after background
             if (ruledLinesNodes.length > 0) {
               const insertIndex = bgRect ? layer.getChildren().indexOf(bgRect) + 1 : layer.getChildren().length;
+              const zOrderIndex = elementIdToZOrder.get(element.id);
               ruledLinesNodes.forEach((lineNode, idx) => {
+                // Set z-order attributes for ruled lines
+                if (zOrderIndex !== undefined) {
+                  lineNode.setAttr('__zOrderIndex', zOrderIndex);
+                  lineNode.setAttr('__isQnaNode', true);
+                  lineNode.setAttr('__elementId', element.id);
+                  lineNode.setAttr('__nodeType', 'qna-line');
+                }
                 layer.add(lineNode);
                 const currentIndex = layer.getChildren().indexOf(lineNode);
                 if (currentIndex !== insertIndex + idx) {
@@ -3158,8 +3372,18 @@ export function PDFRenderer({
                   lineCap: strokeProps.lineCap || 'round',
                   lineJoin: strokeProps.lineJoin || 'round',
                 });
+
+                // Set z-order attributes for border
+                const borderZOrderIndex = elementIdToZOrder.get(element.id);
+                if (borderZOrderIndex !== undefined) {
+                  borderPath.setAttr('__zOrderIndex', borderZOrderIndex);
+                  borderPath.setAttr('__isQnaNode', true);
+                  borderPath.setAttr('__elementId', element.id);
+                  borderPath.setAttr('__nodeType', 'qna-border');
+                }
+
                 layer.add(borderPath);
-                
+
                 // Insert border after ruled lines (or after background if no ruled lines)
                 const totalRuledLinesCount = allRuledLinesNodes.length + ruledLinesNodes.length;
                 const insertAfterIndex = bgRect ? layer.getChildren().indexOf(bgRect) + 1 + totalRuledLinesCount : layer.getChildren().length;
@@ -3183,8 +3407,18 @@ export function PDFRenderer({
                   rotation: elementRotation,
                   listening: false,
                 });
+
+                // Set z-order attributes for fallback border rect
+                const fallbackBorderZOrderIndex = elementIdToZOrder.get(element.id);
+                if (fallbackBorderZOrderIndex !== undefined) {
+                  borderRect.setAttr('__zOrderIndex', fallbackBorderZOrderIndex);
+                  borderRect.setAttr('__isQnaNode', true);
+                  borderRect.setAttr('__elementId', element.id);
+                  borderRect.setAttr('__nodeType', 'qna-border');
+                }
+
                 layer.add(borderRect);
-                
+
                 // Insert border after ruled lines (or after background if no ruled lines)
                 const totalRuledLinesCount = allRuledLinesNodes.length + ruledLinesNodes.length;
                 const insertAfterIndex = bgRect ? layer.getChildren().indexOf(bgRect) + 1 + totalRuledLinesCount : layer.getChildren().length;
@@ -3209,8 +3443,18 @@ export function PDFRenderer({
                 rotation: elementRotation,
                 listening: false,
               });
+
+              // Set z-order attributes for default border rect
+              const defaultBorderZOrderIndex = elementIdToZOrder.get(element.id);
+              if (defaultBorderZOrderIndex !== undefined) {
+                borderRect.setAttr('__zOrderIndex', defaultBorderZOrderIndex);
+                borderRect.setAttr('__isQnaNode', true);
+                borderRect.setAttr('__elementId', element.id);
+                borderRect.setAttr('__nodeType', 'qna-border');
+              }
+
               layer.add(borderRect);
-              
+
               // Insert border after ruled lines (or after background if no ruled lines)
               const totalRuledLinesCount = allRuledLinesNodes.length + ruledLinesNodes.length;
               const insertAfterIndex = bgRect ? layer.getChildren().indexOf(bgRect) + 1 + totalRuledLinesCount : layer.getChildren().length;
@@ -3258,6 +3502,13 @@ export function PDFRenderer({
             });
             
             layer.add(textShape);
+            // Store z-order on text shape
+            const zOrderIndex = elementIdToZOrder.get(element.id);
+            if (zOrderIndex !== undefined) {
+              textShape.setAttr('__zOrderIndex', zOrderIndex);
+              textShape.setAttr('__elementId', element.id);
+              textShape.setAttr('__nodeType', 'qna-text');
+            }
           }
         }
         // Render free_text elements
@@ -3326,6 +3577,11 @@ export function PDFRenderer({
             });
             
             layer.add(textNode);
+            // Store z-order on text node
+            const zOrderIndex = elementIdToZOrder.get(element.id);
+            if (zOrderIndex !== undefined) {
+              textNode.setAttr('__zOrderIndex', zOrderIndex);
+            }
           }
         }
         // Render regular text elements
@@ -3370,6 +3626,11 @@ export function PDFRenderer({
             });
             
             layer.add(textNode);
+            // Store z-order on text node
+            const zOrderIndex = elementIdToZOrder.get(element.id);
+            if (zOrderIndex !== undefined) {
+              textNode.setAttr('__zOrderIndex', zOrderIndex);
+            }
           }
         }
         // Render image elements (including stickers and placeholders)
@@ -3487,6 +3748,15 @@ export function PDFRenderer({
           const img = new Image();
           img.crossOrigin = 'anonymous';
           
+          // Create promise for this image - must resolve/reject in the same handlers we use for rendering
+          let imageResolve: (() => void) | null = null;
+          let imageReject: ((error: any) => void) | null = null;
+          const imagePromise = new Promise<void>((resolve, reject) => {
+            imageResolve = resolve;
+            imageReject = reject;
+          });
+          imagePromises.push(imagePromise);
+          
           img.onload = () => {
             console.log('[PDFRenderer] Image loaded successfully:', {
               elementId: element.id,
@@ -3527,10 +3797,22 @@ export function PDFRenderer({
                 listening: false,
                 ...cropProps
               });
+              
+              // Get z-order index for this element
+              const zOrderIndex = elementIdToZOrder.get(element.id);
+              
+              // Add image to layer
               layer.add(imageNode);
+              
+              // Store z-order on image node for final reordering
+              if (zOrderIndex !== undefined) {
+                imageNode.setAttr('__zOrderIndex', zOrderIndex);
+              }
+              
               console.log('[PDFRenderer] Image node added to layer:', {
                 elementId: element.id,
-                layerChildrenCount: layer.getChildren().length
+                layerChildrenCount: layer.getChildren().length,
+                zOrderIndex: zOrderIndex
               });
               
               // Render frame if enabled (stickers never get frames)
@@ -3551,29 +3833,36 @@ export function PDFRenderer({
               const strokeWidth = element.strokeWidth || 0;
 
               if (frameEnabled && strokeWidth > 0) {
-                console.log('[PDFRenderer] Rendering frame for element:', element.id, element.type);
-                // Get color palette defaults for consistent frame coloring (same as QnA borders)
-                const currentPage = state.currentBook?.pages?.find(p => p.id === page.id) || page;
-                const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
-                const bookTheme = bookData?.themeId || bookData?.bookTheme;
-                const pageLayoutTemplateId = currentPage?.layoutTemplateId;
-                const bookLayoutTemplateId = bookData?.layoutTemplateId;
-                const pageColorPaletteId = currentPage?.colorPaletteId;
-                const bookColorPaletteId = bookData?.colorPaletteId;
+                try {
+                  console.log('[PDFRenderer] Rendering frame for element:', element.id, element.type);
+                  // Get color palette defaults for consistent frame coloring (same as QnA borders)
+                  const currentPage = state.currentBook?.pages?.find(p => p.id === page.id) || page;
+                  const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+                  const bookTheme = bookData?.themeId || bookData?.bookTheme;
+                  const pageLayoutTemplateId = currentPage?.layoutTemplateId;
+                  const bookLayoutTemplateId = bookData?.layoutTemplateId;
+                  const pageColorPaletteId = currentPage?.colorPaletteId;
+                  const bookColorPaletteId = bookData?.colorPaletteId;
 
-                const qnaDefaults = getToolDefaults(
-                  'qna',
-                  pageTheme,
-                  bookTheme,
-                  element,
-                  undefined, // toolSettings not needed for defaults
-                  pageLayoutTemplateId,
-                  bookLayoutTemplateId,
-                  pageColorPaletteId,
-                  bookColorPaletteId
-                );
+                  let qnaDefaults;
+                  try {
+                    qnaDefaults = getToolDefaults(
+                      'qna',
+                      pageTheme,
+                      bookTheme,
+                      element,
+                      undefined, // toolSettings not needed for defaults
+                      pageLayoutTemplateId,
+                      bookLayoutTemplateId,
+                      pageColorPaletteId,
+                      bookColorPaletteId
+                    );
+                  } catch (error) {
+                    console.warn('[PDFRenderer] Error getting tool defaults for frame, using fallback:', error);
+                    qnaDefaults = { borderColor: '#1f2937' };
+                  }
 
-                const stroke = element.stroke && element.stroke !== '#1f2937' ? element.stroke : qnaDefaults.borderColor || '#1f2937';
+                  const stroke = element.stroke && element.stroke !== '#1f2937' ? element.stroke : qnaDefaults.borderColor || '#1f2937';
                 const strokeOpacity = element.strokeOpacity !== undefined ? element.strokeOpacity : 1;
                 const frameTheme = element.frameTheme || element.theme || 'default';
                 const cornerRadius = element.cornerRadius || 0;
@@ -3618,6 +3907,18 @@ export function PDFRenderer({
                         lineJoin: 'round'
                       });
                       layer.add(frameNode);
+                      // Frame should be right after the image (same z-order group)
+                      if (zOrderIndex !== undefined) {
+                        frameNode.setAttr('__zOrderIndex', zOrderIndex);
+                        frameNode.setAttr('__isFrame', true);
+                        frameNode.setAttr('__parentImageId', element.id);
+                        // Position frame right after the image
+                        // Get the image's current position in the layer
+                        const imageIndex = imageNode.getParent()?.getChildren().indexOf(imageNode);
+                        if (imageIndex !== undefined && imageIndex >= 0) {
+                          frameNode.moveTo(imageIndex + 1);
+                        }
+                      }
                     }
                   }
                 } else {
@@ -3637,17 +3938,57 @@ export function PDFRenderer({
                     listening: false
                   });
                   layer.add(frameNode);
+                  // Frame should be right after the image (same z-order group)
+                  if (zOrderIndex !== undefined) {
+                    frameNode.setAttr('__zOrderIndex', zOrderIndex);
+                    frameNode.setAttr('__isFrame', true);
+                    frameNode.setAttr('__parentImageId', element.id);
+                    // Position frame right after the image
+                    // Get the image's current position in the layer
+                    const imageIndex = imageNode.getParent()?.getChildren().indexOf(imageNode);
+                    if (imageIndex !== undefined && imageIndex >= 0) {
+                      frameNode.moveTo(imageIndex + 1);
+                    }
+                  }
+                }
+                } catch (frameError) {
+                  console.error('[PDFRenderer] Error rendering frame for element:', element.id, frameError);
+                  // Continue without frame - don't block image rendering
                 }
               }
               
               layer.draw();
               stageRef.current?.draw();
+              
+              // Resolve the promise after image is added to layer
+              if (imageResolve) {
+                imageResolve();
+              }
             } catch (error) {
               console.error('[PDFRenderer] Error creating image node:', error);
+              // Log more details about the error
+              if (error instanceof Error) {
+                console.error('[PDFRenderer] Error details:', {
+                  message: error.message,
+                  stack: error.stack,
+                  elementId: element.id,
+                  elementType: element.type
+                });
+              } else {
+                console.error('[PDFRenderer] Error object:', error);
+              }
+              // Reject the promise on error
+              if (imageReject) {
+                imageReject(error);
+              }
             }
           };
           
           img.onerror = (error) => {
+            // Reject the promise on error
+            if (imageReject) {
+              imageReject(error);
+            }
             console.warn('[PDFRenderer] Failed to load image:', {
               elementId: element.id,
               elementType: element.type,
@@ -3679,6 +4020,12 @@ export function PDFRenderer({
           const stroke = element.stroke || element.strokeColor || '#000000';
           const strokeWidth = element.strokeWidth || 0;
           const theme = element.theme || element.borderTheme || 'default';
+          
+          // For rect elements, use fillOpacity if available, otherwise use elementOpacity
+          // For other shapes, use elementOpacity
+          const fillOpacity = element.type === 'rect' && (element as any).fillOpacity !== undefined 
+            ? (element as any).fillOpacity 
+            : elementOpacity;
           
           // Check if theme renderer should be used
           const themeRenderer = getThemeRenderer(theme);
@@ -3719,14 +4066,28 @@ export function PDFRenderer({
             }
             
             if (pathData) {
+              // For rect elements with theme, apply fillOpacity to fill color (RGBA) instead of using opacity property
+              let pathFill = fill !== 'transparent' ? fill : undefined;
+              if (element.type === 'rect' && pathFill && fillOpacity < 1) {
+                if (pathFill.startsWith('#')) {
+                  pathFill = hexToRgba(pathFill, fillOpacity);
+                } else if (pathFill.startsWith('rgb')) {
+                  // Convert rgb to rgba
+                  const rgbMatch = pathFill.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                  if (rgbMatch) {
+                    pathFill = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${fillOpacity})`;
+                  }
+                }
+              }
+              
               const shapePath = new Konva.Path({
                 data: pathData,
                 x: elementX,
                 y: elementY,
-                fill: fill !== 'transparent' ? fill : undefined,
+                fill: pathFill,
                 stroke: stroke,
                 strokeWidth: strokeWidth,
-                opacity: elementOpacity,
+                opacity: element.type === 'rect' && fillOpacity < 1 ? 1 : elementOpacity, // Set to 1 if opacity is in fill color
                 strokeScaleEnabled: true,
                 rotation: elementRotation,
                 listening: false,
@@ -3760,21 +4121,40 @@ export function PDFRenderer({
                   listening: false
                 });
               } else {
+                // For rect elements, apply fillOpacity to fill color (RGBA) instead of using opacity property
+                let rectFill = fill !== 'transparent' ? fill : undefined;
+                if (element.type === 'rect' && rectFill && fillOpacity < 1) {
+                  if (rectFill.startsWith('#')) {
+                    rectFill = hexToRgba(rectFill, fillOpacity);
+                  } else if (rectFill.startsWith('rgb')) {
+                    // Convert rgb to rgba
+                    const rgbMatch = rectFill.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                    if (rgbMatch) {
+                      rectFill = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${fillOpacity})`;
+                    }
+                  }
+                }
+                
                 shapeNode = new Konva.Rect({
                   x: elementX,
                   y: elementY,
                   width: elementWidth,
                   height: elementHeight,
-                  fill: fill !== 'transparent' ? fill : undefined,
+                  fill: rectFill,
                   stroke: strokeWidth > 0 ? stroke : undefined,
                   strokeWidth: strokeWidth,
                   cornerRadius: element.cornerRadius || 0,
                   rotation: elementRotation,
-                  opacity: elementOpacity,
+                  opacity: element.type === 'rect' && fillOpacity < 1 ? 1 : elementOpacity, // Set to 1 if opacity is in fill color
                   listening: false
                 });
               }
               layer.add(shapeNode);
+              // Store z-order on shape node
+              const zOrderIndex = elementIdToZOrder.get(element.id);
+              if (zOrderIndex !== undefined) {
+                shapeNode.setAttr('__zOrderIndex', zOrderIndex);
+              }
             }
           } else {
             // Default rendering without theme
@@ -3815,22 +4195,41 @@ export function PDFRenderer({
               });
             } else {
               // Default to Rect for other shapes
+              // For rect elements, apply fillOpacity to fill color (RGBA) instead of using opacity property
+              let rectFill = fill !== 'transparent' ? fill : undefined;
+              if (element.type === 'rect' && rectFill && fillOpacity < 1) {
+                if (rectFill.startsWith('#')) {
+                  rectFill = hexToRgba(rectFill, fillOpacity);
+                } else if (rectFill.startsWith('rgb')) {
+                  // Convert rgb to rgba
+                  const rgbMatch = rectFill.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                  if (rgbMatch) {
+                    rectFill = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${fillOpacity})`;
+                  }
+                }
+              }
+              
               shapeNode = new Konva.Rect({
                 x: elementX,
                 y: elementY,
                 width: elementWidth,
                 height: elementHeight,
-                fill: fill !== 'transparent' ? fill : undefined,
+                fill: rectFill,
                 stroke: strokeWidth > 0 ? stroke : undefined,
                 strokeWidth: strokeWidth,
                 cornerRadius: element.cornerRadius || 0,
                 rotation: elementRotation,
-                opacity: elementOpacity,
+                opacity: element.type === 'rect' && fillOpacity < 1 ? 1 : elementOpacity, // Set to 1 if opacity is in fill color
                 listening: false
               });
             }
             
             layer.add(shapeNode);
+            // Store z-order on shape node
+            const zOrderIndex = elementIdToZOrder.get(element.id);
+            if (zOrderIndex !== undefined) {
+              shapeNode.setAttr('__zOrderIndex', zOrderIndex);
+            }
           }
         }
       } catch (error) {
@@ -3842,6 +4241,169 @@ export function PDFRenderer({
     stageRef.current.draw();
     
     console.log('[PDFRenderer] Rendered to manual layer, layer has', layer.getChildren().length, 'children');
+    
+    // After all images are loaded (or failed), fix z-order
+    // Use allSettled to ensure z-order fix runs even if some images fail
+    if (imagePromises.length > 0) {
+      Promise.allSettled(imagePromises).then(() => {
+        console.log('[DEBUG z-order PDFRenderer] All images loaded (or failed), fixing z-order...');
+        
+        // Collect ALL elements (including background) with their z-order
+        const allElements: Array<{ node: Konva.Node; zOrder: number; isFrame: boolean; originalIndex: number; isBackground: boolean; elementId?: string; nodeType?: string; originalOpacity?: number }> = [];
+        const children = layer.getChildren();
+        const stage = layer.getStage();
+        const stageWidth = stage ? stage.width() : 2480;
+        const stageHeight = stage ? stage.height() : 3508;
+        
+        for (let i = 0; i < children.length; i++) {
+          const child = children[i];
+          const zOrder = child.getAttr('__zOrderIndex');
+          const isFrame = child.getAttr('__isFrame');
+          const elementId = child.getAttr('__elementId');
+          const nodeType = child.getAttr('__nodeType');
+          
+          // Store original opacity before reordering
+          const originalOpacity = child.opacity();
+          
+          // Check if this is a page background (full canvas size at 0,0)
+          // BUT exclude QnA nodes - they have __isQnaNode attribute
+          let isBackground = false;
+          const isQnaNode = child.getAttr('__isQnaNode');
+          if (!isQnaNode && (child.getClassName() === 'Rect' || child.getClassName() === 'Image' || child.getClassName() === 'Shape')) {
+            const nodeX = child.x ? child.x() : 0;
+            const nodeY = child.y ? child.y() : 0;
+            const nodeWidth = child.width ? child.width() : 0;
+            const nodeHeight = child.height ? child.height() : 0;
+            
+            if (nodeX === 0 && nodeY === 0 && nodeWidth === stageWidth && nodeHeight === stageHeight) {
+              isBackground = true;
+            }
+          }
+          
+          // If element has zOrderIndex, use it; otherwise infer from current position
+          // Background elements should have zOrder -1 to be sorted first
+          const elementZOrder = isBackground ? -1 : (zOrder !== undefined ? zOrder : (i - 1));
+          
+          allElements.push({
+            node: child,
+            zOrder: elementZOrder,
+            isFrame: isFrame || false,
+            originalIndex: i,
+            isBackground: isBackground,
+            elementId: elementId,
+            nodeType: nodeType,
+            originalOpacity: originalOpacity
+          });
+        }
+        
+        // Define node type order for QnA elements (within each element, maintain this order)
+        // Text should appear above border and ruled lines
+        const nodeTypeOrder: Record<string, number> = {
+          'qna-background': 0,
+          'qna-line': 1,
+          'qna-border': 2,
+          'qna-text': 3
+        };
+        
+        // Sort all elements by z-order: backgrounds first (zOrder -1), then by zOrder
+        // For elements with the same zOrder and elementId, maintain node type order
+        allElements.sort((a, b) => {
+          // Backgrounds always come first
+          if (a.isBackground && !b.isBackground) return -1;
+          if (!a.isBackground && b.isBackground) return 1;
+          
+          if (a.zOrder !== b.zOrder) {
+            return a.zOrder - b.zOrder;
+          }
+          
+          // If same z-order and same elementId, sort by node type (for QnA elements)
+          if (a.elementId && b.elementId && a.elementId === b.elementId) {
+            const aOrder = nodeTypeOrder[a.nodeType || ''] ?? 999;
+            const bOrder = nodeTypeOrder[b.nodeType || ''] ?? 999;
+            if (aOrder !== bOrder) {
+              return aOrder - bOrder;
+            }
+            // If same node type, maintain original order
+            return a.originalIndex - b.originalIndex;
+          }
+          
+          // If same z-order but different elements, maintain original order to preserve internal element structure
+          // This ensures that nodes within the same element stay together
+          if (a.zOrder === b.zOrder) {
+            // If both have elementId, group by elementId first, then by originalIndex
+            if (a.elementId && b.elementId) {
+              if (a.elementId !== b.elementId) {
+                return a.elementId.localeCompare(b.elementId);
+              }
+            }
+            // Maintain original order to preserve internal element structure
+            return a.originalIndex - b.originalIndex;
+          }
+          
+          // If same z-order, frames should come after images
+          if (a.isFrame && !b.isFrame) return 1;
+          if (!a.isFrame && b.isFrame) return -1;
+          return 0;
+        });
+        
+        // Reposition all elements in correct z-order
+        console.log('[DEBUG z-order PDFRenderer] Repositioning', allElements.length, 'elements...');
+        console.log('[DEBUG z-order PDFRenderer] Layer children before reordering:', layer.getChildren().length);
+        console.log('[DEBUG z-order PDFRenderer] Background elements:', allElements.filter(el => el.isBackground).length);
+        
+        // Instead of using moveTo() which can fail, remove all elements and re-add them in correct order
+        // Remove all elements from layer
+        layer.removeChildren();
+        
+        // Re-add all elements in sorted order
+        allElements.forEach((el, i) => {
+          try {
+            layer.add(el.node);
+            // Restore original opacity if it was stored
+            if (el.originalOpacity !== undefined && el.originalOpacity !== null) {
+              el.node.opacity(el.originalOpacity);
+              // Verify opacity was set correctly
+              const actualOpacity = el.node.opacity();
+              if (Math.abs(actualOpacity - el.originalOpacity) > 0.001) {
+                console.warn(`[DEBUG z-order PDFRenderer] Opacity mismatch for ${el.node.getClassName()} at position ${i}: expected ${el.originalOpacity}, got ${actualOpacity}`);
+                // Force set opacity again
+                el.node.opacity(el.originalOpacity);
+              }
+            }
+            const finalOpacity = el.node.opacity();
+            console.log(`[DEBUG z-order PDFRenderer] Added ${el.node.getClassName()} at position ${i} (zOrder: ${el.zOrder}, isBackground: ${el.isBackground}, originalIndex: ${el.originalIndex}, opacity: ${finalOpacity}, originalOpacity: ${el.originalOpacity})`);
+            
+            // Special debug for QnA background rects
+            if (el.node.getClassName() === 'Rect' && el.node.getAttr('__isQnaNode')) {
+              const rectNode = el.node as Konva.Rect;
+              const fillValue = rectNode.fill ? rectNode.fill() : 'N/A';
+              console.log(`[DEBUG z-order PDFRenderer] QnA Background Rect at position ${i}:`, {
+                elementId: el.node.getAttr('__elementId'),
+                opacity: finalOpacity,
+                originalOpacity: el.originalOpacity,
+                fill: fillValue,
+                fillType: typeof fillValue === 'string' ? (fillValue.startsWith('rgba') ? 'rgba' : fillValue.startsWith('rgb') ? 'rgb' : fillValue.startsWith('#') ? 'hex' : 'other') : 'N/A',
+                fillHasAlpha: typeof fillValue === 'string' && fillValue.includes('rgba')
+              });
+            }
+          } catch (error) {
+            console.error(`[DEBUG z-order PDFRenderer] Error adding element at position ${i}:`, error);
+            if (error instanceof Error) {
+              console.error(`[DEBUG z-order PDFRenderer] Error message: ${error.message}`);
+              console.error(`[DEBUG z-order PDFRenderer] Error stack: ${error.stack}`);
+            }
+          }
+        });
+        
+        console.log('[DEBUG z-order PDFRenderer] Layer children after reordering:', layer.getChildren().length);
+        
+        layer.draw();
+        stageRef.current?.draw();
+        console.log('[DEBUG z-order PDFRenderer] Z-order fix complete');
+      }).catch((error) => {
+        console.error('[DEBUG z-order PDFRenderer] Error waiting for images:', error);
+      });
+    }
   }, [layerReady, width, height, backgroundImage, patternImage, page.background, page.backgroundTransform, pagePaletteId, palette, normalizedPalette, palettePatternFill, sortedElements]);
 
   console.log('[PDFRenderer] About to render Stage');

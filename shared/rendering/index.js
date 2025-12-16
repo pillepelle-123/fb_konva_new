@@ -65,31 +65,56 @@ async function renderPageWithKonva(pageData, bookData, canvasWidth, canvasHeight
     backgroundOptions // Pass options with token and apiUrl for proxy
   );
   
-  // Render all elements
-  // Sort elements to ensure correct z-order (like client-side rendering)
-  // Priority: zIndex > y position
-  const elements = (pageData.elements || []).slice().sort((a, b) => {
-    // First, sort by zIndex if available (like PDFRenderer does)
-    const aZ = a.zIndex ?? 0;
-    const bZ = b.zIndex ?? 0;
-    if (aZ !== bZ) {
-      return aZ - bZ;
+  // Render all elements in their array order (z-order)
+  // Only sort qna_inline elements by questionOrder if needed
+  const originalElements = pageData.elements || [];
+  const elements = originalElements.slice().sort((a, b) => {
+    // qna_inline elements: sort by questionOrder first
+    if (a.textType === 'qna_inline' && b.textType === 'qna_inline') {
+      const orderA = a.questionOrder ?? Infinity;
+      const orderB = b.questionOrder ?? Infinity;
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
+      // If order is the same, maintain array order (z-order)
+      const indexA = originalElements.findIndex(el => el.id === a.id);
+      const indexB = originalElements.findIndex(el => el.id === b.id);
+      return indexA - indexB;
     }
     
-    // For all elements, maintain original order (by y position)
-    return (a.y ?? 0) - (b.y ?? 0);
+    // If only one is qna_inline, prioritize it based on questionOrder
+    if (a.textType === 'qna_inline') {
+      const orderA = a.questionOrder ?? Infinity;
+      return orderA === Infinity ? 1 : -1; // qna_inline with order comes first
+    }
+    if (b.textType === 'qna_inline') {
+      const orderB = b.questionOrder ?? Infinity;
+      return orderB === Infinity ? -1 : 1; // qna_inline with order comes first
+    }
+    
+    // For all other elements: maintain array order (z-order)
+    // This preserves the z-order set by MOVE_ELEMENT actions
+    const indexA = originalElements.findIndex(el => el.id === a.id);
+    const indexB = originalElements.findIndex(el => el.id === b.id);
+    return indexA - indexB;
   });
   
   let elementsRendered = 0;
   let elementsSkipped = 0;
   
-  for (const element of elements) {
+  // Track z-order positions for async elements (images/stickers)
+  // We need to know how many elements have been rendered synchronously before each async element
+  let syncElementCount = 0;
+  
+  for (let i = 0; i < elements.length; i++) {
+    const element = elements[i];
     // Debug logging for all elements before rendering
     console.log('[renderPageWithKonva] Processing element:', {
       id: element.id,
       type: element.type,
       textType: element.textType,
-      questionId: element.questionId
+      questionId: element.questionId,
+      zOrderIndex: i
     });
     
     // Skip placeholder elements
@@ -104,7 +129,7 @@ async function renderPageWithKonva(pageData, bookData, canvasWidth, canvasHeight
       continue;
     }
     
-    // Render element
+    // Render element with z-order index
     const renderedNode = renderElement(
       layer,
       element,
@@ -116,8 +141,15 @@ async function renderPageWithKonva(pageData, bookData, canvasWidth, canvasHeight
       roughInstance,
       themesData,
       colorPalettes,
-      imagePromises
+      imagePromises,
+      i, // z-order index
+      syncElementCount // current sync element count (for async elements)
     );
+    
+    // Increment sync element count if element was rendered synchronously
+    if (renderedNode && renderedNode.type !== 'image-loading') {
+      syncElementCount++;
+    }
     
     console.log('[renderPageWithKonva] Element rendered:', {
       id: element.id,
@@ -131,6 +163,126 @@ async function renderPageWithKonva(pageData, bookData, canvasWidth, canvasHeight
       elementsSkipped++;
     }
   }
+  
+  // After all elements are processed, ensure correct z-order for all elements
+  // Wait for all image promises to resolve first
+  console.log('[DEBUG z-order] ⚠️ STARTING Z-ORDER FIX - imagePromises.length:', imagePromises.length);
+  if (imagePromises.length > 0) {
+    console.log('[DEBUG z-order] ⚠️ Waiting for image promises to resolve...');
+    await Promise.all(imagePromises);
+    console.log('[DEBUG z-order] ✅ All image promises resolved');
+  } else {
+    console.log('[DEBUG z-order] ⚠️ No image promises to wait for');
+  }
+  
+  // Debug: Log original element order from sorted array
+  // Use console.log with explicit formatting for browser context
+  console.log('[DEBUG z-order] ========================================');
+  console.log('[DEBUG z-order] Original sorted elements array:');
+  elements.forEach((el, idx) => {
+    console.log(`[DEBUG z-order]   [${idx}] ${el.type}${el.textType ? ' (textType: ' + el.textType + ')' : ''} - id: ${el.id}`);
+  });
+  console.log('[DEBUG z-order] ========================================');
+  
+  // Now reorder ALL elements (sync and async) based on their z-order
+  // Simple approach: collect all elements with their z-order, sort, and reposition
+  const allElements = [];
+  const children = layer.children.slice(); // Copy to avoid modification during iteration
+  
+  console.log('[DEBUG z-order] Layer children before reordering (total:', children.length, '):');
+  children.forEach((child, idx) => {
+    const zOrder = child.getAttr('__zOrderIndex');
+    const isFrame = child.getAttr('__isFrame');
+    const className = child.getClassName();
+    console.log(`[DEBUG z-order]   [${idx}] ${className} - zOrder: ${zOrder !== undefined ? zOrder : 'undefined (sync)'}, isFrame: ${isFrame || false}`);
+  });
+  
+  // Create a map of element IDs to their z-order index in the sorted array
+  // This is the source of truth for z-order
+  const elementIdToZOrder = new Map();
+  elements.forEach((el, idx) => {
+    elementIdToZOrder.set(el.id, idx);
+  });
+  
+  // Collect all elements (except background at index 0) with their z-order
+  for (let i = 1; i < children.length; i++) {
+    const child = children[i];
+    const storedZOrder = child.getAttr('__zOrderIndex');
+    const isFrame = child.getAttr('__isFrame');
+    const parentImageId = child.getAttr('__parentImageId');
+    
+    // Try to find the element ID from the node
+    // For QnA elements, we need to find the element that created this node
+    // For images, we stored the zOrderIndex directly
+    // For frames, we stored the parentImageId
+    
+    let elementZOrder = storedZOrder;
+    
+    // If we don't have a stored zOrder, try to find it from the element ID
+    // We need to match the node to an element in the sorted array
+    // This is tricky because we don't store element IDs on nodes directly
+    // For now, if we have storedZOrder, use it; otherwise, we need a different approach
+    
+    // For frames, use the parent image's z-order
+    if (isFrame && parentImageId) {
+      const parentZOrder = elementIdToZOrder.get(parentImageId);
+      if (parentZOrder !== undefined) {
+        elementZOrder = parentZOrder;
+      }
+    }
+    
+    // If we still don't have a zOrder, we can't determine it reliably
+    // This should not happen if we stored zOrderIndex on all nodes
+    if (elementZOrder === undefined) {
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn(`[DEBUG z-order] ⚠️ Could not determine z-order for node at index ${i}, using fallback: ${i - 1}`);
+      }
+      elementZOrder = i - 1; // Fallback to current position
+    }
+    
+    allElements.push({
+      node: child,
+      zOrder: elementZOrder,
+      isFrame: isFrame || false,
+      originalIndex: i
+    });
+  }
+  
+  // Sort all elements by z-order, frames come after their parent image
+  allElements.sort((a, b) => {
+    if (a.zOrder !== b.zOrder) {
+      return a.zOrder - b.zOrder;
+    }
+    // If same z-order, frames should come after images
+    if (a.isFrame && !b.isFrame) return 1;
+    if (!a.isFrame && b.isFrame) return -1;
+    return 0;
+  });
+  
+  console.log('[DEBUG z-order] All elements after sorting (total:', allElements.length, '):');
+  allElements.forEach((el, idx) => {
+    const className = el.node.getClassName();
+    console.log(`[DEBUG z-order]   [${idx}] ${className} - zOrder: ${el.zOrder}, isFrame: ${el.isFrame}, originalIndex: ${el.originalIndex}`);
+  });
+  
+  // Reposition all elements in correct z-order
+  // Background stays at index 0, elements start at index 1
+  console.log('[DEBUG z-order] Repositioning elements...');
+  for (let i = 0; i < allElements.length; i++) {
+    const el = allElements[i];
+    const targetPosition = i + 1; // +1 because background is at index 0
+    console.log(`[DEBUG z-order] Moving ${el.node.getClassName()} from position ${el.originalIndex} to position ${targetPosition}`);
+    el.node.moveTo(targetPosition);
+  }
+  
+  console.log('[DEBUG z-order] Layer children after reordering (total:', layer.children.length, '):');
+  layer.children.forEach((child, idx) => {
+    const zOrder = child.getAttr('__zOrderIndex');
+    const isFrame = child.getAttr('__isFrame');
+    const className = child.getClassName();
+    console.log(`[DEBUG z-order]   [${idx}] ${className} - zOrder: ${zOrder !== undefined ? zOrder : 'undefined (sync)'}, isFrame: ${isFrame || false}`);
+  });
+  console.log('[DEBUG z-order] ========================================');
   
   // Return layer and image promises
   return {
