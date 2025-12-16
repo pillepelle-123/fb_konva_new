@@ -20,6 +20,8 @@ export interface CanvasItemProps {
   isInsideGroup?: boolean;
   hoveredElementId?: string | null;
   interactive?: boolean; // If false, disables all interactions (for PDF export)
+  // Seite innerhalb eines Doppelseiten-Spreads: 'left' oder 'right'
+  pageSide?: 'left' | 'right';
 }
 
 interface BaseCanvasItemProps extends CanvasItemProps {
@@ -47,7 +49,7 @@ export default function BaseCanvasItem({
   onMouseEnter,
   onMouseLeave,
   hoveredElementId,
-  interactive = true // Default to interactive mode
+  interactive = true, // Default to interactive mode
 }: BaseCanvasItemProps) {
   const { state, dispatch } = useEditor();
   const groupRef = useRef<Konva.Group>(null);
@@ -167,21 +169,22 @@ export default function BaseCanvasItem({
     const elementWidth = element.width || 100;
     const elementHeight = element.height || 100;
 
-    // Erlaube Positionen außerhalb der Seite, solange das Element die aktive Seite noch schneidet.
-    // Page-Rect (in Seitennkoordinaten): [0, canvasWidth] x [0, canvasHeight]
+    // Rechteck des Elements in Seitennkoordinaten
     const rectLeft = rawX;
     const rectRight = rawX + elementWidth;
     const rectTop = rawY;
     const rectBottom = rawY + elementHeight;
 
-    const overlapsActivePage =
+    // 1) Erlaube Positionen außerhalb der Seite, solange das Element die eigene Seite noch schneidet.
+    // Page-Rect (in Seitennkoordinaten): [0, canvasWidth] x [0, canvasHeight]
+    const overlapsOwnPage =
       rectLeft < canvasWidth &&
       rectRight > 0 &&
       rectTop < canvasHeight &&
       rectBottom > 0;
 
-    if (!overlapsActivePage) {
-      // Komplett außerhalb: Position zurücksetzen und Tooltip anfordern
+    if (!overlapsOwnPage) {
+      // Komplett außerhalb der eigenen Seite (oben/unten/außen) -> nicht erlaubt
       e.target.x(element.x);
       e.target.y(element.y);
       if (typeof window !== 'undefined' && (e.evt as MouseEvent | DragEvent)?.clientX !== undefined) {

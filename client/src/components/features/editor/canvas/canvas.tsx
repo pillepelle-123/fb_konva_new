@@ -321,6 +321,8 @@ export default function Canvas() {
   // Verhindert, dass nach einem ungültigen Platzierungsversuch automatisch
   // auf das Auswahl-Tool zurückgeschaltet wird (siehe handleStageClick)
   const [suppressNextBackgroundClickSelect, setSuppressNextBackgroundClickSelect] = useState(false);
+  // Tooltip für die inaktive Seite eines Seitenpaares ("Click to enter this page.")
+  const [inactivePageTooltip, setInactivePageTooltip] = useState<{ x: number; y: number } | null>(null);
   const [snapGuidelines, setSnapGuidelines] = useState<SnapGuideline[]>([]);
   
   // Observe tool settings panel width to position lock icon correctly
@@ -3946,8 +3948,13 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
             {renderBackground(currentPage, activePageOffsetX)}
             {partnerPage && previewPageOffsetX !== null && renderBackground(partnerPage, previewPageOffsetX)}
             
-            {/* Canvas elements */}
-            <Group x={activePageOffsetX} y={pageOffsetY}>
+            {/* Canvas elements der aktiven Seite (keine Clips – dürfen auch über die Grenze zur Nachbar-Seite hinaus
+                selektiert und verschoben werden). Die „Trennung“ wird erreicht, indem nur die Partner-/Preview-Seite
+                geclippt wird. */}
+            <Group
+              x={activePageOffsetX}
+              y={pageOffsetY}
+            >
               {(() => {
                 const elements = currentPage?.elements || [];
                 
@@ -3995,6 +4002,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                     isSelected={state.selectedElementIds.includes(element.id)}
                     zoom={zoom}
                     hoveredElementId={state.hoveredElementId}
+                    pageSide={isActiveLeft ? 'left' : 'right'}
                     onSelect={(e) => {
                     // Handle style painter click
                     if (state.stylePainterActive && e?.evt?.button === 0) {
@@ -4294,6 +4302,14 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                 listening={false}
                 name="no-print preview-page"
                 opacity={1}
+                // Wenn diese Seite nur als Vorschau angezeigt wird (Partnerseite),
+                // clippen wir ihre Elemente auf ihre eigene Seitenfläche, damit
+                // Überstände nicht in die aktive Seite "hineinragen".
+                clipFunc={(ctx) => {
+                  ctx.beginPath();
+                  ctx.rect(0, 0, canvasWidth, canvasHeight);
+                  ctx.closePath();
+                }}
               >
                 {partnerPage.elements.map(element => (
                   <Group key={`preview-${element.id}`}>
@@ -4302,25 +4318,50 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                       isSelected={false}
                       zoom={zoom}
                       hoveredElementId={null}
+                      pageSide={isActiveLeft ? 'right' : 'left'}
                     />
                   </Group>
                 ))}
               </Group>
             )}
             {partnerPage && previewPageOffsetX !== null && !state.isMiniPreview && (
-              <Rect
-                x={previewPageOffsetX}
-                y={pageOffsetY}
-                width={canvasWidth}
-                height={canvasHeight}
-                fill="rgba(255, 255, 255, 0.4)"
-                fillPatternImage={undefined}
-                fillPatternRepeat="repeat"
-                opacity={1}
-                onClick={handlePreviewCanvasClick}
-                onTap={handlePreviewCanvasClick}
-                listening={true}
-              />
+               // Background for the preview page and inactive page of page pair
+               <Rect
+                 x={previewPageOffsetX-10}
+                 y={pageOffsetY-10}
+                 width={canvasWidth+20}
+                 height={canvasHeight+20}
+                 fill="rgba(255, 255, 255, 0.9)"
+                 fillPatternImage={undefined}
+                 fillPatternRepeat="repeat"
+                 opacity={1}
+                 onClick={handlePreviewCanvasClick}
+                 onTap={handlePreviewCanvasClick}
+                 listening={true}
+                 onMouseEnter={(e) => {
+                   const stage = e.target.getStage();
+                   if (stage) {
+                     stage.container().style.cursor = 'pointer';
+                   }
+                   // Tooltip-Position oberhalb des Mauszeigers
+                   if (e.evt && typeof e.evt.clientX === 'number' && typeof e.evt.clientY === 'number') {
+                     setInactivePageTooltip({ x: e.evt.clientX, y: e.evt.clientY - 24 });
+                   }
+                 }}
+                 onMouseMove={(e) => {
+                   if (inactivePageTooltip && e.evt && typeof e.evt.clientX === 'number' && typeof e.evt.clientY === 'number') {
+                     setInactivePageTooltip({ x: e.evt.clientX, y: e.evt.clientY - 24 });
+                   }
+                 }}
+                 onMouseLeave={(e) => {
+                   const stage = e.target.getStage();
+                   if (stage) {
+                     // Zurück auf Standardcursor des Stage (leer lässt CanvasStage entscheiden)
+                     stage.container().style.cursor = '';
+                   }
+                   setInactivePageTooltip(null);
+                 }}
+               />
             )}
             
             {/* Selection rectangle */}
@@ -4753,23 +4794,27 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
               }}
             >
               {partnerPage?.pageNumber && state.pageAssignments[partnerPage.pageNumber] ? (
-                <button
-                  type="button"
-                  onClick={previewTargetLocked ? undefined : handlePreviewBadgeClick}
-                  disabled={previewTargetLocked}
-                  style={createBadgeStyleWithProfile(false, previewTargetLocked, state.pageAssignments[partnerPage.pageNumber])}
-                >
-                  {renderBadgeSegments(previewPageBadgeMeta, false, state.pageAssignments[partnerPage.pageNumber])}
-                </button>
+                <Tooltip side="top" content="Click to enter this page.">
+                  <button
+                    type="button"
+                    onClick={previewTargetLocked ? undefined : handlePreviewBadgeClick}
+                    disabled={previewTargetLocked}
+                    style={createBadgeStyleWithProfile(false, previewTargetLocked, state.pageAssignments[partnerPage.pageNumber])}
+                  >
+                    {renderBadgeSegments(previewPageBadgeMeta, false, state.pageAssignments[partnerPage.pageNumber])}
+                  </button>
+                </Tooltip>
               ) : (
-                <button
-                  type="button"
-                  onClick={previewTargetLocked ? undefined : handlePreviewBadgeClick}
-                  disabled={previewTargetLocked}
-                  style={createBadgeStyleWithoutProfile(false, previewTargetLocked)}
-                >
-                  {renderBadgeSegments(previewPageBadgeMeta, false, null)}
-                </button>
+                <Tooltip side="top" content="Click to enter this page.">
+                  <button
+                    type="button"
+                    onClick={previewTargetLocked ? undefined : handlePreviewBadgeClick}
+                    disabled={previewTargetLocked}
+                    style={createBadgeStyleWithoutProfile(false, previewTargetLocked)}
+                  >
+                    {renderBadgeSegments(previewPageBadgeMeta, false, null)}
+                  </button>
+                </Tooltip>
               )}
             </div>
           </CanvasOverlayPortal>
@@ -5143,6 +5188,18 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         >
           <Alert>{alertMessage}</Alert>
         </div>
+      )}
+
+      {/* Tooltip für die inaktive Seite des Seitenpaares ("Click to enter this page.") */}
+      {inactivePageTooltip && (
+        <Tooltip
+          side="top"
+          content="Click to enter this page."
+          forceVisible
+          screenPosition={inactivePageTooltip}
+        >
+          <div />
+        </Tooltip>
       )}
 
       {/* Tooltip when user attempts to place elements outside the active page */}

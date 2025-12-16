@@ -751,7 +751,7 @@ function EditorContent() {
           <div className="h-full flex flex-col bg-background">
             <div className="flex-1 flex min-h-0">
               {canEditCanvas() && <Toolbar onOpenTemplates={() => setShowTemplateGallery(true)} />}
-              <div className="flex-1 overflow-hidden bg-muted">
+              <div className="flex-1 overflow-hidden bg-highlight">
                 <Canvas />
               </div>
               {canEditCanvas() && <ToolSettingsPanel ref={toolSettingsPanelRef} onOpenTemplates={() => setShowTemplateGallery(true)} />}
