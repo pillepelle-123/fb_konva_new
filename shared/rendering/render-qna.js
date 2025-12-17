@@ -302,10 +302,13 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
     
     layer.add(bgRect);
     bgRect.zIndex(0);
-    // Set z-order for global sorting (all QnA parts get same z-order, layer order determines internal stacking)
+    // Set z-index attributes for proper sorting
     if (zOrderIndex !== undefined) {
       bgRect.setAttr('__zOrderIndex', zOrderIndex);
     }
+    bgRect.setAttr('__elementId', element.id);
+    bgRect.setAttr('__nodeType', 'qna-background');
+    bgRect.setAttr('__isQnaNode', true);
     
     // Find all page background nodes and move bgRect after them
     const stage = layer.getStage();
@@ -418,10 +421,13 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
             lineJoin: strokeProps.lineJoin || 'round',
             visible: true
           });
-          // Set z-order for global sorting (all QnA parts get same z-order, layer order determines internal stacking)
+          // Set z-index attributes for proper sorting
           if (zOrderIndex !== undefined) {
             borderPath.setAttr('__zOrderIndex', zOrderIndex);
           }
+          borderPath.setAttr('__elementId', element.id);
+          borderPath.setAttr('__nodeType', 'qna-border');
+          borderPath.setAttr('__isQnaNode', true);
           layer.add(borderPath);
 
           // Insert border after ruled lines (or after background if no ruled lines)
@@ -477,10 +483,13 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
             listening: false,
             visible: true
           });
-          // Set z-order for global sorting (all QnA parts get same z-order, layer order determines internal stacking)
+          // Set z-index attributes for proper sorting
           if (zOrderIndex !== undefined) {
             borderRect.setAttr('__zOrderIndex', zOrderIndex);
           }
+          borderRect.setAttr('__elementId', element.id);
+          borderRect.setAttr('__nodeType', 'qna-border');
+          borderRect.setAttr('__isQnaNode', true);
           layer.add(borderRect);
           
           // Insert border after ruled lines (or after background if no ruled lines)
@@ -510,10 +519,14 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
           listening: false,
           visible: true
         });
-        // Set z-order for global sorting (border gets higher z-order than ruled lines)
+        // Set z-index attributes for proper sorting
+        // Use same zOrderIndex as other body parts - internal order determined by nodeTypeOrder
         if (zOrderIndex !== undefined) {
-          borderRect.setAttr('__zOrderIndex', zOrderIndex + 0.2);
+          borderRect.setAttr('__zOrderIndex', zOrderIndex);
         }
+        borderRect.setAttr('__elementId', element.id);
+        borderRect.setAttr('__nodeType', 'qna-border');
+        borderRect.setAttr('__isQnaNode', true);
         layer.add(borderRect);
 
         // Insert border after ruled lines (or after background if no ruled lines)
@@ -544,10 +557,14 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
         visible: true
       });
 
-      // Set z-order for global sorting (border gets higher z-order than ruled lines)
+      // Set z-index attributes for proper sorting
+      // Use same zOrderIndex as other body parts - internal order determined by nodeTypeOrder
       if (zOrderIndex !== undefined) {
-        borderRect.setAttr('__zOrderIndex', zOrderIndex + 0.2);
+        borderRect.setAttr('__zOrderIndex', zOrderIndex);
       }
+      borderRect.setAttr('__elementId', element.id);
+      borderRect.setAttr('__nodeType', 'qna-border');
+      borderRect.setAttr('__isQnaNode', true);
 
       layer.add(borderRect);
 
@@ -715,6 +732,13 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
       }
       
       if (lineNode) {
+        // Set z-index attributes for proper sorting
+        if (zOrderIndex !== undefined) {
+          lineNode.setAttr('__zOrderIndex', zOrderIndex);
+        }
+        lineNode.setAttr('__elementId', element.id);
+        lineNode.setAttr('__nodeType', 'qna-line');
+        lineNode.setAttr('__isQnaNode', true);
         ruledLinesNodes.push(lineNode);
         nodesAdded++;
       }
@@ -861,10 +885,20 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
           }
           
           if (lineNode) {
-            // Set z-order for global sorting (all QnA parts get same z-order, layer order determines internal stacking)
+            // Set z-index attributes for proper sorting
+            console.log('[renderQnA] Setting attributes for ruled line node:', element.id, 'zOrderIndex:', zOrderIndex);
             if (zOrderIndex !== undefined) {
               lineNode.setAttr('__zOrderIndex', zOrderIndex);
             }
+            lineNode.setAttr('__elementId', element.id);
+            lineNode.setAttr('__nodeType', 'qna-line');
+            lineNode.setAttr('__isQnaNode', true);
+            console.log('[renderQnA] Ruled line node attributes set:', {
+              __elementId: lineNode.getAttr('__elementId'),
+              __nodeType: lineNode.getAttr('__nodeType'),
+              __isQnaNode: lineNode.getAttr('__isQnaNode'),
+              __zOrderIndex: lineNode.getAttr('__zOrderIndex')
+            });
             ruledLinesNodes.push(lineNode);
             nodesAdded++;
             additionalLinesGenerated++;
@@ -951,10 +985,13 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
       visible: true
     });
 
-    // Set z-order for global sorting (all QnA parts get same z-order, layer order determines internal stacking)
+    // Set z-index attributes for proper sorting
     if (zOrderIndex !== undefined) {
       textShape.setAttr('__zOrderIndex', zOrderIndex);
     }
+    textShape.setAttr('__elementId', element.id);
+    textShape.setAttr('__nodeType', 'qna-text');
+    textShape.setAttr('__isQnaNode', true);
 
     layer.add(textShape);
     nodesAdded++;

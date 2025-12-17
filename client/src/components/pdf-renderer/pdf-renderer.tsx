@@ -3039,14 +3039,18 @@ export function PDFRenderer({
           // Insert block layout ruled lines after background (if they exist)
           if (layoutVariant === 'block' && blockRuledLinesNodes && blockRuledLinesNodes.length > 0) {
             allRuledLinesNodes = [...blockRuledLinesNodes];
-            const insertIndex = bgRect ? layer.getChildren().indexOf(bgRect) + 1 : layer.getChildren().length;
+            const zOrderIndex = elementIdToZOrder.get(element.id);
+            console.log(`[DEBUG PDFRenderer] Adding ${blockRuledLinesNodes.length} block ruled lines nodes for element ${element.id}, zOrderIndex: ${zOrderIndex}`);
             blockRuledLinesNodes.forEach((lineNode, idx) => {
-              layer.add(lineNode);
-              const currentIndex = layer.getChildren().indexOf(lineNode);
-              if (currentIndex !== insertIndex + idx) {
-                layer.getChildren().splice(currentIndex, 1);
-                layer.getChildren().splice(insertIndex + idx, 0, lineNode);
+              // Set z-order attributes for block ruled lines
+              if (zOrderIndex !== undefined) {
+                lineNode.setAttr('__zOrderIndex', zOrderIndex);
+                lineNode.setAttr('__isQnaNode', true);
+                lineNode.setAttr('__elementId', element.id);
+                lineNode.setAttr('__nodeType', 'qna-line');
               }
+              layer.add(lineNode);
+              console.log(`[DEBUG PDFRenderer] Added block ruled line node ${idx} for element ${element.id} with zOrder: ${zOrderIndex}`);
             });
           }
           
@@ -3278,11 +3282,11 @@ export function PDFRenderer({
               }
             }
             
-            // Insert all ruled lines after background
+            // Add ruled lines nodes directly to layer with proper z-order attributes
             if (ruledLinesNodes.length > 0) {
-              const insertIndex = bgRect ? layer.getChildren().indexOf(bgRect) + 1 : layer.getChildren().length;
               const zOrderIndex = elementIdToZOrder.get(element.id);
-              ruledLinesNodes.forEach((lineNode, idx) => {
+              console.log(`[DEBUG PDFRenderer] Adding ${ruledLinesNodes.length} ruled lines nodes for element ${element.id}, zOrderIndex: ${zOrderIndex}`);
+              ruledLinesNodes.forEach((lineNode, index) => {
                 // Set z-order attributes for ruled lines
                 if (zOrderIndex !== undefined) {
                   lineNode.setAttr('__zOrderIndex', zOrderIndex);
@@ -3290,12 +3294,9 @@ export function PDFRenderer({
                   lineNode.setAttr('__elementId', element.id);
                   lineNode.setAttr('__nodeType', 'qna-line');
                 }
+                // Add directly to layer - they will be included in z-order sorting
                 layer.add(lineNode);
-                const currentIndex = layer.getChildren().indexOf(lineNode);
-                if (currentIndex !== insertIndex + idx) {
-                  layer.getChildren().splice(currentIndex, 1);
-                  layer.getChildren().splice(insertIndex + idx, 0, lineNode);
-                }
+                console.log(`[DEBUG PDFRenderer] Added ruled line node ${index} for element ${element.id} with zOrder: ${zOrderIndex}`);
               });
             }
           }
@@ -4358,7 +4359,7 @@ export function PDFRenderer({
     if (imagePromises.length > 0) {
       Promise.allSettled(imagePromises).then(() => {
         console.log('[DEBUG z-order PDFRenderer] All images loaded (or failed), fixing z-order...');
-        
+
         // Collect ALL elements (including background) with their z-order
         const allElements: Array<{ node: Konva.Node; zOrder: number; isFrame: boolean; originalIndex: number; isBackground: boolean; elementId?: string; nodeType?: string; originalOpacity?: number }> = [];
         const children = layer.getChildren();
@@ -4372,7 +4373,18 @@ export function PDFRenderer({
           const isFrame = child.getAttr('__isFrame');
           const elementId = child.getAttr('__elementId');
           const nodeType = child.getAttr('__nodeType');
-          
+
+          // Debug: Log attributes for Path nodes (Ruled Lines)
+          if (child.getClassName() === 'Path') {
+            console.log(`[DEBUG z-order PDFRenderer] Found Path node at index ${i}:`, {
+              zOrder: zOrder,
+              elementId: elementId,
+              nodeType: nodeType,
+              isQnaNode: child.getAttr('__isQnaNode'),
+              className: child.getClassName()
+            });
+          }
+
           // Store original opacity before reordering
           const originalOpacity = child.opacity();
           
@@ -4415,6 +4427,15 @@ export function PDFRenderer({
           'qna-border': 2,
           'qna-text': 3
         };
+        
+        // Debug: Log all elements before sorting
+        console.log('[DEBUG z-order PDFRenderer] Elements before sorting:');
+        allElements.forEach((el, idx) => {
+          const elementId = el.elementId || el.node.getAttr('__elementId');
+          const nodeType = el.nodeType || el.node.getAttr('__nodeType');
+          const isQnaNode = el.node.getAttr('__isQnaNode');
+          console.log(`[DEBUG z-order PDFRenderer]   [${idx}] ${el.node.getClassName()} - zOrder: ${el.zOrder}, elementId: ${elementId || 'undefined'}, nodeType: ${nodeType || 'undefined'}, isQnaNode: ${isQnaNode || false}, originalIndex: ${el.originalIndex}`);
+        });
         
         // Sort all elements by z-order: backgrounds first (zOrder -1), then by zOrder
         // For elements with the same zOrder and elementId, maintain node type order
@@ -4474,7 +4495,10 @@ export function PDFRenderer({
               }
             }
             const finalOpacity = el.node.opacity();
-            console.log(`[DEBUG z-order PDFRenderer] Added ${el.node.getClassName()} at position ${i} (zOrder: ${el.zOrder}, isBackground: ${el.isBackground}, originalIndex: ${el.originalIndex}, opacity: ${finalOpacity}, originalOpacity: ${el.originalOpacity})`);
+            const elementId = el.elementId || el.node.getAttr('__elementId');
+            const nodeType = el.nodeType || el.node.getAttr('__nodeType');
+            const isQnaNode = el.node.getAttr('__isQnaNode');
+            console.log(`[DEBUG z-order PDFRenderer] Added ${el.node.getClassName()} at position ${i} (zOrder: ${el.zOrder}, isBackground: ${el.isBackground}, originalIndex: ${el.originalIndex}, opacity: ${finalOpacity}, originalOpacity: ${el.originalOpacity}, elementId: ${elementId || 'undefined'}, nodeType: ${nodeType || 'undefined'}, isQnaNode: ${isQnaNode || false})`);
             
             // Special debug for QnA background rects
             if (el.node.getClassName() === 'Rect' && el.node.getAttr('__isQnaNode')) {
@@ -4487,6 +4511,17 @@ export function PDFRenderer({
                 fill: fillValue,
                 fillType: typeof fillValue === 'string' ? (fillValue.startsWith('rgba') ? 'rgba' : fillValue.startsWith('rgb') ? 'rgb' : fillValue.startsWith('#') ? 'hex' : 'other') : 'N/A',
                 fillHasAlpha: typeof fillValue === 'string' && fillValue.includes('rgba')
+              });
+            }
+            
+            // Special debug for QnA ruled lines (Path elements)
+            if (el.node.getClassName() === 'Path' && el.node.getAttr('__isQnaNode') && el.node.getAttr('__nodeType') === 'qna-line') {
+              console.log(`[DEBUG z-order PDFRenderer] QnA Ruled Line Path at position ${i}:`, {
+                elementId: el.node.getAttr('__elementId'),
+                nodeType: el.node.getAttr('__nodeType'),
+                zOrderIndex: el.node.getAttr('__zOrderIndex'),
+                zOrder: el.zOrder,
+                originalIndex: el.originalIndex
               });
             }
           } catch (error) {

@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useEffect, forwardRef, useState, useCallback } from 'react';
-import { Shape, Rect, Path, Text as KonvaText } from 'react-konva';
+import { Shape, Rect, Path, Text as KonvaText, Group } from 'react-konva';
 import BaseCanvasItem, { type CanvasItemProps } from './base-canvas-item';
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
@@ -2002,8 +2002,13 @@ export default function TextboxQna(props: CanvasItemProps) {
         />
       )}
 
-      {/* Ruled lines underneath each text row - render before text so they appear behind */}
-      {ruledLines && ruledLinesElements}
+      {/* Ruled lines underneath each text row - render after background, before border and text */}
+      {/* Wrap in Group to ensure they stay together with other body parts */}
+      {ruledLines && ruledLinesElements.length > 0 && (
+        <Group listening={false}>
+          {ruledLinesElements}
+        </Group>
+      )}
 
       {showBorder && (() => {
         const borderColor = qnaElement.borderColor || '#000000';

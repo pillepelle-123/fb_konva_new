@@ -193,8 +193,11 @@ async function renderPageWithKonva(pageData, bookData, canvasWidth, canvasHeight
   children.forEach((child, idx) => {
     const zOrder = child.getAttr('__zOrderIndex');
     const isFrame = child.getAttr('__isFrame');
+    const elementId = child.getAttr('__elementId');
+    const nodeType = child.getAttr('__nodeType');
+    const isQnaNode = child.getAttr('__isQnaNode');
     const className = child.getClassName();
-    console.log(`[DEBUG z-order]   [${idx}] ${className} - zOrder: ${zOrder !== undefined ? zOrder : 'undefined (sync)'}, isFrame: ${isFrame || false}`);
+    console.log(`[DEBUG z-order]   [${idx}] ${className} - zOrder: ${zOrder !== undefined ? zOrder : 'undefined (sync)'}, isFrame: ${isFrame || false}, elementId: ${elementId || 'undefined'}, nodeType: ${nodeType || 'undefined'}, isQnaNode: ${isQnaNode || false}`);
   });
   
   // Create a map of element IDs to their z-order index in the sorted array
@@ -210,6 +213,8 @@ async function renderPageWithKonva(pageData, bookData, canvasWidth, canvasHeight
     const storedZOrder = child.getAttr('__zOrderIndex');
     const isFrame = child.getAttr('__isFrame');
     const parentImageId = child.getAttr('__parentImageId');
+    const elementId = child.getAttr('__elementId');
+    const nodeType = child.getAttr('__nodeType');
     
     // Try to find the element ID from the node
     // For QnA elements, we need to find the element that created this node
@@ -240,15 +245,31 @@ async function renderPageWithKonva(pageData, bookData, canvasWidth, canvasHeight
       elementZOrder = i - 1; // Fallback to current position
     }
     
+    // Store original opacity before reordering
+    const originalOpacity = child.opacity();
+    
     allElements.push({
       node: child,
       zOrder: elementZOrder,
       isFrame: isFrame || false,
-      originalIndex: i
+      originalIndex: i,
+      elementId: elementId,
+      nodeType: nodeType,
+      originalOpacity: originalOpacity
     });
   }
   
+  // Define node type order for QnA elements (within each element, maintain this order)
+  // Text should appear above border and ruled lines
+  const nodeTypeOrder = {
+    'qna-background': 0,
+    'qna-line': 1,
+    'qna-border': 2,
+    'qna-text': 3
+  };
+  
   // Sort all elements by z-order, frames come after their parent image
+  // For elements with the same z-order and elementId, maintain node type order
   allElements.sort((a, b) => {
     if (a.zOrder !== b.zOrder) {
       return a.zOrder - b.zOrder;
@@ -256,25 +277,67 @@ async function renderPageWithKonva(pageData, bookData, canvasWidth, canvasHeight
     // If same z-order, frames should come after images
     if (a.isFrame && !b.isFrame) return 1;
     if (!a.isFrame && b.isFrame) return -1;
-    // If same z-order and same frame status, maintain original insertion order
+    
+    // If same z-order and same elementId, sort by node type (for QnA elements)
+    if (a.elementId && b.elementId && a.elementId === b.elementId) {
+      const aOrder = nodeTypeOrder[a.nodeType || ''] ?? 999;
+      const bOrder = nodeTypeOrder[b.nodeType || ''] ?? 999;
+      if (aOrder !== bOrder) {
+        return aOrder - bOrder;
+      }
+      // If same node type, maintain original order
+      return a.originalIndex - b.originalIndex;
+    }
+    
+    // If same z-order but different elements, maintain original insertion order
+    // This preserves the intended z-order from the elements array
     return a.originalIndex - b.originalIndex;
   });
   
   console.log('[DEBUG z-order] All elements after sorting (total:', allElements.length, '):');
   allElements.forEach((el, idx) => {
     const className = el.node.getClassName();
-    console.log(`[DEBUG z-order]   [${idx}] ${className} - zOrder: ${el.zOrder}, isFrame: ${el.isFrame}, originalIndex: ${el.originalIndex}`);
+    const elementId = el.elementId;
+    const nodeType = el.nodeType;
+    const isQnaNode = el.node.getAttr('__isQnaNode');
+    console.log(`[DEBUG z-order]   [${idx}] ${className} - zOrder: ${el.zOrder}, isFrame: ${el.isFrame}, originalIndex: ${el.originalIndex}, elementId: ${elementId || 'undefined'}, nodeType: ${nodeType || 'undefined'}, isQnaNode: ${isQnaNode || false}`);
   });
   
   // Reposition all elements in correct z-order
-  // Background stays at index 0, elements start at index 1
+  // Instead of using moveTo() which can fail, remove all elements and re-add them in correct order
+  // This matches the approach used in pdf-renderer.tsx
   console.log('[DEBUG z-order] Repositioning elements...');
-  for (let i = 0; i < allElements.length; i++) {
-    const el = allElements[i];
-    const targetPosition = i + 1; // +1 because background is at index 0
-    console.log(`[DEBUG z-order] Moving ${el.node.getClassName()} from position ${el.originalIndex} to position ${targetPosition}`);
-    el.node.moveTo(targetPosition);
+  console.log('[DEBUG z-order] Layer children before reordering:', layer.getChildren().length);
+  
+  // Store original opacity for all nodes before removing
+  allElements.forEach((el) => {
+    if (el.originalOpacity === undefined) {
+      el.originalOpacity = el.node.opacity();
+    }
+  });
+  
+  // Remove all elements from layer (except background at index 0)
+  const backgroundNode = layer.getChildren()[0];
+  layer.removeChildren();
+  
+  // Re-add background first
+  if (backgroundNode) {
+    layer.add(backgroundNode);
   }
+  
+  // Re-add all elements in sorted order
+  allElements.forEach((el, i) => {
+    try {
+      layer.add(el.node);
+      // Restore original opacity if it was stored
+      if (el.originalOpacity !== undefined && el.originalOpacity !== null) {
+        el.node.opacity(el.originalOpacity);
+      }
+      console.log(`[DEBUG z-order] Added ${el.node.getClassName()} at position ${i + 1} (zOrder: ${el.zOrder}, elementId: ${el.elementId || 'undefined'}, nodeType: ${el.nodeType || 'undefined'}, originalIndex: ${el.originalIndex})`);
+    } catch (error) {
+      console.error(`[DEBUG z-order] Error adding node at position ${i + 1}:`, error);
+    }
+  });
   
   console.log('[DEBUG z-order] Layer children after reordering (total:', layer.children.length, '):');
   layer.children.forEach((child, idx) => {

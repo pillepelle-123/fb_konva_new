@@ -30,9 +30,10 @@ function getLineHeightMultiplier(spacing) {
  * @param {Object} konvaInstance - Konva instance
  * @param {Object} document - Document object
  * @param {Object} roughInstance - Rough.js instance (optional)
+ * @param {number} zOrderIndex - Z-order index for this element (optional)
  * @returns {number} Number of lines rendered
  */
-function renderRuledLines(layer, element, questionText, answerText, questionSettings, answerSettings, padding, width, height, x, y, konvaInstance, document, roughInstance) {
+function renderRuledLines(layer, element, questionText, answerText, questionSettings, answerSettings, padding, width, height, x, y, konvaInstance, document, roughInstance, zOrderIndex) {
   const Konva = konvaInstance;
   const rough = roughInstance;
   
@@ -183,6 +184,13 @@ function renderRuledLines(layer, element, questionText, answerText, questionSett
                   strokeScaleEnabled: true,
                   listening: false
                 });
+                // Set z-index attributes for proper sorting
+                if (zOrderIndex !== undefined) {
+                  pathNode.setAttr('__zOrderIndex', zOrderIndex);
+                }
+                pathNode.setAttr('__elementId', element.id);
+                pathNode.setAttr('__nodeType', 'qna-line');
+                pathNode.setAttr('__isQnaNode', true);
                 lines.push(pathNode);
               }
             } catch (error) {
@@ -193,6 +201,13 @@ function renderRuledLines(layer, element, questionText, answerText, questionSett
                 opacity: ruledLinesOpacity,
                 listening: false
               });
+              // Set z-index attributes for proper sorting
+              if (zOrderIndex !== undefined) {
+                line.setAttr('__zOrderIndex', zOrderIndex);
+              }
+              line.setAttr('__elementId', element.id);
+              line.setAttr('__nodeType', 'qna-line');
+              line.setAttr('__isQnaNode', true);
               lines.push(line);
             }
           } else {
@@ -203,6 +218,13 @@ function renderRuledLines(layer, element, questionText, answerText, questionSett
               opacity: ruledLinesOpacity,
               listening: false
             });
+            // Set z-index attributes for proper sorting
+            if (zOrderIndex !== undefined) {
+              line.setAttr('__zOrderIndex', zOrderIndex);
+            }
+            line.setAttr('__elementId', element.id);
+            line.setAttr('__nodeType', 'qna-line');
+            line.setAttr('__isQnaNode', true);
             lines.push(line);
           }
         }
@@ -254,6 +276,13 @@ function renderRuledLines(layer, element, questionText, answerText, questionSett
                 strokeScaleEnabled: true,
                 listening: false
               });
+              // Set z-index attributes for proper sorting
+              if (zOrderIndex !== undefined) {
+                pathNode.setAttr('__zOrderIndex', zOrderIndex);
+              }
+              pathNode.setAttr('__elementId', element.id);
+              pathNode.setAttr('__nodeType', 'qna-line');
+              pathNode.setAttr('__isQnaNode', true);
               lines.push(pathNode);
             }
           } catch (error) {
@@ -264,6 +293,13 @@ function renderRuledLines(layer, element, questionText, answerText, questionSett
               opacity: ruledLinesOpacity,
               listening: false
             });
+            // Set z-index attributes for proper sorting
+            if (zOrderIndex !== undefined) {
+              line.setAttr('__zOrderIndex', zOrderIndex);
+            }
+            line.setAttr('__elementId', element.id);
+            line.setAttr('__nodeType', 'qna-line');
+            line.setAttr('__isQnaNode', true);
             lines.push(line);
           }
         } else {
@@ -274,6 +310,13 @@ function renderRuledLines(layer, element, questionText, answerText, questionSett
             opacity: ruledLinesOpacity,
             listening: false
           });
+          // Set z-index attributes for proper sorting
+          if (zOrderIndex !== undefined) {
+            line.setAttr('__zOrderIndex', zOrderIndex);
+          }
+          line.setAttr('__elementId', element.id);
+          line.setAttr('__nodeType', 'qna-line');
+          line.setAttr('__isQnaNode', true);
           lines.push(line);
         }
         
@@ -394,6 +437,13 @@ function renderRuledLines(layer, element, questionText, answerText, questionSett
                 strokeScaleEnabled: true,
                 listening: false
               });
+              // Set z-index attributes for proper sorting
+              if (zOrderIndex !== undefined) {
+                pathNode.setAttr('__zOrderIndex', zOrderIndex);
+              }
+              pathNode.setAttr('__elementId', element.id);
+              pathNode.setAttr('__nodeType', 'qna-line');
+              pathNode.setAttr('__isQnaNode', true);
               lines.push(pathNode);
             }
           } catch (error) {
@@ -405,6 +455,13 @@ function renderRuledLines(layer, element, questionText, answerText, questionSett
               opacity: ruledLinesOpacity,
               listening: false
             });
+            // Set z-index attributes for proper sorting
+            if (zOrderIndex !== undefined) {
+              line.setAttr('__zOrderIndex', zOrderIndex);
+            }
+            line.setAttr('__elementId', element.id);
+            line.setAttr('__nodeType', 'qna-line');
+            line.setAttr('__isQnaNode', true);
             lines.push(line);
           }
         } else {
@@ -415,6 +472,13 @@ function renderRuledLines(layer, element, questionText, answerText, questionSett
             opacity: ruledLinesOpacity,
             listening: false
           });
+          // Set z-index attributes for proper sorting
+          if (zOrderIndex !== undefined) {
+            line.setAttr('__zOrderIndex', zOrderIndex);
+          }
+          line.setAttr('__elementId', element.id);
+          line.setAttr('__nodeType', 'qna-line');
+          line.setAttr('__isQnaNode', true);
           lines.push(line);
         }
         

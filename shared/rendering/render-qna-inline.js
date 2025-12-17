@@ -135,11 +135,22 @@ function getToolDefaults(tool, pageTheme, bookTheme, existingElement, pageColorP
  * @param {Object} roughInstance - Rough.js instance (optional)
  * @param {Object} themesData - Themes data
  * @param {Array} colorPalettes - Color palettes array
+ * @param {number} zOrderIndex - Z-order index for this element (optional)
  * @returns {number} Number of nodes added
  */
-function renderQnAInline(layer, element, pageData, bookData, x, y, width, height, rotation, opacity, konvaInstance, document, roughInstance, themesData, colorPalettes) {
+function renderQnAInline(layer, element, pageData, bookData, x, y, width, height, rotation, opacity, konvaInstance, document, roughInstance, themesData, colorPalettes, zOrderIndex) {
   const Konva = konvaInstance;
   const rough = roughInstance;
+  
+  // Helper function to set z-index attributes on QnA nodes
+  const setZOrderAttributes = (node, nodeType) => {
+    if (zOrderIndex !== undefined) {
+      node.setAttr('__zOrderIndex', zOrderIndex);
+    }
+    node.setAttr('__elementId', element.id);
+    node.setAttr('__nodeType', nodeType);
+    node.setAttr('__isQnaNode', true);
+  };
   
   // Debug: Log QnA Inline rendering start
   console.log('[DEBUG renderQnAInline] ⚠️ STARTING QnA INLINE RENDERING:', {
@@ -377,6 +388,13 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
       listening: false,
       visible: true
     });
+    // Set z-index attributes for proper sorting
+    if (zOrderIndex !== undefined) {
+      bgRect.setAttr('__zOrderIndex', zOrderIndex);
+    }
+    bgRect.setAttr('__elementId', element.id);
+    bgRect.setAttr('__nodeType', 'qna-background');
+    bgRect.setAttr('__isQnaNode', true);
     // Konva uses insertion order, not zIndex
     // Background must be added AFTER page background but BEFORE other element nodes
     // Since renderBackground is called first, page background nodes should already exist
@@ -544,6 +562,13 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
             lineJoin: 'round',
             visible: true
           });
+          // Set z-index attributes for proper sorting
+          if (zOrderIndex !== undefined) {
+            borderPath.setAttr('__zOrderIndex', zOrderIndex);
+          }
+          borderPath.setAttr('__elementId', element.id);
+          borderPath.setAttr('__nodeType', 'qna-border');
+          borderPath.setAttr('__isQnaNode', true);
           // Konva uses insertion order, not zIndex
           // Border must be added right after background node
           layer.add(borderPath);
@@ -598,6 +623,13 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
           listening: false,
           visible: true
         });
+        // Set z-index attributes for proper sorting
+        if (zOrderIndex !== undefined) {
+          borderRect.setAttr('__zOrderIndex', zOrderIndex);
+        }
+        borderRect.setAttr('__elementId', element.id);
+        borderRect.setAttr('__nodeType', 'qna-border');
+        borderRect.setAttr('__isQnaNode', true);
             // Konva uses insertion order, not zIndex
             // Insert border right after background node (if it exists), otherwise after page background
             if (bgRect) {
@@ -649,6 +681,13 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
         listening: false,
         visible: true
       });
+      // Set z-index attributes for proper sorting
+      if (zOrderIndex !== undefined) {
+        borderRect.setAttr('__zOrderIndex', zOrderIndex);
+      }
+      borderRect.setAttr('__elementId', element.id);
+      borderRect.setAttr('__nodeType', 'qna-border');
+      borderRect.setAttr('__isQnaNode', true);
       // Konva uses insertion order, not zIndex
       // Insert border right after background node (if it exists), otherwise after page background
       if (bgRect) {
@@ -820,6 +859,7 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
           visible: true,
           listening: false
         });
+        setZOrderAttributes(questionNode, 'qna-text');
         layer.add(questionNode);
         nodesAdded++;
       });
@@ -936,6 +976,7 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
         visible: true,
         listening: false
       });
+      setZOrderAttributes(questionNode, 'qna-text');
       layer.add(questionNode);
       nodesAdded++;
       
@@ -1055,6 +1096,7 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
                   visible: true,
                   listening: false
                 });
+                setZOrderAttributes(answerNode, 'qna-text');
                 layer.add(answerNode);
                 nodesAdded++;
               }
@@ -1093,6 +1135,7 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
                   visible: true,
                   listening: false
                 });
+                setZOrderAttributes(answerNode, 'qna-text');
                 layer.add(answerNode);
                 nodesAdded++;
               }
@@ -1124,6 +1167,7 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
               visible: true,
               listening: false
             });
+            setZOrderAttributes(answerNode, 'qna-text');
             layer.add(answerNode);
             nodesAdded++;
           } else {
@@ -1152,6 +1196,7 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
               visible: true,
               listening: false
             });
+            setZOrderAttributes(answerNode, 'qna-text');
             layer.add(answerNode);
             nodesAdded++;
           }
@@ -1195,6 +1240,7 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
           visible: true,
           listening: false
         });
+        setZOrderAttributes(answerNode, 'qna-text');
         layer.add(answerNode);
         nodesAdded++;
       }
@@ -1296,6 +1342,7 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
           visible: true,
           listening: false
         });
+        setZOrderAttributes(answerNode, 'qna-text');
         layer.add(answerNode);
         nodesAdded++;
       } else {
@@ -1322,6 +1369,7 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
           visible: true,
           listening: false
         });
+        setZOrderAttributes(answerNode, 'qna-text');
         layer.add(answerNode);
         nodesAdded++;
       }
@@ -1355,7 +1403,8 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
       y,
       konvaInstance,
       document,
-      roughInstance
+      roughInstance,
+      zOrderIndex
     );
     nodesAdded += ruledLinesCount;
     
