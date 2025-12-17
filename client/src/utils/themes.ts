@@ -1,7 +1,7 @@
 import React from 'react';
 import { Path } from 'react-konva';
 import type { CanvasElement } from '../context/editor-context';
-import { commonToActualStrokeWidth } from './stroke-width-converter';
+import { commonToActualStrokeWidth, THEME_STROKE_RANGES } from './stroke-width-converter';
 // Import roughjs using ES6 import for Vite bundling
 import rough from 'roughjs';
 
@@ -67,13 +67,25 @@ const defaultTheme: ThemeRenderer = {
     return generateComplexShapePath(element);
   },
   
-  getStrokeProps: (element: CanvasElement, _zoom = 1) => ({
-    stroke: element.stroke || '#1f2937',
-    // strokeWidth is NOT multiplied by zoom here because strokeScaleEnabled={true} in themed-shape.tsx
-    // Konva will automatically scale the strokeWidth with zoom when strokeScaleEnabled={true}
-    strokeWidth: element.strokeWidth ? commonToActualStrokeWidth(element.strokeWidth, element.theme || 'default') : 0,
-    fill: element.type === 'line' ? undefined : (element.fill !== 'transparent' ? element.fill : undefined)
-  })
+  getStrokeProps: (element: CanvasElement, _zoom = 1) => {
+    let strokeWidth = element.strokeWidth || 0;
+    const theme = element.theme || 'default';
+
+    // Simple logic: if strokeWidth is in common scale (1-100), convert it
+    // If it's outside this range, assume it's already converted
+    if (strokeWidth >= 1 && strokeWidth <= 100) {
+      strokeWidth = commonToActualStrokeWidth(strokeWidth, theme);
+    }
+    // Otherwise keep as-is (already converted or 0)
+
+    return {
+      stroke: element.stroke || '#1f2937',
+      // strokeWidth is NOT multiplied by zoom here because strokeScaleEnabled={true} in themed-shape.tsx
+      // Konva will automatically scale the strokeWidth with zoom when strokeScaleEnabled={true}
+      strokeWidth,
+      fill: element.type === 'line' ? undefined : (element.fill !== 'transparent' ? element.fill : undefined)
+    };
+  }
 };
 
 // Rough theme - hand-drawn style using rough.js
@@ -153,13 +165,26 @@ const roughTheme: ThemeRenderer = {
     return defaultTheme.generatePath(element, zoom);
   },
   
-  getStrokeProps: (element: CanvasElement, _zoom = 1) => ({
-    stroke: element.stroke || '#1f2937',
-    // strokeWidth is NOT multiplied by zoom here because strokeScaleEnabled={true} in themed-shape.tsx
-    // Konva will automatically scale the strokeWidth with zoom when strokeScaleEnabled={true}
-    strokeWidth: element.strokeWidth ? commonToActualStrokeWidth(element.strokeWidth, element.theme || 'rough') : 0,
-    fill: element.type === 'line' ? undefined : (element.fill !== 'transparent' ? element.fill : undefined)
-  })
+  getStrokeProps: (element: CanvasElement, _zoom = 1) => {
+    let strokeWidth = element.strokeWidth || 0;
+    const theme = element.theme || 'rough';
+
+    // Simple logic: if strokeWidth is in common scale (1-100), convert it
+    // If it's outside this range, assume it's already converted
+    if (strokeWidth >= 1 && strokeWidth <= 100) {
+      strokeWidth = commonToActualStrokeWidth(strokeWidth, theme);
+    }
+    // Otherwise keep as-is (already converted or 0)
+
+    return {
+      stroke: element.stroke || '#1f2937',
+      // strokeWidth is NOT multiplied by zoom here because strokeScaleEnabled={true} in themed-shape.tsx
+      // Konva will automatically scale the strokeWidth with zoom when strokeWidth={true} in themed-shape.tsx
+      // Konva will automatically scale the strokeWidth with zoom when strokeScaleEnabled={true}
+      strokeWidth,
+      fill: element.type === 'line' ? undefined : (element.fill !== 'transparent' ? element.fill : undefined)
+    };
+  }
 };
 
 
@@ -224,7 +249,16 @@ const glowTheme: ThemeRenderer = {
   getStrokeProps: (element: CanvasElement, _zoom = 1) => {
     // strokeWidth is NOT multiplied by zoom here because strokeScaleEnabled={true} in themed-shape.tsx
     // Konva will automatically scale the strokeWidth with zoom when strokeScaleEnabled={true}
-    const baseStrokeWidth = element.strokeWidth ? commonToActualStrokeWidth(element.strokeWidth, element.theme || 'glow') : 0;
+    let baseStrokeWidth = element.strokeWidth || 0;
+    const theme = element.theme || 'glow';
+
+    // Simple logic: if strokeWidth is in common scale (1-100), convert it
+    // If it's outside this range, assume it's already converted
+    if (baseStrokeWidth >= 1 && baseStrokeWidth <= 100) {
+      baseStrokeWidth = commonToActualStrokeWidth(baseStrokeWidth, theme);
+    }
+    // Otherwise keep as-is (already converted or 0)
+
     return {
       stroke: element.stroke || '#1f2937',
       strokeWidth: baseStrokeWidth * 2,
@@ -430,8 +464,11 @@ const zigzagTheme: ThemeRenderer = {
     const strokeWidth = element.strokeWidth || 0;
     const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
     const isTextboxBorder = element.id.includes('-border');
-    const zigzagSize = isTextboxBorder ? Math.max(8, strokeWidth * 1.5) : Math.max(12, strokeWidth * 2);
-    const thickness = isTextboxBorder ? Math.max(2, strokeWidth * 0.8) : Math.max(3, strokeWidth * 1.2);
+    // For zigzag, use strokeWidth / 2 for zigzag size/thickness to maintain normal scaling
+    // while strokeWidth itself scales faster (max 40px instead of 20px)
+    const zigzagBaseWidth = strokeWidth / 2;
+    const zigzagSize = isTextboxBorder ? Math.max(8, zigzagBaseWidth * 1.5) : Math.max(12, zigzagBaseWidth * 2);
+    const thickness = isTextboxBorder ? Math.max(2, zigzagBaseWidth * 0.8) : Math.max(3, zigzagBaseWidth * 1.2);
     
     if (element.type === 'line') {
       const length = Math.sqrt(element.width * element.width + element.height * element.height);
@@ -529,11 +566,21 @@ const zigzagTheme: ThemeRenderer = {
   },
   
   getStrokeProps: (element: CanvasElement, _zoom = 1) => {
+    let strokeWidth = element.strokeWidth || 0;
+    const theme = element.theme || 'zigzag';
+
+    // Simple logic: if strokeWidth is in common scale (1-100), convert it
+    // If it's outside this range, assume it's already converted
+    if (strokeWidth >= 1 && strokeWidth <= 100) {
+      strokeWidth = commonToActualStrokeWidth(strokeWidth, theme);
+    }
+    // Otherwise keep as-is (already converted or 0)
+
     return {
       stroke: element.stroke || '#bf4d28',
       // strokeWidth is NOT multiplied by zoom here because strokeScaleEnabled={true} in themed-shape.tsx
       // Konva will automatically scale the strokeWidth with zoom when strokeScaleEnabled={true}
-      strokeWidth: element.strokeWidth ? commonToActualStrokeWidth(element.strokeWidth, element.theme || 'zigzag') : 0,
+      strokeWidth,
       fill: 'transparent',
       lineCap: 'round',
       lineJoin: 'round'

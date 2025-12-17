@@ -5,6 +5,7 @@
 const path = require('path');
 const fs = require('fs');
 const { getPalettePartColor } = require('./palette-utils');
+const { commonToActualStrokeWidth } = require('../../utils/stroke-width-converter');
 
 // Load themes from JSON file
 let THEMES_DATA = null;
@@ -37,19 +38,6 @@ function loadThemes() {
   return THEMES_DATA;
 }
 
-/**
- * Convert common scale to actual stroke width
- * Simplified conversion for server-side rendering
- */
-function commonToActualStrokeWidth(commonSize, theme = 'default') {
-  if (commonSize <= 12) return 14;
-  if (commonSize <= 14) return 16;
-  if (commonSize <= 16) return 18;
-  if (commonSize <= 18) return 20;
-  if (commonSize <= 20) return 22;
-  if (commonSize <= 50) return Math.round(commonSize * 1.2);
-  return Math.round(commonSize * 1.2);
-}
 
 /**
  * Deep merge two objects

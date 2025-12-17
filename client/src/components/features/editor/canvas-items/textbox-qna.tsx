@@ -2047,7 +2047,7 @@ export default function TextboxQna(props: CanvasItemProps) {
               <Path
                 data={pathData}
                 stroke={borderColor}
-                strokeWidth={borderWidth}
+                strokeWidth={strokeProps.strokeWidth || borderWidth}
                 opacity={borderOpacity}
                 fill={strokeProps.fill || 'transparent'}
                 strokeScaleEnabled={true}
