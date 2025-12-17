@@ -331,7 +331,7 @@ export function ToolSettingsContent({
         case 'shape-stroke':
           return settings.opacity || 1;
         case 'shape-fill':
-          return settings.fillOpacity || 1;
+          return settings.backgroundOpacity || 1;
         case 'text-color':
           return settings.fillOpacity || 1;
         case 'text-border':
@@ -359,7 +359,7 @@ export function ToolSettingsContent({
           updateToolSetting('opacity', opacity);
           break;
         case 'shape-fill':
-          updateToolSetting('fillOpacity', opacity);
+          updateToolSetting('backgroundOpacity', opacity);
           break;
         case 'text-color':
           updateToolSetting('fillOpacity', opacity);
@@ -512,7 +512,7 @@ export function ToolSettingsContent({
         case 'element-shape-stroke':
           return element.opacity || element.strokeOpacity || 1;
         case 'element-shape-fill':
-          return element.fillOpacity || element.opacity || 1;
+          return element.backgroundOpacity || element.opacity || 1;
         case 'element-image-frame-stroke':
           return element.strokeOpacity || 1;
         case 'element-sticker-color':
@@ -526,9 +526,9 @@ export function ToolSettingsContent({
       const overrides = element.colorOverrides || {};
       switch (colorType) {
         case 'element-shape-stroke':
-          return overrides.stroke === true;
+          return overrides.borderColor === true;
         case 'element-shape-fill':
-          return overrides.fill === true;
+          return overrides.backgroundColor === true;
         case 'element-image-frame-stroke':
           return overrides.stroke === true;
         case 'element-sticker-color':
@@ -542,18 +542,18 @@ export function ToolSettingsContent({
       switch (colorType) {
         case 'element-shape-stroke':
           updateElementSetting(element.id, { stroke: color });
-          // Mark stroke as manually overridden
+          // Mark borderColor as manually overridden
           dispatch({
             type: 'MARK_COLOR_OVERRIDE',
-            payload: { elementIds: [element.id], colorProperty: 'stroke' }
+            payload: { elementIds: [element.id], colorProperty: 'borderColor' }
           });
           break;
         case 'element-shape-fill':
           updateElementSetting(element.id, { fill: color });
-          // Mark fill as manually overridden
+          // Mark backgroundColor as manually overridden
           dispatch({
             type: 'MARK_COLOR_OVERRIDE',
-            payload: { elementIds: [element.id], colorProperty: 'fill' }
+            payload: { elementIds: [element.id], colorProperty: 'backgroundColor' }
           });
           break;
         case 'element-image-frame-stroke':
@@ -576,7 +576,7 @@ export function ToolSettingsContent({
           updateElementSetting(element.id, { opacity });
           break;
         case 'element-shape-fill':
-          updateElementSetting(element.id, { fillOpacity: opacity });
+          updateElementSetting(element.id, { backgroundOpacity: opacity });
           break;
         case 'element-image-frame-stroke':
           updateElementSetting(element.id, { borderOpacity: opacity });

@@ -285,7 +285,10 @@ function logThemeStructure(book: Book | null) {
       // Add shape-specific properties
       if (category === 'shape') {
         if (element.cornerRadius) themeElement.cornerRadius = actualToCommonRadius(element.cornerRadius);
-        if (element.strokeWidth) themeElement.strokeWidth = actualToCommonStrokeWidth(element.strokeWidth, element.theme || 'default');
+        if (element.borderWidth || element.strokeWidth) {
+          const width = element.borderWidth || element.strokeWidth || 0;
+          themeElement.borderWidth = actualToCommonStrokeWidth(width, element.theme || 'default');
+        }
         if (element.stroke) themeElement.stroke = element.stroke;
         if (element.fill) themeElement.fill = element.fill;
         if (element.opacity) themeElement.opacity = element.opacity;
@@ -410,6 +413,8 @@ export interface CanvasElement {
     backgroundColor?: boolean;
     [key: string]: boolean | undefined;
   };
+  // Brush-multicolor specific properties
+  brushStrokes?: Array<{ points: number[]; strokeColor: string; strokeWidth: number }>;
 }
 
 export interface BackgroundTransform {
@@ -3563,7 +3568,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           strokeWidth: selectedElement.strokeWidth,
           borderOpacity: selectedElement.borderOpacity,
           fill: selectedElement.fill,
-          fillOpacity: selectedElement.fillOpacity,
+          backgroundOpacity: selectedElement.backgroundOpacity,
           opacity: selectedElement.opacity,
           theme: selectedElement.theme,
           roughness: selectedElement.roughness,

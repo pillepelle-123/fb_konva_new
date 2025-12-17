@@ -363,11 +363,6 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
       try {
         // Create a temporary element-like object for generatePath
         // Set roughness to 8 for 'rough' theme to match client-side rendering
-        // IMPORTANT: For 'candy' theme, increase strokeWidth server-side to make circles larger
-        // This compensates for rendering differences between client and server
-        // Also reduce spacing between circles by using a spacing multiplier
-        const adjustedBorderWidth = borderTheme === 'candy' ? borderWidth * 1.45 : borderWidth;
-        
         const borderElement = {
           type: 'rect',
           id: element.id + '-border',
@@ -377,13 +372,10 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
           height: borderHeight,
           cornerRadius: cornerRadius,
           stroke: borderColor,
-          strokeWidth: adjustedBorderWidth,
+          strokeWidth: borderWidth, // Use raw borderWidth value, not adjusted
           fill: 'transparent',
           roughness: borderTheme === 'rough' ? 8 : (borderTheme === 'sketchy' ? 2 : 1),
-          theme: borderTheme,
-          // Add spacing multiplier for candy theme to reduce gaps between circles
-          // This is only used server-side, client-side spacing remains unchanged
-          candySpacingMultiplier: borderTheme === 'candy' ? 0.7 : undefined
+          theme: borderTheme
         };
         
         const pathData = themeRenderer.generatePath(borderElement);
@@ -398,10 +390,8 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
         const strokeProps = themeRenderer.getStrokeProps(borderElement);
         
         if (pathData) {
-          // For candy theme, use adjusted borderWidth for strokeWidth to match larger circles
-          // Candy theme uses fill instead of stroke, so strokeWidth doesn't affect rendering
-          // but we keep it consistent for potential future changes
-          const pathStrokeWidth = borderTheme === 'candy' ? adjustedBorderWidth : (strokeProps.strokeWidth || borderWidth);
+          // Use strokeWidth from strokeProps (converted by getStrokeProps)
+          const pathStrokeWidth = strokeProps.strokeWidth || borderWidth;
 
           // Apply border opacity to stroke color for Path elements (Konva Path may not respect opacity property)
           const finalBorderColor = applyStrokeOpacity(strokeProps.stroke || borderColor, borderOpacity);

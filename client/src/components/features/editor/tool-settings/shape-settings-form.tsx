@@ -143,13 +143,13 @@ export function ShapeSettingsForm({
             <ThemeSelect 
               value={getElementTheme(element)}
               onChange={(value) => {
-                // When theme changes, set strokeWidth to minimum value of new theme
+                // When theme changes, set borderWidth to minimum value of new theme
                 const minWidth = getMinActualStrokeWidth(value);
                 updateSetting('inheritTheme', value);
                 updateSetting('theme', value);
-                // Only update strokeWidth if border is enabled (strokeWidth > 0)
-                if ((element.strokeWidth || 0) > 0) {
-                  updateSetting('strokeWidth', minWidth);
+                // Only update borderWidth if border is enabled (borderWidth > 0)
+                if ((element.borderWidth || element.strokeWidth || 0) > 0) {
+                  updateSetting('borderWidth', minWidth);
                 }
               }}
             />
@@ -160,21 +160,22 @@ export function ShapeSettingsForm({
           <div>
             <Label className="flex items-center gap-1" variant="xs">
               <Checkbox
-                checked={element.borderEnabled !== undefined ? element.borderEnabled : (element.strokeWidth || 0) > 0}
+                checked={element.borderEnabled !== undefined ? element.borderEnabled : ((element.borderWidth || element.strokeWidth || 0) > 0)}
                 onCheckedChange={(checked) => {
                   const isChecked = checked === true;
                   updateSetting('borderEnabled', isChecked);
                   if (isChecked) {
                     const lastBorderWidth = localStorage.getItem(`shape-border-width-${element.id}`) || '2';
                     const lastBorderColor = localStorage.getItem(`shape-border-color-${element.id}`) || '#1f2937';
-                    updateSetting('strokeWidth', Math.max(1, parseInt(lastBorderWidth)));
+                    updateSetting('borderWidth', Math.max(1, parseInt(lastBorderWidth)));
                     updateSetting('stroke', lastBorderColor);
                   } else {
-                    if ((element.strokeWidth || 0) > 0) {
-                      localStorage.setItem(`shape-border-width-${element.id}`, String(element.strokeWidth));
+                    const currentWidth = element.borderWidth || element.strokeWidth || 0;
+                    if (currentWidth > 0) {
+                      localStorage.setItem(`shape-border-width-${element.id}`, String(currentWidth));
                     }
                     localStorage.setItem(`shape-border-color-${element.id}`, element.stroke || '#1f2937');
-                    updateSetting('strokeWidth', 0);
+                    updateSetting('borderWidth', 0);
                   }
                 }}
               />
@@ -182,14 +183,14 @@ export function ShapeSettingsForm({
             </Label>
           </div>
           
-          {(element.borderEnabled !== undefined ? element.borderEnabled : (element.strokeWidth || 0) > 0) && (
+          {(element.borderEnabled !== undefined ? element.borderEnabled : ((element.borderWidth || element.strokeWidth || 0) > 0)) && (
             <IndentedSection>
               <Slider
                 label="Border Width"
-                value={actualToCommonStrokeWidth(element.strokeWidth || 0, getElementTheme(element))}
+                value={actualToCommonStrokeWidth((element.borderWidth || element.strokeWidth || 0), getElementTheme(element))}
                 onChange={(value) => {
                   const actualWidth = commonToActualStrokeWidth(value, getElementTheme(element));
-                  updateSetting('strokeWidth', actualWidth);
+                  updateSetting('borderWidth', actualWidth);
                   localStorage.setItem(`shape-border-width-${element.id}`, String(actualWidth));
                 }}
                 min={0}
@@ -256,8 +257,8 @@ export function ShapeSettingsForm({
               
               <Slider
                 label="Background Opacity"
-                value={Math.round((element.fillOpacity !== undefined ? element.fillOpacity : (element.opacity !== undefined ? element.opacity : 1)) * 100)}
-                onChange={(value) => updateSetting('fillOpacity', value / 100)}
+                value={Math.round((element.backgroundOpacity !== undefined ? element.backgroundOpacity : (element.opacity !== undefined ? element.opacity : 1)) * 100)}
+                onChange={(value) => updateSetting('backgroundOpacity', value / 100)}
                 min={0}
                 max={100}
                 step={5}

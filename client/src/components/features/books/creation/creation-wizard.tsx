@@ -370,10 +370,17 @@ export function CreationWizard({ open, onOpenChange, onSuccess }: CreationWizard
           }
         }
 
-        if (defaults.fillOpacity !== undefined) {
-          updatedElement.fillOpacity = defaults.fillOpacity;
+        // For shapes (rect, circle, etc.), use backgroundOpacity
+        if (defaults.backgroundOpacity !== undefined) {
+          updatedElement.backgroundOpacity = defaults.backgroundOpacity;
+        } else if (element.backgroundOpacity !== undefined) {
+          updatedElement.backgroundOpacity = element.backgroundOpacity;
+        } else if (defaults.fillOpacity !== undefined) {
+          // Fallback: migrate old fillOpacity to backgroundOpacity
+          updatedElement.backgroundOpacity = defaults.fillOpacity;
         } else if (element.fillOpacity !== undefined) {
-          updatedElement.fillOpacity = element.fillOpacity;
+          // Fallback: migrate old fillOpacity to backgroundOpacity
+          updatedElement.backgroundOpacity = element.fillOpacity;
         }
       }
 

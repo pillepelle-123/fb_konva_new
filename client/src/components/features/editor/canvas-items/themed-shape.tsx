@@ -2,6 +2,7 @@ import { Path, Rect, Group, Circle, Text, Line } from 'react-konva';
 import BaseCanvasItem from './base-canvas-item';
 import type { CanvasItemProps } from './base-canvas-item';
 import { getThemeRenderer } from '../../../../utils/themes';
+import type { CanvasElement } from '../../../../context/editor-context';
 
 export default function ThemedShape(props: CanvasItemProps) {
   const { element, isDragging, zoom = 1 } = props;
@@ -79,11 +80,24 @@ export default function ThemedShape(props: CanvasItemProps) {
     );
   }
 
-  const pathData = renderer.generatePath(element, zoom);
+  let pathData = renderer.generatePath(element, zoom);
   const strokeProps = renderer.getStrokeProps(element, zoom);
 
+  // For rough theme, ensure high roughness value like QnA borders
+  if (theme === 'rough' && strokeProps.strokeWidth > 0) {
+    // Regenerate path with roughness 8 to match QnA border style
+    const roughRenderer = getThemeRenderer('rough');
+    // Create element copy with higher roughness for border
+    const roughElement = { ...element, roughness: 8 };
+    const roughPathData = roughRenderer.generatePath(roughElement, zoom);
+    if (roughPathData) {
+      // Use the rougher path for borders
+      pathData = roughPathData;
+    }
+  }
+
   const finalBorderOpacity = element.borderOpacity !== undefined ? element.borderOpacity : (element.opacity !== undefined ? element.opacity : 1);
-  const finalFillOpacity = element.fillOpacity !== undefined ? element.fillOpacity : (element.opacity !== undefined ? element.opacity : 1);
+  const finalBackgroundOpacity = element.backgroundOpacity !== undefined ? element.backgroundOpacity : (element.opacity !== undefined ? element.opacity : 1);
 
   // Helper function to convert hex color to rgba with opacity
   const hexToRgba = (hex: string, opacity: number): string => {
@@ -122,31 +136,31 @@ export default function ThemedShape(props: CanvasItemProps) {
   // Apply fill opacity by converting fill color to rgba
   // This allows fill to have independent opacity from stroke
   let finalFillColor = strokeProps.fill;
-  // Convert fill color to rgba if fillOpacity is explicitly set (even if it's 1)
+  // Convert fill color to rgba if backgroundOpacity is explicitly set (even if it's 1)
   // OR if opacity is set and different from 1
-  const shouldApplyFillOpacity = element.fillOpacity !== undefined || (element.opacity !== undefined && element.opacity !== 1);
+  const shouldApplyBackgroundOpacity = element.backgroundOpacity !== undefined || (element.opacity !== undefined && element.opacity !== 1);
   
-  if (shouldApplyFillOpacity && strokeProps.fill && typeof strokeProps.fill === 'string' && strokeProps.fill !== 'transparent') {
+  if (shouldApplyBackgroundOpacity && strokeProps.fill && typeof strokeProps.fill === 'string' && strokeProps.fill !== 'transparent') {
     // Check if already rgba/rgb
     if (strokeProps.fill.startsWith('rgba')) {
-      // Extract RGB values from rgba and replace alpha with finalFillOpacity
+      // Extract RGB values from rgba and replace alpha with finalBackgroundOpacity
       const rgbaMatch = strokeProps.fill.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*[\d.]+\)/);
       if (rgbaMatch) {
-        finalFillColor = `rgba(${rgbaMatch[1]}, ${rgbaMatch[2]}, ${rgbaMatch[3]}, ${finalFillOpacity})`;
+        finalFillColor = `rgba(${rgbaMatch[1]}, ${rgbaMatch[2]}, ${rgbaMatch[3]}, ${finalBackgroundOpacity})`;
       } else {
         finalFillColor = strokeProps.fill;
       }
     } else if (strokeProps.fill.startsWith('rgb')) {
-      // Extract RGB values from rgb and add alpha with finalFillOpacity
+      // Extract RGB values from rgb and add alpha with finalBackgroundOpacity
       const rgbMatch = strokeProps.fill.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
       if (rgbMatch) {
-        finalFillColor = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${finalFillOpacity})`;
+        finalFillColor = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${finalBackgroundOpacity})`;
       } else {
         finalFillColor = strokeProps.fill;
       }
     } else if (strokeProps.fill.startsWith('#')) {
       // Convert hex to rgba
-      finalFillColor = hexToRgba(strokeProps.fill, finalFillOpacity);
+      finalFillColor = hexToRgba(strokeProps.fill, finalBackgroundOpacity);
     } else {
       finalFillColor = strokeProps.fill;
     }
@@ -186,6 +200,65 @@ export default function ThemedShape(props: CanvasItemProps) {
         </Group>
       </BaseCanvasItem>
     );
+  }
+
+  // Special handling for Candy and Wobbly themes - use theme renderer with borderElement exactly like textbox-qna.tsx
+  if ((theme === 'candy' || theme === 'wobbly') && strokeProps.strokeWidth > 0) {
+    // Get raw borderWidth value (not converted), exactly like textbox-qna.tsx does
+    const borderWidth = element.borderWidth || element.strokeWidth || 1;
+    
+    // Create borderElement exactly like textbox-qna.tsx does
+    const borderElement = {
+      type: 'rect' as const,
+      id: element.id + '-border',
+      x: 0,
+      y: 0,
+      width: element.width || 0,
+      height: element.height || 0,
+      cornerRadius: element.type === 'rect' ? (element.cornerRadius || 0) : 0,
+      stroke: finalStrokeColor,
+      strokeWidth: borderWidth, // Use raw borderWidth value, not converted strokeProps.strokeWidth
+      fill: 'transparent',
+      roughness: theme === 'rough' ? 8 : undefined
+    } as CanvasElement;
+
+    // Call generatePath and getStrokeProps WITHOUT zoom parameter, exactly like textbox-qna.tsx
+    const borderPathData = renderer.generatePath(borderElement);
+    const borderStrokeProps = renderer.getStrokeProps(borderElement);
+
+    if (borderPathData) {
+      return (
+        <BaseCanvasItem {...props} hitArea={hitArea}>
+          <Group listening={false}>
+            {/* Fill layer */}
+            {finalFillColor && finalFillColor !== 'transparent' && (
+              <Path
+                data={pathData}
+                fill={finalFillColor}
+                stroke="transparent"
+                strokeWidth={0}
+                opacity={1}
+                listening={false}
+                perfectDrawEnabled={false}
+              />
+            )}
+            {/* Border layer using theme renderer - exactly like textbox-qna.tsx */}
+            <Path
+              data={borderPathData}
+              stroke={finalStrokeColor}
+              strokeWidth={borderStrokeProps.strokeWidth || borderWidth}
+              opacity={finalBorderOpacity}
+              fill={borderStrokeProps.fill || 'transparent'}
+              strokeScaleEnabled={true}
+              listening={false}
+              perfectDrawEnabled={false}
+              lineCap="round"
+              lineJoin="round"
+            />
+          </Group>
+        </BaseCanvasItem>
+      );
+    }
   }
 
   return (

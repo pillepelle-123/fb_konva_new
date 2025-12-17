@@ -238,16 +238,12 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
       }
     }
     
-    // Map backgroundOpacity for shapes to fillOpacity
-    // Note: borderOpacity is now used directly, no mapping needed
+    // Note: backgroundOpacity and borderOpacity are now used directly, no mapping needed
     if (elementType === 'shape') {
-      if (base.backgroundOpacity !== undefined) {
-        base.fillOpacity = base.backgroundOpacity;
-      }
       // Fallback: if old opacity property exists, use it for both (for backward compatibility)
       if (base.opacity !== undefined && base.borderOpacity === undefined && base.backgroundOpacity === undefined) {
         base.borderOpacity = base.opacity;
-        base.fillOpacity = base.opacity;
+        base.backgroundOpacity = base.opacity;
       }
     }
     

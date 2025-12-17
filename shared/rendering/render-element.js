@@ -59,14 +59,20 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
   const opacity = element.opacity !== undefined ? element.opacity : 1;
   
   // Get fill and stroke with opacity applied
-  let fill = element.fill !== undefined ? element.fill : (element.fillColor || 'transparent');
-  const fillOpacity = element.fillOpacity !== undefined ? element.fillOpacity : 1;
-  fill = applyFillOpacity(fill, fillOpacity, opacity);
+  let fill = element.fill !== undefined ? element.fill : 'transparent';
+  const backgroundOpacity = element.backgroundOpacity !== undefined ? element.backgroundOpacity : 1;
+  fill = applyFillOpacity(fill, backgroundOpacity, opacity);
 
-  let stroke = element.stroke || element.strokeColor || '#000000';
+  let stroke = element.stroke || '#000000';
   const borderOpacity = element.borderOpacity ?? element.border?.opacity ?? 1;
   
-  const strokeWidth = element.strokeWidth || 0;
+  // For shapes (not line/brush), use borderWidth; for line/brush, use strokeWidth
+  const borderWidth = (element.type === 'line' || element.type === 'brush')
+    ? 0
+    : (element.borderWidth || element.strokeWidth || 0);
+  const strokeWidth = (element.type === 'line' || element.type === 'brush')
+    ? (element.strokeWidth || 0)
+    : 0;
   
   // Render QnA elements (standard QnA textbox)
   // qna_inline is deprecated and treated as qna
@@ -286,7 +292,7 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
                   fill: 'transparent',
                   stroke: stroke,
                   strokeWidth: strokeWidth,
-                  opacity: strokeOpacity,
+                  opacity: borderOpacity,
                   cornerRadius: frameCornerRadius,
                   strokeScaleEnabled: true,
                   listening: false
@@ -399,7 +405,7 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
           const roundedRectPath = `M ${r} 0 L ${width - r} 0 Q ${width} 0 ${width} ${r} L ${width} ${height - r} Q ${width} ${height} ${width - r} ${height} L ${r} ${height} Q 0 ${height} 0 ${height - r} L 0 ${r} Q 0 0 ${r} 0 Z`;
           roughElement = rc.path(roundedRectPath, {
             roughness: element.roughness || 1,
-            strokeWidth: strokeWidth,
+            strokeWidth: borderWidth,
             stroke: stroke,
             fill: finalFill !== undefined && finalFill !== 'transparent' ? finalFill : undefined,
             fillStyle: 'solid',
@@ -408,7 +414,7 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
         } else {
           roughElement = rc.rectangle(0, 0, width, height, {
             roughness: element.roughness || 1,
-            strokeWidth: strokeWidth,
+            strokeWidth: borderWidth,
             stroke: stroke,
             fill: finalFill !== undefined && finalFill !== 'transparent' ? finalFill : undefined,
             fillStyle: 'solid',
@@ -431,7 +437,7 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
             data: combinedPath.trim(),
             fill: finalFill !== undefined && finalFill !== 'transparent' ? finalFill : undefined,
             stroke: stroke,
-            strokeWidth: strokeWidth,
+            strokeWidth: borderWidth,
             opacity: opacity,
             rotation: rotation,
             listening: false
@@ -477,7 +483,7 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
     }
 
     // Stroke rect (border) - only if stroke is visible
-    if (strokeWidth > 0 && stroke !== 'transparent') {
+    if (borderWidth > 0 && stroke !== 'transparent') {
       const strokeRect = new Konva.Rect({
         x: x,
         y: y,
@@ -485,10 +491,10 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
         height: height,
         fill: 'transparent',
         stroke: stroke,
-        strokeWidth: strokeWidth,
+        strokeWidth: borderWidth,
         cornerRadius: cornerRadius,
         rotation: rotation,
-        opacity: strokeOpacity,
+        opacity: borderOpacity,
         listening: false
       });
       layer.add(strokeRect);
@@ -551,7 +557,7 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
         
         const roughElement = rc.circle(width / 2, height / 2, radius * 2, {
           roughness: element.roughness || 1,
-          strokeWidth: strokeWidth,
+          strokeWidth: borderWidth,
           stroke: stroke,
           fill: finalFill !== undefined && finalFill !== 'transparent' ? finalFill : undefined,
           fillStyle: 'solid',
@@ -616,16 +622,16 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
     }
 
     // Stroke circle (border) - only if stroke is visible
-    if (strokeWidth > 0 && stroke !== 'transparent') {
+    if (borderWidth > 0 && stroke !== 'transparent') {
       const strokeCircle = new Konva.Circle({
         x: x + width / 2,
         y: y + height / 2,
         radius: radius,
         fill: 'transparent',
         stroke: stroke,
-        strokeWidth: strokeWidth,
+        strokeWidth: borderWidth,
         rotation: rotation,
-        opacity: strokeOpacity,
+        opacity: borderOpacity,
         listening: false
       });
       layer.add(strokeCircle);
@@ -710,7 +716,7 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
       height: height,
       fill: finalShapeFill === 'transparent' ? undefined : finalShapeFill,
       stroke: finalStroke,
-      strokeWidth: strokeWidth,
+      strokeWidth: borderWidth,
       rotation: rotation,
       opacity: opacity,
       listening: false

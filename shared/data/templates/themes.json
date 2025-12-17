@@ -69,7 +69,7 @@
         "qnaIndividualSettings": false
       },
       "shape": {
-        "strokeWidth": 2,
+        "borderWidth": 2,
         "cornerRadius": 0,
         "borderOpacity": 1,
         "backgroundOpacity": 1,
@@ -153,7 +153,7 @@
         }
       },
       "shape": {
-        "strokeWidth": 1,
+        "borderWidth": 1,
         "cornerRadius": 4,
         "borderOpacity": 1,
         "backgroundOpacity": 1,
@@ -239,7 +239,7 @@
         "qnaIndividualSettings": false
       },
       "shape": {
-        "strokeWidth": 3,
+        "borderWidth": 3,
         "cornerRadius": 12,
         "borderOpacity": 1,
         "backgroundOpacity": 1,
@@ -421,7 +421,7 @@
         "qnaIndividualSettings": false
       },
       "shape": {
-        "strokeWidth": 10,
+        "borderWidth": 10,
         "cornerRadius": 20,
         "borderOpacity": 0.1,
         "backgroundOpacity": 0.1,
@@ -500,7 +500,7 @@
         "qnaIndividualSettings": false
       },
       "shape": {
-        "strokeWidth": 7,
+        "borderWidth": 7,
         "cornerRadius": 4,
         "borderOpacity": 0.85,
         "backgroundOpacity": 0.85,
@@ -654,7 +654,7 @@
         }
       },
       "shape": {
-        "strokeWidth": 21,
+        "borderWidth": 21,
         "cornerRadius": 70,
         "borderOpacity": 0.4,
         "backgroundOpacity": 0.4,

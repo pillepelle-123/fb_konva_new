@@ -68,7 +68,10 @@ const defaultTheme: ThemeRenderer = {
   },
   
   getStrokeProps: (element: CanvasElement, _zoom = 1) => {
-    let strokeWidth = element.strokeWidth || 0;
+    // For shapes (not line/brush), use borderWidth; for line/brush, use strokeWidth
+    let strokeWidth = (element.type === 'line' || element.type === 'brush')
+      ? (element.strokeWidth || 0)
+      : (element.borderWidth || element.strokeWidth || 0);
     const theme = element.theme || 'default';
 
     // Simple logic: if strokeWidth is in common scale (1-100), convert it
@@ -100,7 +103,10 @@ const roughTheme: ThemeRenderer = {
     }
     
     const roughness = element.roughness || 1;
-    const strokeWidth = element.strokeWidth ? element.strokeWidth * zoom : 0;
+    // For shapes (not line/brush), use borderWidth; for line/brush, use strokeWidth
+    const strokeWidth = (element.type === 'line' || element.type === 'brush')
+      ? (element.strokeWidth ? element.strokeWidth * zoom : 0)
+      : ((element.borderWidth || element.strokeWidth) ? (element.borderWidth || element.strokeWidth) * zoom : 0);
     const stroke = element.stroke || '#1f2937';
     const fill = element.fill || 'transparent';
     const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
@@ -166,7 +172,10 @@ const roughTheme: ThemeRenderer = {
   },
   
   getStrokeProps: (element: CanvasElement, _zoom = 1) => {
-    let strokeWidth = element.strokeWidth || 0;
+    // For shapes (not line/brush), use borderWidth; for line/brush, use strokeWidth
+    let strokeWidth = (element.type === 'line' || element.type === 'brush')
+      ? (element.strokeWidth || 0)
+      : (element.borderWidth || element.strokeWidth || 0);
     const theme = element.theme || 'rough';
 
     // Simple logic: if strokeWidth is in common scale (1-100), convert it
@@ -179,7 +188,6 @@ const roughTheme: ThemeRenderer = {
     return {
       stroke: element.stroke || '#1f2937',
       // strokeWidth is NOT multiplied by zoom here because strokeScaleEnabled={true} in themed-shape.tsx
-      // Konva will automatically scale the strokeWidth with zoom when strokeWidth={true} in themed-shape.tsx
       // Konva will automatically scale the strokeWidth with zoom when strokeScaleEnabled={true}
       strokeWidth,
       fill: element.type === 'line' ? undefined : (element.fill !== 'transparent' ? element.fill : undefined)
@@ -247,9 +255,10 @@ const glowTheme: ThemeRenderer = {
   },
   
   getStrokeProps: (element: CanvasElement, _zoom = 1) => {
-    // strokeWidth is NOT multiplied by zoom here because strokeScaleEnabled={true} in themed-shape.tsx
-    // Konva will automatically scale the strokeWidth with zoom when strokeScaleEnabled={true}
-    let baseStrokeWidth = element.strokeWidth || 0;
+    // For shapes (not line/brush), use borderWidth; for line/brush, use strokeWidth
+    let baseStrokeWidth = (element.type === 'line' || element.type === 'brush')
+      ? (element.strokeWidth || 0)
+      : (element.borderWidth || element.strokeWidth || 0);
     const theme = element.theme || 'glow';
 
     // Simple logic: if strokeWidth is in common scale (1-100), convert it
@@ -259,10 +268,15 @@ const glowTheme: ThemeRenderer = {
     }
     // Otherwise keep as-is (already converted or 0)
 
+    // For shapes, use element.fill (background) if available; for line/brush, use stroke as fill
+    const fill = element.type === 'line' || element.type === 'brush'
+      ? (element.stroke || '#1f2937')
+      : (element.fill !== 'transparent' ? element.fill : undefined);
+
     return {
       stroke: element.stroke || '#1f2937',
       strokeWidth: baseStrokeWidth * 2,
-      fill: element.type === 'line' ? undefined : (element.fill !== 'transparent' ? element.fill : undefined),
+      fill: fill,
       opacity: 0.6,
       shadowColor: element.stroke || '#1f2937',
       shadowBlur: baseStrokeWidth * 2,
@@ -440,9 +454,21 @@ const candyTheme: ThemeRenderer = {
   },
   
   getStrokeProps: (element: CanvasElement, zoom = 1) => {
+    // For shapes (not line/brush), use borderWidth; for line/brush, use strokeWidth
+    let strokeWidth = (element.type === 'line' || element.type === 'brush')
+      ? (element.strokeWidth || 0)
+      : (element.borderWidth || element.strokeWidth || 0);
+    const theme = element.theme || 'candy';
+
+    // Simple logic: if strokeWidth is in common scale (1-100), convert it
+    // If it's outside this range, assume it's already converted
+    if (strokeWidth >= 1 && strokeWidth <= 100) {
+      strokeWidth = commonToActualStrokeWidth(strokeWidth, theme);
+    }
+
     // Check if candyHoled is enabled - if so, use transparent fill
     const fill = (element as any).candyHoled ? 'transparent' : (element.stroke || '#ff0000');
-    
+
     if (element.type === 'brush') {
       return {
         stroke: 'transparent',
@@ -451,9 +477,9 @@ const candyTheme: ThemeRenderer = {
       };
     }
     return {
-      stroke: 'transparent',
-      strokeWidth: 0,
-      fill: fill
+      stroke: strokeWidth > 0 ? element.stroke || '#ff0000' : 'transparent',
+      strokeWidth: strokeWidth,
+      fill: strokeWidth > 0 ? 'transparent' : fill // Use fill only when no border
     };
   }
 };
@@ -461,7 +487,10 @@ const candyTheme: ThemeRenderer = {
 // Zigzag theme - CSS-styled zigzag lines
 const zigzagTheme: ThemeRenderer = {
   generatePath: (element: CanvasElement, zoom = 1) => {
-    const strokeWidth = element.strokeWidth || 0;
+    // For shapes (not line/brush), use borderWidth; for line/brush, use strokeWidth
+    const strokeWidth = (element.type === 'line' || element.type === 'brush')
+      ? (element.strokeWidth || 0)
+      : (element.borderWidth || element.strokeWidth || 0);
     const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
     const isTextboxBorder = element.id.includes('-border');
     // For zigzag, use strokeWidth / 2 for zigzag size/thickness to maintain normal scaling
@@ -566,7 +595,10 @@ const zigzagTheme: ThemeRenderer = {
   },
   
   getStrokeProps: (element: CanvasElement, _zoom = 1) => {
-    let strokeWidth = element.strokeWidth || 0;
+    // For shapes (not line/brush), use borderWidth; for line/brush, use strokeWidth
+    let strokeWidth = (element.type === 'line' || element.type === 'brush')
+      ? (element.strokeWidth || 0)
+      : (element.borderWidth || element.strokeWidth || 0);
     const theme = element.theme || 'zigzag';
 
     // Simple logic: if strokeWidth is in common scale (1-100), convert it
@@ -576,12 +608,17 @@ const zigzagTheme: ThemeRenderer = {
     }
     // Otherwise keep as-is (already converted or 0)
 
+    // For shapes, use element.fill (background) if available; for line/brush, use stroke as fill
+    const fill = element.type === 'line' || element.type === 'brush'
+      ? (element.stroke || '#bf4d28')
+      : (element.fill !== 'transparent' ? element.fill : 'transparent'); // Allow background fill for zigzag
+
     return {
       stroke: element.stroke || '#bf4d28',
       // strokeWidth is NOT multiplied by zoom here because strokeScaleEnabled={true} in themed-shape.tsx
       // Konva will automatically scale the strokeWidth with zoom when strokeScaleEnabled={true}
       strokeWidth,
-      fill: 'transparent',
+      fill: fill,
       lineCap: 'round',
       lineJoin: 'round'
     };
@@ -647,12 +684,13 @@ const wobblyTheme: ThemeRenderer = {
       const brushStrokes = [];
       
       // Simulate hand-drawn rectangle with 4 brush strokes (extended to connect)
+      // Order: horizontal lines last so they render on top of vertical lines
       const overlap = 164;
       const edges = [
-        { start: [-overlap, 0], end: [element.width + overlap, 0] },
-        { start: [element.width, -overlap], end: [element.width, element.height + overlap] },
-        { start: [element.width + overlap, element.height], end: [-overlap, element.height] },
-        { start: [0, element.height + overlap], end: [0, -overlap] }
+        { start: [element.width, -overlap], end: [element.width, element.height + overlap] }, // Right (vertical) - first
+        { start: [0, element.height + overlap], end: [0, -overlap] }, // Left (vertical) - second
+        { start: [-overlap, 0], end: [element.width + overlap, 0] }, // Top (horizontal) - third
+        { start: [element.width + overlap, element.height], end: [-overlap, element.height] } // Bottom (horizontal) - last
       ];
       
       edges.forEach(edge => {
@@ -824,20 +862,30 @@ const wobblyTheme: ThemeRenderer = {
   },
   
   getStrokeProps: (element: CanvasElement, _zoom = 1) => {
-    if (element.type === 'brush' || element.type === 'line' || element.type === 'rect' || element.type === 'circle' || element.type === 'triangle' || element.type === 'polygon') {
+    // For shapes (not line/brush), use borderWidth; for line/brush, use strokeWidth
+    let strokeWidth = (element.type === 'line' || element.type === 'brush')
+      ? (element.strokeWidth || 0)
+      : (element.borderWidth || element.strokeWidth || 0);
+    const theme = element.theme || 'wobbly';
+
+    // Simple logic: if strokeWidth is in common scale (1-100), convert it
+    // If it's outside this range, assume it's already converted
+    if (strokeWidth >= 1 && strokeWidth <= 100) {
+      strokeWidth = commonToActualStrokeWidth(strokeWidth, theme);
+    }
+
+    if (element.type === 'brush' || element.type === 'line') {
       return {
         stroke: 'transparent',
         strokeWidth: 0,
         fill: element.stroke || '#1f2937'
       };
     }
-    
+
     return {
-      stroke: element.stroke || '#1f2937',
-      // strokeWidth is NOT multiplied by zoom here because strokeScaleEnabled={true} in themed-shape.tsx
-      // Konva will automatically scale the strokeWidth with zoom when strokeScaleEnabled={true}
-      strokeWidth: element.strokeWidth ? commonToActualStrokeWidth(element.strokeWidth, element.theme || 'wobbly') : 0,
-      fill: element.type === 'line' ? undefined : (element.fill !== 'transparent' ? element.fill : undefined)
+      stroke: strokeWidth > 0 ? element.stroke || '#1f2937' : 'transparent',
+      strokeWidth: strokeWidth,
+      fill: strokeWidth > 0 ? 'transparent' : (element.stroke || '#1f2937') // Use fill only when no border
     };
   }
 };

@@ -1050,14 +1050,10 @@ export function PDFRenderer({
           
           if (showBackground) {
             const backgroundColor = element.backgroundColor || questionStyle.background?.backgroundColor || answerStyle.background?.backgroundColor || 'transparent';
-            // Check for backgroundOpacity in multiple locations: element.fillOpacity, element.background.fillOpacity, element.backgroundOpacity, element.background.opacity, element.background.backgroundOpacity, questionSettings.fillOpacity, answerSettings.fillOpacity, questionStyle.background.opacity, answerStyle.background.opacity, questionStyle.backgroundOpacity, answerStyle.backgroundOpacity
-            const backgroundOpacity = (element as any).fillOpacity ?? 
-              (element as any).background?.fillOpacity ??
-              element.backgroundOpacity ?? 
+            // Use backgroundOpacity (standardized property)
+            const backgroundOpacity = element.backgroundOpacity ?? 
               (element as any).background?.opacity ??
               (element as any).background?.backgroundOpacity ??
-              (element as any).questionSettings?.fillOpacity ??
-              (element as any).answerSettings?.fillOpacity ??
               (element as any).questionSettings?.backgroundOpacity ??
               (element as any).answerSettings?.backgroundOpacity ??
               questionStyle.background?.opacity ?? 
@@ -1071,8 +1067,8 @@ export function PDFRenderer({
             console.log('[DEBUG PDFRenderer] QnA Background rendered (first path):');
             console.log('  elementId:', element.id);
             console.log('  backgroundColor:', backgroundColor);
-            console.log('  element.fillOpacity:', (element as any).fillOpacity);
-            console.log('  element.background.fillOpacity:', (element as any).background?.fillOpacity);
+            console.log('  element.backgroundOpacity:', element.backgroundOpacity);
+            console.log('  element.background.opacity:', (element as any).background?.opacity);
             console.log('  element.backgroundOpacity:', element.backgroundOpacity);
             console.log('  element.background.opacity:', (element as any).background?.opacity);
             console.log('  element.background.backgroundOpacity:', (element as any).background?.backgroundOpacity);
@@ -1091,8 +1087,8 @@ export function PDFRenderer({
             // Log answerSettings and questionSettings
             console.log('  element.answerSettings:', (element as any).answerSettings);
             console.log('  element.questionSettings:', (element as any).questionSettings);
-            console.log('  element.answerSettings?.fillOpacity:', (element as any).answerSettings?.fillOpacity);
-            console.log('  element.questionSettings?.fillOpacity:', (element as any).questionSettings?.fillOpacity);
+            console.log('  element.answerSettings?.backgroundOpacity:', (element as any).answerSettings?.backgroundOpacity);
+            console.log('  element.questionSettings?.backgroundOpacity:', (element as any).questionSettings?.backgroundOpacity);
             console.log('  element.answerSettings?.backgroundOpacity:', (element as any).answerSettings?.backgroundOpacity);
             console.log('  element.questionSettings?.backgroundOpacity:', (element as any).questionSettings?.backgroundOpacity);
             console.log('  questionStyle.background?.opacity:', questionStyle.background?.opacity);
@@ -2896,30 +2892,22 @@ export function PDFRenderer({
               'transparent';
             // Don't render if backgroundColor is transparent or empty
             if (backgroundColor !== 'transparent' && backgroundColor) {
-              // Check for backgroundOpacity in multiple locations: element.fillOpacity, element.background.fillOpacity, element.backgroundOpacity, element.background.opacity, element.background.backgroundOpacity, questionSettings.fillOpacity, answerSettings.fillOpacity, questionStyle.background.opacity, answerStyle.background.opacity, questionStyle.backgroundOpacity, answerStyle.backgroundOpacity
-              const backgroundOpacity = (element as any).fillOpacity !== undefined
-                ? (element as any).fillOpacity
-                : (element as any).background?.fillOpacity !== undefined
-                  ? (element as any).background.fillOpacity
-                  : (element as any).backgroundOpacity !== undefined 
-                    ? (element as any).backgroundOpacity 
-                    : (element as any).background?.opacity !== undefined
-                      ? (element as any).background.opacity
-                      : (element as any).background?.backgroundOpacity !== undefined
-                        ? (element as any).background.backgroundOpacity
-                        : (element as any).questionSettings?.fillOpacity !== undefined
-                          ? (element as any).questionSettings.fillOpacity
-                          : (element as any).answerSettings?.fillOpacity !== undefined
-                            ? (element as any).answerSettings.fillOpacity
-                            : (element as any).questionSettings?.backgroundOpacity !== undefined
-                              ? (element as any).questionSettings.backgroundOpacity
-                              : (element as any).answerSettings?.backgroundOpacity !== undefined
-                                ? (element as any).answerSettings.backgroundOpacity
-                                : questionStyle.background?.opacity ?? 
-                                  answerStyle.background?.opacity ?? 
-                                  questionStyle.backgroundOpacity ?? 
-                                  answerStyle.backgroundOpacity ?? 
-                                  1;
+              // Use backgroundOpacity (standardized property)
+              const backgroundOpacity = (element as any).backgroundOpacity !== undefined 
+                ? (element as any).backgroundOpacity 
+                : (element as any).background?.opacity !== undefined
+                  ? (element as any).background.opacity
+                  : (element as any).background?.backgroundOpacity !== undefined
+                    ? (element as any).background.backgroundOpacity
+                    : (element as any).questionSettings?.backgroundOpacity !== undefined
+                      ? (element as any).questionSettings.backgroundOpacity
+                      : (element as any).answerSettings?.backgroundOpacity !== undefined
+                        ? (element as any).answerSettings.backgroundOpacity
+                        : questionStyle.background?.opacity ?? 
+                          answerStyle.background?.opacity ?? 
+                          questionStyle.backgroundOpacity ?? 
+                          answerStyle.backgroundOpacity ?? 
+                          1;
               const cornerRadius = (element as any).cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
               const finalOpacity = backgroundOpacity * elementOpacity;
               
@@ -3325,11 +3313,6 @@ export function PDFRenderer({
             if (themeRenderer) {
               // Create a temporary element-like object for generatePath
               // Set roughness to 8 for 'rough' theme to match client-side rendering
-              // IMPORTANT: For 'candy' theme, increase strokeWidth server-side to make circles larger
-              // This compensates for rendering differences between client and server
-              // Also reduce spacing between circles by using a spacing multiplier
-              const adjustedBorderWidth = borderTheme === 'candy' ? borderWidth * 1.45 : borderWidth;
-              
               const borderElement = {
                 type: 'rect' as const,
                 id: (element as any).id + '-border',
@@ -3339,13 +3322,10 @@ export function PDFRenderer({
                 height: contentHeight,
                 cornerRadius: cornerRadius,
                 stroke: borderColor,
-                strokeWidth: adjustedBorderWidth,
+                strokeWidth: borderWidth, // Use raw borderWidth value, not adjusted
                 fill: 'transparent',
                 roughness: borderTheme === 'rough' ? 8 : (borderTheme === 'sketchy' ? 2 : 1),
-                theme: borderTheme,
-                // Add spacing multiplier for candy theme to reduce gaps between circles
-                // This is only used server-side, client-side spacing remains unchanged
-                candySpacingMultiplier: borderTheme === 'candy' ? 0.7 : undefined
+                theme: borderTheme
               } as CanvasElement;
               
               const pathData = themeRenderer.generatePath(borderElement);
@@ -3354,10 +3334,8 @@ export function PDFRenderer({
               const strokeProps = themeRenderer.getStrokeProps(borderElement);
               
               if (pathData) {
-                // For candy theme, use adjusted borderWidth for strokeWidth to match larger circles
-                // Candy theme uses fill instead of stroke, so strokeWidth doesn't affect rendering
-                // but we keep it consistent for potential future changes
-                const pathStrokeWidth = borderTheme === 'candy' ? adjustedBorderWidth : (strokeProps.strokeWidth || borderWidth);
+                // Use strokeWidth from strokeProps (converted by getStrokeProps)
+                const pathStrokeWidth = strokeProps.strokeWidth || borderWidth;
                 
                 const borderPath = new Konva.Path({
                   data: pathData,
@@ -4073,15 +4051,19 @@ export function PDFRenderer({
         }
         // Render shape elements (rect, circle, etc.)
         else if (['rect', 'circle', 'line', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(element.type)) {
-          const fill = element.fill !== undefined ? element.fill : (element.fillColor || 'transparent');
-          const stroke = element.stroke || element.strokeColor || '#000000';
-          const strokeWidth = element.strokeWidth || 0;
+          const fill = element.fill !== undefined ? element.fill : 'transparent';
+          const stroke = element.stroke || '#000000';
+          // For shapes (not line/brush), use borderWidth; for line, use strokeWidth
+          const borderWidth = element.type === 'line'
+            ? (element.strokeWidth || 0)
+            : (element.borderWidth || element.strokeWidth || 0);
+          const strokeWidth = borderWidth; // Use borderWidth for all shapes
           const theme = element.theme || element.borderTheme || 'default';
           
-          // For rect elements, use fillOpacity if available, otherwise use elementOpacity
+          // For rect elements, use backgroundOpacity if available, otherwise use elementOpacity
           // For other shapes, use elementOpacity
-          const fillOpacity = element.type === 'rect' && (element as any).fillOpacity !== undefined
-            ? (element as any).fillOpacity
+          const backgroundOpacity = element.type === 'rect' && (element as any).backgroundOpacity !== undefined
+            ? (element as any).backgroundOpacity
             : elementOpacity;
 
           // For rect elements, use border opacity from borderOpacity if available
@@ -4091,7 +4073,31 @@ export function PDFRenderer({
           
           // Check if theme renderer should be used
           const themeRenderer = getThemeRenderer(theme);
-          const useTheme = themeRenderer && theme !== 'default' && strokeWidth > 0;
+          const hasBorder = borderWidth > 0;
+          const hasFill = fill !== 'transparent' && fill !== undefined;
+          const useTheme = themeRenderer && theme !== 'default' && (hasBorder || hasFill);
+
+          console.log('[PDFRenderer] Shape analysis:', {
+            elementId: element.id,
+            theme,
+            borderWidth,
+            strokeWidth,
+            fill,
+            hasBorder,
+            hasFill,
+            useTheme,
+            hasThemeRenderer: !!themeRenderer,
+            elementType: element.type
+          });
+
+          console.log('[PDFRenderer] Shape rendering:', {
+            elementId: element.id,
+            elementType: element.type,
+            theme,
+            borderWidth,
+            useTheme,
+            hasThemeRenderer: !!themeRenderer
+          });
           
           if (useTheme) {
             // Use theme renderer for themed borders
@@ -4104,13 +4110,26 @@ export function PDFRenderer({
               height: elementHeight,
               cornerRadius: element.cornerRadius || 0,
               stroke: stroke,
-              strokeWidth: strokeWidth,
+              strokeWidth: element.type === 'line' ? borderWidth : borderWidth, // For line use strokeWidth, for shapes use borderWidth (mapped to strokeWidth for theme renderer)
+              borderWidth: element.type === 'line' ? undefined : borderWidth, // Only set for shapes
               fill: fill !== 'transparent' ? fill : 'transparent',
-              theme: theme
+              theme: theme,
+              // For rough theme, ensure high roughness value like QnA borders
+              roughness: theme === 'rough' ? 8 : element.roughness
             } as CanvasElement;
-            
+
             const pathData = themeRenderer.generatePath(shapeElement);
-            
+            const strokeProps = themeRenderer.getStrokeProps(shapeElement);
+
+            // Debug: Log theme rendering
+            console.log('[PDFRenderer] Theme rendering:', {
+              elementId: element.id,
+              theme,
+              useTheme,
+              hasPathData: !!pathData,
+              strokeProps
+            });
+
             // Debug: Log circle dimensions - ALWAYS log for circles, regardless of theme
             if (element.type === 'circle') {
               const circleRadius = Math.min(elementWidth, elementHeight) / 2;
@@ -4128,56 +4147,176 @@ export function PDFRenderer({
             }
             
             if (pathData) {
-              // For rect elements with theme, apply fillOpacity and borderOpacity to colors (RGBA) instead of using opacity property
-              let pathFill = fill !== 'transparent' ? fill : undefined;
-              if (element.type === 'rect' && pathFill && fillOpacity < 1) {
-                if (pathFill.startsWith('#')) {
-                  pathFill = hexToRgba(pathFill, fillOpacity);
-                } else if (pathFill.startsWith('rgb')) {
-                  // Convert rgb to rgba
-                  const rgbMatch = pathFill.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
-                  if (rgbMatch) {
-                    pathFill = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${fillOpacity})`;
+              // Special handling for Candy and Wobbly themes - use borderElement exactly like textbox-qna.tsx
+              if ((theme === 'candy' || theme === 'wobbly') && strokeProps.strokeWidth > 0) {
+                // Get raw borderWidth value (not converted), exactly like textbox-qna.tsx does
+                const borderWidth = element.borderWidth || element.strokeWidth || 1;
+                
+                // Create borderElement exactly like textbox-qna.tsx does
+                const borderElement = {
+                  type: 'rect' as const,
+                  id: element.id + '-border',
+                  x: 0,
+                  y: 0,
+                  width: elementWidth,
+                  height: elementHeight,
+                  cornerRadius: element.type === 'rect' ? (element.cornerRadius || 0) : 0,
+                  stroke: stroke,
+                  strokeWidth: borderWidth, // Use raw borderWidth value, not converted strokeProps.strokeWidth
+                  fill: 'transparent',
+                  roughness: theme === 'rough' ? 8 : undefined
+                } as CanvasElement;
+
+                // Call generatePath and getStrokeProps WITHOUT zoom parameter, exactly like textbox-qna.tsx
+                const borderPathData = themeRenderer.generatePath(borderElement);
+                const borderStrokeProps = themeRenderer.getStrokeProps(borderElement);
+
+                if (borderPathData) {
+                  // Fill layer
+                  let pathFill = strokeProps.fill !== undefined ? strokeProps.fill : (fill !== 'transparent' ? fill : undefined);
+                  if (element.type === 'rect' && pathFill && backgroundOpacity < 1) {
+                    if (pathFill.startsWith('#')) {
+                      pathFill = hexToRgba(pathFill, backgroundOpacity);
+                    } else if (pathFill.startsWith('rgb')) {
+                      // Convert rgb to rgba
+                      const rgbMatch = pathFill.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                      if (rgbMatch) {
+                        pathFill = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${backgroundOpacity})`;
+                      }
+                    }
+                  }
+
+                  if (pathFill && pathFill !== 'transparent') {
+                    const fillPath = new Konva.Path({
+                      data: pathData,
+                      x: elementX,
+                      y: elementY,
+                      fill: pathFill,
+                      stroke: 'transparent',
+                      strokeWidth: 0,
+                      opacity: element.type === 'rect' && backgroundOpacity < 1 ? 1 : elementOpacity,
+                      strokeScaleEnabled: true,
+                      rotation: elementRotation,
+                      listening: false,
+                      lineCap: 'round',
+                      lineJoin: 'round',
+                    });
+                    layer.add(fillPath);
+                    const themedZOrderIndex = elementIdToZOrder.get(element.id);
+                    if (themedZOrderIndex !== undefined) {
+                      fillPath.setAttr('__zOrderIndex', themedZOrderIndex);
+                      fillPath.setAttr('__elementId', element.id);
+                    }
+                  }
+
+                  // Border layer using theme renderer - exactly like textbox-qna.tsx
+                  let pathStroke = strokeProps.stroke || stroke;
+                  if (element.type === 'rect' && pathStroke && borderOpacity < 1) {
+                    if (pathStroke.startsWith('#')) {
+                      pathStroke = hexToRgba(pathStroke, borderOpacity);
+                    } else if (pathStroke.startsWith('rgb')) {
+                      // Convert rgb to rgba
+                      const rgbMatch = pathStroke.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                      if (rgbMatch) {
+                        pathStroke = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${borderOpacity})`;
+                      }
+                    }
+                  }
+
+                  const borderPath = new Konva.Path({
+                    data: borderPathData,
+                    x: elementX,
+                    y: elementY,
+                    stroke: pathStroke,
+                    strokeWidth: borderStrokeProps.strokeWidth || borderWidth,
+                    opacity: element.type === 'rect' && borderOpacity < 1 ? 1 : elementOpacity,
+                    fill: borderStrokeProps.fill || 'transparent',
+                    strokeScaleEnabled: true,
+                    rotation: elementRotation,
+                    listening: false,
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                  });
+                  layer.add(borderPath);
+                  const themedZOrderIndex = elementIdToZOrder.get(element.id);
+                  if (themedZOrderIndex !== undefined) {
+                    borderPath.setAttr('__zOrderIndex', themedZOrderIndex + 0.1); // Border slightly above fill
+                    borderPath.setAttr('__elementId', element.id);
+                  }
+
+                  console.log('[PDFRenderer] Created themed shape (Candy/Wobbly):', {
+                    elementId: element.id,
+                    theme,
+                    hasFill: !!pathFill,
+                    hasBorder: !!borderPathData,
+                    strokeWidth: borderStrokeProps.strokeWidth || strokeProps.strokeWidth
+                  });
+                }
+              } else {
+                // Regular themed rendering for other themes else {
+                // Regular themed rendering for other themes
+                let pathFill = strokeProps.fill !== undefined ? strokeProps.fill : (fill !== 'transparent' ? fill : undefined);
+                if (element.type === 'rect' && pathFill && backgroundOpacity < 1) {
+                  if (pathFill.startsWith('#')) {
+                    pathFill = hexToRgba(pathFill, backgroundOpacity);
+                  } else if (pathFill.startsWith('rgb')) {
+                    // Convert rgb to rgba
+                    const rgbMatch = pathFill.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                    if (rgbMatch) {
+                      pathFill = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${backgroundOpacity})`;
+                    }
                   }
                 }
-              }
 
-              // Apply border opacity for themed rect elements
-              let pathStroke = stroke;
-              if (element.type === 'rect' && borderOpacity < 1) {
-                if (pathStroke.startsWith('#')) {
-                  pathStroke = hexToRgba(pathStroke, borderOpacity);
-                } else if (pathStroke.startsWith('rgb')) {
-                  // Convert rgb to rgba
-                  const rgbMatch = pathStroke.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
-                  if (rgbMatch) {
-                    pathStroke = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${borderOpacity})`;
+                // Apply border opacity for themed rect elements - use strokeProps for theme borders
+                let pathStroke = strokeProps.strokeWidth > 0 ? strokeProps.stroke || stroke : undefined;
+                if (element.type === 'rect' && pathStroke && borderOpacity < 1) {
+                  if (pathStroke.startsWith('#')) {
+                    pathStroke = hexToRgba(pathStroke, borderOpacity);
+                  } else if (pathStroke.startsWith('rgb')) {
+                    // Convert rgb to rgba
+                    const rgbMatch = pathStroke.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                    if (rgbMatch) {
+                      pathStroke = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${borderOpacity})`;
+                    }
                   }
                 }
-              }
 
-              const shapePath = new Konva.Path({
-                data: pathData,
-                x: elementX,
-                y: elementY,
-                fill: pathFill,
-                stroke: pathStroke,
-                strokeWidth: strokeWidth,
-                opacity: element.type === 'rect' && (fillOpacity < 1 || borderOpacity < 1) ? 1 : elementOpacity, // Set to 1 if opacity is in colors
-                strokeScaleEnabled: true,
-                rotation: elementRotation,
-                listening: false,
-                lineCap: 'round',
-                lineJoin: 'round',
-              });
-              layer.add(shapePath);
+                const shapePath = new Konva.Path({
+                  data: pathData,
+                  x: elementX,
+                  y: elementY,
+                  fill: pathFill,
+                  stroke: pathStroke,
+                  strokeWidth: strokeProps.strokeWidth || strokeWidth, // Use strokeProps.strokeWidth for themed borders
+                  opacity: element.type === 'rect' && (backgroundOpacity < 1 || borderOpacity < 1) ? 1 : elementOpacity, // Set to 1 if opacity is in colors
+                  strokeScaleEnabled: true,
+                  rotation: elementRotation,
+                  listening: false,
+                  lineCap: 'round',
+                  lineJoin: 'round',
+                });
+                layer.add(shapePath);
               // Store z-order on themed shape node
               const themedZOrderIndex = elementIdToZOrder.get(element.id);
+
+              console.log('[PDFRenderer] Created themed shape:', {
+                elementId: element.id,
+                theme,
+                pathDataLength: pathData.length,
+                strokeProps,
+                hasFill: !!pathFill,
+                hasStroke: !!pathStroke,
+                pathFill,
+                pathStroke,
+                strokeWidth: strokeProps.strokeWidth || strokeWidth
+              });
               if (themedZOrderIndex !== undefined) {
                 shapePath.setAttr('__zOrderIndex', themedZOrderIndex);
                 shapePath.setAttr('__elementId', element.id);
               }
-            } else {
+            }
+          } else {
               // Fallback to regular shape
               let shapeNode;
               if (element.type === 'circle') {
@@ -4203,22 +4342,22 @@ export function PDFRenderer({
                   listening: false
                 });
               } else {
-                // For rect elements, apply fillOpacity to fill color (RGBA) instead of using opacity property
+                // For rect elements, apply backgroundOpacity to fill color (RGBA) instead of using opacity property
                 let rectFill = fill !== 'transparent' ? fill : undefined;
-                if (element.type === 'rect' && rectFill && fillOpacity < 1) {
+                if (element.type === 'rect' && rectFill && backgroundOpacity < 1) {
                   if (rectFill.startsWith('#')) {
-                    rectFill = hexToRgba(rectFill, fillOpacity);
+                    rectFill = hexToRgba(rectFill, backgroundOpacity);
                   } else if (rectFill.startsWith('rgb')) {
                     // Convert rgb to rgba
                     const rgbMatch = rectFill.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
                     if (rgbMatch) {
-                      rectFill = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${fillOpacity})`;
+                      rectFill = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${backgroundOpacity})`;
                     }
                   }
                 }
 
                 // For rect elements, apply borderOpacity to stroke color (RGBA)
-                let rectStroke = strokeWidth > 0 ? stroke : undefined;
+                let rectStroke = borderWidth > 0 ? stroke : undefined;
                 if (element.type === 'rect' && rectStroke && borderOpacity < 1) {
                   if (rectStroke.startsWith('#')) {
                     rectStroke = hexToRgba(rectStroke, borderOpacity);
@@ -4238,10 +4377,10 @@ export function PDFRenderer({
                   height: elementHeight,
                   fill: rectFill,
                   stroke: rectStroke,
-                  strokeWidth: strokeWidth,
+                  strokeWidth: element.type === 'line' ? strokeWidth : borderWidth,
                   cornerRadius: element.cornerRadius || 0,
                   rotation: elementRotation,
-                  opacity: (element.type === 'rect' && (fillOpacity < 1 || borderOpacity < 1)) ? 1 : elementOpacity, // Set to 1 if opacity is in colors
+                  opacity: (element.type === 'rect' && (backgroundOpacity < 1 || borderOpacity < 1)) ? 1 : elementOpacity, // Set to 1 if opacity is in colors
                   listening: false
                 });
               }
@@ -4292,16 +4431,16 @@ export function PDFRenderer({
               });
             } else {
               // Default to Rect for other shapes
-              // For rect elements, apply fillOpacity and borderOpacity to colors (RGBA) instead of using opacity property
+              // For rect elements, apply backgroundOpacity and borderOpacity to colors (RGBA) instead of using opacity property
               let rectFill = fill !== 'transparent' ? fill : undefined;
-              if (element.type === 'rect' && rectFill && fillOpacity < 1) {
+              if (element.type === 'rect' && rectFill && backgroundOpacity < 1) {
                 if (rectFill.startsWith('#')) {
-                  rectFill = hexToRgba(rectFill, fillOpacity);
+                  rectFill = hexToRgba(rectFill, backgroundOpacity);
                 } else if (rectFill.startsWith('rgb')) {
                   // Convert rgb to rgba
                   const rgbMatch = rectFill.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
                   if (rgbMatch) {
-                    rectFill = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${fillOpacity})`;
+                    rectFill = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${backgroundOpacity})`;
                   }
                 }
               }
@@ -4330,7 +4469,7 @@ export function PDFRenderer({
                 strokeWidth: strokeWidth,
                 cornerRadius: element.cornerRadius || 0,
                 rotation: elementRotation,
-                opacity: element.type === 'rect' && (fillOpacity < 1 || borderOpacity < 1) ? 1 : elementOpacity, // Set to 1 if opacity is in colors
+                opacity: element.type === 'rect' && (backgroundOpacity < 1 || borderOpacity < 1) ? 1 : elementOpacity, // Set to 1 if opacity is in colors
                 listening: false
               });
             }
