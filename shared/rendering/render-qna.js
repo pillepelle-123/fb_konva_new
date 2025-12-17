@@ -4,6 +4,7 @@
  */
 
 const { getGlobalThemeDefaults, deepMerge, getThemeRenderer } = require('./utils/theme-utils');
+const { applyStrokeOpacity } = require('./utils/color-utils');
 const { buildFont, getLineHeight, measureText, calculateTextX, wrapText, getBaselineOffset, resolveFontFamily } = require('../utils/text-layout.server');
 const { createLayout, createBlockLayout } = require('../utils/qna-layout.server');
 
@@ -127,9 +128,10 @@ function getToolDefaults(tool, pageTheme, bookTheme, existingElement, pageColorP
  * @param {Object} roughInstance - Rough.js instance (optional)
  * @param {Object} themesData - Themes data
  * @param {Array} colorPalettes - Color palettes array
+ * @param {number} zOrderIndex - Z-order index for this element (optional)
  * @returns {number} Number of nodes added
  */
-function renderQnA(layer, element, pageData, bookData, x, y, width, height, rotation, opacity, konvaInstance, document, roughInstance, themesData, colorPalettes) {
+function renderQnA(layer, element, pageData, bookData, x, y, width, height, rotation, opacity, konvaInstance, document, roughInstance, themesData, colorPalettes, zOrderIndex) {
   const { renderRuledLines } = require('./render-ruled-lines');
   const Konva = konvaInstance;
   
@@ -292,7 +294,7 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
       width: width,
       height: height,
       fill: backgroundColor,
-      opacity: backgroundOpacity * opacity,
+      opacity: backgroundOpacity,
       cornerRadius: cornerRadius,
       listening: false,
       visible: true
@@ -300,6 +302,10 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
     
     layer.add(bgRect);
     bgRect.zIndex(0);
+    // Set z-order for global sorting (all QnA parts get same z-order, layer order determines internal stacking)
+    if (zOrderIndex !== undefined) {
+      bgRect.setAttr('__zOrderIndex', zOrderIndex);
+    }
     
     // Find all page background nodes and move bgRect after them
     const stage = layer.getStage();
@@ -335,7 +341,7 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
   if (showBorder) {
     const borderColor = element.borderColor || '#000000';
     const borderWidth = element.borderWidth || 1;
-    const borderOpacity = element.borderOpacity !== undefined ? element.borderOpacity : 1;
+    const borderOpacity = element.borderOpacity ?? element.strokeOpacity ?? element.border?.opacity ?? element.opacity ?? 1;
     const cornerRadius = element.cornerRadius ?? toolDefaults.cornerRadius ?? 0;
     const borderThemeRaw = element.borderTheme || 
                        (element.questionSettings && element.questionSettings.borderTheme) || 
@@ -393,15 +399,18 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
           // Candy theme uses fill instead of stroke, so strokeWidth doesn't affect rendering
           // but we keep it consistent for potential future changes
           const pathStrokeWidth = borderTheme === 'candy' ? adjustedBorderWidth : (strokeProps.strokeWidth || borderWidth);
-          
+
+          // Apply border opacity to stroke color for Path elements (Konva Path may not respect opacity property)
+          const finalBorderColor = applyStrokeOpacity(strokeProps.stroke || borderColor, borderOpacity);
+
           const borderPath = new Konva.Path({
             x: x,
             y: y,
             data: pathData,
-            stroke: strokeProps.stroke || borderColor,
+            stroke: finalBorderColor,
             strokeWidth: pathStrokeWidth,
             fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
-            opacity: borderOpacity * opacity,
+            opacity: 1, // Opacity applied to stroke color instead
             strokeScaleEnabled: true,
             rotation: rotation,
             listening: false,
@@ -409,8 +418,12 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
             lineJoin: strokeProps.lineJoin || 'round',
             visible: true
           });
+          // Set z-order for global sorting (all QnA parts get same z-order, layer order determines internal stacking)
+          if (zOrderIndex !== undefined) {
+            borderPath.setAttr('__zOrderIndex', zOrderIndex);
+          }
           layer.add(borderPath);
-          
+
           // Insert border after ruled lines (or after background if no ruled lines)
           const insertAfterIndex = bgRect ? layer.getChildren().indexOf(bgRect) + 1 + ruledLinesNodes.length : layer.getChildren().length;
           const borderPathIndex = layer.getChildren().indexOf(borderPath);
@@ -448,20 +461,26 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
           nodesAdded++;
         } else {
           // Fallback to Rect if path generation fails
+          // Apply border opacity to stroke color for consistency
+          const finalBorderColor = applyStrokeOpacity(borderColor, borderOpacity);
           const borderRect = new Konva.Rect({
             x: x,
             y: y,
             width: width,
             height: borderHeight,
             fill: 'transparent',
-            stroke: borderColor,
+            stroke: finalBorderColor,
             strokeWidth: borderWidth,
-            opacity: borderOpacity * opacity,
+            opacity: 1, // Opacity applied to stroke color instead
             cornerRadius: cornerRadius,
             rotation: rotation,
             listening: false,
             visible: true
           });
+          // Set z-order for global sorting (all QnA parts get same z-order, layer order determines internal stacking)
+          if (zOrderIndex !== undefined) {
+            borderRect.setAttr('__zOrderIndex', zOrderIndex);
+          }
           layer.add(borderRect);
           
           // Insert border after ruled lines (or after background if no ruled lines)
@@ -475,22 +494,28 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
         }
       } catch (error) {
         // Fallback to Rect if theme renderer fails
+        // Apply border opacity to stroke color for consistency
+        const finalBorderColor = applyStrokeOpacity(borderColor, borderOpacity);
         const borderRect = new Konva.Rect({
           x: x,
           y: y,
           width: width,
           height: borderHeight,
           fill: 'transparent',
-          stroke: borderColor,
+          stroke: finalBorderColor,
           strokeWidth: borderWidth,
-          opacity: borderOpacity * opacity,
+          opacity: 1, // Opacity applied to stroke color instead
           cornerRadius: cornerRadius,
           rotation: rotation,
           listening: false,
           visible: true
         });
+        // Set z-order for global sorting (border gets higher z-order than ruled lines)
+        if (zOrderIndex !== undefined) {
+          borderRect.setAttr('__zOrderIndex', zOrderIndex + 0.2);
+        }
         layer.add(borderRect);
-        
+
         // Insert border after ruled lines (or after background if no ruled lines)
         const insertAfterIndex = bgRect ? layer.getChildren().indexOf(bgRect) + 1 + ruledLinesNodes.length : layer.getChildren().length;
         const borderRectIndex = layer.getChildren().indexOf(borderRect);
@@ -502,23 +527,30 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
       }
     } else {
       // Default: simple rect border
+      // Apply border opacity to stroke color for consistency
+      const finalBorderColor = applyStrokeOpacity(borderColor, borderOpacity);
       const borderRect = new Konva.Rect({
         x: x,
         y: y,
         width: width,
         height: borderHeight,
         fill: 'transparent',
-        stroke: borderColor,
+        stroke: finalBorderColor,
         strokeWidth: borderWidth,
-        opacity: borderOpacity * opacity,
+        opacity: 1, // Opacity applied to stroke color instead
         cornerRadius: cornerRadius,
         rotation: rotation,
         listening: false,
         visible: true
       });
-      
+
+      // Set z-order for global sorting (border gets higher z-order than ruled lines)
+      if (zOrderIndex !== undefined) {
+        borderRect.setAttr('__zOrderIndex', zOrderIndex + 0.2);
+      }
+
       layer.add(borderRect);
-      
+
       // Insert border after ruled lines (or after background if no ruled lines)
       const insertAfterIndex = bgRect ? layer.getChildren().indexOf(bgRect) + 1 + ruledLinesNodes.length : layer.getChildren().length;
       const borderRectIndex = layer.getChildren().indexOf(borderRect);
@@ -653,7 +685,7 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
               data: combinedPath.trim(),
               stroke: ruledLinesColor,
               strokeWidth: ruledLinesWidth,
-              opacity: ruledLinesOpacity * opacity,
+              opacity: ruledLinesOpacity,
               strokeScaleEnabled: true,
               listening: false,
               visible: true
@@ -799,7 +831,7 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
                   data: combinedPath.trim(),
                   stroke: ruledLinesColor,
                   strokeWidth: ruledLinesWidth,
-                  opacity: ruledLinesOpacity * opacity,
+                  opacity: ruledLinesOpacity,
                   strokeScaleEnabled: true,
                   listening: false,
                   visible: true
@@ -811,7 +843,7 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
                 points: [absoluteStartX, absoluteLineY, absoluteEndX, absoluteLineY],
                 stroke: ruledLinesColor,
                 strokeWidth: ruledLinesWidth,
-                opacity: ruledLinesOpacity * opacity,
+                opacity: ruledLinesOpacity,
                 listening: false,
                 visible: true
               });
@@ -822,13 +854,17 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
               points: [absoluteStartX, absoluteLineY, absoluteEndX, absoluteLineY],
               stroke: ruledLinesColor,
               strokeWidth: ruledLinesWidth,
-              opacity: ruledLinesOpacity * opacity,
+              opacity: ruledLinesOpacity,
               listening: false,
               visible: true
             });
           }
           
           if (lineNode) {
+            // Set z-order for global sorting (all QnA parts get same z-order, layer order determines internal stacking)
+            if (zOrderIndex !== undefined) {
+              lineNode.setAttr('__zOrderIndex', zOrderIndex);
+            }
             ruledLinesNodes.push(lineNode);
             nodesAdded++;
             additionalLinesGenerated++;
@@ -897,7 +933,7 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
           // Build font string with bold/italic support (like client)
           const fontString = buildFont(style);
           const fontColor = style.fontColor || '#000000';
-          const fontOpacity = (style.fontOpacity !== undefined ? style.fontOpacity : 1) * opacity;
+          const fontOpacity = style.fontOpacity !== undefined ? style.fontOpacity : 1;
           
           ctx.font = fontString;
           ctx.fillStyle = fontColor;
@@ -914,7 +950,12 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
       listening: false,
       visible: true
     });
-    
+
+    // Set z-order for global sorting (all QnA parts get same z-order, layer order determines internal stacking)
+    if (zOrderIndex !== undefined) {
+      textShape.setAttr('__zOrderIndex', zOrderIndex);
+    }
+
     layer.add(textShape);
     nodesAdded++;
   }

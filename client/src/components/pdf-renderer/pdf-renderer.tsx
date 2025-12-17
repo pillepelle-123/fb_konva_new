@@ -4023,9 +4023,14 @@ export function PDFRenderer({
           
           // For rect elements, use fillOpacity if available, otherwise use elementOpacity
           // For other shapes, use elementOpacity
-          const fillOpacity = element.type === 'rect' && (element as any).fillOpacity !== undefined 
-            ? (element as any).fillOpacity 
+          const fillOpacity = element.type === 'rect' && (element as any).fillOpacity !== undefined
+            ? (element as any).fillOpacity
             : elementOpacity;
+
+          // For rect elements, use stroke opacity from backgroundOpacity if available
+          const strokeOpacity = element.type === 'rect' && (element as any).backgroundOpacity !== undefined
+            ? (element as any).backgroundOpacity
+            : 1;
           
           // Check if theme renderer should be used
           const themeRenderer = getThemeRenderer(theme);
@@ -4066,7 +4071,7 @@ export function PDFRenderer({
             }
             
             if (pathData) {
-              // For rect elements with theme, apply fillOpacity to fill color (RGBA) instead of using opacity property
+              // For rect elements with theme, apply fillOpacity and strokeOpacity to colors (RGBA) instead of using opacity property
               let pathFill = fill !== 'transparent' ? fill : undefined;
               if (element.type === 'rect' && pathFill && fillOpacity < 1) {
                 if (pathFill.startsWith('#')) {
@@ -4079,15 +4084,29 @@ export function PDFRenderer({
                   }
                 }
               }
-              
+
+              // Apply stroke opacity for themed rect elements
+              let pathStroke = stroke;
+              if (element.type === 'rect' && strokeOpacity < 1) {
+                if (pathStroke.startsWith('#')) {
+                  pathStroke = hexToRgba(pathStroke, strokeOpacity);
+                } else if (pathStroke.startsWith('rgb')) {
+                  // Convert rgb to rgba
+                  const rgbMatch = pathStroke.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                  if (rgbMatch) {
+                    pathStroke = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${strokeOpacity})`;
+                  }
+                }
+              }
+
               const shapePath = new Konva.Path({
                 data: pathData,
                 x: elementX,
                 y: elementY,
                 fill: pathFill,
-                stroke: stroke,
+                stroke: pathStroke,
                 strokeWidth: strokeWidth,
-                opacity: element.type === 'rect' && fillOpacity < 1 ? 1 : elementOpacity, // Set to 1 if opacity is in fill color
+                opacity: element.type === 'rect' && (fillOpacity < 1 || strokeOpacity < 1) ? 1 : elementOpacity, // Set to 1 if opacity is in colors
                 strokeScaleEnabled: true,
                 rotation: elementRotation,
                 listening: false,
@@ -4134,18 +4153,32 @@ export function PDFRenderer({
                     }
                   }
                 }
-                
+
+                // For rect elements, apply strokeOpacity to stroke color (RGBA)
+                let rectStroke = strokeWidth > 0 ? stroke : undefined;
+                if (element.type === 'rect' && rectStroke && strokeOpacity < 1) {
+                  if (rectStroke.startsWith('#')) {
+                    rectStroke = hexToRgba(rectStroke, strokeOpacity);
+                  } else if (rectStroke.startsWith('rgb')) {
+                    // Convert rgb to rgba
+                    const rgbMatch = rectStroke.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                    if (rgbMatch) {
+                      rectStroke = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${strokeOpacity})`;
+                    }
+                  }
+                }
+
                 shapeNode = new Konva.Rect({
                   x: elementX,
                   y: elementY,
                   width: elementWidth,
                   height: elementHeight,
                   fill: rectFill,
-                  stroke: strokeWidth > 0 ? stroke : undefined,
+                  stroke: rectStroke,
                   strokeWidth: strokeWidth,
                   cornerRadius: element.cornerRadius || 0,
                   rotation: elementRotation,
-                  opacity: element.type === 'rect' && fillOpacity < 1 ? 1 : elementOpacity, // Set to 1 if opacity is in fill color
+                  opacity: (element.type === 'rect' && (fillOpacity < 1 || strokeOpacity < 1)) ? 1 : elementOpacity, // Set to 1 if opacity is in colors
                   listening: false
                 });
               }
@@ -4195,7 +4228,7 @@ export function PDFRenderer({
               });
             } else {
               // Default to Rect for other shapes
-              // For rect elements, apply fillOpacity to fill color (RGBA) instead of using opacity property
+              // For rect elements, apply fillOpacity and strokeOpacity to colors (RGBA) instead of using opacity property
               let rectFill = fill !== 'transparent' ? fill : undefined;
               if (element.type === 'rect' && rectFill && fillOpacity < 1) {
                 if (rectFill.startsWith('#')) {
@@ -4208,18 +4241,32 @@ export function PDFRenderer({
                   }
                 }
               }
-              
+
+              // Apply stroke opacity for rect elements
+              let rectStroke = strokeWidth > 0 ? stroke : undefined;
+              if (element.type === 'rect' && rectStroke && strokeOpacity < 1) {
+                if (rectStroke.startsWith('#')) {
+                  rectStroke = hexToRgba(rectStroke, strokeOpacity);
+                } else if (rectStroke.startsWith('rgb')) {
+                  // Convert rgb to rgba
+                  const rgbMatch = rectStroke.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                  if (rgbMatch) {
+                    rectStroke = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${strokeOpacity})`;
+                  }
+                }
+              }
+
               shapeNode = new Konva.Rect({
                 x: elementX,
                 y: elementY,
                 width: elementWidth,
                 height: elementHeight,
                 fill: rectFill,
-                stroke: strokeWidth > 0 ? stroke : undefined,
+                stroke: rectStroke,
                 strokeWidth: strokeWidth,
                 cornerRadius: element.cornerRadius || 0,
                 rotation: elementRotation,
-                opacity: element.type === 'rect' && fillOpacity < 1 ? 1 : elementOpacity, // Set to 1 if opacity is in fill color
+                opacity: element.type === 'rect' && (fillOpacity < 1 || strokeOpacity < 1) ? 1 : elementOpacity, // Set to 1 if opacity is in colors
                 listening: false
               });
             }

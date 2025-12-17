@@ -256,7 +256,8 @@ async function renderPageWithKonva(pageData, bookData, canvasWidth, canvasHeight
     // If same z-order, frames should come after images
     if (a.isFrame && !b.isFrame) return 1;
     if (!a.isFrame && b.isFrame) return -1;
-    return 0;
+    // If same z-order and same frame status, maintain original insertion order
+    return a.originalIndex - b.originalIndex;
   });
   
   console.log('[DEBUG z-order] All elements after sorting (total:', allElements.length, '):');

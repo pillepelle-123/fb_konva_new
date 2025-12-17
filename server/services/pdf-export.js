@@ -25,8 +25,9 @@ const ICC_PROFILES = {
 };
 
 // Load theme data files
-const colorPalettesJson = require('../../client/src/data/templates/color-palettes.json');
-const themesJson = require('../../client/src/data/templates/themes.json');
+// Hinweis: Die JSON-Dateien liegen im gemeinsamen `shared`-Ordner, nicht mehr im Client
+const colorPalettesJson = require('../../shared/data/templates/color-palettes.json');
+const themesJson = require('../../shared/data/templates/themes.json');
 
 // Load shared constants from shared/rendering/utils/constants.js
 const { PAGE_DIMENSIONS, CANVAS_DIMS, PATTERNS } = require('../../shared/rendering/utils/constants');

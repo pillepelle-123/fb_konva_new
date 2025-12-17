@@ -62,10 +62,9 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
   let fill = element.fill !== undefined ? element.fill : (element.fillColor || 'transparent');
   const fillOpacity = element.fillOpacity !== undefined ? element.fillOpacity : 1;
   fill = applyFillOpacity(fill, fillOpacity, opacity);
-  
+
   let stroke = element.stroke || element.strokeColor || '#000000';
-  const strokeOpacity = element.strokeOpacity !== undefined ? element.strokeOpacity : 1;
-  stroke = applyStrokeOpacity(stroke, strokeOpacity, opacity);
+  const strokeOpacity = element.strokeOpacity ?? element.borderOpacity ?? element.border?.opacity ?? 1;
   
   const strokeWidth = element.strokeWidth || 0;
   
@@ -95,17 +94,9 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
       document,
       roughInstance,
       themesData,
-      colorPalettes
+      colorPalettes,
+      zOrderIndex
     );
-    
-    // Store z-order information on all QnA nodes
-    if (zOrderIndex !== undefined && nodesAdded && Array.isArray(nodesAdded)) {
-      nodesAdded.forEach(node => {
-        if (node && typeof node.setAttr === 'function') {
-          node.setAttr('__zOrderIndex', zOrderIndex);
-        }
-      });
-    }
     
     return { type: 'qna', nodesAdded: nodesAdded };
   }
@@ -433,6 +424,7 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
         });
         
         if (combinedPath) {
+          // Stroke opacity is applied to stroke color, shape opacity uses element opacity
           const pathNode = new Konva.Path({
             x: x,
             y: y,
@@ -457,26 +449,57 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
     }
     
     // Regular rect (fallback or default theme)
-    const rect = new Konva.Rect({
-      x: x,
-      y: y,
-      width: width,
-      height: height,
-      fill: finalFill,
-      stroke: stroke,
-      strokeWidth: strokeWidth,
-      cornerRadius: cornerRadius,
-      rotation: rotation,
-      opacity: opacity,
-      listening: false
-    });
-    
-    layer.add(rect);
-    // Store z-order information on rect node
-    if (zOrderIndex !== undefined) {
-      rect.setAttr('__zOrderIndex', zOrderIndex);
+    // Create separate shapes for fill and stroke to have independent opacities
+    const strokeOpacity = element.strokeOpacity ?? element.borderOpacity ?? element.border?.opacity ?? element.opacity ?? element.backgroundOpacity ?? 1;
+
+
+    // Fill rect (background) - only if fill is visible
+    let lastShape = null;
+    if (finalFill && finalFill !== 'transparent') {
+      const fillRect = new Konva.Rect({
+        x: x,
+        y: y,
+        width: width,
+        height: height,
+        fill: finalFill, // Already RGBA from applyFillOpacity
+        stroke: 'transparent',
+        cornerRadius: cornerRadius,
+        rotation: rotation,
+        opacity: 1,
+        listening: false
+      });
+      layer.add(fillRect);
+      lastShape = fillRect;
+      // Store z-order information on fill rect
+      if (zOrderIndex !== undefined) {
+        fillRect.setAttr('__zOrderIndex', zOrderIndex);
+      }
     }
-    return rect;
+
+    // Stroke rect (border) - only if stroke is visible
+    if (strokeWidth > 0 && stroke !== 'transparent') {
+      const strokeRect = new Konva.Rect({
+        x: x,
+        y: y,
+        width: width,
+        height: height,
+        fill: 'transparent',
+        stroke: stroke,
+        strokeWidth: strokeWidth,
+        cornerRadius: cornerRadius,
+        rotation: rotation,
+        opacity: strokeOpacity,
+        listening: false
+      });
+      layer.add(strokeRect);
+      lastShape = strokeRect;
+      // Store z-order information on stroke rect
+      if (zOrderIndex !== undefined) {
+        strokeRect.setAttr('__zOrderIndex', zOrderIndex);
+      }
+    }
+
+    return lastShape;
   }
   
   // Render circle
@@ -543,6 +566,7 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
         });
         
         if (combinedPath) {
+          // Stroke opacity is applied to stroke color, shape opacity uses element opacity
           const pathNode = new Konva.Path({
             x: x,
             y: y,
@@ -567,24 +591,52 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
     }
     
     // Regular circle (fallback or default theme)
-    const circle = new Konva.Circle({
-      x: x + width / 2,
-      y: y + height / 2,
-      radius: radius,
-      fill: finalFill,
-      stroke: stroke,
-      strokeWidth: strokeWidth,
-      rotation: rotation,
-      opacity: opacity,
-      listening: false
-    });
-    
-    layer.add(circle);
-    // Store z-order information on circle node
-    if (zOrderIndex !== undefined) {
-      circle.setAttr('__zOrderIndex', zOrderIndex);
+    // Create separate shapes for fill and stroke to have independent opacities
+    const strokeOpacity = element.strokeOpacity ?? element.borderOpacity ?? element.border?.opacity ?? element.opacity ?? element.backgroundOpacity ?? 1;
+
+    // Fill circle (background) - only if fill is visible
+    let lastShape = null;
+    if (finalFill && finalFill !== 'transparent') {
+      const fillCircle = new Konva.Circle({
+        x: x + width / 2,
+        y: y + height / 2,
+        radius: radius,
+        fill: finalFill, // Already RGBA from applyFillOpacity
+        stroke: 'transparent',
+        rotation: rotation,
+        opacity: 1,
+        listening: false
+      });
+      layer.add(fillCircle);
+      lastShape = fillCircle;
+      // Store z-order information on fill circle
+      if (zOrderIndex !== undefined) {
+        fillCircle.setAttr('__zOrderIndex', zOrderIndex);
+      }
     }
-    return circle;
+
+    // Stroke circle (border) - only if stroke is visible
+    if (strokeWidth > 0 && stroke !== 'transparent') {
+      const strokeCircle = new Konva.Circle({
+        x: x + width / 2,
+        y: y + height / 2,
+        radius: radius,
+        fill: 'transparent',
+        stroke: stroke,
+        strokeWidth: strokeWidth,
+        rotation: rotation,
+        opacity: strokeOpacity,
+        listening: false
+      });
+      layer.add(strokeCircle);
+      lastShape = strokeCircle;
+      // Store z-order information on stroke circle
+      if (zOrderIndex !== undefined) {
+        strokeCircle.setAttr('__zOrderIndex', zOrderIndex);
+      }
+    }
+
+    return lastShape;
   }
   
   // Render line
