@@ -82,7 +82,7 @@ export default function ThemedShape(props: CanvasItemProps) {
   const pathData = renderer.generatePath(element, zoom);
   const strokeProps = renderer.getStrokeProps(element, zoom);
 
-  const finalStrokeOpacity = element.strokeOpacity !== undefined ? element.strokeOpacity : (element.opacity !== undefined ? element.opacity : 1);
+  const finalBorderOpacity = element.borderOpacity !== undefined ? element.borderOpacity : (element.opacity !== undefined ? element.opacity : 1);
   const finalFillOpacity = element.fillOpacity !== undefined ? element.fillOpacity : (element.opacity !== undefined ? element.opacity : 1);
 
   // Helper function to convert hex color to rgba with opacity
@@ -101,19 +101,19 @@ export default function ThemedShape(props: CanvasItemProps) {
   // Apply stroke opacity by converting stroke color to rgba
   // This allows stroke and fill to have independent opacities
   let finalStrokeColor = strokeProps.stroke;
-  if (finalStrokeOpacity !== 1 && strokeProps.stroke && typeof strokeProps.stroke === 'string') {
+  if (finalBorderOpacity !== 1 && strokeProps.stroke && typeof strokeProps.stroke === 'string') {
     // Check if already rgba/rgb
     if (strokeProps.stroke.startsWith('rgba') || strokeProps.stroke.startsWith('rgb')) {
       // Extract RGB values and apply opacity
       const rgbMatch = strokeProps.stroke.match(/(\d+),\s*(\d+),\s*(\d+)/);
       if (rgbMatch) {
-        finalStrokeColor = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${finalStrokeOpacity})`;
+        finalStrokeColor = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${finalBorderOpacity})`;
       } else {
         finalStrokeColor = strokeProps.stroke;
       }
     } else if (strokeProps.stroke.startsWith('#')) {
       // Convert hex to rgba
-      finalStrokeColor = hexToRgba(strokeProps.stroke, finalStrokeOpacity);
+      finalStrokeColor = hexToRgba(strokeProps.stroke, finalBorderOpacity);
     } else {
       finalStrokeColor = strokeProps.stroke;
     }

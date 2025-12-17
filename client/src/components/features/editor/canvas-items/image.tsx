@@ -395,7 +395,7 @@ export default function Image(props: CanvasItemProps) {
                 ? element.frameEnabled
                 : (element.strokeWidth || 0) > 0);
             const strokeWidth = element.strokeWidth || 0;
-            const strokeOpacity = element.strokeOpacity !== undefined ? element.strokeOpacity : 1;
+            const borderOpacity = element.borderOpacity !== undefined ? element.borderOpacity : 1;
             const frameTheme = element.frameTheme || element.theme || 'default';
             const cornerRadius = element.cornerRadius || 0;
 
@@ -440,7 +440,7 @@ export default function Image(props: CanvasItemProps) {
                     data={pathData}
                     stroke={strokeProps.stroke || stroke}
                     strokeWidth={strokeProps.strokeWidth || strokeWidth}
-                    opacity={strokeOpacity}
+                    opacity={borderOpacity}
                     fill={strokeProps.fill || 'transparent'}
                     strokeScaleEnabled={true}
                     listening={false}
@@ -460,7 +460,7 @@ export default function Image(props: CanvasItemProps) {
                 fill="transparent"
                 stroke={stroke}
                 strokeWidth={strokeWidth}
-                opacity={strokeOpacity}
+                opacity={borderOpacity}
                 cornerRadius={cornerRadius}
                 strokeScaleEnabled={true}
                 listening={false}

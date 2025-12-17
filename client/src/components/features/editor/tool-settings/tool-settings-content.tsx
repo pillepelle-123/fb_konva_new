@@ -579,7 +579,7 @@ export function ToolSettingsContent({
           updateElementSetting(element.id, { fillOpacity: opacity });
           break;
         case 'element-image-frame-stroke':
-          updateElementSetting(element.id, { strokeOpacity: opacity });
+          updateElementSetting(element.id, { borderOpacity: opacity });
           break;
         case 'element-sticker-color':
           updateElementSetting(element.id, { imageOpacity: opacity });

@@ -397,8 +397,8 @@ export function extractThemeDefaults(
       shapeDefaults.cornerRadius = actualToCommonRadius(shapeElement.cornerRadius);
     }
     
-    if (shapeElement.strokeOpacity !== undefined || shapeElement.opacity !== undefined) {
-      shapeDefaults.opacity = shapeElement.strokeOpacity ?? shapeElement.opacity ?? 1;
+    if (shapeElement.borderOpacity !== undefined || shapeElement.opacity !== undefined) {
+      shapeDefaults.borderOpacity = shapeElement.borderOpacity ?? shapeElement.opacity ?? 1;
     }
     
     shapeDefaults.inheritTheme = shapeElement.inheritTheme || shapeElement.theme || 'default';

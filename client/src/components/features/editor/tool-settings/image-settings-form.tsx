@@ -96,8 +96,8 @@ export function ImageSettingsForm({
                     if (!element.stroke) {
                       updateSetting('stroke', '#1f2937');
                     }
-                    if (element.strokeOpacity === undefined) {
-                      updateSetting('strokeOpacity', 1);
+                    if (element.borderOpacity === undefined) {
+                      updateSetting('borderOpacity', 1);
                     }
                   } else {
                     // Disable frame
@@ -163,8 +163,8 @@ export function ImageSettingsForm({
               {/* Frame Opacity */}
               <Slider
                 label="Frame Opacity"
-                value={Math.round((element.strokeOpacity !== undefined ? element.strokeOpacity : 1) * 100)}
-                onChange={(value) => updateSetting('strokeOpacity', value / 100)}
+                value={Math.round((element.borderOpacity !== undefined ? element.borderOpacity : 1) * 100)}
+                onChange={(value) => updateSetting('borderOpacity', value / 100)}
                 min={0}
                 max={100}
                 step={5}

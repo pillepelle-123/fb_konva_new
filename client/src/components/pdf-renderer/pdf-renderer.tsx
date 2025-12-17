@@ -3807,6 +3807,7 @@ export function PDFRenderer({
               // Store z-order on image node for final reordering
               if (zOrderIndex !== undefined) {
                 imageNode.setAttr('__zOrderIndex', zOrderIndex);
+                imageNode.setAttr('__elementId', element.id);
               }
               
               console.log('[PDFRenderer] Image node added to layer:', {
@@ -3863,7 +3864,7 @@ export function PDFRenderer({
                   }
 
                   const stroke = element.stroke && element.stroke !== '#1f2937' ? element.stroke : qnaDefaults.borderColor || '#1f2937';
-                const strokeOpacity = element.strokeOpacity !== undefined ? element.strokeOpacity : 1;
+                const borderOpacity = element.borderOpacity !== undefined ? element.borderOpacity : 1;
                 const frameTheme = element.frameTheme || element.theme || 'default';
                 const cornerRadius = element.cornerRadius || 0;
                 
@@ -3899,7 +3900,7 @@ export function PDFRenderer({
                         rotation: elementRotation,
                         stroke: strokeProps.stroke || stroke,
                         strokeWidth: strokeProps.strokeWidth || strokeWidth,
-                        opacity: strokeOpacity * elementOpacity,
+                        opacity: borderOpacity * elementOpacity,
                         fill: 'transparent',
                         strokeScaleEnabled: true,
                         listening: false,
@@ -3912,6 +3913,8 @@ export function PDFRenderer({
                         frameNode.setAttr('__zOrderIndex', zOrderIndex);
                         frameNode.setAttr('__isFrame', true);
                         frameNode.setAttr('__parentImageId', element.id);
+                        frameNode.setAttr('__elementId', element.id);
+                        frameNode.setAttr('__elementId', element.id);
                         // Position frame right after the image
                         // Get the image's current position in the layer
                         const imageIndex = imageNode.getParent()?.getChildren().indexOf(imageNode);
@@ -3943,6 +3946,7 @@ export function PDFRenderer({
                     frameNode.setAttr('__zOrderIndex', zOrderIndex);
                     frameNode.setAttr('__isFrame', true);
                     frameNode.setAttr('__parentImageId', element.id);
+                    frameNode.setAttr('__elementId', element.id);
                     // Position frame right after the image
                     // Get the image's current position in the layer
                     const imageIndex = imageNode.getParent()?.getChildren().indexOf(imageNode);
@@ -4027,9 +4031,9 @@ export function PDFRenderer({
             ? (element as any).fillOpacity
             : elementOpacity;
 
-          // For rect elements, use stroke opacity from backgroundOpacity if available
-          const strokeOpacity = element.type === 'rect' && (element as any).backgroundOpacity !== undefined
-            ? (element as any).backgroundOpacity
+          // For rect elements, use border opacity from borderOpacity if available
+          const borderOpacity = (element as any).borderOpacity !== undefined
+            ? (element as any).borderOpacity
             : 1;
           
           // Check if theme renderer should be used
@@ -4071,7 +4075,7 @@ export function PDFRenderer({
             }
             
             if (pathData) {
-              // For rect elements with theme, apply fillOpacity and strokeOpacity to colors (RGBA) instead of using opacity property
+              // For rect elements with theme, apply fillOpacity and borderOpacity to colors (RGBA) instead of using opacity property
               let pathFill = fill !== 'transparent' ? fill : undefined;
               if (element.type === 'rect' && pathFill && fillOpacity < 1) {
                 if (pathFill.startsWith('#')) {
@@ -4085,16 +4089,16 @@ export function PDFRenderer({
                 }
               }
 
-              // Apply stroke opacity for themed rect elements
+              // Apply border opacity for themed rect elements
               let pathStroke = stroke;
-              if (element.type === 'rect' && strokeOpacity < 1) {
+              if (element.type === 'rect' && borderOpacity < 1) {
                 if (pathStroke.startsWith('#')) {
-                  pathStroke = hexToRgba(pathStroke, strokeOpacity);
+                  pathStroke = hexToRgba(pathStroke, borderOpacity);
                 } else if (pathStroke.startsWith('rgb')) {
                   // Convert rgb to rgba
                   const rgbMatch = pathStroke.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
                   if (rgbMatch) {
-                    pathStroke = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${strokeOpacity})`;
+                    pathStroke = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${borderOpacity})`;
                   }
                 }
               }
@@ -4106,7 +4110,7 @@ export function PDFRenderer({
                 fill: pathFill,
                 stroke: pathStroke,
                 strokeWidth: strokeWidth,
-                opacity: element.type === 'rect' && (fillOpacity < 1 || strokeOpacity < 1) ? 1 : elementOpacity, // Set to 1 if opacity is in colors
+                opacity: element.type === 'rect' && (fillOpacity < 1 || borderOpacity < 1) ? 1 : elementOpacity, // Set to 1 if opacity is in colors
                 strokeScaleEnabled: true,
                 rotation: elementRotation,
                 listening: false,
@@ -4114,6 +4118,12 @@ export function PDFRenderer({
                 lineJoin: 'round',
               });
               layer.add(shapePath);
+              // Store z-order on themed shape node
+              const themedZOrderIndex = elementIdToZOrder.get(element.id);
+              if (themedZOrderIndex !== undefined) {
+                shapePath.setAttr('__zOrderIndex', themedZOrderIndex);
+                shapePath.setAttr('__elementId', element.id);
+              }
             } else {
               // Fallback to regular shape
               let shapeNode;
@@ -4154,16 +4164,16 @@ export function PDFRenderer({
                   }
                 }
 
-                // For rect elements, apply strokeOpacity to stroke color (RGBA)
+                // For rect elements, apply borderOpacity to stroke color (RGBA)
                 let rectStroke = strokeWidth > 0 ? stroke : undefined;
-                if (element.type === 'rect' && rectStroke && strokeOpacity < 1) {
+                if (element.type === 'rect' && rectStroke && borderOpacity < 1) {
                   if (rectStroke.startsWith('#')) {
-                    rectStroke = hexToRgba(rectStroke, strokeOpacity);
+                    rectStroke = hexToRgba(rectStroke, borderOpacity);
                   } else if (rectStroke.startsWith('rgb')) {
                     // Convert rgb to rgba
                     const rgbMatch = rectStroke.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
                     if (rgbMatch) {
-                      rectStroke = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${strokeOpacity})`;
+                      rectStroke = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${borderOpacity})`;
                     }
                   }
                 }
@@ -4187,6 +4197,7 @@ export function PDFRenderer({
               const zOrderIndex = elementIdToZOrder.get(element.id);
               if (zOrderIndex !== undefined) {
                 shapeNode.setAttr('__zOrderIndex', zOrderIndex);
+                shapeNode.setAttr('__elementId', element.id);
               }
             }
           } else {
@@ -4228,7 +4239,7 @@ export function PDFRenderer({
               });
             } else {
               // Default to Rect for other shapes
-              // For rect elements, apply fillOpacity and strokeOpacity to colors (RGBA) instead of using opacity property
+              // For rect elements, apply fillOpacity and borderOpacity to colors (RGBA) instead of using opacity property
               let rectFill = fill !== 'transparent' ? fill : undefined;
               if (element.type === 'rect' && rectFill && fillOpacity < 1) {
                 if (rectFill.startsWith('#')) {
@@ -4242,16 +4253,16 @@ export function PDFRenderer({
                 }
               }
 
-              // Apply stroke opacity for rect elements
+              // Apply border opacity for rect elements
               let rectStroke = strokeWidth > 0 ? stroke : undefined;
-              if (element.type === 'rect' && rectStroke && strokeOpacity < 1) {
+              if (element.type === 'rect' && rectStroke && borderOpacity < 1) {
                 if (rectStroke.startsWith('#')) {
-                  rectStroke = hexToRgba(rectStroke, strokeOpacity);
+                  rectStroke = hexToRgba(rectStroke, borderOpacity);
                 } else if (rectStroke.startsWith('rgb')) {
                   // Convert rgb to rgba
                   const rgbMatch = rectStroke.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
                   if (rgbMatch) {
-                    rectStroke = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${strokeOpacity})`;
+                    rectStroke = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${borderOpacity})`;
                   }
                 }
               }
@@ -4266,7 +4277,7 @@ export function PDFRenderer({
                 strokeWidth: strokeWidth,
                 cornerRadius: element.cornerRadius || 0,
                 rotation: elementRotation,
-                opacity: element.type === 'rect' && (fillOpacity < 1 || strokeOpacity < 1) ? 1 : elementOpacity, // Set to 1 if opacity is in colors
+                opacity: element.type === 'rect' && (fillOpacity < 1 || borderOpacity < 1) ? 1 : elementOpacity, // Set to 1 if opacity is in colors
                 listening: false
               });
             }
@@ -4276,6 +4287,7 @@ export function PDFRenderer({
             const zOrderIndex = elementIdToZOrder.get(element.id);
             if (zOrderIndex !== undefined) {
               shapeNode.setAttr('__zOrderIndex', zOrderIndex);
+              shapeNode.setAttr('__elementId', element.id);
             }
           }
         }
@@ -4359,9 +4371,14 @@ export function PDFRenderer({
           if (a.isBackground && !b.isBackground) return -1;
           if (!a.isBackground && b.isBackground) return 1;
           
+          // Primary sort: by z-order
           if (a.zOrder !== b.zOrder) {
             return a.zOrder - b.zOrder;
           }
+          
+          // Same z-order: frames should come after images
+          if (a.isFrame && !b.isFrame) return 1;
+          if (!a.isFrame && b.isFrame) return -1;
           
           // If same z-order and same elementId, sort by node type (for QnA elements)
           if (a.elementId && b.elementId && a.elementId === b.elementId) {
@@ -4374,23 +4391,10 @@ export function PDFRenderer({
             return a.originalIndex - b.originalIndex;
           }
           
-          // If same z-order but different elements, maintain original order to preserve internal element structure
-          // This ensures that nodes within the same element stay together
-          if (a.zOrder === b.zOrder) {
-            // If both have elementId, group by elementId first, then by originalIndex
-            if (a.elementId && b.elementId) {
-              if (a.elementId !== b.elementId) {
-                return a.elementId.localeCompare(b.elementId);
-              }
-            }
-            // Maintain original order to preserve internal element structure
-            return a.originalIndex - b.originalIndex;
-          }
-          
-          // If same z-order, frames should come after images
-          if (a.isFrame && !b.isFrame) return 1;
-          if (!a.isFrame && b.isFrame) return -1;
-          return 0;
+          // If same z-order but different elements, maintain original insertion order
+          // This preserves the intended z-order from the elements array
+          // DO NOT sort alphabetically by elementId - this breaks z-order!
+          return a.originalIndex - b.originalIndex;
         });
         
         // Reposition all elements in correct z-order

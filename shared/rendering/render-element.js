@@ -64,7 +64,7 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
   fill = applyFillOpacity(fill, fillOpacity, opacity);
 
   let stroke = element.stroke || element.strokeColor || '#000000';
-  const strokeOpacity = element.strokeOpacity ?? element.borderOpacity ?? element.border?.opacity ?? 1;
+  const borderOpacity = element.borderOpacity ?? element.border?.opacity ?? 1;
   
   const strokeWidth = element.strokeWidth || 0;
   
@@ -195,7 +195,7 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
           : (element.strokeWidth || 0) > 0;
         const strokeWidth = element.strokeWidth || 0;
         const stroke = element.stroke || '#1f2937';
-        const strokeOpacity = element.strokeOpacity !== undefined ? element.strokeOpacity : 1;
+        const borderOpacity = element.borderOpacity !== undefined ? element.borderOpacity : 1;
         const frameCornerRadius = element.cornerRadius ? Math.max(0, element.cornerRadius - 2) : 0;
         const frameTheme = element.frameTheme || element.theme || 'default';
         
@@ -238,7 +238,7 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
                     y: y,
                     stroke: strokeProps.stroke || stroke,
                     strokeWidth: strokeProps.strokeWidth || strokeWidth,
-                    opacity: strokeOpacity,
+                    opacity: borderOpacity,
                     fill: strokeProps.fill || 'transparent',
                     strokeScaleEnabled: true,
                     listening: false,
@@ -264,7 +264,7 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
                     fill: 'transparent',
                     stroke: stroke,
                     strokeWidth: strokeWidth,
-                    opacity: strokeOpacity,
+                    opacity: borderOpacity,
                     cornerRadius: frameCornerRadius,
                     strokeScaleEnabled: true,
                     listening: false
@@ -450,7 +450,7 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
     
     // Regular rect (fallback or default theme)
     // Create separate shapes for fill and stroke to have independent opacities
-    const strokeOpacity = element.strokeOpacity ?? element.borderOpacity ?? element.border?.opacity ?? element.opacity ?? element.backgroundOpacity ?? 1;
+    const borderOpacity = element.borderOpacity ?? element.border?.opacity ?? 1;
 
 
     // Fill rect (background) - only if fill is visible
@@ -592,7 +592,7 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
     
     // Regular circle (fallback or default theme)
     // Create separate shapes for fill and stroke to have independent opacities
-    const strokeOpacity = element.strokeOpacity ?? element.borderOpacity ?? element.border?.opacity ?? element.opacity ?? element.backgroundOpacity ?? 1;
+    const borderOpacity = element.borderOpacity ?? element.border?.opacity ?? 1;
 
     // Fill circle (background) - only if fill is visible
     let lastShape = null;

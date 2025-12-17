@@ -210,8 +210,8 @@ export function ShapeSettingsForm({
               
               <Slider
                 label="Border Opacity"
-                value={Math.round((element.strokeOpacity !== undefined ? element.strokeOpacity : (element.opacity !== undefined ? element.opacity : 1)) * 100)}
-                onChange={(value) => updateSetting('strokeOpacity', value / 100)}
+                value={Math.round((element.borderOpacity !== undefined ? element.borderOpacity : (element.opacity !== undefined ? element.opacity : 1)) * 100)}
+                onChange={(value) => updateSetting('borderOpacity', value / 100)}
                 min={0}
                 max={100}
                 step={5}

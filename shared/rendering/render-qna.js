@@ -341,7 +341,7 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
   if (showBorder) {
     const borderColor = element.borderColor || '#000000';
     const borderWidth = element.borderWidth || 1;
-    const borderOpacity = element.borderOpacity ?? element.strokeOpacity ?? element.border?.opacity ?? element.opacity ?? 1;
+    const borderOpacity = element.borderOpacity ?? element.border?.opacity ?? element.opacity ?? 1;
     const cornerRadius = element.cornerRadius ?? toolDefaults.cornerRadius ?? 0;
     const borderThemeRaw = element.borderTheme || 
                        (element.questionSettings && element.questionSettings.borderTheme) || 

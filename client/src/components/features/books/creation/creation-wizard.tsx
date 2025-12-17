@@ -348,10 +348,26 @@ export function CreationWizard({ open, onOpenChange, onSuccess }: CreationWizard
       }
 
       if (['line', 'circle', 'rect', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(element.type)) {
-        if (defaults.strokeOpacity !== undefined) {
-          updatedElement.strokeOpacity = defaults.strokeOpacity;
-        } else if (element.strokeOpacity !== undefined) {
-          updatedElement.strokeOpacity = element.strokeOpacity;
+        // For line elements, use strokeOpacity (it's a stroke, not a border)
+        if (element.type === 'line') {
+          if (defaults.strokeOpacity !== undefined) {
+            updatedElement.strokeOpacity = defaults.strokeOpacity;
+          } else if (element.strokeOpacity !== undefined) {
+            updatedElement.strokeOpacity = element.strokeOpacity;
+          }
+        } else {
+          // For shapes (rect, circle, etc.), use borderOpacity
+          if (defaults.borderOpacity !== undefined) {
+            updatedElement.borderOpacity = defaults.borderOpacity;
+          } else if (element.borderOpacity !== undefined) {
+            updatedElement.borderOpacity = element.borderOpacity;
+          } else if (defaults.strokeOpacity !== undefined) {
+            // Fallback: migrate old strokeOpacity to borderOpacity
+            updatedElement.borderOpacity = defaults.strokeOpacity;
+          } else if (element.strokeOpacity !== undefined) {
+            // Fallback: migrate old strokeOpacity to borderOpacity
+            updatedElement.borderOpacity = element.strokeOpacity;
+          }
         }
 
         if (defaults.fillOpacity !== undefined) {

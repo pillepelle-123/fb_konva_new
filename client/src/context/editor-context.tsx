@@ -3561,7 +3561,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           lineHeight: selectedElement.lineHeight,
           stroke: selectedElement.stroke,
           strokeWidth: selectedElement.strokeWidth,
-          strokeOpacity: selectedElement.strokeOpacity,
+          borderOpacity: selectedElement.borderOpacity,
           fill: selectedElement.fill,
           fillOpacity: selectedElement.fillOpacity,
           opacity: selectedElement.opacity,
