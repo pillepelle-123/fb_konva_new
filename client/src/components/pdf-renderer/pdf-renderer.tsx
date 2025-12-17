@@ -3868,6 +3868,19 @@ export function PDFRenderer({
                 const frameTheme = element.frameTheme || element.theme || 'default';
                 const cornerRadius = element.cornerRadius || 0;
                 
+                // Debug: Log frame rendering details
+                console.log('[PDFRenderer] Frame rendering details:', {
+                  elementId: element.id,
+                  frameEnabled: frameEnabled,
+                  strokeWidth: strokeWidth,
+                  borderOpacity: borderOpacity,
+                  elementOpacity: elementOpacity,
+                  finalOpacity: borderOpacity * elementOpacity,
+                  stroke: stroke,
+                  frameTheme: frameTheme,
+                  cornerRadius: cornerRadius
+                });
+                
                 // Use theme renderer for themed frames
                 if (frameTheme !== 'default') {
                   const themeRenderer = getThemeRenderer(frameTheme);
@@ -3905,7 +3918,8 @@ export function PDFRenderer({
                         strokeScaleEnabled: true,
                         listening: false,
                         lineCap: 'round',
-                        lineJoin: 'round'
+                        lineJoin: 'round',
+                        visible: true
                       });
                       layer.add(frameNode);
                       // Frame should be right after the image (same z-order group)
@@ -3913,14 +3927,47 @@ export function PDFRenderer({
                         frameNode.setAttr('__zOrderIndex', zOrderIndex);
                         frameNode.setAttr('__isFrame', true);
                         frameNode.setAttr('__parentImageId', element.id);
-                        frameNode.setAttr('__elementId', element.id);
-                        frameNode.setAttr('__elementId', element.id);
-                        // Position frame right after the image
-                        // Get the image's current position in the layer
-                        const imageIndex = imageNode.getParent()?.getChildren().indexOf(imageNode);
-                        if (imageIndex !== undefined && imageIndex >= 0) {
-                          frameNode.moveTo(imageIndex + 1);
-                        }
+                        frameNode.setAttr('__elementId', element.id + '-frame');
+                        frameNode.setAttr('__nodeType', 'frame');
+                      }
+                      console.log('[PDFRenderer] Themed frame added to layer:', {
+                        elementId: element.id,
+                        frameOpacity: borderOpacity * elementOpacity,
+                        borderOpacity: borderOpacity,
+                        elementOpacity: elementOpacity,
+                        stroke: stroke,
+                        strokeWidth: strokeWidth,
+                        layerChildrenCount: layer.getChildren().length,
+                        hasPathData: true
+                      });
+                    } else {
+                      console.warn('[PDFRenderer] No pathData for themed frame, falling back to default Rect:', {
+                        elementId: element.id,
+                        frameTheme: frameTheme
+                      });
+                      // Fallback to default Rect if pathData is not available
+                      const frameNode = new Konva.Rect({
+                        x: elementX,
+                        y: elementY,
+                        width: elementWidth,
+                        height: elementHeight,
+                        rotation: elementRotation,
+                        fill: 'transparent',
+                        stroke: stroke,
+                        strokeWidth: strokeWidth,
+                        opacity: borderOpacity * elementOpacity,
+                        cornerRadius: cornerRadius,
+                        strokeScaleEnabled: true,
+                        listening: false,
+                        visible: true
+                      });
+                      layer.add(frameNode);
+                      if (zOrderIndex !== undefined) {
+                        frameNode.setAttr('__zOrderIndex', zOrderIndex);
+                        frameNode.setAttr('__isFrame', true);
+                        frameNode.setAttr('__parentImageId', element.id);
+                        frameNode.setAttr('__elementId', element.id + '-frame');
+                        frameNode.setAttr('__nodeType', 'frame');
                       }
                     }
                   }
@@ -3935,10 +3982,11 @@ export function PDFRenderer({
                     fill: 'transparent',
                     stroke: stroke,
                     strokeWidth: strokeWidth,
-                    opacity: strokeOpacity * elementOpacity,
+                    opacity: borderOpacity * elementOpacity,
                     cornerRadius: cornerRadius,
                     strokeScaleEnabled: true,
-                    listening: false
+                    listening: false,
+                    visible: true
                   });
                   layer.add(frameNode);
                   // Frame should be right after the image (same z-order group)
@@ -3946,14 +3994,18 @@ export function PDFRenderer({
                     frameNode.setAttr('__zOrderIndex', zOrderIndex);
                     frameNode.setAttr('__isFrame', true);
                     frameNode.setAttr('__parentImageId', element.id);
-                    frameNode.setAttr('__elementId', element.id);
-                    // Position frame right after the image
-                    // Get the image's current position in the layer
-                    const imageIndex = imageNode.getParent()?.getChildren().indexOf(imageNode);
-                    if (imageIndex !== undefined && imageIndex >= 0) {
-                      frameNode.moveTo(imageIndex + 1);
-                    }
+                    frameNode.setAttr('__elementId', element.id + '-frame');
+                    frameNode.setAttr('__nodeType', 'frame');
                   }
+                  console.log('[PDFRenderer] Default frame added to layer:', {
+                    elementId: element.id,
+                    frameOpacity: borderOpacity * elementOpacity,
+                    borderOpacity: borderOpacity,
+                    elementOpacity: elementOpacity,
+                    stroke: stroke,
+                    strokeWidth: strokeWidth,
+                    layerChildrenCount: layer.getChildren().length
+                  });
                 }
                 } catch (frameError) {
                   console.error('[PDFRenderer] Error rendering frame for element:', element.id, frameError);
@@ -4188,7 +4240,7 @@ export function PDFRenderer({
                   strokeWidth: strokeWidth,
                   cornerRadius: element.cornerRadius || 0,
                   rotation: elementRotation,
-                  opacity: (element.type === 'rect' && (fillOpacity < 1 || strokeOpacity < 1)) ? 1 : elementOpacity, // Set to 1 if opacity is in colors
+                  opacity: (element.type === 'rect' && (fillOpacity < 1 || borderOpacity < 1)) ? 1 : elementOpacity, // Set to 1 if opacity is in colors
                   listening: false
                 });
               }
