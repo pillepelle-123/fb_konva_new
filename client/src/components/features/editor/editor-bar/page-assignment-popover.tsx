@@ -83,17 +83,14 @@ export default function PageAssignmentPopover({
         return `"${conflict.questionText || getQuestionText(conflict.questionId) || 'Unknown question'}" (already on ${pageList})`;
       }).join('\n');
       
-      // Show alert after a short delay to ensure popover is closed
+      // Show toast error after a short delay to ensure popover is closed
       setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('showAlert', {
-          detail: { 
-            message: `Cannot assign ${userToAssign.name} to page ${currentPage}.\n\nThe following ${conflicts.length === 1 ? 'question is' : 'questions are'} already assigned to this user on other pages:\n${conflictMessages}`,
-            x: 100,
-            y: 100,
-            width: 500,
-            height: 250
+        toast.error(
+          `Cannot assign ${userToAssign.name} to page ${currentPage}.\n\nThe following ${conflicts.length === 1 ? 'question is' : 'questions are'} already assigned to this user on other pages:\n${conflictMessages}`,
+          {
+            duration: 5000, // Show for 5 seconds to allow reading longer messages
           }
-        }));
+        );
       }, 100);
       return;
     }

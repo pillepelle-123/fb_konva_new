@@ -19,19 +19,7 @@ import type { RichTextStyle } from '../../../../shared/types/text-layout';
 import { buildFont as sharedBuildFont, getLineHeight as sharedGetLineHeight, measureText as sharedMeasureText, calculateTextX as sharedCalculateTextX, wrapText as sharedWrapText, getBaselineOffset as sharedGetBaselineOffset } from '../../../../shared/utils/text-layout';
 import { createLayout as sharedCreateLayout, createBlockLayout as sharedCreateBlockLayout } from '../../../../shared/utils/qna-layout';
 import { getFontFamilyByName } from '../../utils/font-families.ts';
-
-// Helper function to convert hex color to RGBA
-function hexToRgba(hex: string, opacity: number): string {
-  // Remove # if present
-  hex = hex.replace('#', '');
-  
-  // Parse RGB values
-  const r = parseInt(hex.substring(0, 2), 16);
-  const g = parseInt(hex.substring(2, 4), 16);
-  const b = parseInt(hex.substring(4, 6), 16);
-  
-  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-}
+import { hexToRgba } from '../../../../shared/utils/color-utils';
 
 interface PDFRendererProps {
   page: Page;

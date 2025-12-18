@@ -12,19 +12,53 @@ const LINE_HEIGHT: Record<'small' | 'medium' | 'large', number> = {
 };
 
 /**
- * Normalize font family string to ensure consistent rendering
- * Removes quotes and normalizes spacing
+ * Resolve font family string (matches client-side resolveFontFamily logic)
+ * If fontFamily is already a full CSS string (contains comma), use it directly
+ * Otherwise, normalize it
  */
-export function normalizeFontFamily(fontFamily: string | undefined): string {
-  if (!fontFamily) return 'Arial, sans-serif';
+export function resolveFontFamily(
+  fontFamily: string | undefined,
+  isBold: boolean = false,
+  isItalic: boolean = false
+): string {
+  if (!fontFamily) {
+    return 'Arial, sans-serif';
+  }
   
   // Remove outer quotes but keep internal structure
-  let normalized = fontFamily.replace(/^['"]|['"]$/g, '').trim();
+  let cleaned = fontFamily.replace(/^['"]|['"]$/g, '').trim();
   
-  // Remove all internal quotes (they can cause issues)
-  normalized = normalized.replace(/['"]/g, '');
+  // If it's already a full CSS font family string (contains comma), use it directly
+  // This matches client-side behavior where fontFamily is stored as full CSS string
+  if (cleaned.includes(',')) {
+    // Already a full CSS font family string - use it directly (like client does)
+    // Ensure font names with spaces are properly quoted for CSS
+    const parts = cleaned.split(',').map(part => part.trim());
+    if (parts.length > 0) {
+      let fontName = parts[0];
+      // Remove any existing quotes first (might be malformed like "Mynerve')
+      fontName = fontName.replace(/^['"]|['"]$/g, '');
+      // If font name contains spaces, quote it
+      if (fontName.includes(' ')) {
+        parts[0] = `'${fontName}'`;
+      } else {
+        parts[0] = fontName;
+      }
+      cleaned = parts.join(', ');
+    }
+    // Match client-side: fontFamily.replace(/^['"]|['"]$/g, '').replace(/['"]/g, '')
+    // Client removes all quotes after processing
+    cleaned = cleaned.replace(/^['"]|['"]$/g, '').replace(/['"]/g, '').trim();
+    return cleaned;
+  }
   
-  // Normalize spacing around commas
+  // Otherwise, treat it as a font name
+  // In server context, we don't have getFontFamilyByName, so we just normalize
+  // The font should already be a full CSS string in most cases
+  // Match client-side normalization: remove all quotes and normalize
+  let normalized = cleaned.replace(/['"]/g, '').trim();
+  
+  // Normalize spacing around commas (if any)
   normalized = normalized.replace(/\s*,\s*/g, ', ');
   
   // Trim again after normalization
@@ -36,6 +70,15 @@ export function normalizeFontFamily(fontFamily: string | undefined): string {
   }
   
   return normalized;
+}
+
+/**
+ * Normalize font family string to ensure consistent rendering
+ * Removes quotes and normalizes spacing
+ * @deprecated Use resolveFontFamily instead for better compatibility with client
+ */
+export function normalizeFontFamily(fontFamily: string | undefined): string {
+  return resolveFontFamily(fontFamily);
 }
 
 /**

@@ -3,6 +3,7 @@ import BaseCanvasItem from './base-canvas-item';
 import type { CanvasItemProps } from './base-canvas-item';
 import { getThemeRenderer } from '../../../../utils/themes-client';
 import { renderThemedBorder, createRectPath, createCirclePath } from '../../../../utils/themed-border';
+import { hexToRgba } from '../../../../../../shared/utils/color-utils';
 
 export default function ThemedShape(props: CanvasItemProps) {
   const { element, isDragging, zoom = 1 } = props;
@@ -98,19 +99,6 @@ export default function ThemedShape(props: CanvasItemProps) {
 
   const finalBorderOpacity = element.borderOpacity !== undefined ? element.borderOpacity : (element.opacity !== undefined ? element.opacity : 1);
   const finalBackgroundOpacity = element.backgroundOpacity !== undefined ? element.backgroundOpacity : (element.opacity !== undefined ? element.opacity : 1);
-
-  // Helper function to convert hex color to rgba with opacity
-  const hexToRgba = (hex: string, opacity: number): string => {
-    // Remove # if present
-    hex = hex.replace('#', '');
-    
-    // Parse RGB values
-    const r = parseInt(hex.substring(0, 2), 16);
-    const g = parseInt(hex.substring(2, 4), 16);
-    const b = parseInt(hex.substring(4, 6), 16);
-    
-    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-  };
 
   // Apply stroke opacity by converting stroke color to rgba
   // This allows stroke and fill to have independent opacities

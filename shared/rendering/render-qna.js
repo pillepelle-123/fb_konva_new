@@ -4,7 +4,7 @@
  */
 
 const { getGlobalThemeDefaults, deepMerge, getThemeRenderer } = require('./utils/theme-server');
-const { applyStrokeOpacity } = require('./utils/color-utils');
+const { applyStrokeOpacity } = require('../utils/color-utils');
 const { buildFont, getLineHeight, measureText, calculateTextX, wrapText, getBaselineOffset, resolveFontFamily } = require('../utils/text-layout.server');
 const { createLayout, createBlockLayout } = require('../utils/qna-layout.server');
 

@@ -4,7 +4,7 @@
 
 const { renderQnA } = require('./render-qna');
 const { getCrop } = require('./utils/image-utils');
-const { applyFillOpacity, applyStrokeOpacity } = require('./utils/color-utils');
+const { applyFillOpacity, applyStrokeOpacity } = require('../utils/color-utils');
 const { getGlobalThemeDefaults, getThemeRenderer } = require('./utils/theme-server');
 
 /**

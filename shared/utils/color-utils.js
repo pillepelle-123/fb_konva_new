@@ -147,18 +147,13 @@ function applyStrokeOpacity(stroke, strokeOpacity, elementOpacity = 1) {
   return stroke;
 }
 
-module.exports = {
-  hexToRgba,
-  applyFillOpacity,
-  applyStrokeOpacity,
-  normalizeColor
-};
-
-
-
-
-
-
-
-
+// Support both CommonJS and ES Module exports
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    hexToRgba,
+    applyFillOpacity,
+    applyStrokeOpacity,
+    normalizeColor
+  };
+}
 

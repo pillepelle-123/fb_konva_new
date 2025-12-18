@@ -1172,16 +1172,14 @@ export default function TextboxQna(props: CanvasItemProps) {
     if (!element.questionId) {
       return '';
     }
+    // Only show answer if a user is assigned to the page containing this textbox
     if (assignedUser) {
       const answerEntry = state.tempAnswers[element.questionId]?.[assignedUser.id] as TempAnswerEntry | undefined;
       return answerEntry?.text || '';
     }
-    if (user?.id) {
-      const answerEntry = state.tempAnswers[element.questionId]?.[user.id] as TempAnswerEntry | undefined;
-      return answerEntry?.text || '';
-    }
+    // If no user is assigned to the page, don't show any answer (even if current user has answered elsewhere)
     return '';
-  }, [assignedUser, element.formattedText, element.questionId, element.text, state.tempAnswers, user?.id]);
+  }, [assignedUser, element.formattedText, element.questionId, element.text, state.tempAnswers]);
 
   const sanitizedAnswer = answerText ? stripHtml(answerText) : '';
   // Use answerText directly (no placeholder in canvas rendering, only in editor)

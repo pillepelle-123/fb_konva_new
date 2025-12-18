@@ -2,7 +2,7 @@
  * Background rendering function for PDF export
  */
 
-const { PATTERNS } = require('./utils/constants');
+const { PATTERNS } = require('../utils/constants');
 const { resolveBackgroundImageUrl, getPalettePartColor, getPalette, resolveImageUrlThroughProxy } = require('./utils/palette-utils');
 
 /**

@@ -208,10 +208,10 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
   // Use actual text bounds if available, otherwise use answerArea
   const textBounds = actualTextBounds || answerArea;
   
-  // Position textarea horizontally at the left edge of the textbox (padding)
-  // This ensures the textarea always aligns with the textbox's horizontal position,
-  // regardless of where the answer text starts (e.g., in a combined question-answer row)
-  const runX = padding;
+  // Position textarea horizontally at the start of the answer area
+  // For block layout, this will be the left edge of the answer area
+  // For inline layout, this will be the left edge of the textbox (padding)
+  const runX = textBounds.x;
   // Position textarea one line below the first answer text row (only if text exists)
   const runY = actualTextBounds 
     ? textBounds.y + lineHeightValue // Add one line height to position below first row when text exists

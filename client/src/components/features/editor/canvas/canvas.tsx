@@ -1010,8 +1010,8 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                   return {
                     x: absPos.x,
                     y: absPos.y,
-                    width: boxWidth * zoom,
-                    height: boxHeight * zoom
+                    width: boxWidth,
+                    height: boxHeight
                   };
                 };
                 
@@ -1493,6 +1493,12 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
             y: pos.y - panStart.y
           })
         );
+
+        // Force transformer update during panning to prevent selection rectangle delay
+        if (transformerRef.current) {
+          transformerRef.current.forceUpdate();
+          transformerRef.current.getLayer()?.batchDraw();
+        }
       }
     } else if (isDrawing && state.activeTool === 'brush') {
       const pos = e.target.getStage()?.getPointerPosition();
@@ -2592,6 +2598,12 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           y: stagePos.y
         }, zoom)
       );
+
+      // Force transformer update during panning to prevent selection rectangle delay
+      if (transformerRef.current) {
+        transformerRef.current.forceUpdate();
+        transformerRef.current.getLayer()?.batchDraw();
+      }
     } else if (e.evt.ctrlKey) {
       // Zoom with Ctrl + mousewheel
       const stage = stageRef.current;
@@ -2618,6 +2630,12 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           y: stagePos.y - e.evt.deltaY
         }, zoom)
       );
+
+      // Force transformer update during panning to prevent selection rectangle delay
+      if (transformerRef.current) {
+        transformerRef.current.forceUpdate();
+        transformerRef.current.getLayer()?.batchDraw();
+      }
     }
   };
 

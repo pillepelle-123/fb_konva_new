@@ -30,7 +30,7 @@ const colorPalettesJson = require('../../shared/data/templates/color-palettes.js
 const themesJson = require('../../shared/data/templates/themes.json');
 
 // Load shared constants from shared/rendering/utils/constants.js
-const { PAGE_DIMENSIONS, CANVAS_DIMS, PATTERNS } = require('../../shared/rendering/utils/constants');
+const { PAGE_DIMENSIONS, CANVAS_DIMS, PATTERNS } = require('../../shared/utils/constants');
 
 // Note: Shared rendering modules are embedded as browser-compatible code
 // They are loaded from shared/rendering/ and converted to browser-compatible format
