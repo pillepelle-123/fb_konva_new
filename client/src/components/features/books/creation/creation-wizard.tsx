@@ -13,6 +13,7 @@ import { convertTemplateToElements } from '../../../../utils/template-to-element
 import { getBackgroundImagesWithUrl } from '../../../../data/templates/background-images';
 import { applyBackgroundImageTemplate } from '../../../../utils/background-image-utils';
 import { calculatePageDimensions } from '../../../../utils/template-utils';
+import { MIN_TOTAL_PAGES, MAX_TOTAL_PAGES } from '../../../../constants/book-limits';
 import { pageTemplates as builtinPageTemplates } from '../../../../data/templates/page-templates';
 import { mirrorTemplate } from '../../../../utils/layout-mirroring';
 import { generateSequentialPairId } from '../../../../utils/book-structure';
@@ -32,8 +33,6 @@ import type { BookFriend, User } from '../book-manager-content';
 
 const tempBooks = new Map();
 const CONTENT_PAIR_COUNT = 11;
-const MIN_TOTAL_PAGES = 24;
-const MAX_TOTAL_PAGES = 96;
 
 interface CreationWizardProps {
   open: boolean;

@@ -14,13 +14,11 @@ import type { WizardState } from './types';
 interface QuestionsStepProps {
   wizardState: WizardState;
   onQuestionChange: (data: Partial<WizardState['questions']>) => void;
-  openCustomQuestionModal: () => void;
 }
 
 export function QuestionsStep({
   wizardState,
   onQuestionChange,
-  openCustomQuestionModal: _openCustomQuestionModal, // eslint-disable-line @typescript-eslint/no-unused-vars
 }: QuestionsStepProps) {
   const orderedQuestions = useMemo(() => wizardState.questions.orderedQuestions || [], [wizardState.questions.orderedQuestions]);
   const selectedQuestionIds = wizardState.questions.selectedDefaults;

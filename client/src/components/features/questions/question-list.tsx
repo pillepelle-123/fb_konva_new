@@ -120,7 +120,6 @@ export function QuestionList({
   onQuestionSelect,
   onQuestionEdit,
   onQuestionDelete,
-  onSortEnd: _onSortEnd, // eslint-disable-line @typescript-eslint/no-unused-vars
   onQuestionOrderChange,
   multiSelect = false,
   selectedIds = new Set(),
@@ -134,7 +133,6 @@ export function QuestionList({
   disabledQuestionIds = new Set(),
   maxAvailableSlots,
   compact = false,
-  sortable: _sortable, // eslint-disable-line @typescript-eslint/no-unused-vars
   editingQuestionId,
   editText,
   onEditTextChange,

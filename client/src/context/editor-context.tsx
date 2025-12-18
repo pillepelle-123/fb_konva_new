@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from './auth-context';
 import { getToolDefaults } from '../utils/tool-defaults';
+import { MIN_TOTAL_PAGES, MAX_TOTAL_PAGES } from '../constants/book-limits';
 
 type LoadBookOptions = {
   pageOffset?: number;
@@ -470,8 +471,6 @@ export interface Page {
   backgroundTransform?: BackgroundTransform;
 }
 
-const MIN_TOTAL_PAGES = 24;
-const MAX_TOTAL_PAGES = 96;
 
 export interface Book {
   id: number | string;

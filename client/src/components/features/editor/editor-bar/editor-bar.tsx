@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useEditor } from '../../../../context/editor-context';
 import type { Page } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
+import { MIN_TOTAL_PAGES, MAX_TOTAL_PAGES } from '../../../../constants/book-limits';
 import BookExportModal from '../book-export-modal';
 import { BookPreviewModal } from '../preview/book-preview-modal';
 import { Modal } from '../../../ui/overlays/modal';
@@ -44,8 +45,6 @@ function getConsistentColor(name: string): string {
   return colors[Math.abs(hash) % colors.length];
 }
 
-const MIN_TOTAL_PAGES = 24;
-const MAX_TOTAL_PAGES = 96;
 
 function getPairPages(pages: Page[], index: number): Page[] {
   if (!pages.length || index < 0 || index >= pages.length) {
