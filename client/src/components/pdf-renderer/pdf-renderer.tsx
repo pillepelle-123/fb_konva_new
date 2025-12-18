@@ -1178,6 +1178,518 @@ export function PDFRenderer({
             }
           }
           
+          // Get layout variant (needed for ruled lines rendering)
+          const layoutVariant = element.layoutVariant || 'inline';
+          
+          // Get paragraph spacing settings (needed for ruled lines rendering)
+          const qParagraphSpacing = element.paragraphSpacing || questionStyle.paragraphSpacing || 'small';
+          const aParagraphSpacing = element.paragraphSpacing || answerStyle.paragraphSpacing || 'small';
+          
+          // Calculate line heights based on paragraph spacing (needed for ruled lines rendering)
+          const getLineHeightMultiplier = (spacing: string) => {
+            switch (spacing) {
+              case 'small': return 1.0;
+              case 'medium': return 1.2;
+              case 'large': return 1.5;
+              default: return 1.0;
+            }
+          };
+          
+          // Calculate baseline alignment for question and answer text (needed for ruled lines rendering)
+          const qFontSize = questionStyle.fontSize || 45;
+          const aFontSize = answerStyle.fontSize || 50;
+          const maxFontSize = Math.max(qFontSize, aFontSize);
+          const effectivePadding = layoutVariant === 'inline' ? padding + (maxFontSize * 0.2) : padding;
+          
+          // For inline layout, use combined line height based on largest font
+          const combinedLineHeight = layoutVariant === 'inline' ? 
+            maxFontSize * Math.max(getLineHeightMultiplier(qParagraphSpacing), getLineHeightMultiplier(aParagraphSpacing)) :
+            qFontSize * getLineHeightMultiplier(qParagraphSpacing);
+          const aLineHeight = aFontSize * getLineHeightMultiplier(aParagraphSpacing);
+          
+          // Text baseline offset (needed for ruled lines rendering)
+          const maxFontSizeUsed = Math.max(qFontSize, aFontSize);
+          const maxLineHeightMultiplier = Math.max(getLineHeightMultiplier(qParagraphSpacing), getLineHeightMultiplier(aParagraphSpacing));
+          const factor = aFontSize >= 50 ? aFontSize >= 96 ? aFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1;
+          const textBaselineOffset = -(maxFontSizeUsed * maxLineHeightMultiplier * 0.15) + (maxFontSizeUsed * factor);
+          
+          // Render ruled lines if enabled (after background, before border and text - matching client-side order)
+          const answerRuledLines = element.ruledLines ?? false;
+          
+          // Debug: Log ruled lines check (first path)
+          console.log('[DEBUG PDFRenderer] Ruled lines check (first path):');
+          console.log('  elementId:', element.id);
+          console.log('  element.ruledLines:', element.ruledLines);
+          console.log('  answerRuledLines:', answerRuledLines);
+          
+          if (answerRuledLines) {
+            // Debug: Log starting ruled lines rendering
+            console.log('[DEBUG PDFRenderer] Starting ruled lines rendering (first path):');
+            console.log('  elementId:', element.id);
+            console.log('  layoutVariant:', layoutVariant);
+            const aTheme = element.ruledLinesTheme || 'rough';
+            const aColor = element.ruledLinesColor || '#1f2937';
+            const aWidth = element.ruledLinesWidth || 0.8;
+            const aOpacity = element.ruledLinesOpacity ?? 1;
+            // aFontSize, aLineHeight, effectivePadding, combinedLineHeight, textBaselineOffset are already defined above
+            const startX = elementX + padding;
+            const endX = elementX + elementWidth - padding;
+            
+            // Track how many lines are rendered
+            let ruledLinesRenderedCount = 0;
+            
+            if (layoutVariant === 'block') {
+              // Block layout: ruled lines in answer area
+              const questionPosition = element.questionPosition || 'left';
+              let answerArea = { x: elementX + padding, y: elementY + padding, width: textWidth, height: dynamicHeight - padding * 2 };
+              
+              // Calculate answer area based on question position (same logic as text rendering)
+              if (questionPosition === 'left' || questionPosition === 'right') {
+                const questionWidthPercent = element.questionWidth || 40;
+                const finalQuestionWidth = (elementWidth * questionWidthPercent) / 100;
+                const answerWidth = elementWidth - finalQuestionWidth - padding * 3;
+                
+                if (questionPosition === 'left') {
+                  answerArea = { x: elementX + finalQuestionWidth + padding * 2, y: elementY + padding, width: answerWidth, height: dynamicHeight - padding * 2 };
+                } else {
+                  answerArea = { x: elementX + padding, y: elementY + padding, width: answerWidth, height: dynamicHeight - padding * 2 };
+                }
+              } else {
+                // Calculate question height
+                let questionHeight = 0;
+                if (questionText && questionText.trim() !== '') {
+                  const qFontSize = questionStyle.fontSize || 45;
+                  const qLineHeight = qFontSize * getLineHeightMultiplier(qParagraphSpacing);
+                  const canvas = document.createElement('canvas');
+                  const context = canvas.getContext('2d')!;
+                  const qFontBold = questionStyle.fontBold ?? false;
+                  const qFontItalic = questionStyle.fontItalic ?? false;
+                  const qFontFamily = resolveFontFamily(questionStyle.fontFamily, qFontBold, qFontItalic);
+                  context.font = `${qFontBold ? 'bold ' : ''}${qFontItalic ? 'italic ' : ''}${qFontSize}px ${qFontFamily}`;
+                  
+                  const words = questionText.split(' ');
+                  let lineCount = 1;
+                  let currentLineWidth = 0;
+                  
+                  for (const word of words) {
+                    const wordWidth = context.measureText(word + ' ').width;
+                    if (currentLineWidth + wordWidth > textWidth && currentLineWidth > 0) {
+                      lineCount++;
+                      currentLineWidth = wordWidth;
+                    } else {
+                      currentLineWidth += wordWidth;
+                    }
+                  }
+                  
+                  questionHeight = lineCount * qLineHeight + padding * 2;
+                }
+                
+                const finalQuestionHeight = Math.max(questionHeight, (questionStyle.fontSize || 45) + padding * 2);
+                const answerHeight = dynamicHeight - finalQuestionHeight - padding * 3;
+                
+                if (questionPosition === 'top') {
+                  answerArea = { x: elementX + padding, y: elementY + finalQuestionHeight + padding * 2, width: textWidth, height: answerHeight };
+                } else {
+                  answerArea = { x: elementX + padding, y: elementY + padding, width: textWidth, height: answerHeight };
+                }
+              }
+              
+              // Generate lines aligned with text baselines in answer area
+              const textBaselineY = answerArea.y + aFontSize * 0.8; // Text baseline position
+              let lineY = textBaselineY + aFontSize * 0.2; // Position lines slightly below text baseline
+              const endY = answerArea.y + answerArea.height;
+              const startX = answerArea.x;
+              const endX = answerArea.x + answerArea.width;
+              
+              while (lineY < endY) {
+                // Generate ruled line using shared theme engine (supports all themes: Candy, Zigzag, Glow, Wobbly, Rough, Default)
+                const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+                const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
+                const theme = (supportedThemes.includes(aTheme as Theme) ? aTheme : 'default') as Theme;
+                
+                // Create a temporary element for theme-specific settings
+                const tempElement: CanvasElement = {
+                  ...element,
+                  type: 'line' as const,
+                  id: element.id + '-ruled-line-block',
+                  x: 0,
+                  y: 0,
+                  width: Math.abs(endX - startX),
+                  height: 0,
+                  strokeWidth: aWidth,
+                  stroke: aColor,
+                  theme: theme as CanvasElement['theme']
+                };
+                
+                // Generate path using generateLinePath (same as renderThemedLine uses internally)
+                const pathData = generateLinePath({
+                  x1: startX,
+                  y1: lineY,
+                  x2: endX,
+                  y2: lineY,
+                  strokeWidth: aWidth,
+                  stroke: aColor,
+                  theme: theme,
+                  seed: seed + lineY,
+                  roughness: theme === 'rough' ? 2 : 1,
+                  element: tempElement
+                });
+                
+                let lineNode: Konva.Path | Konva.Line | null = null;
+                if (pathData) {
+                  // Get stroke props from theme renderer (important for candy theme which uses fill instead of stroke)
+                  const themeRenderer = getThemeRenderer(theme);
+                  const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                  
+                  lineNode = new Konva.Path({
+                    data: pathData,
+                    stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : aColor,
+                    strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : aWidth,
+                    fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
+                    opacity: aOpacity,
+                    strokeScaleEnabled: true,
+                    rotation: elementRotation,
+                    listening: false,
+                    visible: true,
+                    lineCap: strokeProps.lineCap || 'round',
+                    lineJoin: strokeProps.lineJoin || 'round'
+                  });
+                } else {
+                  // Fallback to simple line if path generation fails
+                  lineNode = new Konva.Line({
+                    points: [startX, lineY, endX, lineY],
+                    stroke: aColor,
+                    strokeWidth: aWidth,
+                    opacity: aOpacity,
+                    rotation: elementRotation,
+                    listening: false,
+                    visible: true
+                  });
+                }
+                
+                if (lineNode) {
+                  layer.add(lineNode);
+                  ruledLinesRenderedCount++;
+                }
+                
+                lineY += aLineHeight;
+              }
+              
+              // Debug: Log block layout ruled lines count
+              console.log('[DEBUG PDFRenderer] Block layout ruled lines rendered:');
+              console.log('  elementId:', element.id);
+              console.log('  linesCount:', ruledLinesRenderedCount);
+            } else {
+              // Inline layout: position ruled lines based on actual text layout
+              // This matches the logic from textbox-qna-inline.tsx
+              if (questionText && answerText) {
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d')!;
+                const questionFontSize = questionStyle.fontSize || 45;
+                const questionFontBold = questionStyle.fontBold ?? false;
+                const questionFontItalic = questionStyle.fontItalic ?? false;
+                const questionFontFamily = resolveFontFamily(questionStyle.fontFamily, questionFontBold, questionFontItalic);
+                context.font = `${questionFontBold ? 'bold ' : ''}${questionFontItalic ? 'italic ' : ''}${questionFontSize}px ${questionFontFamily}`;
+                
+                // Calculate question lines
+                const questionWords = questionText.split(' ');
+                let questionLineCount = 1;
+                let currentLineWidth = 0;
+                
+                for (const word of questionWords) {
+                  const wordWidth = context.measureText(word + ' ').width;
+                  if (currentLineWidth + wordWidth > textWidth && currentLineWidth > 0) {
+                    questionLineCount++;
+                    currentLineWidth = wordWidth;
+                  } else {
+                    currentLineWidth += wordWidth;
+                  }
+                }
+                
+                const lastQuestionLine = questionText.split(' ').reduce((acc, word) => {
+                  const testLine = acc ? acc + ' ' + word : word;
+                  const testWidth = context.measureText(testLine).width;
+                  if (testWidth > textWidth && acc) {
+                    return word;
+                  }
+                  return testLine;
+                }, '');
+                const lastQuestionLineWidth = context.measureText(lastQuestionLine).width;
+                const gap = 40;
+                const availableWidthAfterQuestion = textWidth - lastQuestionLineWidth - gap;
+                
+                // Check if answer fits on same line
+                const answerFontBold = answerStyle.fontBold ?? false;
+                const answerFontItalic = answerStyle.fontItalic ?? false;
+                const answerFontFamily = resolveFontFamily(answerStyle.fontFamily, answerFontBold, answerFontItalic);
+                const answerContext = document.createElement('canvas').getContext('2d')!;
+                answerContext.font = `${answerFontBold ? 'bold ' : ''}${answerFontItalic ? 'italic ' : ''}${aFontSize}px ${answerFontFamily}`;
+                const firstAnswerLine = answerText.split('\n')[0] || '';
+                const firstAnswerWord = firstAnswerLine.split(' ')[0] || '';
+                const canFitOnSameLine = firstAnswerWord && availableWidthAfterQuestion > 0 && answerContext.measureText(firstAnswerWord).width <= availableWidthAfterQuestion;
+                
+                // Generate ruled lines based on layout
+                const combinedLineBaseline = effectivePadding + ((questionLineCount - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6);
+                const answerBaselineOffset = -(aFontSize * getLineHeightMultiplier(aParagraphSpacing) * 0.15) + (aFontSize * (aFontSize >= 50 ? aFontSize >= 96 ? aFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1));
+                
+                // Generate lines for question lines if needed
+                if (questionLineCount > 1 || !canFitOnSameLine) {
+                  const maxQuestionLineIndex = (questionLineCount > 1 && canFitOnSameLine) 
+                    ? questionLineCount - 1
+                    : questionLineCount;
+                  
+                  for (let questionLineIndex = 0; questionLineIndex < maxQuestionLineIndex; questionLineIndex++) {
+                    const questionLineBaseline = effectivePadding + (questionLineIndex * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6);
+                    const baseline = questionLineBaseline + answerBaselineOffset + (aFontSize * 0.6);
+                    const lineY = elementY + baseline + (aFontSize * 0.15);
+                    
+                    if (isFinite(lineY) && !isNaN(lineY) && lineY < elementY + dynamicHeight - padding - 10) {
+                      // Generate ruled line using shared theme engine (supports all themes)
+                      const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+                      const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
+                      const theme = (supportedThemes.includes(aTheme as Theme) ? aTheme : 'default') as Theme;
+                      
+                      const tempElement: CanvasElement = {
+                        ...element,
+                        type: 'line' as const,
+                        id: element.id + '-ruled-line-inline-question',
+                        x: 0,
+                        y: 0,
+                        width: Math.abs(endX - startX),
+                        height: 0,
+                        strokeWidth: aWidth,
+                        stroke: aColor,
+                        theme: theme as CanvasElement['theme']
+                      };
+                      
+                      const pathData = generateLinePath({
+                        x1: startX,
+                        y1: lineY,
+                        x2: endX,
+                        y2: lineY,
+                        strokeWidth: aWidth,
+                        stroke: aColor,
+                        theme: theme,
+                        seed: seed + lineY,
+                        roughness: theme === 'rough' ? 2 : 1,
+                        element: tempElement
+                      });
+                      
+                      let lineNode: Konva.Path | Konva.Line | null = null;
+                      if (pathData) {
+                        const themeRenderer = getThemeRenderer(theme);
+                        const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                        
+                        lineNode = new Konva.Path({
+                          data: pathData,
+                          stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : aColor,
+                          strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : aWidth,
+                          fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
+                          opacity: aOpacity,
+                          strokeScaleEnabled: true,
+                          rotation: elementRotation,
+                          listening: false,
+                          visible: true,
+                          lineCap: strokeProps.lineCap || 'round',
+                          lineJoin: strokeProps.lineJoin || 'round'
+                        });
+                      } else {
+                        lineNode = new Konva.Line({
+                          points: [startX, lineY, endX, lineY],
+                          stroke: aColor,
+                          strokeWidth: aWidth,
+                          opacity: aOpacity,
+                          rotation: elementRotation,
+                          listening: false,
+                          visible: true
+                        });
+                      }
+                      
+                      if (lineNode) {
+                        layer.add(lineNode);
+                        ruledLinesRenderedCount++;
+                      }
+                    }
+                  }
+                }
+                
+                // Generate lines for answer lines
+                let answerLineIndex = canFitOnSameLine ? 0 : 1;
+                const endY = elementY + dynamicHeight - padding;
+                
+                console.log('[DEBUG PDFRenderer] Inline layout - starting answer lines generation:');
+                console.log('  elementId:', element.id);
+                console.log('  canFitOnSameLine:', canFitOnSameLine);
+                console.log('  answerLineIndex start:', answerLineIndex);
+                console.log('  aLineHeight:', aLineHeight);
+                console.log('  endY:', endY);
+                console.log('  combinedLineBaseline:', combinedLineBaseline);
+                
+                while (answerLineIndex < 1000) { // Safety limit
+                  const answerBaseline = combinedLineBaseline + (answerLineIndex * aLineHeight) + answerBaselineOffset + (aFontSize * 0.6);
+                  const lineY = elementY + answerBaseline + (aFontSize * 0.15);
+                  
+                  if (!isFinite(lineY) || lineY === Infinity || isNaN(lineY) || lineY >= endY) break;
+                  
+                  // Generate ruled line using shared theme engine (supports all themes)
+                  const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+                  const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
+                  const theme = (supportedThemes.includes(aTheme as Theme) ? aTheme : 'default') as Theme;
+                  
+                  const tempElement: CanvasElement = {
+                    ...element,
+                    type: 'line' as const,
+                    id: element.id + '-ruled-line-inline-answer',
+                    x: 0,
+                    y: 0,
+                    width: Math.abs(endX - startX),
+                    height: 0,
+                    strokeWidth: aWidth,
+                    stroke: aColor,
+                    theme: theme as CanvasElement['theme']
+                  };
+                  
+                  const pathData = generateLinePath({
+                    x1: startX,
+                    y1: lineY,
+                    x2: endX,
+                    y2: lineY,
+                    strokeWidth: aWidth,
+                    stroke: aColor,
+                    theme: theme,
+                    seed: seed + lineY,
+                    roughness: theme === 'rough' ? 2 : 1,
+                    element: tempElement
+                  });
+                  
+                  let lineNode: Konva.Path | Konva.Line | null = null;
+                  if (pathData) {
+                    const themeRenderer = getThemeRenderer(theme);
+                    const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                    
+                    lineNode = new Konva.Path({
+                      data: pathData,
+                      stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : aColor,
+                      strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : aWidth,
+                      fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
+                      opacity: aOpacity,
+                      strokeScaleEnabled: true,
+                      rotation: elementRotation,
+                      listening: false,
+                      visible: true,
+                      lineCap: strokeProps.lineCap || 'round',
+                      lineJoin: strokeProps.lineJoin || 'round'
+                    });
+                  } else {
+                    lineNode = new Konva.Line({
+                      points: [startX, lineY, endX, lineY],
+                      stroke: aColor,
+                      strokeWidth: aWidth,
+                      opacity: aOpacity,
+                      rotation: elementRotation,
+                      listening: false,
+                      visible: true
+                    });
+                  }
+                  
+                  if (lineNode) {
+                    layer.add(lineNode);
+                    ruledLinesRenderedCount++;
+                  }
+                  
+                  answerLineIndex++;
+                }
+                
+                // Debug: Log inline layout ruled lines count
+                console.log('[DEBUG PDFRenderer] Inline layout ruled lines rendered:');
+                console.log('  elementId:', element.id);
+                console.log('  linesCount:', ruledLinesRenderedCount);
+                console.log('  questionLineCount:', questionLineCount);
+                console.log('  canFitOnSameLine:', canFitOnSameLine);
+              } else {
+                // Only one type of text - generate simple lines
+                const activeFontSize = answerText ? aFontSize : (questionStyle.fontSize || 45);
+                let lineY = elementY + effectivePadding + (activeFontSize * 0.8) + 4;
+                const endY = elementY + dynamicHeight - padding;
+                
+                while (lineY < endY) {
+                  // Generate ruled line using shared theme engine (supports all themes)
+                  const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+                  const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
+                  const theme = (supportedThemes.includes(aTheme as Theme) ? aTheme : 'default') as Theme;
+                  
+                  const tempElement: CanvasElement = {
+                    ...element,
+                    type: 'line' as const,
+                    id: element.id + '-ruled-line-single',
+                    x: 0,
+                    y: 0,
+                    width: Math.abs(endX - startX),
+                    height: 0,
+                    strokeWidth: aWidth,
+                    stroke: aColor,
+                    theme: theme as CanvasElement['theme']
+                  };
+                  
+                  const pathData = generateLinePath({
+                    x1: startX,
+                    y1: lineY,
+                    x2: endX,
+                    y2: lineY,
+                    strokeWidth: aWidth,
+                    stroke: aColor,
+                    theme: theme,
+                    seed: seed + lineY,
+                    roughness: theme === 'rough' ? 2 : 1,
+                    element: tempElement
+                  });
+                  
+                  let lineNode: Konva.Path | Konva.Line | null = null;
+                  if (pathData) {
+                    const themeRenderer = getThemeRenderer(theme);
+                    const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                    
+                    lineNode = new Konva.Path({
+                      data: pathData,
+                      stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : aColor,
+                      strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : aWidth,
+                      fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
+                      opacity: aOpacity,
+                      strokeScaleEnabled: true,
+                      rotation: elementRotation,
+                      listening: false,
+                      visible: true,
+                      lineCap: strokeProps.lineCap || 'round',
+                      lineJoin: strokeProps.lineJoin || 'round'
+                    });
+                  } else {
+                    lineNode = new Konva.Line({
+                      points: [startX, lineY, endX, lineY],
+                      stroke: aColor,
+                      strokeWidth: aWidth,
+                      opacity: aOpacity,
+                      rotation: elementRotation,
+                      listening: false,
+                      visible: true
+                    });
+                  }
+                  
+                  if (lineNode) {
+                    layer.add(lineNode);
+                    ruledLinesRenderedCount++;
+                  }
+                  
+                  lineY += aLineHeight;
+                }
+              }
+            }
+            
+            // Debug: Log total ruled lines rendered
+            console.log('[DEBUG PDFRenderer] Total ruled lines rendered (first path):');
+            console.log('  elementId:', element.id);
+            console.log('  totalLinesCount:', ruledLinesRenderedCount);
+          }
+          
           // Render border if enabled
           const showBorder = element.borderEnabled ?? (questionStyle.border?.enabled || answerStyle.border?.enabled) ?? false;
           if (showBorder) {
@@ -1205,21 +1717,27 @@ export function PDFRenderer({
               } as CanvasElement;
               
               const pathData = themeRenderer.generatePath(borderElement);
+              const strokeProps = themeRenderer.getStrokeProps(borderElement);
               
               if (pathData) {
                 const borderPath = new Konva.Path({
                   data: pathData,
                   x: elementX,
                   y: elementY,
-                  stroke: borderColor,
-                  strokeWidth: borderWidth,
-                  opacity: borderOpacity,
-                  fill: 'transparent',
+                  stroke: strokeProps.stroke !== undefined ? strokeProps.stroke : borderColor,
+                  strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : borderWidth,
+                  fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
+                  opacity: (strokeProps.opacity !== undefined ? strokeProps.opacity : 1) * borderOpacity,
+                  shadowColor: strokeProps.shadowColor,
+                  shadowBlur: strokeProps.shadowBlur,
+                  shadowOpacity: strokeProps.shadowOpacity,
+                  shadowOffsetX: strokeProps.shadowOffsetX,
+                  shadowOffsetY: strokeProps.shadowOffsetY,
                   strokeScaleEnabled: true,
                   rotation: elementRotation,
                   listening: false,
-                  lineCap: 'round',
-                  lineJoin: 'round',
+                  lineCap: strokeProps.lineCap || 'round',
+                  lineJoin: strokeProps.lineJoin || 'round',
                 });
                 layer.add(borderPath);
               } else {
@@ -1260,44 +1778,10 @@ export function PDFRenderer({
             }
           }
           
-          // Get layout variant
-          const layoutVariant = element.layoutVariant || 'inline';
-          
-          // Calculate baseline alignment for question and answer text
-          const qFontSize = questionStyle.fontSize || 45;
-          const aFontSize = answerStyle.fontSize || 50;
-          const maxFontSize = Math.max(qFontSize, aFontSize);
-          const effectivePadding = layoutVariant === 'inline' ? padding + (maxFontSize * 0.2) : padding;
-          
-          // Get paragraph spacing settings
-          const qParagraphSpacing = element.paragraphSpacing || questionStyle.paragraphSpacing || 'small';
-          const aParagraphSpacing = element.paragraphSpacing || answerStyle.paragraphSpacing || 'small';
-          
-          // Calculate line heights based on paragraph spacing
-          const getLineHeightMultiplier = (spacing: string) => {
-            switch (spacing) {
-              case 'small': return 1.0;
-              case 'medium': return 1.2;
-              case 'large': return 1.5;
-              default: return 1.0;
-            }
-          };
-          
-          // For inline layout, use combined line height based on largest font
-          const combinedLineHeight = layoutVariant === 'inline' ? 
-            maxFontSize * Math.max(getLineHeightMultiplier(qParagraphSpacing), getLineHeightMultiplier(aParagraphSpacing)) :
-            qFontSize * getLineHeightMultiplier(qParagraphSpacing);
-          const aLineHeight = aFontSize * getLineHeightMultiplier(aParagraphSpacing);
-          
-          // Text baseline offset
-          const maxFontSizeUsed = Math.max(qFontSize, aFontSize);
-          const maxLineHeightMultiplier = Math.max(getLineHeightMultiplier(qParagraphSpacing), getLineHeightMultiplier(aParagraphSpacing));
-          const factor = aFontSize >= 50 ? aFontSize >= 96 ? aFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1;
-          const textBaselineOffset = -(maxFontSizeUsed * maxLineHeightMultiplier * 0.15) + (maxFontSizeUsed * factor);
-          
-          // Get alignment settings
-          const questionAlign = element.align || element.format?.textAlign || questionStyle.align || 'left';
-          const answerAlign = element.align || element.format?.textAlign || answerStyle.align || 'left';
+          // Get alignment settings (needed for text rendering)
+          // Note: layoutVariant, effectivePadding, combinedLineHeight, textBaselineOffset, etc. are already defined above (before Ruled Lines block)
+          const questionAlign = element.align || (element as any).format?.textAlign || questionStyle.align || 'left';
+          const answerAlign = element.align || (element as any).format?.textAlign || answerStyle.align || 'left';
           
           if (layoutVariant === 'block') {
             // Block layout: question and answer in separate areas
@@ -1382,6 +1866,15 @@ export function PDFRenderer({
             
             // Render question in its area
             if (questionText && questionText.trim() !== '') {
+              console.log('[DEBUG PDFRenderer] Rendering question text (block layout):', {
+                elementId: element.id,
+                questionText: questionText.substring(0, 50),
+                questionArea: questionArea,
+                qFontColor,
+                qFontOpacity,
+                elementOpacity,
+                finalOpacity: elementOpacity * qFontOpacity
+              });
               const canvas = document.createElement('canvas');
               const context = canvas.getContext('2d')!;
               const qFontFamilyClean = qFontFamily.includes('Mynerve') ? 'Mynerve, cursive' : qFontFamily;
@@ -1405,11 +1898,12 @@ export function PDFRenderer({
                     fontStyle: qFontItalic ? 'italic' : 'normal',
                     fontWeight: qFontBold ? 'bold' : 'normal',
                     fill: qFontColor,
-                    opacity: elementOpacity * qFontOpacity,
+                    opacity: Math.max(0.01, elementOpacity * qFontOpacity),
                     align: questionAlign,
                     width: questionArea.width,
                     rotation: elementRotation,
-                    listening: false
+                    listening: false,
+                    visible: true
                   });
                   
                   layer.add(questionNode);
@@ -1434,7 +1928,8 @@ export function PDFRenderer({
                   align: questionAlign,
                   width: questionArea.width,
                   rotation: elementRotation,
-                  listening: false
+                  listening: false,
+                  visible: true
                 });
                 
                 layer.add(questionNode);
@@ -1443,6 +1938,15 @@ export function PDFRenderer({
             
             // Render answer in its area
             if (answerText && answerText.trim() !== '') {
+              console.log('[DEBUG PDFRenderer] Rendering answer text (block layout):', {
+                elementId: element.id,
+                answerText: answerText.substring(0, 50),
+                answerArea: answerArea,
+                aFontColor,
+                aFontOpacity,
+                elementOpacity,
+                finalOpacity: elementOpacity * aFontOpacity
+              });
               const canvas = document.createElement('canvas');
               const context = canvas.getContext('2d')!;
               const aFontFamilyClean = aFontFamily.includes('Mynerve') ? 'Mynerve, cursive' : aFontFamily;
@@ -1480,7 +1984,8 @@ export function PDFRenderer({
                       align: answerAlign,
                       width: answerArea.width,
                       rotation: elementRotation,
-                      listening: false
+                      listening: false,
+                      visible: true
                     });
                     
                     layer.add(answerNode);
@@ -1501,11 +2006,12 @@ export function PDFRenderer({
                     fontStyle: aFontItalic ? 'italic' : 'normal',
                     fontWeight: aFontBold ? 'bold' : 'normal',
                     fill: aFontColor,
-                    opacity: elementOpacity * aFontOpacity,
+                    opacity: Math.max(0.01, elementOpacity * aFontOpacity),
                     align: answerAlign,
                     width: answerArea.width,
                     rotation: elementRotation,
-                    listening: false
+                    listening: false,
+                    visible: true
                   });
                   
                   layer.add(answerNode);
@@ -1520,6 +2026,10 @@ export function PDFRenderer({
             
             // Render question text first
             if (questionText && questionText.trim() !== '') {
+              console.log('[DEBUG PDFRenderer] Rendering question text (inline layout):', {
+                elementId: element.id,
+                questionText: questionText.substring(0, 50)
+              });
               const questionFontSize = questionStyle.fontSize || 45;
               const questionFontBold = questionStyle.fontBold ?? false;
               const questionFontItalic = questionStyle.fontItalic ?? false;
@@ -1648,7 +2158,8 @@ export function PDFRenderer({
                   align: questionAlign,
                   width: textWidth,
                   rotation: elementRotation,
-                  listening: false
+                  listening: false,
+                  visible: true
                 });
                 
                 layer.add(questionNode);
@@ -1656,6 +2167,10 @@ export function PDFRenderer({
               
               // Render answer text with inline layout logic
               if (answerText && answerText.trim() !== '') {
+                console.log('[DEBUG PDFRenderer] Rendering answer text (inline layout):', {
+                  elementId: element.id,
+                  answerText: answerText.substring(0, 50)
+                });
                 const answerFontSize = answerStyle.fontSize || 50;
                 const answerFontBold = answerStyle.fontBold ?? false;
                 const answerFontItalic = answerStyle.fontItalic ?? false;
@@ -1831,10 +2346,11 @@ export function PDFRenderer({
                             fontStyle: answerFontItalic ? 'italic' : 'normal',
                             fontWeight: answerFontBold ? 'bold' : 'normal',
                             fill: answerFontColor,
-                            opacity: elementOpacity * answerFontOpacity,
+                            opacity: Math.max(0.01, elementOpacity * answerFontOpacity),
                             align: 'left',
                             rotation: elementRotation,
-                            listening: false
+                            listening: false,
+                            visible: true
                           });
                           
                           layer.add(answerNode);
@@ -1861,7 +2377,8 @@ export function PDFRenderer({
                             align: answerAlign,
                             width: textWidth,
                             rotation: elementRotation,
-                            listening: false
+                            listening: false,
+                            visible: true
                           });
                           
                           layer.add(answerNode);
@@ -1887,7 +2404,8 @@ export function PDFRenderer({
                           align: answerAlign,
                           width: textWidth,
                           rotation: elementRotation,
-                          listening: false
+                          listening: false,
+                          visible: true
                         });
                         
                         layer.add(answerNode);
@@ -1898,6 +2416,10 @@ export function PDFRenderer({
               }
             } else if (answerText && answerText.trim() !== '') {
               // Only answer text, no question
+              console.log('[DEBUG PDFRenderer] Rendering answer text only (inline layout):', {
+                elementId: element.id,
+                answerText: answerText.substring(0, 50)
+              });
               const answerFontSize = answerStyle.fontSize || 50;
               const answerFontBold = answerStyle.fontBold ?? false;
               const answerFontItalic = answerStyle.fontItalic ?? false;
@@ -1919,522 +2441,13 @@ export function PDFRenderer({
                 verticalAlign: 'top',
                 wrap: 'word',
                 rotation: elementRotation,
-                opacity: elementOpacity * answerFontOpacity,
+                opacity: Math.max(0.01, elementOpacity * answerFontOpacity),
                 visible: true,
                 listening: false
               });
               
               layer.add(answerNode);
             }
-          }
-          
-          // Render ruled lines if enabled
-          const answerRuledLines = element.ruledLines ?? false;
-          
-          // Debug: Log ruled lines check (first path)
-          console.log('[DEBUG PDFRenderer] Ruled lines check (first path):');
-          console.log('  elementId:', element.id);
-          console.log('  element.ruledLines:', element.ruledLines);
-          console.log('  answerRuledLines:', answerRuledLines);
-          console.log('  layoutVariant:', layoutVariant);
-          console.log('  hasQuestionText:', !!questionText);
-          console.log('  hasAnswerText:', !!answerText);
-          
-          if (answerRuledLines) {
-            // Debug: Log starting ruled lines rendering
-            console.log('[DEBUG PDFRenderer] Starting ruled lines rendering (first path):');
-            console.log('  elementId:', element.id);
-            console.log('  layoutVariant:', layoutVariant);
-            const aTheme = element.ruledLinesTheme || 'rough';
-            const aColor = element.ruledLinesColor || '#1f2937';
-            const aWidth = element.ruledLinesWidth || 0.8;
-            const aOpacity = element.ruledLinesOpacity ?? 1;
-            const aFontSize = answerStyle.fontSize || 50;
-            const aSpacing = answerStyle.paragraphSpacing || element.paragraphSpacing || 'small';
-            
-            const aLineHeight = aFontSize * getLineHeightMultiplier(aSpacing);
-            const startX = elementX + padding;
-            const endX = elementX + elementWidth - padding;
-            
-            // Track how many lines are rendered
-            let ruledLinesRenderedCount = 0;
-            
-            if (layoutVariant === 'block') {
-              // Block layout: ruled lines in answer area
-              const questionPosition = element.questionPosition || 'left';
-              let answerArea = { x: elementX + padding, y: elementY + padding, width: textWidth, height: dynamicHeight - padding * 2 };
-              
-              // Calculate answer area based on question position (same logic as text rendering)
-              if (questionPosition === 'left' || questionPosition === 'right') {
-                const questionWidthPercent = element.questionWidth || 40;
-                const finalQuestionWidth = (elementWidth * questionWidthPercent) / 100;
-                const answerWidth = elementWidth - finalQuestionWidth - padding * 3;
-                
-                if (questionPosition === 'left') {
-                  answerArea = { x: elementX + finalQuestionWidth + padding * 2, y: elementY + padding, width: answerWidth, height: dynamicHeight - padding * 2 };
-                } else {
-                  answerArea = { x: elementX + padding, y: elementY + padding, width: answerWidth, height: dynamicHeight - padding * 2 };
-                }
-              } else {
-                // Calculate question height
-                let questionHeight = 0;
-                if (questionText && questionText.trim() !== '') {
-                  const qFontSize = questionStyle.fontSize || 45;
-                  const qLineHeight = qFontSize * getLineHeightMultiplier(qParagraphSpacing);
-                  const canvas = document.createElement('canvas');
-                  const context = canvas.getContext('2d')!;
-                  const qFontBold = questionStyle.fontBold ?? false;
-                  const qFontItalic = questionStyle.fontItalic ?? false;
-                  const qFontFamily = resolveFontFamily(questionStyle.fontFamily, qFontBold, qFontItalic);
-                  context.font = `${qFontBold ? 'bold ' : ''}${qFontItalic ? 'italic ' : ''}${qFontSize}px ${qFontFamily}`;
-                  
-                  const words = questionText.split(' ');
-                  let lineCount = 1;
-                  let currentLineWidth = 0;
-                  
-                  for (const word of words) {
-                    const wordWidth = context.measureText(word + ' ').width;
-                    if (currentLineWidth + wordWidth > textWidth && currentLineWidth > 0) {
-                      lineCount++;
-                      currentLineWidth = wordWidth;
-                    } else {
-                      currentLineWidth += wordWidth;
-                    }
-                  }
-                  
-                  questionHeight = lineCount * qLineHeight + padding * 2;
-                }
-                
-                const finalQuestionHeight = Math.max(questionHeight, (questionStyle.fontSize || 45) + padding * 2);
-                const answerHeight = dynamicHeight - finalQuestionHeight - padding * 3;
-                
-                if (questionPosition === 'top') {
-                  answerArea = { x: elementX + padding, y: elementY + finalQuestionHeight + padding * 2, width: textWidth, height: answerHeight };
-                } else {
-                  answerArea = { x: elementX + padding, y: elementY + padding, width: textWidth, height: answerHeight };
-                }
-              }
-              
-              // Generate lines aligned with text baselines in answer area
-              const textBaselineY = answerArea.y + aFontSize * 0.8; // Text baseline position
-              let lineY = textBaselineY + aFontSize * 0.2; // Position lines slightly below text baseline
-              const endY = answerArea.y + answerArea.height;
-              const startX = answerArea.x;
-              const endX = answerArea.x + answerArea.width;
-              
-              while (lineY < endY) {
-                // Use rough.js for rough/wobbly themes if available
-                if ((aTheme === 'rough' || aTheme === 'wobbly') && typeof (window as any).rough !== 'undefined') {
-                  try {
-                    const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-                    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-                    const rc = (window as any).rough.svg(svg);
-                    const roughness = aTheme === 'wobbly' ? 3 : 2;
-                    
-                    const roughLine = rc.line(startX, lineY, endX, lineY, {
-                      roughness: roughness,
-                      strokeWidth: aWidth,
-                      stroke: aColor,
-                      seed: seed + lineY
-                    });
-                    
-                    const paths = roughLine.querySelectorAll('path');
-                    let combinedPath = '';
-                    paths.forEach((path: SVGPathElement) => {
-                      const d = path.getAttribute('d');
-                      if (d) combinedPath += d + ' ';
-                    });
-                    
-                    if (combinedPath) {
-                      const linePath = new Konva.Path({
-                        data: combinedPath.trim(),
-                        stroke: aColor,
-                        strokeWidth: aWidth,
-                        opacity: aOpacity,
-                        strokeScaleEnabled: true,
-                        rotation: elementRotation,
-                        listening: false,
-                      });
-                      layer.add(linePath);
-                      ruledLinesRenderedCount++;
-                    } else {
-                      // Fallback to straight line
-                      const line = new Konva.Line({
-                        points: [startX, lineY, endX, lineY],
-                        stroke: aColor,
-                        strokeWidth: aWidth,
-                        opacity: aOpacity,
-                        strokeScaleEnabled: true,
-                        rotation: elementRotation,
-                        listening: false,
-                      });
-                      layer.add(line);
-                      ruledLinesRenderedCount++;
-                    }
-                  } catch (error) {
-                    console.warn('[PDFRenderer] Error generating rough ruled line:', error);
-                    // Fallback to straight line
-                    const line = new Konva.Line({
-                      points: [startX, lineY, endX, lineY],
-                      stroke: aColor,
-                      strokeWidth: aWidth,
-                      opacity: aOpacity,
-                      strokeScaleEnabled: true,
-                      rotation: elementRotation,
-                      listening: false,
-                    });
-                    layer.add(line);
-                    ruledLinesRenderedCount++;
-                  }
-                } else {
-                  // Default straight line
-                  const line = new Konva.Line({
-                    points: [startX, lineY, endX, lineY],
-                    stroke: aColor,
-                    strokeWidth: aWidth,
-                    opacity: aOpacity,
-                    strokeScaleEnabled: true,
-                    rotation: elementRotation,
-                    listening: false,
-                  });
-                  layer.add(line);
-                  ruledLinesRenderedCount++;
-                }
-                lineY += aLineHeight;
-              }
-              
-              // Debug: Log block layout ruled lines count
-              console.log('[DEBUG PDFRenderer] Block layout ruled lines rendered:');
-              console.log('  elementId:', element.id);
-              console.log('  linesCount:', ruledLinesRenderedCount);
-            } else {
-              // Inline layout: position ruled lines based on actual text layout
-              // This matches the logic from textbox-qna-inline.tsx
-              if (questionText && answerText) {
-                const canvas = document.createElement('canvas');
-                const context = canvas.getContext('2d')!;
-                const questionFontSize = questionStyle.fontSize || 45;
-                const questionFontBold = questionStyle.fontBold ?? false;
-                const questionFontItalic = questionStyle.fontItalic ?? false;
-                const questionFontFamily = resolveFontFamily(questionStyle.fontFamily, questionFontBold, questionFontItalic);
-                context.font = `${questionFontBold ? 'bold ' : ''}${questionFontItalic ? 'italic ' : ''}${questionFontSize}px ${questionFontFamily}`;
-                
-                // Calculate question lines
-                const questionWords = questionText.split(' ');
-                let questionLineCount = 1;
-                let currentLineWidth = 0;
-                
-                for (const word of questionWords) {
-                  const wordWidth = context.measureText(word + ' ').width;
-                  if (currentLineWidth + wordWidth > textWidth && currentLineWidth > 0) {
-                    questionLineCount++;
-                    currentLineWidth = wordWidth;
-                  } else {
-                    currentLineWidth += wordWidth;
-                  }
-                }
-                
-                const lastQuestionLine = questionText.split(' ').reduce((acc, word) => {
-                  const testLine = acc ? acc + ' ' + word : word;
-                  const testWidth = context.measureText(testLine).width;
-                  if (testWidth > textWidth && acc) {
-                    return word;
-                  }
-                  return testLine;
-                }, '');
-                const lastQuestionLineWidth = context.measureText(lastQuestionLine).width;
-                const gap = 40;
-                const availableWidthAfterQuestion = textWidth - lastQuestionLineWidth - gap;
-                
-                // Check if answer fits on same line
-                const answerFontBold = answerStyle.fontBold ?? false;
-                const answerFontItalic = answerStyle.fontItalic ?? false;
-                const answerFontFamily = resolveFontFamily(answerStyle.fontFamily, answerFontBold, answerFontItalic);
-                const answerContext = document.createElement('canvas').getContext('2d')!;
-                answerContext.font = `${answerFontBold ? 'bold ' : ''}${answerFontItalic ? 'italic ' : ''}${aFontSize}px ${answerFontFamily}`;
-                const firstAnswerLine = answerText.split('\n')[0] || '';
-                const firstAnswerWord = firstAnswerLine.split(' ')[0] || '';
-                const canFitOnSameLine = firstAnswerWord && availableWidthAfterQuestion > 0 && answerContext.measureText(firstAnswerWord).width <= availableWidthAfterQuestion;
-                
-                // Generate ruled lines based on layout
-                const combinedLineBaseline = effectivePadding + ((questionLineCount - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6);
-                const answerBaselineOffset = -(aFontSize * getLineHeightMultiplier(aParagraphSpacing) * 0.15) + (aFontSize * (aFontSize >= 50 ? aFontSize >= 96 ? aFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1));
-                
-                // Generate lines for question lines if needed
-                if (questionLineCount > 1 || !canFitOnSameLine) {
-                  const maxQuestionLineIndex = (questionLineCount > 1 && canFitOnSameLine) 
-                    ? questionLineCount - 1
-                    : questionLineCount;
-                  
-                  for (let questionLineIndex = 0; questionLineIndex < maxQuestionLineIndex; questionLineIndex++) {
-                    const questionLineBaseline = effectivePadding + (questionLineIndex * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6);
-                    const baseline = questionLineBaseline + answerBaselineOffset + (aFontSize * 0.6);
-                    const lineY = elementY + baseline + (aFontSize * 0.15);
-                    
-                    if (isFinite(lineY) && !isNaN(lineY) && lineY < elementY + dynamicHeight - padding - 10) {
-                      // Generate ruled line
-                      if ((aTheme === 'rough' || aTheme === 'wobbly') && typeof (window as any).rough !== 'undefined') {
-                        try {
-                          const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-                          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-                          const rc = (window as any).rough.svg(svg);
-                          const roughness = aTheme === 'wobbly' ? 3 : 2;
-                          
-                          const roughLine = rc.line(startX, lineY, endX, lineY, {
-                            roughness: roughness,
-                            strokeWidth: aWidth,
-                            stroke: aColor,
-                            seed: seed + lineY
-                          });
-                          
-                          const paths = roughLine.querySelectorAll('path');
-                          let combinedPath = '';
-                          paths.forEach((path: SVGPathElement) => {
-                            const d = path.getAttribute('d');
-                            if (d) combinedPath += d + ' ';
-                          });
-                          
-                          if (combinedPath) {
-                            const linePath = new Konva.Path({
-                              data: combinedPath.trim(),
-                              stroke: aColor,
-                              strokeWidth: aWidth,
-                              opacity: aOpacity,
-                              strokeScaleEnabled: true,
-                              rotation: elementRotation,
-                              listening: false,
-                            });
-                            layer.add(linePath);
-                            ruledLinesRenderedCount++;
-                          } else {
-                            const line = new Konva.Line({
-                              points: [startX, lineY, endX, lineY],
-                              stroke: aColor,
-                              strokeWidth: aWidth,
-                              opacity: aOpacity,
-                              strokeScaleEnabled: true,
-                              rotation: elementRotation,
-                              listening: false,
-                            });
-                            layer.add(line);
-                            ruledLinesRenderedCount++;
-                          }
-                        } catch (error) {
-                          const line = new Konva.Line({
-                            points: [startX, lineY, endX, lineY],
-                            stroke: aColor,
-                            strokeWidth: aWidth,
-                            opacity: aOpacity,
-                            strokeScaleEnabled: true,
-                            rotation: elementRotation,
-                            listening: false,
-                          });
-                          layer.add(line);
-                          ruledLinesRenderedCount++;
-                        }
-                      } else {
-                        const line = new Konva.Line({
-                          points: [startX, lineY, endX, lineY],
-                          stroke: aColor,
-                          strokeWidth: aWidth,
-                          opacity: aOpacity,
-                          strokeScaleEnabled: true,
-                          rotation: elementRotation,
-                          listening: false,
-                        });
-                        layer.add(line);
-                        ruledLinesRenderedCount++;
-                      }
-                    }
-                  }
-                }
-                
-                // Generate lines for answer lines
-                let answerLineIndex = canFitOnSameLine ? 0 : 1;
-                const endY = elementY + dynamicHeight - padding;
-                
-                console.log('[DEBUG PDFRenderer] Inline layout - starting answer lines generation:');
-                console.log('  elementId:', element.id);
-                console.log('  canFitOnSameLine:', canFitOnSameLine);
-                console.log('  answerLineIndex start:', answerLineIndex);
-                console.log('  aLineHeight:', aLineHeight);
-                console.log('  endY:', endY);
-                console.log('  combinedLineBaseline:', combinedLineBaseline);
-                
-                while (answerLineIndex < 1000) { // Safety limit
-                  const answerBaseline = combinedLineBaseline + (answerLineIndex * aLineHeight) + answerBaselineOffset + (aFontSize * 0.6);
-                  const lineY = elementY + answerBaseline + (aFontSize * 0.15);
-                  
-                  if (!isFinite(lineY) || lineY === Infinity || isNaN(lineY) || lineY >= endY) break;
-                  
-                  // Generate ruled line
-                  if ((aTheme === 'rough' || aTheme === 'wobbly') && typeof (window as any).rough !== 'undefined') {
-                    try {
-                      const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-                      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-                      const rc = (window as any).rough.svg(svg);
-                      const roughness = aTheme === 'wobbly' ? 3 : 2;
-                      
-                      const roughLine = rc.line(startX, lineY, endX, lineY, {
-                        roughness: roughness,
-                        strokeWidth: aWidth,
-                        stroke: aColor,
-                        seed: seed + lineY
-                      });
-                      
-                      const paths = roughLine.querySelectorAll('path');
-                      let combinedPath = '';
-                      paths.forEach((path: SVGPathElement) => {
-                        const d = path.getAttribute('d');
-                        if (d) combinedPath += d + ' ';
-                      });
-                      
-                      if (combinedPath) {
-                        const linePath = new Konva.Path({
-                          data: combinedPath.trim(),
-                          stroke: aColor,
-                          strokeWidth: aWidth,
-                          opacity: aOpacity,
-                          strokeScaleEnabled: true,
-                          rotation: elementRotation,
-                          listening: false,
-                        });
-                        layer.add(linePath);
-                        ruledLinesRenderedCount++;
-                      } else {
-                        const line = new Konva.Line({
-                          points: [startX, lineY, endX, lineY],
-                          stroke: aColor,
-                          strokeWidth: aWidth,
-                          opacity: aOpacity,
-                          strokeScaleEnabled: true,
-                          rotation: elementRotation,
-                          listening: false,
-                        });
-                        layer.add(line);
-                        ruledLinesRenderedCount++;
-                      }
-                    } catch (error) {
-                      const line = new Konva.Line({
-                        points: [startX, lineY, endX, lineY],
-                        stroke: aColor,
-                        strokeWidth: aWidth,
-                        opacity: aOpacity,
-                        strokeScaleEnabled: true,
-                        rotation: elementRotation,
-                        listening: false,
-                      });
-                      layer.add(line);
-                      ruledLinesRenderedCount++;
-                    }
-                  } else {
-                    const line = new Konva.Line({
-                      points: [startX, lineY, endX, lineY],
-                      stroke: aColor,
-                      strokeWidth: aWidth,
-                      opacity: aOpacity,
-                      strokeScaleEnabled: true,
-                      rotation: elementRotation,
-                      listening: false,
-                    });
-                    layer.add(line);
-                    ruledLinesRenderedCount++;
-                  }
-                  answerLineIndex++;
-                }
-                
-                // Debug: Log inline layout ruled lines count
-                console.log('[DEBUG PDFRenderer] Inline layout ruled lines rendered:');
-                console.log('  elementId:', element.id);
-                console.log('  linesCount:', ruledLinesRenderedCount);
-                console.log('  questionLineCount:', questionLineCount);
-                console.log('  canFitOnSameLine:', canFitOnSameLine);
-              } else {
-                // Only one type of text - generate simple lines
-                const activeFontSize = answerText ? aFontSize : (questionStyle.fontSize || 45);
-                let lineY = elementY + effectivePadding + (activeFontSize * 0.8) + 4;
-                const endY = elementY + dynamicHeight - padding;
-                
-                while (lineY < endY) {
-                  // Generate ruled line
-                  if ((aTheme === 'rough' || aTheme === 'wobbly') && typeof (window as any).rough !== 'undefined') {
-                    try {
-                      const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-                      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-                      const rc = (window as any).rough.svg(svg);
-                      const roughness = aTheme === 'wobbly' ? 3 : 2;
-                      
-                      const roughLine = rc.line(startX, lineY, endX, lineY, {
-                        roughness: roughness,
-                        strokeWidth: aWidth,
-                        stroke: aColor,
-                        seed: seed + lineY
-                      });
-                      
-                      const paths = roughLine.querySelectorAll('path');
-                      let combinedPath = '';
-                      paths.forEach((path: SVGPathElement) => {
-                        const d = path.getAttribute('d');
-                        if (d) combinedPath += d + ' ';
-                      });
-                      
-                      if (combinedPath) {
-                        const linePath = new Konva.Path({
-                          data: combinedPath.trim(),
-                          stroke: aColor,
-                          strokeWidth: aWidth,
-                          opacity: aOpacity,
-                          strokeScaleEnabled: true,
-                          rotation: elementRotation,
-                          listening: false,
-                        });
-                        layer.add(linePath);
-                      } else {
-                        const line = new Konva.Line({
-                          points: [startX, lineY, endX, lineY],
-                          stroke: aColor,
-                          strokeWidth: aWidth,
-                          opacity: aOpacity,
-                          strokeScaleEnabled: true,
-                          rotation: elementRotation,
-                          listening: false,
-                        });
-                        layer.add(line);
-                      }
-                    } catch (error) {
-                      const line = new Konva.Line({
-                        points: [startX, lineY, endX, lineY],
-                        stroke: aColor,
-                        strokeWidth: aWidth,
-                        opacity: aOpacity,
-                        strokeScaleEnabled: true,
-                        rotation: elementRotation,
-                        listening: false,
-                      });
-                      layer.add(line);
-                    }
-                  } else {
-                    const line = new Konva.Line({
-                      points: [startX, lineY, endX, lineY],
-                      stroke: aColor,
-                      strokeWidth: aWidth,
-                      opacity: aOpacity,
-                      strokeScaleEnabled: true,
-                      rotation: elementRotation,
-                      listening: false,
-                    });
-                    layer.add(line);
-                  }
-                  lineY += aLineHeight;
-                  ruledLinesRenderedCount++;
-                }
-              }
-            }
-            
-            // Debug: Log total ruled lines rendered
-            console.log('[DEBUG PDFRenderer] Total ruled lines rendered (first path):');
-            console.log('  elementId:', element.id);
-            console.log('  totalLinesCount:', ruledLinesRenderedCount);
           }
           
           // QnA element fully handled by this block – skip remaining element rendering
@@ -4299,12 +4312,17 @@ export function PDFRenderer({
                   fill: pathFill,
                   stroke: pathStroke,
                   strokeWidth: strokeProps.strokeWidth || strokeWidth, // Use strokeProps.strokeWidth for themed borders
-                  opacity: element.type === 'rect' && (backgroundOpacity < 1 || borderOpacity < 1) ? 1 : elementOpacity, // Set to 1 if opacity is in colors
+                  opacity: element.type === 'rect' && (backgroundOpacity < 1 || borderOpacity < 1) ? 1 : (strokeProps.opacity !== undefined ? strokeProps.opacity : elementOpacity),
+                  shadowColor: strokeProps.shadowColor,
+                  shadowBlur: strokeProps.shadowBlur,
+                  shadowOpacity: strokeProps.shadowOpacity,
+                  shadowOffsetX: strokeProps.shadowOffsetX,
+                  shadowOffsetY: strokeProps.shadowOffsetY,
                   strokeScaleEnabled: true,
                   rotation: elementRotation,
                   listening: false,
-                  lineCap: 'round',
-                  lineJoin: 'round',
+                  lineCap: strokeProps.lineCap || 'round',
+                  lineJoin: strokeProps.lineJoin || 'round',
                 });
                 layer.add(shapePath);
               // Store z-order on themed shape node
