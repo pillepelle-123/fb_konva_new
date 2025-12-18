@@ -11,6 +11,7 @@ import { colorPalettes } from '../../data/templates/color-palettes.ts';
 import { PATTERNS } from '../../utils/patterns.ts';
 import { getToolDefaults } from '../../utils/tool-defaults.ts';
 import { getThemeRenderer, generateLinePath, type Theme } from '../../utils/themes-client.ts';
+import { renderThemedBorderKonvaWithFallback, createLinePath, createRectPath, createCirclePath } from '../../utils/themed-border.ts';
 import { getCrop } from '../features/editor/canvas-items/image.tsx';
 import type { PageBackground } from '../../context/editor-context.tsx';
 import { FEATURE_FLAGS } from '../../utils/feature-flags';
@@ -1321,50 +1322,91 @@ export function PDFRenderer({
                   theme: theme as CanvasElement['theme']
                 };
                 
-                // Generate path using generateLinePath (same as renderThemedLine uses internally)
-                const pathData = generateLinePath({
-                  x1: startX,
-                  y1: lineY,
-                  x2: endX,
-                  y2: lineY,
-                  strokeWidth: aWidth,
-                  stroke: aColor,
+                // Use centralized border rendering with fallback
+                const lineNode = renderThemedBorderKonvaWithFallback({
+                  width: aWidth,
+                  color: aColor,
+                  opacity: aOpacity,
+                  path: createLinePath(startX, lineY, endX, lineY),
                   theme: theme,
-                  seed: seed + lineY,
-                  roughness: theme === 'rough' ? 2 : 1,
-                  element: tempElement
+                  themeSettings: {
+                    seed: seed + lineY,
+                    roughness: theme === 'rough' ? 2 : 1,
+                    // Pass through theme-specific settings from element
+                    candyRandomness: tempElement.candyRandomness,
+                    candyIntensity: tempElement.candyIntensity,
+                    candySpacingMultiplier: tempElement.candySpacingMultiplier,
+                    candyHoled: tempElement.candyHoled
+                  },
+                  strokeScaleEnabled: true,
+                  listening: false
+                }, () => {
+                  // Fallback: use existing manual implementation
+                  const pathData = generateLinePath({
+                    x1: startX,
+                    y1: lineY,
+                    x2: endX,
+                    y2: lineY,
+                    strokeWidth: aWidth,
+                    stroke: aColor,
+                    theme: theme,
+                    seed: seed + lineY,
+                    roughness: theme === 'rough' ? 2 : 1,
+                    element: tempElement
+                  });
+                  
+                  if (pathData) {
+                    const themeRenderer = getThemeRenderer(theme);
+                    const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                    
+                    const fallbackNode = new Konva.Path({
+                      data: pathData,
+                      stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : aColor,
+                      strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : aWidth,
+                      fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
+                      opacity: aOpacity,
+                      strokeScaleEnabled: true,
+                      rotation: elementRotation,
+                      listening: false,
+                      visible: true,
+                      lineCap: strokeProps.lineCap || 'round',
+                      lineJoin: strokeProps.lineJoin || 'round',
+                      shadowColor: strokeProps.shadowColor,
+                      shadowBlur: strokeProps.shadowBlur,
+                      shadowOpacity: strokeProps.shadowOpacity,
+                      shadowOffsetX: strokeProps.shadowOffsetX,
+                      shadowOffsetY: strokeProps.shadowOffsetY
+                    });
+                    return fallbackNode;
+                  } else {
+                    return new Konva.Line({
+                      points: [startX, lineY, endX, lineY],
+                      stroke: aColor,
+                      strokeWidth: aWidth,
+                      opacity: aOpacity,
+                      rotation: elementRotation,
+                      listening: false,
+                      visible: true
+                    });
+                  }
                 });
                 
-                let lineNode: Konva.Path | Konva.Line | null = null;
-                if (pathData) {
-                  // Get stroke props from theme renderer (important for candy theme which uses fill instead of stroke)
-                  const themeRenderer = getThemeRenderer(theme);
-                  const strokeProps = themeRenderer.getStrokeProps(tempElement);
-                  
-                  lineNode = new Konva.Path({
-                    data: pathData,
-                    stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : aColor,
-                    strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : aWidth,
-                    fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
-                    opacity: aOpacity,
-                    strokeScaleEnabled: true,
-                    rotation: elementRotation,
-                    listening: false,
-                    visible: true,
-                    lineCap: strokeProps.lineCap || 'round',
-                    lineJoin: strokeProps.lineJoin || 'round'
-                  });
-                } else {
-                  // Fallback to simple line if path generation fails
-                  lineNode = new Konva.Line({
-                    points: [startX, lineY, endX, lineY],
-                    stroke: aColor,
-                    strokeWidth: aWidth,
-                    opacity: aOpacity,
-                    rotation: elementRotation,
-                    listening: false,
-                    visible: true
-                  });
+                // Set additional properties that are not in config
+                if (lineNode) {
+                  lineNode.rotation(elementRotation);
+                  lineNode.visible(true);
+                  // Ensure shadow properties are set (for Glow theme)
+                  if (lineNode instanceof Konva.Path) {
+                    const themeRenderer = getThemeRenderer(theme);
+                    const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                    if (strokeProps.shadowColor) {
+                      lineNode.shadowColor(strokeProps.shadowColor);
+                      lineNode.shadowBlur(strokeProps.shadowBlur || 0);
+                      lineNode.shadowOpacity(strokeProps.shadowOpacity || 0);
+                      lineNode.shadowOffsetX(strokeProps.shadowOffsetX || 0);
+                      lineNode.shadowOffsetY(strokeProps.shadowOffsetY || 0);
+                    }
+                  }
                 }
                 
                 if (lineNode) {
@@ -1462,50 +1504,88 @@ export function PDFRenderer({
                         theme: theme as CanvasElement['theme']
                       };
                       
-                      const pathData = generateLinePath({
-                        x1: startX,
-                        y1: lineY,
-                        x2: endX,
-                        y2: lineY,
-                        strokeWidth: aWidth,
-                        stroke: aColor,
+                      // Use centralized border rendering with fallback
+                      const lineNode = renderThemedBorderKonvaWithFallback({
+                        width: aWidth,
+                        color: aColor,
+                        opacity: aOpacity,
+                        path: createLinePath(startX, lineY, endX, lineY),
                         theme: theme,
-                        seed: seed + lineY,
-                        roughness: theme === 'rough' ? 2 : 1,
-                        element: tempElement
+                        themeSettings: {
+                          seed: seed + lineY,
+                          roughness: theme === 'rough' ? 2 : 1,
+                          candyRandomness: tempElement.candyRandomness,
+                          candyIntensity: tempElement.candyIntensity,
+                          candySpacingMultiplier: tempElement.candySpacingMultiplier,
+                          candyHoled: tempElement.candyHoled
+                        },
+                        strokeScaleEnabled: true,
+                        listening: false
+                      }, () => {
+                        // Fallback: use existing manual implementation
+                        const pathData = generateLinePath({
+                          x1: startX,
+                          y1: lineY,
+                          x2: endX,
+                          y2: lineY,
+                          strokeWidth: aWidth,
+                          stroke: aColor,
+                          theme: theme,
+                          seed: seed + lineY,
+                          roughness: theme === 'rough' ? 2 : 1,
+                          element: tempElement
+                        });
+                        
+                        if (pathData) {
+                          const themeRenderer = getThemeRenderer(theme);
+                          const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                          
+                          return new Konva.Path({
+                            data: pathData,
+                            stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : aColor,
+                            strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : aWidth,
+                            fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
+                            opacity: aOpacity,
+                            strokeScaleEnabled: true,
+                            rotation: elementRotation,
+                            listening: false,
+                            visible: true,
+                            lineCap: strokeProps.lineCap || 'round',
+                            lineJoin: strokeProps.lineJoin || 'round',
+                            shadowColor: strokeProps.shadowColor,
+                            shadowBlur: strokeProps.shadowBlur,
+                            shadowOpacity: strokeProps.shadowOpacity,
+                            shadowOffsetX: strokeProps.shadowOffsetX,
+                            shadowOffsetY: strokeProps.shadowOffsetY
+                          });
+                        } else {
+                          return new Konva.Line({
+                            points: [startX, lineY, endX, lineY],
+                            stroke: aColor,
+                            strokeWidth: aWidth,
+                            opacity: aOpacity,
+                            rotation: elementRotation,
+                            listening: false,
+                            visible: true
+                          });
+                        }
                       });
                       
-                      let lineNode: Konva.Path | Konva.Line | null = null;
-                      if (pathData) {
-                        const themeRenderer = getThemeRenderer(theme);
-                        const strokeProps = themeRenderer.getStrokeProps(tempElement);
-                        
-                        lineNode = new Konva.Path({
-                          data: pathData,
-                          stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : aColor,
-                          strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : aWidth,
-                          fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
-                          opacity: aOpacity,
-                          strokeScaleEnabled: true,
-                          rotation: elementRotation,
-                          listening: false,
-                          visible: true,
-                          lineCap: strokeProps.lineCap || 'round',
-                          lineJoin: strokeProps.lineJoin || 'round'
-                        });
-                      } else {
-                        lineNode = new Konva.Line({
-                          points: [startX, lineY, endX, lineY],
-                          stroke: aColor,
-                          strokeWidth: aWidth,
-                          opacity: aOpacity,
-                          rotation: elementRotation,
-                          listening: false,
-                          visible: true
-                        });
-                      }
-                      
+                      // Set additional properties
                       if (lineNode) {
+                        lineNode.rotation(elementRotation);
+                        lineNode.visible(true);
+                        if (lineNode instanceof Konva.Path) {
+                          const themeRenderer = getThemeRenderer(theme);
+                          const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                          if (strokeProps.shadowColor) {
+                            lineNode.shadowColor(strokeProps.shadowColor);
+                            lineNode.shadowBlur(strokeProps.shadowBlur || 0);
+                            lineNode.shadowOpacity(strokeProps.shadowOpacity || 0);
+                            lineNode.shadowOffsetX(strokeProps.shadowOffsetX || 0);
+                            lineNode.shadowOffsetY(strokeProps.shadowOffsetY || 0);
+                          }
+                        }
                         layer.add(lineNode);
                         ruledLinesRenderedCount++;
                       }
@@ -1549,50 +1629,88 @@ export function PDFRenderer({
                     theme: theme as CanvasElement['theme']
                   };
                   
-                  const pathData = generateLinePath({
-                    x1: startX,
-                    y1: lineY,
-                    x2: endX,
-                    y2: lineY,
-                    strokeWidth: aWidth,
-                    stroke: aColor,
+                  // Use centralized border rendering with fallback
+                  const lineNode = renderThemedBorderKonvaWithFallback({
+                    width: aWidth,
+                    color: aColor,
+                    opacity: aOpacity,
+                    path: createLinePath(startX, lineY, endX, lineY),
                     theme: theme,
-                    seed: seed + lineY,
-                    roughness: theme === 'rough' ? 2 : 1,
-                    element: tempElement
+                    themeSettings: {
+                      seed: seed + lineY,
+                      roughness: theme === 'rough' ? 2 : 1,
+                      candyRandomness: tempElement.candyRandomness,
+                      candyIntensity: tempElement.candyIntensity,
+                      candySpacingMultiplier: tempElement.candySpacingMultiplier,
+                      candyHoled: tempElement.candyHoled
+                    },
+                    strokeScaleEnabled: true,
+                    listening: false
+                  }, () => {
+                    // Fallback: use existing manual implementation
+                    const pathData = generateLinePath({
+                      x1: startX,
+                      y1: lineY,
+                      x2: endX,
+                      y2: lineY,
+                      strokeWidth: aWidth,
+                      stroke: aColor,
+                      theme: theme,
+                      seed: seed + lineY,
+                      roughness: theme === 'rough' ? 2 : 1,
+                      element: tempElement
+                    });
+                    
+                    if (pathData) {
+                      const themeRenderer = getThemeRenderer(theme);
+                      const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                      
+                      return new Konva.Path({
+                        data: pathData,
+                        stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : aColor,
+                        strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : aWidth,
+                        fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
+                        opacity: aOpacity,
+                        strokeScaleEnabled: true,
+                        rotation: elementRotation,
+                        listening: false,
+                        visible: true,
+                        lineCap: strokeProps.lineCap || 'round',
+                        lineJoin: strokeProps.lineJoin || 'round',
+                        shadowColor: strokeProps.shadowColor,
+                        shadowBlur: strokeProps.shadowBlur,
+                        shadowOpacity: strokeProps.shadowOpacity,
+                        shadowOffsetX: strokeProps.shadowOffsetX,
+                        shadowOffsetY: strokeProps.shadowOffsetY
+                      });
+                    } else {
+                      return new Konva.Line({
+                        points: [startX, lineY, endX, lineY],
+                        stroke: aColor,
+                        strokeWidth: aWidth,
+                        opacity: aOpacity,
+                        rotation: elementRotation,
+                        listening: false,
+                        visible: true
+                      });
+                    }
                   });
                   
-                  let lineNode: Konva.Path | Konva.Line | null = null;
-                  if (pathData) {
-                    const themeRenderer = getThemeRenderer(theme);
-                    const strokeProps = themeRenderer.getStrokeProps(tempElement);
-                    
-                    lineNode = new Konva.Path({
-                      data: pathData,
-                      stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : aColor,
-                      strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : aWidth,
-                      fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
-                      opacity: aOpacity,
-                      strokeScaleEnabled: true,
-                      rotation: elementRotation,
-                      listening: false,
-                      visible: true,
-                      lineCap: strokeProps.lineCap || 'round',
-                      lineJoin: strokeProps.lineJoin || 'round'
-                    });
-                  } else {
-                    lineNode = new Konva.Line({
-                      points: [startX, lineY, endX, lineY],
-                      stroke: aColor,
-                      strokeWidth: aWidth,
-                      opacity: aOpacity,
-                      rotation: elementRotation,
-                      listening: false,
-                      visible: true
-                    });
-                  }
-                  
+                  // Set additional properties
                   if (lineNode) {
+                    lineNode.rotation(elementRotation);
+                    lineNode.visible(true);
+                    if (lineNode instanceof Konva.Path) {
+                      const themeRenderer = getThemeRenderer(theme);
+                      const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                      if (strokeProps.shadowColor) {
+                        lineNode.shadowColor(strokeProps.shadowColor);
+                        lineNode.shadowBlur(strokeProps.shadowBlur || 0);
+                        lineNode.shadowOpacity(strokeProps.shadowOpacity || 0);
+                        lineNode.shadowOffsetX(strokeProps.shadowOffsetX || 0);
+                        lineNode.shadowOffsetY(strokeProps.shadowOffsetY || 0);
+                      }
+                    }
                     layer.add(lineNode);
                     ruledLinesRenderedCount++;
                   }
@@ -1631,48 +1749,88 @@ export function PDFRenderer({
                     theme: theme as CanvasElement['theme']
                   };
                   
-                  const pathData = generateLinePath({
-                    x1: startX,
-                    y1: lineY,
-                    x2: endX,
-                    y2: lineY,
-                    strokeWidth: aWidth,
-                    stroke: aColor,
+                  // Use centralized border rendering with fallback
+                  const lineNode = renderThemedBorderKonvaWithFallback({
+                    width: aWidth,
+                    color: aColor,
+                    opacity: aOpacity,
+                    path: createLinePath(startX, lineY, endX, lineY),
                     theme: theme,
-                    seed: seed + lineY,
-                    roughness: theme === 'rough' ? 2 : 1,
-                    element: tempElement
+                    themeSettings: {
+                      seed: seed + lineY,
+                      roughness: theme === 'rough' ? 2 : 1,
+                      candyRandomness: tempElement.candyRandomness,
+                      candyIntensity: tempElement.candyIntensity,
+                      candySpacingMultiplier: tempElement.candySpacingMultiplier,
+                      candyHoled: tempElement.candyHoled
+                    },
+                    strokeScaleEnabled: true,
+                    listening: false
+                  }, () => {
+                    // Fallback: use existing manual implementation
+                    const pathData = generateLinePath({
+                      x1: startX,
+                      y1: lineY,
+                      x2: endX,
+                      y2: lineY,
+                      strokeWidth: aWidth,
+                      stroke: aColor,
+                      theme: theme,
+                      seed: seed + lineY,
+                      roughness: theme === 'rough' ? 2 : 1,
+                      element: tempElement
+                    });
+                    
+                    if (pathData) {
+                      const themeRenderer = getThemeRenderer(theme);
+                      const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                      
+                      return new Konva.Path({
+                        data: pathData,
+                        stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : aColor,
+                        strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : aWidth,
+                        fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
+                        opacity: aOpacity,
+                        strokeScaleEnabled: true,
+                        rotation: elementRotation,
+                        listening: false,
+                        visible: true,
+                        lineCap: strokeProps.lineCap || 'round',
+                        lineJoin: strokeProps.lineJoin || 'round',
+                        shadowColor: strokeProps.shadowColor,
+                        shadowBlur: strokeProps.shadowBlur,
+                        shadowOpacity: strokeProps.shadowOpacity,
+                        shadowOffsetX: strokeProps.shadowOffsetX,
+                        shadowOffsetY: strokeProps.shadowOffsetY
+                      });
+                    } else {
+                      return new Konva.Line({
+                        points: [startX, lineY, endX, lineY],
+                        stroke: aColor,
+                        strokeWidth: aWidth,
+                        opacity: aOpacity,
+                        rotation: elementRotation,
+                        listening: false,
+                        visible: true
+                      });
+                    }
                   });
                   
-                  let lineNode: Konva.Path | Konva.Line | null = null;
-                  if (pathData) {
-                    const themeRenderer = getThemeRenderer(theme);
-                    const strokeProps = themeRenderer.getStrokeProps(tempElement);
-                    
-                    lineNode = new Konva.Path({
-                      data: pathData,
-                      stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : aColor,
-                      strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : aWidth,
-                      fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
-                      opacity: aOpacity,
-                      strokeScaleEnabled: true,
-                      rotation: elementRotation,
-                      listening: false,
-                      visible: true,
-                      lineCap: strokeProps.lineCap || 'round',
-                      lineJoin: strokeProps.lineJoin || 'round'
-                    });
-                  } else {
-                    lineNode = new Konva.Line({
-                      points: [startX, lineY, endX, lineY],
-                      stroke: aColor,
-                      strokeWidth: aWidth,
-                      opacity: aOpacity,
-                      rotation: elementRotation,
-                      listening: false,
-                      visible: true
-                    });
-                  }
+                  // Set additional properties
+                  if (lineNode) {
+                    lineNode.rotation(elementRotation);
+                    lineNode.visible(true);
+                    if (lineNode instanceof Konva.Path) {
+                      const themeRenderer = getThemeRenderer(theme);
+                      const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                      if (strokeProps.shadowColor) {
+                        lineNode.shadowColor(strokeProps.shadowColor);
+                        lineNode.shadowBlur(strokeProps.shadowBlur || 0);
+                        lineNode.shadowOpacity(strokeProps.shadowOpacity || 0);
+                        lineNode.shadowOffsetX(strokeProps.shadowOffsetX || 0);
+                        lineNode.shadowOffsetY(strokeProps.shadowOffsetY || 0);
+                      }
+                    }
                   
                   if (lineNode) {
                     layer.add(lineNode);
@@ -1699,10 +1857,7 @@ export function PDFRenderer({
             const cornerRadius = element.cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
             const theme = element.borderTheme || questionStyle.borderTheme || answerStyle.borderTheme || 'default';
             
-            const themeRenderer = getThemeRenderer(theme);
-            if (themeRenderer && theme !== 'default') {
-              // generatePath expects element with x:0, y:0 (relative coordinates)
-              // The path will be positioned using x and y properties on the Path node
+            // Create border element for theme-specific settings
               const borderElement = {
                 type: 'rect' as const,
                 id: element.id + '-border',
@@ -1713,68 +1868,100 @@ export function PDFRenderer({
                 cornerRadius: cornerRadius,
                 stroke: borderColor,
                 strokeWidth: borderWidth,
-                fill: 'transparent'
+              fill: 'transparent',
+              theme: theme,
+              roughness: theme === 'rough' ? 8 : undefined,
+              // Pass through theme-specific settings
+              candyRandomness: (element as any).candyRandomness,
+              candyIntensity: (element as any).candyIntensity,
+              candySpacingMultiplier: (element as any).candySpacingMultiplier,
+              candyHoled: (element as any).candyHoled
               } as CanvasElement;
               
+            // Use centralized border rendering with fallback
+            const borderNode = renderThemedBorderKonvaWithFallback({
+              width: borderWidth,
+              color: borderColor,
+              opacity: borderOpacity,
+              path: createRectPath(0, 0, elementWidth, dynamicHeight),
+              theme: theme,
+              themeSettings: {
+                roughness: theme === 'rough' ? 8 : undefined,
+                candyRandomness: (borderElement as any).candyRandomness,
+                candyIntensity: (borderElement as any).candyIntensity,
+                candySpacingMultiplier: (borderElement as any).candySpacingMultiplier,
+                candyHoled: (borderElement as any).candyHoled
+              },
+              cornerRadius: cornerRadius,
+              strokeScaleEnabled: true,
+              listening: false
+            }, () => {
+              // Fallback: use existing manual implementation
+              const themeRenderer = getThemeRenderer(theme);
+              if (themeRenderer && theme !== 'default') {
               const pathData = themeRenderer.generatePath(borderElement);
-              const strokeProps = themeRenderer.getStrokeProps(borderElement);
+                const strokeProps = themeRenderer.getStrokeProps(borderElement);
               
               if (pathData) {
-                const borderPath = new Konva.Path({
+                  return new Konva.Path({
                   data: pathData,
                   x: elementX,
                   y: elementY,
-                  stroke: strokeProps.stroke !== undefined ? strokeProps.stroke : borderColor,
-                  strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : borderWidth,
-                  fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
-                  opacity: (strokeProps.opacity !== undefined ? strokeProps.opacity : 1) * borderOpacity,
-                  shadowColor: strokeProps.shadowColor,
-                  shadowBlur: strokeProps.shadowBlur,
-                  shadowOpacity: strokeProps.shadowOpacity,
-                  shadowOffsetX: strokeProps.shadowOffsetX,
-                  shadowOffsetY: strokeProps.shadowOffsetY,
+                    stroke: strokeProps.stroke !== undefined ? strokeProps.stroke : borderColor,
+                    strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : borderWidth,
+                    fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
+                    opacity: (strokeProps.opacity !== undefined ? strokeProps.opacity : 1) * borderOpacity,
+                    shadowColor: strokeProps.shadowColor,
+                    shadowBlur: strokeProps.shadowBlur,
+                    shadowOpacity: strokeProps.shadowOpacity,
+                    shadowOffsetX: strokeProps.shadowOffsetX,
+                    shadowOffsetY: strokeProps.shadowOffsetY,
                   strokeScaleEnabled: true,
                   rotation: elementRotation,
                   listening: false,
-                  lineCap: strokeProps.lineCap || 'round',
-                  lineJoin: strokeProps.lineJoin || 'round',
-                });
-                layer.add(borderPath);
-              } else {
-                // Fallback to Rect
-                const borderRect = new Konva.Rect({
-                  x: elementX,
-                  y: elementY,
-                  width: elementWidth,
-                  height: dynamicHeight,
-                  fill: 'transparent',
-                  stroke: borderColor,
-                  strokeWidth: borderWidth,
-                  opacity: borderOpacity,
-                  cornerRadius: cornerRadius,
-                  strokeScaleEnabled: true,
-                  rotation: elementRotation,
-                  listening: false,
-                });
-                layer.add(borderRect);
+                    lineCap: strokeProps.lineCap || 'round',
+                    lineJoin: strokeProps.lineJoin || 'round',
+                  });
+                }
               }
-            } else {
-              // Default border
-              const borderRect = new Konva.Rect({
-                x: elementX,
-                y: elementY,
-                width: elementWidth,
-                height: dynamicHeight,
-                fill: 'transparent',
+              // Fallback to default Rect
+              const rectPath = `M ${elementX} ${elementY} L ${elementX + elementWidth} ${elementY} L ${elementX + elementWidth} ${elementY + dynamicHeight} L ${elementX} ${elementY + dynamicHeight} Z`;
+              return new Konva.Path({
+                data: rectPath,
+                x: 0,
+                y: 0,
                 stroke: borderColor,
                 strokeWidth: borderWidth,
+                fill: 'transparent',
                 opacity: borderOpacity,
-                cornerRadius: cornerRadius,
                 strokeScaleEnabled: true,
                 rotation: elementRotation,
                 listening: false,
+                visible: true
               });
-              layer.add(borderRect);
+            });
+            
+            if (borderNode) {
+              // Set position and rotation
+              borderNode.x(elementX);
+              borderNode.y(elementY);
+              borderNode.rotation(elementRotation);
+              borderNode.visible(true);
+              
+              // Ensure shadow properties are set (for Glow theme)
+              if (borderNode instanceof Konva.Path) {
+                const themeRenderer = getThemeRenderer(theme);
+                const strokeProps = themeRenderer.getStrokeProps(borderElement);
+                if (strokeProps.shadowColor) {
+                  borderNode.shadowColor(strokeProps.shadowColor);
+                  borderNode.shadowBlur(strokeProps.shadowBlur || 0);
+                  borderNode.shadowOpacity(strokeProps.shadowOpacity || 0);
+                  borderNode.shadowOffsetX(strokeProps.shadowOffsetX || 0);
+                  borderNode.shadowOffsetY(strokeProps.shadowOffsetY || 0);
+                }
+              }
+              
+              layer.add(borderNode);
             }
           }
           
@@ -3127,12 +3314,32 @@ export function PDFRenderer({
                 theme: theme as CanvasElement['theme']
               };
               
-              // Generate path using generateLinePath (same as renderThemedLine uses internally)
+              const lineY = elementY + linePos.y;
+              
+              // Use centralized border rendering with fallback
+              const lineNode = renderThemedBorderKonvaWithFallback({
+                width: ruledLinesWidth,
+                color: ruledLinesColor,
+                opacity: ruledLinesOpacity * elementOpacity,
+                path: createLinePath(startX, lineY, endX, lineY),
+                theme: theme,
+                themeSettings: {
+                  seed: seed + linePos.y,
+                  roughness: theme === 'rough' ? 2 : 1,
+                  candyRandomness: (tempElement as any).candyRandomness,
+                  candyIntensity: (tempElement as any).candyIntensity,
+                  candySpacingMultiplier: (tempElement as any).candySpacingMultiplier,
+                  candyHoled: (tempElement as any).candyHoled
+                },
+                strokeScaleEnabled: true,
+                listening: false
+              }, () => {
+                // Fallback: use existing manual implementation
               const pathData = generateLinePath({
                 x1: startX,
-                y1: elementY + linePos.y,
+                  y1: lineY,
                 x2: endX,
-                y2: elementY + linePos.y,
+                  y2: lineY,
                 strokeWidth: ruledLinesWidth,
                 stroke: ruledLinesColor,
                 theme: theme,
@@ -3141,13 +3348,11 @@ export function PDFRenderer({
                 element: tempElement
               });
               
-              let lineNode: Konva.Path | Konva.Line | null = null;
               if (pathData) {
-                // Get stroke props from theme renderer (important for candy theme which uses fill instead of stroke)
                 const themeRenderer = getThemeRenderer(theme);
                 const strokeProps = themeRenderer.getStrokeProps(tempElement);
                 
-                lineNode = new Konva.Path({
+                  return new Konva.Path({
                   data: pathData,
                   stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : ruledLinesColor,
                   strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : ruledLinesWidth,
@@ -3158,12 +3363,16 @@ export function PDFRenderer({
                   listening: false,
                   visible: true,
                   lineCap: strokeProps.lineCap || 'round',
-                  lineJoin: strokeProps.lineJoin || 'round'
+                    lineJoin: strokeProps.lineJoin || 'round',
+                    shadowColor: strokeProps.shadowColor,
+                    shadowBlur: strokeProps.shadowBlur,
+                    shadowOpacity: strokeProps.shadowOpacity,
+                    shadowOffsetX: strokeProps.shadowOffsetX,
+                    shadowOffsetY: strokeProps.shadowOffsetY
                 });
               } else {
-                // Fallback to simple line if path generation fails
-                lineNode = new Konva.Line({
-                  points: [startX, elementY + linePos.y, endX, elementY + linePos.y],
+                  return new Konva.Line({
+                    points: [startX, lineY, endX, lineY],
                   stroke: ruledLinesColor,
                   strokeWidth: ruledLinesWidth,
                   opacity: ruledLinesOpacity * elementOpacity,
@@ -3172,8 +3381,23 @@ export function PDFRenderer({
                   visible: true
                 });
               }
+              });
               
+              // Set additional properties
               if (lineNode) {
+                lineNode.rotation(elementRotation);
+                lineNode.visible(true);
+                if (lineNode instanceof Konva.Path) {
+                  const themeRenderer = getThemeRenderer(theme);
+                  const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                  if (strokeProps.shadowColor) {
+                    lineNode.shadowColor(strokeProps.shadowColor);
+                    lineNode.shadowBlur(strokeProps.shadowBlur || 0);
+                    lineNode.shadowOpacity(strokeProps.shadowOpacity || 0);
+                    lineNode.shadowOffsetX(strokeProps.shadowOffsetX || 0);
+                    lineNode.shadowOffsetY(strokeProps.shadowOffsetY || 0);
+                  }
+                }
                 ruledLinesNodes.push(lineNode);
               }
             });
@@ -3232,7 +3456,25 @@ export function PDFRenderer({
                     theme: theme as CanvasElement['theme']
                   };
                   
-                  // Generate path using generateLinePath (same as renderThemedLine uses internally)
+                  // Use centralized border rendering with fallback
+                  const lineNode = renderThemedBorderKonvaWithFallback({
+                    width: ruledLinesWidth,
+                    color: ruledLinesColor,
+                    opacity: ruledLinesOpacity * elementOpacity,
+                    path: createLinePath(absoluteStartX, absoluteLineY, absoluteEndX, absoluteLineY),
+                    theme: theme,
+                    themeSettings: {
+                      seed: seed + nextLineY,
+                      roughness: theme === 'rough' ? 2 : 1,
+                      candyRandomness: (tempElement as any).candyRandomness,
+                      candyIntensity: (tempElement as any).candyIntensity,
+                      candySpacingMultiplier: (tempElement as any).candySpacingMultiplier,
+                      candyHoled: (tempElement as any).candyHoled
+                    },
+                    strokeScaleEnabled: true,
+                    listening: false
+                  }, () => {
+                    // Fallback: use existing manual implementation
                   const pathData = generateLinePath({
                     x1: absoluteStartX,
                     y1: absoluteLineY,
@@ -3246,13 +3488,11 @@ export function PDFRenderer({
                     element: tempElement
                   });
                   
-                  let lineNode: Konva.Path | Konva.Line | null = null;
                   if (pathData) {
-                    // Get stroke props from theme renderer (important for candy theme which uses fill instead of stroke)
                     const themeRenderer = getThemeRenderer(theme);
                     const strokeProps = themeRenderer.getStrokeProps(tempElement);
                     
-                    lineNode = new Konva.Path({
+                      return new Konva.Path({
                       data: pathData,
                       stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : ruledLinesColor,
                       strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : ruledLinesWidth,
@@ -3263,11 +3503,15 @@ export function PDFRenderer({
                       listening: false,
                       visible: true,
                       lineCap: strokeProps.lineCap || 'round',
-                      lineJoin: strokeProps.lineJoin || 'round'
+                        lineJoin: strokeProps.lineJoin || 'round',
+                        shadowColor: strokeProps.shadowColor,
+                        shadowBlur: strokeProps.shadowBlur,
+                        shadowOpacity: strokeProps.shadowOpacity,
+                        shadowOffsetX: strokeProps.shadowOffsetX,
+                        shadowOffsetY: strokeProps.shadowOffsetY
                     });
                   } else {
-                    // Fallback to simple line if path generation fails
-                    lineNode = new Konva.Line({
+                      return new Konva.Line({
                       points: [absoluteStartX, absoluteLineY, absoluteEndX, absoluteLineY],
                       stroke: ruledLinesColor,
                       strokeWidth: ruledLinesWidth,
@@ -3277,8 +3521,23 @@ export function PDFRenderer({
                       visible: true
                     });
                   }
+                  });
                   
+                  // Set additional properties
                   if (lineNode) {
+                    lineNode.rotation(elementRotation);
+                    lineNode.visible(true);
+                    if (lineNode instanceof Konva.Path) {
+                      const themeRenderer = getThemeRenderer(theme);
+                      const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                      if (strokeProps.shadowColor) {
+                        lineNode.shadowColor(strokeProps.shadowColor);
+                        lineNode.shadowBlur(strokeProps.shadowBlur || 0);
+                        lineNode.shadowOpacity(strokeProps.shadowOpacity || 0);
+                        lineNode.shadowOffsetX(strokeProps.shadowOffsetX || 0);
+                        lineNode.shadowOffsetY(strokeProps.shadowOffsetY || 0);
+                      }
+                    }
                     ruledLinesNodes.push(lineNode);
                   }
                   
@@ -3324,12 +3583,7 @@ export function PDFRenderer({
             const borderThemeRawMapped = borderThemeRaw === 'sketchy' ? 'rough' : borderThemeRaw;
             const borderTheme = borderThemeRawMapped as 'default' | 'rough' | 'glow' | 'candy' | 'zigzag' | 'wobbly'; // Use the selected theme directly (don't map 'default' to 'rough')
             
-            const themeRenderer = getThemeRenderer(borderTheme);
-
-            // Use themeRenderer directly - 'default' is now a valid theme that renders straight lines
-            if (themeRenderer) {
-              // Create a temporary element-like object for generatePath
-              // Set roughness to 8 for 'rough' theme to match client-side rendering
+            // Create border element for theme-specific settings
               const borderElement = {
                 type: 'rect' as const,
                 id: (element as any).id + '-border',
@@ -3339,27 +3593,48 @@ export function PDFRenderer({
                 height: contentHeight,
                 cornerRadius: cornerRadius,
                 stroke: borderColor,
-                strokeWidth: borderWidth, // Use raw borderWidth value, not adjusted
+              strokeWidth: borderWidth,
                 fill: 'transparent',
+              theme: borderTheme,
                 roughness: borderTheme === 'rough' ? 8 : (borderTheme === 'sketchy' ? 2 : 1),
-                theme: borderTheme
+              // Pass through theme-specific settings
+              candyRandomness: (element as any).candyRandomness,
+              candyIntensity: (element as any).candyIntensity,
+              candySpacingMultiplier: (element as any).candySpacingMultiplier,
+              candyHoled: (element as any).candyHoled
               } as CanvasElement;
               
+            // Use centralized border rendering with fallback
+            const borderPath = renderThemedBorderKonvaWithFallback({
+              width: borderWidth,
+              color: borderColor,
+              opacity: borderOpacity * elementOpacity,
+              path: createRectPath(0, 0, elementWidth, contentHeight),
+              theme: borderTheme,
+              themeSettings: {
+                roughness: borderTheme === 'rough' ? 8 : (borderTheme === 'sketchy' ? 2 : 1),
+                candyRandomness: (borderElement as any).candyRandomness,
+                candyIntensity: (borderElement as any).candyIntensity,
+                candySpacingMultiplier: (borderElement as any).candySpacingMultiplier,
+                candyHoled: (borderElement as any).candyHoled
+              },
+              cornerRadius: cornerRadius,
+              strokeScaleEnabled: true,
+              listening: false
+            }, () => {
+              // Fallback: use existing manual implementation
+              const themeRenderer = getThemeRenderer(borderTheme);
+              if (themeRenderer) {
               const pathData = themeRenderer.generatePath(borderElement);
-              
-              // Get stroke props from theme renderer (important for candy theme which uses fill instead of stroke)
               const strokeProps = themeRenderer.getStrokeProps(borderElement);
               
               if (pathData) {
-                // Use strokeWidth from strokeProps (converted by getStrokeProps)
-                const pathStrokeWidth = strokeProps.strokeWidth || borderWidth;
-                
-                const borderPath = new Konva.Path({
+                  return new Konva.Path({
                   data: pathData,
                   x: elementX,
                   y: elementY,
                   stroke: strokeProps.stroke || borderColor,
-                  strokeWidth: pathStrokeWidth,
+                    strokeWidth: strokeProps.strokeWidth || borderWidth,
                   fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
                   opacity: borderOpacity * elementOpacity,
                   strokeScaleEnabled: true,
@@ -3367,7 +3642,50 @@ export function PDFRenderer({
                   listening: false,
                   lineCap: strokeProps.lineCap || 'round',
                   lineJoin: strokeProps.lineJoin || 'round',
-                });
+                    shadowColor: strokeProps.shadowColor,
+                    shadowBlur: strokeProps.shadowBlur,
+                    shadowOpacity: strokeProps.shadowOpacity,
+                    shadowOffsetX: strokeProps.shadowOffsetX,
+                    shadowOffsetY: strokeProps.shadowOffsetY
+                  });
+                }
+              }
+              // Fallback to default Rect (as Path)
+              const rectPath = `M ${elementX} ${elementY} L ${elementX + elementWidth} ${elementY} L ${elementX + elementWidth} ${elementY + contentHeight} L ${elementX} ${elementY + contentHeight} Z`;
+              return new Konva.Path({
+                data: rectPath,
+                x: 0,
+                y: 0,
+                stroke: borderColor,
+                strokeWidth: borderWidth,
+                fill: 'transparent',
+                opacity: borderOpacity * elementOpacity,
+                strokeScaleEnabled: true,
+                rotation: elementRotation,
+                listening: false,
+                visible: true
+              });
+            });
+            
+            if (borderPath) {
+              // Set position and rotation
+              borderPath.x(elementX);
+              borderPath.y(elementY);
+              borderPath.rotation(elementRotation);
+              borderPath.visible(true);
+              
+              // Ensure shadow properties are set (for Glow theme)
+              if (borderPath instanceof Konva.Path) {
+                const themeRenderer = getThemeRenderer(borderTheme);
+                const strokeProps = themeRenderer.getStrokeProps(borderElement);
+                if (strokeProps.shadowColor) {
+                  borderPath.shadowColor(strokeProps.shadowColor);
+                  borderPath.shadowBlur(strokeProps.shadowBlur || 0);
+                  borderPath.shadowOpacity(strokeProps.shadowOpacity || 0);
+                  borderPath.shadowOffsetX(strokeProps.shadowOffsetX || 0);
+                  borderPath.shadowOffsetY(strokeProps.shadowOffsetY || 0);
+                }
+              }
 
                 // Set z-order attributes for border
                 const borderZOrderIndex = elementIdToZOrder.get(element.id);
@@ -3388,76 +3706,6 @@ export function PDFRenderer({
                   layer.getChildren().splice(borderPathIndex, 1);
                   layer.getChildren().splice(insertAfterIndex, 0, borderPath);
                 }
-              } else {
-                // Fallback to Rect if path generation fails
-                const borderRect = new Konva.Rect({
-                  x: elementX,
-                  y: elementY,
-                  width: elementWidth,
-                  height: contentHeight,
-                  fill: 'transparent',
-                  stroke: borderColor,
-                  strokeWidth: borderWidth,
-                  opacity: borderOpacity * elementOpacity,
-                  cornerRadius: cornerRadius,
-                  rotation: elementRotation,
-                  listening: false,
-                });
-
-                // Set z-order attributes for fallback border rect
-                const fallbackBorderZOrderIndex = elementIdToZOrder.get(element.id);
-                if (fallbackBorderZOrderIndex !== undefined) {
-                  borderRect.setAttr('__zOrderIndex', fallbackBorderZOrderIndex);
-                  borderRect.setAttr('__isQnaNode', true);
-                  borderRect.setAttr('__elementId', element.id);
-                  borderRect.setAttr('__nodeType', 'qna-border');
-                }
-
-                layer.add(borderRect);
-
-                // Insert border after ruled lines (or after background if no ruled lines)
-                const totalRuledLinesCount = allRuledLinesNodes.length + ruledLinesNodes.length;
-                const insertAfterIndex = bgRect ? layer.getChildren().indexOf(bgRect) + 1 + totalRuledLinesCount : layer.getChildren().length;
-                const borderRectIndex = layer.getChildren().indexOf(borderRect);
-                if (borderRectIndex !== -1 && borderRectIndex !== insertAfterIndex) {
-                  layer.getChildren().splice(borderRectIndex, 1);
-                  layer.getChildren().splice(insertAfterIndex, 0, borderRect);
-                }
-              }
-            } else {
-              // Default: simple rect border
-              const borderRect = new Konva.Rect({
-                x: elementX,
-                y: elementY,
-                width: elementWidth,
-                height: contentHeight,
-                fill: 'transparent',
-                stroke: borderColor,
-                strokeWidth: borderWidth,
-                opacity: borderOpacity * elementOpacity,
-                cornerRadius: cornerRadius,
-                rotation: elementRotation,
-                listening: false,
-              });
-
-              // Set z-order attributes for default border rect
-              const defaultBorderZOrderIndex = elementIdToZOrder.get(element.id);
-              if (defaultBorderZOrderIndex !== undefined) {
-                borderRect.setAttr('__zOrderIndex', defaultBorderZOrderIndex);
-                borderRect.setAttr('__isQnaNode', true);
-                borderRect.setAttr('__elementId', element.id);
-                borderRect.setAttr('__nodeType', 'qna-border');
-              }
-
-              layer.add(borderRect);
-
-              // Insert border after ruled lines (or after background if no ruled lines)
-              const totalRuledLinesCount = allRuledLinesNodes.length + ruledLinesNodes.length;
-              const insertAfterIndex = bgRect ? layer.getChildren().indexOf(bgRect) + 1 + totalRuledLinesCount : layer.getChildren().length;
-              const borderRectIndex = layer.getChildren().indexOf(borderRect);
-              if (borderRectIndex !== -1 && borderRectIndex !== insertAfterIndex) {
-                layer.getChildren().splice(borderRectIndex, 1);
-                layer.getChildren().splice(insertAfterIndex, 0, borderRect);
               }
             }
           }
@@ -3877,10 +4125,7 @@ export function PDFRenderer({
                   cornerRadius: cornerRadius
                 });
                 
-                // Use theme renderer for themed frames
-                if (frameTheme !== 'default') {
-                  const themeRenderer = getThemeRenderer(frameTheme);
-                  if (themeRenderer) {
+                // Use centralized border rendering for frames
                     const frameRoughness = frameTheme === 'rough' ? 8 : (frameTheme === 'sketchy' ? 2 : (frameTheme === 'wobbly' ? 3 : undefined));
                     const frameElement = {
                       type: 'rect' as const,
@@ -3894,15 +4139,41 @@ export function PDFRenderer({
                       strokeWidth: strokeWidth,
                       fill: 'transparent',
                       theme: frameTheme,
-                      // Set roughness for rough theme to match client-side rendering
-                      roughness: frameRoughness
+                  roughness: frameRoughness,
+                  // Pass through theme-specific settings
+                  candyRandomness: (element as any).candyRandomness,
+                  candyIntensity: (element as any).candyIntensity,
+                  candySpacingMultiplier: (element as any).candySpacingMultiplier,
+                  candyHoled: (element as any).candyHoled
                     } as CanvasElement;
                     
+                // Use centralized border rendering with fallback
+                const frameNode = renderThemedBorderKonvaWithFallback({
+                  width: strokeWidth,
+                  color: stroke,
+                  opacity: borderOpacity * elementOpacity,
+                  path: createRectPath(0, 0, elementWidth, elementHeight),
+                  theme: frameTheme,
+                  themeSettings: {
+                    roughness: frameRoughness,
+                    candyRandomness: (frameElement as any).candyRandomness,
+                    candyIntensity: (frameElement as any).candyIntensity,
+                    candySpacingMultiplier: (frameElement as any).candySpacingMultiplier,
+                    candyHoled: (frameElement as any).candyHoled
+                  },
+                  cornerRadius: cornerRadius,
+                  strokeScaleEnabled: true,
+                  listening: false
+                }, () => {
+                  // Fallback: use existing manual implementation
+                  if (frameTheme !== 'default') {
+                    const themeRenderer = getThemeRenderer(frameTheme);
+                    if (themeRenderer) {
                     const pathData = themeRenderer.generatePath(frameElement);
                     const strokeProps = themeRenderer.getStrokeProps(frameElement);
                     
                     if (pathData) {
-                      const frameNode = new Konva.Path({
+                        return new Konva.Path({
                         data: pathData,
                         x: elementX,
                         y: elementY,
@@ -3915,77 +4186,56 @@ export function PDFRenderer({
                         listening: false,
                         lineCap: 'round',
                         lineJoin: 'round',
-                        visible: true
-                      });
-                      layer.add(frameNode);
-                      // Frame should be right after the image (same z-order group)
-                      if (zOrderIndex !== undefined) {
-                        frameNode.setAttr('__zOrderIndex', zOrderIndex);
-                        frameNode.setAttr('__isFrame', true);
-                        frameNode.setAttr('__parentImageId', element.id);
-                        frameNode.setAttr('__elementId', element.id + '-frame');
-                        frameNode.setAttr('__nodeType', 'frame');
-                      }
-                      console.log('[PDFRenderer] Themed frame added to layer:', {
-                        elementId: element.id,
-                        frameOpacity: borderOpacity * elementOpacity,
-                        borderOpacity: borderOpacity,
-                        elementOpacity: elementOpacity,
-                        stroke: stroke,
-                        strokeWidth: strokeWidth,
-                        layerChildrenCount: layer.getChildren().length,
-                        hasPathData: true
-                      });
-                    } else {
-                      console.warn('[PDFRenderer] No pathData for themed frame, falling back to default Rect:', {
-                        elementId: element.id,
-                        frameTheme: frameTheme
-                      });
-                      // Fallback to default Rect if pathData is not available
-                      const frameNode = new Konva.Rect({
-                        x: elementX,
-                        y: elementY,
-                        width: elementWidth,
-                        height: elementHeight,
-                        rotation: elementRotation,
-                        fill: 'transparent',
-                        stroke: stroke,
-                        strokeWidth: strokeWidth,
-                        opacity: borderOpacity * elementOpacity,
-                        cornerRadius: cornerRadius,
-                        strokeScaleEnabled: true,
-                        listening: false,
-                        visible: true
-                      });
-                      layer.add(frameNode);
-                      if (zOrderIndex !== undefined) {
-                        frameNode.setAttr('__zOrderIndex', zOrderIndex);
-                        frameNode.setAttr('__isFrame', true);
-                        frameNode.setAttr('__parentImageId', element.id);
-                        frameNode.setAttr('__elementId', element.id + '-frame');
-                        frameNode.setAttr('__nodeType', 'frame');
+                          visible: true,
+                          shadowColor: strokeProps.shadowColor,
+                          shadowBlur: strokeProps.shadowBlur,
+                          shadowOpacity: strokeProps.shadowOpacity,
+                          shadowOffsetX: strokeProps.shadowOffsetX,
+                          shadowOffsetY: strokeProps.shadowOffsetY
+                        });
                       }
                     }
                   }
-                } else {
-                  // Default frame (simple rect)
-                  const frameNode = new Konva.Rect({
-                    x: elementX,
-                    y: elementY,
-                    width: elementWidth,
-                    height: elementHeight,
+                  // Fallback to default Rect (convert to Path for compatibility)
+                  const rectPath = `M ${elementX} ${elementY} L ${elementX + elementWidth} ${elementY} L ${elementX + elementWidth} ${elementY + elementHeight} L ${elementX} ${elementY + elementHeight} Z`;
+                  return new Konva.Path({
+                    data: rectPath,
+                    x: 0,
+                    y: 0,
                     rotation: elementRotation,
                     fill: 'transparent',
                     stroke: stroke,
                     strokeWidth: strokeWidth,
                     opacity: borderOpacity * elementOpacity,
-                    cornerRadius: cornerRadius,
                     strokeScaleEnabled: true,
                     listening: false,
                     visible: true
                   });
+                });
+                
+                if (frameNode) {
+                  // Set position and rotation
+                  frameNode.x(elementX);
+                  frameNode.y(elementY);
+                  frameNode.rotation(elementRotation);
+                  frameNode.visible(true);
+                  
+                  // Ensure shadow properties are set (for Glow theme)
+                  if (frameNode instanceof Konva.Path) {
+                    const themeRenderer = getThemeRenderer(frameTheme);
+                    const strokeProps = themeRenderer.getStrokeProps(frameElement);
+                    if (strokeProps.shadowColor) {
+                      frameNode.shadowColor(strokeProps.shadowColor);
+                      frameNode.shadowBlur(strokeProps.shadowBlur || 0);
+                      frameNode.shadowOpacity(strokeProps.shadowOpacity || 0);
+                      frameNode.shadowOffsetX(strokeProps.shadowOffsetX || 0);
+                      frameNode.shadowOffsetY(strokeProps.shadowOffsetY || 0);
+                    }
+                  }
+                  
                   layer.add(frameNode);
-                  // Frame should be right after the image (same z-order group)
+                  
+                  // Set z-order attributes
                   if (zOrderIndex !== undefined) {
                     frameNode.setAttr('__zOrderIndex', zOrderIndex);
                     frameNode.setAttr('__isFrame', true);
@@ -3993,13 +4243,11 @@ export function PDFRenderer({
                     frameNode.setAttr('__elementId', element.id + '-frame');
                     frameNode.setAttr('__nodeType', 'frame');
                   }
-                  console.log('[PDFRenderer] Default frame added to layer:', {
+                  
+                  console.log('[PDFRenderer] Frame added to layer:', {
                     elementId: element.id,
+                    frameTheme: frameTheme,
                     frameOpacity: borderOpacity * elementOpacity,
-                    borderOpacity: borderOpacity,
-                    elementOpacity: elementOpacity,
-                    stroke: stroke,
-                    strokeWidth: strokeWidth,
                     layerChildrenCount: layer.getChildren().length
                   });
                 }
@@ -4232,7 +4480,7 @@ export function PDFRenderer({
                     }
                   }
 
-                  // Border layer using theme renderer - exactly like textbox-qna.tsx
+                  // Border layer using centralized border rendering
                   let pathStroke = strokeProps.stroke || stroke;
                   if (element.type === 'rect' && pathStroke && borderOpacity < 1) {
                     if (pathStroke.startsWith('#')) {
@@ -4246,7 +4494,38 @@ export function PDFRenderer({
                     }
                   }
 
-                  const borderPath = new Konva.Path({
+                  // Determine path type based on element type
+                  let borderPathConfig;
+                  if (element.type === 'circle') {
+                    const circleRadius = Math.min(elementWidth, elementHeight) / 2;
+                    borderPathConfig = createCirclePath(
+                      elementWidth / 2,
+                      elementHeight / 2,
+                      circleRadius
+                    );
+                  } else {
+                    borderPathConfig = createRectPath(0, 0, elementWidth, elementHeight);
+                  }
+
+                  const borderPath = renderThemedBorderKonvaWithFallback({
+                    width: borderWidth,
+                    color: pathStroke,
+                    opacity: element.type === 'rect' && borderOpacity < 1 ? 1 : elementOpacity,
+                    path: borderPathConfig,
+                    theme: theme,
+                    themeSettings: {
+                      roughness: theme === 'rough' ? 8 : undefined,
+                      candyRandomness: (borderElement as any).candyRandomness,
+                      candyIntensity: (borderElement as any).candyIntensity,
+                      candySpacingMultiplier: (borderElement as any).candySpacingMultiplier,
+                      candyHoled: (borderElement as any).candyHoled
+                    },
+                    cornerRadius: element.type === 'rect' ? (element.cornerRadius || 0) : 0,
+                    strokeScaleEnabled: true,
+                    listening: false
+                  }, () => {
+                    // Fallback: use existing manual implementation
+                    return new Konva.Path({
                     data: borderPathData,
                     x: elementX,
                     y: elementY,
@@ -4259,12 +4538,38 @@ export function PDFRenderer({
                     listening: false,
                     lineCap: 'round',
                     lineJoin: 'round',
+                      shadowColor: borderStrokeProps.shadowColor,
+                      shadowBlur: borderStrokeProps.shadowBlur,
+                      shadowOpacity: borderStrokeProps.shadowOpacity,
+                      shadowOffsetX: borderStrokeProps.shadowOffsetX,
+                      shadowOffsetY: borderStrokeProps.shadowOffsetY
+                    });
                   });
+                  
+                  if (borderPath) {
+                    // Set position and rotation
+                    borderPath.x(elementX);
+                    borderPath.y(elementY);
+                    borderPath.rotation(elementRotation);
+                    borderPath.visible(true);
+                    
+                    // Ensure shadow properties are set (for Glow theme)
+                    if (borderPath instanceof Konva.Path) {
+                      if (borderStrokeProps.shadowColor) {
+                        borderPath.shadowColor(borderStrokeProps.shadowColor);
+                        borderPath.shadowBlur(borderStrokeProps.shadowBlur || 0);
+                        borderPath.shadowOpacity(borderStrokeProps.shadowOpacity || 0);
+                        borderPath.shadowOffsetX(borderStrokeProps.shadowOffsetX || 0);
+                        borderPath.shadowOffsetY(borderStrokeProps.shadowOffsetY || 0);
+                      }
+                    }
+                    
                   layer.add(borderPath);
                   const themedZOrderIndex = elementIdToZOrder.get(element.id);
                   if (themedZOrderIndex !== undefined) {
                     borderPath.setAttr('__zOrderIndex', themedZOrderIndex + 0.1); // Border slightly above fill
                     borderPath.setAttr('__elementId', element.id);
+                    }
                   }
 
                   console.log('[PDFRenderer] Created themed shape (Candy/Wobbly):', {
@@ -4305,6 +4610,9 @@ export function PDFRenderer({
                   }
                 }
 
+                // For other themes, create combined fill + stroke path
+                // Note: Fill is handled separately above, so we only need to handle stroke here
+                // But since the pathData includes both fill and stroke, we create a single path
                 const shapePath = new Konva.Path({
                   data: pathData,
                   x: elementX,

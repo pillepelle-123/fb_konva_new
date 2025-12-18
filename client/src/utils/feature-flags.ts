@@ -7,5 +7,6 @@
 export const FEATURE_FLAGS = {
   USE_SHARED_TEXT_LAYOUT: import.meta.env.VITE_USE_SHARED_TEXT_LAYOUT !== 'false',
   USE_SHARED_QNA_LAYOUT: import.meta.env.VITE_USE_SHARED_QNA_LAYOUT !== 'false',
+  USE_CENTRALIZED_BORDER_RENDERING: import.meta.env.VITE_USE_CENTRALIZED_BORDER_RENDERING !== 'false',
 };
 

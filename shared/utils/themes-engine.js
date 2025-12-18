@@ -800,10 +800,10 @@ function getStrokeProps(element, theme, options = {}) {
       stroke: element.stroke || '#1f2937',
       strokeWidth: strokeWidth * 2,
       fill: fill,
-      opacity: 0.6,
+      opacity: 1,
       shadowColor: element.stroke || '#1f2937',
       shadowBlur: strokeWidth * 2,
-      shadowOpacity: 0.4,
+      shadowOpacity: 0.6,
       lineCap: 'round',
       lineJoin: 'round'
     };

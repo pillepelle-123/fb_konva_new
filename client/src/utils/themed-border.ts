@@ -1,7 +1,10 @@
 import React from 'react';
 import { Path } from 'react-konva';
+import Konva from 'konva';
 import { getThemeRenderer, type Theme } from './themes-client';
 import type { CanvasElement } from '../context/editor-context';
+import { createThemedBorderConfig } from '../../../shared/utils/themed-border-core';
+import { FEATURE_FLAGS } from './feature-flags';
 
 export interface ThemedBorderConfig {
   // Standard-Einstellungen (für alle Themes)
@@ -64,7 +67,6 @@ export function renderThemedBorder(config: ThemedBorderConfig): React.ReactEleme
     width,
     color,
     opacity = 1,
-    cornerRadius = 0,
     path,
     theme,
     themeSettings = {},
@@ -74,66 +76,22 @@ export function renderThemedBorder(config: ThemedBorderConfig): React.ReactEleme
     key
   } = config;
   
-  // Bestimme Element-Typ basierend auf Pfad-Typ
-  let elementType: CanvasElement['type'] = 'rect';
-  let elementWidth = path.width;
-  let elementHeight = path.height;
-  let elementX = path.x || 0;
-  let elementY = path.y || 0;
-
-  // Für Linien: Pfad relativ zu (0,0) generieren und Offset separat als x/y am Path setzen
-  // Dadurch können Theme-Algorithmen weiterhin von (0,0) ausgehen, während die Linie
-  // in der Textbox/QnA-Box an der korrekten Position erscheint.
-  let pathOffsetX = 0;
-  let pathOffsetY = 0;
+  // Use shared core logic
+  const borderConfig = createThemedBorderConfig({
+    width,
+    color,
+    opacity,
+    cornerRadius: config.cornerRadius || 0,
+    path,
+    theme,
+    themeSettings,
+    zoom,
+    getThemeRenderer
+  });
   
-  if (path.type === 'circle') {
-    elementType = 'circle';
-    // Für Kreise: width und height sind diameter
-    elementWidth = (path.radius || path.width / 2) * 2;
-    elementHeight = (path.radius || path.height / 2) * 2;
-    elementX = (path.centerX || 0) - elementWidth / 2;
-    elementY = (path.centerY || 0) - elementHeight / 2;
-  } else if (path.type === 'line') {
-    elementType = 'line';
-    // Für Linien: width und height sind die Delta-Werte
-    // Die tatsächliche Linie geht von (x, y) nach (x + width, y + height)
-    // Theme-Engine arbeitet relativ zu (0,0), daher merken wir uns den Offset separat.
-    pathOffsetX = path.x || 0;
-    pathOffsetY = path.y || 0;
-  } else if (path.type === 'custom' && path.pathData) {
-    // Für custom paths, verwende rect als Basis (wird durch pathData überschrieben)
-    elementType = 'rect';
-  }
+  if (!borderConfig) return null;
   
-  // Erstelle temporäres Element für Theme-Renderer
-  const tempElement: CanvasElement = {
-    type: elementType,
-    id: `border-${themeSettings.seed || 1}`,
-    x: elementX,
-    y: elementY,
-    width: elementWidth,
-    height: elementHeight,
-    cornerRadius: cornerRadius,
-    stroke: color,
-    strokeWidth: width,
-    borderWidth: width,
-    fill: 'transparent',
-    theme: theme,
-    roughness: themeSettings.roughness || (theme === 'rough' ? 8 : 1),
-    // Theme-spezifische Einstellungen
-    candyRandomness: themeSettings.candyRandomness,
-    candyIntensity: themeSettings.candyIntensity,
-    candySpacingMultiplier: themeSettings.candySpacingMultiplier,
-    candyHoled: themeSettings.candyHoled,
-    ...themeSettings
-  } as CanvasElement;
-  
-  const themeRenderer = getThemeRenderer(theme);
-  const pathData = themeRenderer.generatePath(tempElement, zoom);
-  const strokeProps = themeRenderer.getStrokeProps(tempElement, zoom);
-  
-  if (!pathData) return null;
+  const { pathData, strokeProps, pathOffsetX, pathOffsetY } = borderConfig;
   
   return React.createElement(Path, {
     key,
@@ -210,5 +168,103 @@ export function createLinePath(
     width: x2 - x1,
     height: y2 - y1
   };
+}
+
+/**
+ * Server-seitige Version von renderThemedBorder
+ * Gibt native Konva-Objekte statt React-Komponenten zurück
+ * Wird im PDF-Renderer verwendet (läuft im Browser via Puppeteer)
+ * 
+ * @param config - ThemedBorderConfig (ohne key, da nicht für React)
+ * @returns Konva.Path | Konva.Line | null
+ */
+export function renderThemedBorderKonva(config: Omit<ThemedBorderConfig, 'key'>): Konva.Path | Konva.Line | null {
+  const {
+    width,
+    color,
+    opacity = 1,
+    path,
+    theme,
+    themeSettings = {},
+    zoom = 1,
+    strokeScaleEnabled = true,
+    listening = false
+  } = config;
+  
+  // Use shared core logic
+  const borderConfig = createThemedBorderConfig({
+    width,
+    color,
+    opacity,
+    cornerRadius: config.cornerRadius || 0,
+    path,
+    theme,
+    themeSettings,
+    zoom,
+    getThemeRenderer
+  });
+  
+  if (!borderConfig) return null;
+  
+  const { pathData, strokeProps, pathOffsetX, pathOffsetY } = borderConfig;
+  
+  // Create Konva.Path with all properties
+  const konvaPath = new Konva.Path({
+    data: pathData,
+    // Für Linien Offset berücksichtigen, damit die Theme-Pfade an der korrekten Position landen
+    x: pathOffsetX,
+    y: pathOffsetY,
+    stroke: strokeProps.stroke || color,
+    strokeWidth: strokeProps.strokeWidth || width,
+    fill: strokeProps.fill || 'transparent',
+    opacity: opacity * (strokeProps.opacity || 1),
+    shadowColor: strokeProps.shadowColor,
+    shadowBlur: strokeProps.shadowBlur,
+    shadowOpacity: strokeProps.shadowOpacity,
+    shadowOffsetX: strokeProps.shadowOffsetX,
+    shadowOffsetY: strokeProps.shadowOffsetY,
+    strokeDasharray: strokeProps.strokeDasharray,
+    lineCap: (strokeProps.lineCap as 'butt' | 'round' | 'square' | undefined) || 'round',
+    lineJoin: (strokeProps.lineJoin as 'miter' | 'round' | 'bevel' | undefined) || 'round',
+    strokeScaleEnabled: strokeScaleEnabled,
+    listening: listening
+  });
+  
+  return konvaPath;
+}
+
+/**
+ * Wrapper function with feature flag and fallback support
+ * Used in PDF renderer to safely migrate to centralized border rendering
+ * 
+ * @param config - ThemedBorderConfig (ohne key)
+ * @param fallbackFn - Optional fallback function if feature flag is off or error occurs
+ * @returns Konva.Path | Konva.Line | null
+ */
+export function renderThemedBorderKonvaWithFallback(
+  config: Omit<ThemedBorderConfig, 'key'>,
+  fallbackFn?: () => Konva.Path | Konva.Line | null
+): Konva.Path | Konva.Line | null {
+  // Check feature flag
+  if (!FEATURE_FLAGS.USE_CENTRALIZED_BORDER_RENDERING) {
+    // Use fallback if provided
+    if (fallbackFn) {
+      return fallbackFn();
+    }
+    // Otherwise return null (should not happen in practice)
+    return null;
+  }
+  
+  // Try centralized rendering
+  try {
+    return renderThemedBorderKonva(config);
+  } catch (error) {
+    console.warn('[renderThemedBorderKonvaWithFallback] Error in centralized rendering, using fallback:', error);
+    // Use fallback if error occurs
+    if (fallbackFn) {
+      return fallbackFn();
+    }
+    return null;
+  }
 }
 
