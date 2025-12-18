@@ -4,7 +4,8 @@ import BaseCanvasItem, { type CanvasItemProps } from './base-canvas-item';
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import { getToolDefaults } from '../../../../utils/tool-defaults';
-import { getThemeRenderer, type Theme, renderThemedLine } from '../../../../utils/themes';
+import { getThemeRenderer, type Theme } from '../../../../utils/themes-client';
+import { renderThemedBorder, createRectPath, createLinePath } from '../../../../utils/themed-border';
 import type { CanvasElement } from '../../../../context/editor-context';
 import type Konva from 'konva';
 import { useCanvasOverlayElement } from '../canvas/canvas-overlay';
@@ -1356,34 +1357,18 @@ export default function TextboxQna(props: CanvasItemProps) {
       const themeString = String(ruledLinesTheme || 'default').toLowerCase().trim();
       const theme = (supportedThemes.includes(themeString as Theme) ? themeString : 'default') as Theme;
       
-      // Create a temporary element for theme-specific settings
-      const tempElement: CanvasElement = {
-        ...element,
-        type: 'line',
-        id: element.id + '-ruled-line',
-        x: 0,
-        y: 0,
-        width: Math.abs(endX - startX),
-        height: 0,
-        strokeWidth: ruledLinesWidth,
-        stroke: ruledLinesColor,
-        theme: theme as CanvasElement['theme']
-      };
-      
-      return renderThemedLine({
-        x1: startX,
-        y1: y,
-        x2: endX,
-        y2: y,
-        strokeWidth: ruledLinesWidth,
-        stroke: ruledLinesColor,
+      return renderThemedBorder({
+        width: ruledLinesWidth,
+        color: ruledLinesColor,
         opacity: ruledLinesOpacity,
+        path: createLinePath(startX, y, endX, y),
         theme: theme,
-        seed: seed + y,
-        roughness: theme === 'rough' ? 2 : 1,
+        themeSettings: {
+          seed: seed + y,
+          roughness: theme === 'rough' ? 2 : 1
+        },
         strokeScaleEnabled: true,
         listening: false,
-        element: tempElement,
         key: `ruled-line-${y}`
       });
     };
@@ -2020,57 +2005,39 @@ export default function TextboxQna(props: CanvasItemProps) {
         const themeValue = qnaElement.borderTheme || element.theme || 'default';
         const theme = themeValue as Theme; // Use the selected theme directly (don't map 'default' to 'rough')
 
-        // Use theme renderer for consistent border rendering
-        const themeRenderer = getThemeRenderer(theme);
-        if (themeRenderer && theme !== 'default') {
-          // Create a temporary element-like object for generatePath
-          // Set roughness to 8 for 'rough' theme to match client-side rendering
-          const borderElement = {
-            type: 'rect' as const,
-            id: element.id + '-border',
-            x: 0,
-            y: 0,
-            width: boxWidth,
-            height: boxHeight,
-            cornerRadius: cornerRadius,
-            stroke: borderColor,
-            strokeWidth: borderWidth,
-            fill: 'transparent',
-            roughness: theme === 'rough' ? 8 : undefined
-          } as CanvasElement;
+        const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+        
+        const borderElement = renderThemedBorder({
+          width: borderWidth,
+          color: borderColor,
+          opacity: borderOpacity,
+          cornerRadius: cornerRadius,
+          path: createRectPath(0, 0, boxWidth, boxHeight),
+          theme: theme,
+          themeSettings: {
+            roughness: theme === 'rough' ? 8 : undefined,
+            seed: seed
+          },
+          strokeScaleEnabled: true,
+          listening: false
+        });
 
-          const pathData = themeRenderer.generatePath(borderElement);
-          const strokeProps = themeRenderer.getStrokeProps(borderElement);
-
-          if (pathData) {
-            return (
-              <Path
-                data={pathData}
-                stroke={borderColor}
-                strokeWidth={strokeProps.strokeWidth || borderWidth}
-                opacity={borderOpacity}
-                fill={strokeProps.fill || 'transparent'}
-                strokeScaleEnabled={true}
-                listening={false}
-                lineCap="round"
-                lineJoin="round"
-              />
-            );
-          }
+        // Fallback to simple rect border if theme rendering fails
+        if (!borderElement) {
+          return (
+            <Rect
+              width={boxWidth}
+              height={boxHeight}
+              stroke={borderColor}
+              strokeWidth={borderWidth}
+              opacity={borderOpacity}
+              cornerRadius={cornerRadius}
+              listening={false}
+            />
+          );
         }
 
-        // Default: simple rect border
-        return (
-          <Rect
-            width={boxWidth}
-            height={boxHeight}
-            stroke={borderColor}
-            strokeWidth={borderWidth}
-            opacity={borderOpacity}
-            cornerRadius={cornerRadius}
-            listening={false}
-          />
-        );
+        return borderElement;
       })()}
 
       {/* Text that can extend beyond the box */}

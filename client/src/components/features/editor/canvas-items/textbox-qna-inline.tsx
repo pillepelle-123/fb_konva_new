@@ -11,7 +11,7 @@ import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 import { getParagraphSpacing, getPadding } from '../../../../utils/format-utils';
 import { getRuledLinesOpacity } from '../../../../utils/ruled-lines-utils';
 import { getRuledLinesTheme } from '../../../../utils/theme-utils';
-import { getThemeRenderer, type Theme, renderThemedLine } from '../../../../utils/themes';
+import { getThemeRenderer, type Theme, generateLinePath } from '../../../../utils/themes-client';
 import { getToolDefaults } from '../../../../utils/tool-defaults';
 import { KonvaSkeleton } from '../../../ui/primitives/skeleton';
 

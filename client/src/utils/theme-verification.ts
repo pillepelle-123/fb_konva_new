@@ -1,5 +1,5 @@
 // Simple verification that themes are working correctly
-import { themes, getThemeRenderer } from './themes';
+import { themes, getThemeRenderer } from './themes-client';
 import type { CanvasElement } from '../context/editor-context';
 
 // Test element for verification

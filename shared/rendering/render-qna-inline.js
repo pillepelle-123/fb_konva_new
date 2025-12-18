@@ -3,7 +3,7 @@
  */
 
 const { renderRuledLines } = require('./render-ruled-lines');
-const { getGlobalThemeDefaults, deepMerge, getThemeRenderer } = require('./utils/theme-utils');
+const { getGlobalThemeDefaults, deepMerge, getThemeRenderer } = require('./utils/theme-server');
 const { getLineHeight } = require('../utils/text-layout.server');
 
 /**
@@ -104,7 +104,7 @@ function getToolDefaults(tool, pageTheme, bookTheme, existingElement, pageColorP
       // Use global function if available (browser context), otherwise fallback to local require (Node.js context)
       const applyPaletteToElementFunc = (typeof window !== 'undefined' && window.applyPaletteToElement) ? window.applyPaletteToElement : (() => {
         try {
-          const { applyPaletteToElement } = require('./utils/theme-utils');
+          const { applyPaletteToElement } = require('./utils/theme-server');
           return applyPaletteToElement;
         } catch (e) {
           return () => ({});

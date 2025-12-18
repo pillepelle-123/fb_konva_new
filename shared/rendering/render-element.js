@@ -5,7 +5,7 @@
 const { renderQnA } = require('./render-qna');
 const { getCrop } = require('./utils/image-utils');
 const { applyFillOpacity, applyStrokeOpacity } = require('./utils/color-utils');
-const { getGlobalThemeDefaults } = require('./utils/theme-utils');
+const { getGlobalThemeDefaults, getThemeRenderer } = require('./utils/theme-server');
 
 /**
  * Extract plain text from HTML
@@ -364,93 +364,55 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
                               (fill !== 'transparent' && fill !== undefined && fill !== null);
     const finalFill = (!backgroundEnabled || fill === 'transparent') ? undefined : fill;
     
-    // Check if rough theme should be applied
+    // Get theme for element
     const elementTheme = element.theme || pageData.theme || bookData.theme || 'default';
-    const useRough = elementTheme === 'rough' && roughInstance;
     
-    // Debug: Log rough theme information - ALWAYS log for rect
-    console.log('[DEBUG renderElement] Rendering rect:', {
-      elementId: element.id,
-      elementType: 'rect',
-      elementTheme: elementTheme,
-      hasRoughInstance: !!roughInstance,
-      useRough: useRough,
-      roughInstanceType: typeof roughInstance,
-      roughInstanceExists: roughInstance !== null && roughInstance !== undefined,
-      roughSvgMethod: roughInstance && typeof roughInstance.svg === 'function' ? 'exists' : 'missing'
-    });
-    
-    if (elementTheme === 'rough') {
-      console.log('[DEBUG renderElement] ⚠️ ROUGH THEME DETECTED FOR RECT:', {
-        elementId: element.id,
-        willUseRough: useRough,
-        hasRoughInstance: !!roughInstance
-      });
-    } else {
-      console.log('[DEBUG renderElement] Using default theme for rect:', {
-        elementId: element.id,
-        theme: elementTheme
-      });
-    }
-    
-    if (useRough) {
+    // Try to use theme renderer for themed rendering (candy, wobbly, zigzag, rough, etc.)
+    if (elementTheme !== 'default' && (elementTheme === 'rough' ? roughInstance : true)) {
       try {
-        const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        const rc = roughInstance.svg(svg);
+        const themeRenderer = getThemeRenderer(elementTheme, roughInstance, document);
+        const tempElement = {
+          ...element,
+          width: width,
+          height: height,
+          x: 0,
+          y: 0,
+          strokeWidth: borderWidth,
+          stroke: stroke,
+          fill: finalFill,
+          borderWidth: borderWidth
+        };
         
-        let roughElement;
-        if (cornerRadius > 0) {
-          const r = Math.min(cornerRadius, width / 2, height / 2);
-          const roundedRectPath = `M ${r} 0 L ${width - r} 0 Q ${width} 0 ${width} ${r} L ${width} ${height - r} Q ${width} ${height} ${width - r} ${height} L ${r} ${height} Q 0 ${height} 0 ${height - r} L 0 ${r} Q 0 0 ${r} 0 Z`;
-          roughElement = rc.path(roundedRectPath, {
-            roughness: element.roughness || 1,
-            strokeWidth: borderWidth,
-            stroke: stroke,
-            fill: finalFill !== undefined && finalFill !== 'transparent' ? finalFill : undefined,
-            fillStyle: 'solid',
-            seed: seed
-          });
-        } else {
-          roughElement = rc.rectangle(0, 0, width, height, {
-            roughness: element.roughness || 1,
-            strokeWidth: borderWidth,
-            stroke: stroke,
-            fill: finalFill !== undefined && finalFill !== 'transparent' ? finalFill : undefined,
-            fillStyle: 'solid',
-            seed: seed
-          });
-        }
+        const pathData = themeRenderer.generatePath(tempElement);
+        const strokeProps = themeRenderer.getStrokeProps(tempElement);
         
-        const paths = roughElement.querySelectorAll('path');
-        let combinedPath = '';
-        paths.forEach(path => {
-          const d = path.getAttribute('d');
-          if (d) combinedPath += d + ' ';
-        });
-        
-        if (combinedPath) {
-          // Stroke opacity is applied to stroke color, shape opacity uses element opacity
+        if (pathData && pathData.trim()) {
           const pathNode = new Konva.Path({
             x: x,
             y: y,
-            data: combinedPath.trim(),
-            fill: finalFill !== undefined && finalFill !== 'transparent' ? finalFill : undefined,
-            stroke: stroke,
-            strokeWidth: borderWidth,
-            opacity: opacity,
+            data: pathData.trim(),
+            fill: strokeProps.fill !== undefined && strokeProps.fill !== 'transparent' ? strokeProps.fill : (finalFill !== undefined && finalFill !== 'transparent' ? finalFill : undefined),
+            stroke: strokeProps.stroke || stroke,
+            strokeWidth: strokeProps.strokeWidth || borderWidth,
+            opacity: opacity * (strokeProps.opacity !== undefined ? strokeProps.opacity : 1),
             rotation: rotation,
-            listening: false
+            listening: false,
+            shadowColor: strokeProps.shadowColor,
+            shadowBlur: strokeProps.shadowBlur,
+            shadowOpacity: strokeProps.shadowOpacity,
+            shadowOffsetX: strokeProps.shadowOffsetX,
+            shadowOffsetY: strokeProps.shadowOffsetY,
+            lineCap: strokeProps.lineCap,
+            lineJoin: strokeProps.lineJoin
           });
           layer.add(pathNode);
-          // Store z-order information on rect node
           if (zOrderIndex !== undefined) {
             pathNode.setAttr('__zOrderIndex', zOrderIndex);
           }
           return pathNode;
         }
       } catch (error) {
-        console.warn('Rough theme rendering failed for rect, falling back to regular rect:', error);
+        console.warn(`Theme rendering failed for ${elementTheme}, falling back to regular rect:`, error);
       }
     }
     

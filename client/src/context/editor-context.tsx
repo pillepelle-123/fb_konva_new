@@ -3568,7 +3568,6 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           strokeWidth: selectedElement.strokeWidth,
           borderOpacity: selectedElement.borderOpacity,
           fill: selectedElement.fill,
-          backgroundOpacity: selectedElement.backgroundOpacity,
           opacity: selectedElement.opacity,
           theme: selectedElement.theme,
           roughness: selectedElement.roughness,

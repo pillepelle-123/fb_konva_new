@@ -3,7 +3,8 @@ import { Rect, Image as KonvaImage, Group, Line, Path } from 'react-konva';
 import Konva from 'konva';
 import BaseCanvasItem from './base-canvas-item';
 import type { CanvasItemProps } from './base-canvas-item';
-import { getThemeRenderer } from '../../../../utils/themes';
+import { getThemeRenderer } from '../../../../utils/themes-client';
+import { renderThemedBorder, createRectPath } from '../../../../utils/themed-border';
 import type { CanvasElement } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import { useEditor } from '../../../../context/editor-context';
@@ -410,62 +411,42 @@ export default function Image(props: CanvasItemProps) {
             const frameWidth = size.width;
             const frameHeight = size.height;
             
-            // Use theme renderer for consistent frame rendering
-            // Page-Content-Element: Image frames scale with zoom and are printed in PDF
-            const themeRenderer = getThemeRenderer(frameTheme);
-            if (themeRenderer && frameTheme !== 'default') {
-              // Create a temporary element-like object for generatePath
-              // Set higher roughness for 'rough' theme to make the frame more hand-drawn looking
-              const frameElement = {
-                type: 'rect' as const,
-                id: element.id + '-frame',
-                x: 0,
-                y: 0,
-                width: frameWidth,
-                height: frameHeight,
-                cornerRadius: cornerRadius,
-                stroke: stroke,
-                strokeWidth: strokeWidth,
-                fill: 'transparent',
-                roughness: frameTheme === 'rough' ? 8 : undefined
-              } as CanvasElement;
-              
-              // Generate path and stroke props (zoom handling via strokeScaleEnabled)
-              const pathData = themeRenderer.generatePath(frameElement, zoom);
-              const strokeProps = themeRenderer.getStrokeProps(frameElement, zoom);
-              
-              if (pathData) {
-                return (
-                  <Path
-                    data={pathData}
-                    stroke={strokeProps.stroke || stroke}
-                    strokeWidth={strokeProps.strokeWidth || strokeWidth}
-                    opacity={borderOpacity}
-                    fill={strokeProps.fill || 'transparent'}
-                    strokeScaleEnabled={true}
-                    listening={false}
-                    lineCap="round"
-                    lineJoin="round"
-                  />
-                );
-              }
-            }
+            const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
             
-            // Fallback to simple Rect for default theme
-            // Page-Content-Element: Border scales with zoom via strokeScaleEnabled
-            return (
-              <Rect
-                width={frameWidth}
-                height={frameHeight}
-                fill="transparent"
-                stroke={stroke}
-                strokeWidth={strokeWidth}
-                opacity={borderOpacity}
-                cornerRadius={cornerRadius}
-                strokeScaleEnabled={true}
-                listening={false}
-              />
-            );
+            const frameElement = renderThemedBorder({
+              width: strokeWidth,
+              color: stroke,
+              opacity: borderOpacity,
+              cornerRadius: cornerRadius,
+              path: createRectPath(0, 0, frameWidth, frameHeight),
+              theme: frameTheme as any,
+              themeSettings: {
+                roughness: frameTheme === 'rough' ? 8 : undefined,
+                seed: seed
+              },
+              zoom: zoom,
+              strokeScaleEnabled: true,
+              listening: false
+            });
+
+            // Fallback to simple Rect for default theme or if theme rendering fails
+            if (!frameElement) {
+              return (
+                <Rect
+                  width={frameWidth}
+                  height={frameHeight}
+                  fill="transparent"
+                  stroke={stroke}
+                  strokeWidth={strokeWidth}
+                  opacity={borderOpacity}
+                  cornerRadius={cornerRadius}
+                  strokeScaleEnabled={true}
+                  listening={false}
+                />
+              );
+            }
+
+            return frameElement;
           })()}
         </>
       )}

@@ -5,7 +5,7 @@
 
 const { renderBackground } = require('./render-background');
 const { renderElement } = require('./render-element');
-const { loadThemes } = require('./utils/theme-utils');
+const { loadThemes } = require('./utils/theme-server');
 const { loadColorPalettes } = require('./utils/palette-utils');
 
 /**

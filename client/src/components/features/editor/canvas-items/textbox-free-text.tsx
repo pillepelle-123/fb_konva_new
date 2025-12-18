@@ -5,7 +5,7 @@ import { useEditor } from '../../../../context/editor-context';
 import BaseCanvasItem from './base-canvas-item';
 import type { CanvasItemProps } from './base-canvas-item';
 import { getToolDefaults } from '../../../../utils/tool-defaults';
-import { getThemeRenderer, type Theme, renderThemedLine } from '../../../../utils/themes';
+import { getThemeRenderer, type Theme, generateLinePath } from '../../../../utils/themes-client';
 import type { CanvasElement } from '../../../../context/editor-context';
 import { KonvaSkeleton } from '../../../ui/primitives/skeleton';
 

@@ -10,7 +10,7 @@ import { getPalettePartColor } from '../../data/templates/color-palettes.ts';
 import { colorPalettes } from '../../data/templates/color-palettes.ts';
 import { PATTERNS } from '../../utils/patterns.ts';
 import { getToolDefaults } from '../../utils/tool-defaults.ts';
-import { getThemeRenderer, renderThemedLine, generateLinePath, type Theme } from '../../utils/themes.ts';
+import { getThemeRenderer, generateLinePath, type Theme } from '../../utils/themes-client.ts';
 import { getCrop } from '../features/editor/canvas-items/image.tsx';
 import type { PageBackground } from '../../context/editor-context.tsx';
 import { FEATURE_FLAGS } from '../../utils/feature-flags';
@@ -881,8 +881,8 @@ export function PDFRenderer({
         
         // Render QnA elements (standard QnA textbox - textbox-qna.tsx logic)
         // qna_inline is deprecated and treated as qna
-        // NOTE: First block removed - using second block with sharedCreateLayout instead
-        if (false && (element.textType === 'qna' || element.textType === 'qna2' || element.textType === 'qna_inline')) {
+        // RE-ENABLED: use classic QnA rendering path for stability
+        if (element.textType === 'qna' || element.textType === 'qna2' || element.textType === 'qna_inline') {
           // Get tool defaults for qna
           const currentPage = state.currentBook?.pages?.find(p => p.id === page.id) || page;
           const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
@@ -2431,15 +2431,19 @@ export function PDFRenderer({
               }
             }
             
-            // Debug: Log total ruled lines count
+            // Debug: Log total ruled lines rendered
             console.log('[DEBUG PDFRenderer] Total ruled lines rendered (first path):');
             console.log('  elementId:', element.id);
             console.log('  totalLinesCount:', ruledLinesRenderedCount);
           }
+          
+          // QnA element fully handled by this block – skip remaining element rendering
+          continue;
         }
         // Render QnA elements (standard QnA textbox - textbox-qna.tsx logic)
         // qna_inline is deprecated and treated as qna
-        if (element.textType === 'qna' || element.textType === 'qna2' || element.textType === 'qna_inline') {
+        // NEW shared-layout based QnA rendering path – temporarily disabled
+        if (false && (element.textType === 'qna' || element.textType === 'qna2' || element.textType === 'qna_inline')) {
           // Get tool defaults for qna
           const currentPage = state.currentBook?.pages?.find(p => p.id === page.id) || page;
           const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
@@ -4152,9 +4156,10 @@ export function PDFRenderer({
                 // Get raw borderWidth value (not converted), exactly like textbox-qna.tsx does
                 const borderWidth = element.borderWidth || element.strokeWidth || 1;
                 
-                // Create borderElement exactly like textbox-qna.tsx does
+                // Create borderElement with the same type as the original element (not always 'rect')
+                // This ensures circles are rendered as circles, not rectangles
                 const borderElement = {
-                  type: 'rect' as const,
+                  type: element.type as any, // Preserve original element type (circle, rect, etc.)
                   id: element.id + '-border',
                   x: 0,
                   y: 0,
@@ -4164,7 +4169,12 @@ export function PDFRenderer({
                   stroke: stroke,
                   strokeWidth: borderWidth, // Use raw borderWidth value, not converted strokeProps.strokeWidth
                   fill: 'transparent',
-                  roughness: theme === 'rough' ? 8 : undefined
+                  roughness: theme === 'rough' ? 8 : undefined,
+                  // Pass through theme-specific settings (e.g., for Candy theme)
+                  candyRandomness: (element as any).candyRandomness,
+                  candyIntensity: (element as any).candyIntensity,
+                  candySpacingMultiplier: (element as any).candySpacingMultiplier,
+                  candyHoled: (element as any).candyHoled
                 } as CanvasElement;
 
                 // Call generatePath and getStrokeProps WITHOUT zoom parameter, exactly like textbox-qna.tsx

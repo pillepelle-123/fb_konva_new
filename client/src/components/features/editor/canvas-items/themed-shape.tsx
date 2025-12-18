@@ -1,8 +1,8 @@
-import { Path, Rect, Group, Circle, Text, Line } from 'react-konva';
+import { Path, Rect, Group, Line } from 'react-konva';
 import BaseCanvasItem from './base-canvas-item';
 import type { CanvasItemProps } from './base-canvas-item';
-import { getThemeRenderer } from '../../../../utils/themes';
-import type { CanvasElement } from '../../../../context/editor-context';
+import { getThemeRenderer } from '../../../../utils/themes-client';
+import { renderThemedBorder, createRectPath, createCirclePath } from '../../../../utils/themed-border';
 
 export default function ThemedShape(props: CanvasItemProps) {
   const { element, isDragging, zoom = 1 } = props;
@@ -202,31 +202,45 @@ export default function ThemedShape(props: CanvasItemProps) {
     );
   }
 
-  // Special handling for Candy and Wobbly themes - use theme renderer with borderElement exactly like textbox-qna.tsx
+  // Special handling for Candy and Wobbly themes - use themed border API
   if ((theme === 'candy' || theme === 'wobbly') && strokeProps.strokeWidth > 0) {
-    // Get raw borderWidth value (not converted), exactly like textbox-qna.tsx does
+    // Get raw borderWidth value (not converted)
     const borderWidth = element.borderWidth || element.strokeWidth || 1;
     
-    // Create borderElement exactly like textbox-qna.tsx does
-    const borderElement = {
-      type: 'rect' as const,
-      id: element.id + '-border',
-      x: 0,
-      y: 0,
-      width: element.width || 0,
-      height: element.height || 0,
+    const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+    
+    // Determine path type based on element type
+    let borderPath;
+    if (element.type === 'circle') {
+      const radius = Math.min(element.width || 0, element.height || 0) / 2;
+      borderPath = createCirclePath(
+        (element.width || 0) / 2,
+        (element.height || 0) / 2,
+        radius
+      );
+    } else {
+      borderPath = createRectPath(0, 0, element.width || 0, element.height || 0);
+    }
+    
+    const borderElement = renderThemedBorder({
+      width: borderWidth,
+      color: finalStrokeColor,
+      opacity: finalBorderOpacity,
       cornerRadius: element.type === 'rect' ? (element.cornerRadius || 0) : 0,
-      stroke: finalStrokeColor,
-      strokeWidth: borderWidth, // Use raw borderWidth value, not converted strokeProps.strokeWidth
-      fill: 'transparent',
-      roughness: theme === 'rough' ? 8 : undefined
-    } as CanvasElement;
+      path: borderPath,
+      theme: theme,
+      themeSettings: {
+        roughness: theme === 'rough' ? 8 : undefined,
+        candyRandomness: element.candyRandomness,
+        candyIntensity: element.candyIntensity,
+        seed: seed
+      },
+      zoom: zoom,
+      strokeScaleEnabled: true,
+      listening: false
+    });
 
-    // Call generatePath and getStrokeProps WITHOUT zoom parameter, exactly like textbox-qna.tsx
-    const borderPathData = renderer.generatePath(borderElement);
-    const borderStrokeProps = renderer.getStrokeProps(borderElement);
-
-    if (borderPathData) {
+    if (borderElement) {
       return (
         <BaseCanvasItem {...props} hitArea={hitArea}>
           <Group listening={false}>
@@ -242,19 +256,8 @@ export default function ThemedShape(props: CanvasItemProps) {
                 perfectDrawEnabled={false}
               />
             )}
-            {/* Border layer using theme renderer - exactly like textbox-qna.tsx */}
-            <Path
-              data={borderPathData}
-              stroke={finalStrokeColor}
-              strokeWidth={borderStrokeProps.strokeWidth || borderWidth}
-              opacity={finalBorderOpacity}
-              fill={borderStrokeProps.fill || 'transparent'}
-              strokeScaleEnabled={true}
-              listening={false}
-              perfectDrawEnabled={false}
-              lineCap="round"
-              lineJoin="round"
-            />
+            {/* Border layer using themed border API */}
+            {borderElement}
           </Group>
         </BaseCanvasItem>
       );
@@ -272,6 +275,8 @@ export default function ThemedShape(props: CanvasItemProps) {
         strokeScaleEnabled={true}
         listening={false}
         perfectDrawEnabled={false}
+        lineCap={(strokeProps.lineCap as 'butt' | 'round' | 'square' | undefined) || 'round'}
+        lineJoin={(strokeProps.lineJoin as 'miter' | 'round' | 'bevel' | undefined) || 'round'}
       />
     </BaseCanvasItem>
   );

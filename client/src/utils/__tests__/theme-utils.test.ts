@@ -3,8 +3,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { getThemeRenderer, themes } from '../themes';
-import type { Theme, ThemeRenderer } from '../themes';
+import { getThemeRenderer, themes } from '../themes-client';
+import type { Theme, ThemeRenderer } from '../themes-client';
 import type { CanvasElement } from '../../context/editor-context';
 
 describe('Theme Utilities', () => {
