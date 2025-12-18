@@ -174,10 +174,16 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
   const answerContent = sanitizedAnswer || 'Antwort hinzufügen...';
   
   // Get tool defaults using theme system
+  // CRITICAL: Use element.theme if present (set during loadBook for pages that inherit book theme)
+  // This matches client-side logic in textbox-qna.tsx line 988-992
+  const elementTheme = element.theme;
+  const pageTheme = elementTheme || pageData.theme || pageData.templateId;
+  const bookTheme = elementTheme || bookData.theme || bookData.templateId;
+  
   const toolDefaults = getToolDefaults(
     'qna',
-    pageData.theme || pageData.templateId,
-    bookData.theme || bookData.templateId,
+    pageTheme,
+    bookTheme,
     element,
     pageData.colorPaletteId,
     bookData.colorPaletteId,

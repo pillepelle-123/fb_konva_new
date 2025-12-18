@@ -177,10 +177,16 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
   const plainAnswerText = answerText ? extractPlainText(answerText, document) : '';
   
   // Get tool defaults using theme system
+  // CRITICAL: Use element.theme if present (set during loadBook for pages that inherit book theme)
+  // This matches client-side logic in textbox-qna-inline.tsx
+  const elementTheme = element.theme;
+  const pageTheme = elementTheme || pageData.theme || pageData.templateId;
+  const bookTheme = elementTheme || bookData.theme || bookData.templateId;
+  
   const toolDefaults = getToolDefaults(
     'qna_inline',
-    pageData.theme || pageData.templateId,
-    bookData.theme || bookData.templateId,
+    pageTheme,
+    bookTheme,
     element,
     pageData.colorPaletteId,
     bookData.colorPaletteId,

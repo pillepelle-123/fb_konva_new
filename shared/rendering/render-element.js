@@ -659,10 +659,15 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
     const finalFill = (!backgroundEnabled || fill === 'transparent') ? undefined : fill;
     
     // Try to get theme defaults
+    // CRITICAL: Use element.theme if present (set during loadBook for pages that inherit book theme)
+    // This matches client-side logic
+    const elementTheme = element.theme;
+    const activeTheme = elementTheme || pageData.theme || pageData.templateId || bookData.theme || bookData.templateId || 'default';
+    
     // Use global function if available (browser context), otherwise fallback to local require (Node.js context)
     const getGlobalThemeDefaultsFunc = (typeof window !== 'undefined' && window.getGlobalThemeDefaults) ? window.getGlobalThemeDefaults : getGlobalThemeDefaults;
     const themeDefaults = getGlobalThemeDefaultsFunc(
-      pageData.theme || pageData.templateId || bookData.theme || bookData.templateId || 'default',
+      activeTheme,
       element.type,
       themesData
     );
