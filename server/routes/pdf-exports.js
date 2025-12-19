@@ -178,8 +178,8 @@ async function loadBookDataFromDB(bookId, userId) {
     name: book.name,
     pageSize: book.page_size,
     orientation: book.orientation,
-    bookTheme: book.book_theme || book.theme_id,
-    themeId: book.theme_id || book.book_theme,
+    bookTheme: book.theme_id, // Use theme_id (book_theme was deprecated)
+    themeId: book.theme_id,
     colorPaletteId: book.color_palette_id,
     pages: pagesResult.rows.map(page => {
       let pageData = {};
