@@ -66,33 +66,10 @@ async function renderPageWithKonva(pageData, bookData, canvasWidth, canvasHeight
   );
   
   // Render all elements in their array order (z-order)
-  // Only sort qna_inline elements by questionOrder if needed
+  // Sort elements by z-order
   const originalElements = pageData.elements || [];
   const elements = originalElements.slice().sort((a, b) => {
-    // qna_inline elements: sort by questionOrder first
-    if (a.textType === 'qna_inline' && b.textType === 'qna_inline') {
-      const orderA = a.questionOrder ?? Infinity;
-      const orderB = b.questionOrder ?? Infinity;
-      if (orderA !== orderB) {
-        return orderA - orderB;
-      }
-      // If order is the same, maintain array order (z-order)
-      const indexA = originalElements.findIndex(el => el.id === a.id);
-      const indexB = originalElements.findIndex(el => el.id === b.id);
-      return indexA - indexB;
-    }
-    
-    // If only one is qna_inline, prioritize it based on questionOrder
-    if (a.textType === 'qna_inline') {
-      const orderA = a.questionOrder ?? Infinity;
-      return orderA === Infinity ? 1 : -1; // qna_inline with order comes first
-    }
-    if (b.textType === 'qna_inline') {
-      const orderB = b.questionOrder ?? Infinity;
-      return orderB === Infinity ? -1 : 1; // qna_inline with order comes first
-    }
-    
-    // For all other elements: maintain array order (z-order)
+    // For all elements: maintain array order (z-order)
     // This preserves the z-order set by MOVE_ELEMENT actions
     const indexA = originalElements.findIndex(el => el.id === a.id);
     const indexB = originalElements.findIndex(el => el.id === b.id);

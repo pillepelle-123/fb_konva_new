@@ -1,5 +1,7 @@
 /**
  * QnA Inline rendering function for PDF export
+ * @deprecated This file is deprecated. Use render-qna.js instead.
+ * qna_inline elements are now handled by qna.
  */
 
 const { renderRuledLines } = require('./render-ruled-lines');
@@ -80,7 +82,7 @@ function getToolDefaults(tool, pageTheme, bookTheme, existingElement, pageColorP
     }
   };
   
-  if (tool !== 'qna_inline') {
+  if (tool !== 'qna' && tool !== 'qna_inline') { // Support both for backward compatibility
     return TOOL_DEFAULTS_QNA_INLINE;
   }
   
@@ -184,7 +186,7 @@ function renderQnAInline(layer, element, pageData, bookData, x, y, width, height
   const bookTheme = elementTheme || bookData.theme || bookData.templateId;
   
   const toolDefaults = getToolDefaults(
-    'qna_inline',
+    'qna', // qna_inline is deprecated, use qna
     pageTheme,
     bookTheme,
     element,

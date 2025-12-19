@@ -192,7 +192,7 @@ export function extractThemeDefaults(
   };
   
   // Find one of each element type
-  const qnaElement = elements.find(el => el.textType === 'qna_inline' || el.type === 'qna_inline');
+  const qnaElement = elements.find(el => el.textType === 'qna' || el.type === 'qna');
   const textElement = elements.find(el => el.textType === 'free_text' || el.type === 'free_text');
   const shapeElement = elements.find(el => 
     el.type === 'rect' || el.type === 'circle' || el.type === 'triangle' || 

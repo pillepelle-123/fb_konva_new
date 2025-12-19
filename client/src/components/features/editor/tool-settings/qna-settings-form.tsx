@@ -37,7 +37,7 @@ const getCurrentFontName = (fontFamily: string) => {
   return "Arial";
 };
 
-interface QnAInlineSettingsFormProps {
+interface QnASettingsFormProps {
   sectionType: 'question' | 'answer' | 'shared';
   element: any;
   state: any;
@@ -58,7 +58,7 @@ interface QnAInlineSettingsFormProps {
   showColorSelector?: string | null;
 }
 
-export function QnAInlineSettingsForm({
+export function QnASettingsForm({
   sectionType,
   element,
   state,
@@ -77,7 +77,7 @@ export function QnAInlineSettingsForm({
   updateAnswerSetting,
   showFontSelector,
   showColorSelector
-}: QnAInlineSettingsFormProps) {
+}: QnASettingsFormProps) {
   const { dispatch } = useEditor();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
   
@@ -105,7 +105,7 @@ export function QnAInlineSettingsForm({
     const pageColorPaletteId = currentPage?.colorPaletteId;
     const bookColorPaletteId = state.currentBook?.colorPaletteId;
     const toolDefaults = getToolDefaults(
-      element.textType === 'qna' ? 'qna' : 'qna_inline',
+      'qna',
       pageTheme,
       bookTheme,
       element,
@@ -141,7 +141,7 @@ export function QnAInlineSettingsForm({
     const pageColorPaletteId = currentPage?.colorPaletteId;
     const bookColorPaletteId = state.currentBook?.colorPaletteId;
     const toolDefaults = getToolDefaults(
-      element.textType === 'qna' ? 'qna' : 'qna_inline',
+      'qna',
       pageTheme,
       bookTheme,
       element,
@@ -179,7 +179,7 @@ export function QnAInlineSettingsForm({
     const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
     const pageColorPaletteId = currentPage?.colorPaletteId;
     const bookColorPaletteId = state.currentBook?.colorPaletteId;
-    return getToolDefaults('qna_inline', pageTheme, bookTheme, element, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
+    return getToolDefaults('qna', pageTheme, bookTheme, element, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
   };
   
   const updateSharedSetting = (key: string, value: any) => {
@@ -1135,7 +1135,7 @@ export function QnAInlineSettingsForm({
               <div className="overflow-hidden">
                 <div className={`flex flex--row transition-transform duration-300 ease-in-out ${activeSection === 'question' ? 'translate-x-0' : '-translate-x-1/2'}`} style={{ width: '200%' }}>
                   <div className="w-1/2 flex-1 flex-shrink-0">
-                    <QnAInlineSettingsForm
+                    <QnASettingsForm
                       sectionType="question"
                       element={element}
                       state={state}
@@ -1149,7 +1149,7 @@ export function QnAInlineSettingsForm({
                     />
                   </div>
                   <div className="w-1/2 flex-1 flex-shrink-0">
-                    <QnAInlineSettingsForm
+                    <QnASettingsForm
                       sectionType="answer"
                       element={element}
                       state={state}

@@ -82,7 +82,7 @@ function applyPaletteToElement(palette, elementType) {
       break;
     }
       
-    case 'qna_inline': {
+    case 'qna': {
       const questionFont = get('qnaQuestionText', 'text', palette.colors.text);
       const questionBg = get('qnaQuestionBackground', 'surface', palette.colors.surface);
       const questionBorder = get('qnaQuestionBorder', 'secondary', palette.colors.secondary);
@@ -149,7 +149,7 @@ function applyPaletteToElement(palette, elementType) {
 /**
  * Get global theme defaults for an element type
  * @param {string} themeId - Theme ID
- * @param {string} elementType - Element type (e.g., 'qna_inline', 'rect', 'text')
+ * @param {string} elementType - Element type (e.g., 'qna', 'rect', 'text')
  * @returns {Object} Theme defaults object
  */
 function getGlobalThemeDefaults(themeId, elementType) {
@@ -159,7 +159,7 @@ function getGlobalThemeDefaults(themeId, elementType) {
   
   const category = elementType === 'question' ? 'question' :
                   elementType === 'answer' ? 'answer' :
-                  ['qna', 'qna2', 'qna_inline', 'free_text'].includes(elementType) ? 'text' :
+                  ['qna', 'free_text'].includes(elementType) ? 'text' :
                   elementType === 'text' ? 'text' :
                   ['image', 'placeholder'].includes(elementType) ? 'image' :
                   elementType === 'brush' ? 'brush' :

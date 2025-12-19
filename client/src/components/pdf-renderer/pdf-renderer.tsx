@@ -499,32 +499,9 @@ export function PDFRenderer({
     const elements = page.elements || [];
     console.log('[DEBUG z-order PDFRenderer] Original elements array:', elements.map((el, idx) => ({ idx, type: el.type, textType: el.textType, id: el.id })));
     
-    // Sort elements respecting z-order (array order) and qna_inline questionOrder
+    // Sort elements respecting z-order (array order)
     const sorted = [...elements].sort((a, b) => {
-      // qna_inline elements: sort by questionOrder first
-      if (a.textType === 'qna_inline' && b.textType === 'qna_inline') {
-        const orderA = (a as any).questionOrder ?? Infinity;
-        const orderB = (b as any).questionOrder ?? Infinity;
-        if (orderA !== orderB) {
-          return orderA - orderB;
-        }
-        // If order is the same, maintain array order (z-order)
-        const indexA = elements.findIndex(el => el.id === a.id);
-        const indexB = elements.findIndex(el => el.id === b.id);
-        return indexA - indexB;
-      }
-      
-      // If only one is qna_inline, prioritize it based on questionOrder
-      if (a.textType === 'qna_inline') {
-        const orderA = (a as any).questionOrder ?? Infinity;
-        return orderA === Infinity ? 1 : -1; // qna_inline with order comes first
-      }
-      if (b.textType === 'qna_inline') {
-        const orderB = (b as any).questionOrder ?? Infinity;
-        return orderB === Infinity ? -1 : 1; // qna_inline with order comes first
-      }
-      
-      // For all other elements: maintain array order (z-order)
+      // For all elements: maintain array order (z-order)
       // This preserves the z-order set by MOVE_ELEMENT actions
       const indexA = elements.findIndex(el => el.id === a.id);
       const indexB = elements.findIndex(el => el.id === b.id);
@@ -869,9 +846,8 @@ export function PDFRenderer({
         const elementOpacity = typeof element.opacity === 'number' ? element.opacity : 1;
         
         // Render QnA elements (standard QnA textbox - textbox-qna.tsx logic)
-        // qna_inline is deprecated and treated as qna
         // RE-ENABLED: use classic QnA rendering path for stability
-        if (element.textType === 'qna' || element.textType === 'qna2' || element.textType === 'qna_inline') {
+        if (element.textType === 'qna') {
           // Get tool defaults for qna
           const currentPage = state.currentBook?.pages?.find(p => p.id === page.id) || page;
           const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
@@ -1411,7 +1387,7 @@ export function PDFRenderer({
               console.log('  linesCount:', ruledLinesRenderedCount);
             } else {
               // Inline layout: position ruled lines based on actual text layout
-              // This matches the logic from textbox-qna-inline.tsx
+              // This matches the logic from textbox-qna.tsx
               if (questionText && answerText) {
                 const canvas = document.createElement('canvas');
                 const context = canvas.getContext('2d')!;
@@ -2629,9 +2605,8 @@ export function PDFRenderer({
           continue;
         }
         // Render QnA elements (standard QnA textbox - textbox-qna.tsx logic)
-        // qna_inline is deprecated and treated as qna
         // NEW shared-layout based QnA rendering path – temporarily disabled
-        if (false && (element.textType === 'qna' || element.textType === 'qna2' || element.textType === 'qna_inline')) {
+        if (false && element.textType === 'qna') {
           // Get tool defaults for qna
           const currentPage = state.currentBook?.pages?.find(p => p.id === page.id) || page;
           const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;

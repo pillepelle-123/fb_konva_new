@@ -375,7 +375,7 @@ export interface CanvasElement {
   fontFamily?: string;
   fontStyle?: 'normal' | 'italic';
   fontColor?: string;
-  textType?: 'question' | 'answer' | 'text' | 'qna' | 'qna2' | 'qna_inline' | 'free_text';
+  textType?: 'question' | 'answer' | 'text' | 'qna' | 'free_text';
   questionId?: string; // UUID - for both question and answer elements
   answerId?: string; // UUID - for answer elements
   questionElementId?: string; // Legacy - for linking answer to question element
@@ -745,7 +745,7 @@ export interface WizardTemplateSelection {
 export interface EditorState {
   currentBook: Book | null;
   activePageIndex: number;
-  activeTool: 'select' | 'text' | 'question' | 'answer' | 'qna' | 'qna2' | 'qna_inline' | 'free_text' | 'image' | 'line' | 'circle' | 'rect' | 'brush' | 'pan' | 'zoom' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley' | 'triangle' | 'polygon' | 'pipette';
+  activeTool: 'select' | 'text' | 'question' | 'answer' | 'qna' | 'free_text' | 'image' | 'line' | 'circle' | 'rect' | 'brush' | 'pan' | 'zoom' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley' | 'triangle' | 'polygon' | 'pipette';
   selectedElementIds: string[];
   isMiniPreview?: boolean;
   selectedGroupedElement?: { groupId: string; elementId: string };
@@ -1234,7 +1234,7 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
           const isShape = element.type !== 'text' && element.type !== 'image' && !element.textType;
           const preservedScaleX = isShape && typeof element.scaleX === 'number' ? element.scaleX : undefined;
           const preservedScaleY = isShape && typeof element.scaleY === 'number' ? element.scaleY : undefined;
-          // Preserve questionId and answerId from element (important for qna_inline elements)
+          // Preserve questionId and answerId from element
           const preservedQuestionId = element.questionId;
           const preservedAnswerId = element.answerId;
           // CRITICAL: Preserve width and height explicitly to prevent them from being overwritten by defaults
@@ -1243,9 +1243,8 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
           
           const mergedElement = mergeElementDefaults(element, themeDefaults);
           
-          // For qna_inline, clean up shared properties from questionSettings/answerSettings
-          // getToolDefaults already cleans themeDefaults, but element might have old structure
-          if (toolType === 'qna_inline' && mergedElement) {
+          // Cleanup logic removed - qna_inline is now handled by qna
+          if (false) {
             const questionSettings = mergedElement.questionSettings || {};
             const answerSettings = mergedElement.answerSettings || {};
             
@@ -1574,9 +1573,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         elementWithDefaults.questionId = uuidv4();
       }
       
-      // For qna_inline, clean up shared properties from questionSettings/answerSettings
-      // Tool settings might contain shared properties in questionSettings/answerSettings
-      if (toolType === 'qna_inline' && elementWithDefaults) {
+      // Cleanup logic removed - qna_inline is now handled by qna
+      if (false) {
         const questionSettings = elementWithDefaults.questionSettings || {};
         const answerSettings = elementWithDefaults.answerSettings || {};
         
@@ -1986,11 +1984,6 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           text: { fontColor: paletteToUse.colors.text || paletteToUse.colors.primary, borderColor: paletteToUse.colors.primary, backgroundColor: paletteToUse.colors.surface || paletteToUse.colors.background },
           question: { fontColor: paletteToUse.colors.text || paletteToUse.colors.primary, borderColor: paletteToUse.colors.primary, backgroundColor: paletteToUse.colors.surface || paletteToUse.colors.background },
           answer: { fontColor: paletteToUse.colors.accent || paletteToUse.colors.text || paletteToUse.colors.primary, borderColor: paletteToUse.colors.primary, backgroundColor: paletteToUse.colors.background },
-          qna_inline: {
-            fontColor: paletteToUse.colors.text || paletteToUse.colors.primary,
-            borderColor: paletteToUse.colors.primary,
-            backgroundColor: paletteToUse.colors.accent || paletteToUse.colors.surface || paletteToUse.colors.background
-          }
         };
         Object.entries(toolUpdates).forEach(([tool, settings]) => {
           toolSettingsForNewPage[tool] = { ...(toolSettingsForNewPage[tool] || {}), ...settings };
@@ -2000,7 +1993,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         const toolUpdates: Record<string, any> = {};
         
         // Get theme defaults for each tool type
-        const toolTypes = ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna_inline'];
+        const toolTypes = ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna'];
         toolTypes.forEach(toolType => {
           const themeDefaults = getToolDefaults(
             toolType as any,
@@ -2680,8 +2673,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
               
               // Apply palette colors based on element type (same logic as APPLY_COLOR_PALETTE)
               if (updatedElement.type === 'text' || updatedElement.textType) {
-                // For qna_inline, font properties are only in questionSettings/answerSettings
-                if (updatedElement.textType === 'qna_inline') {
+                // For qna, font properties are in questionSettings/answerSettings
+                if (updatedElement.textType === 'qna') {
                   // Update QnA specific settings - no nested font objects
                   if (updatedElement.questionSettings) {
                     updates.questionSettings = {
@@ -2731,12 +2724,12 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                 let borderEnabled = updatedElement.border?.enabled !== false;
                 let backgroundEnabled = updatedElement.background?.enabled !== false;
                 
-                if (updatedElement.textType === 'qna_inline') {
+                if (updatedElement.textType === 'qna') {
                   // Get theme defaults to check if border/background should be enabled
                   const pageTheme = action.payload;
                   const bookTheme = action.payload;
                   
-                  const themeDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme, originalElement, undefined, pageLayoutTemplateId, currentBookLayoutTemplateId, pageColorPaletteId, effectiveBookColorPaletteId);
+                  const themeDefaults = getToolDefaults('qna', pageTheme, bookTheme, originalElement, undefined, pageLayoutTemplateId, currentBookLayoutTemplateId, pageColorPaletteId, effectiveBookColorPaletteId);
                   
                   // Check if border is disabled in theme or element
                   const questionBorderEnabled = originalElement.questionSettings?.border?.enabled ?? 
@@ -2814,18 +2807,14 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                 }
                 
                 // Update border/background colors on top-level (only individual properties, no border/background objects)
-                // For qna_inline, border.enabled and background.enabled are already set in questionSettings/answerSettings above
-                // For other text elements, we don't need to set border/background objects
-
-                // Update direct font color properties (only for non-qna_inline text elements)
-                // For qna_inline, font properties are only in questionSettings/answerSettings
-                if (updatedElement.textType !== 'qna_inline') {
+                // Update font color for all text elements
+                if (updatedElement.textType !== 'qna') {
                   updates.fontColor = effectivePaletteForElement.colors.text;
                   updates.fill = effectivePaletteForElement.colors.text;
                   updates.borderColor = effectivePaletteForElement.colors.primary;
                   updates.backgroundColor = effectivePaletteForElement.colors.accent;
                 } else {
-                  // For qna_inline, only update border/background colors on top-level (font colors are in questionSettings/answerSettings)
+                  // For qna, only update border/background colors on top-level (font colors are in questionSettings/answerSettings)
                   updates.borderColor = effectivePaletteForElement.colors.primary;
                   updates.backgroundColor = effectivePaletteForElement.colors.accent;
                 }
@@ -3656,9 +3645,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           }
         }
         
-        // Convert textSettings to questionSettings/answerSettings for qna_inline elements
+        // Convert textSettings to questionSettings/answerSettings for qna elements
         // Shared properties are set on top-level, only font properties go to questionSettings/answerSettings
-        if (targetElementType === 'qna_inline' && styleToApply.textSettings) {
+        if (targetElementType === 'qna' && styleToApply.textSettings) {
           const textSettings = styleToApply.textSettings;
           if (!styleToApply.questionSettings) {
             styleToApply.questionSettings = {
@@ -3702,7 +3691,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           if (textSettings.ruledLinesColor !== undefined) styleToApply.ruledLinesColor = textSettings.ruledLinesColor || targetElement.ruledLinesColor;
           if (textSettings.ruledLinesOpacity !== undefined) styleToApply.ruledLinesOpacity = textSettings.ruledLinesOpacity ?? targetElement.ruledLinesOpacity;
           if (textSettings.ruledLinesTheme !== undefined) styleToApply.ruledLinesTheme = textSettings.ruledLinesTheme || targetElement.ruledLinesTheme;
-          // Remove textSettings as it doesn't apply to qna_inline
+          // Remove textSettings as it doesn't apply to qna
           delete styleToApply.textSettings;
         }
         
@@ -4238,8 +4227,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             
             // Apply palette colors based on element type - always override manual colors
             if (element.type === 'text' || element.textType) {
-              // For qna_inline, font properties are only in questionSettings/answerSettings
-              if (element.textType === 'qna_inline') {
+              // For qna, font properties are only in questionSettings/answerSettings
+              if (element.textType === 'qna') {
                 // Update QnA specific settings - no nested font objects
                 if (element.questionSettings) {
                   updates.questionSettings = {
@@ -4295,7 +4284,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
               let borderEnabled = element.border?.enabled !== false;
               let backgroundEnabled = element.background?.enabled !== false;
               
-              if (element.textType === 'qna_inline') {
+              if (element.textType === 'qna') {
                 // Get theme defaults to check if border/background should be enabled
                 const pageTheme = page.background?.pageTheme || page.themeId;
                 const bookTheme = updatedBookApplyPalette.bookTheme;
@@ -4304,7 +4293,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                 const pageColorPaletteId = page.colorPaletteId;
                 const bookColorPaletteId = updatedBookApplyPalette.colorPaletteId;
                 
-                const themeDefaults = getToolDefaults('qna_inline', pageTheme, bookTheme, element, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
+                const themeDefaults = getToolDefaults('qna', pageTheme, bookTheme, element, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
                 
                 // Check if border is disabled in theme or element
                 const questionBorderEnabled = element.questionSettings?.border?.enabled ?? 
@@ -4394,10 +4383,10 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
               }
               
               // Update border/background colors on top-level (only individual properties, no border/background objects)
-              // For qna_inline, border.enabled and background.enabled are already set in questionSettings/answerSettings above
+              // For qna, border.enabled and background.enabled are already set in questionSettings/answerSettings above
               // For other text elements, we don't need to set border/background objects
-              if (element.textType === 'qna_inline') {
-                // Border and background colors are already set above for qna_inline
+              if (element.textType === 'qna') {
+                // Border and background colors are already set above for qna
               } else {
                 // For other text elements, update border/background colors on top-level
                 const currentBorderEnabled = element.border?.enabled !== false;
@@ -5209,12 +5198,12 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         }
       });
       
-      // Set questionOrder on qna_inline elements based on display_order
+      // Set questionOrder on qna elements based on display_order
       // This must happen BEFORE the log, so the log shows the updated values
       if (questionOrderMap.size > 0) {
         pagesWithPlaceholders.forEach((page, pageIndex) => {
           page.elements.forEach((element) => {
-            if (element.textType === 'qna_inline' && element.questionId) {
+            if (element.textType === 'qna' && element.questionId) {
               const displayOrder = questionOrderMap.get(element.questionId);
               if (displayOrder !== undefined) {
                 // Always update questionOrder, even if it's the same value
@@ -5386,12 +5375,12 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       .filter(([_, user]) => user?.id === userId)
       .map(([pageNum, _]) => parseInt(pageNum));
     
-    // Get all questions on those pages (including qna_inline)
+    // Get all questions on those pages (including qna)
     const assignedQuestions = new Set<string>();
     state.currentBook.pages.forEach(page => {
       if (userPages.includes(page.pageNumber)) {
         page.elements.forEach(element => {
-          if ((element.textType === 'question' || element.textType === 'qna' || element.textType === 'qna_inline') && element.questionId) {
+          if ((element.textType === 'question' || element.textType === 'qna') && element.questionId) {
             assignedQuestions.add(element.questionId);
           }
         });
@@ -5411,10 +5400,10 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     const targetPage = state.currentBook.pages.find(p => p.pageNumber === pageNumber);
     if (!targetPage) return [];
     
-    // Get all questions on the target page (including qna_inline)
+    // Get all questions on the target page (including qna)
     const targetQuestions = new Set<string>();
     targetPage.elements.forEach(element => {
-      if ((element.textType === 'question' || element.textType === 'qna' || element.textType === 'qna_inline') && element.questionId) {
+      if ((element.textType === 'question' || element.textType === 'qna') && element.questionId) {
         targetQuestions.add(element.questionId);
         // Initialize conflict entry for this question
         if (!conflictsMap.has(element.questionId)) {
@@ -5432,7 +5421,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         const assignedUser = state.pageAssignments[page.pageNumber];
         if (assignedUser && assignedUser.id === userId) {
           page.elements.forEach(element => {
-            if ((element.textType === 'question' || element.textType === 'qna' || element.textType === 'qna_inline') && element.questionId && targetQuestions.has(element.questionId)) {
+            if ((element.textType === 'question' || element.textType === 'qna') && element.questionId && targetQuestions.has(element.questionId)) {
               // Add this page number to the conflict for this question
               const conflict = conflictsMap.get(element.questionId);
               if (conflict) {
@@ -5467,11 +5456,11 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       .filter(([_, user]) => user?.id === userId)
       .map(([pageNum, _]) => parseInt(pageNum));
     
-    // Check if question exists on any of these pages (including qna_inline)
+    // Check if question exists on any of these pages (including qna)
     for (const page of state.currentBook.pages) {
       if (userPages.includes(page.pageNumber)) {
         const hasQuestion = page.elements.some(el => 
-          (el.textType === 'question' || el.textType === 'qna' || el.textType === 'qna_inline') && el.questionId === questionId
+          (el.textType === 'question' || el.textType === 'qna') && el.questionId === questionId
         );
         if (hasQuestion) {
           return false; // Question already exists on a page assigned to this user
@@ -5689,7 +5678,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       // No user assigned, only check if question already exists on current page
       if (currentPage) {
         const hasQuestion = currentPage.elements.some(el => 
-          (el.textType === 'question' || el.textType === 'qna' || el.textType === 'qna_inline') && el.questionId === questionId
+          (el.textType === 'question' || el.textType === 'qna') && el.questionId === questionId
         );
         if (hasQuestion) {
           return { valid: false, reason: 'This question already exists on this page.' };
@@ -5698,7 +5687,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       return { valid: true };
     }
     
-    // Check if this question is already used by this user on another page (including qna_inline)
+    // Check if this question is already used by this user on another page (including qna)
     const isAvailable = isQuestionAvailableForUser(questionId, assignedUser.id);
     if (!isAvailable) {
       return { 
@@ -5837,7 +5826,7 @@ function applyThemeAndPaletteToElement(
     };
   }
 
-  if (element.textType === 'qna_inline') {
+  if (element.textType === 'qna') {
     // getToolDefaults already cleans shared properties from questionSettings/answerSettings
     // Only font properties and border.enabled/background.enabled remain in themeDefaults.questionSettings/answerSettings
     if (themeDefaults.questionSettings || element.questionSettings) {

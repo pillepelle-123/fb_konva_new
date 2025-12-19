@@ -77,7 +77,7 @@ function calculateBaseFontSize(elements: CanvasElement[]): number | undefined {
 }
 
 /**
- * Extracts layout information (position and size) from qna_inline textboxes and images
+ * Extracts layout information (position and size) from qna textboxes and images
  * and converts them to PageTemplate format for layout.json
  */
 export function extractLayoutTemplate(
@@ -90,18 +90,18 @@ export function extractLayoutTemplate(
   const textboxes: any[] = [];
   const layoutElements: any[] = [];
 
-  // Filter and process qna_inline elements
+  // Filter and process qna elements
   const qnaElements = elements.filter(
-    el => el.textType === 'qna_inline' || el.type === 'qna_inline'
+    el => el.textType === 'qna' || el.textType === 'qna_inline' || el.textType === 'qna2' || el.type === 'qna' || el.type === 'qna_inline' || el.type === 'qna2'
   );
 
   // Filter and process image elements
   const imageElements = elements.filter(el => el.type === 'image');
 
-  // Process qna_inline textboxes
+  // Process qna textboxes
   qnaElements.forEach(element => {
     const textbox: any = {
-      type: 'qna_inline',
+      type: 'qna',
       position: {
         x: element.x || 0,
         y: element.y || 0

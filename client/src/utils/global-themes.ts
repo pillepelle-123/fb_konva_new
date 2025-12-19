@@ -331,8 +331,7 @@ function getThemeCategory(elementType: string): keyof GlobalTheme['elementDefaul
     case 'answer':
       return 'answer';
     case 'qna':
-    case 'qna2':
-    case 'qna_inline':
+    case 'qna':
     case 'free_text':
       return 'text'; // QnA uses text defaults as base
     case 'text':
@@ -508,74 +507,6 @@ function getBaseDefaultsForType(elementType: string): any {
         fontSize: 50
       }
     },
-    qna2: {
-      fontSize: 50,
-      fontFamily: 'Arial, sans-serif',
-      fontWeight: 'normal',
-      fontStyle: 'normal',
-      fontColor: '#000000',
-      align: 'left',
-      paragraphSpacing: 'medium',
-      ruledLines: false,
-      ruledLinesTheme: 'rough',
-      ruledLinesColor: '#1f2937',
-      ruledLinesWidth: 1,
-      cornerRadius: 0,
-      borderWidth: 0,
-      borderColor: '#000000',
-      backgroundColor: 'transparent',
-      padding: 4,
-      questionSettings: {
-        fontSize: 45,
-        fontColor: '#666666'
-      },
-      answerSettings: {
-        fontSize: 50,
-        fontColor: '#1f2937'
-      }
-    },
-    qna_inline: {
-      fontSize: 50,
-      fontFamily: 'Arial, sans-serif',
-      fontWeight: 'normal',
-      fontStyle: 'normal',
-      fontColor: '#000000',
-      align: 'left',
-      paragraphSpacing: 'medium',
-      ruledLines: false,
-      ruledLinesTheme: 'rough',
-      ruledLinesColor: '#1f2937',
-      ruledLinesWidth: 1,
-      cornerRadius: 0,
-      borderWidth: 0,
-      borderColor: '#000000',
-      backgroundColor: 'transparent',
-      padding: 4,
-      questionSettings: {
-        fontSize: 45,
-        fontFamily: 'Arial, sans-serif',
-        fontColor: '#666666',
-        fontBold: false,
-        fontItalic: false,
-        fontOpacity: 1,
-        align: 'left',
-        paragraphSpacing: 'small',
-        ruledLines: false,
-        padding: 4
-      },
-      answerSettings: {
-        fontSize: 50,
-        fontFamily: 'Arial, sans-serif',
-        fontColor: '#1f2937',
-        fontBold: false,
-        fontItalic: false,
-        fontOpacity: 1,
-        align: 'left',
-        paragraphSpacing: 'medium',
-        ruledLines: false,
-        padding: 4
-      }
-    },
     free_text: {
       fontSize: 50,
       fontFamily: 'Arial, sans-serif',
@@ -632,25 +563,8 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string): Pa
   const themeConfig = (themesData as Record<string, any>)[themeId];
   const palette = themeConfig?.palette ? getPalette(themeConfig.palette) : undefined;
   
-  // For QnA inline elements, use specialized function that already applies palette colors
-  if (elementType === 'qna_inline') {
-    const qnaDefaults = getQnAInlineThemeDefaults(themeId);
-    // Add top-level palette colors for consistency
-    // CRITICAL: Also add theme property so elements know which theme to use
-    // Merge with base defaults to ensure all properties are present
-    return {
-      ...baseDefaults,
-      ...qnaDefaults,
-      theme: themeId, // Add theme property so elements know which theme to use
-      fontColor: palette ? (palette.colors.text || palette.colors.primary) : baseDefaults.fontColor,
-      borderColor: palette ? palette.colors.secondary : baseDefaults.borderColor,
-      backgroundColor: palette ? (palette.colors.surface || palette.colors.background) : baseDefaults.backgroundColor,
-      ruledLinesColor: palette ? (palette.colors.accent || palette.colors.primary) : baseDefaults.ruledLinesColor
-    };
-  }
-  
-  // For QnA elements (qna, qna2), convert fontSize in questionSettings and answerSettings from common to actual
-  if (elementType === 'qna' || elementType === 'qna2') {
+  // For QnA elements, convert fontSize in questionSettings and answerSettings from common to actual
+  if (elementType === 'qna') {
     const category = getThemeCategory(elementType);
     const themeDefaults = theme.elementDefaults[category] || {};
     

@@ -417,7 +417,7 @@ export function GeneralSettings({
             // Reset tool settings zu Theme-Defaults (ohne Palettenfarben)
             const pageLayoutTemplateId = currentPage.layoutTemplateId;
             const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
-            const toolTypes = ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna_inline', 'free_text'];
+            const toolTypes = ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna', 'free_text'];
             const toolUpdates: Record<string, any> = {};
             
             toolTypes.forEach(toolType => {
@@ -518,7 +518,7 @@ export function GeneralSettings({
             
             // Tool-Defaults auf Theme-Farben zurücksetzen (ohne Palette)
             const bookLayoutTemplateId = state.currentBook.layoutTemplateId;
-            const toolTypes = ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna_inline', 'free_text'];
+            const toolTypes = ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna', 'free_text'];
             const toolUpdates: Record<string, any> = {};
             
             toolTypes.forEach(toolType => {

@@ -1248,7 +1248,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     }
 
     // Block adding new elements if elements are locked
-    if (lockElements && ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna', 'qna2', 'qna_inline', 'free_text'].includes(state.activeTool)) {
+    if (lockElements && ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna', 'free_text'].includes(state.activeTool)) {
       // Allow selection tool to work for selecting elements
       if (state.activeTool !== 'select') {
         return;
@@ -1314,7 +1314,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           setPreviewShape({ x, y, width: 0, height: 0, type: state.activeTool });
         }
       }
-    } else if (state.activeTool === 'text' || state.activeTool === 'question' || state.activeTool === 'answer' || state.activeTool === 'qna' || state.activeTool === 'qna2' || state.activeTool === 'qna_inline' || state.activeTool === 'free_text') {
+    } else if (state.activeTool === 'text' || state.activeTool === 'question' || state.activeTool === 'answer' || state.activeTool === 'qna' || state.activeTool === 'free_text') {
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
         const x = (pos.x - stagePos.x) / zoom - activePageOffsetX;
@@ -1326,10 +1326,6 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           // Only allow starting text boxes inside the active page
           if (x < 0 || y < 0 || x > canvasWidth || y > canvasHeight) {
             showOutsidePageTooltip(e.evt.clientX, e.evt.clientY);
-            return;
-          }
-          if (state.activeTool === 'qna_inline' && isCoverPage) {
-            showCoverRestrictionAlert('Q&A inline elements cannot be placed on cover pages.');
             return;
           }
           setIsDrawingTextbox(true);
@@ -1960,59 +1956,6 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
             questionSettings: qnaDefaults.questionSettings,
             answerSettings: qnaDefaults.answerSettings
           };
-        } else if (previewTextbox.type === 'qna2') {
-          const templateIds = getTemplateIdsForDefaults();
-          const qna2Defaults = getToolDefaults(
-            'qna2',
-            templateIds.pageTheme,
-            templateIds.bookTheme,
-            undefined,
-            state.toolSettings?.qna2,
-            templateIds.pageLayoutTemplateId,
-            templateIds.bookLayoutTemplateId,
-            templateIds.pageColorPaletteId,
-            templateIds.bookColorPaletteId
-          );
-          newElement = {
-            id: uuidv4(),
-            type: 'text',
-            x: previewTextbox.x,
-            y: previewTextbox.y,
-            width: previewTextbox.width,
-            height: previewTextbox.height,
-            ...qna2Defaults, // Apply ALL defaults
-            text: '',
-            fontFamily: qna2Defaults.fontFamily,
-            textType: 'qna2',
-            questionSettings: qna2Defaults.questionSettings,
-            answerSettings: qna2Defaults.answerSettings
-          };
-        } else if (previewTextbox.type === 'qna_inline') {
-          const templateIds = getTemplateIdsForDefaults();
-          const qnaInlineDefaults = getToolDefaults(
-            'qna_inline',
-            templateIds.pageTheme,
-            templateIds.bookTheme,
-            undefined,
-            state.toolSettings?.qna_inline,
-            templateIds.pageLayoutTemplateId,
-            templateIds.bookLayoutTemplateId,
-            templateIds.pageColorPaletteId,
-            templateIds.bookColorPaletteId
-          );
-          newElement = {
-            id: uuidv4(),
-            type: 'text',
-            x: previewTextbox.x,
-            y: previewTextbox.y,
-            width: previewTextbox.width,
-            height: previewTextbox.height,
-            ...qnaInlineDefaults, // Apply ALL defaults
-            text: '',
-            textType: 'qna_inline',
-            questionSettings: qnaInlineDefaults.questionSettings,
-            answerSettings: qnaInlineDefaults.answerSettings
-          };
         } else if (previewTextbox.type === 'free_text') {
           const templateIds = getTemplateIdsForDefaults();
           const freeTextDefaults = getToolDefaults(
@@ -2307,7 +2250,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     if (isCoverPage) {
       const hasQnaInline = state.selectedElementIds.some((elementId) => {
         const element = currentPage.elements.find((el) => el.id === elementId);
-        return element?.textType === 'qna_inline';
+        return false;
       });
       if (hasQnaInline) {
         showCoverRestrictionAlert('Q&A inline elements cannot be placed on cover pages.');
@@ -2333,13 +2276,13 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           id: newId,
           x: element.x + 20,
           y: element.y + 20,
-          // Clear text for question-answer pairs and qna_inline
-          text: (element.textType === 'question' || element.textType === 'answer' || element.textType === 'qna_inline') ? '' : element.text,
-          formattedText: (element.textType === 'question' || element.textType === 'answer' || element.textType === 'qna_inline') ? '' : element.formattedText,
+          // Clear text for question-answer pairs
+          text: (element.textType === 'question' || element.textType === 'answer') ? '' : element.text,
+          formattedText: (element.textType === 'question' || element.textType === 'answer') ? '' : element.formattedText,
           // Clear question styling for duplicated questions
           fontColor: element.textType === 'question' ? '#9ca3af' : (element.fontColor || element.fill),
-          // Clear questionId for qna_inline to reset question assignment
-          questionId: (element.textType === 'question' || element.textType === 'qna_inline') ? undefined : element.questionId,
+          // Clear questionId for question elements
+          questionId: (element.textType === 'question') ? undefined : element.questionId,
           // Update questionElementId reference for answer elements
           questionElementId: element.questionElementId ? idMapping.get(element.questionElementId) : element.questionElementId
         };
@@ -2433,7 +2376,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     const x = (lastMousePos.x - stagePos.x) / zoom - activePageOffsetX;
     const y = (lastMousePos.y - stagePos.y) / zoom - pageOffsetY;
 
-    const filteredClipboard = isCoverPage ? clipboard.filter((element) => element.textType !== 'qna_inline') : clipboard;
+    const filteredClipboard = clipboard;
     if (isCoverPage && filteredClipboard.length < clipboard.length) {
       showCoverRestrictionAlert('Q&A inline elements cannot be placed on cover pages.');
     }
@@ -2463,13 +2406,13 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         x: x + (element.x - minX),
         y: y + (element.y - minY),
         pageId: state.currentBook?.pages[state.activePageIndex]?.id, // Track source page
-        // Clear text for question, answer, and qna_inline when pasting
-        text: (element.textType === 'question' || element.textType === 'answer' || element.textType === 'qna_inline') ? '' : element.text,
-        formattedText: (element.textType === 'question' || element.textType === 'answer' || element.textType === 'qna_inline') ? '' : element.formattedText,
+        // Clear text for question and answer when pasting
+        text: (element.textType === 'question' || element.textType === 'answer') ? '' : element.text,
+        formattedText: (element.textType === 'question' || element.textType === 'answer') ? '' : element.formattedText,
         // Clear question styling for pasted questions
         fontColor: element.textType === 'question' ? '#9ca3af' : (element.fontColor || element.fill),
-        // Clear questionId for qna_inline to reset question assignment
-        questionId: (element.textType === 'question' || element.textType === 'qna_inline') ? undefined : element.questionId,
+        // Clear questionId for question elements to reset question assignment
+        questionId: (element.textType === 'question') ? undefined : element.questionId,
         // Update questionElementId reference for answer elements
         questionElementId: element.questionElementId ? idMapping.get(element.questionElementId) : element.questionElementId
       };
@@ -3252,7 +3195,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           // Trigger auto-size for selected textbox elements
           state.selectedElementIds.forEach(elementId => {
             const element = currentPage?.elements.find(el => el.id === elementId);
-            if (element?.type === 'text' && element?.textType === 'qna_inline') {
+            if (false) {
               window.dispatchEvent(new CustomEvent('triggerAutoSize', {
                 detail: { elementId }
               }));
@@ -3351,7 +3294,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       if (selectedQuestionElementId) {
         const element = currentPage?.elements.find(el => el.id === selectedQuestionElementId);
                 
-        if (element && (element.textType === 'qna' || element.textType === 'question' || element.textType === 'qna2' || element.textType === 'qna_inline')) {
+        if (element && (element.textType === 'qna' || element.textType === 'question')) {
           // Validate: Check if question already exists on this page (excluding current element)
           if (questionId && currentPage) {
             const questionsOnPage = currentPage.elements
@@ -3394,7 +3337,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         return;
       }
       const element = currentPage?.elements.find(el => el.id === event.detail.elementId);
-      if (element && (element.textType === 'question' || element.textType === 'qna' || element.textType === 'qna2' || element.textType === 'qna_inline')) {
+      if (element && (element.textType === 'question' || element.textType === 'qna')) {
         setSelectedQuestionElementId(element.id);
         setShowQuestionDialog(true);
       }
@@ -3406,7 +3349,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         return;
       }
       const element = currentPage?.elements.find(el => el.id === event.detail.elementId);
-      if (element && (element.textType === 'qna_inline' || element.textType === 'qna')) {
+      if (element && element.textType === 'qna') {
         setQuestionSelectorElementId(element.id);
         setShowQuestionSelectorModal(true);
       }
@@ -4009,30 +3952,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                 const sorted = elements
                   .slice() // Create a copy to avoid mutating the original array
                   .sort((a, b) => {
-                    // qna_inline elements: sort by questionOrder first
-                    if (a.textType === 'qna_inline' && b.textType === 'qna_inline') {
-                      const orderA = a.questionOrder ?? Infinity;
-                      const orderB = b.questionOrder ?? Infinity;
-                      if (orderA !== orderB) {
-                        return orderA - orderB;
-                      }
-                      // If order is the same, maintain array order (z-order)
-                      const indexA = elements.findIndex(el => el.id === a.id);
-                      const indexB = elements.findIndex(el => el.id === b.id);
-                      return indexA - indexB;
-                    }
-                    
-                    // If only one is qna_inline, prioritize it based on questionOrder
-                    if (a.textType === 'qna_inline') {
-                      const orderA = a.questionOrder ?? Infinity;
-                      return orderA === Infinity ? 1 : -1; // qna_inline with order comes first
-                    }
-                    if (b.textType === 'qna_inline') {
-                      const orderB = b.questionOrder ?? Infinity;
-                      return orderB === Infinity ? -1 : 1; // qna_inline with order comes first
-                    }
-                    
-                    // For all other elements: maintain array order (z-order)
+                    // For all elements: maintain array order (z-order)
                     // This preserves the z-order set by MOVE_ELEMENT actions
                     const indexA = elements.findIndex(el => el.id === a.id);
                     const indexB = elements.findIndex(el => el.id === b.id);
@@ -4373,30 +4293,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                   const sorted = elements
                     .slice()
                     .sort((a, b) => {
-                      // qna_inline elements: sort by questionOrder first
-                      if (a.textType === 'qna_inline' && b.textType === 'qna_inline') {
-                        const orderA = a.questionOrder ?? Infinity;
-                        const orderB = b.questionOrder ?? Infinity;
-                        if (orderA !== orderB) {
-                          return orderA - orderB;
-                        }
-                        // If order is the same, maintain array order (z-order)
-                        const indexA = elements.findIndex(el => el.id === a.id);
-                        const indexB = elements.findIndex(el => el.id === b.id);
-                        return indexA - indexB;
-                      }
-                      
-                      // If only one is qna_inline, prioritize it based on questionOrder
-                      if (a.textType === 'qna_inline') {
-                        const orderA = a.questionOrder ?? Infinity;
-                        return orderA === Infinity ? 1 : -1;
-                      }
-                      if (b.textType === 'qna_inline') {
-                        const orderB = b.questionOrder ?? Infinity;
-                        return orderB === Infinity ? -1 : 1;
-                      }
-                      
-                      // For all other elements: maintain array order (z-order)
+                      // For all elements: maintain array order (z-order)
                       const indexA = elements.findIndex(el => el.id === a.id);
                       const indexB = elements.findIndex(el => el.id === b.id);
                       return indexA - indexB;
@@ -4721,9 +4618,9 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                   
                   const element = currentPage?.elements.find(el => el.id === elementId);
                   if (element) {
-                    // Skip dimension updates for qna/qna2 elements - they handle their own resize logic
+                    // Skip dimension updates for qna elements - they handle their own resize logic
                     // The textbox-qna.tsx component manages dimensions during transform
-                    if (element.type === 'text' && (element.textType === 'qna' || element.textType === 'qna2')) {
+                    if (element.type === 'text' && element.textType === 'qna') {
                       // Only update position and rotation, not dimensions
                       // Dimensions are handled by textbox-qna.tsx's handleTransformEnd
                       const updates: any = {
@@ -4801,7 +4698,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                           groupNode.scaleY(1);
                         }
                       } else {
-                        // For text elements (except qna/qna2 which are handled above), use Group node
+                        // For text elements (except qna which is handled above), use Group node
                       const scaleX = node.scaleX();
                       const scaleY = node.scaleY();
                       
@@ -5018,7 +4915,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                 if (selectedQuestionElementId) {
                   const element = currentPage?.elements.find(el => el.id === selectedQuestionElementId);
                   
-                  if (element?.textType === 'qna' || element?.textType === 'qna2' || element?.textType === 'qna_inline') {
+                  if (element?.textType === 'qna') {
                     // For QnA elements, update the element with questionId and load existing answer
                     const updates = questionId === '' 
                       ? { questionId: undefined }
@@ -5159,15 +5056,15 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
             if (questionSelectorElementId) {
               const element = currentPage?.elements.find(el => el.id === questionSelectorElementId);
               
-              if (element && element.textType === 'qna_inline') {
-                // Calculate question order: use provided position, or count existing qna_inline elements
+              if (element && element.textType === 'qna') {
+                // Calculate question order: use provided position, or count existing qna elements
                 let order = questionPosition;
                 if (order === undefined && currentPage) {
-                  const qnaInlineElements = currentPage.elements.filter(
-                    el => el.textType === 'qna_inline' && el.questionOrder !== undefined
+                  const qnaElements = currentPage.elements.filter(
+                    el => el.textType === 'qna' && el.questionOrder !== undefined
                   );
-                  order = qnaInlineElements.length > 0 
-                    ? Math.max(...qnaInlineElements.map(el => el.questionOrder || 0)) + 1
+                  order = qnaElements.length > 0 
+                    ? Math.max(...qnaElements.map(el => el.questionOrder || 0)) + 1
                     : 0;
                 }
                 

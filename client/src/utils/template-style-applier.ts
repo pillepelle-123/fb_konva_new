@@ -13,9 +13,9 @@ export function applyTextboxStyle(element: any, style?: TextboxStyle): any {
 
   // Apply only primary layout properties from format section
   if (style.format) {
-    // For qna_inline, align is on top-level, not in format.textAlign
+    // For qna, align is on top-level, not in format.textAlign
     if (style.format.textAlign) {
-      if (styledElement.textType === 'qna_inline') {
+      if (styledElement.textType === 'qna' || styledElement.textType === 'qna_inline' || styledElement.textType === 'qna2') {
         styledElement.align = style.format.textAlign;
       } else {
         styledElement.format = styledElement.format || {};
@@ -26,7 +26,7 @@ export function applyTextboxStyle(element: any, style?: TextboxStyle): any {
     if (style.format.padding) styledElement.padding = style.format.padding;
   }
 
-  // Note: fontSize is handled separately in questionSettings/answerSettings for qna_inline
+  // Note: fontSize is handled separately in questionSettings/answerSettings for qna
   // or directly on element for free_text, not from style.font.fontSize
 
   // All other styling properties (fontFamily, fontBold, fontItalic, fontOpacity, 

@@ -200,7 +200,7 @@ async function loadBookDataFromDB(bookId, userId) {
       
       // Debug: Log all elements to check if fillOpacity is present, especially QnA elements
       elements.forEach((element, index) => {
-        if (element.textType === 'qna' || element.textType === 'qna_inline' || element.type === 'rect') {
+        if (element.textType === 'qna' || element.type === 'rect') {
           console.log(`[DEBUG pdf-exports] Element ${index} from DB:`, {
             id: element.id,
             type: element.type,

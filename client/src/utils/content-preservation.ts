@@ -69,8 +69,8 @@ export function applyLayoutTemplateWithPreservation(
   if (unmappedExisting.length > 0) {
     // Filter to only keep elements with content
     const elementsWithContent = unmappedExisting.filter(element => {
-      // For qna_inline textboxes: has content if questionId is set OR text/formattedText has content
-      if (element.textType === 'qna_inline') {
+      // For qna textboxes: has content if questionId is set OR text/formattedText has content
+      if (element.textType === 'qna' || element.textType === 'qna_inline' || element.textType === 'qna2') {
         const hasQuestionId = !!element.questionId;
         const hasText = !!(element.text && element.text.trim() && element.text !== 'Double-click to add text...');
         const hasFormattedText = !!(element.formattedText && element.formattedText.trim() && !element.formattedText.includes('Double-click to add text'));
@@ -154,12 +154,12 @@ function createSmartMappings(
   const usedExisting = new Set<string>();
   const usedTemplate = new Set<string>();
   
-  // Priority: qna_inline elements should be mapped first to ensure they get layout positions
-  const qnaInlineElements = existingElements.filter(el => el.textType === 'qna_inline');
-  const otherTextElements = existingElements.filter(el => el.textType !== 'qna_inline');
+  // Priority: qna elements should be mapped first to ensure they get layout positions
+  const qnaElements = existingElements.filter(el => el.textType === 'qna' || el.textType === 'qna_inline' || el.textType === 'qna2');
+  const otherTextElements = existingElements.filter(el => el.textType !== 'qna' && el.textType !== 'qna_inline' && el.textType !== 'qna2');
   
-  // First pass: exact type matches, prioritizing qna_inline
-  [...qnaInlineElements, ...otherTextElements].forEach(existing => {
+  // First pass: exact type matches, prioritizing qna
+  [...qnaElements, ...otherTextElements].forEach(existing => {
     if (usedExisting.has(existing.id)) return;
     
     const matchingSlot = templateSlots.find(slot => 
@@ -178,14 +178,14 @@ function createSmartMappings(
     }
   });
   
-  // Second pass: compatible type matches, prioritizing qna_inline to qna_inline slots
-  qnaInlineElements.forEach(existing => {
+  // Second pass: compatible type matches, prioritizing qna to qna slots
+  qnaElements.forEach(existing => {
     if (usedExisting.has(existing.id)) return;
     
-    // Try to find qna_inline slots first
+    // Try to find qna slots first
     const qnaSlot = templateSlots.find(slot => 
       !usedTemplate.has(slot.id) && 
-      slot.textType === 'qna_inline'
+      (slot.textType === 'qna' || slot.textType === 'qna_inline' || slot.textType === 'qna2')
     );
     
     if (qnaSlot) {
@@ -264,11 +264,12 @@ function isTypeCompatible(
 ): boolean {
   // Define compatibility rules
   const compatibilityMap: Record<string, string[]> = {
-    'question': ['text', 'qna_inline'],
-    'answer': ['text', 'qna_inline'],
-    'text': ['question', 'answer', 'qna_inline'],
-    'qna_inline': ['question', 'answer', 'text'],
-    'qna': ['qna_inline', 'text']
+    'question': ['text', 'qna'],
+    'answer': ['text', 'qna'],
+    'text': ['question', 'answer', 'qna'],
+    'qna': ['question', 'answer', 'text'],
+    'qna_inline': ['qna', 'question', 'answer', 'text'], // Backward compatibility
+    'qna2': ['qna', 'question', 'answer', 'text'] // Backward compatibility
   };
   
   if (!existingType || !templateType) return true;

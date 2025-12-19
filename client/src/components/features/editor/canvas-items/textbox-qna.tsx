@@ -996,8 +996,8 @@ export default function TextboxQna(props: CanvasItemProps) {
   const bookColorPaletteId = state.currentBook?.colorPaletteId;
 
   const qnaDefaults = useMemo(() => {
-    // Use 'qna_inline' if element is qna_inline, otherwise 'qna'
-    const toolType = (element.textType === 'qna_inline' || element.type === 'qna_inline') ? 'qna_inline' : 'qna';
+    // Use 'qna' for all QnA elements
+    const toolType = 'qna';
     return getToolDefaults(
       toolType,
       pageTheme,

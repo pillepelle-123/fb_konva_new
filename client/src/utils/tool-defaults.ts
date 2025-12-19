@@ -8,7 +8,7 @@ import { colorPalettes, applyPaletteToElement } from '../data/templates/color-pa
 export type ToolType = 
   | 'line' | 'brush' | 'rect' | 'circle' | 'heart' | 'star' | 'speech-bubble' 
   | 'dog' | 'cat' | 'smiley' | 'triangle' | 'polygon'
-  | 'text' | 'question' | 'answer' | 'qna' | 'qna2' | 'qna_inline' | 'free_text';
+  | 'text' | 'question' | 'answer' | 'qna' | 'free_text';
 
 export function getToolDefaults(
   tool: ToolType, 
@@ -56,8 +56,8 @@ export function getToolDefaults(
       ...(currentToolSettings.backgroundColor && { backgroundColor: currentToolSettings.backgroundColor })
     };
     
-    // For qna_inline, also update nested settings
-    if (tool === 'qna_inline') {
+    // For qna, also update nested settings
+    if (tool === 'qna') {
       if (currentToolSettings.fontColor) {
         colorSettings.questionSettings = {
           ...mergedDefaults.questionSettings,
@@ -115,9 +115,9 @@ export function getToolDefaults(
     mergedDefaults = { ...mergedDefaults, ...colorSettings };
   }
   
-  // For qna_inline, clean up shared properties from questionSettings/answerSettings
+  // For qna, clean up shared properties from questionSettings/answerSettings
   // Move them to top-level and keep only font properties in questionSettings/answerSettings
-  if (tool === 'qna_inline' && mergedDefaults) {
+  if (tool === 'qna' && mergedDefaults) {
     const questionSettings = mergedDefaults.questionSettings || {};
     const answerSettings = mergedDefaults.answerSettings || {};
     
@@ -230,19 +230,19 @@ export function getToolDefaults(
       points: existingElement.points
     };
     
-    // For qna_inline, preserve layout properties from layout (element.padding, element.format?.textAlign, element.paragraphSpacing)
+    // For qna, preserve layout properties from layout (element.padding, element.format?.textAlign, element.paragraphSpacing)
     // Shared properties are stored only on top-level, not in questionSettings/answerSettings
-    if (tool === 'qna_inline') {
+    if (tool === 'qna') {
       // Handle padding - preserve on top-level only
       if (existingElement.padding !== undefined) {
         preservedProperties.padding = existingElement.padding;
       }
       
-      // Handle align - preserve on top-level only (for qna_inline, not in format.textAlign)
+      // Handle align - preserve on top-level only (for qna, not in format.textAlign)
       const existingAlign = existingElement.format?.textAlign ?? existingElement.align;
       if (existingAlign !== undefined) {
         preservedProperties.align = existingAlign;
-        // Don't set format.textAlign for qna_inline - align is only on top-level
+        // Don't set format.textAlign for qna - align is only on top-level
       }
       
       // Handle paragraphSpacing - preserve on top-level only

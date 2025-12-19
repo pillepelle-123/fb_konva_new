@@ -75,8 +75,8 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
     : 0;
   
   // Render QnA elements (standard QnA textbox)
-  // qna_inline is deprecated and treated as qna
-  if (element.type === 'text' && (element.textType === 'qna' || element.textType === 'qna2' || element.textType === 'qna_inline')) {
+  // Render qna elements
+  if (element.type === 'text' && element.textType === 'qna') {
     console.log('Rendering QnA element:', element.id, 'textType:', element.textType);
     // Use global function if available (browser context), otherwise fallback to local require (Node.js context)
     const renderQnAFunc = (typeof window !== 'undefined' && window.renderQnA) ? window.renderQnA : renderQnA;

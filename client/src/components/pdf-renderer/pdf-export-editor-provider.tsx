@@ -49,14 +49,14 @@ export function PDFExportEditorProvider({
           height: element.height,
         };
         
-        // Handle nested settings for qna_inline
-        if (element.textType === 'qna_inline' && themeDefaults.questionSettings) {
+        // Handle nested settings for qna
+        if (element.textType === 'qna' && themeDefaults.questionSettings) {
           updatedElement.questionSettings = {
             ...(element.questionSettings || {}),
             ...themeDefaults.questionSettings,
           };
         }
-        if (element.textType === 'qna_inline' && themeDefaults.answerSettings) {
+        if (element.textType === 'qna' && themeDefaults.answerSettings) {
           updatedElement.answerSettings = {
             ...(element.answerSettings || {}),
             ...themeDefaults.answerSettings,

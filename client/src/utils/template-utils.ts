@@ -40,8 +40,8 @@ export function applyTemplateToPage(
   
   // Create textbox elements
   scaledTemplate.textboxes.forEach(textbox => {
-    // Determine if this is a qna_inline element
-    const isQnaInline = textbox.layoutVariant === 'inline' || textbox.type === 'qna_inline';
+    // Determine if this is a qna element
+    const isQna = textbox.layoutVariant === 'inline' || textbox.type === 'qna' || textbox.type === 'qna_inline' || textbox.type === 'qna2';
     
     const element: CanvasElement = {
       id: uuidv4(),
@@ -98,8 +98,8 @@ export function applyTemplateToPage(
     // All other styling properties (fontFamily, fontColor, border, background, cornerRadius) come from themes/palettes
     if (textbox.style && textbox.style.format) {
       if (textbox.style.format.textAlign) {
-        // For qna_inline, align is on top-level, not in format.textAlign
-        if (isQnaInline) {
+        // For qna, align is on top-level, not in format.textAlign
+        if (isQna) {
           element.align = textbox.style.format.textAlign;
         } else {
           element.format = element.format || {};
@@ -114,10 +114,10 @@ export function applyTemplateToPage(
       }
     }
     
-    // Note: fontSize is handled separately in questionSettings/answerSettings for qna_inline
+    // Note: fontSize is handled separately in questionSettings/answerSettings for qna
     // or directly on element for free_text, not from style.font.fontSize
     
-    if (textbox.type === 'question' || textbox.type === 'qna_inline') {
+    if (textbox.type === 'question' || textbox.type === 'qna' || textbox.type === 'qna_inline' || textbox.type === 'qna2') {
       element.questionId = uuidv4();
     }
     
@@ -177,7 +177,7 @@ export function validateTemplateConstraints(
   const constraints = getConstraintsForPageSize(template, pageSize || 'A4');
   
   const questionCount = template.textboxes.filter(t => 
-    t.type === 'question' || t.type === 'qna_inline'
+    t.type === 'question' || t.type === 'qna' || t.type === 'qna_inline' || t.type === 'qna2'
   ).length;
   
   if (questionCount < constraints.minQuestions) {

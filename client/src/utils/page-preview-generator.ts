@@ -219,7 +219,7 @@ function drawText(layer: Konva.Layer, element: CanvasElement) {
 }
 
 function drawElement(layer: Konva.Layer, element: CanvasElement) {
-  if (element.textType === 'qna_inline' || element.type === 'qna_inline') {
+  if (element.textType === 'qna' || element.textType === 'qna_inline' || element.textType === 'qna2' || element.type === 'qna' || element.type === 'qna_inline' || element.type === 'qna2') {
     drawQnaInlinePreview(layer, element);
     return;
   }
@@ -228,7 +228,9 @@ function drawElement(layer: Konva.Layer, element: CanvasElement) {
     case 'text':
     case 'question':
     case 'answer':
-    case 'qna_inline':
+    case 'qna':
+    case 'qna_inline': // Backward compatibility
+    case 'qna2': // Backward compatibility
     case 'free_text':
       drawText(layer, element);
       break;
@@ -461,7 +463,7 @@ export async function generatePagePreview({
   }
 
   page.elements.forEach((element) => {
-    if (element.type === 'qna_inline') {
+    if (element.type === 'qna' || element.type === 'qna_inline' || element.type === 'qna2') {
       drawQnaInlinePreview(layer, element);
     } else {
       drawElement(layer, element);

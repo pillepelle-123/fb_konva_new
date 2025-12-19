@@ -4,7 +4,6 @@ import { useEditor } from '../../../../context/editor-context.tsx';
 import type { CanvasItemProps } from './base-canvas-item.tsx';
 import ThemedShape from './themed-shape.tsx';
 
-import TextboxQnAInline from './textbox-qna-inline.tsx';
 import TextboxQna from './textbox-qna.tsx';
 import TextboxFreeText from './textbox-free-text.tsx';
 import Image from './image.tsx';
@@ -86,20 +85,16 @@ export default function CanvasItemComponent(props: CanvasItemComponentProps) {
   }
 
   if (element.type === 'text') {
-    // Check for QnA Inline textType
-    if (element.textType === 'qna_inline') {
-      return <TextboxQnAInline {...props} />;
-    }
-    // Check for QnA textType (qna and qna2)
-    if (element.textType === 'qna' || element.textType === 'qna2') {
+    // Check for QnA textType (including qna_inline and qna2 for backward compatibility - will be migrated)
+    if (element.textType === 'qna' || element.textType === 'qna_inline' || element.textType === 'qna2') {
       return <TextboxQna {...props} />;
     }
     // Check for Free Text textType
     if (element.textType === 'free_text') {
       return <TextboxFreeText {...props} />;
     }
-    // Fallback for other text types - use QnA Inline as default
-    return <TextboxQnAInline {...props} />;
+    // Fallback for other text types - use QnA as default
+    return <TextboxQna {...props} />;
   }
 
   if (element.type === 'placeholder' || element.type === 'image') {

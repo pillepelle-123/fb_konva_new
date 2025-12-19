@@ -7,7 +7,7 @@ import { scaleTemplateToCanvas } from './template-utils';
 import { commonToActual } from './font-size-converter';
 
 interface TemplateTextbox {
-  type: 'question' | 'answer' | 'text' | 'qna_inline';
+  type: 'question' | 'answer' | 'text' | 'qna' | 'qna_inline' | 'qna2';
   position: { x: number; y: number };
   size: { width: number; height: number };
   style?: TextboxStyle;
@@ -30,17 +30,17 @@ export function convertTemplateTextboxToElement(
   textbox: TemplateTextbox, 
   palette: ColorPalette
 ): CanvasElement {
-  // Determine textType: only qna_inline or free_text are supported
-  // - qna_inline: for Q&A layouts (layoutVariant === 'inline' or type === 'qna_inline')
+  // Determine textType: qna or free_text are supported
+  // - qna: for Q&A layouts (layoutVariant === 'inline' or type === 'qna'/'qna_inline'/'qna2')
   // - free_text: for all other text boxes
-  const isQnaInline = textbox.layoutVariant === 'inline' || textbox.type === 'qna_inline';
-  const textType: CanvasElement['textType'] = isQnaInline ? 'qna_inline' : 'free_text';
+  const isQna = textbox.layoutVariant === 'inline' || textbox.type === 'qna' || textbox.type === 'qna_inline' || textbox.type === 'qna2';
+  const textType: CanvasElement['textType'] = isQna ? 'qna' : 'free_text';
   
   // Use appropriate defaults with type guards
   // getGlobalThemeDefaults() now includes base defaults, so we can use it with 'default' theme
-  const qnaInlineDefaults = getGlobalThemeDefaults('default', 'qna_inline');
+  const qnaDefaults = getGlobalThemeDefaults('default', 'qna');
   const freeTextDefaults = getGlobalThemeDefaults('default', 'free_text');
-  const defaults = isQnaInline ? qnaInlineDefaults : freeTextDefaults;
+  const defaults = isQna ? qnaDefaults : freeTextDefaults;
   
   const baseElement: CanvasElement = {
     id: uuidv4(),
@@ -56,9 +56,9 @@ export function convertTemplateTextboxToElement(
     backgroundColor: (defaults as any).backgroundColor || 'transparent',
     align: (defaults.format?.textAlign as 'left' | 'center' | 'right') || defaults.align || 'left',
     padding: defaults.padding || 4,
-    // Add type-specific settings - for qna_inline, font properties are only in questionSettings/answerSettings
-    ...(isQnaInline ? {
-      // qna_inline specific settings
+    // Add type-specific settings - for qna, font properties are only in questionSettings/answerSettings
+    ...(isQna ? {
+      // qna specific settings
       layoutVariant: 'inline',
       // Übernehme questionSettings und answerSettings aus Template (falls vorhanden), sonst Defaults
       questionSettings: textbox.questionSettings || 
@@ -82,8 +82,8 @@ export function convertTemplateTextboxToElement(
     styledElement.layoutVariant = textbox.layoutVariant;
   }
   
-  // Apply questionPosition and questionWidth for qna_inline (layout properties)
-  if (isQnaInline) {
+  // Apply questionPosition and questionWidth for qna (layout properties)
+  if (isQna) {
     if ((textbox as any).questionPosition) {
       styledElement.questionPosition = (textbox as any).questionPosition;
     }

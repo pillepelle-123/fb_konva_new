@@ -6,7 +6,7 @@ import { QuestionPositionTop, QuestionPositionBottom, QuestionPositionLeft, Ques
 import { ButtonGroup } from '../../../ui/composites/button-group';
 // ARCHIVED: import { QnASettingsForm } from './qna-settings-form';
 // ARCHIVED: import { QnA2SettingsForm } from './qna2-settings-form';
-import { QnAInlineSettingsForm } from './qna-inline-settings-form';
+import { QnASettingsForm } from './qna-settings-form';
 import { FreeTextSettingsForm } from './free-text-settings-form';
 import { ShapeSettingsForm } from './shape-settings-form';
 import { ImageSettingsForm } from './image-settings-form';
@@ -649,7 +649,7 @@ export function ToolSettingsContent({
       
       if (selectedElement) {
         // Special handling for QnA elements - render ColorSelector directly
-        if (selectedElement.textType === 'qna' || selectedElement.textType === 'qna_inline' || selectedElement.textType === 'qna2') {
+        if (selectedElement.textType === 'qna') {
           
           const getColorValue = () => {
             switch (showColorSelector) {
@@ -1033,7 +1033,7 @@ export function ToolSettingsContent({
         }
 
         // Handle QnA textboxes
-        if (selectedElement.textType === 'qna' || selectedElement.textType === 'qna_inline' || selectedElement.textType === 'qna2') {
+        if (selectedElement.textType === 'qna') {
           const activeSection = state.qnaActiveSection;
           const setActiveSection = (section: 'question' | 'answer') => {
             dispatch({ type: 'SET_QNA_ACTIVE_SECTION', payload: section });
@@ -1050,7 +1050,7 @@ export function ToolSettingsContent({
           const pageColorPaletteId = currentPage?.colorPaletteId;
           const bookColorPaletteId = state.currentBook?.colorPaletteId;
           const toolDefaults = getToolDefaults(
-            selectedElement.textType === 'qna' ? 'qna' : 'qna_inline',
+            'qna',
             pageTheme,
             bookTheme,
             selectedElement,
@@ -1084,7 +1084,7 @@ export function ToolSettingsContent({
           return (
             <div className="space-y-2">
               {/* <div className="text-xs font-medium mb-2">QnA Inline Textbox</div> */}
-              <QnAInlineSettingsForm
+              <QnASettingsForm
                 sectionType="shared"
                 element={selectedElement}
                 state={state}

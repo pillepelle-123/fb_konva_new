@@ -313,7 +313,7 @@ export function CreationWizard({ open, onOpenChange, onSuccess }: CreationWizard
         theme: themeToUse || defaults.theme || element.theme
       };
 
-      if (element.textType === 'qna_inline') {
+      if (element.textType === 'qna') {
         updatedElement.questionSettings = {
           ...(defaults.questionSettings || {}),
           ...(element.questionSettings || {})
