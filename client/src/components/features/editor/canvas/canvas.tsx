@@ -4618,18 +4618,18 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                   
                   const element = currentPage?.elements.find(el => el.id === elementId);
                   if (element) {
-                    // Skip dimension updates for qna elements - they handle their own resize logic
-                    // The textbox-qna.tsx component manages dimensions during transform
-                    if (element.type === 'text' && element.textType === 'qna') {
+                    // Skip dimension updates for qna and free_text elements - they handle their own resize logic
+                    // The textbox-qna.tsx and textbox-free-text.tsx components manage dimensions during transform
+                    if (element.type === 'text' && (element.textType === 'qna' || element.textType === 'free_text')) {
                       // Only update position and rotation, not dimensions
-                      // Dimensions are handled by textbox-qna.tsx's handleTransformEnd
+                      // Dimensions are handled by textbox-qna.tsx's or textbox-free-text.tsx's handleTransformEnd
                       const updates: any = {
                         x: node.x(),
                         y: node.y(),
                         rotation: node.rotation()
                       };
                       
-                      // Reset scale to 1 (dimensions are handled by textbox-qna.tsx)
+                      // Reset scale to 1 (dimensions are handled by textbox-qna.tsx or textbox-free-text.tsx)
                       node.scaleX(1);
                       node.scaleY(1);
                       
@@ -4640,7 +4640,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                           updates
                         }
                       });
-                      return; // Skip the rest of the logic for qna elements
+                      return; // Skip the rest of the logic for qna and free-text elements
                     }
                     
                     const updates: any = {};
@@ -4697,8 +4697,8 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                           groupNode.scaleX(1);
                           groupNode.scaleY(1);
                         }
-                      } else {
-                        // For text elements (except qna which is handled above), use Group node
+                    } else {
+                      // For text elements (except qna and free-text which are handled above), use Group node
                       const scaleX = node.scaleX();
                       const scaleY = node.scaleY();
                       

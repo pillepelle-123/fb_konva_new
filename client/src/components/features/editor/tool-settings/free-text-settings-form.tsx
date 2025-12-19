@@ -9,6 +9,7 @@ import { IndentedSection } from '../../../ui/primitives/indented-section';
 import { Checkbox } from '../../../ui/primitives/checkbox';
 import { actualToCommon, commonToActual, COMMON_FONT_SIZE_RANGE } from '../../../../utils/font-size-converter';
 import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE } from '../../../../utils/corner-radius-converter';
+import { getMinActualStrokeWidth, commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth } from '../../../../utils/stroke-width-converter';
 import { getFontFamily } from '../../../../utils/font-utils';
 import { getFontFamily as getFontFamilyByName } from '../../../../utils/font-families';
 import { FONT_GROUPS } from '../../../../utils/font-families';
@@ -55,10 +56,10 @@ export function FreeTextSettingsForm({
 }: FreeTextSettingsFormProps) {
   const { dispatch } = useEditor();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
-  
+
   // Local state for color selector
   const [localShowColorSelector, setLocalShowColorSelector] = useState<string | null>(null);
-  
+
   const getTextStyle = () => {
     const tStyle = element.textSettings || {};
     const currentPage = state.currentBook?.pages[state.activePageIndex];
@@ -68,37 +69,37 @@ export function FreeTextSettingsForm({
     const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
     const pageColorPaletteId = currentPage?.colorPaletteId;
     const bookColorPaletteId = state.currentBook?.colorPaletteId;
-    const freeTextDefaults = getToolDefaults('free_text', pageTheme, bookTheme, undefined, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
-    
+    const freeTextDefaults = getToolDefaults('free_text', pageTheme, bookTheme, element, state.toolSettings?.free_text, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
+
     return {
-      fontSize: tStyle.fontSize || freeTextDefaults?.fontSize || 16,
-      fontFamily: tStyle.fontFamily || freeTextDefaults?.fontFamily || 'Arial, sans-serif',
-      fontBold: tStyle.fontBold ?? freeTextDefaults?.fontBold ?? false,
-      fontItalic: tStyle.fontItalic ?? freeTextDefaults?.fontItalic ?? false,
-      fontColor: tStyle.fontColor || freeTextDefaults?.fontColor || '#1f2937',
-      fontOpacity: tStyle.fontOpacity ?? 1,
-      align: tStyle.align || element.format?.textAlign || freeTextDefaults?.align || 'left',
-      ruledLines: tStyle.ruledLines ?? freeTextDefaults?.ruledLines ?? false,
-      ruledLinesColor: tStyle.ruledLinesColor || '#1f2937',
-      ruledLinesOpacity: tStyle.ruledLinesOpacity ?? 1,
-      ruledLinesWidth: tStyle.ruledLinesWidth || 0.8,
-      ruledLinesTheme: tStyle.ruledLinesTheme || 'rough',
-      borderEnabled: tStyle.borderEnabled ?? false,
-      borderColor: tStyle.borderColor || '#000000',
-      borderOpacity: tStyle.borderOpacity ?? 1,
-      borderWidth: tStyle.borderWidth || 1,
-      borderTheme: tStyle.borderTheme || 'default',
-      backgroundEnabled: tStyle.backgroundEnabled ?? false,
-      backgroundColor: tStyle.backgroundColor || '#ffffff',
-      backgroundOpacity: tStyle.backgroundOpacity ?? 1,
-      cornerRadius: tStyle.cornerRadius || 0,
-      padding: tStyle.padding || 4,
-      paragraphSpacing: tStyle.paragraphSpacing || 'medium'
+      fontSize: tStyle.fontSize || freeTextDefaults?.textSettings?.fontSize || freeTextDefaults?.fontSize || 50,
+      fontFamily: tStyle.fontFamily || freeTextDefaults?.textSettings?.fontFamily || freeTextDefaults?.fontFamily || 'Arial, sans-serif',
+      fontBold: tStyle.fontBold ?? freeTextDefaults?.textSettings?.fontBold ?? false,
+      fontItalic: tStyle.fontItalic ?? freeTextDefaults?.textSettings?.fontItalic ?? false,
+      fontColor: tStyle.fontColor || freeTextDefaults?.textSettings?.fontColor || freeTextDefaults?.fontColor || '#1f2937',
+      fontOpacity: tStyle.fontOpacity ?? freeTextDefaults?.textSettings?.fontOpacity ?? 1,
+      align: tStyle.align || element.format?.textAlign || freeTextDefaults?.textSettings?.align || freeTextDefaults?.align || 'left',
+      ruledLines: tStyle.ruledLines ?? freeTextDefaults?.textSettings?.ruledLines ?? false,
+      ruledLinesColor: tStyle.ruledLinesColor || freeTextDefaults?.textSettings?.ruledLinesColor || '#1f2937',
+      ruledLinesOpacity: tStyle.ruledLinesOpacity ?? freeTextDefaults?.textSettings?.ruledLinesOpacity ?? 1,
+      ruledLinesWidth: tStyle.ruledLinesWidth ?? freeTextDefaults?.textSettings?.ruledLinesWidth ?? 0.8,
+      ruledLinesTheme: tStyle.ruledLinesTheme || freeTextDefaults?.textSettings?.ruledLinesTheme || 'rough',
+      borderEnabled: tStyle.borderEnabled ?? freeTextDefaults?.textSettings?.border?.enabled ?? false,
+      borderColor: tStyle.borderColor || freeTextDefaults?.textSettings?.border?.borderColor || '#000000',
+      borderOpacity: tStyle.borderOpacity ?? freeTextDefaults?.textSettings?.border?.borderOpacity ?? 1,
+      borderWidth: tStyle.borderWidth ?? freeTextDefaults?.textSettings?.border?.borderWidth ?? 1,
+      borderTheme: tStyle.borderTheme || freeTextDefaults?.textSettings?.border?.borderTheme || 'default',
+      backgroundEnabled: tStyle.backgroundEnabled ?? freeTextDefaults?.textSettings?.background?.enabled ?? false,
+      backgroundColor: tStyle.backgroundColor || freeTextDefaults?.textSettings?.background?.backgroundColor || '#ffffff',
+      backgroundOpacity: tStyle.backgroundOpacity ?? freeTextDefaults?.textSettings?.background?.backgroundOpacity ?? 1,
+      cornerRadius: tStyle.cornerRadius ?? freeTextDefaults?.cornerRadius ?? 0,
+      padding: tStyle.padding ?? freeTextDefaults?.textSettings?.padding ?? freeTextDefaults?.padding ?? 8,
+      paragraphSpacing: tStyle.paragraphSpacing || freeTextDefaults?.textSettings?.paragraphSpacing || 'medium'
     };
   };
-  
+
   const computedCurrentStyle = getTextStyle();
-  
+
   const updateTextSetting = (key: string, value: any) => {
     const textSettingsUpdates = {
       ...element.textSettings,
@@ -135,7 +136,7 @@ export function FreeTextSettingsForm({
         onFontSelect={(fontName) => {
           const fontFamily = getFontFamilyByName(fontName, computedCurrentStyle.fontBold, computedCurrentStyle.fontItalic);
           updateTextSetting('fontFamily', fontFamily);
-          
+
           // Also update element.font for proper rendering
           dispatch({
             type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
@@ -157,7 +158,7 @@ export function FreeTextSettingsForm({
       />
     );
   }
-  
+
   if (localShowColorSelector) {
     const getColorValue = () => {
       switch (localShowColorSelector) {
@@ -173,7 +174,7 @@ export function FreeTextSettingsForm({
           return '#1f2937';
       }
     };
-    
+
     const getElementOpacityValue = () => {
       switch (localShowColorSelector) {
         case 'element-text-color':
@@ -188,7 +189,7 @@ export function FreeTextSettingsForm({
           return 1;
       }
     };
-    
+
     const handleElementOpacityChange = (opacity: number) => {
       switch (localShowColorSelector) {
         case 'element-text-color':
@@ -205,7 +206,7 @@ export function FreeTextSettingsForm({
           break;
       }
     };
-    
+
     const handleElementColorChange = (color: string) => {
       switch (localShowColorSelector) {
         case 'element-text-color':
@@ -222,7 +223,7 @@ export function FreeTextSettingsForm({
           break;
       }
     };
-    
+
     return (
       <ColorSelector
         value={getColorValue()}
@@ -233,7 +234,7 @@ export function FreeTextSettingsForm({
         onAddFavorite={addFavoriteStrokeColor}
         onRemoveFavorite={removeFavoriteStrokeColor}
         onBack={() => setLocalShowColorSelector(null)}
-        showOpacitySlider={false}
+        showOpacitySlider={true}
       />
     );
   }
@@ -271,15 +272,15 @@ export function FreeTextSettingsForm({
           </Button>
         </div>
       </div>
-      
+
       <div className="flex flex-row gap-2 py-2 w-full">
         <div className='flex-1'>
           <div className='flex flex-row gap-2'>
             <ALargeSmall className='w-5 h-5'/>
             <Slider
               label="Font Size"
-              value={actualToCommon(computedCurrentStyle.fontSize || 16)}
-              displayValue={actualToCommon(computedCurrentStyle.fontSize || 16)}
+              value={actualToCommon(computedCurrentStyle.fontSize || 50)}
+              displayValue={actualToCommon(computedCurrentStyle.fontSize || 50)}
               onChange={(value) => updateTextSetting('fontSize', commonToActual(value))}
               min={COMMON_FONT_SIZE_RANGE.min}
               max={COMMON_FONT_SIZE_RANGE.max}
@@ -289,7 +290,7 @@ export function FreeTextSettingsForm({
           </div>
         </div>
       </div>
-      
+
       <div>
         <Button
           variant="outline"
@@ -301,7 +302,7 @@ export function FreeTextSettingsForm({
           Font Color
         </Button>
       </div>
-      
+
       <div>
         <Slider
           label="Font Opacity"
@@ -315,9 +316,9 @@ export function FreeTextSettingsForm({
           hasLabel={false}
         />
       </div>
-      
+
       <Separator/>
-      
+
       {/* Paragraph Spacing */}
       <div className='flex flex-row gap-3'>
         <div className="flex-1 py-2">
@@ -350,9 +351,9 @@ export function FreeTextSettingsForm({
           </ButtonGroup>
         </div>
       </div>
-      
+
       <Separator/>
-      
+
       {/* Ruled Lines */}
       <div className='py-2'>
         <Label className="flex items-center gap-1" variant="xs">
@@ -363,26 +364,26 @@ export function FreeTextSettingsForm({
           Ruled Lines
         </Label>
       </div>
-      
+
       {computedCurrentStyle.ruledLines && (
         <IndentedSection>
           <Slider
             label="Line Width"
-            value={Math.round((computedCurrentStyle.ruledLinesWidth ?? 1) * 100)  }
+            value={computedCurrentStyle.ruledLinesWidth ?? 0.8}
             onChange={(value) => updateTextSetting('ruledLinesWidth', value)}
-            min={0.01}
+            min={0}
             max={30}
             step={0.1}
           />
-          
+
           <div>
             <Label variant="xs">Ruled Lines Theme</Label>
-            <ThemeSelect 
+            <ThemeSelect
               value={computedCurrentStyle.ruledLinesTheme}
               onChange={(value) => updateTextSetting('ruledLinesTheme', value)}
             />
           </div>
-          
+
           {/* Theme-specific settings for Ruled Lines */}
           <ThemeSettingsRenderer
             element={element}
@@ -403,7 +404,7 @@ export function FreeTextSettingsForm({
               });
             }}
           />
-          
+
           <div>
             <Button
               variant="outline"
@@ -415,7 +416,7 @@ export function FreeTextSettingsForm({
               Line Color
             </Button>
           </div>
-          
+
           <div>
             <Slider
               label="Line Opacity"
@@ -431,9 +432,9 @@ export function FreeTextSettingsForm({
           </div>
         </IndentedSection>
       )}
-      
+
       <Separator/>
-      
+
       {/* Border */}
       <div className='py-2'>
         <Label className="flex items-center gap-1" variant="xs">
@@ -444,26 +445,29 @@ export function FreeTextSettingsForm({
           Border
         </Label>
       </div>
-      
+
       {computedCurrentStyle.borderEnabled && (
         <IndentedSection>
           <Slider
             label="Border Width"
-            value={computedCurrentStyle.borderWidth}
-            onChange={(value) => updateTextSetting('borderWidth', value)}
-            min={0.1}
-            max={10}
-            step={0.1}
+            value={actualToCommonStrokeWidth(computedCurrentStyle.borderWidth, computedCurrentStyle.borderTheme)}
+            onChange={(value) => {
+              const actualWidth = commonToActualStrokeWidth(value, computedCurrentStyle.borderTheme);
+              updateTextSetting('borderWidth', actualWidth);
+            }}
+            min={0}
+            max={getMaxCommonWidth()}
+            step={1}
           />
-          
+
           <div>
             <Label variant="xs">Border Theme</Label>
-            <ThemeSelect 
+            <ThemeSelect
               value={computedCurrentStyle.borderTheme}
               onChange={(value) => updateTextSetting('borderTheme', value)}
             />
           </div>
-          
+
           {/* Theme-specific settings for Border */}
           <ThemeSettingsRenderer
             element={element}
@@ -484,7 +488,7 @@ export function FreeTextSettingsForm({
               });
             }}
           />
-          
+
           <div>
             <Button
               variant="outline"
@@ -496,7 +500,7 @@ export function FreeTextSettingsForm({
               Border Color
             </Button>
           </div>
-          
+
           <Slider
             label="Border Opacity"
             value={computedCurrentStyle.borderOpacity * 100}
@@ -507,7 +511,7 @@ export function FreeTextSettingsForm({
           />
         </IndentedSection>
       )}
-      
+
       {/* Background */}
       <div>
         <Label className="flex items-center gap-1" variant="xs">
@@ -518,7 +522,7 @@ export function FreeTextSettingsForm({
           Background
         </Label>
       </div>
-      
+
       {computedCurrentStyle.backgroundEnabled && (
         <IndentedSection>
           <div>
@@ -532,7 +536,7 @@ export function FreeTextSettingsForm({
               Background Color
             </Button>
           </div>
-          
+
           <div>
             <Slider
               label="Background Opacity"
@@ -565,7 +569,7 @@ export function FreeTextSettingsForm({
           </div>
         </div>
       </div>
-      
+
       <div className="flex flex-row gap-2 py-2 w-full">
         <div className='flex-1'>
           <div className='flex flex-row gap-2'>
@@ -575,14 +579,14 @@ export function FreeTextSettingsForm({
               value={computedCurrentStyle.padding}
               onChange={(value) => updateTextSetting('padding', value)}
               min={0}
-              max={50}
+              max={100}
               step={1}
               className='w-full'
             />
           </div>
         </div>
       </div>
-      
+
       <div className='flex flex-row gap-3'>
         <div className="flex-1 py-2">
           <Label variant="xs">Text Align</Label>

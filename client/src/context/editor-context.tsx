@@ -1771,7 +1771,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
               
               return {
                 ...page,
-                elements: page.elements.map((el, elIndex) => 
+                elements: page.elements.map((el, elIndex) =>
                   elIndex === elementIndex ? { ...oldElement, ...mergedUpdates, colorOverrides } : el
                 )
               };
@@ -5013,7 +5013,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
           pages: modifiedPages.length > 0 ? modifiedPages : state.currentBook.pages,
           onlyModifiedPages: modifiedPages.length > 0 && modifiedPages.length < state.currentBook.pages.length // Flag to indicate partial save
         };
-        
+
         const response = await fetch(`${apiUrl}/books/${state.currentBook.id}`, {
           method: 'PUT',
           headers: {
@@ -5022,9 +5022,9 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
           },
           body: JSON.stringify(bookPayload)
         });
-        
+
         if (!response.ok) throw new Error('Failed to save book');
-        
+
         // Clear modified pages after successful save
         dispatch({ type: 'CLEAR_MODIFIED_PAGES' });
       }

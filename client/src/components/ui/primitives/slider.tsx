@@ -34,7 +34,7 @@ export function Slider({
   const [isEditing, setIsEditing] = useState(false);
   const [inputValue, setInputValue] = useState((displayValue !== undefined ? displayValue : value).toString());
 
-  const currentDisplayValue = displayValue !== undefined ? displayValue : value;
+  const currentDisplayValue = Math.round(displayValue !== undefined ? displayValue : value);
 
   const handleValueClick = () => {
     if (disabled) return;
