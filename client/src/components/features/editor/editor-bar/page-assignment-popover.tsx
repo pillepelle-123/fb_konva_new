@@ -46,7 +46,7 @@ export default function PageAssignmentPopover({
   // Ensure current user is included if not already in the list
   const bookFriends = editorState.bookFriends || [];
   const currentUserInList = bookFriends.find(f => f.id === user?.id);
-  const allFriends = currentUserInList ? bookFriends : [...bookFriends, { id: user!.id, name: user!.name, email: user!.email, role: 'owner' }];
+  const allFriends = currentUserInList ? bookFriends : [...bookFriends, { id: user!.id, name: user!.name, email: user!.email, role: 'publisher' }];
 
   const handleAssignUser = (userToAssign: BookFriend | null) => {
     // If removing assignment, allow it without validation

@@ -470,6 +470,10 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
     res.json(response);
   } catch (error) {
+    console.error('Error fetching book:', error);
+    console.error('Book ID:', req.params.id);
+    console.error('User ID:', req.user?.id);
+    console.error('Error stack:', error.stack);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -1427,10 +1431,10 @@ router.post('/', authenticateToken, async (req, res) => {
       ]
     );
 
-    // Add owner as owner collaborator with full permissions
+    // Add owner as publisher collaborator with full permissions
     await pool.query(
       'INSERT INTO public.book_friends (book_id, user_id, book_role, page_access_level, editor_interaction_level) VALUES ($1, $2, $3, $4, $5)',
-      [bookId, userId, 'owner', 'all_pages', 'full_edit_with_settings']
+      [bookId, userId, 'publisher', 'all_pages', 'full_edit_with_settings']
     );
 
     try {
@@ -1449,6 +1453,10 @@ router.post('/', authenticateToken, async (req, res) => {
 
     res.json(result.rows[0]);
   } catch (error) {
+    console.error('Error creating book:', error);
+    console.error('User ID:', req.user?.id);
+    console.error('Request body:', req.body);
+    console.error('Error stack:', error.stack);
     res.status(500).json({ error: 'Server error' });
   }
 });
