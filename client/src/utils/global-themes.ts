@@ -331,7 +331,6 @@ function getThemeCategory(elementType: string): keyof GlobalTheme['elementDefaul
     case 'answer':
       return 'answer';
     case 'qna':
-    case 'qna':
     case 'free_text':
       return 'text'; // QnA uses text defaults as base
     case 'text':
