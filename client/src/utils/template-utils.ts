@@ -41,7 +41,7 @@ export function applyTemplateToPage(
   // Create textbox elements
   scaledTemplate.textboxes.forEach(textbox => {
     // Determine if this is a qna element
-    const isQna = textbox.layoutVariant === 'inline' || textbox.type === 'qna' || textbox.type === 'qna_inline' || textbox.type === 'qna2';
+    const isQna = textbox.layoutVariant === 'inline' || textbox.type === 'qna';
     
     const element: CanvasElement = {
       id: uuidv4(),
@@ -117,7 +117,7 @@ export function applyTemplateToPage(
     // Note: fontSize is handled separately in questionSettings/answerSettings for qna
     // or directly on element for free_text, not from style.font.fontSize
     
-    if (textbox.type === 'question' || textbox.type === 'qna' || textbox.type === 'qna_inline' || textbox.type === 'qna2') {
+    if (textbox.type === 'question' || textbox.type === 'qna') {
       element.questionId = uuidv4();
     }
     
@@ -177,7 +177,7 @@ export function validateTemplateConstraints(
   const constraints = getConstraintsForPageSize(template, pageSize || 'A4');
   
   const questionCount = template.textboxes.filter(t => 
-    t.type === 'question' || t.type === 'qna' || t.type === 'qna_inline' || t.type === 'qna2'
+    t.type === 'question' || t.type === 'qna'
   ).length;
   
   if (questionCount < constraints.minQuestions) {

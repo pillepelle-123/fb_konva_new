@@ -106,7 +106,7 @@ export interface PageTemplate {
   columns?: number; // 1 or 2, extracted from layout ID (e.g., "qna-1col-..." or "qna-2col-...")
   meta?: LayoutMeta;
   textboxes: Array<{
-    type: 'question' | 'answer' | 'text' | 'qna_inline';
+    type: 'question' | 'answer' | 'text' | 'qna';
     position: { x: number; y: number };
     size: { width: number; height: number };
     style?: TextboxStyle;

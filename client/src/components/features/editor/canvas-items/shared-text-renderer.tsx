@@ -92,7 +92,7 @@ export function useSharedTextRenderer({ element, getQuestionText, getAnswerText,
         }
       }
     } else {
-      // For other textTypes (like qna2), replace placeholders with actual question text
+      // For qna textType, replace placeholders with actual question text
       if (textToUse.includes('[question]')) {
         textToUse = textToUse.replace(/\[question\]/g, questionText);
       } else {

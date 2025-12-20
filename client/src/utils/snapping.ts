@@ -1,5 +1,6 @@
 import Konva from 'konva';
 import type { CanvasElement, Page } from '../context/editor-context';
+import { SAFETY_MARGIN_PX } from '../constants/book-formats';
 
 const GUIDELINE_OFFSET = 25;
 
@@ -388,6 +389,87 @@ export const snapToElements = (
         guideline: {
           type: 'horizontal',
           position: pageOffsetY + canvasHeight,
+          canvasWidth,
+          canvasHeight,
+          pageOffsetX,
+          pageOffsetY
+        }
+      };
+    }
+  }
+
+  // Safety margin snaps (10mm from each edge)
+  const leftMargin = Math.abs(nodeX - SAFETY_MARGIN_PX);
+  if (leftMargin < GUIDELINE_OFFSET) {
+    const newX = x + (SAFETY_MARGIN_PX - nodeX);
+    const diff = Math.abs(newX - x);
+    if (!bestXSnap || diff < bestXSnap.diff) {
+      bestXSnap = {
+        x: newX,
+        diff,
+        guideline: {
+          type: 'vertical',
+          position: pageOffsetX + SAFETY_MARGIN_PX,
+          canvasWidth,
+          canvasHeight,
+          pageOffsetX,
+          pageOffsetY
+        }
+      };
+    }
+  }
+
+  const rightMargin = Math.abs(nodeX + nodeWidth - (canvasWidth - SAFETY_MARGIN_PX));
+  if (rightMargin < GUIDELINE_OFFSET) {
+    const newX = x + ((canvasWidth - SAFETY_MARGIN_PX) - nodeWidth - nodeX);
+    const diff = Math.abs(newX - x);
+    if (!bestXSnap || diff < bestXSnap.diff) {
+      bestXSnap = {
+        x: newX,
+        diff,
+        guideline: {
+          type: 'vertical',
+          position: pageOffsetX + canvasWidth - SAFETY_MARGIN_PX,
+          canvasWidth,
+          canvasHeight,
+          pageOffsetX,
+          pageOffsetY
+        }
+      };
+    }
+  }
+
+  const topMargin = Math.abs(nodeY - SAFETY_MARGIN_PX);
+  if (topMargin < GUIDELINE_OFFSET) {
+    const newY = y + (SAFETY_MARGIN_PX - nodeY);
+    const diff = Math.abs(newY - y);
+    if (!bestYSnap || diff < bestYSnap.diff) {
+      bestYSnap = {
+        y: newY,
+        diff,
+        guideline: {
+          type: 'horizontal',
+          position: pageOffsetY + SAFETY_MARGIN_PX,
+          canvasWidth,
+          canvasHeight,
+          pageOffsetX,
+          pageOffsetY
+        }
+      };
+    }
+  }
+
+  const bottomMargin = Math.abs(nodeY + nodeHeight - (canvasHeight - SAFETY_MARGIN_PX));
+  if (bottomMargin < GUIDELINE_OFFSET) {
+    const newY = y + ((canvasHeight - SAFETY_MARGIN_PX) - nodeHeight - nodeY);
+    const diff = Math.abs(newY - y);
+    if (!bestYSnap || diff < bestYSnap.diff) {
+      bestYSnap = {
+        y: newY,
+        diff,
+        guideline: {
+          type: 'horizontal',
+          position: pageOffsetY + canvasHeight - SAFETY_MARGIN_PX,
           canvasWidth,
           canvasHeight,
           pageOffsetX,

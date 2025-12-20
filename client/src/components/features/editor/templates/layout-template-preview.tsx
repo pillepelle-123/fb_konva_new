@@ -6,7 +6,7 @@ const PAGE_HEIGHT = 3508;
 type TemplateItem =
   | {
       id: string;
-      type: 'qna_inline' | 'text' | 'qna' | 'answer' | 'other';
+      type: 'qna' | 'text' | 'answer' | 'other';
       position: { x: number; y: number };
       size: { width: number; height: number };
       rotation?: number;
@@ -23,7 +23,7 @@ const ITEM_STYLE: Record<
   TemplateItem['type'],
   { background: string; border: string; label: string }
 > = {
-  qna_inline: {
+  qna: {
     background: 'rgba(60, 60, 60, 0.65)', // blue
     border: '#EEEEEE',
     label: 'Q&A Inline'

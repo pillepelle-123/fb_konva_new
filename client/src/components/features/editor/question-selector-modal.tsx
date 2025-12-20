@@ -319,7 +319,7 @@ export function QuestionSelectorModal({
       const currentPage = state.currentBook.pages.find(p => p.pageNumber === currentPageNumber);
       if (currentPage) {
         return !currentPage.elements.some(el => 
-          (el.textType === 'question' || el.textType === 'qna' || el.textType === 'qna_inline') && el.questionId === questionId
+          (el.textType === 'question' || el.textType === 'qna') && el.questionId === questionId
         );
       }
       return true;
@@ -333,7 +333,7 @@ export function QuestionSelectorModal({
     for (const page of state.currentBook.pages) {
       if (userPages.includes(page.pageNumber)) {
         const hasQuestion = page.elements.some(el => 
-          (el.textType === 'question' || el.textType === 'qna' || el.textType === 'qna_inline') && el.questionId === questionId
+          (el.textType === 'question' || el.textType === 'qna') && el.questionId === questionId
         );
         if (hasQuestion) {
           return false;

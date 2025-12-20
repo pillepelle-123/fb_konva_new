@@ -5,7 +5,7 @@ import { SquareMousePointer, Hand, MessageCircle, MessageCircleQuestion, Message
 import { QuestionPositionTop, QuestionPositionBottom, QuestionPositionLeft, QuestionPositionRight } from '../../../ui/icons/question-position-icons';
 import { ButtonGroup } from '../../../ui/composites/button-group';
 // ARCHIVED: import { QnASettingsForm } from './qna-settings-form';
-// ARCHIVED: import { QnA2SettingsForm } from './qna2-settings-form';
+// ARCHIVED: qna2 support removed, only qna is supported
 import { QnASettingsForm } from './qna-settings-form';
 import { FreeTextSettingsForm } from './free-text-settings-form';
 import { ShapeSettingsForm } from './shape-settings-form';

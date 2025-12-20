@@ -74,7 +74,7 @@ export default function PagePreviewOverlay({ isOpen, onClose, content = 'preview
     if (element.type === 'text') {
       let displayText = '';
       
-      if (element.textType === 'qna_inline' && element.questionId) {
+      if (element.textType === 'qna' && element.questionId) {
         const questionText = state.tempQuestions[element.questionId] || '';
         const assignedUser = state.pageAssignments[state.activePageIndex + 1];
         const userText = assignedUser ? (state.tempAnswers[element.questionId]?.[assignedUser.id]?.text || '') : '';

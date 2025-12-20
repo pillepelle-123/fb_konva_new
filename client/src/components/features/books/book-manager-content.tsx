@@ -390,17 +390,17 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
       dispatch({ type: 'DELETE_TEMP_QUESTION', payload: { questionId } });
     }
     
-    // Update question order on qna_inline elements
+    // Update question order on qna elements
     if (currentTempState.questionOrders && currentTempState.questionOrders.length > 0 && state.currentBook) {
       const questionOrderMap = new Map<string, number>();
       currentTempState.questionOrders.forEach(({ questionId, displayOrder }) => {
         questionOrderMap.set(questionId, displayOrder);
       });
       
-      // Update questionOrder on all qna_inline elements
+      // Update questionOrder on all qna elements
       state.currentBook.pages.forEach((page) => {
         page.elements.forEach((element) => {
-          if (element.textType === 'qna_inline' && element.questionId) {
+          if (element.textType === 'qna' && element.questionId) {
             const displayOrder = questionOrderMap.get(element.questionId);
             if (displayOrder !== undefined) {
               dispatch({

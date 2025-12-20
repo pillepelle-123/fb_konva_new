@@ -16,7 +16,7 @@ type MiniTemplateRenderProps = {
 type TemplateItem =
   | {
       id: string;
-      type: 'qna_inline' | 'text' | 'qna' | 'answer' | 'other';
+      type: 'qna' | 'text' | 'answer' | 'other';
       x: number;
       y: number;
       w: number;
@@ -50,7 +50,7 @@ function normalizeTemplate(template: PageTemplate): TemplateItem[] {
       const type = (tb.type as TemplateItem['type']) ?? 'other';
       return {
         id: `tb-${i}`,
-        type: ['qna_inline', 'qna', 'answer', 'text'].includes(type) ? (type as TemplateItem['type']) : ('other' as const),
+        type: ['qna', 'answer', 'text'].includes(type) ? (type as TemplateItem['type']) : ('other' as const),
         x: tb.position.x ?? 0,
         y: tb.position.y ?? 0,
         w: tb.size.width ?? 0,
@@ -152,7 +152,7 @@ export default function MiniTemplateRender({
 
         // TEXTBOXES / QNA
         const elementMock: any = {
-          type: 'qna_inline',
+          type: 'qna',
           width: sw,
           height: sh,
           padding: it.padding ?? 8,
@@ -165,7 +165,7 @@ export default function MiniTemplateRender({
           cornerRadius: 10,
         };
         const defaults = getToolDefaults(
-          'qna_inline',
+          'qna',
           themeId,
           themeId,
           elementMock,

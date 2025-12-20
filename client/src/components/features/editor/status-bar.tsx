@@ -37,7 +37,7 @@ export function StatusBar() {
     const elements = (currentPage.elements || []) as CanvasElement[];
     
     // Check if we have the required elements
-    const hasQna = elements.some((el) => matchesElementDescriptor(el, 'qna_inline'));
+    const hasQna = elements.some((el) => matchesElementDescriptor(el, 'qna'));
     const hasFreeText = elements.some((el) => matchesElementDescriptor(el, 'free_text'));
     const hasShape = elements.some(el => 
       el.type === 'rect' || el.type === 'circle' || el.type === 'triangle' || 
@@ -79,8 +79,8 @@ export function StatusBar() {
 
     const elements = (currentPage.elements || []) as CanvasElement[];
     
-    // Check if we have qna_inline or image elements
-    const hasQna = elements.some((el) => matchesElementDescriptor(el, 'qna_inline'));
+    // Check if we have qna or image elements
+    const hasQna = elements.some((el) => matchesElementDescriptor(el, 'qna'));
     const hasImage = elements.some(el => el.type === 'image');
 
     if (!hasQna && !hasImage) {

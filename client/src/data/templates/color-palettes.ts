@@ -81,7 +81,6 @@ export function applyPaletteToElement(palette: ColorPalette, elementType: string
     }
       
     case 'qna':
-    case 'qna_inline': {
       const questionFont = get('qnaQuestionText', 'text', palette.colors.text);
       const questionBg = get('qnaQuestionBackground', 'surface', palette.colors.surface);
       const questionBorder = get('qnaQuestionBorder', 'secondary', palette.colors.secondary);
@@ -115,8 +114,7 @@ export function applyPaletteToElement(palette: ColorPalette, elementType: string
       updates.backgroundColor = containerBackground;
       updates.ruledLinesColor = answerLines;
       break;
-    }
-      
+
     case 'free_text': {
       const textColor = get('freeTextText', 'text', palette.colors.text);
       const borderColor = get('freeTextBorder', 'secondary', palette.colors.secondary);

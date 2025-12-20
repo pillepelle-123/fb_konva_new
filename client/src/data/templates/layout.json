@@ -6,7 +6,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 677.9639462170232,
           "y": 180.02749635601128
@@ -24,15 +24,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 678.0570648285993,
           "y": 487.380610510819
@@ -50,15 +55,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 111.98990769804121,
           "y": 881.1578004406277
@@ -76,15 +86,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 112.96995345543694,
           "y": 1177.5431946854635
@@ -102,15 +117,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 112.96995345543799,
           "y": 1717.41553132833
@@ -128,15 +148,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 16
+          "fontSize": 16,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 112.96995345543809,
           "y": 2393.757299469691
@@ -154,12 +179,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 16
+          "fontSize": 16,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       }
     ],
     "elements": [
@@ -194,7 +224,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 316
@@ -212,15 +242,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 824
@@ -238,15 +273,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1331
@@ -264,15 +304,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1951
@@ -290,15 +335,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 771,
           "y": 2684
@@ -316,12 +366,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       }
     ],
     "elements": [
@@ -356,7 +411,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 316
@@ -374,15 +429,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 663
@@ -400,15 +460,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1209
@@ -426,15 +491,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1655
@@ -452,15 +522,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2299
@@ -478,15 +553,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2746
@@ -504,12 +584,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       }
     ],
     "elements": [
@@ -544,7 +629,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 952
@@ -562,15 +647,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 1270,
           "y": 952
@@ -588,15 +678,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1450
@@ -614,15 +709,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 1270,
           "y": 1450
@@ -640,15 +740,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2058
@@ -666,15 +771,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 1270,
           "y": 2058
@@ -692,12 +802,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       }
     ],
     "elements": [],
@@ -716,7 +831,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 593,
           "y": 316
@@ -734,15 +849,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 824
@@ -760,15 +880,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1444
@@ -786,15 +911,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2177
@@ -812,15 +942,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2684
@@ -838,12 +973,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       }
     ],
     "elements": [
@@ -878,7 +1018,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 316
@@ -896,15 +1036,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 676
@@ -922,15 +1067,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1035
@@ -948,15 +1098,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1497
@@ -974,15 +1129,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2062
@@ -1000,15 +1160,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2730
@@ -1026,12 +1191,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       }
     ],
     "elements": [],
@@ -1050,7 +1220,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 316
@@ -1068,15 +1238,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 824
@@ -1094,15 +1269,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1331
@@ -1120,15 +1300,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1951
@@ -1146,15 +1331,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2572
@@ -1172,12 +1362,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       }
     ],
     "elements": [
@@ -1212,7 +1407,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 316
@@ -1230,15 +1425,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 676
@@ -1256,15 +1456,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1138
@@ -1282,15 +1487,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1600
@@ -1308,15 +1518,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 723,
           "y": 2165
@@ -1334,15 +1549,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 723,
           "y": 2832
@@ -1360,12 +1580,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       }
     ],
     "elements": [
@@ -1400,7 +1625,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 880
@@ -1418,15 +1643,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 1270,
           "y": 880
@@ -1444,15 +1674,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1387
@@ -1470,15 +1705,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 1270,
           "y": 1387
@@ -1496,15 +1736,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2008
@@ -1522,12 +1767,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       }
     ],
     "elements": [],
@@ -1546,7 +1796,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 316
@@ -1564,15 +1814,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 711
@@ -1590,15 +1845,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1331
@@ -1616,15 +1876,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1951
@@ -1642,15 +1907,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2684
@@ -1668,12 +1938,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       }
     ],
     "elements": [
@@ -1708,7 +1983,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 771,
           "y": 316
@@ -1726,15 +2001,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 824
@@ -1752,15 +2032,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1444
@@ -1778,15 +2063,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2177
@@ -1804,15 +2094,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2797
@@ -1830,12 +2125,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       }
     ],
     "elements": [
@@ -1870,7 +2170,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 316
@@ -1888,15 +2188,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 689
@@ -1914,15 +2219,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1062
@@ -1940,15 +2250,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1541
@@ -1966,15 +2281,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2020
@@ -1992,15 +2312,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2606
@@ -2018,12 +2343,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       }
     ],
     "elements": [],
@@ -2042,7 +2372,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 316
@@ -2060,15 +2390,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 824
@@ -2086,15 +2421,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1557
@@ -2112,15 +2452,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2177
@@ -2138,15 +2483,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2797
@@ -2164,12 +2514,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       }
     ],
     "elements": [
@@ -2204,7 +2559,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 771,
           "y": 316
@@ -2222,15 +2577,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 10
+        "rotation": 10,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 807
@@ -2248,15 +2608,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1438
@@ -2274,15 +2639,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 10
+        "rotation": 10,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1929
@@ -2300,15 +2670,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 10
+        "rotation": 10,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2561
@@ -2326,12 +2701,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 10
+        "rotation": 10,
+        "padding": 15
       }
     ],
     "elements": [
@@ -2366,7 +2746,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 316
@@ -2384,15 +2764,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": -15
+        "rotation": -15,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 824
@@ -2410,15 +2795,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": -15
+        "rotation": -15,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1444
@@ -2436,15 +2826,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": -15
+        "rotation": -15,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1951
@@ -2462,15 +2857,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": -15
+        "rotation": -15,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2572
@@ -2488,12 +2888,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": -15
+        "rotation": -15,
+        "padding": 15
       }
     ],
     "elements": [
@@ -2528,7 +2933,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 851
@@ -2546,15 +2951,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 1270,
           "y": 851
@@ -2572,15 +2982,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1453
@@ -2598,15 +3013,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 1270,
           "y": 1453
@@ -2624,15 +3044,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2189
@@ -2650,12 +3075,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       }
     ],
     "elements": [],
@@ -2674,7 +3104,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 316
@@ -2692,15 +3122,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": -15
+        "rotation": -15,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 703
@@ -2718,15 +3153,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": -15
+        "rotation": -15,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1090
@@ -2744,15 +3184,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1588
@@ -2770,15 +3215,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2196
@@ -2796,15 +3246,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 771,
           "y": 2694
@@ -2822,12 +3277,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       }
     ],
     "elements": [
@@ -2862,7 +3322,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 316
@@ -2880,15 +3340,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": -15
+        "rotation": -15,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 867
@@ -2906,15 +3371,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": -15
+        "rotation": -15,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1417
@@ -2932,15 +3402,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": -15
+        "rotation": -15,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2091
@@ -2958,15 +3433,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2764
@@ -2984,12 +3464,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": -15
+        "rotation": -15,
+        "padding": 15
       }
     ],
     "elements": [
@@ -3024,7 +3509,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 593,
           "y": 316
@@ -3042,15 +3527,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": -10
+        "rotation": -10,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 727
@@ -3068,15 +3558,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1373
@@ -3094,15 +3589,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": -10
+        "rotation": -10,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1901
@@ -3120,15 +3620,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": -10
+        "rotation": -10,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2546
@@ -3146,12 +3651,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       }
     ],
     "elements": [
@@ -3186,7 +3696,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 316
@@ -3204,15 +3714,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 844
@@ -3230,15 +3745,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1373
@@ -3256,15 +3776,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2018
@@ -3282,15 +3807,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2781
@@ -3308,12 +3838,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       }
     ],
     "elements": [
@@ -3348,7 +3883,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 316
@@ -3366,15 +3901,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 676
@@ -3392,15 +3932,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1138
@@ -3418,15 +3963,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1703
@@ -3444,15 +3994,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2165
@@ -3470,15 +4025,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2730
@@ -3496,12 +4056,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       }
     ],
     "elements": [],
@@ -3520,7 +4085,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 316
@@ -3538,15 +4103,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 727
@@ -3564,15 +4134,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 15
+        "rotation": 15,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 889,
           "y": 1255
@@ -3590,15 +4165,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 889,
           "y": 1901
@@ -3616,15 +4196,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 15
+        "rotation": 15,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2664
@@ -3642,12 +4227,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 15
+        "rotation": 15,
+        "padding": 15
       }
     ],
     "elements": [
@@ -3682,7 +4272,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 1243,
           "y": 316
@@ -3700,15 +4290,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": -18
+        "rotation": -18,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 1243,
           "y": 824
@@ -3726,15 +4321,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": -18
+        "rotation": -18,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 1243,
           "y": 1444
@@ -3752,15 +4352,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2177
@@ -3778,15 +4383,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2684
@@ -3804,12 +4414,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       }
     ],
     "elements": [
@@ -3844,7 +4459,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 2420,
           "y": 316
@@ -3862,15 +4477,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": -12
+        "rotation": -12,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 2420,
           "y": 727
@@ -3888,15 +4508,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": -12
+        "rotation": -12,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1373
@@ -3914,15 +4539,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": -12
+        "rotation": -12,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1901
@@ -3940,15 +4570,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2664
@@ -3966,12 +4601,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": -12
+        "rotation": -12,
+        "padding": 15
       }
     ],
     "elements": [
@@ -4006,7 +4646,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1001
@@ -4024,15 +4664,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 1270,
           "y": 1001
@@ -4050,15 +4695,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1754
@@ -4076,15 +4726,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 1270,
           "y": 1754
@@ -4102,12 +4757,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       }
     ],
     "elements": [
@@ -4142,7 +4802,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 316
@@ -4160,15 +4820,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 844
@@ -4186,15 +4851,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": -10
+        "rotation": -10,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1373
@@ -4212,15 +4882,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": -10
+        "rotation": -10,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2018
@@ -4238,15 +4913,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": -10
+        "rotation": -10,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 1361,
           "y": 2781
@@ -4264,12 +4944,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": -10
+        "rotation": -10,
+        "padding": 15
       }
     ],
     "elements": [
@@ -4304,7 +4989,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 593,
           "y": 316
@@ -4322,15 +5007,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 727
@@ -4348,15 +5038,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1255
@@ -4374,15 +5069,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1901
@@ -4400,15 +5100,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2546
@@ -4426,12 +5131,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       }
     ],
     "elements": [
@@ -4481,7 +5191,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 316
@@ -4499,15 +5209,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 846
@@ -4525,15 +5240,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1527
@@ -4551,15 +5271,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 5
+        "rotation": 5,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2359
@@ -4577,12 +5302,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       }
     ],
     "elements": [],
@@ -4601,7 +5331,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 316
@@ -4619,15 +5349,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 963
@@ -4645,15 +5380,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1754
@@ -4671,15 +5411,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2689
@@ -4697,12 +5442,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       }
     ],
     "elements": [
@@ -4737,7 +5487,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 316
@@ -4755,15 +5505,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 819
@@ -4781,15 +5536,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1610
@@ -4807,15 +5567,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 771,
           "y": 2545
@@ -4833,12 +5598,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       }
     ],
     "elements": [
@@ -4873,7 +5643,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 316
@@ -4891,15 +5661,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 963
@@ -4917,15 +5692,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1610
@@ -4943,15 +5723,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2401
@@ -4969,12 +5754,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       }
     ],
     "elements": [
@@ -5009,7 +5799,7 @@
     "thumbnail": "/templates/default.png",
     "textboxes": [
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 889,
           "y": 316
@@ -5027,15 +5817,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 875
@@ -5053,15 +5848,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 5
+        "rotation": 5,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 1594
@@ -5079,15 +5879,20 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       },
       {
-        "type": "qna_inline",
+        "type": "qna",
         "position": {
           "x": 120,
           "y": 2473
@@ -5105,12 +5910,17 @@
           }
         },
         "questionSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
         "answerSettings": {
-          "fontSize": 18
+          "fontSize": 18,
+          "align": "left",
+          "paragraphSpacing": "medium"
         },
-        "rotation": 0
+        "rotation": 0,
+        "padding": 15
       }
     ],
     "elements": [

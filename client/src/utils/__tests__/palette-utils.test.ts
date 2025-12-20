@@ -110,8 +110,8 @@ describe('Color Palette Utilities', () => {
       expect(result.answerSettings).toBeDefined();
     });
 
-    it('should apply palette colors to qna_inline element', () => {
-      const result = applyPaletteToElement(mockPalette, 'qna_inline');
+    it('should apply palette colors to qna element', () => {
+      const result = applyPaletteToElement(mockPalette, 'qna');
       expect(result.questionSettings).toBeDefined();
       expect(result.answerSettings).toBeDefined();
       if (result.questionSettings) {

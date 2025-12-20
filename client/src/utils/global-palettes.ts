@@ -164,9 +164,6 @@ export function applyPaletteToElement(palette: ColorPalette, elementType: string
       break;
       
     case 'qna':
-    case 'qna':
-    case 'qna_inline': // Backward compatibility
-    case 'qna2': // Backward compatibility
       // Font properties only in questionSettings/answerSettings (no nested font object)
       // Shared properties (borderColor, backgroundColor, etc.) are set on top-level
       updates.questionSettings = {

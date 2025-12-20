@@ -614,17 +614,17 @@ export default function BookCreatePage() {
         });
       }
 
-      // Assign questions to qna_inline textboxes in order
+      // Assign questions to qna textboxes in order
       const questionsToAssign = wizardState.questions.orderedQuestions || [];
       if (questionsToAssign.length > 0) {
-        // Collect all qna_inline textboxes from content pages (page 4 to totalPages-1)
+        // Collect all qna textboxes from content pages (page 4 to totalPages-1)
         const qnaInlineTextboxes: Array<{ pageIndex: number; elementIndex: number; pageNumber: number }> = [];
         for (let i = 0; i < pages.length; i++) {
           const page = pages[i] as { pageNumber: number; elements: Array<{ textType?: string; questionId?: string }> };
           // Only process content pages (page 4 to totalPages-1)
           if (page.pageNumber >= 4 && page.pageNumber < totalPages) {
             page.elements.forEach((element, elementIndex) => {
-              if (element.textType === 'qna_inline') {
+              if (element.textType === 'qna') {
                 qnaInlineTextboxes.push({
                   pageIndex: i,
                   elementIndex,
@@ -1144,9 +1144,9 @@ ${user?.name || '[user name]'}`;
 
       {/* Scrollable Content Area */}
       <div className="flex-1 overflow-y-auto scrollbar relative min-h-0">
-        <div className="mx-auto max-w-7xl px-4 py-8 pt-0 lg:px-8 flex flex-col relative">
+        <div className="mx-auto max-w-7xl px-4 py-8 pt-0 lg:px-8 flex flex-col relative h-full">
           {/* Hauptbereich: Layout abhängig vom aktuellen Schritt */}
-          <div className="mt-6 relative overflow-hidden">
+          <div className="mt-6 relative overflow-hidden h-full">
             <AnimatePresence mode="wait" initial={false} custom={direction}>
               <motion.div
                 key={`${activeStepIndex}-${activeHalfStep || 'main'}`}
@@ -1155,18 +1155,18 @@ ${user?.name || '[user name]'}`;
                 initial="enter"
                 animate="center"
                 exit="exit"
-                className="relative"
+                className="relative h-full"
               >
                 {currentStepId === 'design' || currentStepId === 'review' ? (
-                  <div className="mb-6 grid grid-cols-1 lg:grid-cols-5 gap-6 items-stretch">
+                  <div className="mb-6 grid grid-cols-1 lg:grid-cols-5 gap-6 items-stretch h-full">
                     {/* Left: Controls (60%) */}
-                    <div className="lg:col-span-3 flex flex-col min-h-0">
+                    <div className="lg:col-span-3 flex flex-col min-h-0 h-full">
                       {getStepComponent(activeStepIndex)}
                     </div>
 
                     {/* Right: Live mini editor canvas (40%) */}
-                    <div className="lg:col-span-2 flex flex-col min-h-0 relative overflow-hidden">
-                      <div className="h-[600px]">
+                    <div className="lg:col-span-2 flex flex-col min-h-0 relative overflow-hidden h-full">
+                      <div className="h-full">
                         {showCanvas && canvasLoaded ? (
                           <motion.div
                             key={`canvas-content-${activeStepIndex}`}
@@ -1202,15 +1202,13 @@ ${user?.name || '[user name]'}`;
                     </div>
                   </div>
                 ) : (
-                  <div className="mb-6">
+                  <div className="mb-6 h-full">
                     {getStepComponent(activeStepIndex)}
                   </div>
                 )}
               </motion.div>
             </AnimatePresence>
           </div>
-          {/* Spacer am Ende für konsistenten Abstand zum Browser-Rand */}
-          <div className="h-6 flex-shrink-0"></div>
         </div>
       </div>
 

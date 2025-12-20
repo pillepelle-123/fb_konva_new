@@ -193,7 +193,7 @@ export function PaletteSelector({ onBack, title, isBookLevel = false, previewPos
           
           // Reset tool settings to theme defaults (not palette defaults) for new elements
           // Use getToolDefaults without palette IDs to get pure theme colors
-          const toolTypes = ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna_inline', 'free_text'];
+          const toolTypes = ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna', 'free_text'];
           const toolUpdates: Record<string, any> = {};
           
           toolTypes.forEach(toolType => {
@@ -323,7 +323,7 @@ export function PaletteSelector({ onBack, title, isBookLevel = false, previewPos
               const pageLayoutTemplateId = currentPage?.layoutTemplateId;
               const bookLayoutTemplateId = state.currentBook.layoutTemplateId;
               
-              const toolTypes = ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna_inline', 'free_text'];
+              const toolTypes = ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna', 'free_text'];
               const toolUpdates: Record<string, any> = {};
               
               toolTypes.forEach(toolType => {
@@ -568,7 +568,7 @@ export function PaletteSelector({ onBack, title, isBookLevel = false, previewPos
       text: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background },
       question: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.surface },
       answer: { fontColor: paletteToApply.colors.accent, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background },
-      qna_inline: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background }
+      qna: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background }
     };
     
     Object.entries(toolUpdates).forEach(([tool, settings]) => {
@@ -671,7 +671,7 @@ export function PaletteSelector({ onBack, title, isBookLevel = false, previewPos
         text: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background },
         question: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.surface },
         answer: { fontColor: paletteToApply.colors.accent, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background },
-        qna_inline: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background }
+        qna: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background }
       };
       
       Object.entries(toolUpdates).forEach(([tool, settings]) => {
@@ -762,7 +762,7 @@ export function PaletteSelector({ onBack, title, isBookLevel = false, previewPos
         text: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background },
         question: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.surface },
         answer: { fontColor: paletteToApply.colors.accent, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background },
-        qna_inline: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background }
+        qna: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background }
       };
       
       Object.entries(toolUpdates).forEach(([tool, settings]) => {

@@ -271,7 +271,7 @@ export function QuestionsStep({
   };
 
   return (
-    <StepContainer variant="default" padding="lg" className="rounded-xl shadow-sm flex flex-col h-full">
+    <StepContainer variant="default" padding="sm" className="p-0 border-0 bg-transparent rounded-none flex flex-col h-full">
       {/* Mobile: Single column layout */}
       <div className="lg:hidden flex-1 min-h-0 flex flex-col overflow-hidden space-y-4">
         <div className="flex items-center gap-2 text-sm font-semibold flex-shrink-0">
@@ -350,7 +350,7 @@ export function QuestionsStep({
       {/* Desktop: Two column layout */}
       <div className="hidden lg:flex flex-1 min-h-0 gap-6 overflow-hidden">
         {/* Left: Selected Questions */}
-        <div className="flex-1 min-h-0 flex flex-col overflow-hidden space-y-4">
+        <div className="border bg-white p-5 rounded-xl shadow-sm flex-1 min-h-0 flex flex-col overflow-hidden space-y-4">
           <div className="flex items-center gap-2 text-sm font-semibold flex-shrink-0">
             <MessageCircleQuestionMark className="h-5 w-5" />
             Question set
@@ -410,7 +410,7 @@ export function QuestionsStep({
         </div>
 
         {/* Right: Pool Questions */}
-        <div className="flex-1 min-h-0 flex flex-col overflow-hidden border-l pl-6">
+        <div className="border bg-white p-5 rounded-xl shadow-sm flex-1 min-h-0 flex flex-col overflow-hidden">
           <div className="flex items-center justify-between mb-4">
             <div>
               <span className="flex items-center gap-2 text-sm font-semibold flex-shrink-0">Pool Questions</span>

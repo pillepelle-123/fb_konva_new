@@ -944,6 +944,9 @@ export default function TextboxQna(props: CanvasItemProps) {
   const textRef = useRef<Konva.Rect>(null);
   const isTransformingRef = useRef(false);
   const transformStartDimensionsRef = useRef<{ width: number; height: number } | null>(null);
+  const transformOriginalDimensionsRef = useRef<{ width: number; height: number } | null>(null);
+  const transformStartPositionRef = useRef<{ x: number; y: number } | null>(null);
+  const transformResizeDirectionRef = useRef<{ fromTop: boolean; fromLeft: boolean } | null>(null);
   
   // Local state for dimensions during transform (to update visually without dispatch)
   // ONLY used during active transform, NOT during initial load
@@ -1490,17 +1493,52 @@ export default function TextboxQna(props: CanvasItemProps) {
       
       isTransformingRef.current = true;
       
+      // Get the Group node to access position and determine resize direction
+      const rectNode = textRef.current;
+      if (!rectNode) return;
+      
+      const groupNode = rectNode.getParent();
+      if (!groupNode || groupNode.getClassName() !== 'Group') return;
+      
       // Use current transformDimensions if available, otherwise use element dimensions
       // This ensures we start from the correct visual state (prevents jumping)
       const currentTransformDims = transformDimensionsRef.current;
       const currentWidth = currentTransformDims?.width ?? elementWidth;
       const currentHeight = currentTransformDims?.height ?? elementHeight;
       
-      // Store initial dimensions at transform start
+      // Store initial dimensions and position at transform start
       transformStartDimensionsRef.current = {
         width: currentWidth,
         height: currentHeight
       };
+      
+      // Store original dimensions (from element state) for position calculation
+      transformOriginalDimensionsRef.current = {
+        width: elementWidth,
+        height: elementHeight
+      };
+      
+      transformStartPositionRef.current = {
+        x: groupNode.x(),
+        y: groupNode.y()
+      };
+      
+      // Determine resize direction from active anchor (only once at start)
+      const stage = groupNode.getStage();
+      const transformer = stage?.findOne('Transformer') as Konva.Transformer | null;
+      
+      let fromTop = false;
+      let fromLeft = false;
+      
+      if (transformer) {
+        const activeAnchor = transformer.getActiveAnchor();
+        if (activeAnchor) {
+          fromTop = activeAnchor.includes('top');
+          fromLeft = activeAnchor.includes('left');
+        }
+      }
+      
+      transformResizeDirectionRef.current = { fromTop, fromLeft };
       
       // Initialize transformDimensions immediately to prevent visual jump
       // This ensures boxWidth/boxHeight use the correct values from the start
@@ -1528,15 +1566,47 @@ export default function TextboxQna(props: CanvasItemProps) {
       if (scaleX !== 1 || scaleY !== 1) {
         // Get initial dimensions from when transform started
         const startDims = transformStartDimensionsRef.current || { width: elementWidth, height: elementHeight };
+        const originalDims = transformOriginalDimensionsRef.current || { width: elementWidth, height: elementHeight };
+        const startPos = transformStartPositionRef.current || { x: element.x || 0, y: element.y || 0 };
+        const resizeDirection = transformResizeDirectionRef.current || { fromTop: false, fromLeft: false };
         
         // Calculate new dimensions based on initial dimensions and current scale
         const newWidth = Math.max(5, startDims.width * scaleX);
         const newHeight = Math.max(5, startDims.height * scaleY);
         
+        // Calculate dimension changes from original dimensions
+        const widthChange = newWidth - originalDims.width;
+        const heightChange = newHeight - originalDims.height;
+        
         // Reset scale to 1 immediately (this is the key part from Konva docs)
         // This allows the transform to continue smoothly
         groupNode.scaleX(1);
         groupNode.scaleY(1);
+        
+        // Adjust position to maintain anchor point
+        // Use the original position and resize direction to calculate the new position
+        // This avoids feedback loops by using fixed reference values
+        let newX = startPos.x;
+        let newY = startPos.y;
+        
+        if (resizeDirection.fromLeft) {
+          // Resizing from left: anchor is at right, so move left by width change
+          newX = startPos.x - widthChange;
+        }
+        
+        if (resizeDirection.fromTop) {
+          // Resizing from top: anchor is at bottom, so move up by height change
+          newY = startPos.y - heightChange;
+        }
+        
+        // Update position to maintain anchor point, but only if it changed
+        // This avoids unnecessary updates that could cause feedback loops
+        const currentX = groupNode.x();
+        const currentY = groupNode.y();
+        if (Math.abs(currentX - newX) > 0.01 || Math.abs(currentY - newY) > 0.01) {
+          groupNode.x(newX);
+          groupNode.y(newY);
+        }
         
         // Update textShapeBoxRef for getClientRect calculations immediately
         // This ensures the selection rectangle stays correct during transform
@@ -1557,9 +1627,18 @@ export default function TextboxQna(props: CanvasItemProps) {
     const handleTransformEnd = (e: CustomEvent) => {
       if (e.detail?.elementId !== element.id) return;
       
+      // Get the Group node to adjust position if needed
+      const rectNode = textRef.current;
+      const groupNode = rectNode?.getParent();
+      
       // Apply the final dimensions update
       const finalDims = transformStartDimensionsRef.current;
+      
       if (finalDims && (finalDims.width !== elementWidth || finalDims.height !== elementHeight)) {
+        // Get final position from groupNode (already adjusted during transform)
+        const finalX = groupNode ? groupNode.x() : (element.x || 0);
+        const finalY = groupNode ? groupNode.y() : (element.y || 0);
+        
         // Store the dispatched dimensions so we can track when props are updated
         lastDispatchedDimensionsRef.current = {
           width: finalDims.width,
@@ -1572,7 +1651,9 @@ export default function TextboxQna(props: CanvasItemProps) {
             id: element.id,
             updates: {
               width: finalDims.width,
-              height: finalDims.height
+              height: finalDims.height,
+              x: finalX,
+              y: finalY
             }
           }
         });
@@ -1584,9 +1665,12 @@ export default function TextboxQna(props: CanvasItemProps) {
         setTransformDimensions(null);
       }
       
-      // Reset flags (but keep transformDimensions until element updates)
+      // Reset flags and refs (but keep transformDimensions until element updates)
       isTransformingRef.current = false;
       transformStartDimensionsRef.current = null;
+      transformOriginalDimensionsRef.current = null;
+      transformStartPositionRef.current = null;
+      transformResizeDirectionRef.current = null;
     };
     
     window.addEventListener('transformStart', handleTransformStart as EventListener);

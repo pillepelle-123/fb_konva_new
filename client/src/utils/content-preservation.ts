@@ -70,7 +70,7 @@ export function applyLayoutTemplateWithPreservation(
     // Filter to only keep elements with content
     const elementsWithContent = unmappedExisting.filter(element => {
       // For qna textboxes: has content if questionId is set OR text/formattedText has content
-      if (element.textType === 'qna' || element.textType === 'qna_inline' || element.textType === 'qna2') {
+      if (element.textType === 'qna') {
         const hasQuestionId = !!element.questionId;
         const hasText = !!(element.text && element.text.trim() && element.text !== 'Double-click to add text...');
         const hasFormattedText = !!(element.formattedText && element.formattedText.trim() && !element.formattedText.includes('Double-click to add text'));
@@ -155,8 +155,8 @@ function createSmartMappings(
   const usedTemplate = new Set<string>();
   
   // Priority: qna elements should be mapped first to ensure they get layout positions
-  const qnaElements = existingElements.filter(el => el.textType === 'qna' || el.textType === 'qna_inline' || el.textType === 'qna2');
-  const otherTextElements = existingElements.filter(el => el.textType !== 'qna' && el.textType !== 'qna_inline' && el.textType !== 'qna2');
+  const qnaElements = existingElements.filter(el => el.textType === 'qna');
+  const otherTextElements = existingElements.filter(el => el.textType !== 'qna');
   
   // First pass: exact type matches, prioritizing qna
   [...qnaElements, ...otherTextElements].forEach(existing => {
@@ -185,7 +185,7 @@ function createSmartMappings(
     // Try to find qna slots first
     const qnaSlot = templateSlots.find(slot => 
       !usedTemplate.has(slot.id) && 
-      (slot.textType === 'qna' || slot.textType === 'qna_inline' || slot.textType === 'qna2')
+      (slot.textType === 'qna')
     );
     
     if (qnaSlot) {
@@ -267,13 +267,11 @@ function isTypeCompatible(
     'question': ['text', 'qna'],
     'answer': ['text', 'qna'],
     'text': ['question', 'answer', 'qna'],
-    'qna': ['question', 'answer', 'text'],
-    'qna_inline': ['qna', 'question', 'answer', 'text'], // Backward compatibility
-    'qna2': ['qna', 'question', 'answer', 'text'] // Backward compatibility
+    'qna': ['question', 'answer', 'text']
   };
-  
+
   if (!existingType || !templateType) return true;
-  
+
   return compatibilityMap[existingType]?.includes(templateType) || false;
 }
 

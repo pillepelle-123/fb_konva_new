@@ -85,8 +85,8 @@ export default function CanvasItemComponent(props: CanvasItemComponentProps) {
   }
 
   if (element.type === 'text') {
-    // Check for QnA textType (including qna_inline and qna2 for backward compatibility - will be migrated)
-    if (element.textType === 'qna' || element.textType === 'qna_inline' || element.textType === 'qna2') {
+    // Check for QnA textType
+    if (element.textType === 'qna') {
       return <TextboxQna {...props} />;
     }
     // Check for Free Text textType

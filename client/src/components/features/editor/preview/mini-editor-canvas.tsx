@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { EditorPreviewProvider } from './editor-preview-provider';
 import Canvas from '../canvas/canvas';
+import { ZoomProvider } from '../canvas/zoom-context';
 import type { PageTemplate } from '../../../../types/template-types';
 import type { BookOrientation, BookPageSize } from '../../../../constants/book-formats';
 
@@ -38,10 +39,20 @@ export default function MiniEditorCanvas(props: MiniEditorCanvasProps) {
     }
   }, [props.className]);
 
+  // Always trigger fitToView for mini previews on mount and when props change
+  useEffect(() => {
+    // Dispatch event to trigger fitToView in Canvas component
+    // Use a delay to ensure the container has rendered
+    const timeoutId = setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('triggerFitToView'));
+    }, 150);
+    return () => clearTimeout(timeoutId);
+  }, [props.pageSize, props.orientation, props.baseTemplate, props.leftTemplate, props.rightTemplate]);
+
   const isModal = props.className?.includes('h-full');
 
   return (
-    <div className={`rounded-2xl bg-white shadow-sm border p-4 ${props.className ?? ''} h-full flex flex-col`}>
+    <div className={`rounded-2xl bg-white shadow-sm border p-4 ${props.className ?? ''} ${!isModal ? 'h-[350px]' : 'h-full'} flex flex-col`}>
       {!isModal && <div className="text-sm font-semibold mb-3 flex-shrink-0">Live Preview</div>}
       <div
         className="w-full mini-editor-preview flex-1 min-h-0"
@@ -72,7 +83,9 @@ export default function MiniEditorCanvas(props: MiniEditorCanvasProps) {
           mirrorRight={props.mirrorRight}
           allowInteractions={isModal}
         >
-          <Canvas />
+          <ZoomProvider initialZoom={0.2}>
+            <Canvas />
+          </ZoomProvider>
         </EditorPreviewProvider>
       </div>
     </div>

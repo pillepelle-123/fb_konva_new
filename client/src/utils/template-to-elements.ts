@@ -7,7 +7,7 @@ import { scaleTemplateToCanvas } from './template-utils';
 import { commonToActual } from './font-size-converter';
 
 interface TemplateTextbox {
-  type: 'question' | 'answer' | 'text' | 'qna' | 'qna_inline' | 'qna2';
+  type: 'question' | 'answer' | 'text' | 'qna';
   position: { x: number; y: number };
   size: { width: number; height: number };
   style?: TextboxStyle;
@@ -31,9 +31,9 @@ export function convertTemplateTextboxToElement(
   palette: ColorPalette
 ): CanvasElement {
   // Determine textType: qna or free_text are supported
-  // - qna: for Q&A layouts (layoutVariant === 'inline' or type === 'qna'/'qna_inline'/'qna2')
+  // - qna: for Q&A layouts (layoutVariant === 'inline' or type === 'qna')
   // - free_text: for all other text boxes
-  const isQna = textbox.layoutVariant === 'inline' || textbox.type === 'qna' || textbox.type === 'qna_inline' || textbox.type === 'qna2';
+  const isQna = textbox.layoutVariant === 'inline' || textbox.type === 'qna';
   const textType: CanvasElement['textType'] = isQna ? 'qna' : 'free_text';
   
   // Use appropriate defaults with type guards
@@ -61,10 +61,10 @@ export function convertTemplateTextboxToElement(
       // qna specific settings
       layoutVariant: 'inline',
       // Übernehme questionSettings und answerSettings aus Template (falls vorhanden), sonst Defaults
-      questionSettings: textbox.questionSettings || 
-        (qnaInlineDefaults.questionSettings ? { ...qnaInlineDefaults.questionSettings } : undefined),
-      answerSettings: textbox.answerSettings || 
-        (qnaInlineDefaults.answerSettings ? { ...qnaInlineDefaults.answerSettings } : undefined)
+      questionSettings: textbox.questionSettings ||
+        (qnaDefaults.questionSettings ? { ...qnaDefaults.questionSettings } : undefined),
+      answerSettings: textbox.answerSettings ||
+        (qnaDefaults.answerSettings ? { ...qnaDefaults.answerSettings } : undefined)
     } : {
       // free_text specific settings
       fontColor: (defaults as any).fontColor || '#000000',
@@ -99,7 +99,7 @@ export function convertTemplateTextboxToElement(
   
   // Apply only primary layout properties from questionSettings/answerSettings
   // Only fontSize is a layout property; all other properties (fontFamily, fontColor, etc.) come from themes
-  if (isQnaInline && textbox.questionSettings) {
+  if (isQna && textbox.questionSettings) {
     const questionLayoutSettings: any = {};
     // Only extract fontSize from questionSettings (layout property)
     if (typeof textbox.questionSettings.fontSize === 'number') {
@@ -121,7 +121,7 @@ export function convertTemplateTextboxToElement(
       };
     }
   }
-  if (isQnaInline && textbox.answerSettings) {
+  if (isQna && textbox.answerSettings) {
     const answerLayoutSettings: any = {};
     // Only extract fontSize from answerSettings (layout property)
     if (typeof textbox.answerSettings.fontSize === 'number') {

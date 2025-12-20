@@ -37,7 +37,7 @@ import { createPreviewImage, resolveBackgroundImageUrl } from '../../../../utils
 import { getPalettePartColor } from '../../../../data/templates/color-palettes';
 import { colorPalettes } from '../../../../data/templates/color-palettes';
 import { getThemePaletteId, getGlobalThemeDefaults } from '../../../../utils/global-themes';
-import { BOOK_PAGE_DIMENSIONS, DEFAULT_BOOK_ORIENTATION, DEFAULT_BOOK_PAGE_SIZE } from '../../../../constants/book-formats';
+import { BOOK_PAGE_DIMENSIONS, DEFAULT_BOOK_ORIENTATION, DEFAULT_BOOK_PAGE_SIZE, SAFETY_MARGIN_PX } from '../../../../constants/book-formats';
 import { getConsistentColor } from '../../../../utils/consistent-color';
 import ProfilePicture from '../../users/profile-picture';
 
@@ -325,6 +325,9 @@ export default function Canvas() {
   // Tooltip für die inaktive Seite eines Seitenpaares ("Click to enter this page.")
   const [inactivePageTooltip, setInactivePageTooltip] = useState<{ x: number; y: number } | null>(null);
   const [snapGuidelines, setSnapGuidelines] = useState<SnapGuideline[]>([]);
+  const [hoveredSafetyMargin, setHoveredSafetyMargin] = useState<boolean>(false);
+  const [safetyMarginTooltip, setSafetyMarginTooltip] = useState<{ x: number; y: number } | null>(null);
+  const [isManuallyHovering, setIsManuallyHovering] = useState<boolean>(false);
   
   // Observe tool settings panel width to position lock icon correctly
   useEffect(() => {
@@ -1455,6 +1458,80 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     const pos = e.target.getStage()?.getPointerPosition();
     if (pos) {
       setLastMousePos({ x: pos.x, y: pos.y });
+      
+      // Check if mouse is over safety margin areas (outside the safe area)
+      const stage = e.target.getStage();
+      if (stage) {
+        // Transform stage coordinates to page coordinates
+        // Formula: (pos.x - stagePos.x) / zoom - pageOffset
+        const pageX = (pos.x - stagePos.x) / zoom - activePageOffsetX;
+        const pageY = (pos.y - stagePos.y) / zoom - pageOffsetY;
+        
+        // Check if mouse is in one of the 4 safety margin areas (outside safe area)
+        const isInTopArea = pageY >= 0 && pageY < SAFETY_MARGIN_PX && pageX >= 0 && pageX <= canvasWidth;
+        const isInBottomArea = pageY >= canvasHeight - SAFETY_MARGIN_PX && pageY <= canvasHeight && pageX >= 0 && pageX <= canvasWidth;
+        const isInLeftArea = pageX >= 0 && pageX < SAFETY_MARGIN_PX && pageY >= SAFETY_MARGIN_PX && pageY <= canvasHeight - SAFETY_MARGIN_PX;
+        const isInRightArea = pageX >= canvasWidth - SAFETY_MARGIN_PX && pageX <= canvasWidth && pageY >= SAFETY_MARGIN_PX && pageY <= canvasHeight - SAFETY_MARGIN_PX;
+        
+        // Check if snapped to safety margin
+        const safetyMarginPositions = [
+          activePageOffsetX + SAFETY_MARGIN_PX, // left
+          activePageOffsetX + canvasWidth - SAFETY_MARGIN_PX, // right
+          pageOffsetY + SAFETY_MARGIN_PX, // top
+          pageOffsetY + canvasHeight - SAFETY_MARGIN_PX // bottom
+        ];
+        const isSnappedToSafetyMargin = snapGuidelines.some(guideline => {
+          return safetyMarginPositions.some(pos => {
+            return Math.abs(guideline.position - pos) < 1;
+          });
+        });
+
+        // Check if any selected element is outside safety margin
+        let hasElementOutsideSafetyMargin = false;
+        if (currentPage && state.selectedElementIds.length > 0 && (isDragging || snapGuidelines.length > 0)) {
+          const transformer = transformerRef.current;
+          if (transformer) {
+            const nodes = transformer.nodes();
+            nodes.forEach(node => {
+              const nodeX = node.x();
+              const nodeY = node.y();
+              const nodeWidth = (node.width() || 0) * (node.scaleX() || 1);
+              const nodeHeight = (node.height() || 0) * (node.scaleY() || 1);
+              
+              const elementLeft = nodeX;
+              const elementRight = nodeX + nodeWidth;
+              const elementTop = nodeY;
+              const elementBottom = nodeY + nodeHeight;
+              
+              const isOutsideLeft = elementLeft < SAFETY_MARGIN_PX;
+              const safetyMarginRight = canvasWidth - SAFETY_MARGIN_PX;
+              const isOutsideRight = elementRight >= safetyMarginRight;
+              const isOutsideTop = elementTop < SAFETY_MARGIN_PX;
+              const safetyMarginBottom = canvasHeight - SAFETY_MARGIN_PX;
+              const isOutsideBottom = elementBottom >= safetyMarginBottom;
+              
+              if (isOutsideLeft || isOutsideRight || isOutsideTop || isOutsideBottom) {
+                hasElementOutsideSafetyMargin = true;
+              }
+            });
+          }
+        }
+
+        if (isInTopArea || isInBottomArea || isInLeftArea || isInRightArea) {
+          setIsManuallyHovering(true);
+          setHoveredSafetyMargin(true);
+          if (e.evt && typeof e.evt.clientX === 'number' && typeof e.evt.clientY === 'number') {
+            setSafetyMarginTooltip({ x: e.evt.clientX, y: e.evt.clientY - 24 });
+          }
+        } else {
+          setIsManuallyHovering(false);
+          if (!isSnappedToSafetyMargin && !hasElementOutsideSafetyMargin) {
+            // Only clear if not snapped to safety margin and no element is outside
+            setHoveredSafetyMargin(false);
+            setSafetyMarginTooltip(null);
+          }
+        }
+      }
     }
     
     // Block all mouse move interactions for no_access users
@@ -3420,6 +3497,142 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     }
   }, [stageRef.current]);
 
+  // Check if any selected element is outside the safety margin
+  useEffect(() => {
+    // Check if elements are selected
+    if (!currentPage || state.selectedElementIds.length === 0) {
+      // If no elements selected, only clear if not manually hovering
+      if (!isManuallyHovering) {
+        setHoveredSafetyMargin(false);
+        setSafetyMarginTooltip(null);
+      }
+      return;
+    }
+
+    const checkElementPosition = () => {
+      let hasElementOutsideSafetyMargin = false;
+
+      // Check selected elements
+      if (currentPage && state.selectedElementIds.length > 0) {
+        const transformer = transformerRef.current;
+        
+        if (transformer) {
+          const nodes = transformer.nodes();
+          nodes.forEach(node => {
+            // Get element position in page coordinates
+            const nodeX = node.x();
+            const nodeY = node.y();
+            
+            // Get element dimensions - need to get from element state for Groups
+            const elementId = node.id();
+            const element = currentPage?.elements?.find(el => el.id === elementId);
+            
+            let nodeWidth = 0;
+            let nodeHeight = 0;
+            
+            if (element) {
+              // All elements are in Groups, calculate from element state and scale
+              const groupNode = node as Konva.Group;
+              const groupScaleX = groupNode.scaleX() || 1;
+              const groupScaleY = groupNode.scaleY() || 1;
+              // Use element width/height and multiply by current scale during resize
+              nodeWidth = (element.width || 0) * groupScaleX;
+              nodeHeight = (element.height || 0) * groupScaleY;
+            } else {
+              // Fallback: try to get from node directly
+              nodeWidth = (node.width() || 0) * (node.scaleX() || 1);
+              nodeHeight = (node.height() || 0) * (node.scaleY() || 1);
+            }
+            
+            // Convert to page coordinates (relative to activePageOffsetX and pageOffsetY)
+            // The node position is already in the Group coordinate system (which is offset by activePageOffsetX, pageOffsetY)
+            // So we need to check if it's outside the safety margin
+            const elementLeft = nodeX;
+            const elementRight = nodeX + nodeWidth;
+            const elementTop = nodeY;
+            const elementBottom = nodeY + nodeHeight;
+            
+            // Check if element is outside safety margin
+            // Left: element starts before the safety margin line
+            const isOutsideLeft = elementLeft < SAFETY_MARGIN_PX;
+            // Right: element ends after (or on) the safety margin line
+            // The safety margin line is at canvasWidth - SAFETY_MARGIN_PX
+            // So if elementRight is greater than or equal to this, it's outside
+            const safetyMarginRight = canvasWidth - SAFETY_MARGIN_PX;
+            const isOutsideRight = elementRight >= safetyMarginRight;
+            // Top: element starts before the safety margin line
+            const isOutsideTop = elementTop < SAFETY_MARGIN_PX;
+            // Bottom: element ends after (or on) the safety margin line
+            const safetyMarginBottom = canvasHeight - SAFETY_MARGIN_PX;
+            const isOutsideBottom = elementBottom >= safetyMarginBottom;
+            
+            if (isOutsideLeft || isOutsideRight || isOutsideTop || isOutsideBottom) {
+              hasElementOutsideSafetyMargin = true;
+            }
+          });
+        } else {
+          // Fallback: check elements from state
+          state.selectedElementIds.forEach(elementId => {
+            const element = currentPage.elements?.find(el => el.id === elementId);
+            if (element) {
+              const elementLeft = element.x || 0;
+              const elementRight = (element.x || 0) + (element.width || 0);
+              const elementTop = element.y || 0;
+              const elementBottom = (element.y || 0) + (element.height || 0);
+              
+              const isOutsideLeft = elementLeft < SAFETY_MARGIN_PX;
+              const safetyMarginRight = canvasWidth - SAFETY_MARGIN_PX;
+              const isOutsideRight = elementRight >= safetyMarginRight;
+              const isOutsideTop = elementTop < SAFETY_MARGIN_PX;
+              const safetyMarginBottom = canvasHeight - SAFETY_MARGIN_PX;
+              const isOutsideBottom = elementBottom >= safetyMarginBottom;
+              
+              if (isOutsideLeft || isOutsideRight || isOutsideTop || isOutsideBottom) {
+                hasElementOutsideSafetyMargin = true;
+              }
+            }
+          });
+        }
+      }
+
+      // Also check if snapped to safety margin (element is at the edge)
+      const safetyMarginPositions = [
+        activePageOffsetX + SAFETY_MARGIN_PX, // left
+        activePageOffsetX + canvasWidth - SAFETY_MARGIN_PX, // right
+        pageOffsetY + SAFETY_MARGIN_PX, // top
+        pageOffsetY + canvasHeight - SAFETY_MARGIN_PX // bottom
+      ];
+
+      const isSnappedToSafetyMargin = snapGuidelines.length > 0 && snapGuidelines.some(guideline => {
+        return safetyMarginPositions.some(pos => {
+          return Math.abs(guideline.position - pos) < 1;
+        });
+      });
+
+      // Show fill if element is outside safety margin OR snapped to safety margin
+      if (hasElementOutsideSafetyMargin || isSnappedToSafetyMargin) {
+        setHoveredSafetyMargin(true);
+      } else if (!isManuallyHovering) {
+        // Clear if element is fully inside and not manually hovering
+        setHoveredSafetyMargin(false);
+        setSafetyMarginTooltip(null);
+      }
+    };
+
+    // Check immediately
+    checkElementPosition();
+
+    // Set up interval to check continuously while elements are selected
+    const interval = setInterval(() => {
+      // Always check if elements are selected
+      if (state.selectedElementIds.length > 0) {
+        checkElementPosition();
+      }
+    }, 50); // Check every 50ms while elements are selected
+
+    return () => clearInterval(interval);
+  }, [snapGuidelines, isDragging, state.selectedElementIds, currentPage, activePageOffsetX, pageOffsetY, canvasWidth, canvasHeight, isManuallyHovering]);
+
 
   const handleSnapPosition = (node: Konva.Node, x: number, y: number, enableGridSnap: boolean = false) => {
     // Check if magnetic snapping is enabled (default to true if not set)
@@ -3464,13 +3677,13 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     let safetyMargin: number;
     if (state.isMiniPreview) {
       if (isLandscape) {
-        // Landscape: more padding and aggressive safety margin to prevent clipping
-        minPadding = 80;
-        safetyMargin = 0.80; // 20% reduction
+        // Landscape: more padding and safety margin to prevent clipping
+        minPadding = 60;
+        safetyMargin = 0.85; // 15% reduction
       } else {
-        // Portrait: less padding and smaller safety margin to avoid over-zooming
+        // Portrait: less padding and smaller safety margin
         minPadding = 40;
-        safetyMargin = 0.95; // 5% reduction
+        safetyMargin = 0.90; // 10% reduction
       }
     } else {
       minPadding = 10;
@@ -3502,7 +3715,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         const testPaddingX = (containerWidth - testSpreadWidth) / 2;
         const testPaddingY = (containerHeight - testPageHeight) / 2;
         
-        // If padding is still too small for landscape, recalculate with even more aggressive reduction
+        // If padding is still too small for landscape, recalculate with additional reduction
         if (testPaddingX < minPadding || testPaddingY < minPadding) {
           const safeScaleX = (containerWidth - minPadding * 2.5) / spreadWidth;
           const safeScaleY = (containerHeight - minPadding * 2.5) / canvasHeight;
@@ -3515,7 +3728,12 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     }
     
     // Ensure zoom is never negative or zero
-    optimalZoom = Math.max(optimalZoom, 0.01);
+    optimalZoom = Math.max(optimalZoom, 0.1);
+    
+    // For mini previews, ensure we don't zoom in too much - cap at 0.8 (80%) to allow closer view
+    if (state.isMiniPreview) {
+      optimalZoom = Math.min(optimalZoom, 0.8);
+    }
     
     // Center the spread in the container
     const scaledSpreadWidth = spreadWidth * optimalZoom;
@@ -3921,23 +4139,146 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         >
           <Layer>
             {/* Page boundary */}
-            <CanvasPageEditArea 
-              width={canvasWidth} 
-              height={canvasHeight} 
-              x={activePageOffsetX} 
+            <CanvasPageEditArea
+              width={canvasWidth}
+              height={canvasHeight}
+              x={activePageOffsetX}
               y={pageOffsetY}
             />
             {partnerPage && previewPageOffsetX !== null && (
-              <CanvasPageEditArea 
-                width={canvasWidth} 
-                height={canvasHeight} 
-                x={previewPageOffsetX} 
+              <CanvasPageEditArea
+                width={canvasWidth}
+                height={canvasHeight}
+                x={previewPageOffsetX}
                 y={pageOffsetY}
               />
             )}
             {/* Background Layer */}
             {renderBackground(currentPage, activePageOffsetX)}
             {partnerPage && previewPageOffsetX !== null && renderBackground(partnerPage, previewPageOffsetX)}
+            {/* Safety Margin Hover-Area - außerhalb der Safety-Margin (hinter Canvas Elements) */}
+            <Group x={activePageOffsetX} y={pageOffsetY}>
+              {/* Obere Area */}
+              <Rect
+                x={0}
+                y={0}
+                width={canvasWidth}
+                height={SAFETY_MARGIN_PX}
+                fill="transparent"
+                listening={false}
+                name="no-print"
+              />
+              {/* Untere Area */}
+              <Rect
+                x={0}
+                y={canvasHeight - SAFETY_MARGIN_PX}
+                width={canvasWidth}
+                height={SAFETY_MARGIN_PX}
+                fill="transparent"
+                listening={false}
+                name="no-print"
+              />
+              {/* Linke Area */}
+              <Rect
+                x={0}
+                y={SAFETY_MARGIN_PX}
+                width={SAFETY_MARGIN_PX}
+                height={canvasHeight - 2 * SAFETY_MARGIN_PX}
+                fill="transparent"
+                listening={false}
+                name="no-print"
+              />
+              {/* Rechte Area */}
+              <Rect
+                x={canvasWidth - SAFETY_MARGIN_PX}
+                y={SAFETY_MARGIN_PX}
+                width={SAFETY_MARGIN_PX}
+                height={canvasHeight - 2 * SAFETY_MARGIN_PX}
+                fill="transparent"
+                listening={false}
+                name="no-print"
+              />
+              {/* Hover-Füllung für alle 4 Bereiche */}
+              {hoveredSafetyMargin && (
+                <>
+                  {/* Obere Füllung */}
+                  <Rect
+                    x={0}
+                    y={0}
+                    width={canvasWidth}
+                    height={SAFETY_MARGIN_PX}
+                    fill="#3b82f6"
+                    opacity={0.3}
+                    listening={false}
+                    name="no-print"
+                  />
+                  {/* Untere Füllung */}
+                  <Rect
+                    x={0}
+                    y={canvasHeight - SAFETY_MARGIN_PX}
+                    width={canvasWidth}
+                    height={SAFETY_MARGIN_PX}
+                    fill="#3b82f6"
+                    opacity={0.3}
+                    listening={false}
+                    name="no-print"
+                  />
+                  {/* Linke Füllung */}
+                  <Rect
+                    x={0}
+                    y={SAFETY_MARGIN_PX}
+                    width={SAFETY_MARGIN_PX}
+                    height={canvasHeight - 2 * SAFETY_MARGIN_PX}
+                    fill="#3b82f6"
+                    opacity={0.3}
+                    listening={false}
+                    name="no-print"
+                  />
+                  {/* Rechte Füllung */}
+                  <Rect
+                    x={canvasWidth - SAFETY_MARGIN_PX}
+                    y={SAFETY_MARGIN_PX}
+                    width={SAFETY_MARGIN_PX}
+                    height={canvasHeight - 2 * SAFETY_MARGIN_PX}
+                    fill="#3b82f6"
+                    opacity={0.3}
+                    listening={false}
+                    name="no-print"
+                  />
+                </>
+              )}
+            </Group>
+            {/* Safety Margin Rectangle - visuelle Darstellung (vor Canvas Elements) */}
+            <Rect
+              x={activePageOffsetX + SAFETY_MARGIN_PX}
+              y={pageOffsetY + SAFETY_MARGIN_PX}
+              width={canvasWidth - 2 * SAFETY_MARGIN_PX}
+              height={canvasHeight - 2 * SAFETY_MARGIN_PX}
+              fill="transparent"
+              stroke="#e5e7eb"
+              strokeWidth={2}
+              dash={[6, 6]}
+              cornerRadius={8}
+              strokeScaleEnabled={false}
+              listening={false}
+              name="no-print"
+            />
+            {partnerPage && previewPageOffsetX !== null && (
+              <Rect
+                x={previewPageOffsetX + SAFETY_MARGIN_PX}
+                y={pageOffsetY + SAFETY_MARGIN_PX}
+                width={canvasWidth - 2 * SAFETY_MARGIN_PX}
+                height={canvasHeight - 2 * SAFETY_MARGIN_PX}
+                fill="transparent"
+                stroke="#e5e7eb"
+                strokeWidth={2}
+                dash={[6, 6]}
+                cornerRadius={8}
+                strokeScaleEnabled={false}
+                listening={false}
+                name="no-print"
+              />
+            )}
             
             {/* Canvas elements der aktiven Seite (keine Clips – dürfen auch über die Grenze zur Nachbar-Seite hinaus
                 selektiert und verschoben werden). Die „Trennung“ wird erreicht, indem nur die Partner-/Preview-Seite
@@ -4432,6 +4773,62 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                     });
                   }
                 }
+                
+                // Check if elements are outside safety margin during drag
+                let hasElementOutsideSafetyMargin = false;
+                nodes.forEach(node => {
+                  const nodeX = node.x();
+                  const nodeY = node.y();
+                  
+                  // Get element dimensions - need to get from element state for Groups
+                  const elementId = node.id();
+                  const element = currentPage?.elements?.find(el => el.id === elementId);
+                  
+                  let nodeWidth = 0;
+                  let nodeHeight = 0;
+                  
+                  if (element) {
+                    // For Groups (image, sticker), calculate from element state and scale
+                    if (node.getClassName() === 'Group') {
+                      const groupNode = node as Konva.Group;
+                      const groupScaleX = groupNode.scaleX() || 1;
+                      const groupScaleY = groupNode.scaleY() || 1;
+                      nodeWidth = (element.width || 0) * groupScaleX;
+                      nodeHeight = (element.height || 0) * groupScaleY;
+                    } else {
+                      // For other elements, use node dimensions
+                      nodeWidth = (node.width() || 0) * (node.scaleX() || 1);
+                      nodeHeight = (node.height() || 0) * (node.scaleY() || 1);
+                    }
+                  } else {
+                    // Fallback: try to get from node directly
+                    nodeWidth = (node.width() || 0) * (node.scaleX() || 1);
+                    nodeHeight = (node.height() || 0) * (node.scaleY() || 1);
+                  }
+                  
+                  const elementLeft = nodeX;
+                  const elementRight = nodeX + nodeWidth;
+                  const elementTop = nodeY;
+                  const elementBottom = nodeY + nodeHeight;
+                  
+                  const isOutsideLeft = elementLeft < SAFETY_MARGIN_PX;
+                  const safetyMarginRight = canvasWidth - SAFETY_MARGIN_PX;
+                  const isOutsideRight = elementRight >= safetyMarginRight;
+                  const isOutsideTop = elementTop < SAFETY_MARGIN_PX;
+                  const safetyMarginBottom = canvasHeight - SAFETY_MARGIN_PX;
+                  const isOutsideBottom = elementBottom >= safetyMarginBottom;
+                  
+                  if (isOutsideLeft || isOutsideRight || isOutsideTop || isOutsideBottom) {
+                    hasElementOutsideSafetyMargin = true;
+                  }
+                });
+                
+                if (hasElementOutsideSafetyMargin) {
+                  setHoveredSafetyMargin(true);
+                } else if (!isManuallyHovering) {
+                  setHoveredSafetyMargin(false);
+                  setSafetyMarginTooltip(null);
+                }
               }}
               onDragEnd={(e) => {
                 setSnapGuidelines([]);
@@ -4584,12 +4981,93 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                       detail: { elementId }
                     }));
                   });
+                  
+                  // Check if elements are outside safety margin during transform
+                  let hasElementOutsideSafetyMargin = false;
+                  nodes.forEach(node => {
+                    const nodeX = node.x();
+                    const nodeY = node.y();
+                    
+                    // Get element dimensions - need to get from element state for Groups
+                    const elementId = node.id();
+                    const element = currentPage?.elements?.find(el => el.id === elementId);
+                    
+                    let nodeWidth = 0;
+                    let nodeHeight = 0;
+                    
+                    if (element) {
+                      // All elements are in Groups, calculate from element state and scale
+                      const groupNode = node as Konva.Group;
+                      const groupScaleX = groupNode.scaleX() || 1;
+                      const groupScaleY = groupNode.scaleY() || 1;
+                      // Use element width/height and multiply by current scale during resize
+                      nodeWidth = (element.width || 0) * groupScaleX;
+                      nodeHeight = (element.height || 0) * groupScaleY;
+                    } else {
+                      // Fallback: try to get from node directly
+                      nodeWidth = (node.width() || 0) * (node.scaleX() || 1);
+                      nodeHeight = (node.height() || 0) * (node.scaleY() || 1);
+                    }
+                    
+                    const elementLeft = nodeX;
+                    const elementRight = nodeX + nodeWidth;
+                    const elementTop = nodeY;
+                    const elementBottom = nodeY + nodeHeight;
+                    
+                    const isOutsideLeft = elementLeft < SAFETY_MARGIN_PX;
+                    const safetyMarginRight = canvasWidth - SAFETY_MARGIN_PX;
+                    const isOutsideRight = elementRight >= safetyMarginRight;
+                    const isOutsideTop = elementTop < SAFETY_MARGIN_PX;
+                    const safetyMarginBottom = canvasHeight - SAFETY_MARGIN_PX;
+                    const isOutsideBottom = elementBottom >= safetyMarginBottom;
+                    
+                    if (isOutsideLeft || isOutsideRight || isOutsideTop || isOutsideBottom) {
+                      hasElementOutsideSafetyMargin = true;
+                    }
+                  });
+                  
+                  if (hasElementOutsideSafetyMargin) {
+                    setHoveredSafetyMargin(true);
+                  } else if (!isManuallyHovering) {
+                    setHoveredSafetyMargin(false);
+                    setSafetyMarginTooltip(null);
+                  }
                 } else {
                   state.selectedElementIds.forEach(elementId => {
                     window.dispatchEvent(new CustomEvent('transform', {
                       detail: { elementId }
                     }));
                   });
+                  
+                  // Check if elements are outside safety margin during transform (fallback)
+                  let hasElementOutsideSafetyMargin = false;
+                  state.selectedElementIds.forEach(elementId => {
+                    const element = currentPage?.elements?.find(el => el.id === elementId);
+                    if (element) {
+                      const elementLeft = element.x || 0;
+                      const elementRight = (element.x || 0) + (element.width || 0);
+                      const elementTop = element.y || 0;
+                      const elementBottom = (element.y || 0) + (element.height || 0);
+                      
+                      const isOutsideLeft = elementLeft < SAFETY_MARGIN_PX;
+                      const safetyMarginRight = canvasWidth - SAFETY_MARGIN_PX;
+                      const isOutsideRight = elementRight >= safetyMarginRight;
+                      const isOutsideTop = elementTop < SAFETY_MARGIN_PX;
+                      const safetyMarginBottom = canvasHeight - SAFETY_MARGIN_PX;
+                      const isOutsideBottom = elementBottom >= safetyMarginBottom;
+                      
+                      if (isOutsideLeft || isOutsideRight || isOutsideTop || isOutsideBottom) {
+                        hasElementOutsideSafetyMargin = true;
+                      }
+                    }
+                  });
+                  
+                  if (hasElementOutsideSafetyMargin) {
+                    setHoveredSafetyMargin(true);
+                  } else if (!isManuallyHovering) {
+                    setHoveredSafetyMargin(false);
+                    setSafetyMarginTooltip(null);
+                  }
                 }
               }}
               onTransformEnd={(e) => {
@@ -4835,6 +5313,16 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
             </span>
           </div>
           </CanvasOverlayPortal>
+        )}
+        {safetyMarginTooltip && (
+          <Tooltip
+            content="Safety Margin"
+            side="top"
+            forceVisible={true}
+            screenPosition={safetyMarginTooltip}
+          >
+            <div />
+          </Tooltip>
         )}
         
         <ContextMenu

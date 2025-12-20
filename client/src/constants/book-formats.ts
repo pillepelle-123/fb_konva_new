@@ -14,3 +14,7 @@ export type BookOrientation = (typeof BOOK_ORIENTATIONS)[number];
 export const DEFAULT_BOOK_PAGE_SIZE: BookPageSize = 'A4';
 export const DEFAULT_BOOK_ORIENTATION: BookOrientation = 'portrait';
 
+// Safety margin for printing: 10mm at 300 DPI
+export const SAFETY_MARGIN_MM = 10;
+export const SAFETY_MARGIN_PX = SAFETY_MARGIN_MM * 11.811; // ≈118px
+

@@ -15,7 +15,7 @@ export function applyTextboxStyle(element: any, style?: TextboxStyle): any {
   if (style.format) {
     // For qna, align is on top-level, not in format.textAlign
     if (style.format.textAlign) {
-      if (styledElement.textType === 'qna' || styledElement.textType === 'qna_inline' || styledElement.textType === 'qna2') {
+      if (styledElement.textType === 'qna') {
         styledElement.align = style.format.textAlign;
       } else {
         styledElement.format = styledElement.format || {};

@@ -209,7 +209,7 @@ export function BasicInfoStep({
           <ArrowBigRight className="h-6 w-6" />
         </button>
       </div>
-      <div className="flex w-1/3 flex-col gap-3 min-w-0 pr-3 pt-3">
+      <div className="flex w-1/3 flex-col gap-3 min-w-0 h-[400px] pr-2 pt-2">
         <Button
             onClick={onBookWizard}
             disabled={!hasBookName || isSubmitting}

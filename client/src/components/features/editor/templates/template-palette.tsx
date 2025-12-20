@@ -50,7 +50,7 @@ export function TemplatePalette({ selectedPalette, onPaletteSelect }: TemplatePa
       text: { fontColor: palette.colors.primary, borderColor: palette.colors.secondary, backgroundColor: palette.colors.background },
       question: { fontColor: palette.colors.primary, borderColor: palette.colors.secondary, backgroundColor: palette.colors.surface },
       answer: { fontColor: palette.colors.accent, borderColor: palette.colors.secondary, backgroundColor: palette.colors.background },
-      qna_inline: { fontColor: palette.colors.primary, borderColor: palette.colors.secondary, backgroundColor: palette.colors.background }
+      qna: { fontColor: palette.colors.primary, borderColor: palette.colors.secondary, backgroundColor: palette.colors.background }
     };
     
     Object.entries(toolUpdates).forEach(([tool, settings]) => {

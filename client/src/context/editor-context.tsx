@@ -1243,7 +1243,7 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
           
           const mergedElement = mergeElementDefaults(element, themeDefaults);
           
-          // Cleanup logic removed - qna_inline is now handled by qna
+          // qna_inline support removed - only qna is supported
           if (false) {
             const questionSettings = mergedElement.questionSettings || {};
             const answerSettings = mergedElement.answerSettings || {};
@@ -1573,7 +1573,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         elementWithDefaults.questionId = uuidv4();
       }
       
-      // Cleanup logic removed - qna_inline is now handled by qna
+      // qna_inline support removed - only qna is supported
       if (false) {
         const questionSettings = elementWithDefaults.questionSettings || {};
         const answerSettings = elementWithDefaults.answerSettings || {};
