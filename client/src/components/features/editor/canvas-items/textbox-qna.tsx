@@ -946,7 +946,9 @@ export default function TextboxQna(props: CanvasItemProps) {
   const transformStartDimensionsRef = useRef<{ width: number; height: number } | null>(null);
   const transformOriginalDimensionsRef = useRef<{ width: number; height: number } | null>(null);
   const transformStartPositionRef = useRef<{ x: number; y: number } | null>(null);
-  const transformResizeDirectionRef = useRef<{ fromTop: boolean; fromLeft: boolean } | null>(null);
+  const transformResizeDirectionRef = useRef<{ fromTop: boolean; fromLeft: boolean; fromBottom?: boolean; fromRight?: boolean } | null>(null);
+  // Add ref to track minimum dimensions when opposite edge is reached
+  const minDimensionReachedRef = useRef<{ width: boolean; height: boolean }>({ width: false, height: false });
   
   // Local state for dimensions during transform (to update visually without dispatch)
   // ONLY used during active transform, NOT during initial load
@@ -1529,16 +1531,23 @@ export default function TextboxQna(props: CanvasItemProps) {
       
       let fromTop = false;
       let fromLeft = false;
+      let fromBottom = false;
+      let fromRight = false;
       
       if (transformer) {
         const activeAnchor = transformer.getActiveAnchor();
         if (activeAnchor) {
           fromTop = activeAnchor.includes('top');
           fromLeft = activeAnchor.includes('left');
+          fromBottom = activeAnchor.includes('bottom');
+          fromRight = activeAnchor.includes('right');
         }
       }
       
-      transformResizeDirectionRef.current = { fromTop, fromLeft };
+      transformResizeDirectionRef.current = { fromTop, fromLeft, fromBottom, fromRight };
+      
+      // Reset minimum dimension flags
+      minDimensionReachedRef.current = { width: false, height: false };
       
       // Initialize transformDimensions immediately to prevent visual jump
       // This ensures boxWidth/boxHeight use the correct values from the start
@@ -1559,6 +1568,13 @@ export default function TextboxQna(props: CanvasItemProps) {
       const groupNode = rectNode.getParent();
       if (!groupNode || groupNode.getClassName() !== 'Group') return;
       
+      const stage = groupNode.getStage();
+      if (!stage) return;
+      
+      // Get current mouse position in stage coordinates
+      const pointerPos = stage.getPointerPosition();
+      if (!pointerPos) return;
+      
       const scaleX = groupNode.scaleX();
       const scaleY = groupNode.scaleY();
       
@@ -1568,11 +1584,87 @@ export default function TextboxQna(props: CanvasItemProps) {
         const startDims = transformStartDimensionsRef.current || { width: elementWidth, height: elementHeight };
         const originalDims = transformOriginalDimensionsRef.current || { width: elementWidth, height: elementHeight };
         const startPos = transformStartPositionRef.current || { x: element.x || 0, y: element.y || 0 };
-        const resizeDirection = transformResizeDirectionRef.current || { fromTop: false, fromLeft: false };
+        const resizeDirection = transformResizeDirectionRef.current || { fromTop: false, fromLeft: false, fromBottom: false, fromRight: false };
         
-        // Calculate new dimensions based on initial dimensions and current scale
-        const newWidth = Math.max(5, startDims.width * scaleX);
-        const newHeight = Math.max(5, startDims.height * scaleY);
+        // Convert mouse position to local coordinates (relative to element's local coordinate system)
+        // This is critical: we need the pointer position in the element's local space
+        // to compare against the opposite edges
+        const groupTransform = groupNode.getAbsoluteTransform().copy().invert();
+        const localPointerPos = groupTransform.point(pointerPos);
+        
+        const MIN_DIMENSION = 5;
+        
+        // ============================================
+        // HANDLE WIDTH DIMENSION (X-direction)
+        // ============================================
+        // This applies to handles that resize width:
+        // - left, right (middle handles)
+        // - top-left, top-right, bottom-left, bottom-right (corner handles)
+        let newWidth = startDims.width * scaleX;
+        
+        if (resizeDirection.fromLeft || resizeDirection.fromRight) {
+          // Determine opposite edge position in local coordinates
+          // For left-side handles (left, top-left, bottom-left): opposite edge is RIGHT (x = startDims.width)
+          // For right-side handles (right, top-right, bottom-right): opposite edge is LEFT (x = 0)
+          const oppositeX = resizeDirection.fromLeft ? startDims.width : 0;
+          
+          // Check if pointer has crossed the opposite edge in X direction
+          const hasCrossedOppositeEdgeX = resizeDirection.fromLeft 
+            ? localPointerPos.x >= oppositeX  // Left-side: pointer at or beyond right edge
+            : localPointerPos.x <= oppositeX;  // Right-side: pointer at or before left edge
+          
+          if (hasCrossedOppositeEdgeX) {
+            // Freeze width dimension at minimum
+            if (!minDimensionReachedRef.current.width) {
+              minDimensionReachedRef.current.width = true;
+            }
+            newWidth = MIN_DIMENSION;
+          } else {
+            // Pointer is back on the correct side in X direction - allow resizing again
+            minDimensionReachedRef.current.width = false;
+            newWidth = Math.max(MIN_DIMENSION, newWidth);
+          }
+        } else {
+          // Not resizing width (e.g., top-center or bottom-center handle) - reset flag
+          minDimensionReachedRef.current.width = false;
+          newWidth = Math.max(MIN_DIMENSION, newWidth);
+        }
+        
+        // ============================================
+        // HANDLE HEIGHT DIMENSION (Y-direction)
+        // ============================================
+        // This applies to handles that resize height:
+        // - top, bottom (middle handles)
+        // - top-left, top-right, bottom-left, bottom-right (corner handles)
+        let newHeight = startDims.height * scaleY;
+        
+        if (resizeDirection.fromTop || resizeDirection.fromBottom) {
+          // Determine opposite edge position in local coordinates
+          // For top-side handles (top, top-left, top-right): opposite edge is BOTTOM (y = startDims.height)
+          // For bottom-side handles (bottom, bottom-left, bottom-right): opposite edge is TOP (y = 0)
+          const oppositeY = resizeDirection.fromTop ? startDims.height : 0;
+          
+          // Check if pointer has crossed the opposite edge in Y direction
+          const hasCrossedOppositeEdgeY = resizeDirection.fromTop
+            ? localPointerPos.y >= oppositeY  // Top-side: pointer at or beyond bottom edge
+            : localPointerPos.y <= oppositeY; // Bottom-side: pointer at or before top edge
+          
+          if (hasCrossedOppositeEdgeY) {
+            // Freeze height dimension at minimum
+            if (!minDimensionReachedRef.current.height) {
+              minDimensionReachedRef.current.height = true;
+            }
+            newHeight = MIN_DIMENSION;
+          } else {
+            // Pointer is back on the correct side in Y direction - allow resizing again
+            minDimensionReachedRef.current.height = false;
+            newHeight = Math.max(MIN_DIMENSION, newHeight);
+          }
+        } else {
+          // Not resizing height (e.g., middle-left or middle-right handle) - reset flag
+          minDimensionReachedRef.current.height = false;
+          newHeight = Math.max(MIN_DIMENSION, newHeight);
+        }
         
         // Calculate dimension changes from original dimensions
         const widthChange = newWidth - originalDims.width;
