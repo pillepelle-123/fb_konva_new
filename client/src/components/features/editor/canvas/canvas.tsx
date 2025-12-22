@@ -39,6 +39,7 @@ import { colorPalettes } from '../../../../data/templates/color-palettes';
 import { getThemePaletteId, getGlobalThemeDefaults } from '../../../../utils/global-themes';
 import { BOOK_PAGE_DIMENSIONS, DEFAULT_BOOK_ORIENTATION, DEFAULT_BOOK_PAGE_SIZE, SAFETY_MARGIN_PX } from '../../../../constants/book-formats';
 import { getConsistentColor } from '../../../../utils/consistent-color';
+import { calculateContrastColor } from '../../../../utils/contrast-color';
 import ProfilePicture from '../../users/profile-picture';
 
 function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
@@ -259,6 +260,8 @@ export default function Canvas() {
   const isMovingGroupRef = useRef(false);
   const [groupMoveStart, setGroupMoveStart] = useState<{ x: number; y: number } | null>(null);
   const groupMoveStartRef = useRef<{ x: number; y: number } | null>(null);
+  // Store initial element positions when group move starts
+  const groupMoveInitialPositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
   const [lastClickTime, setLastClickTime] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -328,6 +331,8 @@ export default function Canvas() {
   const [hoveredSafetyMargin, setHoveredSafetyMargin] = useState<boolean>(false);
   const [safetyMarginTooltip, setSafetyMarginTooltip] = useState<{ x: number; y: number } | null>(null);
   const [isManuallyHovering, setIsManuallyHovering] = useState<boolean>(false);
+  // Track if actually transforming (not just selected)
+  const isTransformingRef = useRef<boolean>(false);
   
   // Observe tool settings panel width to position lock icon correctly
   useEffect(() => {
@@ -556,6 +561,17 @@ export default function Canvas() {
     const palette = colorPalettes.find((item) => item.id === effectivePaletteId) ?? null;
     return { paletteId: effectivePaletteId, palette };
   };
+
+  // Calculate safety margin stroke color based on page background
+  const safetyMarginStrokeColor = useMemo(() => {
+    return calculateContrastColor(currentPage, getPaletteForPage, 0.15);
+  }, [currentPage, state.currentBook?.colorPaletteId, state.currentBook?.bookTheme]);
+
+  // Calculate safety margin stroke color for partner page
+  const partnerSafetyMarginStrokeColor = useMemo(() => {
+    if (!partnerPage) return '#e5e7eb';
+    return calculateContrastColor(partnerPage, getPaletteForPage, 0.15);
+  }, [partnerPage, state.currentBook?.colorPaletteId, state.currentBook?.bookTheme]);
 
   // Helper function to get template IDs for defaults (uses getActiveTemplateIds for proper inheritance)
   const getTemplateIdsForDefaults = useCallback(() => {
@@ -1358,14 +1374,38 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         }
       }
       
-      // If clicking on an element (not background), don't handle it here
-      // In Konva, events bubble from child to parent, so if e.target is an element,
-      // the event has already been handled by the element's handlers
-      // We only need to handle background clicks here
+      // If clicking on an element (not background), check if we should start group move
       if (!isBackgroundClick) {
-        // Don't handle element clicks here - let base-canvas-item handle them
-        // The event has already been handled by the element's onMouseDown handler
-        return;
+        // Check if multiple elements are selected - if so, start group move
+        // This allows dragging any selected element to move the whole group
+        if (state.selectedElementIds.length > 1 && e.evt.button === 0 && !state.editorSettings?.editor?.lockElements) {
+          // Start group move if multiple elements are selected and elements are not locked
+          const startPos = { x, y };
+          
+          // Store initial positions of all selected elements
+          const initialPositions = new Map<string, { x: number; y: number }>();
+          state.selectedElementIds.forEach(elementId => {
+            const element = currentPage?.elements.find(el => el.id === elementId);
+            if (element) {
+              initialPositions.set(elementId, { x: element.x, y: element.y });
+            }
+          });
+          groupMoveInitialPositionsRef.current = initialPositions;
+          
+          setIsMovingGroup(true);
+          isMovingGroupRef.current = true;
+          setGroupMoveStart(startPos);
+          groupMoveStartRef.current = startPos;
+          dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Move Elements' });
+          // Return here to prevent base-canvas-item from starting individual drag
+          // The group move will be handled by handleMouseMove
+          return;
+        } else {
+          // For single element clicks or when lockElements is enabled, let the event propagate
+          // to base-canvas-item so that selection can work
+          // Don't handle element clicks here - let base-canvas-item handle them
+          return;
+        }
       }
       
       if (isBackgroundClick) {
@@ -1381,6 +1421,16 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
             });
             
             if (clickedElement?.type !== 'text' && !state.editorSettings?.editor?.lockElements) {
+              // Store initial positions of all selected elements
+              const initialPositions = new Map<string, { x: number; y: number }>();
+              state.selectedElementIds.forEach(elementId => {
+                const element = currentPage?.elements.find(el => el.id === elementId);
+                if (element) {
+                  initialPositions.set(elementId, { x: element.x, y: element.y });
+                }
+              });
+              groupMoveInitialPositionsRef.current = initialPositions;
+              
               setIsMovingGroup(true);
               setGroupMoveStart({ x, y });
             }
@@ -1392,21 +1442,6 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         setIsSelecting(true);
         setSelectionStart({ x, y });
         setSelectionRect({ x, y, width: 0, height: 0, visible: true });
-      } else {
-        // Clicked on an element
-        // When lockElements is enabled, don't handle group moves here
-        // Let the event propagate to base-canvas-item so selection can work
-        if (state.selectedElementIds.length > 1 && e.evt.button === 0 && !state.editorSettings?.editor?.lockElements) {
-          // Start group move if multiple elements are selected and elements are not locked
-          const startPos = { x, y };
-          setIsMovingGroup(true);
-          isMovingGroupRef.current = true;
-          setGroupMoveStart(startPos);
-          groupMoveStartRef.current = startPos;
-          dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Move Elements' });
-        }
-        // For single element clicks or when lockElements is enabled, let the event propagate
-        // to base-canvas-item so that selection can work
       }
     } else {
       // Handle element creation for other tools
@@ -1624,12 +1659,13 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         isMovingGroupRef.current = false;
         setGroupMoveStart(null);
         groupMoveStartRef.current = null;
+        groupMoveInitialPositionsRef.current.clear();
         return;
       }
       
       // Move entire selection
       const pos = e.target.getStage()?.getPointerPosition();
-      if (pos) {
+      if (pos && stageRef.current) {
         // Convert to page coordinates (same calculation as in handleMouseDown)
         const x = (pos.x - stagePos.x) / zoom;
         const y = (pos.y - stagePos.y) / zoom;
@@ -1639,30 +1675,42 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         const deltaX = x - start.x;
         const deltaY = y - start.y;
         
-        // Update all selected elements - use absolute position calculation
-        // Store initial positions on first move to avoid accumulation errors
+        // Update Konva nodes directly for smooth performance (no state updates during drag)
+        // Only update if there's significant movement to avoid jitter
         if (Math.abs(deltaX) > 0.1 || Math.abs(deltaY) > 0.1) {
-        state.selectedElementIds.forEach(elementId => {
-          const element = currentPage?.elements.find(el => el.id === elementId);
-          if (element) {
-              // Calculate new position based on initial position + total delta
-            dispatch({
-              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-              payload: {
-                id: elementId,
-                updates: {
-                  x: element.x + deltaX,
-                  y: element.y + deltaY
+          const stage = stageRef.current;
+          const initialPositions = groupMoveInitialPositionsRef.current;
+          
+          state.selectedElementIds.forEach(elementId => {
+            const initialPos = initialPositions.get(elementId);
+            if (initialPos) {
+              // Find the Konva node for this element
+              const node = stage.findOne(`#${elementId}`);
+              if (node) {
+                // Update node position directly (much faster than state updates)
+                const newX = initialPos.x + deltaX;
+                const newY = initialPos.y + deltaY;
+                node.x(newX);
+                node.y(newY);
+                
+                // Also update transformer if it exists
+                if (transformerRef.current) {
+                  transformerRef.current.forceUpdate();
                 }
               }
-            });
-          }
-        });
-        
+            }
+          });
+          
           // Update groupMoveStart to current position for next delta calculation
           const newStart = { x, y };
           setGroupMoveStart(newStart);
           groupMoveStartRef.current = newStart;
+          
+          // Force layer redraw for smooth visual updates
+          const layer = stage.getLayers()[0];
+          if (layer) {
+            layer.batchDraw();
+          }
         }
       }
     } else if (isSelecting && selectionStart) {
@@ -2095,10 +2143,45 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       setTextboxStart(null);
       setPreviewTextbox(null);
     } else if (isMovingGroup || isMovingGroupRef.current) {
+      // Save final positions to state after group move ends
+      if (stageRef.current && groupMoveInitialPositionsRef.current.size > 0) {
+        const stage = stageRef.current;
+        const initialPositions = groupMoveInitialPositionsRef.current;
+        const start = groupMoveStartRef.current || groupMoveStart;
+
+        if (start) {
+          // Update state with final positions for all moved elements
+          // Use node positions which were updated directly during drag for best performance
+          state.selectedElementIds.forEach(elementId => {
+            const initialPos = initialPositions.get(elementId);
+            if (initialPos) {
+              const node = stage.findOne(`#${elementId}`);
+              if (node) {
+                // Use node position (which was updated during drag)
+                const finalX = node.x();
+                const finalY = node.y();
+                dispatch({
+                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                  payload: {
+                    id: elementId,
+                    updates: {
+                      x: finalX,
+                      y: finalY
+                    }
+                  }
+                });
+              }
+            }
+          });
+        }
+      }
+
+      // Always reset group move state
       setIsMovingGroup(false);
       isMovingGroupRef.current = false;
       setGroupMoveStart(null);
       groupMoveStartRef.current = null;
+      groupMoveInitialPositionsRef.current.clear();
     } else if (isSelecting) {
       const selectedIds = getElementsInSelection();
       
@@ -3609,14 +3692,14 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         });
       });
 
-      // Show fill if element is outside safety margin OR snapped to safety margin
-      if (hasElementOutsideSafetyMargin || isSnappedToSafetyMargin) {
-        setHoveredSafetyMargin(true);
-      } else if (!isManuallyHovering) {
-        // Clear if element is fully inside and not manually hovering
+      // Only show fill if manually hovering over safety margin area
+      // Don't set hoveredSafetyMargin based on element position alone - only on mouse hover
+      if (!isManuallyHovering) {
+        // Clear if not manually hovering (mouse not over safety margin)
         setHoveredSafetyMargin(false);
         setSafetyMarginTooltip(null);
       }
+      // If isManuallyHovering is true, hoveredSafetyMargin is already set by onMouseMove handler
     };
 
     // Check immediately
@@ -4207,8 +4290,8 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                     y={0}
                     width={canvasWidth}
                     height={SAFETY_MARGIN_PX}
-                    fill="#3b82f6"
-                    opacity={0.3}
+                    fill={safetyMarginStrokeColor}
+                    opacity={1}
                     listening={false}
                     name="no-print"
                   />
@@ -4218,8 +4301,8 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                     y={canvasHeight - SAFETY_MARGIN_PX}
                     width={canvasWidth}
                     height={SAFETY_MARGIN_PX}
-                    fill="#3b82f6"
-                    opacity={0.3}
+                    fill={safetyMarginStrokeColor}
+                    opacity={1}
                     listening={false}
                     name="no-print"
                   />
@@ -4229,8 +4312,8 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                     y={SAFETY_MARGIN_PX}
                     width={SAFETY_MARGIN_PX}
                     height={canvasHeight - 2 * SAFETY_MARGIN_PX}
-                    fill="#3b82f6"
-                    opacity={0.3}
+                    fill={safetyMarginStrokeColor}
+                    opacity={1}
                     listening={false}
                     name="no-print"
                   />
@@ -4240,8 +4323,8 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                     y={SAFETY_MARGIN_PX}
                     width={SAFETY_MARGIN_PX}
                     height={canvasHeight - 2 * SAFETY_MARGIN_PX}
-                    fill="#3b82f6"
-                    opacity={0.3}
+                    fill={safetyMarginStrokeColor}
+                    opacity={1}
                     listening={false}
                     name="no-print"
                   />
@@ -4255,7 +4338,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
               width={canvasWidth - 2 * SAFETY_MARGIN_PX}
               height={canvasHeight - 2 * SAFETY_MARGIN_PX}
               fill="transparent"
-              stroke="#e5e7eb"
+              stroke={safetyMarginStrokeColor}
               strokeWidth={2}
               dash={[6, 6]}
               cornerRadius={8}
@@ -4270,7 +4353,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                 width={canvasWidth - 2 * SAFETY_MARGIN_PX}
                 height={canvasHeight - 2 * SAFETY_MARGIN_PX}
                 fill="transparent"
-                stroke="#e5e7eb"
+                stroke={partnerSafetyMarginStrokeColor}
                 strokeWidth={2}
                 dash={[6, 6]}
                 cornerRadius={8}
@@ -4823,12 +4906,14 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                   }
                 });
                 
-                if (hasElementOutsideSafetyMargin) {
-                  setHoveredSafetyMargin(true);
-                } else if (!isManuallyHovering) {
+                // Only update hoveredSafetyMargin if manually hovering over safety margin
+                // Don't set based on element position alone - only if mouse is over safety margin
+                if (!isManuallyHovering) {
+                  // Clear if not manually hovering (mouse not over safety margin)
                   setHoveredSafetyMargin(false);
                   setSafetyMarginTooltip(null);
                 }
+                // If isManuallyHovering is true, hoveredSafetyMargin is already set by onMouseMove handler
               }}
               onDragEnd={(e) => {
                 setSnapGuidelines([]);
@@ -4921,6 +5006,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                 return newBox;
               }}
               onTransformStart={() => {
+                isTransformingRef.current = true;
                 dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Transform Elements' });
                 // Dispatch custom events for each selected element
                 state.selectedElementIds.forEach(elementId => {
@@ -5026,12 +5112,14 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                     }
                   });
                   
-                  if (hasElementOutsideSafetyMargin) {
-                    setHoveredSafetyMargin(true);
-                  } else if (!isManuallyHovering) {
+                  // Only update hoveredSafetyMargin if actually transforming AND manually hovering
+                  // Don't set based on element position alone - only if mouse is over safety margin
+                  if (isTransformingRef.current && !isManuallyHovering) {
+                    // Clear if not manually hovering (mouse not over safety margin)
                     setHoveredSafetyMargin(false);
                     setSafetyMarginTooltip(null);
                   }
+                  // If isManuallyHovering is true, hoveredSafetyMargin is already set by onMouseMove handler
                 } else {
                   state.selectedElementIds.forEach(elementId => {
                     window.dispatchEvent(new CustomEvent('transform', {
@@ -5039,38 +5127,18 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                     }));
                   });
                   
-                  // Check if elements are outside safety margin during transform (fallback)
-                  let hasElementOutsideSafetyMargin = false;
-                  state.selectedElementIds.forEach(elementId => {
-                    const element = currentPage?.elements?.find(el => el.id === elementId);
-                    if (element) {
-                      const elementLeft = element.x || 0;
-                      const elementRight = (element.x || 0) + (element.width || 0);
-                      const elementTop = element.y || 0;
-                      const elementBottom = (element.y || 0) + (element.height || 0);
-                      
-                      const isOutsideLeft = elementLeft < SAFETY_MARGIN_PX;
-                      const safetyMarginRight = canvasWidth - SAFETY_MARGIN_PX;
-                      const isOutsideRight = elementRight >= safetyMarginRight;
-                      const isOutsideTop = elementTop < SAFETY_MARGIN_PX;
-                      const safetyMarginBottom = canvasHeight - SAFETY_MARGIN_PX;
-                      const isOutsideBottom = elementBottom >= safetyMarginBottom;
-                      
-                      if (isOutsideLeft || isOutsideRight || isOutsideTop || isOutsideBottom) {
-                        hasElementOutsideSafetyMargin = true;
-                      }
-                    }
-                  });
-                  
-                  if (hasElementOutsideSafetyMargin) {
-                    setHoveredSafetyMargin(true);
-                  } else if (!isManuallyHovering) {
+                  // Only update hoveredSafetyMargin if actually transforming AND manually hovering
+                  // Don't set based on element position alone - only if mouse is over safety margin
+                  if (isTransformingRef.current && !isManuallyHovering) {
+                    // Clear if not manually hovering (mouse not over safety margin)
                     setHoveredSafetyMargin(false);
                     setSafetyMarginTooltip(null);
                   }
+                  // If isManuallyHovering is true, hoveredSafetyMargin is already set by onMouseMove handler
                 }
               }}
               onTransformEnd={(e) => {
+                isTransformingRef.current = false;
                 // Clear snap guidelines when transform ends
                 setSnapGuidelines([]);
                 

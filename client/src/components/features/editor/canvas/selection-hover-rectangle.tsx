@@ -6,6 +6,7 @@ interface SelectionHoverRectangleProps {
   width: number;
   height: number;
   lighter?: boolean;
+  strokeColor?: string; // Optional custom stroke color (e.g., from calculateContrastColor)
 }
 
 export function SelectionHoverRectangle({ 
@@ -13,16 +14,21 @@ export function SelectionHoverRectangle({
   y = 0, 
   width, 
   height,
-  lighter = false
+  lighter = false,
+  strokeColor
 }: SelectionHoverRectangleProps) {
+  // Use custom stroke color if provided, otherwise use default colors
+  const defaultStroke = lighter ? "#e5e7eb" : "#d0d7e0ff";
+  const finalStroke = strokeColor || defaultStroke;
+  
   return (
     <Rect
       x={x}
       y={y}
       width={width}
       height={height}
-      fill="transparent"
-      stroke={lighter ? "#e5e7eb" : "#d0d7e0ff"}
+      fill={finalStroke}
+      stroke={finalStroke}
       strokeWidth={2}
       dash={[6, 6]}
       cornerRadius={8}

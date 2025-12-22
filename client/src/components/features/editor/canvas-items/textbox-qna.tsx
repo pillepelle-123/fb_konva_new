@@ -202,7 +202,7 @@ function createBlockLayoutLocal(params: {
   questionWidth?: number;
   blockQuestionAnswerGap?: number;
 }): LayoutResult {
-  const { questionText, answerText, questionStyle, answerStyle, width, height, padding, ctx, questionPosition = 'left', questionWidth = 40 } = params;
+  const { questionText, answerText, questionStyle, answerStyle, width, height, padding, ctx, questionPosition = 'left', questionWidth = 40, blockQuestionAnswerGap = 10 } = params;
   const runs: TextRun[] = [];
   const linePositions: LinePosition[] = [];
   
@@ -1168,21 +1168,26 @@ export default function TextboxQna(props: CanvasItemProps) {
   }, [state.pageAssignments, elementPageNumber]);
   
   const answerText = useMemo(() => {
+    // For QnA elements with questionId, never use element.text as answer
+    // The answer should only come from state.tempAnswers
+    // element.text should only be used for free text (when questionId is not set)
+    if (element.questionId) {
+      // Only show answer if a user is assigned to the page containing this textbox
+      if (assignedUser) {
+        const answerEntry = state.tempAnswers[element.questionId]?.[assignedUser.id] as TempAnswerEntry | undefined;
+        return answerEntry?.text || '';
+      }
+      // If no user is assigned to the page, don't show any answer (even if current user has answered elsewhere)
+      return '';
+    }
+    
+    // For elements without questionId, use formattedText or text as fallback
     if (element.formattedText) {
       return stripHtml(element.formattedText);
     }
     if (element.text) {
       return element.text;
     }
-    if (!element.questionId) {
-      return '';
-    }
-    // Only show answer if a user is assigned to the page containing this textbox
-    if (assignedUser) {
-      const answerEntry = state.tempAnswers[element.questionId]?.[assignedUser.id] as TempAnswerEntry | undefined;
-      return answerEntry?.text || '';
-    }
-    // If no user is assigned to the page, don't show any answer (even if current user has answered elsewhere)
     return '';
   }, [assignedUser, element.formattedText, element.questionId, element.text, state.tempAnswers]);
 
@@ -1592,7 +1597,9 @@ export default function TextboxQna(props: CanvasItemProps) {
         const groupTransform = groupNode.getAbsoluteTransform().copy().invert();
         const localPointerPos = groupTransform.point(pointerPos);
         
-        const MIN_DIMENSION = 5;
+        // Configuration: Buffer zone and minimum dimension
+        const BUFFER = 60; // Puffer in Pixeln - Dimension wird eingefroren, wenn Maus noch BUFFER Pixel vor der Grenze ist
+        const MIN_DIMENSION = 70; // Minimale Größe der Textbox (größer als vorher)
         
         // ============================================
         // HANDLE WIDTH DIMENSION (X-direction)
@@ -1608,12 +1615,19 @@ export default function TextboxQna(props: CanvasItemProps) {
           // For right-side handles (right, top-right, bottom-right): opposite edge is LEFT (x = 0)
           const oppositeX = resizeDirection.fromLeft ? startDims.width : 0;
           
-          // Check if pointer has crossed the opposite edge in X direction
-          const hasCrossedOppositeEdgeX = resizeDirection.fromLeft 
-            ? localPointerPos.x >= oppositeX  // Left-side: pointer at or beyond right edge
-            : localPointerPos.x <= oppositeX;  // Right-side: pointer at or before left edge
+          // Calculate buffer zone: freeze dimension when pointer is within BUFFER pixels of the opposite edge
+          // For left-side: freeze when pointer is at or beyond (oppositeX - BUFFER)
+          // For right-side: freeze when pointer is at or before (oppositeX + BUFFER)
+          const bufferThresholdX = resizeDirection.fromLeft 
+            ? oppositeX - BUFFER  // Left-side: freeze when pointer reaches this point (BUFFER pixels before right edge)
+            : oppositeX + BUFFER; // Right-side: freeze when pointer reaches this point (BUFFER pixels after left edge)
           
-          if (hasCrossedOppositeEdgeX) {
+          // Check if pointer has crossed the buffer threshold in X direction
+          const hasCrossedBufferX = resizeDirection.fromLeft 
+            ? localPointerPos.x >= bufferThresholdX  // Left-side: pointer at or beyond buffer threshold
+            : localPointerPos.x <= bufferThresholdX;  // Right-side: pointer at or before buffer threshold
+          
+          if (hasCrossedBufferX) {
             // Freeze width dimension at minimum
             if (!minDimensionReachedRef.current.width) {
               minDimensionReachedRef.current.width = true;
@@ -1644,12 +1658,19 @@ export default function TextboxQna(props: CanvasItemProps) {
           // For bottom-side handles (bottom, bottom-left, bottom-right): opposite edge is TOP (y = 0)
           const oppositeY = resizeDirection.fromTop ? startDims.height : 0;
           
-          // Check if pointer has crossed the opposite edge in Y direction
-          const hasCrossedOppositeEdgeY = resizeDirection.fromTop
-            ? localPointerPos.y >= oppositeY  // Top-side: pointer at or beyond bottom edge
-            : localPointerPos.y <= oppositeY; // Bottom-side: pointer at or before top edge
+          // Calculate buffer zone: freeze dimension when pointer is within BUFFER pixels of the opposite edge
+          // For top-side: freeze when pointer is at or beyond (oppositeY - BUFFER)
+          // For bottom-side: freeze when pointer is at or before (oppositeY + BUFFER)
+          const bufferThresholdY = resizeDirection.fromTop
+            ? oppositeY - BUFFER  // Top-side: freeze when pointer reaches this point (BUFFER pixels before bottom edge)
+            : oppositeY + BUFFER; // Bottom-side: freeze when pointer reaches this point (BUFFER pixels after top edge)
           
-          if (hasCrossedOppositeEdgeY) {
+          // Check if pointer has crossed the buffer threshold in Y direction
+          const hasCrossedBufferY = resizeDirection.fromTop
+            ? localPointerPos.y >= bufferThresholdY  // Top-side: pointer at or beyond buffer threshold
+            : localPointerPos.y <= bufferThresholdY; // Bottom-side: pointer at or before buffer threshold
+          
+          if (hasCrossedBufferY) {
             // Freeze height dimension at minimum
             if (!minDimensionReachedRef.current.height) {
               minDimensionReachedRef.current.height = true;

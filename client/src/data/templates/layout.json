@@ -5947,5 +5947,344 @@
       "stickerSlots": 0
     },
     "columns": 1
+  },
+  {
+    "id": "alternately",
+    "name": "Alternately",
+    "category": "structured",
+    "thumbnail": "/templates/default.png",
+    "columns": 1,
+    "meta": {
+      "qnaInlineCount": 5,
+      "imageCount": 0,
+      "columns": 1
+    },
+    "textboxes": [
+      {
+        "type": "qna",
+        "position": {
+          "x": 118.11,
+          "y": 256.6809384449195
+        },
+        "size": {
+          "width": 1177.7662043707198,
+          "height": 260.78550599547043
+        },
+        "style": {
+          "format": {
+            "textAlign": "left",
+            "paragraphSpacing": "medium",
+            "padding": 8
+          }
+        },
+        "questionSettings": {
+          "fontSize": 16
+        },
+        "answerSettings": {
+          "fontSize": 16
+        },
+        "layoutVariant": "inline",
+        "questionPosition": "left",
+        "questionWidth": 40
+      },
+      {
+        "type": "qna",
+        "position": {
+          "x": 1194.12379562928,
+          "y": 688.3782148260213
+        },
+        "size": {
+          "width": 1167.7662043707198,
+          "height": 353.1896698672165
+        },
+        "style": {
+          "format": {
+            "textAlign": "left",
+            "paragraphSpacing": "medium",
+            "padding": 8
+          }
+        },
+        "questionSettings": {
+          "fontSize": 16
+        },
+        "answerSettings": {
+          "fontSize": 16
+        },
+        "layoutVariant": "inline",
+        "questionPosition": "left",
+        "questionWidth": 40
+      },
+      {
+        "type": "qna",
+        "position": {
+          "x": 118.11,
+          "y": 1229.8993360418838
+        },
+        "size": {
+          "width": 1167.7662043707198,
+          "height": 343.1896698672034
+        },
+        "style": {
+          "format": {
+            "textAlign": "left",
+            "paragraphSpacing": "medium",
+            "padding": 8
+          }
+        },
+        "questionSettings": {
+          "fontSize": 16
+        },
+        "answerSettings": {
+          "fontSize": 16
+        },
+        "layoutVariant": "inline",
+        "questionPosition": "left",
+        "questionWidth": 40
+      },
+      {
+        "type": "qna",
+        "position": {
+          "x": 1194.1237956292803,
+          "y": 1734.7715582450833
+        },
+        "size": {
+          "width": 1167.7662043707196,
+          "height": 427.71182695141977
+        },
+        "style": {
+          "format": {
+            "textAlign": "left",
+            "paragraphSpacing": "medium",
+            "padding": 8
+          }
+        },
+        "questionSettings": {
+          "fontSize": 16
+        },
+        "answerSettings": {
+          "fontSize": 16
+        },
+        "layoutVariant": "inline",
+        "questionPosition": "left",
+        "questionWidth": 40
+      },
+      {
+        "type": "qna",
+        "position": {
+          "x": 128.1099999999999,
+          "y": 2323.161875945537
+        },
+        "size": {
+          "width": 1167.7662043707198,
+          "height": 343.1896698672034
+        },
+        "style": {
+          "format": {
+            "textAlign": "left",
+            "paragraphSpacing": "medium",
+            "padding": 8
+          }
+        },
+        "questionSettings": {
+          "fontSize": 16
+        },
+        "answerSettings": {
+          "fontSize": 16
+        },
+        "layoutVariant": "inline",
+        "questionPosition": "left",
+        "questionWidth": 40
+      }
+    ],
+    "elements": [],
+    "constraints": {
+      "minQuestions": 3,
+      "maxQuestions": 10,
+      "imageSlots": 0,
+      "stickerSlots": 0
+    }
+  },
+  {
+    "id": "newspaper",
+    "name": "Newspaper",
+    "category": "structured",
+    "thumbnail": "/templates/default.png",
+    "columns": 1,
+    "meta": {
+      "qnaInlineCount": 6,
+      "imageCount": 0,
+      "columns": 1
+    },
+    "textboxes": [
+      {
+        "type": "qna",
+        "position": {
+          "x": 123.1322840211833,
+          "y": 551.1099999999997
+        },
+        "size": {
+          "width": 2233.7576663224268,
+          "height": 472.52484064810744
+        },
+        "style": {
+          "format": {
+            "textAlign": "left",
+            "paragraphSpacing": "medium",
+            "padding": 8
+          }
+        },
+        "questionSettings": {
+          "fontSize": 18
+        },
+        "answerSettings": {
+          "fontSize": 18
+        },
+        "layoutVariant": "block",
+        "questionPosition": "top",
+        "questionWidth": 40
+      },
+      {
+        "type": "qna",
+        "position": {
+          "x": 118.11000000000001,
+          "y": 1171.1114236243584
+        },
+        "size": {
+          "width": 927.2250630759323,
+          "height": 1105.6228550747012
+        },
+        "style": {
+          "format": {
+            "textAlign": "left",
+            "paragraphSpacing": "medium",
+            "padding": 8
+          }
+        },
+        "questionSettings": {
+          "fontSize": 18
+        },
+        "answerSettings": {
+          "fontSize": 18
+        },
+        "layoutVariant": "inline",
+        "questionPosition": "top",
+        "questionWidth": 40
+      },
+      {
+        "type": "qna",
+        "position": {
+          "x": 1424.6649369240672,
+          "y": 1171.1114236243584
+        },
+        "size": {
+          "width": 937.2250630759327,
+          "height": 482.5248406481075
+        },
+        "style": {
+          "format": {
+            "textAlign": "left",
+            "paragraphSpacing": "medium",
+            "padding": 8
+          }
+        },
+        "questionSettings": {
+          "fontSize": 18
+        },
+        "answerSettings": {
+          "fontSize": 18
+        },
+        "layoutVariant": "inline",
+        "questionPosition": "top",
+        "questionWidth": 40
+      },
+      {
+        "type": "qna",
+        "position": {
+          "x": 1424.6649369240672,
+          "y": 1794.209438050952
+        },
+        "size": {
+          "width": 937.2250630759327,
+          "height": 482.5248406481075
+        },
+        "style": {
+          "format": {
+            "textAlign": "left",
+            "paragraphSpacing": "medium",
+            "padding": 8
+          }
+        },
+        "questionSettings": {
+          "fontSize": 18
+        },
+        "answerSettings": {
+          "fontSize": 18
+        },
+        "layoutVariant": "inline",
+        "questionPosition": "top",
+        "questionWidth": 40
+      },
+      {
+        "type": "qna",
+        "position": {
+          "x": 123.11006868419989,
+          "y": 2467.156939619619
+        },
+        "size": {
+          "width": 2233.7799807511306,
+          "height": 922.7330603803797
+        },
+        "style": {
+          "format": {
+            "textAlign": "left",
+            "paragraphSpacing": "medium",
+            "padding": 8
+          }
+        },
+        "questionSettings": {
+          "fontSize": 18
+        },
+        "answerSettings": {
+          "fontSize": 18
+        },
+        "layoutVariant": "inline",
+        "questionPosition": "top",
+        "questionWidth": 40
+      },
+      {
+        "type": "qna",
+        "position": {
+          "x": 118.11000000000001,
+          "y": 118.11
+        },
+        "size": {
+          "width": 2223.7799807511296,
+          "height": 345.3925759740412
+        },
+        "style": {
+          "format": {
+            "textAlign": "left",
+            "paragraphSpacing": "medium",
+            "padding": 8
+          }
+        },
+        "questionSettings": {
+          "fontSize": 18
+        },
+        "answerSettings": {
+          "fontSize": 18
+        },
+        "layoutVariant": "block",
+        "questionPosition": "top",
+        "questionWidth": 40
+      }
+    ],
+    "elements": [],
+    "constraints": {
+      "minQuestions": 4,
+      "maxQuestions": 11,
+      "imageSlots": 0,
+      "stickerSlots": 0
+    }
   }
 ]

@@ -613,36 +613,26 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
   const lineHeightValue = getLineHeight(answerStyle);
   const scaledLineHeight = lineHeightValue * zoom;
   
-  // Use actual text bounds if available, otherwise use answerArea
-  const textBounds = actualTextBounds || answerArea;
+  // Position editor directly over the entire textbox (not just the answer area)
+  // Use the top-left corner of the textbox (0, 0 in local coordinates)
+  const textboxX = 0;
+  const textboxY = 0;
   
-  // Position textarea horizontally at the start of the answer area
-  // For block layout, this will be the left edge of the answer area
-  // For inline layout, this will be the left edge of the textbox (padding)
-  const runX = textBounds.x;
-  // Position textarea one line below the first answer text row (only if text exists)
-  const runY = actualTextBounds 
-    ? textBounds.y + lineHeightValue // Add one line height to position below first row when text exists
-    : textBounds.y; // Use normal position when no text exists yet
-  
-  // Transform run position through the group's transform to get stage coordinates
+  // Transform textbox position through the group's transform to get stage coordinates
   const groupTransform = groupNode.getAbsoluteTransform();
-  const runStagePos = groupTransform.point({ x: runX, y: runY });
+  const textboxStagePos = groupTransform.point({ x: textboxX, y: textboxY });
   
-  // Convert to viewport coordinates (stage container position + transformed run position)
-  // Apply small offsets to fine-tune positioning
-  // Textarea needs to shift slightly right (positive X) and down (positive Y) for correct alignment
+  // Convert to viewport coordinates (stage container position + transformed textbox position)
   const areaPosition = {
-    x: stageBox.left + runStagePos.x + (1 * zoom), // Shift slightly right
-    y: stageBox.top + runStagePos.y + (4 * zoom), // Shift down a bit more
+    x: stageBox.left + textboxStagePos.x,
+    y: stageBox.top + textboxStagePos.y,
   };
   
-  // Use answerArea width for textarea (full available width for wrapping)
-  // This ensures textarea has the same width as the text area on canvas
-  const scaledWidth = answerArea.width * zoom;
-  // Initial height will be calculated using scrollHeight after textarea is styled
-  const initialMinimumHeight = scaledLineHeight * 2; // Minimum height (two lines) for better usability
-  const scaledHeight = initialMinimumHeight; // Will be updated by scrollHeight calculation
+  // Use full textbox width and height for textarea
+  // This ensures textarea covers the entire textbox
+  const scaledWidth = boxWidth * zoom;
+  // Use full textbox height, but ensure minimum height for usability
+  const scaledHeight = Math.max(boxHeight * zoom, scaledLineHeight * 2);
   
   // Create textarea
   const textarea = document.createElement('textarea');
@@ -659,13 +649,28 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
   // Apply shared styling
   applyInlineEditorStyling(textarea, answerStyle, scaledFontSize, scaledLineHeight);
   
+  // Override styling for QnA editor: white background with opacity, rounded corners, shadow
+  textarea.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
+  textarea.style.background = 'rgba(255, 255, 255, 0.8)';
+  textarea.style.borderRadius = '8px'; // Slightly rounded corners
+  textarea.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'; // shadow-lg equivalent
+  textarea.style.border = 'none'; // Remove dashed border
+  
+  // Calculate padding to position text in the answer area
+  // The textarea covers the entire textbox, but text should start at the answer area position
+  const answerAreaX = answerArea.x * zoom;
+  const answerAreaY = answerArea.y * zoom;
+  textarea.style.paddingLeft = `${answerAreaX}px`;
+  textarea.style.paddingTop = `${answerAreaY}px`;
+  textarea.style.paddingRight = `${(boxWidth - answerArea.x - answerArea.width) * zoom}px`;
+  textarea.style.paddingBottom = `${(boxHeight - answerArea.y - answerArea.height) * zoom}px`;
+  
   // Handle rotation if needed
   const rotation = textRef.current?.rotation() || 0;
   let transform = '';
   if (rotation) {
     transform += 'rotateZ(' + rotation + 'deg)';
   }
-  transform += 'translateY(-2px)';
   textarea.style.transform = transform;
   
   // Focus textarea

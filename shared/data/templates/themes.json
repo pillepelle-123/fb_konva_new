@@ -667,5 +667,81 @@
         "inheritTheme": "rough"
       }
     }
+  },
+  "schoolbook": {
+    "name": "Schoolbook",
+    "description": "Custom theme exported from canvas",
+    "palette": "schoolbook",
+    "pageSettings": {
+      "backgroundOpacity": 1,
+      "backgroundPattern": {
+        "enabled": false,
+        "style": "dots",
+        "size": 20,
+        "strokeWidth": 1,
+        "patternBackgroundOpacity": 0.3
+      },
+      "backgroundImage": {
+        "enabled": false
+      }
+    },
+    "elementDefaults": {
+      "text": {
+        "layoutVariant": "inline",
+        "questionPosition": "left",
+        "questionWidth": 40,
+        "cornerRadius": 0,
+        "padding": 1,
+        "paragraphSpacing": "medium",
+        "align": "left",
+        "border": {
+          "enabled": false,
+          "width": 5,
+          "opacity": 1,
+          "theme": "default"
+        },
+        "background": {
+          "enabled": false,
+          "opacity": 0.1
+        },
+        "ruledLines": {
+          "enabled": {
+            "enabled": false,
+            "width": 1,
+            "opacity": 0.5,
+            "theme": "default",
+            "lineWidth": 1,
+            "lineOpacity": 0.5,
+            "ruledLinesTheme": "default",
+            "lineColor": "#BDBDBD"
+          },
+          "width": 3,
+          "theme": "rough",
+          "opacity": 0.9
+        },
+        "questionSettings": {
+          "fontSize": 12,
+          "fontFamily": "'Mynerve', cursive",
+          "fontBold": true,
+          "fontItalic": false,
+          "fontOpacity": 1
+        },
+        "answerSettings": {
+          "fontSize": 16,
+          "fontFamily": "'Mynerve', cursive",
+          "fontBold": false,
+          "fontItalic": false,
+          "fontOpacity": 1
+        }
+      },
+      "shape": {
+        "strokeWidth": 2,
+        "cornerRadius": 0,
+        "borderOpacity": 1,
+        "inheritTheme": "rough",
+        "borderEnabled": true,
+        "backgroundEnabled": false
+      }
+    }
   }
 }

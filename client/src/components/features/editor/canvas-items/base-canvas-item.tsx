@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { Group, Rect } from 'react-konva';
 import { SelectionHoverRectangle } from '../canvas/selection-hover-rectangle';
@@ -6,6 +6,10 @@ import Konva from 'konva';
 import { useEditor } from '../../../../context/editor-context';
 import type { CanvasElement } from '../../../../context/editor-context';
 import { BOOK_PAGE_DIMENSIONS, DEFAULT_BOOK_ORIENTATION, DEFAULT_BOOK_PAGE_SIZE } from '../../../../constants/book-formats';
+import { calculateContrastColor } from '../../../../utils/contrast-color';
+import { colorPalettes } from '../../../../data/templates/color-palettes';
+import { getThemePaletteId } from '../../../../utils/global-themes';
+import type { ColorPalette } from '../../../../types/template-types';
 
 export interface CanvasItemProps {
   element: CanvasElement;
@@ -63,6 +67,35 @@ export default function BaseCanvasItem({
   const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMENSIONS];
   const canvasWidth = orientation === 'landscape' ? dimensions.height : dimensions.width;
   const canvasHeight = orientation === 'landscape' ? dimensions.width : dimensions.height;
+
+  // Get current page for contrast color calculation
+  const currentPage = state.currentBook?.pages[state.activePageIndex];
+
+  // Helper function to get palette for a page (similar to canvas.tsx)
+  const getPaletteForPage = (page?: typeof currentPage) => {
+    // Get page color palette (or book color palette if page.colorPaletteId is null)
+    const pageColorPaletteId = page?.colorPaletteId ?? null;
+    const bookColorPaletteId = state.currentBook?.colorPaletteId ?? null;
+    
+    // If book.colorPaletteId is null, use theme's default palette
+    const bookThemeId = state.currentBook?.bookTheme || state.currentBook?.themeId || 'default';
+    const bookThemePaletteId = !bookColorPaletteId ? getThemePaletteId(bookThemeId) : null;
+    
+    // Determine effective palette: page palette > book palette > theme's default palette
+    const effectivePaletteId = pageColorPaletteId ?? bookColorPaletteId ?? bookThemePaletteId;
+
+    if (effectivePaletteId === null) {
+      return { paletteId: null as string | null, palette: null as ColorPalette | null };
+    }
+
+    const palette = colorPalettes.find((item) => item.id === effectivePaletteId) ?? null;
+    return { paletteId: effectivePaletteId, palette };
+  };
+
+  // Calculate contrast color for selection hover rectangle
+  const contrastStrokeColor = useMemo(() => {
+    return calculateContrastColor(currentPage, getPaletteForPage, 0.15);
+  }, [currentPage, state.currentBook?.colorPaletteId, state.currentBook?.bookTheme]);
 
   // Prevent scaling for question-answer pairs but allow qna textboxes to be resized
   useEffect(() => {
@@ -290,6 +323,7 @@ export default function BaseCanvasItem({
           width={defaultHitArea.width}
           height={defaultHitArea.height}
           lighter={element?.textType === 'qna'}
+          strokeColor={contrastStrokeColor}
         />
       )}
       
@@ -305,6 +339,7 @@ export default function BaseCanvasItem({
           width={defaultHitArea.width}
           height={defaultHitArea.height}
           lighter={element?.textType === 'qna'}
+          strokeColor={contrastStrokeColor}
         />
       )}
       

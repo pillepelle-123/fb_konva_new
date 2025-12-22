@@ -806,6 +806,110 @@ export const snapDimensions = (
     }
   });
 
+  // Safety margin snaps during resize (10mm from each edge)
+  // Left edge snapping to safety margin
+  if (allowLeftSnap) {
+    const leftMargin = Math.abs(x - SAFETY_MARGIN_PX);
+    if (leftMargin < GUIDELINE_OFFSET) {
+      const newX = SAFETY_MARGIN_PX;
+      const newWidth = width + (x - SAFETY_MARGIN_PX);
+      const diff = leftMargin;
+      if (!bestLeftEdgeSnap || diff < bestLeftEdgeSnap.diff) {
+        bestLeftEdgeSnap = {
+          x: newX,
+          width: newWidth,
+          diff,
+          guideline: {
+            type: 'vertical',
+            position: pageOffsetX + SAFETY_MARGIN_PX,
+            canvasWidth,
+            canvasHeight,
+            pageOffsetX,
+            pageOffsetY
+          }
+        };
+      }
+    }
+  }
+
+  // Right edge snapping to safety margin
+  if (allowRightSnap) {
+    const rightMargin = Math.abs((x + width) - (canvasWidth - SAFETY_MARGIN_PX));
+    if (rightMargin < GUIDELINE_OFFSET) {
+      const newWidth = (canvasWidth - SAFETY_MARGIN_PX) - x;
+      const diff = rightMargin;
+      if (!bestRightEdgeSnap || diff < bestRightEdgeSnap.diff) {
+        bestRightEdgeSnap = {
+          width: newWidth,
+          diff,
+          guideline: {
+            type: 'vertical',
+            position: pageOffsetX + canvasWidth - SAFETY_MARGIN_PX,
+            canvasWidth,
+            canvasHeight,
+            pageOffsetX,
+            pageOffsetY
+          }
+        };
+      }
+    }
+  }
+
+  // Top edge snapping to safety margin
+  if (allowTopSnap) {
+    const topMargin = Math.abs(y - SAFETY_MARGIN_PX);
+    if (topMargin < GUIDELINE_OFFSET) {
+      let newY: number;
+      let newHeight: number;
+      if (preserveBottomEdge && originalBottomY !== undefined) {
+        newY = SAFETY_MARGIN_PX;
+        newHeight = originalBottomY - SAFETY_MARGIN_PX;
+      } else {
+        newY = SAFETY_MARGIN_PX;
+        newHeight = height + (y - SAFETY_MARGIN_PX);
+      }
+      const diff = topMargin;
+      if (!bestTopEdgeSnap || diff < bestTopEdgeSnap.diff) {
+        bestTopEdgeSnap = {
+          y: newY,
+          height: newHeight,
+          diff,
+          guideline: {
+            type: 'horizontal',
+            position: pageOffsetY + SAFETY_MARGIN_PX,
+            canvasWidth,
+            canvasHeight,
+            pageOffsetX,
+            pageOffsetY
+          }
+        };
+      }
+    }
+  }
+
+  // Bottom edge snapping to safety margin
+  if (allowBottomSnap) {
+    const bottomMargin = Math.abs((y + height) - (canvasHeight - SAFETY_MARGIN_PX));
+    if (bottomMargin < GUIDELINE_OFFSET) {
+      const newHeight = (canvasHeight - SAFETY_MARGIN_PX) - y;
+      const diff = bottomMargin;
+      if (!bestBottomEdgeSnap || diff < bestBottomEdgeSnap.diff) {
+        bestBottomEdgeSnap = {
+          height: newHeight,
+          diff,
+          guideline: {
+            type: 'horizontal',
+            position: pageOffsetY + canvasHeight - SAFETY_MARGIN_PX,
+            canvasWidth,
+            canvasHeight,
+            pageOffsetX,
+            pageOffsetY
+          }
+        };
+      }
+    }
+  }
+
   // Apply the best snaps
   // Left and right edge snaps can work together - left adjusts x and width, right adjusts width only
   if (bestLeftEdgeSnap) {

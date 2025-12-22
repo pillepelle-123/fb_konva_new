@@ -1190,6 +1190,26 @@
         "lineStroke": "primary",
         "brushStroke": "primary"
       }
+    },
+    {
+      "id": "schoolbook",
+      "name": "Schoolbook",
+      "colors": {
+        "background": "#5e0101",
+        "primary": "#ffffff",
+        "secondary": "#757575",
+        "accent": "#F5F5F5",
+        "text": "#ffffff",
+        "surface": "#F5F5F5"
+      },
+      "contrast": "AA",
+      "parts": {
+        "pageBackground": "background",
+        "qnaBorder": "primary",
+        "qnaQuestionText": "text",
+        "qnaAnswerText": "text",
+        "shapeStroke": "primary"
+      }
     }
   ]
 }
