@@ -15,7 +15,10 @@ import { PreviewLine, PreviewShape, PreviewTextbox, PreviewBrush, MaterializedBr
 import { CanvasContainer } from './canvas-container';
 import { SnapGuidelines } from './snap-guidelines';
 import { CanvasOverlayProvider, CanvasOverlayContainer, CanvasOverlayPortal } from './canvas-overlay';
-import { ZoomProvider, useZoom } from './zoom-context';
+import { ZoomProvider } from './zoom-context';
+import { useCanvasDrawing } from './hooks/useCanvasDrawing';
+import { useCanvasSelection } from './hooks/useCanvasSelection';
+import { useCanvasZoomPan } from './hooks/useCanvasZoomPan';
 import ContextMenu from '../../../ui/overlays/context-menu';
 import { Modal } from '../../../ui/overlays/modal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../ui/overlays/dialog';
@@ -41,6 +44,22 @@ import { BOOK_PAGE_DIMENSIONS, DEFAULT_BOOK_ORIENTATION, DEFAULT_BOOK_PAGE_SIZE,
 import { getConsistentColor } from '../../../../utils/consistent-color';
 import { calculateContrastColor } from '../../../../utils/contrast-color';
 import ProfilePicture from '../../users/profile-picture';
+
+import {
+  ACTIVE_BADGE_COLOR,
+  ACTIVE_BADGE_TEXT,
+  INACTIVE_BADGE_COLOR,
+  INACTIVE_BADGE_TEXT,
+  INACTIVE_BADGE_TEXT_WITH_PROFILE,
+  INACTIVE_BADGE_BORDER,
+  createBadgeStyleWithoutProfile,
+  createBadgeStyleWithProfile,
+  createMetaTextStyle,
+  createPatternTile,
+  smoothPath,
+  isPointWithinSelectedElements,
+  getElementsInSelection
+} from './canvas-utils';
 
 function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
   return (
@@ -100,137 +119,13 @@ type PageBadgeMeta = {
   label: string;
 };
 
-const ACTIVE_BADGE_COLOR = '#304050';
-const ACTIVE_BADGE_TEXT = '#f8fafc';
-const INACTIVE_BADGE_COLOR = '#FFFFFF';
-const INACTIVE_BADGE_TEXT = '#1f2937';
-const INACTIVE_BADGE_TEXT_WITH_PROFILE = '#FFFFFF';
-const INACTIVE_BADGE_BORDER = '#cbd5f5';
 
-const createBadgeStyleWithoutProfile = (isActive: boolean, disabled?: boolean): CSSProperties => ({
-  backgroundColor: isActive ? ACTIVE_BADGE_COLOR : INACTIVE_BADGE_COLOR,
-  color: isActive ? ACTIVE_BADGE_TEXT : INACTIVE_BADGE_TEXT,
-  border: `1px solid ${isActive ? ACTIVE_BADGE_COLOR : INACTIVE_BADGE_BORDER}`,
-  borderRadius: 9999,
-  padding: '6px 12px',
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '8px',
-  flexWrap: 'nowrap',
-  whiteSpace: 'nowrap',
-  fontSize: '12px',
-  fontWeight: 600,
-  boxShadow: '0 10px 25px rgba(15, 23, 42, 0.12)',
-  cursor: !isActive && !disabled ? 'pointer' : 'default',
-  opacity: disabled ? 0.75 : 1
-});
-
-const createBadgeStyleWithProfile = (isActive: boolean, disabled?: boolean, assignedUser?: { name: string } | null): CSSProperties => {
-  const backgroundColor = assignedUser 
-    ? `#${getConsistentColor(assignedUser.name)}`
-    : (isActive ? ACTIVE_BADGE_COLOR : INACTIVE_BADGE_COLOR);
-  const textColor = assignedUser && isActive
-    ? '#ffffff'
-    : (isActive ? ACTIVE_BADGE_TEXT : INACTIVE_BADGE_TEXT_WITH_PROFILE);
-  const borderColor = assignedUser
-    ? backgroundColor
-    : (isActive ? ACTIVE_BADGE_COLOR : INACTIVE_BADGE_BORDER);
-  
-  // Set opacity: 0.6 for inactive badges with profile picture, otherwise use disabled opacity or 1
-  const opacity = disabled ? 0.75 : (!isActive ? 0.6 : 1);
-  
-  return {
-    backgroundColor,
-    color: textColor,
-    border: `2px solid ${borderColor}`,
-    borderRadius: 9999,
-    padding: '0px 0px 0px 8px',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '8px',
-    flexWrap: 'nowrap',
-    whiteSpace: 'nowrap',
-    fontSize: '12px',
-    fontWeight: 600,
-    boxShadow: '0 10px 25px rgba(15, 23, 42, 0.12)',
-    cursor: !isActive && !disabled ? 'pointer' : 'default',
-    opacity
-  };
-};
-
-const createMetaTextStyle = (isActive: boolean): CSSProperties => ({
-  fontSize: '11px',
-  fontWeight: 500,
-  opacity: isActive ? 0.9 : 0.75
-});
 
 type BackgroundImageEntry = {
   full: HTMLImageElement;
   preview: HTMLImageElement;
 };
 
-const createPatternTile = (pattern: any, color: string, size: number, strokeWidth: number = 1): HTMLCanvasElement => {
-  const tileSize = 20 * size;
-  const canvas = document.createElement('canvas');
-  canvas.width = tileSize;
-  canvas.height = tileSize;
-  const ctx = canvas.getContext('2d')!;
-  
-  ctx.fillStyle = color;
-  ctx.strokeStyle = color;
-  
-  if (pattern.id === 'dots') {
-    ctx.beginPath();
-    ctx.arc(tileSize/2, tileSize/2, tileSize * 0.1, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (pattern.id === 'grid') {
-    ctx.lineWidth = strokeWidth;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(tileSize, 0);
-    ctx.moveTo(0, 0);
-    ctx.lineTo(0, tileSize);
-    ctx.stroke();
-  } else if (pattern.id === 'diagonal') {
-    ctx.lineWidth = strokeWidth;
-    ctx.beginPath();
-    ctx.moveTo(0, tileSize);
-    ctx.lineTo(tileSize, 0);
-    ctx.stroke();
-  } else if (pattern.id === 'cross') {
-    ctx.lineWidth = strokeWidth;
-    ctx.beginPath();
-    ctx.moveTo(0, tileSize);
-    ctx.lineTo(tileSize, 0);
-    ctx.moveTo(0, 0);
-    ctx.lineTo(tileSize, tileSize);
-    ctx.stroke();
-  } else if (pattern.id === 'waves') {
-    ctx.lineWidth = strokeWidth * 2;
-    ctx.beginPath();
-    ctx.moveTo(0, tileSize/2);
-    ctx.quadraticCurveTo(tileSize/4, 0, tileSize/2, tileSize/2);
-    ctx.quadraticCurveTo(3*tileSize/4, tileSize, tileSize, tileSize/2);
-    ctx.stroke();
-  } else if (pattern.id === 'hexagon') {
-    ctx.lineWidth = strokeWidth;
-    ctx.beginPath();
-    const centerX = tileSize/2;
-    const centerY = tileSize/2;
-    const radius = tileSize * 0.3;
-    for (let i = 0; i < 6; i++) {
-      const angle = (i * Math.PI) / 3;
-      const x = centerX + radius * Math.cos(angle);
-      const y = centerY + radius * Math.sin(angle);
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.closePath();
-    ctx.stroke();
-  }
-  
-  return canvas;
-};
 
 
 
@@ -242,52 +137,38 @@ export default function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
   const [panelOffset, setPanelOffset] = useState(0);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [currentPath, setCurrentPath] = useState<number[]>([]);
-  const [brushStrokes, setBrushStrokes] = useState<Array<{ points: number[]; strokeColor: string; strokeWidth: number }>>([]);
-  const [isBrushMode, setIsBrushMode] = useState(false);
-  const isBrushModeRef = useRef(false);
-  const [selectionRect, setSelectionRect] = useState<{
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    visible: boolean;
-  }>({ x: 0, y: 0, width: 0, height: 0, visible: false });
-  const [isSelecting, setIsSelecting] = useState(false);
-  const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
-  const [isMovingGroup, setIsMovingGroup] = useState(false);
-  const isMovingGroupRef = useRef(false);
-  const [groupMoveStart, setGroupMoveStart] = useState<{ x: number; y: number } | null>(null);
-  const groupMoveStartRef = useRef<{ x: number; y: number } | null>(null);
-  const groupMoveInitialPositionsRef = useRef<{ [elementId: string]: { x: number; y: number } } | null>(null);
-  const [lastClickTime, setLastClickTime] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
 
-  // Use ZoomContext for zoom state management
-  const { zoom, setZoom: setZoomFromContext, registerSetZoom } = useZoom();
-  
-  // Define stagePos before setZoom so it can be used in the callback
-  const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
-  const [isPanning, setIsPanning] = useState(false);
-  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
-  const [hasPanned, setHasPanned] = useState(false);
-  const [hasManualZoom, setHasManualZoom] = useState(false);
-  const [isDrawingLine, setIsDrawingLine] = useState(false);
-  const [lineStart, setLineStart] = useState<{ x: number; y: number } | null>(null);
-  const [previewLine, setPreviewLine] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
-  const [isDrawingShape, setIsDrawingShape] = useState(false);
-  const [shapeStart, setShapeStart] = useState<{ x: number; y: number } | null>(null);
-  const [previewShape, setPreviewShape] = useState<{ x: number; y: number; width: number; height: number; type: string } | null>(null);
-  const [isDrawingTextbox, setIsDrawingTextbox] = useState(false);
-  const [textboxStart, setTextboxStart] = useState<{ x: number; y: number } | null>(null);
-  const [previewTextbox, setPreviewTextbox] = useState<{ x: number; y: number; width: number; height: number; type: string } | null>(null);
-  const [showImageModal, setShowImageModal] = useState(false);
-  const [pendingImagePosition, setPendingImagePosition] = useState<{ x: number; y: number } | null>(null);
-  const [pendingImageElementId, setPendingImageElementId] = useState<string | null>(null);
-  const [showStickerModal, setShowStickerModal] = useState(false);
-  const [pendingStickerPosition, setPendingStickerPosition] = useState<{ x: number; y: number } | null>(null);
-  const [pendingStickerElementId, setPendingStickerElementId] = useState<string | null>(null);
+  // Use custom hooks for state management
+  const drawingState = useCanvasDrawing();
+  const selectionState = useCanvasSelection();
+  const zoomPanState = useCanvasZoomPan();
+
+  // Migration helpers - provide old state variable names for compatibility
+  const {
+    isDrawing, setIsDrawing, currentPath, setCurrentPath, brushStrokes, setBrushStrokes,
+    isBrushMode, setIsBrushMode, isBrushModeRef,
+    isDrawingLine, setIsDrawingLine, lineStart, setLineStart, previewLine, setPreviewLine,
+    isDrawingShape, setIsDrawingShape, shapeStart, setShapeStart, previewShape, setPreviewShape,
+    isDrawingTextbox, setIsDrawingTextbox, textboxStart, setTextboxStart, previewTextbox, setPreviewTextbox,
+    showImageModal, setShowImageModal, pendingImagePosition, setPendingImagePosition, pendingImageElementId, setPendingImageElementId,
+    showStickerModal, setShowStickerModal, pendingStickerPosition, setPendingStickerPosition, pendingStickerElementId, setPendingStickerElementId
+  } = drawingState;
+
+  const {
+    selectionRect, setSelectionRect, isSelecting, setIsSelecting, selectionStart, setSelectionStart,
+    isMovingGroup, setIsMovingGroup, isMovingGroupRef, groupMoveStart, setGroupMoveStart, groupMoveStartRef, groupMoveInitialPositionsRef,
+    lastClickTime, setLastClickTime, isDragging, setIsDragging,
+    contextMenu, setContextMenu, clipboard, setClipboard, selectionModeState, setSelectionModeState
+  } = selectionState;
+
+  const {
+    zoom, setZoom, registerSetZoom, stagePos, setStagePos,
+    isPanning, setIsPanning, panStart, setPanStart, hasPanned, setHasPanned,
+    hasManualZoom, setHasManualZoom, lastMousePos, setLastMousePos
+  } = zoomPanState;
+
+  // For backward compatibility
+  const setZoomFromContext = setZoom;
   const [editingElement, setEditingElement] = useState<CanvasElement | null>(null);
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
   const [showQuestionSelectorModal, setShowQuestionSelectorModal] = useState(false);
@@ -314,10 +195,7 @@ export default function Canvas() {
 
   // Alte Preview-Export-Logik entfernt - wird jetzt über Preview-Seiten gelöst
   const [selectedQuestionElementId, setSelectedQuestionElementId] = useState<string | null>(null);
-  const [selectionModeState, setSelectionModeState] = useState<Map<string, number>>(new Map());
   const editingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [clipboard, setClipboard] = useState<CanvasElement[]>([]);
-  const [lastMousePos, setLastMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [alertPosition, setAlertPosition] = useState<{ x: number; y: number } | null>(null);
   const [outsidePageTooltip, setOutsidePageTooltip] = useState<{ x: number; y: number } | null>(null);
@@ -1281,11 +1159,11 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         setPanStart({ x: pos.x - stagePos.x, y: pos.y - stagePos.y });
       }
     } else if (state.activeTool === 'brush') {
-      setIsDrawing(true);
+      drawingState.setIsDrawing(true);
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
-        const x = (pos.x - stagePos.x) / zoom - activePageOffsetX;
-        const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
+        const x = (pos.x - zoomPanState.stagePos.x) / zoomPanState.zoom - activePageOffsetX;
+        const y = (pos.y - zoomPanState.stagePos.y) / zoomPanState.zoom - pageOffsetY;
         // Only allow drawing inside the active page
         if (x < 0 || y < 0 || x > canvasWidth || y > canvasHeight) {
           showOutsidePageTooltip(e.evt.clientX, e.evt.clientY);
@@ -1399,7 +1277,17 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       if (isBackgroundClick) {
         // Check if double-click is within selected elements bounds
         if (isDoubleClick && state.selectedElementIds.length > 0) {
-          const isWithinSelection = isPointWithinSelectedElements(x, y);
+          const isWithinSelection = isPointWithinSelectedElements(
+            x,
+            y,
+            currentPage,
+            state.selectedElementIds,
+            transformerRef,
+            stagePos,
+            zoom,
+            activePageOffsetX,
+            pageOffsetY
+          );
           if (isWithinSelection) {
             // Don't start group move if clicking on a text element - let it handle double-click
             const clickedElement = currentPage?.elements.find(el => {
@@ -1586,7 +1474,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           transformerRef.current.getLayer()?.batchDraw();
         }
       }
-    } else if (isDrawing && state.activeTool === 'brush') {
+    } else if (drawingState.isDrawing && state.activeTool === 'brush') {
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
         const x = (pos.x - stagePos.x) / zoom - activePageOffsetX;
@@ -1709,37 +1597,6 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     }
   };
 
-  const smoothPath = (points: number[]) => {
-    if (points.length < 6) return points;
-    
-    let smoothed = [...points];
-    
-    // Apply multiple smoothing passes for more natural brush curves
-    for (let pass = 0; pass < 5; pass++) {
-      const newSmoothed: number[] = [];
-      newSmoothed.push(smoothed[0], smoothed[1]); // Keep first point
-      
-      for (let i = 2; i < smoothed.length - 2; i += 2) {
-        const x0 = smoothed[i - 2];
-        const y0 = smoothed[i - 1];
-        const x1 = smoothed[i];
-        const y1 = smoothed[i + 1];
-        const x2 = smoothed[i + 2];
-        const y2 = smoothed[i + 3];
-        
-        // Enhanced smoothing with weighted averaging for natural brush feel
-        const smoothX = (x0 + 6 * x1 + x2) / 8;
-        const smoothY = (y0 + 6 * y1 + y2) / 8;
-        
-        newSmoothed.push(smoothX, smoothY);
-      }
-      
-      newSmoothed.push(smoothed[smoothed.length - 2], smoothed[smoothed.length - 1]); // Keep last point
-      smoothed = newSmoothed;
-    }
-    
-    return smoothed;
-  };
 
   /* Brush */
   const handleMouseUp = (e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -2123,7 +1980,12 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       // Clean up initial positions
       groupMoveInitialPositionsRef.current = null;
     } else if (isSelecting) {
-      const selectedIds = getElementsInSelection();
+      const selectedIds = getElementsInSelection(
+        currentPage,
+        selectionRect,
+        activePageOffsetX,
+        pageOffsetY
+      );
       
       // Add linked question-answer pairs
       const finalSelectedIds = new Set(selectedIds);
@@ -2146,154 +2008,8 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     setCurrentPath([]);
   };
 
-  const isPointWithinSelectedElements = (x: number, y: number) => {
-    if (!currentPage || state.selectedElementIds.length === 0) return false;
-    
-    // For multi-selection, check if point is within transformer bounds
-    if (state.selectedElementIds.length > 1 && transformerRef.current) {
-      const transformer = transformerRef.current;
-      const box = transformer.getClientRect();
-      // Convert transformer bounds to page coordinates
-      const pageX = (box.x - stagePos.x) / zoom - activePageOffsetX;
-      const pageY = (box.y - stagePos.y) / zoom - pageOffsetY;
-      const pageWidth = box.width / zoom;
-      const pageHeight = box.height / zoom;
-      return (
-        x >= pageX &&
-        x <= pageX + pageWidth &&
-        y >= pageY &&
-        y <= pageY + pageHeight
-      );
-    }
-    
-    // For single selection, use transformer bounds if available
-    if (transformerRef.current && transformerRef.current.nodes().length > 0) {
-      const transformer = transformerRef.current;
-      const box = transformer.getClientRect();
-      const pageX = (box.x - stagePos.x) / zoom - activePageOffsetX;
-      const pageY = (box.y - stagePos.y) / zoom - pageOffsetY;
-      const pageWidth = box.width / zoom;
-      const pageHeight = box.height / zoom;
-      return (
-        x >= pageX &&
-        x <= pageX + pageWidth &&
-        y >= pageY &&
-        y <= pageY + pageHeight
-      );
-    }
-    
-    return false;
-  };
 
-  const getElementsInSelection = () => {
-    if (!currentPage || selectionRect.width < 5 || selectionRect.height < 5) {
-      return [];
-    }
-    
-    const selectedIds: string[] = [];
-    
-    // Adjust selection rectangle for page offset
-    const adjustedSelectionRect = {
-      x: selectionRect.x - activePageOffsetX,
-      y: selectionRect.y - pageOffsetY,
-      width: selectionRect.width,
-      height: selectionRect.height
-    };
-    
-    currentPage.elements.forEach(element => {
-      // Check if element intersects with selection rectangle
-      const elementBounds = {
-        x: element.x,
-        y: element.y,
-        width: element.width || 100,
-        height: element.height || 100
-      };
-      
-      // Calculate bounds for ALL toolbar element types
-      if ((element.type === 'brush-multicolor' || element.type === 'group') && element.groupedElements) {
-        // For groups and brush-multicolor, calculate bounds from grouped elements
-        let minX = Infinity, maxX = -Infinity;
-        let minY = Infinity, maxY = -Infinity;
-        
-        element.groupedElements.forEach(groupedEl => {
-          if (groupedEl.type === 'brush' && groupedEl.points) {
-            for (let i = 0; i < groupedEl.points.length; i += 2) {
-              minX = Math.min(minX, groupedEl.x + groupedEl.points[i]);
-              maxX = Math.max(maxX, groupedEl.x + groupedEl.points[i]);
-              minY = Math.min(minY, groupedEl.y + groupedEl.points[i + 1]);
-              maxY = Math.max(maxY, groupedEl.y + groupedEl.points[i + 1]);
-            }
-          } else {
-            minX = Math.min(minX, groupedEl.x);
-            maxX = Math.max(maxX, groupedEl.x + (groupedEl.width || 100));
-            minY = Math.min(minY, groupedEl.y);
-            maxY = Math.max(maxY, groupedEl.y + (groupedEl.height || 100));
-          }
-        });
-        
-        elementBounds.x = element.x + minX;
-        elementBounds.y = element.y + minY;
-        elementBounds.width = maxX - minX;
-        elementBounds.height = maxY - minY;
-      } else if (element.type === 'brush' && element.points) {
-        // Brush strokes - calculate from points
-        let minX = element.points[0], maxX = element.points[0];
-        let minY = element.points[1], maxY = element.points[1];
-        
-        for (let i = 2; i < element.points.length; i += 2) {
-          minX = Math.min(minX, element.points[i]);
-          maxX = Math.max(maxX, element.points[i]);
-          minY = Math.min(minY, element.points[i + 1]);
-          maxY = Math.max(maxY, element.points[i + 1]);
-        }
-        
-        elementBounds.x = element.x + minX - 10;
-        elementBounds.y = element.y + minY - 10;
-        elementBounds.width = maxX - minX + 20;
-        elementBounds.height = maxY - minY + 20;
-      } else if (element.type === 'text') {
-        // Text, Question, Answer textboxes
-        elementBounds.width = element.width || 150;
-        elementBounds.height = element.height || 50;
-      } else if (element.type === 'placeholder' || element.type === 'image') {
-        // Image placeholders and uploaded images
-        elementBounds.width = element.width || 150;
-        elementBounds.height = element.height || 100;
-      } else if (element.type === 'line') {
-        // Line shapes
-        elementBounds.width = element.width || 100;
-        elementBounds.height = element.height || 10;
-      } else if (element.type === 'circle') {
-        // Circle shapes
-        elementBounds.width = element.width || 80;
-        elementBounds.height = element.height || 80;
-      } else if (element.type === 'rect') {
-        // Rectangle shapes
-        elementBounds.width = element.width || 100;
-        elementBounds.height = element.height || 50;
-      } else {
-        // Fallback for any other element types
-        elementBounds.width = element.width || 100;
-        elementBounds.height = element.height || 100;
-      }
-      
-      const intersects = (
-        adjustedSelectionRect.x < elementBounds.x + elementBounds.width &&
-        adjustedSelectionRect.x + adjustedSelectionRect.width > elementBounds.x &&
-        adjustedSelectionRect.y < elementBounds.y + elementBounds.height &&
-        adjustedSelectionRect.y + adjustedSelectionRect.height > elementBounds.y
-      );
-      
-      if (intersects) {
-        selectedIds.push(element.id);
-      }
-    });
-    
 
-    return selectedIds;
-  };
-
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; visible: boolean }>({ x: 0, y: 0, visible: false });
 
   const handleContextMenu = (e: Konva.KonvaEventObject<PointerEvent>) => {
     // For answer_only in mini preview, prevent context menu but don't start panning here
@@ -4584,7 +4300,12 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
                     }
                     setTimeout(() => setIsDragging(false), 10);
                   }}
-                  isWithinSelection={selectionRect.visible && getElementsInSelection().includes(element.id)}
+                  isWithinSelection={selectionRect.visible && getElementsInSelection(
+                    currentPage,
+                    selectionRect,
+                    activePageOffsetX,
+                    pageOffsetY
+                  ).includes(element.id)}
                 />
 
                 </Group>
