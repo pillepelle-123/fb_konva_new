@@ -260,8 +260,7 @@ export default function Canvas() {
   const isMovingGroupRef = useRef(false);
   const [groupMoveStart, setGroupMoveStart] = useState<{ x: number; y: number } | null>(null);
   const groupMoveStartRef = useRef<{ x: number; y: number } | null>(null);
-  // Store initial element positions when group move starts
-  const groupMoveInitialPositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+  const groupMoveInitialPositionsRef = useRef<{ [elementId: string]: { x: number; y: number } } | null>(null);
   const [lastClickTime, setLastClickTime] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -1381,17 +1380,6 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         if (state.selectedElementIds.length > 1 && e.evt.button === 0 && !state.editorSettings?.editor?.lockElements) {
           // Start group move if multiple elements are selected and elements are not locked
           const startPos = { x, y };
-          
-          // Store initial positions of all selected elements
-          const initialPositions = new Map<string, { x: number; y: number }>();
-          state.selectedElementIds.forEach(elementId => {
-            const element = currentPage?.elements.find(el => el.id === elementId);
-            if (element) {
-              initialPositions.set(elementId, { x: element.x, y: element.y });
-            }
-          });
-          groupMoveInitialPositionsRef.current = initialPositions;
-          
           setIsMovingGroup(true);
           isMovingGroupRef.current = true;
           setGroupMoveStart(startPos);
@@ -1421,16 +1409,6 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
             });
             
             if (clickedElement?.type !== 'text' && !state.editorSettings?.editor?.lockElements) {
-              // Store initial positions of all selected elements
-              const initialPositions = new Map<string, { x: number; y: number }>();
-              state.selectedElementIds.forEach(elementId => {
-                const element = currentPage?.elements.find(el => el.id === elementId);
-                if (element) {
-                  initialPositions.set(elementId, { x: element.x, y: element.y });
-                }
-              });
-              groupMoveInitialPositionsRef.current = initialPositions;
-              
               setIsMovingGroup(true);
               setGroupMoveStart({ x, y });
             }
@@ -1659,13 +1637,14 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         isMovingGroupRef.current = false;
         setGroupMoveStart(null);
         groupMoveStartRef.current = null;
-        groupMoveInitialPositionsRef.current.clear();
+        // Clean up initial positions
+        groupMoveInitialPositionsRef.current = null;
         return;
       }
       
       // Move entire selection
       const pos = e.target.getStage()?.getPointerPosition();
-      if (pos && stageRef.current) {
+      if (pos) {
         // Convert to page coordinates (same calculation as in handleMouseDown)
         const x = (pos.x - stagePos.x) / zoom;
         const y = (pos.y - stagePos.y) / zoom;
@@ -1675,42 +1654,36 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         const deltaX = x - start.x;
         const deltaY = y - start.y;
         
-        // Update Konva nodes directly for smooth performance (no state updates during drag)
-        // Only update if there's significant movement to avoid jitter
+        // Update all selected elements - use absolute position calculation
+        // Store initial positions on first move to avoid accumulation errors
         if (Math.abs(deltaX) > 0.1 || Math.abs(deltaY) > 0.1) {
-          const stage = stageRef.current;
-          const initialPositions = groupMoveInitialPositionsRef.current;
-          
-          state.selectedElementIds.forEach(elementId => {
-            const initialPos = initialPositions.get(elementId);
-            if (initialPos) {
-              // Find the Konva node for this element
-              const node = stage.findOne(`#${elementId}`);
-              if (node) {
-                // Update node position directly (much faster than state updates)
-                const newX = initialPos.x + deltaX;
-                const newY = initialPos.y + deltaY;
-                node.x(newX);
-                node.y(newY);
-                
-                // Also update transformer if it exists
-                if (transformerRef.current) {
-                  transformerRef.current.forceUpdate();
-                }
+          // Store initial element positions on first move
+          if (!groupMoveInitialPositionsRef.current) {
+            groupMoveInitialPositionsRef.current = {};
+            state.selectedElementIds.forEach(elementId => {
+              const element = currentPage?.elements.find(el => el.id === elementId);
+              if (element) {
+                groupMoveInitialPositionsRef.current![elementId] = { x: element.x, y: element.y };
               }
+            });
+          }
+
+          // Update all selected elements based on initial positions + current delta
+          state.selectedElementIds.forEach(elementId => {
+            const initialPos = groupMoveInitialPositionsRef.current?.[elementId];
+            if (initialPos) {
+              dispatch({
+                type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                payload: {
+                  id: elementId,
+                  updates: {
+                    x: initialPos.x + deltaX,
+                    y: initialPos.y + deltaY
+                  }
+                }
+              });
             }
           });
-          
-          // Update groupMoveStart to current position for next delta calculation
-          const newStart = { x, y };
-          setGroupMoveStart(newStart);
-          groupMoveStartRef.current = newStart;
-          
-          // Force layer redraw for smooth visual updates
-          const layer = stage.getLayers()[0];
-          if (layer) {
-            layer.batchDraw();
-          }
         }
       }
     } else if (isSelecting && selectionStart) {
@@ -2143,45 +2116,12 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       setTextboxStart(null);
       setPreviewTextbox(null);
     } else if (isMovingGroup || isMovingGroupRef.current) {
-      // Save final positions to state after group move ends
-      if (stageRef.current && groupMoveInitialPositionsRef.current.size > 0) {
-        const stage = stageRef.current;
-        const initialPositions = groupMoveInitialPositionsRef.current;
-        const start = groupMoveStartRef.current || groupMoveStart;
-
-        if (start) {
-          // Update state with final positions for all moved elements
-          // Use node positions which were updated directly during drag for best performance
-          state.selectedElementIds.forEach(elementId => {
-            const initialPos = initialPositions.get(elementId);
-            if (initialPos) {
-              const node = stage.findOne(`#${elementId}`);
-              if (node) {
-                // Use node position (which was updated during drag)
-                const finalX = node.x();
-                const finalY = node.y();
-                dispatch({
-                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                  payload: {
-                    id: elementId,
-                    updates: {
-                      x: finalX,
-                      y: finalY
-                    }
-                  }
-                });
-              }
-            }
-          });
-        }
-      }
-
-      // Always reset group move state
       setIsMovingGroup(false);
       isMovingGroupRef.current = false;
       setGroupMoveStart(null);
       groupMoveStartRef.current = null;
-      groupMoveInitialPositionsRef.current.clear();
+      // Clean up initial positions
+      groupMoveInitialPositionsRef.current = null;
     } else if (isSelecting) {
       const selectedIds = getElementsInSelection();
       

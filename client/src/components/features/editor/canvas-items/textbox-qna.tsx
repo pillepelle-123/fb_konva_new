@@ -1351,7 +1351,7 @@ export default function TextboxQna(props: CanvasItemProps) {
   const ruledLinesOpacity = qnaElement.ruledLinesOpacity ?? 1;
 
   const ruledLinesElements = useMemo(() => {
-    if (!ruledLines || !layout.linePositions || layout.linePositions.length === 0) {
+    if (!ruledLines) {
       return [];
     }
 
@@ -1364,7 +1364,7 @@ export default function TextboxQna(props: CanvasItemProps) {
       // Convert to string and check if it's a valid theme
       const themeString = String(ruledLinesTheme || 'default').toLowerCase().trim();
       const theme = (supportedThemes.includes(themeString as Theme) ? themeString : 'default') as Theme;
-      
+
       return renderThemedBorder({
         width: ruledLinesWidth,
         color: ruledLinesColor,
@@ -1385,26 +1385,12 @@ export default function TextboxQna(props: CanvasItemProps) {
     // The ruledLinesTarget is used for PDF export but for canvas we show all lines
     const targetLinePositions = layout.linePositions;
 
-    // Render existing lines
-    targetLinePositions.forEach((linePos: LinePosition) => {
-      // For block layout, only render lines within the target area
-      if (layoutVariant === 'block' && layout.questionArea && layout.answerArea) {
-        const targetArea = ruledLinesTarget === 'question' ? layout.questionArea : layout.answerArea;
-        
-        // Check if line is within the target area (vertically)
-        if (linePos.y >= targetArea.y && linePos.y <= targetArea.y + targetArea.height) {
-          const lineStartX = targetArea.x;
-          const lineEndX = targetArea.x + targetArea.width;
-          const lineElement = generateRuledLineElement(linePos.y, lineStartX, lineEndX);
-          if (lineElement) {
-            elements.push(lineElement);
-          }
-        }
-      } else {
-        // For inline layout, use full width with padding
+    // For inline layout, use existing text-based line positions
+    if (layoutVariant === 'inline') {
+      targetLinePositions.forEach((linePos: LinePosition) => {
         const startX = padding;
         const endX = boxWidth - padding;
-        
+
         // Only generate lines that are within the box dimensions (0 <= y <= boxHeight)
         // This ensures ruled lines only appear inside the visible border area
         if (linePos.y >= 0 && linePos.y <= boxHeight) {
@@ -1413,8 +1399,28 @@ export default function TextboxQna(props: CanvasItemProps) {
             elements.push(lineElement);
           }
         }
+      });
+    } else {
+      // For block layout, generate ruled lines across the entire target area
+      if (layout.questionArea && layout.answerArea) {
+        const targetArea = ruledLinesTarget === 'question' ? layout.questionArea : layout.answerArea;
+        const lineHeight = getLineHeight(ruledLinesTarget === 'question' ? effectiveQuestionStyle : answerStyle);
+
+        // Generate lines across the entire target area height
+        let currentY = targetArea.y + lineHeight * 0.8; // Start slightly below top
+        const maxY = targetArea.y + targetArea.height;
+
+        while (currentY <= maxY) {
+          const lineStartX = targetArea.x;
+          const lineEndX = targetArea.x + targetArea.width;
+          const lineElement = generateRuledLineElement(currentY, lineStartX, lineEndX);
+          if (lineElement) {
+            elements.push(lineElement);
+          }
+          currentY += lineHeight;
+        }
       }
-    });
+    }
 
     // For answer lines, extend to bottom of textbox
     if (ruledLinesTarget === 'answer' && targetLinePositions.length > 0) {
