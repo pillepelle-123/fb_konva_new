@@ -1,4 +1,5 @@
 import type { ColorPalette } from '../types/template-types';
+import { getPalettePartColor } from '../data/templates/color-palettes';
 
 // Note: GLOBAL_PALETTES is legacy and may not include 'text' field.
 // The actual ColorPalette interface is in template-types.ts
@@ -119,87 +120,67 @@ export function getAllCategories(): string[] {
   return [...new Set(GLOBAL_PALETTES.map(palette => palette.category))];
 }
 
-export function applyPaletteToElement(palette: ColorPalette, elementType: string): Partial<any> {
-  const updates: any = {};
-  
+/**
+ * Zentrale Funktion für alle Element-Palette-Farben
+ * Stellt sicher, dass beide Szenarien (Element vor/nach Palette) identische Farben verwenden
+ */
+export function getElementPaletteColors(palette: ColorPalette, elementType: string): Record<string, string> {
+  const getColor = (mappingKey: string, fallbackSlot: keyof ColorPalette['colors'], fallbackColor: string) =>
+    getPalettePartColor(palette, mappingKey, fallbackSlot, fallbackColor) || fallbackColor;
+
   switch (elementType) {
-    case 'text':
-      updates.fill = palette.colors.primary;
-      updates.stroke = palette.colors.primary;
-      updates.fontColor = palette.colors.primary;
-      updates.borderColor = palette.colors.secondary;
-      updates.backgroundColor = palette.colors.background;
-      updates.ruledLinesColor = palette.colors.accent;
-      // Nested properties
-      updates.font = { fontColor: palette.colors.primary };
-      updates.border = { borderColor: palette.colors.secondary };
-      updates.background = { backgroundColor: palette.colors.background };
-      updates.ruledLines = { lineColor: palette.colors.accent };
-      break;
-      
-    case 'question':
-      updates.fill = palette.colors.primary;
-      updates.stroke = palette.colors.primary;
-      updates.fontColor = palette.colors.primary;
-      updates.borderColor = palette.colors.secondary;
-      updates.backgroundColor = palette.colors.surface;
-      updates.ruledLinesColor = palette.colors.accent;
-      updates.font = { fontColor: palette.colors.primary };
-      updates.border = { borderColor: palette.colors.secondary };
-      updates.background = { backgroundColor: palette.colors.surface };
-      updates.ruledLines = { lineColor: palette.colors.accent };
-      break;
-      
-    case 'answer':
-      updates.fill = palette.colors.accent;
-      updates.stroke = palette.colors.accent;
-      updates.fontColor = palette.colors.accent;
-      updates.borderColor = palette.colors.secondary;
-      updates.backgroundColor = palette.colors.background;
-      updates.ruledLinesColor = palette.colors.primary;
-      updates.font = { fontColor: palette.colors.accent };
-      updates.border = { borderColor: palette.colors.secondary };
-      updates.background = { backgroundColor: palette.colors.background };
-      updates.ruledLines = { lineColor: palette.colors.primary };
-      break;
-      
     case 'qna':
-      // Font properties only in questionSettings/answerSettings (no nested font object)
-      // Shared properties (borderColor, backgroundColor, etc.) are set on top-level
-      updates.questionSettings = {
-        fontColor: palette.colors.text
+      return {
+        qnaQuestionText: getColor('qnaQuestionText', 'text', palette.colors.text),
+        qnaAnswerText: getColor('qnaAnswerText', 'text', palette.colors.text),
+        qnaQuestionBorder: getColor('qnaQuestionBorder', 'secondary', palette.colors.secondary),
+        qnaAnswerBorder: getColor('qnaAnswerBorder', 'primary', palette.colors.primary),
+        qnaBorder: getColor('qnaBorder', 'primary', palette.colors.primary),
+        qnaQuestionBackground: getColor('qnaQuestionBackground', 'surface', palette.colors.surface),
+        qnaAnswerBackground: getColor('qnaAnswerBackground', 'surface', palette.colors.surface),
+        qnaBackground: getColor('qnaBackground', 'surface', palette.colors.surface),
+        qnaAnswerRuledLines: getColor('qnaAnswerRuledLines', 'primary', palette.colors.primary),
       };
-      updates.answerSettings = {
-        fontColor: palette.colors.text
-      };
-      // Set shared properties on top-level
-      updates.borderColor = palette.colors.primary;
-      updates.backgroundColor = palette.colors.accent;
-      updates.ruledLinesColor = palette.colors.primary;
-      break;
-      
+
     case 'free_text':
-      updates.textSettings = {
-        fontColor: palette.colors.text,
-        font: { fontColor: palette.colors.text },
-        borderColor: palette.colors.primary,
-        border: { borderColor: palette.colors.primary },
-        backgroundColor: palette.colors.accent,
-        background: { backgroundColor: palette.colors.accent },
-        ruledLinesColor: palette.colors.primary,
-        ruledLines: { lineColor: palette.colors.primary }
+      return {
+        freeTextText: getColor('freeTextText', 'text', palette.colors.text),
+        freeTextBorder: getColor('freeTextBorder', 'secondary', palette.colors.secondary),
+        freeTextBackground: getColor('freeTextBackground', 'surface', palette.colors.surface),
+        freeTextRuledLines: getColor('freeTextRuledLines', 'accent', palette.colors.accent),
       };
-      // Also set top-level properties for backward compatibility
-      updates.fontColor = palette.colors.text;
-      updates.borderColor = palette.colors.primary;
-      updates.backgroundColor = palette.colors.accent;
-      break;
-      
+
+    case 'text':
+      return {
+        textColor: palette.colors.primary,
+        borderColor: palette.colors.secondary,
+        backgroundColor: palette.colors.background,
+        ruledLinesColor: palette.colors.accent,
+      };
+
+    case 'question':
+      return {
+        textColor: palette.colors.primary,
+        borderColor: palette.colors.secondary,
+        backgroundColor: palette.colors.surface,
+        ruledLinesColor: palette.colors.accent,
+      };
+
+    case 'answer':
+      return {
+        textColor: palette.colors.primary,
+        borderColor: palette.colors.secondary,
+        backgroundColor: palette.colors.background,
+        ruledLinesColor: palette.colors.accent,
+      };
+
     case 'brush':
     case 'line':
-      updates.stroke = palette.colors.primary;
-      break;
-      
+      return {
+        stroke: palette.colors.primary,
+        strokeWidth: 2, // Default values, can be overridden
+      };
+
     case 'rect':
     case 'circle':
     case 'heart':
@@ -211,41 +192,21 @@ export function applyPaletteToElement(palette: ColorPalette, elementType: string
     case 'triangle':
     case 'polygon':
     case 'sticker':
-      updates.stroke = palette.colors.primary;
-      updates.fill = palette.colors.surface;
-      break;
-      
+      return {
+        stroke: palette.colors.primary,
+        fill: palette.colors.surface,
+      };
+
     case 'image':
     case 'placeholder':
-      updates.borderColor = palette.colors.secondary;
-      updates.backgroundColor = palette.colors.background;
-      break;
-  }
-  
-  return updates;
-}
+      return {
+        borderColor: palette.colors.secondary,
+        backgroundColor: palette.colors.background,
+      };
 
-export function applyPaletteToAllElements(palette: ColorPalette, elements: any[]): any[] {
-  return elements.map(element => {
-    const elementType = element.textType || element.type;
-    const colorUpdates = applyPaletteToElement(palette, elementType);
-    
-    // Deep merge color properties while preserving non-color properties
-    const updatedElement = { ...element };
-    
-    // Apply flat color properties
-    Object.keys(colorUpdates).forEach(key => {
-      if (key === 'font' || key === 'border' || key === 'background' || key === 'ruledLines' || key === 'questionSettings' || key === 'answerSettings' || key === 'textSettings') {
-        // Merge nested objects
-        updatedElement[key] = { ...updatedElement[key], ...colorUpdates[key] };
-      } else {
-        // Apply flat properties
-        updatedElement[key] = colorUpdates[key];
-      }
-    });
-    
-    return updatedElement;
-  });
+    default:
+      return {};
+  }
 }
 
 export function applyPaletteToPage(palette: ColorPalette, pageBackground: any): any {

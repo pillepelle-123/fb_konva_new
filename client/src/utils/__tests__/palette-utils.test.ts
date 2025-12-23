@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { colorPalettes, getPalettePartColor, applyPaletteToElement } from '../../data/templates/color-palettes';
+import { colorPalettes, getPalettePartColor } from '../../data/templates/color-palettes';
 import type { ColorPalette } from '../../types/template-types';
 
 describe('Color Palette Utilities', () => {
@@ -94,56 +94,6 @@ describe('Color Palette Utilities', () => {
     });
   });
 
-  describe('applyPaletteToElement', () => {
-    it('should apply palette colors to text element', () => {
-      const result = applyPaletteToElement(mockPalette, 'text');
-      expect(result.fontColor).toBeDefined();
-      expect(result.borderColor).toBeDefined();
-      expect(result.backgroundColor).toBeDefined();
-    });
-
-    it('should apply palette colors to qna element', () => {
-      const result = applyPaletteToElement(mockPalette, 'qna');
-      expect(result.borderColor).toBeDefined();
-      expect(result.backgroundColor).toBeDefined();
-      expect(result.questionSettings).toBeDefined();
-      expect(result.answerSettings).toBeDefined();
-    });
-
-    it('should apply palette colors to qna element', () => {
-      const result = applyPaletteToElement(mockPalette, 'qna');
-      expect(result.questionSettings).toBeDefined();
-      expect(result.answerSettings).toBeDefined();
-      if (result.questionSettings) {
-        expect(result.questionSettings.fontColor).toBeDefined();
-      }
-    });
-
-    it('should apply palette colors to shape element', () => {
-      const result = applyPaletteToElement(mockPalette, 'rect');
-      expect(result.stroke).toBeDefined();
-      expect(result.fill).toBeDefined();
-    });
-
-    it('should handle unknown element type gracefully', () => {
-      const result = applyPaletteToElement(mockPalette, 'unknown_type');
-      // Should not throw error, may return empty object or default values
-      expect(result).toBeDefined();
-    });
-
-    it('should respect palette part mappings', () => {
-      const customPalette: ColorPalette = {
-        ...mockPalette,
-        parts: {
-          ...mockPalette.parts,
-          qnaBorder: 'accent' // Override default mapping
-        }
-      };
-      const result = applyPaletteToElement(customPalette, 'qna');
-      // Should use accent color for border instead of primary
-      expect(result.borderColor).toBe('#0000FF'); // accent color
-    });
-  });
 
   describe('Palette Integration', () => {
     it('should work with actual loaded palettes', () => {

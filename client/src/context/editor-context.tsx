@@ -125,6 +125,7 @@ import { calculatePageDimensions } from '../utils/template-utils';
 import { pageTemplates } from '../data/templates/page-templates';
 import { colorPalettes, getPalettePartColor } from '../data/templates/color-palettes';
 import { getGlobalTheme, getThemePageBackgroundColors, getThemePaletteId } from '../utils/global-themes';
+import { getElementPaletteColors } from '../utils/global-palettes';
 import type { PageTemplate, ColorPalette } from '../types/template-types';
 import { applyBackgroundImageTemplate } from '../utils/background-image-utils';
 import { generatePagePreview } from '../utils/page-preview-generator';
@@ -4129,34 +4130,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             cloneEntireBook: Boolean(paletteApplyToAll)
           });
       const updatedBookApplyPalette = { ...savedApplyPaletteState.currentBook! };
-      const palettePart = (
-        part: string,
-        fallbackSlot: keyof ColorPalette['colors'],
-        fallbackColor: string
-      ) =>
-        getPalettePartColor(appliedPalette, part, fallbackSlot, fallbackColor) || fallbackColor;
-      const paletteParts = {
-        pageBackground: palettePart('pageBackground', 'background', appliedPalette.colors.background),
-        pagePatternForeground: palettePart('pagePatternForeground', 'primary', appliedPalette.colors.primary),
-        pagePatternBackground: palettePart('pagePatternBackground', 'background', appliedPalette.colors.background),
-        qnaQuestionText: palettePart('qnaQuestionText', 'text', appliedPalette.colors.text),
-        qnaQuestionBackground: palettePart('qnaQuestionBackground', 'surface', appliedPalette.colors.surface),
-        qnaQuestionBorder: palettePart('qnaQuestionBorder', 'secondary', appliedPalette.colors.secondary),
-        qnaAnswerText: palettePart('qnaAnswerText', 'text', appliedPalette.colors.text),
-        qnaAnswerBackground: palettePart('qnaAnswerBackground', 'surface', appliedPalette.colors.surface),
-        qnaAnswerBorder: palettePart('qnaAnswerBorder', 'primary', appliedPalette.colors.primary),
-        qnaAnswerRuledLines: palettePart('qnaAnswerRuledLines', 'primary', appliedPalette.colors.primary),
-        qnaBorder: palettePart('qnaBorder', 'primary', appliedPalette.colors.primary),
-        qnaBackground: palettePart('qnaBackground', 'surface', appliedPalette.colors.surface),
-        freeTextText: palettePart('freeTextText', 'text', appliedPalette.colors.text),
-        freeTextBorder: palettePart('freeTextBorder', 'secondary', appliedPalette.colors.secondary),
-        freeTextBackground: palettePart('freeTextBackground', 'surface', appliedPalette.colors.surface),
-        freeTextRuledLines: palettePart('freeTextRuledLines', 'accent', appliedPalette.colors.accent),
-        shapeStroke: palettePart('shapeStroke', 'primary', appliedPalette.colors.primary),
-        shapeFill: palettePart('shapeFill', 'surface', appliedPalette.colors.surface || appliedPalette.colors.accent),
-        lineStroke: palettePart('lineStroke', 'primary', appliedPalette.colors.primary),
-        brushStroke: palettePart('brushStroke', 'primary', appliedPalette.colors.primary)
-      };
+      // Create palette color getters using centralized function
+      const getPaletteColors = (elementType: string) => getElementPaletteColors(appliedPalette, elementType);
       
       const applyPaletteToPage = (page: Page, pageIndex?: number) => {
         if (paletteApplyToAll && page.colorPaletteId) {
@@ -4195,53 +4170,56 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             if (element.type === 'text' || element.textType) {
               // For qna, font properties are only in questionSettings/answerSettings
               if (element.textType === 'qna') {
-                // Update QnA specific settings - no nested font objects
+                // Update QnA specific settings using centralized palette colors
+                const qnaColors = getPaletteColors('qna');
                 if (element.questionSettings) {
                   updates.questionSettings = {
                     ...element.questionSettings,
-                    fontColor: paletteParts.freeTextText
+                    fontColor: qnaColors.qnaQuestionText
                   };
                 }
                 if (element.answerSettings) {
                   updates.answerSettings = {
                     ...element.answerSettings,
-                    fontColor: paletteParts.freeTextText
+                    fontColor: qnaColors.qnaAnswerText
                   };
                 }
               } else {
                 // For other text elements, update font color in nested font object if it exists
                 if (element.font) {
-                  updates.font = { ...element.font, fontColor: paletteParts.freeTextText };
+                  const textColors = getPaletteColors('text');
+                  updates.font = { ...element.font, fontColor: textColors.textColor };
                 }
               }
               
               // Handle free_text elements with textSettings
               if (element.textType === 'free_text') {
+                const freeTextColors = getPaletteColors('free_text');
                 const currentBorder = element.textSettings?.border || {};
                 const currentBackground = element.textSettings?.background || {};
                 updates.textSettings = {
                   ...element.textSettings,
-                fontColor: paletteParts.freeTextText,
-                  font: element.textSettings?.font ? 
-                  { ...element.textSettings.font, fontColor: paletteParts.freeTextText } : 
-                  { fontColor: paletteParts.freeTextText },
+                fontColor: freeTextColors.freeTextText,
+                  font: element.textSettings?.font ?
+                  { ...element.textSettings.font, fontColor: freeTextColors.freeTextText } :
+                  { fontColor: freeTextColors.freeTextText },
                   border: {
                     ...currentBorder,
-                  borderColor: paletteParts.freeTextBorder,
+                  borderColor: freeTextColors.freeTextBorder,
                     enabled: currentBorder.enabled !== undefined ? currentBorder.enabled : true
                   },
-                borderColor: paletteParts.freeTextBorder,
+                borderColor: freeTextColors.freeTextBorder,
                   background: {
                     ...currentBackground,
-                  backgroundColor: paletteParts.freeTextBackground,
+                  backgroundColor: freeTextColors.freeTextBackground,
                     enabled: currentBackground.enabled !== undefined ? currentBackground.enabled : true
                   },
-                backgroundColor: paletteParts.freeTextBackground,
+                backgroundColor: freeTextColors.freeTextBackground,
                   ruledLines: element.textSettings?.ruledLines ? {
                     ...element.textSettings.ruledLines,
-                  lineColor: paletteParts.freeTextRuledLines
+                  lineColor: freeTextColors.freeTextRuledLines
                   } : undefined,
-                ruledLinesColor: paletteParts.freeTextRuledLines
+                ruledLinesColor: freeTextColors.freeTextRuledLines
                 };
               }
               
@@ -4300,10 +4278,11 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                 const existingBorderOpacity = element.borderOpacity ?? existingQuestionBorder.borderOpacity ?? existingAnswerBorder.borderOpacity ?? 1;
                 const existingBackgroundOpacity = element.backgroundOpacity ?? existingQuestionBackground.backgroundOpacity ?? existingAnswerBackground.backgroundOpacity ?? 0.3;
                 
+                const qnaColors = getPaletteColors('qna');
                 updates.questionSettings = {
                   ...element.questionSettings,
-                  fontColor: paletteParts.qnaQuestionText,
-                  font: { ...element.questionSettings?.font, fontColor: paletteParts.qnaQuestionText },
+                  fontColor: qnaColors.qnaQuestionText,
+                  font: { ...element.questionSettings?.font, fontColor: qnaColors.qnaQuestionText },
                   // Only set border.enabled in questionSettings for rendering check
                   border: {
                     ...existingQuestionBorder,
@@ -4317,8 +4296,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                 };
                 updates.answerSettings = {
                   ...element.answerSettings,
-                  fontColor: paletteParts.qnaAnswerText,
-                  font: { ...element.answerSettings?.font, fontColor: paletteParts.qnaAnswerText },
+                  fontColor: qnaColors.qnaAnswerText,
+                  font: { ...element.answerSettings?.font, fontColor: qnaColors.qnaAnswerText },
                   // Only set border.enabled in answerSettings for rendering check
                   border: {
                     ...existingAnswerBorder,
@@ -4331,28 +4310,24 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                   }
                 };
                 // Set all border/background properties on top-level
-                // Use question border color if different from answer, otherwise use answer
-                const borderColor = paletteParts.qnaQuestionBorder || paletteParts.qnaAnswerBorder || '#000000';
-                updates.borderColor = borderColor;
+                // Use centralized palette colors for QnA
+                updates.borderColor = qnaColors.qnaQuestionBorder;
                 // Set all border/background properties on top-level (only individual properties, no border/background objects)
                 updates.borderWidth = existingBorderWidth;
                 updates.borderOpacity = existingBorderOpacity;
                 updates.borderEnabled = borderEnabled;
-                updates.borderColor = borderColor;
-                // Use question background color if different from answer, otherwise use answer
-                const backgroundColor = paletteParts.qnaQuestionBackground || paletteParts.qnaAnswerBackground || '#ffffff';
-                updates.backgroundColor = backgroundColor;
+                // Use centralized palette colors for QnA
+                updates.backgroundColor = qnaColors.qnaQuestionBackground;
                 updates.backgroundOpacity = existingBackgroundOpacity;
                 updates.backgroundEnabled = backgroundEnabled;
                 // Set ruledLinesColor on top-level (moved from answerSettings)
-                if (paletteParts.qnaAnswerRuledLines) {
-                  updates.ruledLinesColor = paletteParts.qnaAnswerRuledLines;
-                }
+                updates.ruledLinesColor = qnaColors.qnaAnswerRuledLines;
               }
               
               // Update border/background colors on top-level (only individual properties, no border/background objects)
               // For qna, border.enabled and background.enabled are already set in questionSettings/answerSettings above
               // For other text elements, we don't need to set border/background objects
+              const textColors = getPaletteColors('text');
               if (element.textType === 'qna') {
                 // Border and background colors are already set above for qna
               } else {
@@ -4361,19 +4336,19 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                 const currentBackgroundEnabled = element.background?.enabled !== false;
                 
                 if (currentBorderEnabled) {
-                  updates.borderColor = paletteParts.freeTextBorder;
+                  updates.borderColor = textColors.borderColor;
                 }
-                
+
                 if (currentBackgroundEnabled) {
-                  updates.backgroundColor = paletteParts.freeTextBackground;
+                  updates.backgroundColor = textColors.backgroundColor;
                 }
               }
 
             // Update direct font color properties
-            updates.fontColor = paletteParts.freeTextText;
-            updates.fill = paletteParts.freeTextText;
-            updates.borderColor = paletteParts.freeTextBorder;
-            updates.backgroundColor = paletteParts.freeTextBackground;
+            updates.fontColor = textColors.textColor;
+            updates.fill = textColors.textColor;
+            updates.borderColor = textColors.borderColor;
+            updates.backgroundColor = textColors.backgroundColor;
             }
             
             // Apply stroke color to shapes and lines
@@ -4381,12 +4356,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                 element.type === 'heart' || element.type === 'star' || element.type === 'triangle' ||
                 element.type === 'polygon' || element.type === 'speech-bubble' || element.type === 'dog' ||
                 element.type === 'cat' || element.type === 'smiley' || element.type === 'brush') {
-            const strokeColor = element.type === 'brush'
-              ? paletteParts.brushStroke
-              : element.type === 'line'
-                ? paletteParts.lineStroke
-                : paletteParts.shapeStroke;
-            updates.stroke = strokeColor;
+            const elementColors = getPaletteColors(element.type);
+            updates.stroke = elementColors.stroke || elementColors.primary;
             }
             
             // Apply fill color to filled shapes - apply even if fill is missing or transparent
@@ -4398,7 +4369,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
               // Only apply fill if element had a fill (not transparent) before
               // But during reset, we want to apply palette colors
               if (element.fill && element.fill !== 'transparent') {
-                updates.fill = paletteParts.shapeFill;
+                updates.fill = elementColors.fill || elementColors.surface;
               }
               // If element doesn't have fill or has transparent, don't change it
               // (respects the element's original fill state)

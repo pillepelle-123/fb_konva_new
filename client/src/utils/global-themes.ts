@@ -5,22 +5,13 @@ import { commonToActual } from './font-size-converter.ts';
 import { themeJsonToActualStrokeWidth } from './stroke-width-converter.ts';
 import { commonToActualRadius } from './corner-radius-converter.ts';
 import themesData from '../data/templates/themes';
+import { getElementPaletteColors } from './global-palettes';
 
 // Get palette from color-palettes.ts (single source of truth)
 function getPalette(paletteId: string): ColorPalette | undefined {
   return colorPalettes.find(p => p.id === paletteId);
 }
 
-// Get color from palette using flexible mappings
-function getPaletteColor(palette: any, mappingKey: string, fallbackColor: string): string {
-  if (palette && palette[mappingKey]) {
-    // mappingKey z.B. "qnaQuestionText" -> "primary"
-    const colorKey = palette[mappingKey];
-    // colorKey z.B. "primary" -> palette.colors.primary
-    return palette.colors[colorKey] || palette.colors[fallbackColor] || palette.colors.primary;
-  }
-  return palette?.colors[fallbackColor] || palette?.colors.primary || '#000000';
-}
 
 export interface GlobalTheme {
   id: string;
@@ -603,32 +594,28 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
     
     // Apply palette colors automatically if palette exists
     if (palette) {
-      // Use flexible mappings from color-palettes.json
-      const questionTextColor = getPaletteColor(palette, 'qnaQuestionText', 'text');
-      const answerTextColor = getPaletteColor(palette, 'qnaAnswerText', 'text');
-      const borderColor = getPaletteColor(palette, 'qnaBorder', 'primary');
-      const backgroundColor = getPaletteColor(palette, 'qnaBackground', 'surface');
-      const ruledLinesColor = getPaletteColor(palette, 'qnaAnswerRuledLines', 'primary');
+      // Use centralized palette color function for consistency
+      const paletteColors = getElementPaletteColors(palette, 'qna');
 
       const paletteDefaults: any = {
-        fontColor: questionTextColor,
-        stroke: questionTextColor,
-        borderColor: borderColor,
-        backgroundColor: backgroundColor,
-        ruledLinesColor: ruledLinesColor
+        fontColor: paletteColors.qnaQuestionText,
+        stroke: paletteColors.qnaQuestionText,
+        borderColor: paletteColors.qnaQuestionBorder,
+        backgroundColor: paletteColors.qnaBackground,
+        ruledLinesColor: paletteColors.qnaAnswerRuledLines
       };
 
       // Apply palette colors to questionSettings and answerSettings
       if (convertedDefaults.questionSettings) {
         convertedDefaults.questionSettings = {
           ...convertedDefaults.questionSettings,
-          fontColor: questionTextColor
+          fontColor: paletteColors.qnaQuestionText
         };
       }
       if (convertedDefaults.answerSettings) {
         convertedDefaults.answerSettings = {
           ...convertedDefaults.answerSettings,
-          fontColor: answerTextColor
+          fontColor: paletteColors.qnaAnswerText
         };
       }
       
@@ -869,28 +856,25 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
     
     // Apply palette colors using flexible mappings if available
     if (palette) {
-      const textColor = getPaletteColor(palette, 'freeTextText', 'text');
-      const borderColor = getPaletteColor(palette, 'freeTextBorder', 'secondary');
-      const backgroundColor = getPaletteColor(palette, 'freeTextBackground', 'surface');
-      const ruledLinesColor = getPaletteColor(palette, 'freeTextRuledLines', 'accent');
+      const paletteColors = getElementPaletteColors(palette, 'free_text');
 
-      textSettings.fontColor = textColor;
-      textSettings.font.fontColor = textColor;
-      textSettings.borderColor = borderColor;
-      textSettings.border.borderColor = borderColor;
-      textSettings.backgroundColor = backgroundColor;
-      textSettings.background.backgroundColor = backgroundColor;
-      textSettings.ruledLinesColor = ruledLinesColor;
-      textSettings.ruledLines.lineColor = ruledLinesColor;
+      textSettings.fontColor = paletteColors.freeTextText;
+      textSettings.font.fontColor = paletteColors.freeTextText;
+      textSettings.borderColor = paletteColors.freeTextBorder;
+      textSettings.border.borderColor = paletteColors.freeTextBorder;
+      textSettings.backgroundColor = paletteColors.freeTextBackground;
+      textSettings.background.backgroundColor = paletteColors.freeTextBackground;
+      textSettings.ruledLinesColor = paletteColors.freeTextRuledLines;
+      textSettings.ruledLines.lineColor = paletteColors.freeTextRuledLines;
     }
     
     return {
       ...mergedDefaults,
       textSettings: textSettings,
       // Top-level properties for backward compatibility
-      fontColor: palette ? getPaletteColor(palette, 'freeTextText', 'text') : baseDefaults.fontColor,
-      borderColor: palette ? getPaletteColor(palette, 'freeTextBorder', 'secondary') : baseDefaults.borderColor,
-      backgroundColor: palette ? getPaletteColor(palette, 'freeTextBackground', 'surface') : baseDefaults.backgroundColor
+      fontColor: palette ? paletteColors.freeTextText : baseDefaults.fontColor,
+      borderColor: palette ? paletteColors.freeTextBorder : baseDefaults.borderColor,
+      backgroundColor: palette ? paletteColors.freeTextBackground : baseDefaults.backgroundColor
     };
   }
   
