@@ -1003,10 +1003,13 @@ export default function TextboxQna(props: CanvasItemProps) {
   const qnaDefaults = useMemo(() => {
     // Use 'qna' for all QnA elements
     const activeTheme = pageTheme || bookTheme || 'default';
-    return getGlobalThemeDefaults(activeTheme, 'qna');
+    const effectivePaletteId = pageColorPaletteId || bookColorPaletteId;
+    return getGlobalThemeDefaults(activeTheme, 'qna', effectivePaletteId);
   }, [
     pageTheme,
-    bookTheme
+    bookTheme,
+    pageColorPaletteId,
+    bookColorPaletteId
   ]);
 
   const questionStyle = useMemo(() => {

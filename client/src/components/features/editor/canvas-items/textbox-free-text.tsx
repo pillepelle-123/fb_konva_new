@@ -181,7 +181,7 @@ export default function TextboxFreeText(props: CanvasItemProps) {
     // Use 'free_text' for free text elements
     const toolType = 'free_text';
     const activeTheme = pageTheme || bookTheme || 'default';
-    const defaults = getGlobalThemeDefaults(activeTheme, toolType);
+    const defaults = getGlobalThemeDefaults(activeTheme, toolType, undefined);
     return defaults;
   }, [
     pageTheme,

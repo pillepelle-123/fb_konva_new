@@ -421,7 +421,7 @@ export function GeneralSettings({
             
             toolTypes.forEach(toolType => {
               const activeTheme = resolvedThemeId || state.currentBook?.bookTheme || 'default';
-              const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType as any);
+              const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType as any, undefined);
               
               if (toolType === 'brush' || toolType === 'line') {
                 const updates: Record<string, any> = {
@@ -513,7 +513,7 @@ export function GeneralSettings({
             
             toolTypes.forEach(toolType => {
               const activeTheme = themeId || 'default';
-              const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType as any);
+              const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType as any, undefined);
               
               if (toolType === 'brush' || toolType === 'line') {
                 const updates: Record<string, any> = {
@@ -676,7 +676,7 @@ export function GeneralSettings({
       
       // Fallback to theme secondary color or primary if secondary not available
       const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme || state.currentBook?.themeId || state.currentBook?.bookTheme || 'default';
-      const themeDefaults = getGlobalThemeDefaults(pageTheme, 'shape');
+      const themeDefaults = getGlobalThemeDefaults(pageTheme, 'shape', undefined);
       return themeDefaults.stroke || '#666666';
     };
     

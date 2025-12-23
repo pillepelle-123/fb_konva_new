@@ -165,7 +165,7 @@ export default function MiniTemplateRender({
           cornerRadius: 10,
         };
         const activeTheme = themeId || 'default';
-        const defaults = getGlobalThemeDefaults(activeTheme, 'qna');
+        const defaults = getGlobalThemeDefaults(activeTheme, 'qna', undefined);
         const questionStyle = defaults.questionSettings || {};
         const answerStyle = defaults.answerSettings || {};
 

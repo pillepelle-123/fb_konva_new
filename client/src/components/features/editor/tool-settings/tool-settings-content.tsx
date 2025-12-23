@@ -1050,7 +1050,8 @@ export function ToolSettingsContent({
           const pageColorPaletteId = currentPage?.colorPaletteId;
           const bookColorPaletteId = state.currentBook?.colorPaletteId;
           const activeTheme = pageTheme || bookTheme || 'default';
-          const toolDefaults = getGlobalThemeDefaults(activeTheme, 'qna');
+          const effectivePaletteId = pageColorPaletteId || bookColorPaletteId;
+          const toolDefaults = getGlobalThemeDefaults(activeTheme, 'qna', effectivePaletteId);
           
           const updateQuestionSetting = (key: string, value: any) => {
             const updates = {

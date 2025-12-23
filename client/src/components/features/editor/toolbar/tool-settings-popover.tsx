@@ -142,7 +142,7 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
   
   // Get theme-based defaults WITHOUT toolSettings first, to get pure theme/palette colors
   const activeTheme = pageTheme || bookTheme || 'default';
-  const toolDefaultsWithoutSettings = getGlobalThemeDefaults(activeTheme, activeTool as any);
+  const toolDefaultsWithoutSettings = getGlobalThemeDefaults(activeTheme, activeTool as any, undefined);
   
   // Get theme-based defaults (same as without settings since we don't use toolSettings anymore)
   const toolDefaultsWithSettings = toolDefaultsWithoutSettings;

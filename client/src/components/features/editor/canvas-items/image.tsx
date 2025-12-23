@@ -133,7 +133,7 @@ export default function Image(props: CanvasItemProps) {
 
   const qnaDefaults = useMemo(() => {
     const activeTheme = pageTheme || bookTheme || 'default';
-    return getGlobalThemeDefaults(activeTheme, 'qna');
+    return getGlobalThemeDefaults(activeTheme, 'qna', undefined);
   }, [
     pageTheme,
     bookTheme,

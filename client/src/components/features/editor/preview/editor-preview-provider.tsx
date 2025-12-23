@@ -100,7 +100,7 @@ export function EditorPreviewProvider({
       return elements.map((element) => {
         const toolType = (element.textType || element.type) as any;
         const activeTheme = themeId || 'default';
-        const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType);
+        const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType, undefined);
         
         // Merge theme defaults into element
         const updatedElement: any = {

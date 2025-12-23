@@ -1803,7 +1803,8 @@ export default function Canvas() {
       // Capture current tool settings for this stroke
       const templateIds = getTemplateIdsForDefaults();
       const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
-      const brushDefaults = getGlobalThemeDefaults(activeTheme, 'brush');
+      const effectivePaletteId = templateIds.pageColorPaletteId || templateIds.bookColorPaletteId;
+      const brushDefaults = getGlobalThemeDefaults(activeTheme, 'brush', effectivePaletteId);
       const toolSettings = state.toolSettings?.brush || {};
       
       const strokeData = {
@@ -1831,7 +1832,8 @@ export default function Canvas() {
       if (Math.abs(width) > 5 || Math.abs(height) > 5) {
         const templateIds = getTemplateIdsForDefaults();
         const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
-        const lineDefaults = getGlobalThemeDefaults(activeTheme, 'line');
+        const effectivePaletteId = templateIds.pageColorPaletteId || templateIds.bookColorPaletteId;
+        const lineDefaults = getGlobalThemeDefaults(activeTheme, 'line', effectivePaletteId);
         const newElement: CanvasElement = {
           id: uuidv4(),
           type: 'line',
@@ -1877,7 +1879,8 @@ export default function Canvas() {
         }
         const templateIds = getTemplateIdsForDefaults();
         const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
-        const shapeDefaults = getGlobalThemeDefaults(activeTheme, previewShape.type as any);
+        const effectivePaletteId = templateIds.pageColorPaletteId || templateIds.bookColorPaletteId;
+        const shapeDefaults = getGlobalThemeDefaults(activeTheme, previewShape.type as any, effectivePaletteId);
         const newElement: CanvasElement = {
           id: uuidv4(),
           type: previewShape.type as any,
@@ -1927,7 +1930,8 @@ export default function Canvas() {
         if (previewTextbox.type === 'text') {
           const templateIds = getTemplateIdsForDefaults();
           const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
-          const textDefaults = getGlobalThemeDefaults(activeTheme, 'text');
+          const effectivePaletteId = templateIds.pageColorPaletteId || templateIds.bookColorPaletteId;
+          const textDefaults = getGlobalThemeDefaults(activeTheme, 'text', effectivePaletteId);
           newElement = {
             id: uuidv4(),
             type: 'text',
@@ -1942,8 +1946,9 @@ export default function Canvas() {
         } else if (previewTextbox.type === 'question') {
           const templateIds = getTemplateIdsForDefaults();
           const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
-          const questionDefaults = getGlobalThemeDefaults(activeTheme, 'question');
-          const answerDefaults = getGlobalThemeDefaults(activeTheme, 'answer');
+          const effectivePaletteId = templateIds.pageColorPaletteId || templateIds.bookColorPaletteId;
+          const questionDefaults = getGlobalThemeDefaults(activeTheme, 'question', effectivePaletteId);
+          const answerDefaults = getGlobalThemeDefaults(activeTheme, 'answer', effectivePaletteId);
           const questionHeight = Math.max(40, previewTextbox.height * 0.3);
           const answerHeight = previewTextbox.height - questionHeight - 10;
           
@@ -1983,7 +1988,8 @@ export default function Canvas() {
         } else if (previewTextbox.type === 'qna') {
           const templateIds = getTemplateIdsForDefaults();
           const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
-          const qnaDefaults = getGlobalThemeDefaults(activeTheme, 'qna');
+          const effectivePaletteId = templateIds.pageColorPaletteId || templateIds.bookColorPaletteId;
+          const qnaDefaults = getGlobalThemeDefaults(activeTheme, 'qna', effectivePaletteId);
 
           newElement = {
             id: uuidv4(),
@@ -2001,7 +2007,8 @@ export default function Canvas() {
         } else if (previewTextbox.type === 'free_text') {
           const templateIds = getTemplateIdsForDefaults();
           const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
-          const freeTextDefaults = getGlobalThemeDefaults(activeTheme, 'free_text');
+          const effectivePaletteId = templateIds.pageColorPaletteId || templateIds.bookColorPaletteId;
+          const freeTextDefaults = getGlobalThemeDefaults(activeTheme, 'free_text', effectivePaletteId);
           newElement = {
             id: uuidv4(),
             type: 'text',
@@ -2016,7 +2023,8 @@ export default function Canvas() {
         } else {
           const templateIds = getTemplateIdsForDefaults();
           const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
-          const answerDefaults = getGlobalThemeDefaults(activeTheme, 'answer');
+          const effectivePaletteId = templateIds.pageColorPaletteId || templateIds.bookColorPaletteId;
+          const answerDefaults = getGlobalThemeDefaults(activeTheme, 'answer', effectivePaletteId);
           
           // Generate UUID for answer immediately
           const answerUUID = uuidv4();
@@ -2592,7 +2600,8 @@ export default function Canvas() {
       if (brushStrokes.length > 0) {
         const templateIds = getTemplateIdsForDefaults();
         const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
-        const brushDefaults = getGlobalThemeDefaults(activeTheme, 'brush');
+        const effectivePaletteId = templateIds.pageColorPaletteId || templateIds.bookColorPaletteId;
+        const brushDefaults = getGlobalThemeDefaults(activeTheme, 'brush', effectivePaletteId);
         
         // Convert each stroke to individual brush elements for grouping
         const groupedBrushElements: CanvasElement[] = brushStrokes.map(strokeData => ({
@@ -2881,7 +2890,7 @@ export default function Canvas() {
             }
               }
           // Get default font color from theme defaults as fallback
-          const qnaDefaults = getGlobalThemeDefaults('default', 'qna');
+          const qnaDefaults = getGlobalThemeDefaults('default', 'qna', undefined);
           const fontColor = element.fontColor || element.fill || qnaDefaults.fontColor || '#000000';          
           dispatch({
             type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',

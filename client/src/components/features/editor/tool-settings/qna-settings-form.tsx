@@ -101,7 +101,7 @@ export function QnASettingsForm({
     // Get tool defaults for qna to use as fallback
     const pageLayoutTemplateId = currentPage?.layoutTemplateId;
     const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
-    const toolDefaults = getGlobalThemeDefaults(activeTheme, 'qna');
+    const toolDefaults = getGlobalThemeDefaults(activeTheme, 'qna', undefined);
     const qnaDefaults = toolDefaults.questionSettings || {};
     
     return {
@@ -125,7 +125,7 @@ export function QnASettingsForm({
     // Get tool defaults for qna to use as fallback
     const pageLayoutTemplateId = currentPage?.layoutTemplateId;
     const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
-    const toolDefaults = getGlobalThemeDefaults(activeTheme, 'qna');
+    const toolDefaults = getGlobalThemeDefaults(activeTheme, 'qna', undefined);
     const qnaDefaults = toolDefaults.answerSettings || {};
     
     return {
@@ -151,7 +151,7 @@ export function QnASettingsForm({
   const getThemeDefaults = () => {
     const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
     const activeTheme = pageTheme || bookTheme || 'default';
-    return getGlobalThemeDefaults(activeTheme, 'qna');
+    return getGlobalThemeDefaults(activeTheme, 'qna', undefined);
   };
   
   const updateSharedSetting = (key: string, value: any) => {

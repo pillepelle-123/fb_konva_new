@@ -38,8 +38,8 @@ export function convertTemplateTextboxToElement(
   
   // Use appropriate defaults with type guards
   // getGlobalThemeDefaults() now includes base defaults, so we can use it with 'default' theme
-  const qnaDefaults = getGlobalThemeDefaults('default', 'qna');
-  const freeTextDefaults = getGlobalThemeDefaults('default', 'free_text');
+  const qnaDefaults = getGlobalThemeDefaults('default', 'qna', undefined);
+  const freeTextDefaults = getGlobalThemeDefaults('default', 'free_text', undefined);
   const defaults = isQna ? qnaDefaults : freeTextDefaults;
   
   const baseElement: CanvasElement = {

@@ -26,7 +26,7 @@ export function FontSelector({ currentFont, isBold, isItalic, onFontSelect, onBa
     const activeTheme = pageTheme || bookTheme;
     
     if (activeTheme) {
-      const themeDefaults = getGlobalThemeDefaults(activeTheme, element.textType || element.type || 'text');
+      const themeDefaults = getGlobalThemeDefaults(activeTheme, element.textType || element.type || 'text', undefined);
       fontFamily = themeDefaults?.font?.fontFamily || themeDefaults?.fontFamily;
     }
   }

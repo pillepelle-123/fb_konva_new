@@ -198,7 +198,7 @@ export function PaletteSelector({ onBack, title, isBookLevel = false, previewPos
           toolTypes.forEach(toolType => {
             // Get theme defaults WITHOUT palette - just pure theme colors
             const activeTheme = bookTheme || 'default';
-            const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType as any);
+            const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType as any, undefined);
             
             // Build tool settings from theme defaults
             if (toolType === 'brush' || toolType === 'line') {
@@ -319,7 +319,7 @@ export function PaletteSelector({ onBack, title, isBookLevel = false, previewPos
               toolTypes.forEach(toolType => {
                 // Get theme defaults WITHOUT palette - just pure theme colors
                 const activeTheme = pageTheme || state.currentBook!.bookTheme || 'default';
-                const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType as any);
+                const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType as any, undefined);
               
               // Build tool settings from theme defaults
               if (toolType === 'brush' || toolType === 'line') {

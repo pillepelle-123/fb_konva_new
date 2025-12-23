@@ -70,7 +70,8 @@ export function FreeTextSettingsForm({
     const pageColorPaletteId = currentPage?.colorPaletteId;
     const bookColorPaletteId = state.currentBook?.colorPaletteId;
     const activeTheme = pageTheme || bookTheme || 'default';
-    const freeTextDefaults = getGlobalThemeDefaults(activeTheme, 'free_text');
+    const effectivePaletteId = pageColorPaletteId || bookColorPaletteId;
+    const freeTextDefaults = getGlobalThemeDefaults(activeTheme, 'free_text', effectivePaletteId);
 
     return {
       fontSize: tStyle.fontSize || freeTextDefaults?.textSettings?.fontSize || freeTextDefaults?.fontSize || 50,

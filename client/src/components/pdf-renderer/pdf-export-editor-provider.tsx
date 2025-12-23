@@ -23,7 +23,8 @@ export function PDFExportEditorProvider({
         const bookPaletteId = bookData.colorPaletteId || null;
         
         const activeTheme = pageThemeId || bookThemeId || 'default';
-        const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType);
+        const effectivePaletteId = pagePaletteId || bookPaletteId;
+        const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType, effectivePaletteId);
         
         // Merge theme defaults into element
         const updatedElement: any = {

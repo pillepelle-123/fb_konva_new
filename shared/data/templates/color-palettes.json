@@ -54,7 +54,7 @@
         "pagePatternBackground": "background",
         "qnaBorder": "primary",
         "qnaBackground": "surface",
-        "qnaQuestionText": "text",
+        "qnaQuestionText": "primary",
         "qnaQuestionBackground": "surface",
         "qnaQuestionBorder": "secondary",
         "qnaAnswerText": "text",

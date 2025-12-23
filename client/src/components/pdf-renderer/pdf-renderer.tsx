@@ -856,9 +856,10 @@ export function PDFRenderer({
           const bookLayoutTemplateId = bookData?.layoutTemplateId;
           const pageColorPaletteId = currentPage?.colorPaletteId;
           const bookColorPaletteId = bookData?.colorPaletteId;
-
+          
           const activeTheme = pageTheme || bookTheme || 'default';
-          const qnaDefaults = getGlobalThemeDefaults(activeTheme, 'qna');
+          const effectivePaletteId = pageColorPaletteId || bookColorPaletteId;
+          const qnaDefaults = getGlobalThemeDefaults(activeTheme, 'qna', effectivePaletteId);
           
           const individualSettings = element.qnaIndividualSettings ?? false;
           const questionStyle = {
@@ -2604,7 +2605,7 @@ export function PDFRenderer({
           const bookTheme = bookData?.themeId || bookData?.bookTheme;
 
           const activeTheme = pageTheme || bookTheme || 'default';
-          const qnaDefaults = getGlobalThemeDefaults(activeTheme, 'qna');
+          const qnaDefaults = getGlobalThemeDefaults(activeTheme, 'qna', undefined);
 
 
           // Match client-side style extraction from textbox-qna.tsx
@@ -3713,7 +3714,7 @@ export function PDFRenderer({
             const bookTheme = bookData?.themeId || bookData?.bookTheme;
 
             const activeTheme = pageTheme || bookTheme || 'default';
-            const freeTextDefaults = getGlobalThemeDefaults(activeTheme, 'free_text');
+            const freeTextDefaults = getGlobalThemeDefaults(activeTheme, 'free_text', undefined);
             
             const textStyle = {
               ...freeTextDefaults.textSettings,
@@ -4020,7 +4021,7 @@ export function PDFRenderer({
                   let qnaDefaults;
                   try {
                     const activeTheme = pageTheme || bookTheme || 'default';
-                    qnaDefaults = getGlobalThemeDefaults(activeTheme, 'qna');
+                    qnaDefaults = getGlobalThemeDefaults(activeTheme, 'qna', undefined);
                   } catch (error) {
                     console.warn('[PDFRenderer] Error getting tool defaults for frame, using fallback:', error);
                     qnaDefaults = { borderColor: '#1f2937' };

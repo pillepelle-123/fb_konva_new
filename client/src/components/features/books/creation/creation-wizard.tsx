@@ -276,7 +276,7 @@ export function CreationWizard({ open, onOpenChange, onSuccess }: CreationWizard
     const styleElementWithThemeAndPalette = (element: any, layoutId: string | null) => {
       const toolType = (element.textType || element.type) as any;
       const activeTheme = themeToUse || 'default';
-      const defaults = getGlobalThemeDefaults(activeTheme, toolType);
+      const defaults = getGlobalThemeDefaults(activeTheme, toolType, undefined);
 
       const preservedProps = {
         id: element.id,

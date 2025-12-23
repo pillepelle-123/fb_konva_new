@@ -11,6 +11,17 @@ function getPalette(paletteId: string): ColorPalette | undefined {
   return colorPalettes.find(p => p.id === paletteId);
 }
 
+// Get color from palette using flexible mappings
+function getPaletteColor(palette: any, mappingKey: string, fallbackColor: string): string {
+  if (palette && palette[mappingKey]) {
+    // mappingKey z.B. "qnaQuestionText" -> "primary"
+    const colorKey = palette[mappingKey];
+    // colorKey z.B. "primary" -> palette.colors.primary
+    return palette.colors[colorKey] || palette.colors[fallbackColor] || palette.colors.primary;
+  }
+  return palette?.colors[fallbackColor] || palette?.colors.primary || '#000000';
+}
+
 export interface GlobalTheme {
   id: string;
   name: string;
@@ -551,16 +562,15 @@ function getBaseDefaultsForType(elementType: string): any {
   return baseDefaults[elementType] || baseDefaults.rect || {};
 }
 
-export function getGlobalThemeDefaults(themeId: string, elementType: string): Partial<CanvasElement> {
+export function getGlobalThemeDefaults(themeId: string, elementType: string, paletteId?: string): Partial<CanvasElement> {
   // Get base defaults as fallback (moved from TOOL_DEFAULTS)
   const baseDefaults = getBaseDefaultsForType(elementType);
-  
+
   const theme = getGlobalTheme(themeId);
   if (!theme) return baseDefaults; // Return base defaults, not empty object
-  
-  // Get theme palette first (needed for all element types)
-  const themeConfig = (themesData as Record<string, any>)[themeId];
-  const palette = themeConfig?.palette ? getPalette(themeConfig.palette) : undefined;
+
+  // Use ONLY the provided paletteId, NOT the theme's default palette
+  const palette = paletteId ? getPalette(paletteId) : undefined;
   
   // For QnA elements, convert fontSize in questionSettings and answerSettings from common to actual
   if (elementType === 'qna') {
@@ -593,25 +603,32 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string): Pa
     
     // Apply palette colors automatically if palette exists
     if (palette) {
+      // Use flexible mappings from color-palettes.json
+      const questionTextColor = getPaletteColor(palette, 'qnaQuestionText', 'text');
+      const answerTextColor = getPaletteColor(palette, 'qnaAnswerText', 'text');
+      const borderColor = getPaletteColor(palette, 'qnaBorder', 'primary');
+      const backgroundColor = getPaletteColor(palette, 'qnaBackground', 'surface');
+      const ruledLinesColor = getPaletteColor(palette, 'qnaAnswerRuledLines', 'primary');
+
       const paletteDefaults: any = {
-        fontColor: palette.colors.text || palette.colors.primary,
-        stroke: palette.colors.text || palette.colors.primary,
-        borderColor: palette.colors.secondary,
-        backgroundColor: palette.colors.surface || palette.colors.background,
-        ruledLinesColor: palette.colors.accent || palette.colors.primary
+        fontColor: questionTextColor,
+        stroke: questionTextColor,
+        borderColor: borderColor,
+        backgroundColor: backgroundColor,
+        ruledLinesColor: ruledLinesColor
       };
-      
+
       // Apply palette colors to questionSettings and answerSettings
       if (convertedDefaults.questionSettings) {
         convertedDefaults.questionSettings = {
           ...convertedDefaults.questionSettings,
-          fontColor: palette.colors.text || palette.colors.primary
+          fontColor: questionTextColor
         };
       }
       if (convertedDefaults.answerSettings) {
         convertedDefaults.answerSettings = {
           ...convertedDefaults.answerSettings,
-          fontColor: palette.colors.accent || palette.colors.text || palette.colors.primary
+          fontColor: answerTextColor
         };
       }
       
@@ -850,25 +867,30 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string): Pa
       textSettings.font = {};
     }
     
-    // Apply palette colors if available
+    // Apply palette colors using flexible mappings if available
     if (palette) {
-      textSettings.fontColor = palette.colors.text || palette.colors.primary;
-      textSettings.font.fontColor = palette.colors.text || palette.colors.primary;
-      textSettings.borderColor = palette.colors.primary;
-      textSettings.border.borderColor = palette.colors.primary;
-      textSettings.backgroundColor = palette.colors.accent;
-      textSettings.background.backgroundColor = palette.colors.accent;
-      textSettings.ruledLinesColor = palette.colors.primary;
-      textSettings.ruledLines.lineColor = palette.colors.primary;
+      const textColor = getPaletteColor(palette, 'freeTextText', 'text');
+      const borderColor = getPaletteColor(palette, 'freeTextBorder', 'secondary');
+      const backgroundColor = getPaletteColor(palette, 'freeTextBackground', 'surface');
+      const ruledLinesColor = getPaletteColor(palette, 'freeTextRuledLines', 'accent');
+
+      textSettings.fontColor = textColor;
+      textSettings.font.fontColor = textColor;
+      textSettings.borderColor = borderColor;
+      textSettings.border.borderColor = borderColor;
+      textSettings.backgroundColor = backgroundColor;
+      textSettings.background.backgroundColor = backgroundColor;
+      textSettings.ruledLinesColor = ruledLinesColor;
+      textSettings.ruledLines.lineColor = ruledLinesColor;
     }
     
     return {
       ...mergedDefaults,
       textSettings: textSettings,
       // Top-level properties for backward compatibility
-      fontColor: palette ? (palette.colors.text || palette.colors.primary) : baseDefaults.fontColor,
-      borderColor: palette ? palette.colors.primary : baseDefaults.borderColor,
-      backgroundColor: palette ? palette.colors.accent : baseDefaults.backgroundColor
+      fontColor: palette ? getPaletteColor(palette, 'freeTextText', 'text') : baseDefaults.fontColor,
+      borderColor: palette ? getPaletteColor(palette, 'freeTextBorder', 'secondary') : baseDefaults.borderColor,
+      backgroundColor: palette ? getPaletteColor(palette, 'freeTextBackground', 'surface') : baseDefaults.backgroundColor
     };
   }
   
