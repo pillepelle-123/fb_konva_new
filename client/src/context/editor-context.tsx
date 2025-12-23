@@ -2,8 +2,8 @@ import { createContext, useContext, useReducer, useCallback, useEffect, useMemo,
 import type { ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from './auth-context';
-import { getToolDefaults } from '../utils/tool-defaults';
 import { MIN_TOTAL_PAGES, MAX_TOTAL_PAGES } from '../constants/book-limits';
+import { getGlobalThemeDefaults } from '../utils/global-themes';
 
 type LoadBookOptions = {
   pageOffset?: number;
@@ -1218,17 +1218,8 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
 
         resolvedElements = resolvedElements.map((element: any) => {
           const toolType = element.textType || element.type;
-          const themeDefaults = getToolDefaults(
-            toolType as any,
-            bookThemeId,
-            bookThemeId,
-            element,
-            undefined,
-            pageLayoutTemplateId,
-            bookLayoutTemplateId,
-            pageColorPaletteId,
-            effectiveBookColorPaletteId
-          );
+          const activeTheme = bookThemeId || 'default';
+          const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType as any);
 
           const preservedRotation = typeof element.rotation === 'number' ? element.rotation : 0;
           const isShape = element.type !== 'text' && element.type !== 'image' && !element.textType;
@@ -1995,17 +1986,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         // Get theme defaults for each tool type
         const toolTypes = ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna'];
         toolTypes.forEach(toolType => {
-          const themeDefaults = getToolDefaults(
-            toolType as any,
-            bookThemeId !== 'default' ? bookThemeId : undefined,
-            bookThemeId !== 'default' ? bookThemeId : undefined,
-            undefined,
-            undefined,
-            bookLayoutTemplateId,
-            bookLayoutTemplateId,
-            null,
-            null
-          );
+          const activeTheme = bookThemeId !== 'default' ? bookThemeId : 'default';
+          const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType as any);
           
           if (toolType === 'brush' || toolType === 'line') {
             toolUpdates[toolType] = { 
@@ -2643,17 +2625,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           // First update elements with theme defaults
           let updatedElements = page.elements.map(element => {
             const toolType = element.textType || element.type;
-            const themeDefaults = getToolDefaults(
-              toolType as any,
-              action.payload,
-              action.payload,
-              element,
-              undefined,
-              pageLayoutTemplateId,
-              currentBookLayoutTemplateId,
-              pageColorPaletteId,
-              effectiveBookColorPaletteId
-            );
+            const activeTheme = action.payload || 'default';
+            const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType as any);
             
             return {
               ...element,
@@ -2729,7 +2702,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                   const pageTheme = action.payload;
                   const bookTheme = action.payload;
                   
-                  const themeDefaults = getToolDefaults('qna', pageTheme, bookTheme, originalElement, undefined, pageLayoutTemplateId, currentBookLayoutTemplateId, pageColorPaletteId, effectiveBookColorPaletteId);
+                  const activeTheme = pageTheme || bookTheme || 'default';
+                  const themeDefaults = getGlobalThemeDefaults(activeTheme, 'qna');
                   
                   // Check if border is disabled in theme or element
                   const questionBorderEnabled = originalElement.questionSettings?.border?.enabled ?? 
@@ -3302,17 +3276,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             const bookThemePaletteId = !bookColorPaletteId ? getThemePaletteId(bookThemeId) : null;
             const effectiveBookColorPaletteId = bookColorPaletteId || bookThemePaletteId;
             
-            const themeDefaults = getToolDefaults(
-              toolType as any, 
-              action.payload.themeId, 
-              bookThemeId,
-              element,
-              undefined,
-              pageLayoutTemplateId,
-              bookLayoutTemplateId,
-              pageColorPaletteId,
-              effectiveBookColorPaletteId
-            );
+            const activeTheme = action.payload.themeId || bookThemeId || 'default';
+            const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType as any);
             
             // Apply ALL theme properties including colors and fonts
             const updatedElement: any = {
@@ -3970,7 +3935,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                 },
           elements: page.elements.map(element => {
             const toolType = element.textType || element.type;
-            const themeDefaults = getToolDefaults(toolType as any, themeOnlyId, undefined);
+            const themeDefaults = getGlobalThemeDefaults(themeOnlyId, toolType as any);
             
             // Apply all theme properties including colors
             return {
@@ -4293,7 +4258,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                 const pageColorPaletteId = page.colorPaletteId;
                 const bookColorPaletteId = updatedBookApplyPalette.colorPaletteId;
                 
-                const themeDefaults = getToolDefaults('qna', pageTheme, bookTheme, element, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
+                const activeTheme = pageTheme || bookTheme || 'default';
+                const themeDefaults = getGlobalThemeDefaults(activeTheme, 'qna');
                 
                 // Check if border is disabled in theme or element
                 const questionBorderEnabled = element.questionSettings?.border?.enabled ?? 
@@ -5786,17 +5752,8 @@ function applyThemeAndPaletteToElement(
   const activeThemeId = pageThemeId || bookThemeId;
   const toolType = element.textType || element.type;
 
-  const themeDefaults = getToolDefaults(
-    toolType as any,
-    pageThemeId,
-    bookThemeId,
-    element,
-    toolSettings,
-    pageLayoutTemplateId,
-    bookLayoutTemplateId,
-    pagePaletteId,
-    bookPaletteId
-  );
+  const activeTheme = pageThemeId || bookThemeId || 'default';
+  const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType as any);
 
   const updatedElement: any = {
     ...element,

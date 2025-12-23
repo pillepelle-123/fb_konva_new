@@ -5,8 +5,7 @@ import { Label } from '../../../ui/primitives/label';
 import { getAllCategories, getPalettesByCategory, colorPalettes } from '../../../../data/templates/color-palettes';
 import type { ColorPalette } from '../../../../types/template-types';
 import { useEditor } from '../../../../context/editor-context';
-import { getGlobalTheme, getThemePageBackgroundColors, getThemePaletteId } from '../../../../utils/global-themes';
-import { getToolDefaults } from '../../../../utils/tool-defaults';
+import { getGlobalTheme, getThemePageBackgroundColors, getThemePaletteId, getGlobalThemeDefaults } from '../../../../utils/global-themes';
 import { PreviewImageDialog } from '../preview/preview-image-dialog';
 import { exportCanvasAsImage } from '../../../../utils/canvas-export';
 import Konva from 'konva';
@@ -198,17 +197,8 @@ export function PaletteSelector({ onBack, title, isBookLevel = false, previewPos
           
           toolTypes.forEach(toolType => {
             // Get theme defaults WITHOUT palette - just pure theme colors
-            const themeDefaults = getToolDefaults(
-              toolType as any,
-              bookTheme, // pageTheme (none for book level, so use book theme)
-              bookTheme, // bookTheme
-              undefined,
-              undefined, // Don't pass toolSettings - we want pure theme defaults
-              undefined, // pageLayoutTemplateId
-              state.currentBook!.layoutTemplateId, // bookLayoutTemplateId
-              null, // Don't use page palette - reset to theme colors
-              null  // Don't use book palette - reset to theme colors
-            );
+            const activeTheme = bookTheme || 'default';
+            const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType as any);
             
             // Build tool settings from theme defaults
             if (toolType === 'brush' || toolType === 'line') {
@@ -328,17 +318,8 @@ export function PaletteSelector({ onBack, title, isBookLevel = false, previewPos
               
               toolTypes.forEach(toolType => {
                 // Get theme defaults WITHOUT palette - just pure theme colors
-                const themeDefaults = getToolDefaults(
-                  toolType as any,
-                  pageTheme, // pageTheme
-                  state.currentBook!.bookTheme || 'default', // bookTheme
-                  undefined,
-                  undefined, // Don't pass toolSettings - we want pure theme defaults
-                  pageLayoutTemplateId, // pageLayoutTemplateId
-                  bookLayoutTemplateId, // bookLayoutTemplateId
-                  null, // Don't use page palette - reset to theme colors
-                  null  // Don't use book palette - reset to theme colors
-                );
+                const activeTheme = pageTheme || state.currentBook!.bookTheme || 'default';
+                const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType as any);
               
               // Build tool settings from theme defaults
               if (toolType === 'brush' || toolType === 'line') {

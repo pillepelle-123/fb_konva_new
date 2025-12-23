@@ -9,7 +9,7 @@ import { useAuth } from './pdf-export-auth-provider';
 import { getPalettePartColor } from '../../data/templates/color-palettes.ts';
 import { colorPalettes } from '../../data/templates/color-palettes.ts';
 import { PATTERNS } from '../../utils/patterns.ts';
-import { getToolDefaults } from '../../utils/tool-defaults.ts';
+import { getGlobalThemeDefaults } from '../../utils/global-themes';
 import { getThemeRenderer, generateLinePath, type Theme } from '../../utils/themes-client.ts';
 import { renderThemedBorderKonvaWithFallback, createLinePath, createRectPath, createCirclePath } from '../../utils/themed-border.ts';
 import { getCrop } from '../features/editor/canvas-items/image.tsx';
@@ -856,18 +856,9 @@ export function PDFRenderer({
           const bookLayoutTemplateId = bookData?.layoutTemplateId;
           const pageColorPaletteId = currentPage?.colorPaletteId;
           const bookColorPaletteId = bookData?.colorPaletteId;
-          
-          const qnaDefaults = getToolDefaults(
-            'qna',
-            pageTheme,
-            bookTheme,
-            element,
-            undefined,
-            pageLayoutTemplateId,
-            bookLayoutTemplateId,
-            pageColorPaletteId,
-            bookColorPaletteId
-          );
+
+          const activeTheme = pageTheme || bookTheme || 'default';
+          const qnaDefaults = getGlobalThemeDefaults(activeTheme, 'qna');
           
           const individualSettings = element.qnaIndividualSettings ?? false;
           const questionStyle = {
@@ -2611,22 +2602,9 @@ export function PDFRenderer({
           const currentPage = state.currentBook?.pages?.find(p => p.id === page.id) || page;
           const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
           const bookTheme = bookData?.themeId || bookData?.bookTheme;
-          const pageLayoutTemplateId = currentPage?.layoutTemplateId;
-          const bookLayoutTemplateId = bookData?.layoutTemplateId;
-          const pageColorPaletteId = currentPage?.colorPaletteId;
-          const bookColorPaletteId = bookData?.colorPaletteId;
 
-          const qnaDefaults = getToolDefaults(
-            'qna',
-            pageTheme,
-            bookTheme,
-            element,
-            undefined,
-            pageLayoutTemplateId,
-            bookLayoutTemplateId,
-            pageColorPaletteId,
-            bookColorPaletteId
-          );
+          const activeTheme = pageTheme || bookTheme || 'default';
+          const qnaDefaults = getGlobalThemeDefaults(activeTheme, 'qna');
 
 
           // Match client-side style extraction from textbox-qna.tsx
@@ -3733,22 +3711,9 @@ export function PDFRenderer({
             const currentPage = state.currentBook?.pages?.find(p => p.id === page.id) || page;
             const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
             const bookTheme = bookData?.themeId || bookData?.bookTheme;
-            const pageLayoutTemplateId = currentPage?.layoutTemplateId;
-            const bookLayoutTemplateId = bookData?.layoutTemplateId;
-            const pageColorPaletteId = currentPage?.colorPaletteId;
-            const bookColorPaletteId = bookData?.colorPaletteId;
-            
-            const freeTextDefaults = getToolDefaults(
-              'free_text',
-              pageTheme,
-              bookTheme,
-              element,
-              undefined,
-              pageLayoutTemplateId,
-              bookLayoutTemplateId,
-              pageColorPaletteId,
-              bookColorPaletteId
-            );
+
+            const activeTheme = pageTheme || bookTheme || 'default';
+            const freeTextDefaults = getGlobalThemeDefaults(activeTheme, 'free_text');
             
             const textStyle = {
               ...freeTextDefaults.textSettings,
@@ -4054,17 +4019,8 @@ export function PDFRenderer({
 
                   let qnaDefaults;
                   try {
-                    qnaDefaults = getToolDefaults(
-                      'qna',
-                      pageTheme,
-                      bookTheme,
-                      element,
-                      undefined, // toolSettings not needed for defaults
-                      pageLayoutTemplateId,
-                      bookLayoutTemplateId,
-                      pageColorPaletteId,
-                      bookColorPaletteId
-                    );
+                    const activeTheme = pageTheme || bookTheme || 'default';
+                    qnaDefaults = getGlobalThemeDefaults(activeTheme, 'qna');
                   } catch (error) {
                     console.warn('[PDFRenderer] Error getting tool defaults for frame, using fallback:', error);
                     qnaDefaults = { borderColor: '#1f2937' };

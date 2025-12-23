@@ -615,12 +615,184 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string): Pa
         };
       }
       
+      // For qna elements, clean up shared properties from questionSettings/answerSettings
+      // Move them to top-level and keep only font properties in questionSettings/answerSettings
+      const questionSettings = convertedDefaults.questionSettings || {};
+      const answerSettings = convertedDefaults.answerSettings || {};
+
+      // List of shared properties to move to top-level
+      const sharedProperties = [
+        'borderWidth', 'borderColor', 'borderTheme', 'borderOpacity', 'borderEnabled',
+        'backgroundColor', 'backgroundOpacity', 'backgroundEnabled',
+        'cornerRadius', 'padding', 'paragraphSpacing', 'align',
+        'layoutVariant', 'questionPosition', 'questionWidth',
+        'ruledLinesColor', 'ruledLinesTheme', 'ruledLinesWidth', 'ruledLinesOpacity', 'ruledLines'
+      ];
+
+      // Move shared properties from questionSettings/answerSettings to top-level
+      // Priority: existing top-level > questionSettings > answerSettings
+      sharedProperties.forEach(prop => {
+        if (convertedDefaults[prop] === undefined || convertedDefaults[prop] === null) {
+          // Try to get from questionSettings first, then answerSettings
+          let value = questionSettings[prop];
+          if (value === undefined || value === null) {
+            value = answerSettings[prop];
+          }
+
+          // Special handling for nested properties
+          if (value === undefined || value === null) {
+            if (prop === 'borderColor') {
+              value = questionSettings.border?.borderColor || answerSettings.border?.borderColor;
+            } else if (prop === 'borderEnabled') {
+              value = questionSettings.border?.enabled ?? answerSettings.border?.enabled ?? questionSettings.borderEnabled ?? answerSettings.borderEnabled;
+            } else if (prop === 'backgroundColor') {
+              value = questionSettings.background?.backgroundColor || answerSettings.background?.backgroundColor;
+            } else if (prop === 'backgroundEnabled') {
+              value = questionSettings.background?.enabled ?? answerSettings.background?.enabled ?? questionSettings.backgroundEnabled ?? answerSettings.backgroundEnabled;
+            }
+          }
+
+          if (value !== undefined && value !== null) {
+            convertedDefaults[prop] = value;
+          }
+        }
+      });
+
+      // Clean questionSettings: keep only font properties and border.enabled/background.enabled
+      const cleanedQuestionSettings: any = {};
+      if (questionSettings.fontSize !== undefined) cleanedQuestionSettings.fontSize = questionSettings.fontSize;
+      if (questionSettings.fontFamily !== undefined) cleanedQuestionSettings.fontFamily = questionSettings.fontFamily;
+      if (questionSettings.fontBold !== undefined) cleanedQuestionSettings.fontBold = questionSettings.fontBold;
+      if (questionSettings.fontItalic !== undefined) cleanedQuestionSettings.fontItalic = questionSettings.fontItalic;
+      if (questionSettings.fontColor !== undefined) cleanedQuestionSettings.fontColor = questionSettings.fontColor;
+      if (questionSettings.fontOpacity !== undefined) cleanedQuestionSettings.fontOpacity = questionSettings.fontOpacity;
+      // Font properties are now only directly in questionSettings, no nested font object
+
+      // Keep border.enabled and background.enabled for rendering check
+      const borderEnabled = (convertedDefaults as any).borderEnabled ?? (questionSettings as any).border?.enabled ?? (questionSettings as any).borderEnabled ?? false;
+      const backgroundEnabled = (convertedDefaults as any).backgroundEnabled ?? (questionSettings as any).background?.enabled ?? (questionSettings as any).backgroundEnabled ?? false;
+
+      cleanedQuestionSettings.border = {
+        ...(questionSettings.border || {}),
+        enabled: borderEnabled
+      };
+      cleanedQuestionSettings.background = {
+        ...(questionSettings.background || {}),
+        enabled: backgroundEnabled
+      };
+
+      // Clean answerSettings: keep only font properties, border.enabled/background.enabled, and ruledLines (enabled flag)
+      const cleanedAnswerSettings: any = {};
+      if (answerSettings.fontSize !== undefined) cleanedAnswerSettings.fontSize = answerSettings.fontSize;
+      if (answerSettings.fontFamily !== undefined) cleanedAnswerSettings.fontFamily = answerSettings.fontFamily;
+      if (answerSettings.fontBold !== undefined) cleanedAnswerSettings.fontBold = answerSettings.fontBold;
+      if (answerSettings.fontItalic !== undefined) cleanedAnswerSettings.fontItalic = answerSettings.fontItalic;
+      if (answerSettings.fontColor !== undefined) cleanedAnswerSettings.fontColor = answerSettings.fontColor;
+      if (answerSettings.fontOpacity !== undefined) cleanedAnswerSettings.fontOpacity = answerSettings.fontOpacity;
+      // Font properties are now only directly in answerSettings, no nested font object
+
+      // Keep border.enabled and background.enabled for rendering check
+      cleanedAnswerSettings.border = {
+        ...(answerSettings.border || {}),
+        enabled: borderEnabled
+      };
+      cleanedAnswerSettings.background = {
+        ...(answerSettings.background || {}),
+        enabled: backgroundEnabled
+      };
+
+      // Update convertedDefaults with cleaned questionSettings and answerSettings
+      (convertedDefaults as any).questionSettings = Object.keys(cleanedQuestionSettings).length > 0 ? cleanedQuestionSettings : undefined;
+      (convertedDefaults as any).answerSettings = Object.keys(cleanedAnswerSettings).length > 0 ? cleanedAnswerSettings : undefined;
+
       return { ...convertedDefaults, ...paletteDefaults };
     }
-    
+
+    // For qna elements without palette, still apply shared properties cleanup
+    if (elementType === 'qna') {
+      const questionSettings = convertedDefaults.questionSettings || {};
+      const answerSettings = convertedDefaults.answerSettings || {};
+
+      // List of shared properties to move to top-level
+      const sharedProperties = [
+        'borderWidth', 'borderColor', 'borderTheme', 'borderOpacity', 'borderEnabled',
+        'backgroundColor', 'backgroundOpacity', 'backgroundEnabled',
+        'cornerRadius', 'padding', 'paragraphSpacing', 'align',
+        'layoutVariant', 'questionPosition', 'questionWidth',
+        'ruledLinesColor', 'ruledLinesTheme', 'ruledLinesWidth', 'ruledLinesOpacity', 'ruledLines'
+      ];
+
+      // Move shared properties from questionSettings/answerSettings to top-level
+      sharedProperties.forEach(prop => {
+        if (convertedDefaults[prop] === undefined || convertedDefaults[prop] === null) {
+          let value = questionSettings[prop];
+          if (value === undefined || value === null) {
+            value = answerSettings[prop];
+          }
+
+          if (value === undefined || value === null) {
+            if (prop === 'borderColor') {
+              value = questionSettings.border?.borderColor || answerSettings.border?.borderColor;
+            } else if (prop === 'borderEnabled') {
+              value = questionSettings.border?.enabled ?? answerSettings.border?.enabled ?? questionSettings.borderEnabled ?? answerSettings.borderEnabled;
+            } else if (prop === 'backgroundColor') {
+              value = questionSettings.background?.backgroundColor || answerSettings.background?.backgroundColor;
+            } else if (prop === 'backgroundEnabled') {
+              value = questionSettings.background?.enabled ?? answerSettings.background?.enabled ?? questionSettings.backgroundEnabled ?? answerSettings.backgroundEnabled;
+            }
+          }
+
+          if (value !== undefined && value !== null) {
+            convertedDefaults[prop] = value;
+          }
+        }
+      });
+
+      // Clean questionSettings and answerSettings as above
+      const cleanedQuestionSettings: any = {};
+      if (questionSettings.fontSize !== undefined) cleanedQuestionSettings.fontSize = questionSettings.fontSize;
+      if (questionSettings.fontFamily !== undefined) cleanedQuestionSettings.fontFamily = questionSettings.fontFamily;
+      if (questionSettings.fontBold !== undefined) cleanedQuestionSettings.fontBold = questionSettings.fontBold;
+      if (questionSettings.fontItalic !== undefined) cleanedQuestionSettings.fontItalic = questionSettings.fontItalic;
+      if (questionSettings.fontColor !== undefined) cleanedQuestionSettings.fontColor = questionSettings.fontColor;
+      if (questionSettings.fontOpacity !== undefined) cleanedQuestionSettings.fontOpacity = questionSettings.fontOpacity;
+
+      const borderEnabled = (convertedDefaults as any).borderEnabled ?? (questionSettings as any).border?.enabled ?? (questionSettings as any).borderEnabled ?? false;
+      const backgroundEnabled = (convertedDefaults as any).backgroundEnabled ?? (questionSettings as any).background?.enabled ?? (questionSettings as any).backgroundEnabled ?? false;
+
+      cleanedQuestionSettings.border = {
+        ...(questionSettings.border || {}),
+        enabled: borderEnabled
+      };
+      cleanedQuestionSettings.background = {
+        ...(questionSettings.background || {}),
+        enabled: backgroundEnabled
+      };
+
+      const cleanedAnswerSettings: any = {};
+      if (answerSettings.fontSize !== undefined) cleanedAnswerSettings.fontSize = answerSettings.fontSize;
+      if (answerSettings.fontFamily !== undefined) cleanedAnswerSettings.fontFamily = answerSettings.fontFamily;
+      if (answerSettings.fontBold !== undefined) cleanedAnswerSettings.fontBold = answerSettings.fontBold;
+      if (answerSettings.fontItalic !== undefined) cleanedAnswerSettings.fontItalic = answerSettings.fontItalic;
+      if (answerSettings.fontColor !== undefined) cleanedAnswerSettings.fontColor = answerSettings.fontColor;
+      if (answerSettings.fontOpacity !== undefined) cleanedAnswerSettings.fontOpacity = answerSettings.fontOpacity;
+
+      cleanedAnswerSettings.border = {
+        ...(answerSettings.border || {}),
+        enabled: borderEnabled
+      };
+      cleanedAnswerSettings.background = {
+        ...(answerSettings.background || {}),
+        enabled: backgroundEnabled
+      };
+
+      (convertedDefaults as any).questionSettings = Object.keys(cleanedQuestionSettings).length > 0 ? cleanedQuestionSettings : undefined;
+      (convertedDefaults as any).answerSettings = Object.keys(cleanedAnswerSettings).length > 0 ? cleanedAnswerSettings : undefined;
+    }
+
     return convertedDefaults;
   }
-  
+
   // For free_text elements, build textSettings structure
   if (elementType === 'free_text') {
     const category = getThemeCategory(elementType);
@@ -1304,7 +1476,3 @@ export function logThemeStructure(themeData: any): void {
   const output = '"custom": \n' + indentedLines.join('\n');
   console.log(output);
 }
-
-// Re-export getToolDefaults functionality from tool-defaults.ts
-export { getToolDefaults } from './tool-defaults';
-export type { ToolType } from './tool-defaults';

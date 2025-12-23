@@ -18,7 +18,7 @@ import { FontSelector } from './font-selector';
 import { ColorSelector } from './color-selector';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { useEditor } from '../../../../context/editor-context';
-import { getToolDefaults } from '../../../../utils/tool-defaults';
+import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 import { ThemeSettingsRenderer } from './theme-settings-renderer';
 
 const getCurrentFontName = (fontFamily: string) => {
@@ -69,7 +69,8 @@ export function FreeTextSettingsForm({
     const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
     const pageColorPaletteId = currentPage?.colorPaletteId;
     const bookColorPaletteId = state.currentBook?.colorPaletteId;
-    const freeTextDefaults = getToolDefaults('free_text', pageTheme, bookTheme, element, state.toolSettings?.free_text, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
+    const activeTheme = pageTheme || bookTheme || 'default';
+    const freeTextDefaults = getGlobalThemeDefaults(activeTheme, 'free_text');
 
     return {
       fontSize: tStyle.fontSize || freeTextDefaults?.textSettings?.fontSize || freeTextDefaults?.fontSize || 50,

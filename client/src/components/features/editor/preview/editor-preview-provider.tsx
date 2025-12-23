@@ -6,8 +6,8 @@ import { mirrorTemplate } from '../../../../utils/layout-mirroring';
 import type { BookOrientation, BookPageSize } from '../../../../constants/book-formats';
 import { convertTemplateToElements } from '../../../../utils/template-to-elements';
 import { calculatePageDimensions } from '../../../../utils/template-utils';
-import { getToolDefaults } from '../../../../utils/tool-defaults';
 import type { CanvasElement } from '../../../../context/editor-context';
+import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 
 type PreviewProviderProps = {
   children: React.ReactNode;
@@ -99,17 +99,8 @@ export function EditorPreviewProvider({
     const applyThemeToElements = (elements: CanvasElement[]): CanvasElement[] => {
       return elements.map((element) => {
         const toolType = (element.textType || element.type) as any;
-        const themeDefaults = getToolDefaults(
-          toolType,
-          themeId,
-          themeId,
-          element,
-          undefined, // toolSettings
-          leftResolved?.id ?? null,
-          baseTemplate?.id ?? null,
-          paletteId,
-          paletteId
-        );
+        const activeTheme = themeId || 'default';
+        const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType);
         
         // Merge theme defaults into element
         const updatedElement: any = {

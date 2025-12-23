@@ -1,4 +1,5 @@
 import { useEditor } from '../../../../context/editor-context';
+import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 
 import { Button } from '../../../ui/primitives/button';
 import { SquareMousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, AlignLeft, AlignCenter, AlignRight, AlignJustify, Rows4, Rows3, Rows2, Palette, Type, SquareRoundCorner, PanelTopBottomDashed, Triangle, Pentagon, ChevronLeft } from 'lucide-react';
@@ -34,7 +35,6 @@ import { getFontSize, getFontColor, getFontFamily } from '../../../../utils/font
 import { getBackgroundColor, getBackgroundOpacity, getBackgroundEnabled } from '../../../../utils/background-utils';
 import { getTextAlign, getParagraphSpacing, getPadding } from '../../../../utils/format-utils';
 import { getRuledLinesTheme } from '../../../../utils/theme-utils';
-import { getToolDefaults } from '../../../../utils/tool-defaults';
 import { svgRawImports } from '../../../../data/templates/stickers';
 import ChatWindow from '../../messenger/chat-window';
 import type { Conversation } from '../../messenger/types';
@@ -1049,17 +1049,8 @@ export function ToolSettingsContent({
           const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
           const pageColorPaletteId = currentPage?.colorPaletteId;
           const bookColorPaletteId = state.currentBook?.colorPaletteId;
-          const toolDefaults = getToolDefaults(
-            'qna',
-            pageTheme,
-            bookTheme,
-            selectedElement,
-            undefined,
-            pageLayoutTemplateId,
-            bookLayoutTemplateId,
-            pageColorPaletteId,
-            bookColorPaletteId
-          );
+          const activeTheme = pageTheme || bookTheme || 'default';
+          const toolDefaults = getGlobalThemeDefaults(activeTheme, 'qna');
           
           const updateQuestionSetting = (key: string, value: any) => {
             const updates = {

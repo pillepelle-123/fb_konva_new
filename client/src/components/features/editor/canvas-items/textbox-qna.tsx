@@ -3,8 +3,8 @@ import { Shape, Rect, Path, Text as KonvaText, Group } from 'react-konva';
 import BaseCanvasItem, { type CanvasItemProps } from './base-canvas-item';
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
-import { getToolDefaults } from '../../../../utils/tool-defaults';
 import { getThemeRenderer, type Theme } from '../../../../utils/themes-client';
+import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 import { renderThemedBorder, createRectPath, createLinePath } from '../../../../utils/themed-border';
 import type { CanvasElement } from '../../../../context/editor-context';
 import type Konva from 'konva';
@@ -1002,29 +1002,11 @@ export default function TextboxQna(props: CanvasItemProps) {
 
   const qnaDefaults = useMemo(() => {
     // Use 'qna' for all QnA elements
-    const toolType = 'qna';
-    return getToolDefaults(
-      toolType,
-      pageTheme,
-      bookTheme,
-      element,
-      state.toolSettings,
-      pageLayoutTemplateId,
-      bookLayoutTemplateId,
-      pageColorPaletteId,
-      bookColorPaletteId
-    );
+    const activeTheme = pageTheme || bookTheme || 'default';
+    return getGlobalThemeDefaults(activeTheme, 'qna');
   }, [
-    bookLayoutTemplateId,
-    bookTheme,
-    bookColorPaletteId,
-    element,
-    element.textType,
-    element.type,
-    pageLayoutTemplateId,
     pageTheme,
-    pageColorPaletteId,
-    state.toolSettings
+    bookTheme
   ]);
 
   const questionStyle = useMemo(() => {

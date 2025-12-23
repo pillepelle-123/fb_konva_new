@@ -7,8 +7,8 @@ import { Input } from '../../../ui/primitives/input';
 import { Slider } from '../../../ui/primitives/slider';
 import { useEditor } from '../../../../context/editor-context';
 import { ColorSelector } from '../tool-settings/color-selector';
-import { getToolDefaults } from '../../../../utils/tool-defaults';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
+import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 
 interface ToolSettingsPopoverProps {
   activeTool: string;
@@ -141,30 +141,11 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
   const bookColorPaletteId = state.currentBook?.colorPaletteId;
   
   // Get theme-based defaults WITHOUT toolSettings first, to get pure theme/palette colors
-  const toolDefaultsWithoutSettings = getToolDefaults(
-    activeTool as any,
-    pageTheme,
-    bookTheme,
-    undefined,
-    undefined, // Don't pass toolSettings - we want pure theme/palette defaults
-    pageLayoutTemplateId,
-    bookLayoutTemplateId,
-    pageColorPaletteId,
-    bookColorPaletteId
-  );
+  const activeTheme = pageTheme || bookTheme || 'default';
+  const toolDefaultsWithoutSettings = getGlobalThemeDefaults(activeTheme, activeTool as any);
   
-  // Get theme-based defaults WITH toolSettings to respect manual overrides
-  const toolDefaultsWithSettings = getToolDefaults(
-    activeTool as any,
-    pageTheme,
-    bookTheme,
-    undefined,
-    state.toolSettings?.[activeTool],
-    pageLayoutTemplateId,
-    bookLayoutTemplateId,
-    pageColorPaletteId,
-    bookColorPaletteId
-  );
+  // Get theme-based defaults (same as without settings since we don't use toolSettings anymore)
+  const toolDefaultsWithSettings = toolDefaultsWithoutSettings;
   
   const settings = state.toolSettings?.[activeTool] || {};
   const strokeWidth = settings.strokeWidth || toolDefaultsWithSettings.strokeWidth || 2;

@@ -19,8 +19,7 @@ import { Tabs, TabsList, TabsTrigger } from '../../../ui/composites';
 import { FontSelector } from './font-selector';
 import { ColorSelector } from './color-selector';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
-import { getQnAThemeDefaults, getQnAInlineThemeDefaults } from '../../../../utils/global-themes';
-import { getToolDefaults } from '../../../../utils/tool-defaults';
+import { getQnAThemeDefaults, getQnAInlineThemeDefaults, getGlobalThemeDefaults } from '../../../../utils/global-themes';
 import { getMinActualStrokeWidth, commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth } from '../../../../utils/stroke-width-converter';
 import { getBorderTheme } from '../../../../utils/theme-utils';
 import { ThemeSettingsRenderer } from './theme-settings-renderer';
@@ -98,23 +97,11 @@ export function QnASettingsForm({
     const bookTheme = state.currentBook?.bookTheme;
     const activeTheme = pageTheme || bookTheme;
     const qnaThemeDefaults = activeTheme ? getQnAThemeDefaults(activeTheme, 'question') : {};
-    
+
     // Get tool defaults for qna to use as fallback
     const pageLayoutTemplateId = currentPage?.layoutTemplateId;
     const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
-    const pageColorPaletteId = currentPage?.colorPaletteId;
-    const bookColorPaletteId = state.currentBook?.colorPaletteId;
-    const toolDefaults = getToolDefaults(
-      'qna',
-      pageTheme,
-      bookTheme,
-      element,
-      undefined,
-      pageLayoutTemplateId,
-      bookLayoutTemplateId,
-      pageColorPaletteId,
-      bookColorPaletteId
-    );
+    const toolDefaults = getGlobalThemeDefaults(activeTheme, 'qna');
     const qnaDefaults = toolDefaults.questionSettings || {};
     
     return {
@@ -134,23 +121,11 @@ export function QnASettingsForm({
     const bookTheme = state.currentBook?.bookTheme;
     const activeTheme = pageTheme || bookTheme;
     const qnaThemeDefaults = activeTheme ? getQnAThemeDefaults(activeTheme, 'answer') : {};
-    
+
     // Get tool defaults for qna to use as fallback
     const pageLayoutTemplateId = currentPage?.layoutTemplateId;
     const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
-    const pageColorPaletteId = currentPage?.colorPaletteId;
-    const bookColorPaletteId = state.currentBook?.colorPaletteId;
-    const toolDefaults = getToolDefaults(
-      'qna',
-      pageTheme,
-      bookTheme,
-      element,
-      undefined,
-      pageLayoutTemplateId,
-      bookLayoutTemplateId,
-      pageColorPaletteId,
-      bookColorPaletteId
-    );
+    const toolDefaults = getGlobalThemeDefaults(activeTheme, 'qna');
     const qnaDefaults = toolDefaults.answerSettings || {};
     
     return {
@@ -175,11 +150,8 @@ export function QnASettingsForm({
   // Get theme defaults for checking border/background enabled state
   const getThemeDefaults = () => {
     const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
-    const pageLayoutTemplateId = currentPage?.layoutTemplateId;
-    const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
-    const pageColorPaletteId = currentPage?.colorPaletteId;
-    const bookColorPaletteId = state.currentBook?.colorPaletteId;
-    return getToolDefaults('qna', pageTheme, bookTheme, element, undefined, pageLayoutTemplateId, bookLayoutTemplateId, pageColorPaletteId, bookColorPaletteId);
+    const activeTheme = pageTheme || bookTheme || 'default';
+    return getGlobalThemeDefaults(activeTheme, 'qna');
   };
   
   const updateSharedSetting = (key: string, value: any) => {

@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { EditorContext } from '../../context/editor-context.tsx';
 import type { Book, Page, CanvasElement } from '../../context/editor-context.tsx';
-import { getToolDefaults } from '../../utils/tool-defaults.ts';
+import { getGlobalThemeDefaults } from '../../utils/global-themes';
 
 interface PDFExportEditorProviderProps {
   children: React.ReactNode;
@@ -22,17 +22,8 @@ export function PDFExportEditorProvider({
         const pagePaletteId = page.colorPaletteId || bookData.colorPaletteId || null;
         const bookPaletteId = bookData.colorPaletteId || null;
         
-        const themeDefaults = getToolDefaults(
-          toolType,
-          pageThemeId,
-          bookThemeId,
-          element,
-          undefined, // toolSettings
-          page.layoutTemplateId || null,
-          bookData.layoutTemplateId || null,
-          pagePaletteId,
-          bookPaletteId
-        );
+        const activeTheme = pageThemeId || bookThemeId || 'default';
+        const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType);
         
         // Merge theme defaults into element
         const updatedElement: any = {

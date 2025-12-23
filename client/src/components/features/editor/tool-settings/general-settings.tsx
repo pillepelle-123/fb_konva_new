@@ -13,7 +13,6 @@ import { Separator } from '../../../ui/primitives/separator';
 import { Label } from '../../../ui/primitives/label';
 import { ThemeSelector } from '../templates/theme-selector';
 import { getGlobalThemeDefaults, getGlobalTheme, getThemePaletteId, getThemePageBackgroundColors } from '../../../../utils/global-themes';
-import { getToolDefaults } from '../../../../utils/tool-defaults';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { PaletteSelector } from '../templates/palette-selector';
 import { commonToActual } from '../../../../utils/font-size-converter';
@@ -421,17 +420,8 @@ export function GeneralSettings({
             const toolUpdates: Record<string, any> = {};
             
             toolTypes.forEach(toolType => {
-              const themeDefaults = getToolDefaults(
-                toolType as any,
-                resolvedThemeId,
-                state.currentBook?.bookTheme || 'default',
-                undefined,
-                undefined,
-                pageLayoutTemplateId,
-                bookLayoutTemplateId,
-                null,
-                null
-              );
+              const activeTheme = resolvedThemeId || state.currentBook?.bookTheme || 'default';
+              const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType as any);
               
               if (toolType === 'brush' || toolType === 'line') {
                 const updates: Record<string, any> = {
@@ -522,17 +512,8 @@ export function GeneralSettings({
             const toolUpdates: Record<string, any> = {};
             
             toolTypes.forEach(toolType => {
-              const themeDefaults = getToolDefaults(
-                toolType as any,
-                themeId,
-                themeId,
-                undefined,
-                undefined,
-                undefined,
-                bookLayoutTemplateId,
-                null,
-                null
-              );
+              const activeTheme = themeId || 'default';
+              const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType as any);
               
               if (toolType === 'brush' || toolType === 'line') {
                 const updates: Record<string, any> = {

@@ -43,7 +43,6 @@ import {
   createBadgeStyleWithProfile
 } from './canvas-utils';
 import { colorPalettes } from '../../../../data/templates/color-palettes';
-import { getToolDefaults } from '../../../../utils/tool-defaults';
 import { getStickerById, loadStickerRegistry } from '../../../../data/templates/stickers';
 
 
@@ -1803,23 +1802,14 @@ export default function Canvas() {
       
       // Capture current tool settings for this stroke
       const templateIds = getTemplateIdsForDefaults();
-      const brushDefaults = getToolDefaults(
-        'brush',
-        templateIds.pageTheme,
-        templateIds.bookTheme,
-        undefined,
-        state.toolSettings?.brush,
-        templateIds.pageLayoutTemplateId,
-        templateIds.bookLayoutTemplateId,
-        templateIds.pageColorPaletteId,
-        templateIds.bookColorPaletteId
-      );
+      const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
+      const brushDefaults = getGlobalThemeDefaults(activeTheme, 'brush');
       const toolSettings = state.toolSettings?.brush || {};
       
       const strokeData = {
         points: smoothedPath,
-        strokeColor: brushDefaults.stroke || toolSettings.strokeColor || '#1f2937',
-        strokeWidth: brushDefaults.strokeWidth || toolSettings.strokeWidth || 3
+        strokeColor: brushDefaults.stroke || '#1f2937',
+        strokeWidth: brushDefaults.strokeWidth || 3
       };
       
       // Add stroke to collection with its settings
@@ -1840,18 +1830,8 @@ export default function Canvas() {
       
       if (Math.abs(width) > 5 || Math.abs(height) > 5) {
         const templateIds = getTemplateIdsForDefaults();
-        const lineDefaults = getToolDefaults(
-          'line',
-          templateIds.pageTheme,
-          templateIds.bookTheme,
-          undefined,
-          state.toolSettings?.line,
-          templateIds.pageLayoutTemplateId,
-          templateIds.bookLayoutTemplateId,
-          templateIds.pageColorPaletteId,
-          templateIds.bookColorPaletteId
-        );
-        const toolSettings = state.toolSettings?.line || {};
+        const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
+        const lineDefaults = getGlobalThemeDefaults(activeTheme, 'line');
         const newElement: CanvasElement = {
           id: uuidv4(),
           type: 'line',
@@ -1859,9 +1839,7 @@ export default function Canvas() {
           y: previewLine.y1,
           width: width,
           height: height,
-          ...lineDefaults, // Apply ALL defaults
-          stroke: lineDefaults.stroke || toolSettings.strokeColor || lineDefaults.stroke,
-          strokeWidth: lineDefaults.strokeWidth || toolSettings.strokeWidth || lineDefaults.strokeWidth
+          ...lineDefaults // Apply ALL defaults
         };
         dispatch({ type: 'ADD_ELEMENT', payload: newElement });
         dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
@@ -1898,18 +1876,8 @@ export default function Canvas() {
           return;
         }
         const templateIds = getTemplateIdsForDefaults();
-        const shapeDefaults = getToolDefaults(
-          previewShape.type as any,
-          templateIds.pageTheme,
-          templateIds.bookTheme,
-          undefined,
-          state.toolSettings?.[previewShape.type],
-          templateIds.pageLayoutTemplateId,
-          templateIds.bookLayoutTemplateId,
-          templateIds.pageColorPaletteId,
-          templateIds.bookColorPaletteId
-        );
-        const toolSettings = state.toolSettings?.[previewShape.type] || {};
+        const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
+        const shapeDefaults = getGlobalThemeDefaults(activeTheme, previewShape.type as any);
         const newElement: CanvasElement = {
           id: uuidv4(),
           type: previewShape.type as any,
@@ -1918,11 +1886,6 @@ export default function Canvas() {
           width: previewShape.width,
           height: previewShape.height,
           ...shapeDefaults, // Apply ALL defaults
-          fill: shapeDefaults.fill !== undefined && shapeDefaults.fill !== 'transparent'
-            ? shapeDefaults.fill
-            : (toolSettings.fillColor !== undefined ? toolSettings.fillColor : shapeDefaults.fill || 'transparent'),
-          stroke: shapeDefaults.stroke || toolSettings.strokeColor || shapeDefaults.stroke,
-          strokeWidth: shapeDefaults.strokeWidth || toolSettings.strokeWidth || shapeDefaults.strokeWidth,
           polygonSides: previewShape.type === 'polygon' ? (state.toolSettings?.polygon?.polygonSides || shapeDefaults.polygonSides || 5) : shapeDefaults.polygonSides
         };
         dispatch({ type: 'ADD_ELEMENT', payload: newElement });
@@ -1963,17 +1926,8 @@ export default function Canvas() {
         
         if (previewTextbox.type === 'text') {
           const templateIds = getTemplateIdsForDefaults();
-          const textDefaults = getToolDefaults(
-            'text',
-            templateIds.pageTheme,
-            templateIds.bookTheme,
-            undefined,
-            state.toolSettings?.text,
-            templateIds.pageLayoutTemplateId,
-            templateIds.bookLayoutTemplateId,
-            templateIds.pageColorPaletteId,
-            templateIds.bookColorPaletteId
-          );
+          const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
+          const textDefaults = getGlobalThemeDefaults(activeTheme, 'text');
           newElement = {
             id: uuidv4(),
             type: 'text',
@@ -1987,28 +1941,9 @@ export default function Canvas() {
           };
         } else if (previewTextbox.type === 'question') {
           const templateIds = getTemplateIdsForDefaults();
-          const questionDefaults = getToolDefaults(
-            'question',
-            templateIds.pageTheme,
-            templateIds.bookTheme,
-            undefined,
-            state.toolSettings?.question,
-            templateIds.pageLayoutTemplateId,
-            templateIds.bookLayoutTemplateId,
-            templateIds.pageColorPaletteId,
-            templateIds.bookColorPaletteId
-          );
-          const answerDefaults = getToolDefaults(
-            'answer',
-            templateIds.pageTheme,
-            templateIds.bookTheme,
-            undefined,
-            state.toolSettings?.answer,
-            templateIds.pageLayoutTemplateId,
-            templateIds.bookLayoutTemplateId,
-            templateIds.pageColorPaletteId,
-            templateIds.bookColorPaletteId
-          );
+          const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
+          const questionDefaults = getGlobalThemeDefaults(activeTheme, 'question');
+          const answerDefaults = getGlobalThemeDefaults(activeTheme, 'answer');
           const questionHeight = Math.max(40, previewTextbox.height * 0.3);
           const answerHeight = previewTextbox.height - questionHeight - 10;
           
@@ -2047,18 +1982,9 @@ export default function Canvas() {
           dispatch({ type: 'ADD_ELEMENT', payload: questionElement });
         } else if (previewTextbox.type === 'qna') {
           const templateIds = getTemplateIdsForDefaults();
-          const qnaDefaults = getToolDefaults(
-            'qna',
-            templateIds.pageTheme,
-            templateIds.bookTheme,
-            undefined,
-            state.toolSettings?.qna,
-            templateIds.pageLayoutTemplateId,
-            templateIds.bookLayoutTemplateId,
-            templateIds.pageColorPaletteId,
-            templateIds.bookColorPaletteId
-          );
-          
+          const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
+          const qnaDefaults = getGlobalThemeDefaults(activeTheme, 'qna');
+
           newElement = {
             id: uuidv4(),
             type: 'text',
@@ -2074,17 +2000,8 @@ export default function Canvas() {
           };
         } else if (previewTextbox.type === 'free_text') {
           const templateIds = getTemplateIdsForDefaults();
-          const freeTextDefaults = getToolDefaults(
-            'free_text',
-            templateIds.pageTheme,
-            templateIds.bookTheme,
-            undefined,
-            state.toolSettings?.free_text,
-            templateIds.pageLayoutTemplateId,
-            templateIds.bookLayoutTemplateId,
-            templateIds.pageColorPaletteId,
-            templateIds.bookColorPaletteId
-          );
+          const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
+          const freeTextDefaults = getGlobalThemeDefaults(activeTheme, 'free_text');
           newElement = {
             id: uuidv4(),
             type: 'text',
@@ -2098,17 +2015,8 @@ export default function Canvas() {
           };
         } else {
           const templateIds = getTemplateIdsForDefaults();
-          const answerDefaults = getToolDefaults(
-            'answer',
-            templateIds.pageTheme,
-            templateIds.bookTheme,
-            undefined,
-            state.toolSettings?.answer,
-            templateIds.pageLayoutTemplateId,
-            templateIds.bookLayoutTemplateId,
-            templateIds.pageColorPaletteId,
-            templateIds.bookColorPaletteId
-          );
+          const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
+          const answerDefaults = getGlobalThemeDefaults(activeTheme, 'answer');
           
           // Generate UUID for answer immediately
           const answerUUID = uuidv4();
@@ -2683,17 +2591,8 @@ export default function Canvas() {
     const handleBrushDone = () => {
       if (brushStrokes.length > 0) {
         const templateIds = getTemplateIdsForDefaults();
-        const brushDefaults = getToolDefaults(
-          'brush',
-          templateIds.pageTheme,
-          templateIds.bookTheme,
-          undefined,
-          state.toolSettings?.brush,
-          templateIds.pageLayoutTemplateId,
-          templateIds.bookLayoutTemplateId,
-          templateIds.pageColorPaletteId,
-          templateIds.bookColorPaletteId
-        );
+        const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
+        const brushDefaults = getGlobalThemeDefaults(activeTheme, 'brush');
         
         // Convert each stroke to individual brush elements for grouping
         const groupedBrushElements: CanvasElement[] = brushStrokes.map(strokeData => ({

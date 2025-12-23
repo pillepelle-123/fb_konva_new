@@ -2,8 +2,8 @@ import React, { useMemo, useRef, useEffect, useState, useCallback } from 'react'
 import { Shape, Rect, Path, Text as KonvaText, Group } from 'react-konva';
 import BaseCanvasItem, { type CanvasItemProps } from './base-canvas-item';
 import { useEditor } from '../../../../context/editor-context';
-import { getToolDefaults } from '../../../../utils/tool-defaults';
 import { getThemeRenderer, type Theme } from '../../../../utils/themes-client';
+import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 import { renderThemedBorder, createRectPath, createLinePath } from '../../../../utils/themed-border';
 import type { CanvasElement } from '../../../../context/editor-context';
 import type Konva from 'konva';
@@ -180,29 +180,12 @@ export default function TextboxFreeText(props: CanvasItemProps) {
   const freeTextDefaults = useMemo(() => {
     // Use 'free_text' for free text elements
     const toolType = 'free_text';
-    const defaults = getToolDefaults(
-      toolType,
-      pageTheme,
-      bookTheme,
-      element,
-      state.toolSettings,
-      pageLayoutTemplateId,
-      bookLayoutTemplateId,
-      pageColorPaletteId,
-      bookColorPaletteId
-    );
+    const activeTheme = pageTheme || bookTheme || 'default';
+    const defaults = getGlobalThemeDefaults(activeTheme, toolType);
     return defaults;
   }, [
-    bookLayoutTemplateId,
-    bookTheme,
-    bookColorPaletteId,
-    element,
-    element.textType,
-    element.type,
-    pageLayoutTemplateId,
     pageTheme,
-    pageColorPaletteId,
-    state.toolSettings
+    bookTheme
   ]);
 
   const textStyle = useMemo(() => {

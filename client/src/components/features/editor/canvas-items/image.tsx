@@ -8,7 +8,7 @@ import { renderThemedBorder, createRectPath } from '../../../../utils/themed-bor
 import type { CanvasElement } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import { useEditor } from '../../../../context/editor-context';
-import { getToolDefaults } from '../../../../utils/tool-defaults';
+import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 
 type ClipPosition = 
   | 'left-top' 
@@ -131,25 +131,15 @@ export default function Image(props: CanvasItemProps) {
   const pageColorPaletteId = currentPage?.colorPaletteId;
   const bookColorPaletteId = state.currentBook?.colorPaletteId;
 
-  const qnaDefaults = useMemo(() => getToolDefaults(
-    'qna',
-    pageTheme,
-    bookTheme,
-    element,
-    state.toolSettings,
-    pageLayoutTemplateId,
-    bookLayoutTemplateId,
-    pageColorPaletteId,
-    bookColorPaletteId
-  ), [
+  const qnaDefaults = useMemo(() => {
+    const activeTheme = pageTheme || bookTheme || 'default';
+    return getGlobalThemeDefaults(activeTheme, 'qna');
+  }, [
     pageTheme,
     bookTheme,
     pageLayoutTemplateId,
-    bookLayoutTemplateId,
-    pageColorPaletteId,
-    bookColorPaletteId,
-    element,
-    state.toolSettings
+    pageTheme,
+    bookTheme
   ]);
 
   const handleDoubleClick = () => {

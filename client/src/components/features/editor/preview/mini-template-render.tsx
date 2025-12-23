@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Group, Rect, Text, Line } from 'react-konva';
 import type { PageTemplate } from '../../../../types/template-types';
-import { getToolDefaults } from '../../../../utils/tool-defaults';
+import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 
 type MiniTemplateRenderProps = {
   x: number;
@@ -164,17 +164,8 @@ export default function MiniTemplateRender({
           questionWidth: it.questionWidth ?? 40,
           cornerRadius: 10,
         };
-        const defaults = getToolDefaults(
-          'qna',
-          themeId,
-          themeId,
-          elementMock,
-          undefined,
-          undefined,
-          undefined,
-          paletteId,
-          paletteId
-        );
+        const activeTheme = themeId || 'default';
+        const defaults = getGlobalThemeDefaults(activeTheme, 'qna');
         const questionStyle = defaults.questionSettings || {};
         const answerStyle = defaults.answerSettings || {};
 

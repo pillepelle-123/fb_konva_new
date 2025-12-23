@@ -2,7 +2,6 @@ import { v4 as uuidv4 } from 'uuid';
 import type { CanvasElement } from '../context/editor-context';
 import type { PageTemplate } from '../types/template-types';
 import { convertTemplateToElements } from './template-to-elements';
-import { getToolDefaults } from './tool-defaults';
 import { scaleTemplateToCanvas } from './template-utils';
 
 interface ContentMapping {

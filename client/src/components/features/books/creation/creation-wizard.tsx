@@ -7,8 +7,7 @@ import { ChevronLeft, ChevronRight, Check } from 'lucide-react';
 import type { ColorPalette, PageTemplate, QuickTemplate } from '../../../../types/template-types';
 import type { Page } from '../../../../context/editor-context';
 import { colorPalettes } from '../../../../data/templates/color-palettes';
-import { getGlobalTheme, getThemePageBackgroundColors } from '../../../../utils/global-themes';
-import { getToolDefaults } from '../../../../utils/tool-defaults';
+import { getGlobalTheme, getThemePageBackgroundColors, getGlobalThemeDefaults } from '../../../../utils/global-themes';
 import { convertTemplateToElements } from '../../../../utils/template-to-elements';
 import { getBackgroundImagesWithUrl } from '../../../../data/templates/background-images';
 import { applyBackgroundImageTemplate } from '../../../../utils/background-image-utils';
@@ -275,19 +274,9 @@ export function CreationWizard({ open, onOpenChange, onSuccess }: CreationWizard
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const styleElementWithThemeAndPalette = (element: any, layoutId: string | null) => {
-      type ToolArg = Parameters<typeof getToolDefaults>[0];
-      const toolType = (element.textType || element.type) as ToolArg;
-      const defaults = getToolDefaults(
-        toolType,
-        themeToUse || undefined,
-        themeToUse || undefined,
-        element,
-        undefined,
-        layoutId,
-        layoutId,
-        activePaletteId,
-        activePaletteId
-      );
+      const toolType = (element.textType || element.type) as any;
+      const activeTheme = themeToUse || 'default';
+      const defaults = getGlobalThemeDefaults(activeTheme, toolType);
 
       const preservedProps = {
         id: element.id,
