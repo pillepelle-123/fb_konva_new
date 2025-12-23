@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { Layer, Rect, Group } from 'react-konva';
 import Konva from 'konva';
 import { v4 as uuidv4 } from 'uuid';
@@ -19,6 +19,7 @@ import { CanvasOverlays } from './CanvasOverlays';
 import { useCanvasDrawing } from './hooks/useCanvasDrawing';
 import { useCanvasSelection } from './hooks/useCanvasSelection';
 import { useCanvasZoomPan } from './hooks/useCanvasZoomPan';
+import { useCanvasItemActions } from './hooks/useCanvasItemActions';
 
 import { getActiveTemplateIds } from '../../../../utils/template-inheritance';
 import { Tooltip } from '../../../ui/composites/tooltip';
@@ -46,7 +47,7 @@ import { getToolDefaults } from '../../../../utils/tool-defaults';
 import { getStickerById, loadStickerRegistry } from '../../../../data/templates/stickers';
 
 
-function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
+const CanvasPageEditArea = React.memo(function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
   return (
     <Rect
       id="canvas-page-edit-area"
@@ -62,18 +63,18 @@ function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; he
       perfectDrawEnabled={false}
     />
   );
-}
+});
 
 
-function CanvasPageContainer({ children, assignedUser }: { children: React.ReactNode; assignedUser?: { name: string } | null }) {
-  const borderStyle = assignedUser ? {
+const CanvasPageContainer = React.memo(function CanvasPageContainer({ children, assignedUser }: { children: React.ReactNode; assignedUser?: { name: string } | null }) {
+  const borderStyle = React.useMemo(() => assignedUser ? {
     borderTop: `5px solid #${getConsistentColor(assignedUser.name)}`,
     borderBottom: `5px solid #${getConsistentColor(assignedUser.name)}`
   } : {
     borderTop: `5px solid hsl(var(--muted))`,
-    borderBottom: `5px solid hsl(var(--muted))`    
-  };
-  
+    borderBottom: `5px solid hsl(var(--muted))`
+  }, [assignedUser]);
+
   return (
     <div style={{
       display: 'flex',
@@ -88,7 +89,7 @@ function CanvasPageContainer({ children, assignedUser }: { children: React.React
       {children}
     </div>
   );
-}
+});
 
 const PAGE_TYPE_LABELS: Record<string, string> = {
   'front-cover': 'Front Cover',
@@ -197,39 +198,34 @@ export default function Canvas() {
   // Track if actually transforming (not just selected)
   const isTransformingRef = useRef<boolean>(false);
   
-  // Observe tool settings panel width to position lock icon correctly
-  useEffect(() => {
-    if (!state.settingsPanelVisible) {
-      setPanelOffset(0);
-      return;
-    }
-
+  // Memoize panel offset calculation functions
+  const panelOffsetFunctions = useMemo(() => {
     const findPanelElement = () => {
       // Find the tool settings panel - it's a Card with specific classes
       // Look for the panel in the editor layout (right side)
       const editorLayout = document.querySelector('.flex-1.flex.min-h-0');
       if (!editorLayout) return null;
-      
+
       // The panel is the last child in the flex layout
       const children = Array.from(editorLayout.children);
       const panel = children[children.length - 1] as HTMLElement | null;
-      
+
       // Verify it's the tool settings panel by checking for the Card classes
       if (panel && panel.classList.contains('border-t-0') && panel.classList.contains('border-b-0')) {
         return panel;
       }
-      
+
       return null;
     };
 
     const updatePanelOffset = () => {
       const panel = findPanelElement();
       const container = containerRef.current;
-      
+
       if (panel && container) {
         const panelRect = panel.getBoundingClientRect();
         const containerRect = container.getBoundingClientRect();
-        
+
         // Calculate distance from right edge of container to right edge of panel
         // Then add panel width + spacing
         const distanceFromContainerRight = containerRect.right - panelRect.right;
@@ -243,15 +239,27 @@ export default function Canvas() {
       }
     };
 
+    return { findPanelElement, updatePanelOffset };
+  }, []); // These functions don't depend on any changing values
+
+  // Observe tool settings panel width to position lock icon correctly
+  useEffect(() => {
+    if (!state.settingsPanelVisible) {
+      setPanelOffset(0);
+      return;
+    }
+
+    const { updatePanelOffset } = panelOffsetFunctions;
+
     // Initial update with delay to ensure DOM is ready
     const timeoutId = setTimeout(() => {
       updatePanelOffset();
     }, 100);
 
     // Observe panel for size changes
-    const panel = findPanelElement();
+    const panel = panelOffsetFunctions.findPanelElement();
     let resizeObserver: ResizeObserver | null = null;
-    
+
     if (panel) {
       resizeObserver = new ResizeObserver(() => {
         updatePanelOffset();
@@ -264,7 +272,7 @@ export default function Canvas() {
 
     // Retry finding panel if not found initially
     const checkInterval = setInterval(() => {
-      const panel = findPanelElement();
+      const panel = panelOffsetFunctions.findPanelElement();
       if (panel && !resizeObserver) {
         resizeObserver = new ResizeObserver(() => {
           updatePanelOffset();
@@ -282,7 +290,7 @@ export default function Canvas() {
       }
       window.removeEventListener('resize', updatePanelOffset);
     };
-  }, [state.settingsPanelVisible]);
+  }, [state.settingsPanelVisible, panelOffsetFunctions]);
 
   // Update canvas container size when its bounding box changes
   useEffect(() => {
@@ -535,16 +543,19 @@ export default function Canvas() {
     return { paletteId: effectivePaletteId, palette };
   };
 
-  // Calculate safety margin stroke color based on page background
-  const safetyMarginStrokeColor = useMemo(() => {
-    return calculateContrastColor(currentPage, getPaletteForPage, 0.15);
-  }, [currentPage, state.currentBook?.colorPaletteId, state.currentBook?.bookTheme]);
+  // Memoize safety margin colors - used frequently in rendering
+  const safetyMarginColors = useMemo(() => {
+    const activeColor = calculateContrastColor(currentPage, getPaletteForPage, 0.15);
+    const partnerColor = partnerPage ? calculateContrastColor(partnerPage, getPaletteForPage, 0.15) : '#e5e7eb';
 
-  // Calculate safety margin stroke color for partner page
-  const partnerSafetyMarginStrokeColor = useMemo(() => {
-    if (!partnerPage) return '#e5e7eb';
-    return calculateContrastColor(partnerPage, getPaletteForPage, 0.15);
-  }, [partnerPage, state.currentBook?.colorPaletteId, state.currentBook?.bookTheme]);
+    return {
+      active: activeColor,
+      partner: partnerColor
+    };
+  }, [currentPage, partnerPage, state.currentBook?.colorPaletteId, state.currentBook?.bookTheme, getPaletteForPage]);
+
+  const safetyMarginStrokeColor = safetyMarginColors.active;
+  const partnerSafetyMarginStrokeColor = safetyMarginColors.partner;
 
   // Helper function to get template IDs for defaults (uses getActiveTemplateIds for proper inheritance)
   const getTemplateIdsForDefaults = useCallback(() => {
@@ -610,18 +621,45 @@ export default function Canvas() {
     () => buildPageBadgeMeta(partnerPage),
     [buildPageBadgeMeta, partnerPage]
   );
-const orientation = state.currentBook?.orientation || DEFAULT_BOOK_ORIENTATION;
-  
-const pageSize = state.currentBook?.pageSize || DEFAULT_BOOK_PAGE_SIZE;
-const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMENSIONS];
-  const canvasWidth = orientation === 'landscape' ? dimensions.height : dimensions.width;
-  const canvasHeight = orientation === 'landscape' ? dimensions.width : dimensions.height;
-  const spreadGapCanvas = hasPartnerPage ? canvasWidth * 0.05 : 0;
-  const spreadWidthCanvas = hasPartnerPage ? canvasWidth * 2 + spreadGapCanvas : canvasWidth;
-  const isActiveLeft = partnerInfo ? state.activePageIndex <= partnerInfo.index : true;
-  const activePageOffsetX = partnerInfo && !isActiveLeft ? canvasWidth + spreadGapCanvas : 0;
-  const previewPageOffsetX = partnerInfo ? (isActiveLeft ? canvasWidth + spreadGapCanvas : 0) : null;
-  const pageOffsetY = 0;
+  // Memoize canvas dimensions and positioning - used in many places
+  const canvasDimensions = useMemo(() => {
+    const orientation = state.currentBook?.orientation || DEFAULT_BOOK_ORIENTATION;
+    const pageSize = state.currentBook?.pageSize || DEFAULT_BOOK_PAGE_SIZE;
+    const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMENSIONS];
+    const canvasWidth = orientation === 'landscape' ? dimensions.height : dimensions.width;
+    const canvasHeight = orientation === 'landscape' ? dimensions.width : dimensions.height;
+    const spreadGapCanvas = hasPartnerPage ? canvasWidth * 0.05 : 0;
+    const spreadWidthCanvas = hasPartnerPage ? canvasWidth * 2 + spreadGapCanvas : canvasWidth;
+    const isActiveLeft = partnerInfo ? state.activePageIndex <= partnerInfo.index : true;
+    const activePageOffsetX = partnerInfo && !isActiveLeft ? canvasWidth + spreadGapCanvas : 0;
+    const previewPageOffsetX = partnerInfo ? (isActiveLeft ? canvasWidth + spreadGapCanvas : 0) : null;
+    const pageOffsetY = 0;
+
+    return {
+      orientation,
+      pageSize,
+      canvasWidth,
+      canvasHeight,
+      spreadGapCanvas,
+      spreadWidthCanvas,
+      isActiveLeft,
+      activePageOffsetX,
+      previewPageOffsetX,
+      pageOffsetY
+    };
+  }, [state.currentBook?.orientation, state.currentBook?.pageSize, hasPartnerPage, partnerInfo, state.activePageIndex]);
+
+  // Extract for easier access
+  const {
+    canvasWidth,
+    canvasHeight,
+    spreadGapCanvas,
+    spreadWidthCanvas,
+    isActiveLeft,
+    activePageOffsetX,
+    previewPageOffsetX,
+    pageOffsetY
+  } = canvasDimensions;
 
   // Alert helper functions
   const showCoverRestrictionAlert = useCallback(
@@ -651,24 +689,30 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     []
   );
 
+  // Item actions hook
+  const itemActions = useCanvasItemActions({
+    state,
+    clipboard,
+    setClipboard,
+    dispatch,
+    getQuestionAssignmentsForUser,
+    currentPage,
+    isCoverPage,
+    showCoverRestrictionAlert,
+    setContextMenu
+  });
+
   const BADGE_VERTICAL_SCREEN_GAP = 32;
   const getBadgeScreenPosition = (offsetX: number | null) => {
-    if (offsetX === null) return null;
+      if (offsetX === null) return null;
     const centerScreenX = zoomPanState.stagePos.x + (offsetX + canvasWidth / 2) * zoomPanState.zoom;
     const pageTopScreenY = zoomPanState.stagePos.y + pageOffsetY * zoomPanState.zoom;
-    return {
-      x: centerScreenX,
-      y: pageTopScreenY - BADGE_VERTICAL_SCREEN_GAP
-    };
+      return {
+        x: centerScreenX,
+        y: pageTopScreenY - BADGE_VERTICAL_SCREEN_GAP
+      };
   };
-  const activePageBadgePosition = useMemo(
-    () => getBadgeScreenPosition(activePageOffsetX),
-    [getBadgeScreenPosition, activePageOffsetX]
-  );
-  const previewPageBadgePosition = useMemo(
-    () => getBadgeScreenPosition(previewPageOffsetX),
-    [getBadgeScreenPosition, previewPageOffsetX]
-  );
+
   const previewLockBadgeScreen = useMemo(() => {
     if (!partnerPage || !previewTargetLocked || previewPageOffsetX === null) {
       return null;
@@ -696,7 +740,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         )}
       </div>
     ),
-    []
+    [] // No dependencies needed as this is a pure render function
   );
   const switchToPartnerPage = useCallback(() => {
     if (!partnerInfo) return;
@@ -727,43 +771,65 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     [switchToPartnerPage]
   );
 
+  // Memoize page badge positions - expensive calculations used in rendering
+  const pageBadgePositions = useMemo(() => {
+    const activePos = getBadgeScreenPosition(activePageOffsetX);
+    const previewPos = getBadgeScreenPosition(previewPageOffsetX);
+
+    return {
+      active: activePos,
+      preview: previewPos
+    };
+  }, [getBadgeScreenPosition, activePageOffsetX, previewPageOffsetX]);
+
+  const activePageBadgePosition = pageBadgePositions.active;
+  const previewPageBadgePosition = pageBadgePositions.preview;
+
+  // Memoize container size and spread dimensions for clampStagePosition
+  const stageConstraints = useMemo(() => ({
+    spreadWidthCanvas,
+    canvasHeight,
+    containerSize,
+    isMiniPreview: state.isMiniPreview
+  }), [spreadWidthCanvas, canvasHeight, containerSize.width, containerSize.height, state.isMiniPreview]);
+
   const clampStagePosition = useCallback((pos: { x: number; y: number }, scaleOverride?: number) => {
     const appliedZoom = scaleOverride ?? zoom;
-    const contentWidth = spreadWidthCanvas * appliedZoom;
-    const contentHeight = canvasHeight * appliedZoom;
-    
+    const contentWidth = stageConstraints.spreadWidthCanvas * appliedZoom;
+    const contentHeight = stageConstraints.canvasHeight * appliedZoom;
+
     // For mini previews, always center and don't clamp to avoid cutting off pages
-    if (state.isMiniPreview) {
+    if (stageConstraints.isMiniPreview) {
       return {
-        x: (containerSize.width - contentWidth) / 2,
-        y: (containerSize.height - contentHeight) / 2
+        x: (stageConstraints.containerSize.width - contentWidth) / 2,
+        y: (stageConstraints.containerSize.height - contentHeight) / 2
       };
     }
-    
-    const marginX = Math.min(400, containerSize.width);
-    const marginY = Math.min(300, containerSize.height);
+
+    const marginX = Math.min(400, stageConstraints.containerSize.width);
+    const marginY = Math.min(300, stageConstraints.containerSize.height);
 
     let clampedX = pos.x;
     let clampedY = pos.y;
 
-    if (contentWidth + marginX * 2 <= containerSize.width) {
-      clampedX = (containerSize.width - contentWidth) / 2;
+    if (contentWidth + marginX * 2 <= stageConstraints.containerSize.width) {
+      clampedX = (stageConstraints.containerSize.width - contentWidth) / 2;
     } else {
-      const minX = containerSize.width - contentWidth - marginX;
+      const minX = stageConstraints.containerSize.width - contentWidth - marginX;
       const maxX = marginX;
       clampedX = Math.min(maxX, Math.max(minX, pos.x));
     }
 
-    if (contentHeight + marginY * 2 <= containerSize.height) {
-      clampedY = (containerSize.height - contentHeight) / 2;
+    if (contentHeight + marginY * 2 <= stageConstraints.containerSize.height) {
+      clampedY = (stageConstraints.containerSize.height - contentHeight) / 2;
     } else {
-      const minY = containerSize.height - contentHeight - marginY;
+      const minY = stageConstraints.containerSize.height - contentHeight - marginY;
       const maxY = marginY;
       clampedY = Math.min(maxY, Math.max(minY, pos.y));
     }
 
     return { x: clampedX, y: clampedY };
-  }, [canvasHeight, containerSize.height, containerSize.width, spreadWidthCanvas, zoom, state.isMiniPreview]);
+  }, [stageConstraints, zoom]);
 
   // Local setZoom function that updates stage position for zoom-to-pointer behavior
   // Must be defined after clampStagePosition
@@ -1091,7 +1157,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         }
       }, 10);
     }
-  }, [currentPage?.elements.map(el => `${el.id}-${el.width}-${el.height}`).join(',')]);
+  }, [currentPage?.elements]); // React will handle deep comparison optimization
 
   // Force transformer update after group movement ends
   useEffect(() => {
@@ -2156,65 +2222,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     setContextMenu({ x: e.evt.pageX, y: e.evt.pageY, visible: true });
   };
 
-  const handleDuplicateItems = () => {
-    if (!currentPage) return;
-    if (isCoverPage) {
-      const hasQnaInline = state.selectedElementIds.some((elementId) => {
-        const element = currentPage.elements.find((el) => el.id === elementId);
-        return false;
-      });
-      if (hasQnaInline) {
-        showCoverRestrictionAlert('Q&A inline elements cannot be placed on cover pages.');
-        return;
-      }
-    }
-    
-    // Create ID mapping for question-answer pairs
-    const idMapping = new Map<string, string>();
-    state.selectedElementIds.forEach(elementId => {
-      idMapping.set(elementId, uuidv4());
-    });
-    
-    const newElementIds: string[] = [];
-    
-    state.selectedElementIds.forEach(elementId => {
-      const element = currentPage.elements.find(el => el.id === elementId);
-      if (element) {
-        const newId = idMapping.get(elementId)!;
-        newElementIds.push(newId);
-        const duplicatedElement = {
-          ...element,
-          id: newId,
-          x: element.x + 20,
-          y: element.y + 20,
-          // Clear text for question-answer pairs
-          text: (element.textType === 'question' || element.textType === 'answer') ? '' : element.text,
-          formattedText: (element.textType === 'question' || element.textType === 'answer') ? '' : element.formattedText,
-          // Clear question styling for duplicated questions
-          fontColor: element.textType === 'question' ? '#9ca3af' : (element.fontColor || element.fill),
-          // Clear questionId for question elements
-          questionId: (element.textType === 'question') ? undefined : element.questionId,
-          // Update questionElementId reference for answer elements
-          questionElementId: element.questionElementId ? idMapping.get(element.questionElementId) : element.questionElementId
-        };
-        dispatch({ type: 'ADD_ELEMENT', payload: duplicatedElement });
-      }
-    });
-    
-    // Select the duplicated elements
-    setTimeout(() => {
-      dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: newElementIds });
-    }, 10);
-    
-    setContextMenu({ x: 0, y: 0, visible: false });
-  };
 
-  const handleDeleteItems = () => {
-    state.selectedElementIds.forEach(elementId => {
-      dispatch({ type: 'DELETE_ELEMENT', payload: elementId });
-    });
-    setContextMenu({ x: 0, y: 0, visible: false });
-  };
 
   const handleCopyItems = () => {
     if (!currentPage) return;
@@ -2493,7 +2501,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     }
   };
 
-  const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+  const handleStageClick = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
     // Nach einem ungültigen Platzierungsversuch (Outside-Page-Tooltip)
     // soll der aktuelle Modus erhalten bleiben und keine Selektion
     // / Werkzeug-Umschaltung stattfinden.
@@ -2569,7 +2577,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
       }
     }
-  };
+  }, [state.activeTool, state.stylePainterActive, dispatch]);
 
 
   
@@ -2788,7 +2796,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       
       if (e.key === 'Delete' && state.selectedElementIds.length > 0) {
         e.preventDefault();
-        handleDeleteItems();
+        itemActions.handleDeleteItems();
       // Arrow keys are now handled in the repeat handler
       } else if (e.key === 'Escape') {
         e.preventDefault();
@@ -2829,8 +2837,8 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           }
         } else if (e.key === 'x' && state.selectedElementIds.length > 0) {
           e.preventDefault();
-          handleCopyItems();
-          handleDeleteItems();
+          itemActions.handleCopyItems();
+          itemActions.handleDeleteItems();
         } else if (e.key === 'z') {
           e.preventDefault();
           undo();
@@ -2848,7 +2856,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
           window.dispatchEvent(new CustomEvent('showPDFExport'));
         } else if (e.key === 'd' && state.selectedElementIds.length > 0) {
           e.preventDefault();
-          handleDuplicateItems();
+          itemActions.handleDuplicateItems();
         } else if (e.key === 'a' && state.selectedElementIds.length > 0) {
           e.preventDefault();
           // Trigger auto-size for selected textbox elements
@@ -2928,7 +2936,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
         clearInterval(keyRepeatInterval);
       }
     };
-  }, [state.selectedElementIds, currentPage, clipboard, lastMousePos, stagePos, zoom, undo, redo, handleDeleteItems, handleCopyItems, handlePasteItems]);
+  }, [state.selectedElementIds, currentPage, clipboard, lastMousePos, stagePos, zoom, undo, redo, itemActions.handleDeleteItems, itemActions.handleCopyItems, itemActions.handlePasteItems]);
   
   useEffect(() => {
     const handleTextEdit = (event: CustomEvent) => {
@@ -3397,7 +3405,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     };
   }, [state.editorInteractionLevel, state.isMiniPreview, isPanning]);
 
-  const handleImageSelect = (imageId: number, imageUrl: string) => {
+  const handleImageSelect = useCallback((imageId: number, imageUrl: string) => {
     // If we have a pending element ID, update the existing placeholder element
     if (pendingImageElementId) {
       // Load image to get original dimensions
@@ -3463,7 +3471,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     setShowImageModal(false);
     setPendingImagePosition(null);
     setPendingImageElementId(null);
-  };
+  }, [pendingImageElementId, currentPage, pendingImagePosition, dispatch]);
 
   const handleImageModalClose = () => {
     setShowImageModal(false);
@@ -3472,7 +3480,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
     dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
   };
 
-  const handleStickerSelect = async (stickerId: string | null) => {
+  const handleStickerSelect = useCallback(async (stickerId: string | null) => {
     if (!stickerId) return;
     
     // Load sticker registry if needed
@@ -3619,7 +3627,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       }
     };
     img.src = sticker.url;
-  };
+  }, [pendingStickerElementId, currentPage, pendingStickerPosition, dispatch]);
 
   const handleStickerModalClose = () => {
     setShowStickerModal(false);
@@ -4918,7 +4926,7 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
             <div />
           </Tooltip>
         )}
-
+        
         </CanvasContainer>
       </CanvasPageContainer>
 
@@ -4927,51 +4935,51 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
       <CanvasOverlays
         // Context Menu
         contextMenu={contextMenu}
-        onDuplicate={handleDuplicateItems}
-        onDelete={handleDeleteItems}
-        onCopy={handleCopyItems}
-        onPaste={(() => {
-          if (clipboard.length === 0) return undefined;
-          const hasQuestionAnswer = clipboard.some(element =>
-            element.textType === 'question' || element.textType === 'answer'
-          );
-          if (hasQuestionAnswer) {
-            const currentPageId = state.currentBook?.pages[state.activePageIndex]?.id;
-            if (clipboard.some(element => element.pageId === currentPageId)) {
-              return undefined; // Hide paste option for same page
+          onDuplicate={itemActions.handleDuplicateItems} 
+          onDelete={itemActions.handleDeleteItems}
+          onCopy={handleCopyItems}
+          onPaste={(() => {
+            if (clipboard.length === 0) return undefined;
+            const hasQuestionAnswer = clipboard.some(element => 
+              element.textType === 'question' || element.textType === 'answer'
+            );
+            if (hasQuestionAnswer) {
+              const currentPageId = state.currentBook?.pages[state.activePageIndex]?.id;
+              if (clipboard.some(element => element.pageId === currentPageId)) {
+                return undefined; // Hide paste option for same page
+              }
+              const currentPageNumber = state.activePageIndex + 1;
+              const assignedUser = state.pageAssignments[currentPageNumber];
+              if (assignedUser) {
+                const questionElements = clipboard.filter(el => el.textType === 'question' && el.questionId);
+                const userQuestions = getQuestionAssignmentsForUser(assignedUser.id);
+                const hasConflict = questionElements.some(el => userQuestions.has(el.questionId));
+                if (hasConflict) return undefined; // Hide paste option for conflicts
+              }
             }
-            const currentPageNumber = state.activePageIndex + 1;
-            const assignedUser = state.pageAssignments[currentPageNumber];
-            if (assignedUser) {
-              const questionElements = clipboard.filter(el => el.textType === 'question' && el.questionId);
-              const userQuestions = getQuestionAssignmentsForUser(assignedUser.id);
-              const hasConflict = questionElements.some(el => userQuestions.has(el.questionId));
-              if (hasConflict) return undefined; // Hide paste option for conflicts
-            }
-          }
-          return handlePasteItems;
-        })()}
-        onMoveToFront={handleMoveToFront}
-        onMoveToBack={handleMoveToBack}
-        onMoveUp={handleMoveUp}
-        onMoveDown={handleMoveDown}
-        onGroup={handleGroup}
-        onUngroup={handleUngroup}
-        hasSelection={state.selectedElementIds.length > 0}
-        hasClipboard={clipboard.length > 0}
-        canGroup={state.selectedElementIds.length >= 2}
-        canUngroup={state.selectedElementIds.length === 1 && currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.type === 'group' || (state.selectedElementIds.length === 1 && currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.type === 'brush-multicolor')}
+            return handlePasteItems;
+          })()}
+          onMoveToFront={handleMoveToFront}
+          onMoveToBack={handleMoveToBack}
+          onMoveUp={handleMoveUp}
+          onMoveDown={handleMoveDown}
+          onGroup={handleGroup}
+          onUngroup={handleUngroup}
+          hasSelection={state.selectedElementIds.length > 0}
+          hasClipboard={clipboard.length > 0}
+          canGroup={state.selectedElementIds.length >= 2}
+          canUngroup={state.selectedElementIds.length === 1 && currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.type === 'group' || (state.selectedElementIds.length === 1 && currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.type === 'brush-multicolor')}
 
         // Image Modal
         showImageModal={showImageModal}
         onImageModalClose={handleImageModalClose}
-        token={token || ''}
-        onImageSelect={handleImageSelect}
+          token={token || ''}
+          onImageSelect={handleImageSelect}
 
         // Sticker Modal
         showStickerModal={showStickerModal}
         onStickerModalClose={handleStickerModalClose}
-        onStickerSelect={handleStickerSelect}
+          onStickerSelect={handleStickerSelect}
 
         // Question Dialog
         showQuestionDialog={showQuestionDialog}
