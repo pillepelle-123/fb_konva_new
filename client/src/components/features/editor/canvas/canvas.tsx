@@ -1,6 +1,5 @@
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
-import type { CSSProperties } from 'react';
-import { Layer, Rect, Group, Text, Image as KonvaImage, Circle } from 'react-konva';
+import { Layer, Rect, Group } from 'react-konva';
 import Konva from 'konva';
 import { v4 as uuidv4 } from 'uuid';
 import { useEditor } from '../../../../context/editor-context';
@@ -15,31 +14,18 @@ import { PreviewLine, PreviewShape, PreviewTextbox, PreviewBrush, MaterializedBr
 import { CanvasContainer } from './canvas-container';
 import { SnapGuidelines } from './snap-guidelines';
 import { CanvasOverlayProvider, CanvasOverlayContainer, CanvasOverlayPortal } from './canvas-overlay';
-import { ZoomProvider } from './zoom-context';
 import { CanvasBackground } from './CanvasBackground';
+import { CanvasOverlays } from './CanvasOverlays';
 import { useCanvasDrawing } from './hooks/useCanvasDrawing';
 import { useCanvasSelection } from './hooks/useCanvasSelection';
 import { useCanvasZoomPan } from './hooks/useCanvasZoomPan';
-import ContextMenu from '../../../ui/overlays/context-menu';
-import { Modal } from '../../../ui/overlays/modal';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../ui/overlays/dialog';
-import ImagesContent from '../../images/images-content';
-import { QuestionSelectorModal } from '../question-selector-modal';
-import { StickerSelector } from '../tool-settings/sticker-selector';
-import { getStickerById, loadStickerRegistry } from '../../../../data/templates/stickers';
 
-import { getToolDefaults } from '../../../../utils/tool-defaults';
 import { getActiveTemplateIds } from '../../../../utils/template-inheritance';
-import { Alert, AlertDescription } from '../../../ui/composites/alert';
 import { Tooltip } from '../../../ui/composites/tooltip';
 import { Lock, LockOpen } from 'lucide-react';
 import { snapPosition, snapDimensions, type SnapGuideline } from '../../../../utils/snapping';
 
-import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
-import type { PageBackground } from '../../../../context/editor-context';
 import { createPreviewImage, resolveBackgroundImageUrl } from '../../../../utils/background-image-utils';
-import { getPalettePartColor } from '../../../../data/templates/color-palettes';
-import { colorPalettes } from '../../../../data/templates/color-palettes';
 import { getThemePaletteId, getGlobalThemeDefaults } from '../../../../utils/global-themes';
 import { BOOK_PAGE_DIMENSIONS, DEFAULT_BOOK_ORIENTATION, DEFAULT_BOOK_PAGE_SIZE, SAFETY_MARGIN_PX } from '../../../../constants/book-formats';
 import { getConsistentColor } from '../../../../utils/consistent-color';
@@ -47,36 +33,18 @@ import { calculateContrastColor } from '../../../../utils/contrast-color';
 import ProfilePicture from '../../users/profile-picture';
 
 import {
-  ACTIVE_BADGE_COLOR,
-  ACTIVE_BADGE_TEXT,
-  INACTIVE_BADGE_COLOR,
-  INACTIVE_BADGE_TEXT,
-  INACTIVE_BADGE_TEXT_WITH_PROFILE,
-  INACTIVE_BADGE_BORDER,
-  createBadgeStyleWithoutProfile,
-  createBadgeStyleWithProfile,
-  createMetaTextStyle,
-  createPatternTile,
   smoothPath,
   isPointWithinSelectedElements,
   getElementsInSelection
 } from './canvas-utils';
-
 import {
-  getCanvasDimensions,
-  getPageOffsets,
-  getTemplateIdsForDefaults,
-  clampStagePosition,
-  showCoverRestrictionAlert,
-  showOutsidePageTooltip,
-  buildPageBadgeMeta,
-  getBadgeScreenPosition,
-  renderBadgeSegments,
-  setZoomPosition,
-  fitToView,
-  createPartnerPageHelpers,
-  createPreviewEventHandlers
-} from './canvas-helpers';
+  createBadgeStyleWithoutProfile,
+  createBadgeStyleWithProfile
+} from './canvas-utils';
+import { colorPalettes } from '../../../../data/templates/color-palettes';
+import { getToolDefaults } from '../../../../utils/tool-defaults';
+import { getStickerById, loadStickerRegistry } from '../../../../data/templates/stickers';
+
 
 function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
   return (
@@ -188,8 +156,6 @@ export default function Canvas() {
   const setZoomFromContext = setZoom;
   const [editingElement, setEditingElement] = useState<CanvasElement | null>(null);
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
-  const [showQuestionSelectorModal, setShowQuestionSelectorModal] = useState(false);
-  const [questionSelectorElementId, setQuestionSelectorElementId] = useState<string | null>(null);
   
   // Prevent authors from opening question dialog
   useEffect(() => {
@@ -212,9 +178,12 @@ export default function Canvas() {
 
   // Alte Preview-Export-Logik entfernt - wird jetzt über Preview-Seiten gelöst
   const [selectedQuestionElementId, setSelectedQuestionElementId] = useState<string | null>(null);
+  const [showQuestionSelectorModal, setShowQuestionSelectorModal] = useState(false);
+  const [questionSelectorElementId, setQuestionSelectorElementId] = useState<string | null>(null);
   const editingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [alertPosition, setAlertPosition] = useState<{ x: number; y: number } | null>(null);
+
   const [outsidePageTooltip, setOutsidePageTooltip] = useState<{ x: number; y: number } | null>(null);
   // Verhindert, dass nach einem ungültigen Platzierungsversuch automatisch
   // auf das Auswahl-Tool zurückgeschaltet wird (siehe handleStageClick)
@@ -357,7 +326,117 @@ export default function Canvas() {
   // Snapping functionality
   const GUIDELINE_OFFSET = 15; // Increased for better snapping detection
 
-  const currentPage = state.currentBook?.pages[state.activePageIndex];
+  const currentPage = useMemo(
+    () => state.currentBook?.pages[state.activePageIndex],
+    [state.currentBook?.pages, state.activePageIndex]
+  );
+
+  // Question selection handler
+  const handleQuestionSelect = useCallback((questionId: string, questionText: string, questionPosition?: number, elementId?: string) => {
+    // Use the provided elementId, or fall back to selectedQuestionElementId
+    const targetElementId = elementId || selectedQuestionElementId;
+
+    if (targetElementId) {
+      const element = currentPage?.elements.find(el => el.id === targetElementId);
+
+      if (element?.textType === 'qna') {
+        // Calculate question order: use provided position, or count existing qna elements
+        let order = questionPosition;
+        if (order === undefined && currentPage) {
+          const qnaElements = currentPage.elements.filter(
+            el => el.textType === 'qna' && el.questionOrder !== undefined
+          );
+          order = qnaElements.length > 0
+            ? Math.max(...qnaElements.map(el => el.questionOrder || 0)) + 1
+            : 0;
+        }
+
+        // Update element with questionId and load question text
+        dispatch({
+          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+          payload: {
+            id: targetElementId,
+            updates: {
+              questionId: questionId || undefined,
+              text: questionText || '',
+              formattedText: questionText || '',
+              questionOrder: order
+            }
+          }
+        });
+
+        // Store question text in temp questions only if it doesn't exist yet
+        if (questionId && questionText) {
+          dispatch({
+            type: 'UPDATE_TEMP_QUESTION',
+            payload: { questionId, text: questionText }
+          });
+        }
+
+        // If questionId is provided, check for existing answer in tempAnswers
+        if (questionId && questionId !== '') {
+          const assignedUser = state.pageAssignments[state.activePageIndex + 1];
+          const userIdToCheck = assignedUser?.id || user?.id;
+
+          if (userIdToCheck) {
+            const existingAnswer = getAnswerText(questionId, userIdToCheck);
+            if (existingAnswer) {
+              // Answer exists in tempAnswers, no need to do anything
+              // The textbox will automatically display it via getDisplayText()
+            }
+          }
+        }
+      } else {
+        // For regular question elements
+        // Validate: Check if question already exists on this page
+        if (questionId && questionId !== '' && currentPage) {
+          const questionsOnPage = currentPage.elements
+            .filter(el => el.id !== targetElementId && el.questionId === questionId)
+            .map(el => el.questionId);
+
+          if (questionsOnPage.length > 0) {
+            const element = currentPage.elements.find(el => el.id === targetElementId);
+            if (element) {
+              setAlertMessage('This question already exists on this page.');
+              const alertX = (element.x + (element.width || 100) / 2);
+              const alertY = element.y;
+              setAlertPosition({ x: alertX, y: alertY });
+              setTimeout(() => {
+                setAlertMessage(null);
+                setAlertPosition(null);
+              }, 3000);
+            }
+            return;
+          }
+        }
+
+        // Update element with questionId and load question text
+        dispatch({
+          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+          payload: {
+            id: targetElementId,
+            updates: {
+              questionId: questionId || undefined,
+              text: questionText || '',
+              formattedText: questionText || '',
+            }
+          }
+        });
+
+        // Store question text in temp questions only if it doesn't exist yet
+        if (questionId && questionText) {
+          dispatch({
+            type: 'UPDATE_TEMP_QUESTION',
+            payload: { questionId, text: questionText }
+          });
+        }
+      }
+    }
+    setShowQuestionDialog(false);
+    // Reset selectedQuestionElementId after a delay to allow questionSelected event to process
+    setTimeout(() => setSelectedQuestionElementId(null), 100);
+  }, [selectedQuestionElementId, currentPage, state.pageAssignments, state.activePageIndex, user?.id, dispatch]);
+
   const partnerInfo = useMemo(() => {
     if (!state.currentBook) return null;
     const pages = state.currentBook.pages;
@@ -469,7 +548,6 @@ export default function Canvas() {
 
   // Helper function to get template IDs for defaults (uses getActiveTemplateIds for proper inheritance)
   const getTemplateIdsForDefaults = useCallback(() => {
-    const currentPage = state.currentBook?.pages[state.activePageIndex];
     const activeTemplateIds = getActiveTemplateIds(currentPage, state.currentBook);
     
     // Get theme IDs
@@ -2498,7 +2576,6 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
 
   // Preload background images when page changes or background is updated
   useEffect(() => {
-    const currentPage = state.currentBook?.pages[state.activePageIndex];
     const background = currentPage?.background;
     const cache = backgroundImageCacheRef.current;
     
@@ -4841,374 +4918,81 @@ const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMEN
             <div />
           </Tooltip>
         )}
-        
-        <ContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          visible={contextMenu.visible}
-          onDuplicate={handleDuplicateItems} 
-          onDelete={handleDeleteItems}
-          onCopy={handleCopyItems}
-          onPaste={(() => {
-            if (clipboard.length === 0) return undefined;
-            const hasQuestionAnswer = clipboard.some(element => 
-              element.textType === 'question' || element.textType === 'answer'
-            );
-            if (hasQuestionAnswer) {
-              const currentPageId = state.currentBook?.pages[state.activePageIndex]?.id;
-              if (clipboard.some(element => element.pageId === currentPageId)) {
-                return undefined; // Hide paste option for same page
-              }
-              const currentPageNumber = state.activePageIndex + 1;
-              const assignedUser = state.pageAssignments[currentPageNumber];
-              if (assignedUser) {
-                const questionElements = clipboard.filter(el => el.textType === 'question' && el.questionId);
-                const userQuestions = getQuestionAssignmentsForUser(assignedUser.id);
-                const hasConflict = questionElements.some(el => userQuestions.has(el.questionId));
-                if (hasConflict) return undefined; // Hide paste option for conflicts
-              }
-            }
-            return handlePasteItems;
-          })()}
-          onMoveToFront={handleMoveToFront}
-          onMoveToBack={handleMoveToBack}
-          onMoveUp={handleMoveUp}
-          onMoveDown={handleMoveDown}
-          onGroup={handleGroup}
-          onUngroup={handleUngroup}
-          hasSelection={state.selectedElementIds.length > 0}
-          hasClipboard={clipboard.length > 0}
-          canGroup={state.selectedElementIds.length >= 2}
-          canUngroup={state.selectedElementIds.length === 1 && currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.type === 'group' || (state.selectedElementIds.length === 1 && currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.type === 'brush-multicolor')}
-        />
+
         </CanvasContainer>
-      
-      <Modal
-        isOpen={showImageModal}
-        onClose={handleImageModalClose}
-        title="Select Image"
-      >
-        <ImagesContent
-          token={token || ''}
-          mode="select"
-          onImageSelect={handleImageSelect}
-          onImageUpload={(imageUrl) => handleImageSelect(0, imageUrl)}
-          onClose={handleImageModalClose}
-        />
-      </Modal>
-      
-      <Modal
-        isOpen={showStickerModal}
-        onClose={handleStickerModalClose}
-        title="Select Sticker"
-      >
-        <StickerSelector
-          onBack={handleStickerModalClose}
-          onStickerSelect={handleStickerSelect}
-        />
-      </Modal>
-
-      
-      {showQuestionDialog && state.currentBook && token && user?.role !== 'author' && (
-        <QuestionSelectorModal
-          isOpen={showQuestionDialog}
-          onClose={() => {
-            setShowQuestionDialog(false);
-            setTimeout(() => setSelectedQuestionElementId(null), 100);
-          }}
-          onQuestionSelect={(questionId, questionText, questionPosition) => {
-                if (selectedQuestionElementId) {
-                  const element = currentPage?.elements.find(el => el.id === selectedQuestionElementId);
-                  
-                  if (element?.textType === 'qna') {
-                    // For QnA elements, update the element with questionId and load existing answer
-                    const updates = questionId === '' 
-                      ? { questionId: undefined }
-                      : { questionId: questionId };
-                    
-                    dispatch({
-                      type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                      payload: {
-                        id: selectedQuestionElementId,
-                        updates
-                      }
-                    });
-                    
-                    // Store question text in temp questions only if it doesn't exist yet
-                    if (questionId && questionId !== '' && questionText && !state.tempQuestions[questionId]) {
-                      dispatch({
-                        type: 'UPDATE_TEMP_QUESTION',
-                        payload: { questionId, text: questionText }
-                      });
-                    }
-                    
-                    // If questionId is provided, check for existing answer in tempAnswers
-                    if (questionId && questionId !== '') {
-                      const assignedUser = state.pageAssignments[state.activePageIndex + 1];
-                      const userIdToCheck = assignedUser?.id || user?.id;
-                      
-                      if (userIdToCheck) {
-                        const existingAnswer = getAnswerText(questionId, userIdToCheck);
-                        if (existingAnswer) {
-                          // Answer exists in tempAnswers, no need to do anything
-                          // The textbox will automatically display it via getDisplayText()
-                        }
-                      }
-                    }
-                  } else {
-                    // For regular question elements
-                    // Validate: Check if question already exists on this page
-                    if (questionId && questionId !== '' && currentPage) {
-                      const questionsOnPage = currentPage.elements
-                        .filter(el => el.id !== selectedQuestionElementId && el.questionId === questionId)
-                        .map(el => el.questionId);
-                      
-                      if (questionsOnPage.length > 0) {
-                        const element = currentPage.elements.find(el => el.id === selectedQuestionElementId);
-                        if (element) {
-                          setAlertMessage('This question already exists on this page.');
-                          const alertX = (element.x + (element.width || 100) / 2);
-                          const alertY = (element.y + (element.height || 50) + 10);
-                          setAlertPosition({ x: alertX, y: alertY });
-                          
-                          setTimeout(() => {
-                            setAlertMessage(null);
-                            setAlertPosition(null);
-                          }, 3000);
-                          return;
-                        }
-                      }
-                    }
-                    
-                    const updates = questionId === '' 
-                      ? { text: '', fontColor: '#9ca3af', questionId: undefined }
-                      : { text: questionText, fontColor: '#1f2937', questionId: questionId };
-                    dispatch({
-                      type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                      payload: {
-                        id: selectedQuestionElementId,
-                        updates
-                      }
-                    });
-                    
-                    const currentPageForAnswer = state.currentBook?.pages[state.activePageIndex];
-                    if (currentPageForAnswer) {
-                      const answerElement = currentPageForAnswer.elements.find(el => 
-                        el.textType === 'answer' && el.questionElementId === selectedQuestionElementId
-                      );
-                      if (answerElement) {
-                        if (questionId === '' || questionId === 0) {
-                          // If resetting question, clear answer text
-                          dispatch({
-                            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                            payload: {
-                              id: answerElement.id,
-                              updates: { text: '', formattedText: '', questionId: undefined }
-                            }
-                          });
-                        } else {
-                          // Load existing answer for the new question
-                          const assignedUser = state.pageAssignments[state.activePageIndex + 1];
-                          const userIdToCheck = assignedUser?.id || user?.id;
-                          
-                          if (userIdToCheck) {
-                            const existingAnswer = getAnswerText(questionId, userIdToCheck);
-                            
-                            dispatch({
-                              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                              payload: {
-                                id: answerElement.id,
-                                updates: { 
-                                  text: existingAnswer || '', 
-                                  formattedText: existingAnswer || '',
-                                  questionId: questionId
-                                }
-                              }
-                            });
-                            
-                            // Update temp answers to ensure consistency
-                            if (existingAnswer) {
-                              dispatch({
-                                type: 'UPDATE_TEMP_ANSWER',
-                                payload: {
-                                  questionId: questionId,
-                                  text: existingAnswer,
-                                  userId: userIdToCheck
-                                }
-                              });
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-                setShowQuestionDialog(false);
-                // Reset selectedQuestionElementId after a delay to allow questionSelected event to process
-                setTimeout(() => setSelectedQuestionElementId(null), 100);
-              }}
-        />
-      )}
-      
-      {showQuestionSelectorModal && state.currentBook && token && user?.role !== 'author' && questionSelectorElementId && (
-        <QuestionSelectorModal
-          isOpen={showQuestionSelectorModal}
-          onClose={() => {
-            setShowQuestionSelectorModal(false);
-            setTimeout(() => setQuestionSelectorElementId(null), 100);
-          }}
-          onQuestionSelect={(questionId, questionText, questionPosition) => {
-            if (questionSelectorElementId) {
-              const element = currentPage?.elements.find(el => el.id === questionSelectorElementId);
-              
-              if (element && element.textType === 'qna') {
-                // Calculate question order: use provided position, or count existing qna elements
-                let order = questionPosition;
-                if (order === undefined && currentPage) {
-                  const qnaElements = currentPage.elements.filter(
-                    el => el.textType === 'qna' && el.questionOrder !== undefined
-                  );
-                  order = qnaElements.length > 0 
-                    ? Math.max(...qnaElements.map(el => el.questionOrder || 0)) + 1
-                    : 0;
-                }
-                
-                // Update element with questionId and load question text
-                dispatch({
-                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                  payload: {
-                    id: questionSelectorElementId,
-                    updates: { 
-                      questionId: questionId || undefined, 
-                      text: questionText || '', 
-                      formattedText: questionText || '',
-                      questionOrder: order
-                    }
-                  }
-                });
-                
-                // Store question text in temp questions only if it doesn't exist yet
-                if (questionId && questionText) {
-                  dispatch({
-                    type: 'UPDATE_TEMP_QUESTION',
-                    payload: { questionId, text: questionText }
-                  });
-                }
-              } else if (element && element.textType === 'qna') {
-                dispatch({
-                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                  payload: {
-                    id: questionSelectorElementId,
-                    updates: {
-                      questionId: questionId || undefined
-                    }
-                  }
-                });
-                
-                if (questionId && questionText) {
-                  dispatch({
-                    type: 'UPDATE_TEMP_QUESTION',
-                    payload: { questionId, text: questionText }
-                  });
-                }
-
-                if (!questionId) {
-                  dispatch({
-                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                    payload: {
-                      id: questionSelectorElementId,
-                      updates: {
-                        text: '',
-                        formattedText: ''
-                      }
-                    }
-                  });
-                } else {
-                  const assignedUser = state.pageAssignments[state.activePageIndex + 1];
-                  const userIdToCheck = assignedUser?.id || user?.id;
-                  if (userIdToCheck) {
-                    const existingAnswer = getAnswerText(questionId, userIdToCheck);
-                    if (existingAnswer) {
-                      dispatch({
-                        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                        payload: {
-                          id: questionSelectorElementId,
-                          updates: {
-                            text: existingAnswer,
-                            formattedText: existingAnswer
-                          }
-                        }
-                      });
-                      dispatch({
-                        type: 'UPDATE_TEMP_ANSWER',
-                        payload: {
-                          questionId,
-                          text: existingAnswer,
-                          userId: userIdToCheck
-                        }
-                      });
-                    } else {
-                      dispatch({
-                        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                        payload: {
-                          id: questionSelectorElementId,
-                          updates: {
-                            text: '',
-                            formattedText: ''
-                          }
-                        }
-                      });
-                    }
-                  }
-                }
-              }
-            }
-            setShowQuestionSelectorModal(false);
-            setTimeout(() => setQuestionSelectorElementId(null), 100);
-          }}
-          elementId={questionSelectorElementId}
-        />
-      )}
       </CanvasPageContainer>
-      
-      {/* Alert notification */}
-      {alertMessage && alertPosition && (
-        <div 
-          className="fixed z-50 w-64"
-          style={{
-            left: `${alertPosition.x - 128}px`,
-            top: `${alertPosition.y}px`
-          }}
-        >
-          <Alert>{alertMessage}</Alert>
-        </div>
-      )}
 
-      {/* Tooltip für die inaktive Seite des Seitenpaares ("Click to enter this page.") */}
-      {inactivePageTooltip && (
-        <Tooltip
-          side="top"
-          content="Click to enter this page."
-          forceVisible
-          screenPosition={inactivePageTooltip}
-        >
-          <div />
-        </Tooltip>
-      )}
 
-      {/* Tooltip when user attempts to place elements outside the active page */}
-      {outsidePageTooltip && (
-        <Tooltip
-          side="top"
-          content="You cannot place elements outside of the active page."
-          backgroundColor="bg-destructive"
-          textColor="text-destructive-foreground"
-          forceVisible
-          screenPosition={{ x: outsidePageTooltip.x, y: outsidePageTooltip.y }}
-        >
-          <div />
-        </Tooltip>
-      )}
+      {/* Canvas UI Overlays */}
+      <CanvasOverlays
+        // Context Menu
+        contextMenu={contextMenu}
+        onDuplicate={handleDuplicateItems}
+        onDelete={handleDeleteItems}
+        onCopy={handleCopyItems}
+        onPaste={(() => {
+          if (clipboard.length === 0) return undefined;
+          const hasQuestionAnswer = clipboard.some(element =>
+            element.textType === 'question' || element.textType === 'answer'
+          );
+          if (hasQuestionAnswer) {
+            const currentPageId = state.currentBook?.pages[state.activePageIndex]?.id;
+            if (clipboard.some(element => element.pageId === currentPageId)) {
+              return undefined; // Hide paste option for same page
+            }
+            const currentPageNumber = state.activePageIndex + 1;
+            const assignedUser = state.pageAssignments[currentPageNumber];
+            if (assignedUser) {
+              const questionElements = clipboard.filter(el => el.textType === 'question' && el.questionId);
+              const userQuestions = getQuestionAssignmentsForUser(assignedUser.id);
+              const hasConflict = questionElements.some(el => userQuestions.has(el.questionId));
+              if (hasConflict) return undefined; // Hide paste option for conflicts
+            }
+          }
+          return handlePasteItems;
+        })()}
+        onMoveToFront={handleMoveToFront}
+        onMoveToBack={handleMoveToBack}
+        onMoveUp={handleMoveUp}
+        onMoveDown={handleMoveDown}
+        onGroup={handleGroup}
+        onUngroup={handleUngroup}
+        hasSelection={state.selectedElementIds.length > 0}
+        hasClipboard={clipboard.length > 0}
+        canGroup={state.selectedElementIds.length >= 2}
+        canUngroup={state.selectedElementIds.length === 1 && currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.type === 'group' || (state.selectedElementIds.length === 1 && currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.type === 'brush-multicolor')}
+
+        // Image Modal
+        showImageModal={showImageModal}
+        onImageModalClose={handleImageModalClose}
+        token={token || ''}
+        onImageSelect={handleImageSelect}
+
+        // Sticker Modal
+        showStickerModal={showStickerModal}
+        onStickerModalClose={handleStickerModalClose}
+        onStickerSelect={handleStickerSelect}
+
+        // Question Dialog
+        showQuestionDialog={showQuestionDialog}
+        onQuestionDialogClose={() => setShowQuestionDialog(false)}
+        onQuestionSelect={handleQuestionSelect}
+        selectedQuestionElementId={selectedQuestionElementId}
+        userRole={user?.role || ''}
+
+        // Question Selector Modal
+        showQuestionSelectorModal={showQuestionSelectorModal}
+        onQuestionSelectorModalClose={() => setShowQuestionSelectorModal(false)}
+        questionSelectorElementId={questionSelectorElementId}
+
+        // Alert
+        alertMessage={alertMessage}
+        alertPosition={alertPosition}
+
+        // Tooltips
+        inactivePageTooltip={inactivePageTooltip}
+        outsidePageTooltip={outsidePageTooltip}
+      />
     </CanvasOverlayProvider>
   );
 }

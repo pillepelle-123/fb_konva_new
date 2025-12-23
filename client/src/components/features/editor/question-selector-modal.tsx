@@ -20,7 +20,7 @@ interface QuestionPoolItem {
 interface QuestionSelectorModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onQuestionSelect: (questionId: string, questionText: string, questionPosition?: number) => void;
+  onQuestionSelect: (questionId: string, questionText: string, questionPosition?: number, elementId?: string) => void;
   elementId?: string;
 }
 
@@ -278,7 +278,7 @@ export function QuestionSelectorModal({
       });
       
       // Select the question immediately
-      onQuestionSelect(questionId, poolQuestion.question_text);
+      onQuestionSelect(questionId, poolQuestion.question_text, undefined, elementId);
       onClose();
     } catch (error) {
       console.error('Error adding question from pool:', error);
@@ -304,7 +304,7 @@ export function QuestionSelectorModal({
       position = question?.display_order ?? undefined;
     }
     
-    onQuestionSelect(questionId, questionText, position);
+    onQuestionSelect(questionId, questionText, position, elementId);
     onClose();
   };
   
@@ -365,7 +365,7 @@ export function QuestionSelectorModal({
   };
 
   const handleResetQuestion = () => {
-    onQuestionSelect('', '');
+    onQuestionSelect('', '', undefined, elementId);
     onClose();
   };
 
