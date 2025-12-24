@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from './auth-context';
 import { MIN_TOTAL_PAGES, MAX_TOTAL_PAGES } from '../constants/book-limits';
-import { getGlobalThemeDefaults } from '../utils/global-themes';
+import { getGlobalThemeDefaults, applyThemeToElementConsistent } from '../utils/global-themes';
 
 type LoadBookOptions = {
   pageOffset?: number;
@@ -3118,6 +3118,13 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         const shouldSetThemeId = action.payload.themeId !== '__BOOK_THEME__';
         
         if (appliedBackgroundImage) {
+          // Wenn die Seite die alte Theme-Palette verwendet hat, auf neue aktualisieren
+          const oldThemePaletteId = targetPageTheme.themeId ? getThemePaletteId(targetPageTheme.themeId) : null;
+          const newThemePaletteId = getThemePaletteId(action.payload.themeId);
+          if (targetPageTheme.colorPaletteId === oldThemePaletteId && newThemePaletteId) {
+            targetPageTheme.colorPaletteId = newThemePaletteId;
+          }
+
           if (shouldSetThemeId) {
             targetPageTheme.themeId = action.payload.themeId;
           } else {
@@ -3151,6 +3158,13 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             opacity: themeBackgroundOpacity,
             pageTheme: action.payload.themeId
           };
+        }
+
+        // Wenn die Seite die alte Theme-Palette verwendet hat, auf neue aktualisieren
+        const oldThemePaletteId = targetPageTheme.themeId ? getThemePaletteId(targetPageTheme.themeId) : null;
+        const newThemePaletteId = getThemePaletteId(action.payload.themeId);
+        if (targetPageTheme.colorPaletteId === oldThemePaletteId && newThemePaletteId) {
+          targetPageTheme.colorPaletteId = newThemePaletteId;
         }
 
         // Set or remove themeId based on whether page should inherit or have explicit theme
@@ -3279,38 +3293,11 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             const effectiveBookColorPaletteId = bookColorPaletteId || bookThemePaletteId;
             
             const activeTheme = action.payload.themeId || bookThemeId || 'default';
-            const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType as any, effectiveBookColorPaletteId);
-            
-            // Apply ALL theme properties including colors and fonts
-            const updatedElement: any = {
-              ...element,
-              ...themeDefaults,
-              theme: action.payload.themeId,
-              // Preserve essential properties that should never be overridden
-              id: element.id,
-              type: element.type,
-              x: element.x,
-              y: element.y,
-              width: element.width,
-              height: element.height,
-              text: element.text,
-              formattedText: element.formattedText,
-              textType: element.textType,
-              questionId: element.questionId,
-              answerId: element.answerId,
-              questionElementId: element.questionElementId,
-              src: element.src,
-              points: element.points
-            };
-            
-            // For free_text elements, ensure textSettings is properly structured
-            if (element.textType === 'free_text' && themeDefaults.textSettings) {
-              updatedElement.textSettings = {
-                ...(element.textSettings || {}),
-                ...themeDefaults.textSettings
-              };
-            }
-            
+
+            // Use centralized theme application function
+            const updatedElement = applyThemeToElementConsistent(element, activeTheme, effectiveBookColorPaletteId);
+
+            // Preserve colors if requested (for theme-only application)
             if (action.payload.preserveColors) {
               copyColorValues(element, updatedElement);
             }
@@ -3936,30 +3923,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                   pageTheme: themeOnlyId
                 },
           elements: page.elements.map(element => {
-            const toolType = element.textType || element.type;
-            const themeDefaults = getGlobalThemeDefaults(themeOnlyId, toolType as any, undefined);
-            
-            // Apply all theme properties including colors
-            return {
-              ...element,
-              ...themeDefaults,
-              theme: themeOnlyId,
-              // Preserve essential content properties
-              id: element.id,
-              type: element.type,
-              x: element.x,
-              y: element.y,
-              width: element.width,
-              height: element.height,
-              text: element.text,
-              formattedText: element.formattedText,
-              textType: element.textType,
-              questionId: element.questionId,
-              answerId: element.answerId,
-              questionElementId: element.questionElementId,
-              src: element.src,
-              points: element.points
-            };
+            // Use centralized theme application function with palette
+            return applyThemeToElementConsistent(element, themeOnlyId, paletteOverride?.id);
           })
         };
       };
@@ -4144,7 +4109,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         if (currentBackground.type === 'color') {
           updatedBackground = {
             ...currentBackground,
-            value: paletteParts.pageBackground
+            value: getPalettePartColor(appliedPalette, 'pageBackground', 'background', appliedPalette.colors.background)
           };
         } else if (currentBackground.type === 'pattern') {
           // For pattern backgrounds:
@@ -4152,8 +4117,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           // patternForegroundColor = color of the space between patterns - update from palette
           updatedBackground = {
             ...currentBackground,
-            patternBackgroundColor: paletteParts.pagePatternForeground,
-            patternForegroundColor: paletteParts.pagePatternBackground
+            patternBackgroundColor: getPalettePartColor(appliedPalette, 'pagePatternForeground', 'primary', appliedPalette.colors.primary),
+            patternForegroundColor: getPalettePartColor(appliedPalette, 'pagePatternBackground', 'background', appliedPalette.colors.background)
           };
         } else {
           // For 'image' type, preserve everything - color palette doesn't affect image backgrounds
@@ -4344,35 +4309,38 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                 }
               }
 
-            // Update direct font color properties
-            updates.fontColor = textColors.textColor;
-            updates.fill = textColors.textColor;
-            updates.borderColor = textColors.borderColor;
-            updates.backgroundColor = textColors.backgroundColor;
+            // Update direct font color properties - only for non-QnA text elements
+            // QnA elements get their colors from qnaColors (set earlier in this function)
+            if (element.textType !== 'qna') {
+              updates.fontColor = textColors.textColor;
+              updates.fill = textColors.textColor;
+              updates.borderColor = textColors.borderColor;
+              updates.backgroundColor = textColors.backgroundColor;
+            }
             }
             
             // Apply stroke color to shapes and lines
-          if (element.type === 'line' || element.type === 'circle' || element.type === 'rect' || 
+            if (element.type === 'line' || element.type === 'circle' || element.type === 'rect' ||
                 element.type === 'heart' || element.type === 'star' || element.type === 'triangle' ||
                 element.type === 'polygon' || element.type === 'speech-bubble' || element.type === 'dog' ||
                 element.type === 'cat' || element.type === 'smiley' || element.type === 'brush') {
-            const elementColors = getPaletteColors(element.type);
-            updates.stroke = elementColors.stroke || elementColors.primary;
-            }
-            
-            // Apply fill color to filled shapes - apply even if fill is missing or transparent
-            // This ensures palette colors are applied during reset
-            if (element.type === 'circle' || element.type === 'rect' || element.type === 'heart' || 
-                element.type === 'star' || element.type === 'triangle' || element.type === 'polygon' ||
-                element.type === 'speech-bubble' || element.type === 'dog' || element.type === 'cat' ||
-                element.type === 'smiley') {
-              // Only apply fill if element had a fill (not transparent) before
-              // But during reset, we want to apply palette colors
-              if (element.fill && element.fill !== 'transparent') {
-                updates.fill = elementColors.fill || elementColors.surface;
+              const elementColors = getPaletteColors('shape');
+              updates.stroke = elementColors.stroke || elementColors.primary;
+
+              // Apply fill color to filled shapes - apply even if fill is missing or transparent
+              // This ensures palette colors are applied during reset
+              if (element.type === 'circle' || element.type === 'rect' || element.type === 'heart' ||
+                  element.type === 'star' || element.type === 'triangle' || element.type === 'polygon' ||
+                  element.type === 'speech-bubble' || element.type === 'dog' || element.type === 'cat' ||
+                  element.type === 'smiley') {
+                // Only apply fill if element had a fill (not transparent) before
+                // But during reset, we want to apply palette colors
+                if (element.fill && element.fill !== 'transparent') {
+                  updates.fill = elementColors.fill || elementColors.surface;
+                }
+                // If element doesn't have fill or has transparent, don't change it
+                // (respects the element's original fill state)
               }
-              // If element doesn't have fill or has transparent, don't change it
-              // (respects the element's original fill state)
             }
             
             return { ...element, ...updates };

@@ -1322,63 +1322,68 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
   };
 }
 
-export function applyThemeToElement(element: CanvasElement, themeId: string): CanvasElement {
-  const themeDefaults = getGlobalThemeDefaults(themeId, element.type);
-  
-  // Apply all theme defaults including colors
-  const allDefaults = { ...themeDefaults };
-  
-  // Handle nested objects properly
-  if (themeDefaults.font) {
-    allDefaults.font = { ...element.font, ...themeDefaults.font };
-  }
-  
-  if (themeDefaults.border) {
-    allDefaults.border = { ...element.border, ...themeDefaults.border };
-  }
-  
-  if (themeDefaults.background) {
-    allDefaults.background = { ...element.background, ...themeDefaults.background };
-  }
-  
-  if (themeDefaults.ruledLines) {
-    allDefaults.ruledLines = { ...element.ruledLines, ...themeDefaults.ruledLines };
-  }
-  
-  return {
-    ...element,
-    ...allDefaults,
-    theme: themeId
-  };
-}
 
-export function applyThemeToAllElements(theme: any, elements: any[]): any[] {
-  return elements.map(element => {
-    const elementType = element.textType || element.type;
-    const themeDefaults = getGlobalThemeDefaults(theme.id || theme, elementType);
-    
-    // Apply only non-color properties
-    const nonColorUpdates = {};
-    
-    Object.keys(themeDefaults).forEach(key => {
-      if (!['stroke', 'fill', 'fontColor', 'borderColor', 'backgroundColor', 'ruledLinesColor'].includes(key)) {
-        if (key === 'font' || key === 'border' || key === 'background' || key === 'ruledLines') {
-          // Handle nested objects - preserve colors
-          const nested = themeDefaults[key];
-          const filteredNested = Object.fromEntries(
-            Object.entries(nested).filter(([nestedKey]) => 
-              !['fontColor', 'borderColor', 'backgroundColor', 'lineColor'].includes(nestedKey)
-            )
-          );
-          nonColorUpdates[key] = { ...element[key], ...filteredNested };
-        } else {
-          nonColorUpdates[key] = themeDefaults[key];
-        }
-      }
-    });
-    
-    return { ...element, ...nonColorUpdates };
-  });
+
+/**
+ * Zentrale Funktion für konsistente Theme-Anwendung
+ * Stellt sicher, dass immer die korrekte Palette berücksichtigt wird
+ */
+export function applyThemeToElementConsistent(
+  element: CanvasElement,
+  themeId: string,
+  paletteId?: string
+): CanvasElement {
+  const elementType = element.textType || element.type;
+
+  // Verwende getGlobalThemeDefaults mit Palette-Parameter für Konsistenz
+  const themeDefaults = getGlobalThemeDefaults(themeId, elementType, paletteId);
+
+  // Deep merge theme properties while preserving element content
+  const updatedElement: any = {
+    ...element,
+    ...themeDefaults,
+    theme: themeId,
+    // Preserve essential content properties
+    id: element.id,
+    type: element.type,
+    textType: element.textType,
+    x: element.x,
+    y: element.y,
+    width: element.width,
+    height: element.height,
+    rotation: element.rotation,
+  };
+
+  // Handle nested objects properly (deep merge)
+  if (themeDefaults.font && element.font) {
+    updatedElement.font = { ...element.font, ...themeDefaults.font };
+  }
+
+  if (themeDefaults.border && element.border) {
+    updatedElement.border = { ...element.border, ...themeDefaults.border };
+  }
+
+  if (themeDefaults.background && element.background) {
+    updatedElement.background = { ...element.background, ...themeDefaults.background };
+  }
+
+  if (themeDefaults.ruledLines && element.ruledLines) {
+    updatedElement.ruledLines = { ...element.ruledLines, ...themeDefaults.ruledLines };
+  }
+
+  if (themeDefaults.questionSettings && element.questionSettings) {
+    updatedElement.questionSettings = { ...element.questionSettings, ...themeDefaults.questionSettings };
+  }
+
+  if (themeDefaults.answerSettings && element.answerSettings) {
+    updatedElement.answerSettings = { ...element.answerSettings, ...themeDefaults.answerSettings };
+  }
+
+  if (themeDefaults.textSettings && element.textSettings) {
+    updatedElement.textSettings = { ...element.textSettings, ...themeDefaults.textSettings };
+  }
+
+  return updatedElement;
 }
 
 // Get page background colors from palette (not from themes.json)

@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { EditorContext } from '../../context/editor-context.tsx';
 import type { Book, Page, CanvasElement } from '../../context/editor-context.tsx';
-import { getGlobalThemeDefaults } from '../../utils/global-themes';
+import { applyThemeToElementConsistent } from '../../utils/global-themes';
 
 interface PDFExportEditorProviderProps {
   children: React.ReactNode;
@@ -13,58 +13,16 @@ export function PDFExportEditorProvider({
   bookData,
 }: PDFExportEditorProviderProps) {
   const state = useMemo(() => {
-    // Helper function to apply theme defaults to elements
+    // Helper function to apply theme defaults to elements using centralized function
     const applyThemeToElements = (elements: CanvasElement[], page: Page): CanvasElement[] => {
-      return elements.map((element) => {
-        const toolType = (element.textType || element.type) as any;
-        const pageThemeId = page.themeId || bookData.themeId || bookData.bookTheme || 'default';
-        const bookThemeId = bookData.themeId || bookData.bookTheme || 'default';
-        const pagePaletteId = page.colorPaletteId || bookData.colorPaletteId || null;
-        const bookPaletteId = bookData.colorPaletteId || null;
-        
-        const activeTheme = pageThemeId || bookThemeId || 'default';
-        const effectivePaletteId = pagePaletteId || bookPaletteId;
-        const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType, effectivePaletteId);
-        
-        // Merge theme defaults into element
-        const updatedElement: any = {
-          ...element,
-          ...themeDefaults,
-          theme: pageThemeId,
-          // Preserve element-specific properties
-          id: element.id,
-          type: element.type,
-          textType: element.textType,
-          x: element.x,
-          y: element.y,
-          width: element.width,
-          height: element.height,
-        };
-        
-        // Handle nested settings for qna
-        if (element.textType === 'qna' && themeDefaults.questionSettings) {
-          updatedElement.questionSettings = {
-            ...(element.questionSettings || {}),
-            ...themeDefaults.questionSettings,
-          };
-        }
-        if (element.textType === 'qna' && themeDefaults.answerSettings) {
-          updatedElement.answerSettings = {
-            ...(element.answerSettings || {}),
-            ...themeDefaults.answerSettings,
-          };
-        }
-        
-        // Handle nested settings for free_text
-        if (element.textType === 'free_text' && themeDefaults.textSettings) {
-          updatedElement.textSettings = {
-            ...(element.textSettings || {}),
-            ...themeDefaults.textSettings,
-          };
-        }
-        
-        return updatedElement;
-      });
+      const pageThemeId = page.themeId || bookData.themeId || bookData.bookTheme || 'default';
+      const pagePaletteId = page.colorPaletteId || bookData.colorPaletteId || null;
+      const bookPaletteId = bookData.colorPaletteId || null;
+      const effectivePaletteId = pagePaletteId || bookPaletteId;
+
+      return elements.map((element) =>
+        applyThemeToElementConsistent(element, pageThemeId, effectivePaletteId)
+      );
     };
 
     // Apply theme defaults to all pages

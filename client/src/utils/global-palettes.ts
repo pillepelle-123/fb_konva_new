@@ -181,6 +181,7 @@ export function getElementPaletteColors(palette: ColorPalette, elementType: stri
         strokeWidth: 2, // Default values, can be overridden
       };
 
+    case 'shape':
     case 'rect':
     case 'circle':
     case 'heart':

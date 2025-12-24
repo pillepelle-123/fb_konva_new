@@ -7,7 +7,7 @@ import type { BookOrientation, BookPageSize } from '../../../../constants/book-f
 import { convertTemplateToElements } from '../../../../utils/template-to-elements';
 import { calculatePageDimensions } from '../../../../utils/template-utils';
 import type { CanvasElement } from '../../../../context/editor-context';
-import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
+import { applyThemeToElementConsistent } from '../../../../utils/global-themes';
 
 type PreviewProviderProps = {
   children: React.ReactNode;
@@ -95,52 +95,12 @@ export function EditorPreviewProvider({
     // Berechne Canvas-Größe für die Preview
     const canvasSize = calculatePageDimensions(pageSize, orientation);
     
-    // Helper function to apply theme defaults to elements
+    // Helper function to apply theme defaults to elements using centralized function
     const applyThemeToElements = (elements: CanvasElement[]): CanvasElement[] => {
-      return elements.map((element) => {
-        const toolType = (element.textType || element.type) as any;
-        const activeTheme = themeId || 'default';
-        const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType, undefined);
-        
-        // Merge theme defaults into element
-        const updatedElement: any = {
-          ...element,
-          ...themeDefaults,
-          theme: themeId,
-          // Preserve element-specific properties
-          id: element.id,
-          type: element.type,
-          textType: element.textType,
-          x: element.x,
-          y: element.y,
-          width: element.width,
-          height: element.height,
-        };
-        
-        // Handle nested settings for qna
-        if (element.textType === 'qna' && themeDefaults.questionSettings) {
-          updatedElement.questionSettings = {
-            ...(element.questionSettings || {}),
-            ...themeDefaults.questionSettings,
-          };
-        }
-        if (element.textType === 'qna' && themeDefaults.answerSettings) {
-          updatedElement.answerSettings = {
-            ...(element.answerSettings || {}),
-            ...themeDefaults.answerSettings,
-          };
-        }
-        
-        // Handle nested settings for free_text
-        if (element.textType === 'free_text' && themeDefaults.textSettings) {
-          updatedElement.textSettings = {
-            ...(element.textSettings || {}),
-            ...themeDefaults.textSettings,
-          };
-        }
-        
-        return updatedElement;
-      });
+      const activeTheme = themeId || 'default';
+      return elements.map((element) =>
+        applyThemeToElementConsistent(element, activeTheme, paletteId)
+      );
     };
     
     // Verwende die zentrale convertTemplateToElements Funktion
