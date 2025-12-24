@@ -5,6 +5,7 @@
 /**
  * Calculate crop properties for an image to fit within a size without distortion
  * Based on: https://konvajs.org/docs/sandbox/Scale_Image_To_Fit.html
+ * Must match client-side implementation in image.tsx exactly
  * @param {HTMLImageElement|Object} image - Image element with width and height properties
  * @param {Object} size - Target size { width, height }
  * @param {string} clipPosition - Clip position (e.g., 'center-middle', 'left-top')
@@ -18,6 +19,7 @@ function getCrop(image, size, clipPosition = 'center-middle') {
   let newWidth;
   let newHeight;
 
+  // Use same image dimension access as client-side (image.width, image.height)
   const imageWidth = image.width || image.naturalWidth || 0;
   const imageHeight = image.height || image.naturalHeight || 0;
   const imageRatio = imageWidth / imageHeight;

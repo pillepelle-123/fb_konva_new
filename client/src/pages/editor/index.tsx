@@ -9,7 +9,6 @@ import ToolSettingsPanel, { type ToolSettingsPanelRef } from '../../components/f
 import { StatusBar } from '../../components/features/editor/status-bar';
 import { toast } from 'sonner';
 import QuestionSelectionHandler from '../../components/features/editor/question-selection-handler';
-import PagePreviewOverlay from '../../components/features/editor/preview/page-preview-overlay';
 import TemplateGallery from '../../components/templates/template-gallery';
 import { fetchTemplates, fetchColorPalettes, apiService } from '../../services/api';
 import { getGlobalTheme, getThemePageBackgroundColors } from '../../utils/global-themes';
@@ -23,8 +22,6 @@ function EditorContent() {
   const navigate = useNavigate();
   const { state, dispatch, loadBook, undo, redo, saveBook, canAccessEditor, canEditCanvas, ensurePagesLoaded } = useEditor();
   const toolSettingsPanelRef = useRef<ToolSettingsPanelRef>(null);
-  const [showPreview, setShowPreview] = useState(false);
-  const [previewContent, setPreviewContent] = useState<'preview' | 'manager'>('preview');
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
 
   const openPreviewOnLoad = useMemo(() => {
@@ -640,22 +637,9 @@ function EditorContent() {
         saveBook().then(() => {
           toast.success('Book saved successfully');
         }).catch(console.error);
-      } else if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
-        e.preventDefault();
-        setShowPreview(true);
       }
     };
 
-    const handleOpenManager = () => {
-      setPreviewContent('manager');
-      setShowPreview(true);
-    };
-    
-    const handleShowPDFExport = () => {
-      setPreviewContent('preview');
-      setShowPreview(true);
-    };
-    
     const handleAddPage = () => {
       if (!state.currentBook) return;
       const currentPageCount = state.currentBook.pages.length;
@@ -667,16 +651,12 @@ function EditorContent() {
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('openManager', handleOpenManager);
-    window.addEventListener('showPDFExport', handleShowPDFExport);
     window.addEventListener('addPage', handleAddPage);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('openManager', handleOpenManager);
-      window.removeEventListener('showPDFExport', handleShowPDFExport);
       window.removeEventListener('addPage', handleAddPage);
     };
-  }, [undo, redo, saveBook]);
+  }, [undo, redo, saveBook, state.currentBook, dispatch]);
 
   if (!state.currentBook) {
     return (
@@ -752,13 +732,7 @@ function EditorContent() {
             
             <StatusBar />
           </div>
-        
-        <PagePreviewOverlay 
-          isOpen={showPreview} 
-          onClose={() => setShowPreview(false)}
-          content={previewContent}
-        />
-        
+
         <TemplateGallery
           isOpen={showTemplateGallery}
           onClose={() => setShowTemplateGallery(false)}

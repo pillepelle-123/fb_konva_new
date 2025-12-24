@@ -7,7 +7,6 @@ import { ToolSettingsContent } from './tool-settings-content';
 import { Modal } from '../../../ui/overlays/modal';
 import { QuestionSelectorModal } from '../question-selector-modal';
 import ImagesContent from '../../images/images-content';
-import PagePreviewOverlay from '../preview/page-preview-overlay';
 import { SquareMousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile } from 'lucide-react';
 import { getBackgroundImagesWithUrl } from '../../../../data/templates/background-images';
 import { applyBackgroundImageTemplate } from '../../../../utils/background-image-utils';
@@ -57,11 +56,6 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
   const [showPageTheme, setShowPageTheme] = useState(false);
   const [showBookTheme, setShowBookTheme] = useState(false);
   const [showFontSelector, setShowFontSelector] = useState(false);
-  const [showTemplateOverlay, setShowTemplateOverlay] = useState(false);
-  const [showLayoutOverlay, setShowLayoutOverlay] = useState(false);
-  const [showBookLayoutOverlay, setShowBookLayoutOverlay] = useState(false);
-  const [showThemeOverlay, setShowThemeOverlay] = useState(false);
-  const [showPaletteOverlay, setShowPaletteOverlay] = useState(false);
   const [showBookPaletteOverlay, setShowBookPaletteOverlay] = useState(false);
   const [showBookChatPanel, setShowBookChatPanel] = useState(false);
   const [bookChatConversation, setBookChatConversation] = useState<Conversation | null>(null);
@@ -387,11 +381,6 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
             activeLinkedElement={activeLinkedElement}
             showFontSelector={showFontSelector}
             setShowFontSelector={setShowFontSelector}
-            onOpenTemplates={() => setShowTemplateOverlay(true)}
-            onOpenLayouts={() => setShowLayoutOverlay(true)}
-            onOpenBookLayouts={() => setShowBookLayoutOverlay(true)}
-            onOpenThemes={() => setShowThemeOverlay(true)}
-            onOpenPalettes={() => setShowPaletteOverlay(true)}
             onApplyBackgroundImage={handleApplyBackgroundImage}
           isBackgroundApplyDisabled={isBackgroundApplyDisabled}
           isBookChatAvailable={isBookChatAvailable}
@@ -590,40 +579,6 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
           onClose={() => setShowBackgroundImageModal(false)}
         />
       </Modal>
-      
-      <PagePreviewOverlay
-        isOpen={showTemplateOverlay}
-        onClose={() => setShowTemplateOverlay(false)}
-        content="templates"
-      />
-      
-      <PagePreviewOverlay
-        isOpen={showLayoutOverlay}
-        onClose={() => setShowLayoutOverlay(false)}
-        content="layouts"
-        isBookLevel={false}
-      />
-      
-      <PagePreviewOverlay
-        isOpen={showBookLayoutOverlay}
-        onClose={() => setShowBookLayoutOverlay(false)}
-        content="layouts"
-        isBookLevel={true}
-      />
-      
-      <PagePreviewOverlay
-        isOpen={showThemeOverlay}
-        onClose={() => setShowThemeOverlay(false)}
-        content="themes"
-        isBookLevel={false}
-      />
-      
-      <PagePreviewOverlay
-        isOpen={showPaletteOverlay}
-        onClose={() => setShowPaletteOverlay(false)}
-        content="palettes"
-        isBookLevel={false}
-      />
 
     </>
   );

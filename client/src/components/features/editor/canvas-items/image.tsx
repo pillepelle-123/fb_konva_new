@@ -249,6 +249,10 @@ export default function Image(props: CanvasItemProps) {
       setSize({ width: element.width || 150, height: element.height || 100 });
     }
   }, [element.width, element.height, element.rotation]);
+
+  // Calculate crop values for PDF export consistency
+  // Note: crop values are calculated on-demand during book save, not stored persistently
+  // This ensures they are always up-to-date with the current image and element dimensions
   
   // Listen for imageTransform event from canvas to update size during resize
   // This is needed because the Transformer is now on the Group, not the Image node

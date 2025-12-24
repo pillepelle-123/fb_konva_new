@@ -90,11 +90,6 @@ interface ToolSettingsContentProps {
   selectedQuestionElementId: string | null;
   setSelectedQuestionElementId: (value: string | null) => void;
   activeLinkedElement: string | null;
-  onOpenTemplates: () => void;
-  onOpenLayouts: () => void;
-  onOpenBookLayouts: () => void;
-  onOpenThemes: () => void;
-  onOpenPalettes: () => void;
   selectedBackgroundImageId?: string | null;
   onBackgroundImageSelect?: (imageId: string | null) => void;
   onApplyBackgroundImage?: () => void;
@@ -137,11 +132,6 @@ export function ToolSettingsContent({
   selectedQuestionElementId,
   setSelectedQuestionElementId,
   activeLinkedElement,
-  onOpenTemplates,
-  onOpenLayouts,
-  onOpenBookLayouts,
-  onOpenThemes,
-  onOpenPalettes,
   selectedBackgroundImageId,
   onBackgroundImageSelect,
   onApplyBackgroundImage,
@@ -1131,11 +1121,6 @@ export function ToolSettingsContent({
           setShowBackgroundImageModal={setShowBackgroundImageModal}
           showBackgroundImageTemplateSelector={showBackgroundImageTemplateSelector}
           setShowBackgroundImageTemplateSelector={setShowBackgroundImageTemplateSelector}
-          onOpenTemplates={onOpenTemplates}
-          onOpenLayouts={onOpenLayouts}
-          onOpenBookLayouts={onOpenBookLayouts}
-          onOpenThemes={onOpenThemes}
-          onOpenPalettes={onOpenPalettes}
           selectedBackgroundImageId={selectedBackgroundImageId}
           onBackgroundImageSelect={onBackgroundImageSelect}
           onApplyBackgroundImage={onApplyBackgroundImage}

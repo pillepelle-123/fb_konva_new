@@ -383,6 +383,11 @@ export interface CanvasElement {
   questionOrder?: number; // Order/position of the question in orderedQuestions (for maintaining question order)
   src?: string;
   imageOpacity?: number;
+  imageClipPosition?: 'left-top' | 'left-middle' | 'left-bottom' | 'center-top' | 'center-middle' | 'center-bottom' | 'right-top' | 'right-middle' | 'right-bottom';
+  cropX?: number;
+  cropY?: number;
+  cropWidth?: number;
+  cropHeight?: number;
   stickerId?: string;
   stickerFormat?: 'vector' | 'pixel';
   stickerFilePath?: string;
@@ -398,8 +403,11 @@ export interface CanvasElement {
   borderColor?: string;
   backgroundColor?: string;
   backgroundOpacity?: number;
+  cornerRadius?: number;
   padding?: number;
-  theme?: 'rough' | 'default' | 'chalk' | 'watercolor' | 'crayon' | 'candy' | 'zigzag' | 'multi-strokes';
+  theme?: 'rough' | 'default' | 'chalk' | 'watercolor' | 'crayon' | 'candy' | 'zigzag' | 'multi-strokes' | 'glow';
+  candyRandomness?: number;
+  candyIntensity?: number;
   // Backward compatibility
   fill?: string; // @deprecated - use fontColor instead
   // Group properties

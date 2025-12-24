@@ -3811,6 +3811,19 @@ export function PDFRenderer({
         }
         // Render image elements (including stickers and placeholders)
         else if (element.type === 'image' || element.type === 'sticker' || element.type === 'placeholder') {
+          // Debug: Log all crop properties for image elements
+          console.log('DEBUG: [PDFRenderer] Element crop properties for', element.id, ':', {
+            cropX: element.cropX,
+            cropY: element.cropY,
+            cropWidth: element.cropWidth,
+            cropHeight: element.cropHeight,
+            hasCropX: element.cropX !== undefined,
+            hasCropY: element.cropY !== undefined,
+            hasCropWidth: element.cropWidth !== undefined,
+            hasCropHeight: element.cropHeight !== undefined,
+            imageClipPosition: element.imageClipPosition
+          });
+
           console.log('[PDFRenderer] Rendering image element:', {
             elementId: element.id,
             elementType: element.type,
@@ -3942,9 +3955,25 @@ export function PDFRenderer({
               naturalHeight: img.naturalHeight
             });
             try {
-              // Calculate crop if needed
+              // Use stored crop values from database if available, otherwise calculate
               let cropProps = {};
-              if (element.imageClipPosition) {
+              if (element.cropX !== undefined && element.cropY !== undefined &&
+                  element.cropWidth !== undefined && element.cropHeight !== undefined) {
+                // Use stored crop values from database
+                cropProps = {
+                  cropX: element.cropX,
+                  cropY: element.cropY,
+                  cropWidth: element.cropWidth,
+                  cropHeight: element.cropHeight
+                };
+
+                console.log('✅ [PDFRenderer] Using stored crop values for image:', element.id, {
+                  elementSize: { width: elementWidth, height: elementHeight },
+                  imageSize: { width: img.width, height: img.height },
+                  storedCrop: cropProps
+                });
+              } else if (element.imageClipPosition) {
+                // Fallback: calculate crop values if not stored
                 try {
                   const crop = getCrop(img, { width: elementWidth, height: elementHeight }, element.imageClipPosition as any);
                   if (crop) {
@@ -3955,6 +3984,12 @@ export function PDFRenderer({
                       cropHeight: crop.cropHeight
                     };
                   }
+
+                  console.log('⚠️ [PDFRenderer] Calculated crop for image (fallback):', element.id, {
+                    elementSize: { width: elementWidth, height: elementHeight },
+                    imageSize: { width: img.width, height: img.height },
+                    calculatedCrop: cropProps
+                  });
                 } catch (error) {
                   console.warn('[PDFRenderer] Error calculating crop:', error);
                 }

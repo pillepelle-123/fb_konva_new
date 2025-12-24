@@ -2759,9 +2759,6 @@ export default function Canvas() {
         // } else if (e.key === 'w') {
         //   e.preventDefault();
         //   window.dispatchEvent(new CustomEvent('closeBook'));
-        } else if (e.key === 'p') {
-          e.preventDefault();
-          window.dispatchEvent(new CustomEvent('showPDFExport'));
         } else if (e.key === 'd' && state.selectedElementIds.length > 0) {
           e.preventDefault();
           itemActions.handleDuplicateItems();
@@ -2987,6 +2984,7 @@ export default function Canvas() {
       }
     };
   }, [currentPage, editingElement, selectedQuestionElementId, user]);
+
 
   // Expose stage reference for PDF export
   useEffect(() => {
@@ -4650,21 +4648,107 @@ export default function Canvas() {
                           const groupScaleY = groupNode.scaleY();
                           const baseWidth = element.width || 150;
                           const baseHeight = element.height || 100;
-                          
+
                           // Calculate final dimensions from Group scale
                           const finalWidth = Math.max(20, baseWidth * groupScaleX);
                           const finalHeight = Math.max(20, baseHeight * groupScaleY);
-                          
+
                           // Get rotation from Group node (Transformer is on Group now)
                           const groupRotation = groupNode.rotation();
-                          
+
                           updates.width = finalWidth;
                           updates.height = finalHeight;
                           updates.x = groupNode.x();
                           updates.y = groupNode.y();
                           // Always save rotation, even if it's 0 - explicitly set to ensure it's saved
                           updates.rotation = typeof groupRotation === 'number' ? groupRotation : 0;
-                          
+
+                          // Calculate and store crop values for PDF export consistency
+                          // This ensures server and client use exactly the same crop values
+                          if (imageNode.image()) {
+                            // Inline crop calculation matching client-side image component
+                            const img = imageNode.image();
+                            const clipPosition = element.imageClipPosition || 'center-middle';
+                            const width = finalWidth;
+                            const height = finalHeight;
+                            const aspectRatio = width / height;
+
+                            let newWidth;
+                            let newHeight;
+
+                            const imageWidth = img.width || img.naturalWidth || 0;
+                            const imageHeight = img.height || img.naturalHeight || 0;
+                            const imageRatio = imageWidth / imageHeight;
+
+                            if (aspectRatio >= imageRatio) {
+                              newWidth = imageWidth;
+                              newHeight = imageWidth / aspectRatio;
+                            } else {
+                              newWidth = imageHeight * aspectRatio;
+                              newHeight = imageHeight;
+                            }
+
+                            let x = 0;
+                            let y = 0;
+
+                            switch (clipPosition) {
+                              case 'left-top':
+                                x = 0;
+                                y = 0;
+                                break;
+                              case 'left-middle':
+                                x = 0;
+                                y = (imageHeight - newHeight) / 2;
+                                break;
+                              case 'left-bottom':
+                                x = 0;
+                                y = imageHeight - newHeight;
+                                break;
+                              case 'center-top':
+                                x = (imageWidth - newWidth) / 2;
+                                y = 0;
+                                break;
+                              case 'center-middle':
+                                x = (imageWidth - newWidth) / 2;
+                                y = (imageHeight - newHeight) / 2;
+                                break;
+                              case 'center-bottom':
+                                x = (imageWidth - newWidth) / 2;
+                                y = imageHeight - newHeight;
+                                break;
+                              case 'right-top':
+                                x = imageWidth - newWidth;
+                                y = 0;
+                                break;
+                              case 'right-middle':
+                                x = imageWidth - newWidth;
+                                y = (imageHeight - newHeight) / 2;
+                                break;
+                              case 'right-bottom':
+                                x = imageWidth - newWidth;
+                                y = imageHeight - newHeight;
+                                break;
+                              default:
+                                x = (imageWidth - newWidth) / 2;
+                                y = (imageHeight - newHeight) / 2;
+                            }
+
+                            updates.cropX = x;
+                            updates.cropY = y;
+                            updates.cropWidth = newWidth;
+                            updates.cropHeight = newHeight;
+
+                            console.log('Storing crop values for image:', element.id, {
+                              cropX: x,
+                              cropY: y,
+                              cropWidth: newWidth,
+                              cropHeight: newHeight,
+                              finalSize: { width: finalWidth, height: finalHeight },
+                              imageSize: { width: imageNode.image().width, height: imageNode.image().height },
+                              clipPosition: clipPosition
+                            });
+                          }
+
                           // Reset scale to 1 on Group (scale was converted to width/height)
                           groupNode.scaleX(1);
                           groupNode.scaleY(1);

@@ -167,22 +167,65 @@ function renderElement(layer, element, pageData, bookData, konvaInstance, docume
       
       img.onload = function() {
         const clipPosition = element.imageClipPosition || 'center-middle';
-        const crop = getCrop(img, { width: width, height: height }, clipPosition);
-        
+
+        // Debug: Log all element crop properties
+        console.log('DEBUG: Element crop properties for', element.id, ':', {
+          cropX: element.cropX,
+          cropY: element.cropY,
+          cropWidth: element.cropWidth,
+          cropHeight: element.cropHeight,
+          hasCropX: element.cropX !== undefined,
+          hasCropY: element.cropY !== undefined,
+          hasCropWidth: element.cropWidth !== undefined,
+          hasCropHeight: element.cropHeight !== undefined
+        });
+
+        // Use stored crop values from database if available, otherwise calculate
+        let finalCrop;
+        if (element.cropX !== undefined && element.cropY !== undefined &&
+            element.cropWidth !== undefined && element.cropHeight !== undefined) {
+          // Use stored crop values from database
+          finalCrop = {
+            cropX: element.cropX,
+            cropY: element.cropY,
+            cropWidth: element.cropWidth,
+            cropHeight: element.cropHeight
+          };
+
+          console.log('✅ Server using stored crop values for image:', element.id, {
+            elementSize: { width, height },
+            imageSize: { width: img.width, height: img.height },
+            clipPosition,
+            storedCrop: finalCrop
+          });
+        } else {
+          // Fallback: calculate crop values if not stored
+          const calculatedCrop = getCrop(img, { width: width, height: height }, clipPosition);
+
+          console.log('⚠️ Server calculated crop for image (fallback):', element.id, {
+            elementSize: { width, height },
+            imageSize: { width: img.width, height: img.height },
+            clipPosition,
+            calculatedCrop: calculatedCrop
+          });
+
+          finalCrop = calculatedCrop;
+        }
+
         // Slightly reduce corner radius to match client-side rendering
         // Reduce by a small amount to account for rendering differences
         const imageCornerRadius = element.cornerRadius ? Math.max(0, element.cornerRadius - 2) : 0;
-        
+
         const konvaImage = new Konva.Image({
           x: x,
           y: y,
           image: img,
           width: width,
           height: height,
-          cropX: crop.cropX,
-          cropY: crop.cropY,
-          cropWidth: crop.cropWidth,
-          cropHeight: crop.cropHeight,
+          cropX: finalCrop.cropX,
+          cropY: finalCrop.cropY,
+          cropWidth: finalCrop.cropWidth,
+          cropHeight: finalCrop.cropHeight,
           cornerRadius: imageCornerRadius,
           rotation: rotation,
           opacity: element.imageOpacity !== undefined ? element.imageOpacity : opacity,
