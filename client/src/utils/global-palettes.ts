@@ -201,7 +201,7 @@ export function getElementPaletteColors(palette: ColorPalette, elementType: stri
     case 'image':
     case 'placeholder':
       return {
-        borderColor: palette.colors.secondary,
+        borderColor: getColor('imageBorder', 'secondary', palette.colors.secondary),
         backgroundColor: palette.colors.background,
       };
 

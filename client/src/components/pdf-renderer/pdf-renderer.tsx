@@ -2603,9 +2603,12 @@ export function PDFRenderer({
           const currentPage = state.currentBook?.pages?.find(p => p.id === page.id) || page;
           const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
           const bookTheme = bookData?.themeId || bookData?.bookTheme;
+          const pageColorPaletteId = currentPage?.colorPaletteId;
+          const bookColorPaletteId = bookData?.colorPaletteId;
 
           const activeTheme = pageTheme || bookTheme || 'default';
-          const qnaDefaults = getGlobalThemeDefaults(activeTheme, 'qna', undefined);
+          const effectivePaletteId = pageColorPaletteId || bookColorPaletteId;
+          const qnaDefaults = getGlobalThemeDefaults(activeTheme, 'qna', effectivePaletteId);
 
 
           // Match client-side style extraction from textbox-qna.tsx
@@ -4021,13 +4024,14 @@ export function PDFRenderer({
                   let qnaDefaults;
                   try {
                     const activeTheme = pageTheme || bookTheme || 'default';
-                    qnaDefaults = getGlobalThemeDefaults(activeTheme, 'qna', undefined);
+                    const effectivePaletteId = pageColorPaletteId || bookColorPaletteId;
+                    qnaDefaults = getGlobalThemeDefaults(activeTheme, 'qna', effectivePaletteId);
                   } catch (error) {
                     console.warn('[PDFRenderer] Error getting tool defaults for frame, using fallback:', error);
                     qnaDefaults = { borderColor: '#1f2937' };
                   }
 
-                  const stroke = element.stroke && element.stroke !== '#1f2937' ? element.stroke : qnaDefaults.borderColor || '#1f2937';
+                  const stroke = element.borderColor || qnaDefaults.borderColor || '#1f2937';
                 const borderOpacity = element.borderOpacity !== undefined ? element.borderOpacity : 1;
                 const frameTheme = element.frameTheme || element.theme || 'default';
                 const cornerRadius = element.cornerRadius || 0;

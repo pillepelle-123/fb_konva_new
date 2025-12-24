@@ -24,7 +24,7 @@ function EditorContent() {
   const { state, dispatch, loadBook, undo, redo, saveBook, canAccessEditor, canEditCanvas, ensurePagesLoaded } = useEditor();
   const toolSettingsPanelRef = useRef<ToolSettingsPanelRef>(null);
   const [showPreview, setShowPreview] = useState(false);
-  const [previewContent, setPreviewContent] = useState<'preview' | 'questions' | 'manager'>('preview');
+  const [previewContent, setPreviewContent] = useState<'preview' | 'manager'>('preview');
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
 
   const openPreviewOnLoad = useMemo(() => {
@@ -645,12 +645,7 @@ function EditorContent() {
         setShowPreview(true);
       }
     };
-    
-    const handleOpenQuestions = () => {
-      setPreviewContent('questions');
-      setShowPreview(true);
-    };
-    
+
     const handleOpenManager = () => {
       setPreviewContent('manager');
       setShowPreview(true);
@@ -672,13 +667,11 @@ function EditorContent() {
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('openQuestions', handleOpenQuestions);
     window.addEventListener('openManager', handleOpenManager);
     window.addEventListener('showPDFExport', handleShowPDFExport);
     window.addEventListener('addPage', handleAddPage);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('openQuestions', handleOpenQuestions);
       window.removeEventListener('openManager', handleOpenManager);
       window.removeEventListener('showPDFExport', handleShowPDFExport);
       window.removeEventListener('addPage', handleAddPage);

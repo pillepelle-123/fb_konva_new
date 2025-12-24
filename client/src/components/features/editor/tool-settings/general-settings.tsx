@@ -1,7 +1,7 @@
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import { Button } from '../../../ui/primitives/button';
-import { ChevronLeft, Settings, Image, PaintBucket, CircleHelp, LayoutPanelLeft, Paintbrush2, Palette, ArrowDown, ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight, MessagesSquare, Columns3Cog } from 'lucide-react';
+import { ChevronLeft, Settings, Image, PaintBucket, LayoutPanelLeft, Paintbrush2, Palette, ArrowDown, ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight, MessagesSquare, Columns3Cog } from 'lucide-react';
 import { RadioGroup } from '../../../ui/primitives/radio-group';
 import { ButtonGroup } from '../../../ui/composites/button-group';
 import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
@@ -1503,15 +1503,6 @@ export function GeneralSettings({
                     Chat
                   </Button>
                 )}
-                <Button
-                  variant="ghost_hover"
-                  size="sm"
-                  onClick={() => window.dispatchEvent(new CustomEvent('openQuestions'))}
-                  className="w-full justify-start"
-                >
-                  <CircleHelp className="h-4 w-4 mr-2" />
-                  Questions
-                </Button>
                 <Button
                     variant="ghost_hover"
                     size="sm"

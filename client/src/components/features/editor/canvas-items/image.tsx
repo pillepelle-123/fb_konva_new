@@ -133,13 +133,13 @@ export default function Image(props: CanvasItemProps) {
 
   const qnaDefaults = useMemo(() => {
     const activeTheme = pageTheme || bookTheme || 'default';
-    return getGlobalThemeDefaults(activeTheme, 'qna', undefined);
+    const effectivePaletteId = pageColorPaletteId || bookColorPaletteId;
+    return getGlobalThemeDefaults(activeTheme, 'qna', effectivePaletteId);
   }, [
     pageTheme,
     bookTheme,
-    pageLayoutTemplateId,
-    pageTheme,
-    bookTheme
+    pageColorPaletteId,
+    bookColorPaletteId
   ]);
 
   const handleDoubleClick = () => {
@@ -390,7 +390,7 @@ export default function Image(props: CanvasItemProps) {
             const frameTheme = element.frameTheme || element.theme || 'default';
             const cornerRadius = element.cornerRadius || 0;
 
-            const stroke = element.stroke && element.stroke !== '#1f2937' ? element.stroke : qnaDefaults.borderColor || '#1f2937';
+            const stroke = element.borderColor || qnaDefaults.borderColor || '#1f2937';
             
             if (!frameEnabled || strokeWidth === 0) {
               return null;
