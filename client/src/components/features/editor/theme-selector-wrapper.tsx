@@ -3,7 +3,7 @@ import { Button } from '../../ui/primitives/button';
 import { Check, X } from 'lucide-react';
 import { ThemeSelector } from './templates/theme-selector';
 import { useEditor } from '../../../context/editor-context';
-import { getGlobalTheme, getThemePageBackgroundColors } from '../../../utils/global-themes';
+import { getGlobalTheme, getThemePageBackgroundColors, getThemePaletteId } from '../../../utils/global-themes';
 import { PreviewImageDialog } from './preview/preview-image-dialog';
 import { exportCanvasAsImage } from '../../../utils/canvas-export';
 import Konva from 'konva';
@@ -262,30 +262,28 @@ export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: The
       const theme = getGlobalTheme(resolvedThemeId);
       const currentPage = state.currentBook?.pages[state.activePageIndex];
       if (theme && currentPage) {
-        const activePaletteId =
-          currentPage.colorPaletteId ||
-          state.currentBook?.colorPaletteId ||
-          null;
-        const paletteOverride = activePaletteId
-          ? colorPalettes.find(palette => palette.id === activePaletteId) || null
-          : null;
-        
-        // Apply palette colors to elements if palette is available
-        if (paletteOverride) {
-          dispatch({
-            type: 'APPLY_COLOR_PALETTE',
-            payload: {
-              palette: paletteOverride,
-              pageIndex: state.activePageIndex,
-              applyToAllPages: false,
-              skipHistory: true
-            }
-          });
+        // Automatisch die neue Theme-Palette anwenden
+        // SET_PAGE_THEME hat die colorPaletteId aktualisiert - jetzt die Elemente neu einfärben
+        const newThemePaletteId = getThemePaletteId(resolvedThemeId);
+        let newPalette: any = null;
+        if (newThemePaletteId) {
+          newPalette = colorPalettes.find(p => p.id === newThemePaletteId);
+          if (newPalette) {
+            dispatch({
+              type: 'APPLY_COLOR_PALETTE',
+              payload: {
+                palette: newPalette,
+                pageIndex: state.activePageIndex,
+                applyToAllPages: false,
+                skipHistory: true
+              }
+            });
+          }
         }
-        
+
         const pageColors = getThemePageBackgroundColors(
           resolvedThemeId,
-          paletteOverride || undefined
+          newPalette || undefined  // Verwende die neue Palette für Background-Berechnung
         );
         const backgroundOpacity = theme.pageSettings.backgroundOpacity || 1;
 

@@ -1010,7 +1010,7 @@ export function PaletteSelector({ onBack, title, isBookLevel = false, previewPos
                 className="py-5 px-3 h-8"
               >
                 <Check className="h-4 w-4 mr-1" />
-                Apply
+                Applyssss
               </Button>
             </div>
           </>

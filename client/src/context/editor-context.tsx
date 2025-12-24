@@ -3121,8 +3121,73 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           // Wenn die Seite die alte Theme-Palette verwendet hat, auf neue aktualisieren
           const oldThemePaletteId = targetPageTheme.themeId ? getThemePaletteId(targetPageTheme.themeId) : null;
           const newThemePaletteId = getThemePaletteId(action.payload.themeId);
-          if (targetPageTheme.colorPaletteId === oldThemePaletteId && newThemePaletteId) {
+          const wasUsingThemePalette = targetPageTheme.colorPaletteId === oldThemePaletteId;
+
+          if (wasUsingThemePalette && newThemePaletteId) {
             targetPageTheme.colorPaletteId = newThemePaletteId;
+
+            // Da vorher "Theme's Default Palette" aktiv war, Elemente mit neuen Palette-Farben neu einfärben
+            const newPalette = colorPalettes.find(p => p.id === newThemePaletteId);
+            if (newPalette) {
+              targetPageTheme.elements = targetPageTheme.elements.map(element => {
+                // Korrekte Element-Typ-Bestimmung
+                const elementType = element.textType || element.type;
+                const elementColors = getElementPaletteColors(newPalette, elementType);
+
+                const updatedElement: any = { ...element };
+
+                // Nur Farbeigenschaften aktualisieren, andere Theme-Eigenschaften beibehalten
+                if (elementType === 'qna') {
+                  // QnA spezifische Farben
+                  if (element.questionSettings) {
+                    updatedElement.questionSettings = {
+                      ...element.questionSettings,
+                      fontColor: elementColors.qnaQuestionText
+                    };
+                  }
+                  if (element.answerSettings) {
+                    updatedElement.answerSettings = {
+                      ...element.answerSettings,
+                      fontColor: elementColors.qnaAnswerText
+                    };
+                  }
+                  updatedElement.borderColor = elementColors.qnaQuestionBorder;
+                  updatedElement.backgroundColor = elementColors.qnaBackground;
+                  // Ruled lines für QnA
+                  if (element.ruledLinesColor !== undefined) {
+                    updatedElement.ruledLinesColor = elementColors.qnaAnswerRuledLines;
+                  }
+                } else if (elementType === 'free_text') {
+                  // Free text spezifische Farben
+                  updatedElement.textSettings = {
+                    ...element.textSettings,
+                    fontColor: elementColors.freeTextText,
+                    borderColor: elementColors.freeTextBorder,
+                    backgroundColor: elementColors.freeTextBackground,
+                    ruledLinesColor: elementColors.freeTextRuledLines
+                  };
+                } else if (elementType === 'text' || elementType === 'question' || elementType === 'answer') {
+                  // Standard-Text Elemente
+                  updatedElement.textColor = elementColors.textColor;
+                  updatedElement.borderColor = elementColors.borderColor;
+                  updatedElement.backgroundColor = elementColors.backgroundColor;
+                  updatedElement.ruledLinesColor = elementColors.ruledLinesColor;
+                } else if (['brush', 'line'].includes(elementType)) {
+                  updatedElement.stroke = elementColors.stroke;
+                } else if (['circle', 'rect', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(elementType)) {
+                  updatedElement.stroke = elementColors.stroke;
+                  // Fill nur aktualisieren wenn Element gefüllt ist
+                  if (element.fill && element.fill !== 'transparent') {
+                    updatedElement.fill = elementColors.fill;
+                  }
+                } else if (['image', 'placeholder'].includes(elementType)) {
+                  updatedElement.borderColor = elementColors.borderColor;
+                  updatedElement.backgroundColor = elementColors.backgroundColor;
+                }
+
+                return updatedElement;
+              });
+            }
           }
 
           if (shouldSetThemeId) {
@@ -3163,8 +3228,73 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         // Wenn die Seite die alte Theme-Palette verwendet hat, auf neue aktualisieren
         const oldThemePaletteId = targetPageTheme.themeId ? getThemePaletteId(targetPageTheme.themeId) : null;
         const newThemePaletteId = getThemePaletteId(action.payload.themeId);
-        if (targetPageTheme.colorPaletteId === oldThemePaletteId && newThemePaletteId) {
+        const wasUsingThemePalette = targetPageTheme.colorPaletteId === oldThemePaletteId;
+
+        if (wasUsingThemePalette && newThemePaletteId) {
           targetPageTheme.colorPaletteId = newThemePaletteId;
+
+          // Da vorher "Theme's Default Palette" aktiv war, Elemente mit neuen Palette-Farben neu einfärben
+          const newPalette = colorPalettes.find(p => p.id === newThemePaletteId);
+          if (newPalette) {
+            targetPageTheme.elements = targetPageTheme.elements.map(element => {
+              // Korrekte Element-Typ-Bestimmung
+              const elementType = element.textType || element.type;
+              const elementColors = getElementPaletteColors(newPalette, elementType);
+
+              const updatedElement: any = { ...element };
+
+              // Nur Farbeigenschaften aktualisieren, andere Theme-Eigenschaften beibehalten
+              if (elementType === 'qna') {
+                // QnA spezifische Farben
+                if (element.questionSettings) {
+                  updatedElement.questionSettings = {
+                    ...element.questionSettings,
+                    fontColor: elementColors.qnaQuestionText
+                  };
+                }
+                if (element.answerSettings) {
+                  updatedElement.answerSettings = {
+                    ...element.answerSettings,
+                    fontColor: elementColors.qnaAnswerText
+                  };
+                }
+                updatedElement.borderColor = elementColors.qnaQuestionBorder;
+                updatedElement.backgroundColor = elementColors.qnaBackground;
+                // Ruled lines für QnA
+                if (element.ruledLinesColor !== undefined) {
+                  updatedElement.ruledLinesColor = elementColors.qnaAnswerRuledLines;
+                }
+              } else if (elementType === 'free_text') {
+                // Free text spezifische Farben
+                updatedElement.textSettings = {
+                  ...element.textSettings,
+                  fontColor: elementColors.freeTextText,
+                  borderColor: elementColors.freeTextBorder,
+                  backgroundColor: elementColors.freeTextBackground,
+                  ruledLinesColor: elementColors.freeTextRuledLines
+                };
+              } else if (elementType === 'text' || elementType === 'question' || elementType === 'answer') {
+                // Standard-Text Elemente
+                updatedElement.textColor = elementColors.textColor;
+                updatedElement.borderColor = elementColors.borderColor;
+                updatedElement.backgroundColor = elementColors.backgroundColor;
+                updatedElement.ruledLinesColor = elementColors.ruledLinesColor;
+              } else if (['brush', 'line'].includes(elementType)) {
+                updatedElement.stroke = elementColors.stroke;
+              } else if (['circle', 'rect', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(elementType)) {
+                updatedElement.stroke = elementColors.stroke;
+                // Fill nur aktualisieren wenn Element gefüllt ist
+                if (element.fill && element.fill !== 'transparent') {
+                  updatedElement.fill = elementColors.fill;
+                }
+              } else if (['image', 'placeholder'].includes(elementType)) {
+                updatedElement.borderColor = elementColors.borderColor;
+                updatedElement.backgroundColor = elementColors.backgroundColor;
+              }
+
+              return updatedElement;
+            });
+          }
         }
 
         // Set or remove themeId based on whether page should inherit or have explicit theme
