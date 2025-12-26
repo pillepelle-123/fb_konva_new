@@ -1667,6 +1667,16 @@ export function PDFRenderer({
                         lineNode.shadowOffsetY(strokeProps.shadowOffsetY || 0);
                       }
                     }
+
+                    // Set z-order attributes for inline layout ruled lines
+                    const zOrderIndex = elementIdToZOrder.get(element.id);
+                    if (zOrderIndex !== undefined) {
+                      lineNode.setAttr('__zOrderIndex', zOrderIndex);
+                      lineNode.setAttr('__isQnaNode', true);
+                      lineNode.setAttr('__elementId', element.id);
+                      lineNode.setAttr('__nodeType', 'qna-line');
+                    }
+
                     layer.add(lineNode);
                     ruledLinesRenderedCount++;
                   }
@@ -1787,8 +1797,17 @@ export function PDFRenderer({
                         lineNode.shadowOffsetY(strokeProps.shadowOffsetY || 0);
                       }
                     }
-                  
+
                   if (lineNode) {
+                    // Set z-order attributes for inline layout ruled lines
+                    const zOrderIndex = elementIdToZOrder.get(element.id);
+                    if (zOrderIndex !== undefined) {
+                      lineNode.setAttr('__zOrderIndex', zOrderIndex);
+                      lineNode.setAttr('__isQnaNode', true);
+                      lineNode.setAttr('__elementId', element.id);
+                      lineNode.setAttr('__nodeType', 'qna-line');
+                    }
+
                     layer.add(lineNode);
                     ruledLinesRenderedCount++;
                   }
@@ -2048,7 +2067,16 @@ export function PDFRenderer({
                     listening: false,
                     visible: true
                   });
-                  
+
+                  // Set z-order attributes for question text (block layout)
+                  const questionZOrderIndex = elementIdToZOrder.get(element.id);
+                  if (questionZOrderIndex !== undefined) {
+                    questionNode.setAttr('__zOrderIndex', questionZOrderIndex);
+                    questionNode.setAttr('__isQnaNode', true);
+                    questionNode.setAttr('__elementId', element.id);
+                    questionNode.setAttr('__nodeType', 'qna-text');
+                  }
+
                   layer.add(questionNode);
                   currentLine = word;
                   currentY += qLineHeight;
@@ -2074,7 +2102,16 @@ export function PDFRenderer({
                   listening: false,
                   visible: true
                 });
-                
+
+                // Set z-order attributes for question text (block layout)
+                const questionZOrderIndex = elementIdToZOrder.get(element.id);
+                if (questionZOrderIndex !== undefined) {
+                  questionNode.setAttr('__zOrderIndex', questionZOrderIndex);
+                  questionNode.setAttr('__isQnaNode', true);
+                  questionNode.setAttr('__elementId', element.id);
+                  questionNode.setAttr('__nodeType', 'qna-text');
+                }
+
                 layer.add(questionNode);
               }
             }
@@ -2130,7 +2167,16 @@ export function PDFRenderer({
                       listening: false,
                       visible: true
                     });
-                    
+
+                    // Set z-order attributes for answer text (block layout)
+                    const answerZOrderIndex = elementIdToZOrder.get(element.id);
+                    if (answerZOrderIndex !== undefined) {
+                      answerNode.setAttr('__zOrderIndex', answerZOrderIndex);
+                      answerNode.setAttr('__isQnaNode', true);
+                      answerNode.setAttr('__elementId', element.id);
+                      answerNode.setAttr('__nodeType', 'qna-text');
+                    }
+
                     layer.add(answerNode);
                     currentLine = word;
                     currentY += aLineHeight;
@@ -2156,7 +2202,16 @@ export function PDFRenderer({
                     listening: false,
                     visible: true
                   });
-                  
+
+                  // Set z-order attributes for answer text (block layout)
+                  const answerZOrderIndex = elementIdToZOrder.get(element.id);
+                  if (answerZOrderIndex !== undefined) {
+                    answerNode.setAttr('__zOrderIndex', answerZOrderIndex);
+                    answerNode.setAttr('__isQnaNode', true);
+                    answerNode.setAttr('__elementId', element.id);
+                    answerNode.setAttr('__nodeType', 'qna-text');
+                  }
+
                   layer.add(answerNode);
                   currentY += aLineHeight;
                 }
@@ -2304,7 +2359,16 @@ export function PDFRenderer({
                   listening: false,
                   visible: true
                 });
-                
+
+                // Set z-order attributes for question text
+                const questionZOrderIndex = elementIdToZOrder.get(element.id);
+                if (questionZOrderIndex !== undefined) {
+                  questionNode.setAttr('__zOrderIndex', questionZOrderIndex);
+                  questionNode.setAttr('__isQnaNode', true);
+                  questionNode.setAttr('__elementId', element.id);
+                  questionNode.setAttr('__nodeType', 'qna-text');
+                }
+
                 layer.add(questionNode);
               });
               
@@ -2495,7 +2559,16 @@ export function PDFRenderer({
                             listening: false,
                             visible: true
                           });
-                          
+
+                          // Set z-order attributes for answer text
+                          const answerZOrderIndex = elementIdToZOrder.get(element.id);
+                          if (answerZOrderIndex !== undefined) {
+                            answerNode.setAttr('__zOrderIndex', answerZOrderIndex);
+                            answerNode.setAttr('__isQnaNode', true);
+                            answerNode.setAttr('__elementId', element.id);
+                            answerNode.setAttr('__nodeType', 'qna-text');
+                          }
+
                           layer.add(answerNode);
                           isFirstLine = false;
                         } else {
@@ -4524,11 +4597,14 @@ export function PDFRenderer({
                     }
                     
                   layer.add(borderPath);
-                  const themedZOrderIndex = elementIdToZOrder.get(element.id);
-                  if (themedZOrderIndex !== undefined) {
-                    borderPath.setAttr('__zOrderIndex', themedZOrderIndex + 0.1); // Border slightly above fill
+                  // Set z-order attributes for ALL borders
+                  const borderZOrderIndex = elementIdToZOrder.get(element.id);
+                  if (borderZOrderIndex !== undefined) {
+                    borderPath.setAttr('__zOrderIndex', borderZOrderIndex);
                     borderPath.setAttr('__elementId', element.id);
-                    }
+                    borderPath.setAttr('__isQnaNode', element.textType === 'qna');
+                    borderPath.setAttr('__nodeType', element.textType === 'qna' ? 'qna-border' : undefined);
+                  }
                   }
 
                   console.log('[PDFRenderer] Created themed shape (Candy/Wobbly):', {
@@ -4837,9 +4913,19 @@ export function PDFRenderer({
             }
           }
           
-          // If element has zOrderIndex, use it; otherwise infer from current position
-          // Background elements should have zOrder -1 to be sorted first
-          const elementZOrder = isBackground ? -1 : (zOrder !== undefined ? zOrder : (i - 1));
+          // Determine zOrder: Backgrounds first, then QnA nodes by elementId, then by zOrderIndex, then by position
+          let elementZOrder;
+          if (isBackground) {
+            elementZOrder = -1; // Backgrounds always first
+          } else if (isQnaNode && elementId) {
+            // QnA nodes get zOrder from their elementId (all parts of a QnA element have same zOrder)
+            elementZOrder = elementIdToZOrder.get(elementId) ?? 0;
+          } else if (zOrder !== undefined) {
+            elementZOrder = zOrder; // Use existing zOrderIndex
+        } else {
+          // Fallback: for elements with elementId undefined (likely client-side rendered elements), give them the highest zOrder
+          elementZOrder = elementId ? (i - 1) : Math.max(...Array.from(elementIdToZOrder.values()));
+        }
           
           allElements.push({
             node: child,

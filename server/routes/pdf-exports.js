@@ -234,9 +234,9 @@ async function loadBookDataFromDB(bookId, userId) {
                 questionId = questionElement.questionId;
               }
             }
-            
+
             if (questionId) {
-              const assignedUserAnswer = answersResult.rows.find(a => 
+              const assignedUserAnswer = answersResult.rows.find(a =>
                 a.question_id === questionId && a.user_id === pageAssignment.user_id
               );
               if (assignedUserAnswer) {
@@ -250,6 +250,26 @@ async function loadBookDataFromDB(bookId, userId) {
             }
           }
         }
+
+        // Update QnA elements with actual answer text
+        if (element.textType === 'qna' && element.questionId) {
+          const pageAssignment = assignmentsResult.rows.find(pa => pa.page_id === page.id);
+          if (pageAssignment) {
+            const assignedUserAnswer = answersResult.rows.find(a =>
+              a.question_id === element.questionId && a.user_id === pageAssignment.user_id
+            );
+            if (assignedUserAnswer) {
+              // For QnA elements, store the answer in a special field that renderQnA can use
+              return {
+                ...element,
+                answerText: assignedUserAnswer.answer_text || '',
+                formattedAnswerText: assignedUserAnswer.formatted_text || assignedUserAnswer.answer_text || '',
+                answerId: assignedUserAnswer.id
+              };
+            }
+          }
+        }
+
         return element;
       });
 

@@ -163,8 +163,16 @@ function renderQnA(layer, element, pageData, bookData, x, y, width, height, rota
     console.log('No questionId for element:', element.id);
   }
   
-  // Get answer text - match client-side logic exactly
-  let answerText = element.text || element.formattedText || '';
+  // Get answer text - for QnA elements, use answerText field set during PDF export data loading
+  let answerText = '';
+  if (element.textType === 'qna') {
+    // For QnA elements in PDF export, answerText is set during data loading
+    answerText = element.answerText || element.formattedAnswerText || '';
+  } else {
+    // Fallback for legacy elements
+    answerText = element.text || element.formattedText || '';
+  }
+
   if (answerText && answerText.includes('<')) {
     answerText = extractPlainText(answerText, document);
   }
