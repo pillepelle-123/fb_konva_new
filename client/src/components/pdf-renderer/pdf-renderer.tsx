@@ -1427,8 +1427,10 @@ export function PDFRenderer({
                 const canFitOnSameLine = firstAnswerWord && availableWidthAfterQuestion > 0 && answerContext.measureText(firstAnswerWord).width <= availableWidthAfterQuestion;
                 
                 // Generate ruled lines based on layout
-                // KORRIGIERT: Verwende maxFontSize * 0.8 statt 0.6, um dem Client-Code (fontSize * 0.8) zu entsprechen
-                const combinedLineBaseline = effectivePadding + ((questionLineCount - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.9);
+                // KORRIGIERT: Dynamische Anpassung des Offsets basierend auf qFontSize
+                // Bei größeren Schriftgrößen wird ein größerer Offset nach unten verwendet, um Überlappungen zu vermeiden
+                const questionBaselineMultiplier = qFontSize >= 145 ? 1.1 : qFontSize >= 96 ? 1.0 : qFontSize >= 50 ? 0.9 : 0.8;
+                const combinedLineBaseline = effectivePadding + ((questionLineCount - 1) * combinedLineHeight) + textBaselineOffset + (qFontSize * questionBaselineMultiplier);
                 const answerBaselineOffset = -(aFontSize * getLineHeightMultiplier(aParagraphSpacing) * 0.15) + (aFontSize * (aFontSize >= 50 ? aFontSize >= 96 ? aFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1));
                 
                 // Generate lines for question lines if needed
@@ -1438,9 +1440,10 @@ export function PDFRenderer({
                     : questionLineCount;
                   
                   for (let questionLineIndex = 0; questionLineIndex < maxQuestionLineIndex; questionLineIndex++) {
-                    // KORRIGIERT: Verwende maxFontSize * 0.8 statt 0.6, um dem Client-Code (fontSize * 0.8) zu entsprechen
-                    // Das korrigiert die Position nach unten
-                    const questionLineBaseline = effectivePadding + (questionLineIndex * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.9);
+                    // KORRIGIERT: Dynamische Anpassung des Offsets basierend auf qFontSize
+                    // Bei größeren Schriftgrößen wird ein größerer Offset nach unten verwendet, um Überlappungen zu vermeiden
+                    const questionBaselineMultiplier = qFontSize >= 145 ? 1.1 : qFontSize >= 96 ? 1.0 : qFontSize >= 50 ? 0.9 : 0.8;
+                    const questionLineBaseline = effectivePadding + (questionLineIndex * combinedLineHeight) + textBaselineOffset + (qFontSize * questionBaselineMultiplier);
                     const baseline = questionLineBaseline + answerBaselineOffset;
                     const lineY = elementY + baseline + (aFontSize * 0.15);
                     
