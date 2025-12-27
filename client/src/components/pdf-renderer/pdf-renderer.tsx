@@ -1427,7 +1427,8 @@ export function PDFRenderer({
                 const canFitOnSameLine = firstAnswerWord && availableWidthAfterQuestion > 0 && answerContext.measureText(firstAnswerWord).width <= availableWidthAfterQuestion;
                 
                 // Generate ruled lines based on layout
-                const combinedLineBaseline = effectivePadding + ((questionLineCount - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6);
+                // KORRIGIERT: Verwende maxFontSize * 0.8 statt 0.6, um dem Client-Code (fontSize * 0.8) zu entsprechen
+                const combinedLineBaseline = effectivePadding + ((questionLineCount - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.9);
                 const answerBaselineOffset = -(aFontSize * getLineHeightMultiplier(aParagraphSpacing) * 0.15) + (aFontSize * (aFontSize >= 50 ? aFontSize >= 96 ? aFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1));
                 
                 // Generate lines for question lines if needed
@@ -1437,8 +1438,10 @@ export function PDFRenderer({
                     : questionLineCount;
                   
                   for (let questionLineIndex = 0; questionLineIndex < maxQuestionLineIndex; questionLineIndex++) {
-                    const questionLineBaseline = effectivePadding + (questionLineIndex * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6);
-                    const baseline = questionLineBaseline + answerBaselineOffset + (aFontSize * 0.6);
+                    // KORRIGIERT: Verwende maxFontSize * 0.8 statt 0.6, um dem Client-Code (fontSize * 0.8) zu entsprechen
+                    // Das korrigiert die Position nach unten
+                    const questionLineBaseline = effectivePadding + (questionLineIndex * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.9);
+                    const baseline = questionLineBaseline + answerBaselineOffset;
                     const lineY = elementY + baseline + (aFontSize * 0.15);
                     
                     if (isFinite(lineY) && !isNaN(lineY) && lineY < elementY + dynamicHeight - padding - 10) {
@@ -1562,7 +1565,9 @@ export function PDFRenderer({
                 console.log('  combinedLineBaseline:', combinedLineBaseline);
                 
                 while (answerLineIndex < 1000) { // Safety limit
-                  const answerBaseline = combinedLineBaseline + (answerLineIndex * aLineHeight) + answerBaselineOffset + (aFontSize * 0.6);
+                  // KORRIGIERT: Entferne (aFontSize * 0.6) - dieses Offset verursacht den 22px Versatz
+                  // Im Client-Code wird nur baselineY + fontSize * 0.15 verwendet
+                  const answerBaseline = combinedLineBaseline + (answerLineIndex * aLineHeight) + answerBaselineOffset;
                   const lineY = elementY + answerBaseline + (aFontSize * 0.15);
                   
                   if (!isFinite(lineY) || lineY === Infinity || isNaN(lineY) || lineY >= endY) break;
