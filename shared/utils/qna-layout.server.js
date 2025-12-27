@@ -349,7 +349,22 @@ function createLayout(params) {
             
             // Update cursorY to account for combined line height (use larger line height)
             const combinedLineHeight = Math.max(questionLineHeight, answerLineHeight);
+            // CRITICAL: Use the combinedLineHeight directly without adding extra spacing
+            // The combinedLineHeight already provides the correct spacing to the next line
+            const oldCursorY = cursorY;
             cursorY = padding + ((questionLines.length - 1) * questionLineHeight) + combinedLineHeight;
+            
+            // DEBUG: Log cursor position changes for combined line
+            console.log('[DEBUG qna-layout.server] Combined line cursorY calculation:', {
+              oldCursorY: oldCursorY,
+              newCursorY: cursorY,
+              padding: padding,
+              questionLinesCount: questionLines.length,
+              questionLineHeight: questionLineHeight,
+              answerLineHeight: answerLineHeight,
+              combinedLineHeight: combinedLineHeight,
+              calculation: `${padding} + ((${questionLines.length} - 1) * ${questionLineHeight}) + ${combinedLineHeight} = ${cursorY}`
+            });
             
             // Update the last line position for ruled lines (use combined line height)
             if (linePositions.length > 0) {
@@ -403,8 +418,20 @@ function createLayout(params) {
   // If answerInNewRow is true, questionAnswerGap applies vertically
   // Otherwise, use standard spacing (questionAnswerGap only applies horizontally via inlineGap)
   const verticalGap = answerInNewRow ? questionAnswerGap : 0;
-  const baseVerticalSpacing = questionLines.length ? answerLineHeight * 0.2 : 0;
+  const baseVerticalSpacing = (questionLines.length && !startAtSameLine) ? answerLineHeight * 0.2 : 0;
+  // CRITICAL: When startAtSameLine is true, use cursorY directly without any additional spacing
+  // The combinedLineHeight calculation already set cursorY to the correct position
   let answerCursorY = startAtSameLine ? cursorY : cursorY + baseVerticalSpacing + verticalGap;
+  
+  // DEBUG: Log answerCursorY calculation
+  console.log('[DEBUG qna-layout.server] answerCursorY calculation:', {
+    startAtSameLine: startAtSameLine,
+    cursorY: cursorY,
+    baseVerticalSpacing: baseVerticalSpacing,
+    verticalGap: verticalGap,
+    answerCursorY: answerCursorY,
+    calculation: startAtSameLine ? 'cursorY (no spacing)' : `cursorY + baseVerticalSpacing + verticalGap = ${cursorY} + ${baseVerticalSpacing} + ${verticalGap} = ${answerCursorY}`
+  });
 
   // Render leading empty lines based on leadingBreaks count
   // One \n means answer starts on next line (no empty line)
@@ -451,6 +478,18 @@ function createLayout(params) {
 
     const answerBaselineY = answerCursorY + answerBaselineOffset;
     const textX = calculateTextX(line.text, answerStyle, padding, availableWidth, ctx);
+    
+    // DEBUG: Log first answer line position
+    if (runs.filter(r => r.style === answerStyle).length === 0) {
+      console.log('[DEBUG qna-layout.server] First answer line position:', {
+        answerCursorY: answerCursorY,
+        answerBaselineOffset: answerBaselineOffset,
+        answerBaselineY: answerBaselineY,
+        lineText: line.text.substring(0, 20) + '...',
+        startAtSameLine: startAtSameLine
+      });
+    }
+    
     runs.push({
       text: line.text,
       x: textX,

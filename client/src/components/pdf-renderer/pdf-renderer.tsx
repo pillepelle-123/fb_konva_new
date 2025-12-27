@@ -30,6 +30,73 @@ interface PDFRendererProps {
   onRenderComplete?: () => void;
 }
 
+// Helper function to apply opacity to color
+// Converts hex/rgb colors to rgba with specified opacity
+const applyOpacityToColor = (color: string, opacity: number): string => {
+  // Clamp opacity to valid range
+  const clampedOpacity = Math.max(0, Math.min(1, opacity));
+  
+  // If opacity is 1, return original color
+  if (clampedOpacity === 1) {
+    return color;
+  }
+  
+  // Handle hex colors
+  if (color.startsWith('#')) {
+    return hexToRgba(color, clampedOpacity);
+  }
+  
+  // Handle rgb colors
+  if (color.startsWith('rgb(')) {
+    const rgbMatch = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+    if (rgbMatch) {
+      return `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${clampedOpacity})`;
+    }
+  }
+  
+  // Handle rgba colors (replace existing alpha)
+  if (color.startsWith('rgba(')) {
+    const rgbaMatch = color.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*[\d.]+\)/);
+    if (rgbaMatch) {
+      return `rgba(${rgbaMatch[1]}, ${rgbaMatch[2]}, ${rgbaMatch[3]}, ${clampedOpacity})`;
+    }
+  }
+  
+  // For other color formats, return as-is (named colors, etc.)
+  return color;
+};
+
+// Helper function to standardize opacity calculation for QnA elements
+// This simplifies the complex opacity fallback chain and ensures consistent behavior
+const getStandardizedOpacity = (element: any, property: 'background' | 'border' | 'ruledLines' | 'font', defaultOpacity: number = 1): number => {
+  // Direct property check first (most specific)
+  const directProperty = `${property}Opacity`;
+  if (element[directProperty] !== undefined && typeof element[directProperty] === 'number') {
+    return Math.max(0, Math.min(1, element[directProperty]));
+  }
+  
+  // Check nested background object
+  if (property === 'background' && element.background) {
+    if (element.background.opacity !== undefined && typeof element.background.opacity === 'number') {
+      return Math.max(0, Math.min(1, element.background.opacity));
+    }
+    if (element.background.backgroundOpacity !== undefined && typeof element.background.backgroundOpacity === 'number') {
+      return Math.max(0, Math.min(1, element.background.backgroundOpacity));
+    }
+  }
+  
+  // Check question/answer settings
+  if (element.questionSettings && element.questionSettings[directProperty] !== undefined) {
+    return Math.max(0, Math.min(1, element.questionSettings[directProperty]));
+  }
+  if (element.answerSettings && element.answerSettings[directProperty] !== undefined) {
+    return Math.max(0, Math.min(1, element.answerSettings[directProperty]));
+  }
+  
+  // Return default
+  return defaultOpacity;
+};
+
 // Helper function to resolve font family using getFontFamilyByName
 // Extracts font name from font family string and resolves it properly
 // IMPORTANT: If fontFamilyRaw is already a full CSS string (contains comma), use it directly
@@ -1007,70 +1074,23 @@ export function PDFRenderer({
           
           if (showBackground) {
             const backgroundColor = element.backgroundColor || questionStyle.background?.backgroundColor || answerStyle.background?.backgroundColor || 'transparent';
-            // Use backgroundOpacity (standardized property)
-            const backgroundOpacity = element.backgroundOpacity ?? 
-              (element as any).background?.opacity ??
-              (element as any).background?.backgroundOpacity ??
-              (element as any).questionSettings?.backgroundOpacity ??
-              (element as any).answerSettings?.backgroundOpacity ??
-              questionStyle.background?.opacity ?? 
-              answerStyle.background?.opacity ?? 
-              questionStyle.backgroundOpacity ?? 
-              answerStyle.backgroundOpacity ?? 
-              1;
+            // Use standardized opacity calculation
+            const backgroundOpacity = getStandardizedOpacity(element, 'background', 1);
             const cornerRadius = element.cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
             
-            // Debug: Log background rendering - show all opacity-related properties
-            console.log('[DEBUG PDFRenderer] QnA Background rendered (first path):');
+            // Debug: Log simplified background rendering info
+            console.log('[DEBUG PDFRenderer] QnA Background rendered (simplified):');
             console.log('  elementId:', element.id);
             console.log('  backgroundColor:', backgroundColor);
-            console.log('  element.backgroundOpacity:', element.backgroundOpacity);
-            console.log('  element.background.opacity:', (element as any).background?.opacity);
-            console.log('  element.backgroundOpacity:', element.backgroundOpacity);
-            console.log('  element.background.opacity:', (element as any).background?.opacity);
-            console.log('  element.background.backgroundOpacity:', (element as any).background?.backgroundOpacity);
-            console.log('  element.opacity:', element.opacity);
-            const opacityKeys = Object.keys(element).filter(k => k.toLowerCase().includes('opacity'));
-            const fillKeys = Object.keys(element).filter(k => k.toLowerCase().includes('fill'));
-            console.log('  All element opacity keys:', opacityKeys);
-            console.log('  All element fill keys:', fillKeys);
-            // Log actual values for opacity and fill keys
-            opacityKeys.forEach(key => {
-              console.log(`  element.${key}:`, (element as any)[key]);
-            });
-            fillKeys.forEach(key => {
-              console.log(`  element.${key}:`, (element as any)[key]);
-            });
-            // Log answerSettings and questionSettings
-            console.log('  element.answerSettings:', (element as any).answerSettings);
-            console.log('  element.questionSettings:', (element as any).questionSettings);
-            console.log('  element.answerSettings?.backgroundOpacity:', (element as any).answerSettings?.backgroundOpacity);
-            console.log('  element.questionSettings?.backgroundOpacity:', (element as any).questionSettings?.backgroundOpacity);
-            console.log('  element.answerSettings?.backgroundOpacity:', (element as any).answerSettings?.backgroundOpacity);
-            console.log('  element.questionSettings?.backgroundOpacity:', (element as any).questionSettings?.backgroundOpacity);
-            console.log('  questionStyle.background?.opacity:', questionStyle.background?.opacity);
-            console.log('  answerStyle.background?.opacity:', answerStyle.background?.opacity);
-            console.log('  questionStyle.backgroundOpacity:', questionStyle.backgroundOpacity);
-            console.log('  answerStyle.backgroundOpacity:', answerStyle.backgroundOpacity);
-            console.log('  backgroundOpacity (final):', backgroundOpacity);
+            console.log('  backgroundOpacity (standardized):', backgroundOpacity);
             console.log('  elementOpacity:', elementOpacity);
             console.log('  finalOpacity:', backgroundOpacity * elementOpacity);
             
             if (backgroundColor !== 'transparent' && backgroundColor) {
               const finalOpacity = backgroundOpacity * elementOpacity;
               
-              // Apply opacity directly to fill color (RGBA) instead of using opacity property
-              // This ensures opacity is preserved during PDF export
-              let fillColor = backgroundColor;
-              if (finalOpacity < 1 && backgroundColor.startsWith('#')) {
-                fillColor = hexToRgba(backgroundColor, finalOpacity);
-              } else if (finalOpacity < 1 && backgroundColor.startsWith('rgb')) {
-                // Convert rgb to rgba
-                const rgbMatch = backgroundColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
-                if (rgbMatch) {
-                  fillColor = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${finalOpacity})`;
-                }
-              }
+              // Apply opacity directly to fill color using the utility function
+              const fillColor = applyOpacityToColor(backgroundColor, finalOpacity);
               
               const bgRect = new Konva.Rect({
                 x: elementX,
@@ -1090,11 +1110,10 @@ export function PDFRenderer({
               // Verify opacity is set correctly
               console.log('[DEBUG PDFRenderer] QnA Background opacity verification:', {
                 elementId: element.id,
+                originalColor: backgroundColor,
                 finalOpacity: finalOpacity,
-                fillColor: fillColor,
-                originalBackgroundColor: backgroundColor,
-                bgRectFill: bgRect.fill(),
-                bgRectOpacity: bgRect.opacity()
+                appliedColor: fillColor,
+                konvaOpacity: bgRect.opacity()
               });
               
               // Store z-order on background rect
@@ -1187,7 +1206,7 @@ export function PDFRenderer({
             const aTheme = element.ruledLinesTheme || 'rough';
             const aColor = element.ruledLinesColor || '#1f2937';
             const aWidth = element.ruledLinesWidth || 0.8;
-            const aOpacity = element.ruledLinesOpacity ?? 1;
+            const aOpacity = getStandardizedOpacity(element, 'ruledLines', 1);
             // aFontSize, aLineHeight, effectivePadding, combinedLineHeight, textBaselineOffset are already defined above
             const startX = elementX + padding;
             const endX = elementX + elementWidth - padding;
@@ -1836,7 +1855,7 @@ export function PDFRenderer({
           if (showBorder) {
             const borderColor = element.borderColor || questionStyle.border?.borderColor || answerStyle.border?.borderColor || '#000000';
             const borderWidth = element.borderWidth || questionStyle.borderWidth || answerStyle.borderWidth || 1;
-            const borderOpacity = element.borderOpacity ?? questionStyle.borderOpacity ?? answerStyle.borderOpacity ?? 1;
+            const borderOpacity = getStandardizedOpacity(element, 'border', 1);
             const cornerRadius = element.cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
             const theme = element.borderTheme || questionStyle.borderTheme || answerStyle.borderTheme || 'default';
             
@@ -1965,13 +1984,13 @@ export function PDFRenderer({
             const qFontItalic = questionStyle.fontItalic ?? false;
             const qFontFamily = resolveFontFamily(questionStyle.fontFamily, qFontBold, qFontItalic);
             const qFontColor = questionStyle.fontColor || '#666666';
-            const qFontOpacity = questionStyle.fontOpacity ?? 1;
+            const qFontOpacity = getStandardizedOpacity(element, 'font', questionStyle.fontOpacity ?? 1);
             
             const aFontBold = answerStyle.fontBold ?? false;
             const aFontItalic = answerStyle.fontItalic ?? false;
             const aFontFamily = resolveFontFamily(answerStyle.fontFamily, aFontBold, aFontItalic);
             const aFontColor = answerStyle.fontColor || '#1f2937';
-            const aFontOpacity = answerStyle.fontOpacity ?? 1;
+            const aFontOpacity = getStandardizedOpacity(element, 'font', answerStyle.fontOpacity ?? 1);
             
             let questionArea = { x: elementX + padding, y: elementY + padding, width: textWidth, height: dynamicHeight - padding * 2 };
             let answerArea = { x: elementX + padding, y: elementY + padding, width: textWidth, height: dynamicHeight - padding * 2 };
@@ -2585,7 +2604,9 @@ export function PDFRenderer({
                           const answerBaselineOffsetLocal = -(aFontSize * getLineHeightMultiplier(aParagraphSpacing) * 0.15) + (aFontSize * (aFontSize >= 50 ? aFontSize >= 96 ? aFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1));
                           totalAnswerLineCount = firstLineSegmentCount - 1;
                           const answerLineIndex = totalAnswerLineCount - 1;
-                          const answerBaseline = combinedLineBaseline + (answerLineIndex * aLineHeight) + answerBaselineOffsetLocal + (aFontSize * 0.6);
+                          // FIXED: Dynamic offset based on font size for proper spacing
+                          const dynamicOffset = aFontSize >= 96 ? aFontSize * 0.4 : aFontSize >= 50 ? aFontSize * 0.3 : aFontSize * 0.2;
+                          const answerBaseline = combinedLineBaseline + (answerLineIndex * aLineHeight) + answerBaselineOffsetLocal + dynamicOffset;
                           const answerY = answerBaseline - (aFontSize * 0.8);
                           
                           const answerNode = new Konva.Text({
@@ -2612,7 +2633,9 @@ export function PDFRenderer({
                         const combinedLineBaseline = effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6);
                         const answerBaselineOffsetLocal = -(aFontSize * getLineHeightMultiplier(aParagraphSpacing) * 0.15) + (aFontSize * (aFontSize >= 50 ? aFontSize >= 96 ? aFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1));
                         totalAnswerLineCount++;
-                        const answerBaseline = combinedLineBaseline + (totalAnswerLineCount * aLineHeight) + answerBaselineOffsetLocal + (aFontSize * 0.6);
+                        // FIXED: Dynamic offset based on font size for proper spacing
+                        const dynamicOffset = aFontSize >= 96 ? aFontSize * 0.4 : aFontSize >= 50 ? aFontSize * 0.3 : aFontSize * 0.2;
+                        const answerBaseline = combinedLineBaseline + (totalAnswerLineCount * aLineHeight) + answerBaselineOffsetLocal + dynamicOffset;
                         const answerY = answerBaseline - (aFontSize * 0.8);
                         
                         const answerNode = new Konva.Text({

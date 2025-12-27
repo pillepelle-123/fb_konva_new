@@ -432,6 +432,8 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
             
             // Update cursorY to account for combined line height (use larger line height)
             const combinedLineHeight = Math.max(questionLineHeight, answerLineHeight);
+            // CRITICAL: Use the combinedLineHeight directly without adding extra spacing
+            // The combinedLineHeight already provides the correct spacing to the next line
             cursorY = padding + ((questionLines.length - 1) * questionLineHeight) + combinedLineHeight;
             
             // Update the last line position for ruled lines (use combined line height)
@@ -486,7 +488,9 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
   // If answerInNewRow is true, questionAnswerGap applies vertically
   // Otherwise, use standard spacing (questionAnswerGap only applies horizontally via inlineGap)
   const verticalGap = answerInNewRow ? questionAnswerGap : 0;
-  const baseVerticalSpacing = questionLines.length ? answerLineHeight * 0.2 : 0;
+  const baseVerticalSpacing = (questionLines.length && !startAtSameLine) ? answerLineHeight * 0.2 : 0;
+  // CRITICAL: When startAtSameLine is true, use cursorY directly without any additional spacing
+  // The combinedLineHeight calculation already set cursorY to the correct position
   let answerCursorY = startAtSameLine ? cursorY : cursorY + baseVerticalSpacing + verticalGap;
 
   // Render leading empty lines based on leadingBreaks count
