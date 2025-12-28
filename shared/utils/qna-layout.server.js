@@ -6,6 +6,13 @@
 const { wrapText, measureText, calculateTextX, getLineHeight } = require('./text-layout.server');
 
 /**
+ * Consistent baseline offset for ruled lines (in pixels)
+ * This creates a uniform gap between text baseline and ruled line,
+ * regardless of font size
+ */
+const RULED_LINE_BASELINE_OFFSET = 12;
+
+/**
  * Create block layout for question and answer text
  */
 function createBlockLayout(params) {
@@ -78,7 +85,7 @@ function createBlockLayout(params) {
         // Only add line position if ruledLinesTarget is 'question'
         if (ruledLinesTarget === 'question') {
           linePositions.push({
-            y: baselineY + questionStyle.fontSize * 0.15,
+            y: baselineY + RULED_LINE_BASELINE_OFFSET,
             lineHeight: questionLineHeight,
             style: questionStyle
           });
@@ -89,7 +96,7 @@ function createBlockLayout(params) {
         if (ruledLinesTarget === 'question') {
           const baselineY = cursorY + questionBaselineOffset;
           linePositions.push({
-            y: baselineY + questionStyle.fontSize * 0.15,
+            y: baselineY + RULED_LINE_BASELINE_OFFSET,
             lineHeight: questionLineHeight,
             style: questionStyle
           });
@@ -117,7 +124,7 @@ function createBlockLayout(params) {
         // Only add line position if ruledLinesTarget is 'answer'
         if (ruledLinesTarget === 'answer') {
           linePositions.push({
-            y: baselineY + answerStyle.fontSize * 0.15,
+            y: baselineY + RULED_LINE_BASELINE_OFFSET,
             lineHeight: answerLineHeight,
             style: answerStyle
           });
@@ -128,7 +135,7 @@ function createBlockLayout(params) {
         if (ruledLinesTarget === 'answer') {
           const baselineY = cursorY + answerBaselineOffset;
           linePositions.push({
-            y: baselineY + answerStyle.fontSize * 0.15,
+            y: baselineY + RULED_LINE_BASELINE_OFFSET,
             lineHeight: answerLineHeight,
             style: answerStyle
           });
@@ -212,7 +219,7 @@ function createLayout(params) {
       });
       // Track line position for ruled lines (position line slightly below text baseline)
       linePositions.push({
-        y: baselineY + questionStyle.fontSize * 0.15,
+        y: baselineY + RULED_LINE_BASELINE_OFFSET,
         lineHeight: questionLineHeight,
         style: questionStyle
       });
@@ -223,7 +230,7 @@ function createLayout(params) {
       questionLinePositions.push(baselineY);
       // Track empty line position for ruled lines
       linePositions.push({
-        y: baselineY + questionStyle.fontSize * 0.15,
+        y: baselineY + RULED_LINE_BASELINE_OFFSET,
         lineHeight: questionLineHeight,
         style: questionStyle
       });
@@ -369,7 +376,7 @@ function createLayout(params) {
             // Update the last line position for ruled lines (use combined line height)
             if (linePositions.length > 0) {
               linePositions[linePositions.length - 1] = {
-                y: combinedBaselineY + Math.max(questionStyle.fontSize, answerStyle.fontSize) * 0.15,
+                y: combinedBaselineY + RULED_LINE_BASELINE_OFFSET,
                 lineHeight: combinedLineHeight,
                 style: answerStyle // Use answer style for combined line
               };
@@ -442,7 +449,7 @@ function createLayout(params) {
   for (let i = 0; i < emptyLinesToRender; i++) {
     const answerBaselineY = answerCursorY + answerBaselineOffset;
     linePositions.push({
-      y: answerBaselineY + answerStyle.fontSize * 0.15,
+      y: answerBaselineY + RULED_LINE_BASELINE_OFFSET,
       lineHeight: answerLineHeight,
       style: answerStyle
     });
@@ -458,7 +465,7 @@ function createLayout(params) {
     for (let i = 0; i < blanksToRender; i += 1) {
       const answerBaselineY = answerCursorY + answerBaselineOffset;
       linePositions.push({
-        y: answerBaselineY + answerStyle.fontSize * 0.15,
+        y: answerBaselineY + RULED_LINE_BASELINE_OFFSET,
         lineHeight: answerLineHeight,
         style: answerStyle
       });
@@ -497,7 +504,7 @@ function createLayout(params) {
       style: answerStyle
     });
     linePositions.push({
-      y: answerBaselineY + answerStyle.fontSize * 0.15,
+      y: answerBaselineY + RULED_LINE_BASELINE_OFFSET,
       lineHeight: answerLineHeight,
       style: answerStyle
     });

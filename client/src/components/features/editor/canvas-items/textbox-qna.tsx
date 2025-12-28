@@ -107,6 +107,13 @@ const getLineHeight = FEATURE_FLAGS.USE_SHARED_TEXT_LAYOUT ? sharedGetLineHeight
   return style.fontSize * (LINE_HEIGHT[spacing] ?? 1.2);
 };
 
+/**
+ * Consistent baseline offset for ruled lines (in pixels)
+ * This creates a uniform gap between text baseline and ruled line,
+ * regardless of font size
+ */
+const RULED_LINE_BASELINE_OFFSET = 12;
+
 function stripHtml(text: string) {
   if (!text) return '';
   if (typeof document === 'undefined') {
@@ -270,7 +277,7 @@ function createBlockLayoutLocal(params: {
         });
         // Always add line position for canvas display (ruledLinesTarget is for PDF export)
         linePositions.push({
-          y: baselineY + questionStyle.fontSize * 0.15,
+          y: baselineY + RULED_LINE_BASELINE_OFFSET,
           lineHeight: questionLineHeight,
           style: questionStyle
         });
@@ -279,7 +286,7 @@ function createBlockLayoutLocal(params: {
         // Always add line position for canvas display (ruledLinesTarget is for PDF export)
         const baselineY = cursorY + questionBaselineOffset;
         linePositions.push({
-          y: baselineY + questionStyle.fontSize * 0.15,
+          y: baselineY + RULED_LINE_BASELINE_OFFSET,
           lineHeight: questionLineHeight,
           style: questionStyle
         });
@@ -305,7 +312,7 @@ function createBlockLayoutLocal(params: {
         });
         // Always add line position for canvas display (ruledLinesTarget is for PDF export)
         linePositions.push({
-          y: baselineY + answerStyle.fontSize * 0.15,
+          y: baselineY + RULED_LINE_BASELINE_OFFSET,
           lineHeight: answerLineHeight,
           style: answerStyle
         });
@@ -314,7 +321,7 @@ function createBlockLayoutLocal(params: {
         // Always add line position for canvas display (ruledLinesTarget is for PDF export)
         const baselineY = cursorY + answerBaselineOffset;
         linePositions.push({
-          y: baselineY + answerStyle.fontSize * 0.15,
+          y: baselineY + RULED_LINE_BASELINE_OFFSET,
           lineHeight: answerLineHeight,
           style: answerStyle
         });
@@ -439,7 +446,7 @@ function createLayoutLocal(params: {
       });
       // Track line position for ruled lines (position line slightly below text baseline)
       linePositions.push({
-        y: baselineY + questionStyle.fontSize * 0.15,
+        y: baselineY + RULED_LINE_BASELINE_OFFSET,
         lineHeight: questionLineHeight,
         style: questionStyle
       });
@@ -450,7 +457,7 @@ function createLayoutLocal(params: {
       questionLinePositions.push(baselineY);
       // Track empty line position for ruled lines
       linePositions.push({
-        y: baselineY + questionStyle.fontSize * 0.15,
+        y: baselineY + RULED_LINE_BASELINE_OFFSET,
         lineHeight: questionLineHeight,
         style: questionStyle
       });
@@ -603,7 +610,7 @@ function createLayoutLocal(params: {
           // Update the last line position for ruled lines (use combined line height)
           if (linePositions.length > 0) {
             linePositions[linePositions.length - 1] = {
-              y: combinedBaselineY + Math.max(questionStyle.fontSize, answerStyle.fontSize) * 0.15,
+              y: combinedBaselineY + RULED_LINE_BASELINE_OFFSET,
               lineHeight: combinedLineHeight,
               style: answerStyle // Use answer style for combined line
             };
@@ -664,7 +671,7 @@ function createLayoutLocal(params: {
   for (let i = 0; i < emptyLinesToRender; i++) {
     const answerBaselineY = answerCursorY + answerBaselineOffset;
     linePositions.push({
-      y: answerBaselineY + answerStyle.fontSize * 0.15,
+      y: answerBaselineY + RULED_LINE_BASELINE_OFFSET,
       lineHeight: answerLineHeight,
       style: answerStyle
     });
@@ -680,7 +687,7 @@ function createLayoutLocal(params: {
     for (let i = 0; i < blanksToRender; i += 1) {
       const answerBaselineY = answerCursorY + answerBaselineOffset;
       linePositions.push({
-        y: answerBaselineY + answerStyle.fontSize * 0.15,
+        y: answerBaselineY + RULED_LINE_BASELINE_OFFSET,
         lineHeight: answerLineHeight,
         style: answerStyle
       });
@@ -707,7 +714,7 @@ function createLayoutLocal(params: {
       style: answerStyle
     });
     linePositions.push({
-      y: answerBaselineY + answerStyle.fontSize * 0.15,
+      y: answerBaselineY + RULED_LINE_BASELINE_OFFSET,
       lineHeight: answerLineHeight,
       style: answerStyle
     });
@@ -1278,10 +1285,10 @@ export default function TextboxQna(props: CanvasItemProps) {
           const firstLinePosition = answerLinePositions[0];
           const lastLinePosition = answerLinePositions[answerLinePositions.length - 1];
           
-          // Calculate top of first line: linePosition.y - fontSize * 0.15 (offset from baseline) - baselineOffset
-          const firstLineTop = firstLinePosition.y - answerStyle.fontSize * 0.15 - answerBaselineOffset;
-          // Calculate bottom of last line: linePosition.y + lineHeight - fontSize * 0.15
-          const lastLineBottom = lastLinePosition.y + lastLinePosition.lineHeight - answerStyle.fontSize * 0.15;
+          // Calculate top of first line: linePosition.y - RULED_LINE_BASELINE_OFFSET (offset from baseline) - baselineOffset
+          const firstLineTop = firstLinePosition.y - RULED_LINE_BASELINE_OFFSET - answerBaselineOffset;
+          // Calculate bottom of last line: linePosition.y + lineHeight - RULED_LINE_BASELINE_OFFSET
+          const lastLineBottom = lastLinePosition.y + lastLinePosition.lineHeight - RULED_LINE_BASELINE_OFFSET;
           
           // Total height covers all lines including gaps between lines
           const totalHeight = lastLineBottom - firstLineTop;
