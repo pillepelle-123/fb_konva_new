@@ -439,9 +439,17 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
             
             // Update cursorY to account for combined line height (use larger line height)
             const combinedLineHeight = Math.max(questionLineHeight, answerLineHeight);
-            // CRITICAL: Use the combinedLineHeight directly without adding extra spacing
-            // The combinedLineHeight already provides the correct spacing to the next line
-            cursorY = padding + ((questionLines.length - 1) * questionLineHeight) + combinedLineHeight;
+            // CRITICAL: Position cursor after the combined line using the combined line height
+            // Reduce spacing by font-size dependent offset to match other answer lines
+            // Convert actual fontSize to common fontSize for calculation
+            const questionCommonSize = Math.round(questionStyle.fontSize * 12 / 50);
+            const answerCommonSize = Math.round(answerStyle.fontSize * 12 / 50);
+            const sizeDiff = questionCommonSize - answerCommonSize;
+            const multiplier = sizeDiff <= 0 ? 0 : 3.23 * Math.pow(sizeDiff / 64, 1.8);
+            const spacingAdjustment = answerStyle.fontSize * multiplier * 0.6;
+            cursorY = padding + (questionLines.length * questionLineHeight) - questionLineHeight + combinedLineHeight - spacingAdjustment;
+
+            console.log("questionLineHeight", questionLineHeight, "answerLineHeight", answerLineHeight, "combinedLineHeight", combinedLineHeight, "sizeDiff", sizeDiff, "multiplier", multiplier, "spacingAdjustment", spacingAdjustment, "cursorY", cursorY);
             
             // Update the last line position for ruled lines (use combined line height)
             if (linePositions.length > 0) {
@@ -496,9 +504,20 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
   // Otherwise, use standard spacing (questionAnswerGap only applies horizontally via inlineGap)
   const verticalGap = answerInNewRow ? questionAnswerGap : 0;
   const baseVerticalSpacing = (questionLines.length && !startAtSameLine) ? answerLineHeight * 0.2 : 0;
+  
+  // Apply spacing adjustment for separated lines too
+  let separatedSpacingAdjustment = 0;
+  if (!startAtSameLine && questionLines.length > 0) {
+    const questionCommonSize = Math.round(questionStyle.fontSize * 12 / 50);
+    const answerCommonSize = Math.round(answerStyle.fontSize * 12 / 50);
+    const sizeDiff = questionCommonSize - answerCommonSize;
+    const multiplier = sizeDiff <= 0 ? 0 : 3.23 * Math.pow(sizeDiff / 64, 1.8);
+    separatedSpacingAdjustment = answerStyle.fontSize * multiplier * 0.6;
+  }
+  
   // CRITICAL: When startAtSameLine is true, use cursorY directly without any additional spacing
   // The combinedLineHeight calculation already set cursorY to the correct position
-  let answerCursorY = startAtSameLine ? cursorY : cursorY + baseVerticalSpacing + verticalGap;
+  let answerCursorY = startAtSameLine ? cursorY : cursorY + baseVerticalSpacing + verticalGap - separatedSpacingAdjustment;
 
   // Render leading empty lines based on leadingBreaks count
   // One \n means answer starts on next line (no empty line)
