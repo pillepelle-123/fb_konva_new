@@ -119,7 +119,7 @@ router.post('/from-template', authenticateToken, async (req, res) => {
       elements.push({
         id: uuidv4(),
         type: 'text',
-        textType: 'qna_inline',
+        textType: 'qna',
         x: textbox.position.x,
         y: textbox.position.y,
         width: textbox.size.width,

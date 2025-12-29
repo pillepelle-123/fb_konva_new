@@ -449,7 +449,7 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
             const spacingAdjustment = answerStyle.fontSize * multiplier * 0.6;
             cursorY = padding + (questionLines.length * questionLineHeight) - questionLineHeight + combinedLineHeight - spacingAdjustment;
 
-            console.log("questionLineHeight", questionLineHeight, "answerLineHeight", answerLineHeight, "combinedLineHeight", combinedLineHeight, "sizeDiff", sizeDiff, "multiplier", multiplier, "spacingAdjustment", spacingAdjustment, "cursorY", cursorY);
+            // console.log("questionLineHeight", questionLineHeight, "answerLineHeight", answerLineHeight, "combinedLineHeight", combinedLineHeight, "sizeDiff", sizeDiff, "multiplier", multiplier, "spacingAdjustment", spacingAdjustment, "cursorY", cursorY);
             
             // Update the last line position for ruled lines (use combined line height)
             if (linePositions.length > 0) {
