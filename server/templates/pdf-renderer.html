@@ -34,6 +34,42 @@
       window.process = { env: { NODE_ENV: 'production' } };
     }
     
+    // Mark this as PDF export environment
+    window.__PDF_EXPORT__ = true;
+    
+    // CRITICAL FIX: Post-render DOM manipulation to move ruled lines
+    function fixRuledLinesPosition() {
+      // Wait for Konva stage to be ready
+      if (!window.konvaStage) {
+        setTimeout(fixRuledLinesPosition, 100);
+        return;
+      }
+      
+      const stage = window.konvaStage;
+      const layers = stage.getLayers();
+      
+      layers.forEach(layer => {
+        // Find all Path nodes (ruled lines)
+        const paths = layer.find('Path');
+        paths.forEach(path => {
+          const pathData = path.data();
+          // Check if this is a horizontal line (ruled line)
+          if (pathData && pathData.includes('L') && pathData.includes('M')) {
+            const currentY = path.y();
+            // Move line up by 20 pixels
+            path.y(currentY - 20);
+          }
+        });
+      });
+      
+      // Redraw the stage
+      stage.batchDraw();
+      console.log('[PDF Template] Ruled lines positions adjusted');
+    }
+    
+    // Start checking after a delay
+    setTimeout(fixRuledLinesPosition, 2000);
+    
     // Track script loading
     window.pdfRendererScriptLoaded = false;
     window.pdfRendererScriptError = null;

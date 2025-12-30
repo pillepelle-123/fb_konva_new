@@ -572,7 +572,7 @@ export function PDFRenderer({
   // Sort elements by z-index if available
   const sortedElements = useMemo(() => {
     const elements = page.elements || [];
-    console.log('[DEBUG z-order PDFRenderer] Original elements array:', elements.map((el, idx) => ({ idx, type: el.type, textType: el.textType, id: el.id })));
+    // console.log('[DEBUG z-order PDFRenderer] Original elements array:', elements.map((el, idx) => ({ idx, type: el.type, textType: el.textType, id: el.id })));
     
     // Sort elements respecting z-order (array order)
     const sorted = [...elements].sort((a, b) => {
@@ -583,7 +583,7 @@ export function PDFRenderer({
       return indexA - indexB;
     });
     
-    console.log('[DEBUG z-order PDFRenderer] Sorted elements array:', sorted.map((el, idx) => ({ idx, type: el.type, textType: el.textType, id: el.id })));
+    // console.log('[DEBUG z-order PDFRenderer] Sorted elements array:', sorted.map((el, idx) => ({ idx, type: el.type, textType: el.textType, id: el.id })));
     
     return sorted;
   }, [page.elements]);
@@ -600,6 +600,15 @@ export function PDFRenderer({
       elementsCount: sortedElements.length,
       hasBackground: !!page.background,
       stageRef: !!stageRef.current,
+    });
+    
+    // Debug PDF export environment detection
+    console.log('[PDF Debug] Environment detection:', {
+      __PDF_EXPORT__: (window as any).__PDF_EXPORT__,
+      pathname: window.location.pathname,
+      search: window.location.search,
+      userAgent: navigator.userAgent.includes('HeadlessChrome'),
+      windowDefined: typeof window !== 'undefined'
     });
   }, [width, height, scale, sortedElements.length, page.background]);
 
@@ -1073,12 +1082,12 @@ export function PDFRenderer({
           const showBackground = element.backgroundEnabled ?? (questionStyle.background?.enabled || answerStyle.background?.enabled) ?? false;
           
           // Debug: Log background check (first path)
-          console.log('[DEBUG PDFRenderer] QnA Background check (first path):');
-          console.log('  elementId:', element.id);
-          console.log('  element.backgroundEnabled:', element.backgroundEnabled);
-          console.log('  questionStyle.background?.enabled:', questionStyle.background?.enabled);
-          console.log('  answerStyle.background?.enabled:', answerStyle.background?.enabled);
-          console.log('  showBackground:', showBackground);
+          // console.log('[DEBUG PDFRenderer] QnA Background check (first path):');
+          // console.log('  elementId:', element.id);
+          // console.log('  element.backgroundEnabled:', element.backgroundEnabled);
+          // console.log('  questionStyle.background?.enabled:', questionStyle.background?.enabled);
+          // console.log('  answerStyle.background?.enabled:', answerStyle.background?.enabled);
+          // console.log('  showBackground:', showBackground);
           
           if (showBackground) {
             const backgroundColor = element.backgroundColor || questionStyle.background?.backgroundColor || answerStyle.background?.backgroundColor || 'transparent';
@@ -1087,12 +1096,12 @@ export function PDFRenderer({
             const cornerRadius = element.cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
             
             // Debug: Log simplified background rendering info
-            console.log('[DEBUG PDFRenderer] QnA Background rendered (simplified):');
-            console.log('  elementId:', element.id);
-            console.log('  backgroundColor:', backgroundColor);
-            console.log('  backgroundOpacity (standardized):', backgroundOpacity);
-            console.log('  elementOpacity:', elementOpacity);
-            console.log('  finalOpacity:', backgroundOpacity * elementOpacity);
+            // console.log('[DEBUG PDFRenderer] QnA Background rendered (simplified):');
+            // console.log('  elementId:', element.id);
+            // console.log('  backgroundColor:', backgroundColor);
+            // console.log('  backgroundOpacity (standardized):', backgroundOpacity);
+            // console.log('  elementOpacity:', elementOpacity);
+            // console.log('  finalOpacity:', backgroundOpacity * elementOpacity);
             
             if (backgroundColor !== 'transparent' && backgroundColor) {
               const finalOpacity = backgroundOpacity * elementOpacity;
@@ -1116,13 +1125,13 @@ export function PDFRenderer({
               layer.add(bgRect);
               
               // Verify opacity is set correctly
-              console.log('[DEBUG PDFRenderer] QnA Background opacity verification:', {
-                elementId: element.id,
-                originalColor: backgroundColor,
-                finalOpacity: finalOpacity,
-                appliedColor: fillColor,
-                konvaOpacity: bgRect.opacity()
-              });
+              // console.log('[DEBUG PDFRenderer] QnA Background opacity verification:', {
+              //   elementId: element.id,
+              //   originalColor: backgroundColor,
+              //   finalOpacity: finalOpacity,
+              //   appliedColor: fillColor,
+              //   konvaOpacity: bgRect.opacity()
+              // });
               
               // Store z-order on background rect
               const zOrderIndex = elementIdToZOrder.get(element.id);
@@ -1214,7 +1223,7 @@ export function PDFRenderer({
             const aTheme = element.ruledLinesTheme || 'rough';
             const aColor = element.ruledLinesColor || '#1f2937';
             const aWidth = element.ruledLinesWidth || 0.8;
-            const aOpacity = getStandardizedOpacity(element, 'ruledLines', 1);
+            const aOpacity = getStandardizedOpacity(element, 'ruledLines', 0.6);
             // aFontSize, aLineHeight, effectivePadding, combinedLineHeight, textBaselineOffset are already defined above
             const startX = elementX + padding;
             const endX = elementX + elementWidth - padding;
@@ -1472,7 +1481,9 @@ export function PDFRenderer({
                     const questionBaselineMultiplier = qFontSize >= 145 ? 1.1 : qFontSize >= 96 ? 1.0 : qFontSize >= 50 ? 0.9 : 0.8;
                     const questionLineBaseline = effectivePadding + (questionLineIndex * combinedLineHeight) + textBaselineOffset + (qFontSize * questionBaselineMultiplier);
                     const baseline = questionLineBaseline + answerBaselineOffset;
-                    const lineY = elementY + baseline + (aFontSize * 0.15);
+                    // Use same RULED_LINE_BASELINE_OFFSET as client-side (-20 for PDF export)
+                    const RULED_LINE_BASELINE_OFFSET = -20;
+                    const lineY = elementY + baseline + RULED_LINE_BASELINE_OFFSET;
                     
                     if (isFinite(lineY) && !isNaN(lineY) && lineY < elementY + dynamicHeight - padding - 10) {
                       // Generate ruled line using shared theme engine (supports all themes)
@@ -1586,19 +1597,21 @@ export function PDFRenderer({
                 let answerLineIndex = canFitOnSameLine ? 0 : 1;
                 const endY = elementY + dynamicHeight - padding;
                 
-                console.log('[DEBUG PDFRenderer] Inline layout - starting answer lines generation:');
-                console.log('  elementId:', element.id);
-                console.log('  canFitOnSameLine:', canFitOnSameLine);
-                console.log('  answerLineIndex start:', answerLineIndex);
-                console.log('  aLineHeight:', aLineHeight);
-                console.log('  endY:', endY);
-                console.log('  combinedLineBaseline:', combinedLineBaseline);
+                // console.log('[DEBUG PDFRenderer] Inline layout - starting answer lines generation:');
+                // console.log('  elementId:', element.id);
+                // console.log('  canFitOnSameLine:', canFitOnSameLine);
+                // console.log('  answerLineIndex start:', answerLineIndex);
+                // console.log('  aLineHeight:', aLineHeight);
+                // console.log('  endY:', endY);
+                // console.log('  combinedLineBaseline:', combinedLineBaseline);
                 
                 while (answerLineIndex < 1000) { // Safety limit
                   // KORRIGIERT: Entferne (aFontSize * 0.6) - dieses Offset verursacht den 22px Versatz
                   // Im Client-Code wird nur baselineY + fontSize * 0.15 verwendet
                   const answerBaseline = combinedLineBaseline + (answerLineIndex * aLineHeight) + answerBaselineOffset;
-                  const lineY = elementY + answerBaseline + (aFontSize * 0.15);
+                  // Use same RULED_LINE_BASELINE_OFFSET as client-side (-20 for PDF export)
+                  const RULED_LINE_BASELINE_OFFSET = -20;
+                  const lineY = elementY + answerBaseline + RULED_LINE_BASELINE_OFFSET;
                   
                   if (!isFinite(lineY) || lineY === Infinity || isNaN(lineY) || lineY >= endY) break;
                   
@@ -2063,15 +2076,15 @@ export function PDFRenderer({
             
             // Render question in its area
             if (questionText && questionText.trim() !== '') {
-              console.log('[DEBUG PDFRenderer] Rendering question text (block layout):', {
-                elementId: element.id,
-                questionText: questionText.substring(0, 50),
-                questionArea: questionArea,
-                qFontColor,
-                qFontOpacity,
-                elementOpacity,
-                finalOpacity: elementOpacity * qFontOpacity
-              });
+              // console.log('[DEBUG PDFRenderer] Rendering question text (block layout):', {
+              //   elementId: element.id,
+              //   questionText: questionText.substring(0, 50),
+              //   questionArea: questionArea,
+              //   qFontColor,
+              //   qFontOpacity,
+              //   elementOpacity,
+              //   finalOpacity: elementOpacity * qFontOpacity
+              // });
               const canvas = document.createElement('canvas');
               const context = canvas.getContext('2d')!;
               const qFontFamilyClean = qFontFamily.includes('Mynerve') ? 'Mynerve, cursive' : qFontFamily;
@@ -2153,15 +2166,15 @@ export function PDFRenderer({
             
             // Render answer in its area
             if (answerText && answerText.trim() !== '') {
-              console.log('[DEBUG PDFRenderer] Rendering answer text (block layout):', {
-                elementId: element.id,
-                answerText: answerText.substring(0, 50),
-                answerArea: answerArea,
-                aFontColor,
-                aFontOpacity,
-                elementOpacity,
-                finalOpacity: elementOpacity * aFontOpacity
-              });
+              // console.log('[DEBUG PDFRenderer] Rendering answer text (block layout):', {
+              //   elementId: element.id,
+              //   answerText: answerText.substring(0, 50),
+              //   answerArea: answerArea,
+              //   aFontColor,
+              //   aFontOpacity,
+              //   elementOpacity,
+              //   finalOpacity: elementOpacity * aFontOpacity
+              // });
               const canvas = document.createElement('canvas');
               const context = canvas.getContext('2d')!;
               const aFontFamilyClean = aFontFamily.includes('Mynerve') ? 'Mynerve, cursive' : aFontFamily;
@@ -2259,10 +2272,10 @@ export function PDFRenderer({
             
             // Render question text first
             if (questionText && questionText.trim() !== '') {
-              console.log('[DEBUG PDFRenderer] Rendering question text (inline layout):', {
-                elementId: element.id,
-                questionText: questionText.substring(0, 50)
-              });
+              // console.log('[DEBUG PDFRenderer] Rendering question text (inline layout):', {
+              //   elementId: element.id,
+              //   questionText: questionText.substring(0, 50)
+              // });
               const questionFontSize = questionStyle.fontSize || 45;
               const questionFontBold = questionStyle.fontBold ?? false;
               const questionFontItalic = questionStyle.fontItalic ?? false;
@@ -2359,22 +2372,22 @@ export function PDFRenderer({
                     const actualBoundingBoxAscent = metrics.actualBoundingBoxAscent;
                     const actualBoundingBoxDescent = metrics.actualBoundingBoxDescent;
                     const width = metrics.width;
-                    console.log('[CLIENT PDFRenderer] Question font metrics:', JSON.stringify({
-                      lineIndex: index,
-                      text: line ? line.substring(0, 30) : '(empty)',
-                      font: testFont,
-                      fontSize: questionFontSize,
-                      fontFamily: questionFontFamily,
-                      fontWeight: questionFontBold ? 'bold' : 'normal',
-                      fontStyle: questionFontItalic ? 'italic' : 'normal',
-                      actualBoundingBoxAscent: actualBoundingBoxAscent !== undefined ? actualBoundingBoxAscent : null,
-                      actualBoundingBoxDescent: actualBoundingBoxDescent !== undefined ? actualBoundingBoxDescent : null,
-                      width: width,
-                      baselineY: sharedBaseline,
-                      topY: questionY,
-                      x: questionX,
-                      y: elementY + questionY
-                    }, null, 2));
+                    // console.log('[CLIENT PDFRenderer] Question font metrics:', JSON.stringify({
+                    //   lineIndex: index,
+                    //   text: line ? line.substring(0, 30) : '(empty)',
+                    //   font: testFont,
+                    //   fontSize: questionFontSize,
+                    //   fontFamily: questionFontFamily,
+                    //   fontWeight: questionFontBold ? 'bold' : 'normal',
+                    //   fontStyle: questionFontItalic ? 'italic' : 'normal',
+                    //   actualBoundingBoxAscent: actualBoundingBoxAscent !== undefined ? actualBoundingBoxAscent : null,
+                    //   actualBoundingBoxDescent: actualBoundingBoxDescent !== undefined ? actualBoundingBoxDescent : null,
+                    //   width: width,
+                    //   baselineY: sharedBaseline,
+                    //   topY: questionY,
+                    //   x: questionX,
+                    //   y: elementY + questionY
+                    // }, null, 2));
                   }
                 }
                 
@@ -2409,10 +2422,10 @@ export function PDFRenderer({
               
               // Render answer text with inline layout logic
               if (answerText && answerText.trim() !== '') {
-                console.log('[DEBUG PDFRenderer] Rendering answer text (inline layout):', {
-                  elementId: element.id,
-                  answerText: answerText.substring(0, 50)
-                });
+                // console.log('[DEBUG PDFRenderer] Rendering answer text (inline layout):', {
+                //   elementId: element.id,
+                //   answerText: answerText.substring(0, 50)
+                // });
                 const answerFontSize = answerStyle.fontSize || 50;
                 const answerFontBold = answerStyle.fontBold ?? false;
                 const answerFontItalic = answerStyle.fontItalic ?? false;
@@ -2559,22 +2572,22 @@ export function PDFRenderer({
                               const actualBoundingBoxAscent = metrics.actualBoundingBoxAscent;
                               const actualBoundingBoxDescent = metrics.actualBoundingBoxDescent;
                               const width = metrics.width;
-                              console.log('[CLIENT PDFRenderer] Answer font metrics (first segment):', JSON.stringify({
-                                segmentIndex: firstLineSegmentCount,
-                                text: lineText ? lineText.substring(0, 30) : '(empty)',
-                                font: testFont,
-                                fontSize: answerFontSize,
-                                fontFamily: answerFontFamily,
-                                fontWeight: answerFontBold ? 'bold' : 'normal',
-                                fontStyle: answerFontItalic ? 'italic' : 'normal',
-                                actualBoundingBoxAscent: actualBoundingBoxAscent !== undefined ? actualBoundingBoxAscent : null,
-                                actualBoundingBoxDescent: actualBoundingBoxDescent !== undefined ? actualBoundingBoxDescent : null,
-                                width: width,
-                                baselineY: sharedBaseline,
-                                topY: answerY,
-                                x: startX + qWidth + gap,
-                                y: elementY + answerY
-                              }, null, 2));
+                              // console.log('[CLIENT PDFRenderer] Answer font metrics (first segment):', JSON.stringify({
+                              //   segmentIndex: firstLineSegmentCount,
+                              //   text: lineText ? lineText.substring(0, 30) : '(empty)',
+                              //   font: testFont,
+                              //   fontSize: answerFontSize,
+                              //   fontFamily: answerFontFamily,
+                              //   fontWeight: answerFontBold ? 'bold' : 'normal',
+                              //   fontStyle: answerFontItalic ? 'italic' : 'normal',
+                              //   actualBoundingBoxAscent: actualBoundingBoxAscent !== undefined ? actualBoundingBoxAscent : null,
+                              //   actualBoundingBoxDescent: actualBoundingBoxDescent !== undefined ? actualBoundingBoxDescent : null,
+                              //   width: width,
+                              //   baselineY: sharedBaseline,
+                              //   topY: answerY,
+                              //   x: startX + qWidth + gap,
+                              //   y: elementY + answerY
+                              // }, null, 2));
                             }
                           }
                           
@@ -3138,12 +3151,12 @@ export function PDFRenderer({
             (questionStyle.background?.enabled || answerStyle.background?.enabled) ?? false;
           
           // Debug: Log background check
-          console.log('[DEBUG PDFRenderer] QnA Background check:');
-          console.log('  elementId:', element.id);
-          console.log('  element.backgroundEnabled:', (element as any).backgroundEnabled);
-          console.log('  questionStyle.background?.enabled:', questionStyle.background?.enabled);
-          console.log('  answerStyle.background?.enabled:', answerStyle.background?.enabled);
-          console.log('  showBackground:', showBackground);
+          // console.log('[DEBUG PDFRenderer] QnA Background check:');
+          // console.log('  elementId:', element.id);
+          // console.log('  element.backgroundEnabled:', (element as any).backgroundEnabled);
+          // console.log('  questionStyle.background?.enabled:', questionStyle.background?.enabled);
+          // console.log('  answerStyle.background?.enabled:', answerStyle.background?.enabled);
+          // console.log('  showBackground:', showBackground);
           
           let bgRect: Konva.Rect | null = null;
           if (showBackground) {
@@ -3202,14 +3215,14 @@ export function PDFRenderer({
               layer.add(bgRect);
               
               // Verify opacity is set correctly
-              console.log('[DEBUG PDFRenderer] QnA Background opacity verification (second path):', {
-                elementId: element.id,
-                finalOpacity: finalOpacity,
-                fillColor: fillColor,
-                originalBackgroundColor: backgroundColor,
-                bgRectFill: bgRect.fill(),
-                bgRectOpacity: bgRect.opacity()
-              });
+              // console.log('[DEBUG PDFRenderer] QnA Background opacity verification (second path):', {
+              //   elementId: element.id,
+              //   finalOpacity: finalOpacity,
+              //   fillColor: fillColor,
+              //   originalBackgroundColor: backgroundColor,
+              //   bgRectFill: bgRect.fill(),
+              //   bgRectOpacity: bgRect.opacity()
+              // });
               
               // Store z-order on background rect
               const zOrderIndex = elementIdToZOrder.get(element.id);
@@ -3250,36 +3263,36 @@ export function PDFRenderer({
               }
               
               // Debug: Log background rendering - Log values directly
-              console.log('[DEBUG PDFRenderer] QnA Background rendered:');
-              console.log('  elementId:', element.id);
-              console.log('  backgroundColor:', backgroundColor);
-              console.log('  element.fillOpacity:', (element as any).fillOpacity);
-              console.log('  element.background.fillOpacity:', (element as any).background?.fillOpacity);
-              console.log('  element.backgroundOpacity:', (element as any).backgroundOpacity);
-              console.log('  element.background.opacity:', (element as any).background?.opacity);
-              console.log('  element.background.backgroundOpacity:', (element as any).background?.backgroundOpacity);
-              console.log('  element.opacity:', (element as any).opacity);
-              // Log answerSettings and questionSettings
-              console.log('  element.answerSettings:', (element as any).answerSettings);
-              console.log('  element.questionSettings:', (element as any).questionSettings);
-              console.log('  element.answerSettings?.fillOpacity:', (element as any).answerSettings?.fillOpacity);
-              console.log('  element.questionSettings?.fillOpacity:', (element as any).questionSettings?.fillOpacity);
-              console.log('  element.answerSettings?.background?.fillOpacity:', (element as any).answerSettings?.background?.fillOpacity);
-              console.log('  element.questionSettings?.background?.fillOpacity:', (element as any).questionSettings?.background?.fillOpacity);
-              console.log('  element.answerSettings?.backgroundOpacity:', (element as any).answerSettings?.backgroundOpacity);
-              console.log('  element.questionSettings?.backgroundOpacity:', (element as any).questionSettings?.backgroundOpacity);
-              console.log('  All element opacity keys:', Object.keys(element).filter(k => k.toLowerCase().includes('opacity')));
-              console.log('  All element fill keys:', Object.keys(element).filter(k => k.toLowerCase().includes('fill')));
-              console.log('  questionStyle.background?.opacity:', questionStyle.background?.opacity);
-              console.log('  answerStyle.background?.opacity:', answerStyle.background?.opacity);
-              console.log('  questionStyle.backgroundOpacity:', questionStyle.backgroundOpacity);
-              console.log('  answerStyle.backgroundOpacity:', answerStyle.backgroundOpacity);
-              console.log('  backgroundOpacity (final):', backgroundOpacity);
-              console.log('  elementOpacity:', elementOpacity);
-              console.log('  finalOpacity:', backgroundOpacity * elementOpacity);
-              console.log('  showBackground:', showBackground);
-              console.log('  bgRectIndex:', layer.getChildren().indexOf(bgRect));
-              console.log('  lastPageBgIndex:', lastPageBgIndex);
+              // console.log('[DEBUG PDFRenderer] QnA Background rendered:');
+              // console.log('  elementId:', element.id);
+              // console.log('  backgroundColor:', backgroundColor);
+              // console.log('  element.fillOpacity:', (element as any).fillOpacity);
+              // console.log('  element.background.fillOpacity:', (element as any).background?.fillOpacity);
+              // console.log('  element.backgroundOpacity:', (element as any).backgroundOpacity);
+              // console.log('  element.background.opacity:', (element as any).background?.opacity);
+              // console.log('  element.background.backgroundOpacity:', (element as any).background?.backgroundOpacity);
+              // console.log('  element.opacity:', (element as any).opacity);
+              // // Log answerSettings and questionSettings
+              // console.log('  element.answerSettings:', (element as any).answerSettings);
+              // console.log('  element.questionSettings:', (element as any).questionSettings);
+              // console.log('  element.answerSettings?.fillOpacity:', (element as any).answerSettings?.fillOpacity);
+              // console.log('  element.questionSettings?.fillOpacity:', (element as any).questionSettings?.fillOpacity);
+              // console.log('  element.answerSettings?.background?.fillOpacity:', (element as any).answerSettings?.background?.fillOpacity);
+              // console.log('  element.questionSettings?.background?.fillOpacity:', (element as any).questionSettings?.background?.fillOpacity);
+              // console.log('  element.answerSettings?.backgroundOpacity:', (element as any).answerSettings?.backgroundOpacity);
+              // console.log('  element.questionSettings?.backgroundOpacity:', (element as any).questionSettings?.backgroundOpacity);
+              // console.log('  All element opacity keys:', Object.keys(element).filter(k => k.toLowerCase().includes('opacity')));
+              // console.log('  All element fill keys:', Object.keys(element).filter(k => k.toLowerCase().includes('fill')));
+              // console.log('  questionStyle.background?.opacity:', questionStyle.background?.opacity);
+              // console.log('  answerStyle.background?.opacity:', answerStyle.background?.opacity);
+              // console.log('  questionStyle.backgroundOpacity:', questionStyle.backgroundOpacity);
+              // console.log('  answerStyle.backgroundOpacity:', answerStyle.backgroundOpacity);
+              // console.log('  backgroundOpacity (final):', backgroundOpacity);
+              // console.log('  elementOpacity:', elementOpacity);
+              // console.log('  finalOpacity:', backgroundOpacity * elementOpacity);
+              // console.log('  showBackground:', showBackground);
+              // console.log('  bgRectIndex:', layer.getChildren().indexOf(bgRect));
+              // console.log('  lastPageBgIndex:', lastPageBgIndex);
             }
           }
           
@@ -3372,7 +3385,9 @@ export function PDFRenderer({
                 theme: theme as CanvasElement['theme']
               };
               
-              const lineY = elementY + linePos.y;
+              // Use same RULED_LINE_BASELINE_OFFSET as client-side (-20 for PDF export)
+              const RULED_LINE_BASELINE_OFFSET = -20;
+              const lineY = elementY + linePos.y + RULED_LINE_BASELINE_OFFSET;
               
               // Use centralized border rendering with fallback
               const lineNode = renderThemedBorderKonvaWithFallback({
@@ -3937,16 +3952,16 @@ export function PDFRenderer({
             imageClipPosition: element.imageClipPosition
           });
 
-          console.log('[PDFRenderer] Rendering image element:', {
-            elementId: element.id,
-            elementType: element.type,
-            hasSrc: !!element.src,
-            src: element.src,
-            x: elementX,
-            y: elementY,
-            width: elementWidth,
-            height: elementHeight
-          });
+          // console.log('[PDFRenderer] Rendering image element:', {
+          //   elementId: element.id,
+          //   elementType: element.type,
+          //   hasSrc: !!element.src,
+          //   src: element.src,
+          //   x: elementX,
+          //   y: elementY,
+          //   width: elementWidth,
+          //   height: elementHeight
+          // });
           
           // Handle placeholder: render placeholder UI
           if (element.type === 'placeholder') {
@@ -4037,14 +4052,14 @@ export function PDFRenderer({
             imageUrl = `${apiUrl}/images/proxy?url=${encodeURIComponent(imageUrl)}&token=${encodeURIComponent(token)}`;
           }
           
-          console.log('[PDFRenderer] Loading image:', {
-            elementId: element.id,
-            elementType: element.type,
-            originalSrc: imageSrc,
-            resolvedUrl: imageUrl,
-            isS3Url: isS3Url,
-            hasToken: !!token
-          });
+          // console.log('[PDFRenderer]< Loading image:', {
+          //   elementId: element.id,
+          //   elementType: element.type,
+          //   originalSrc: imageSrc,
+          //   resolvedUrl: imageUrl,
+          //   isS3Url: isS3Url,
+          //   hasToken: !!token
+          // });
           
           // Load image asynchronously
           const img = new Image();
@@ -4459,29 +4474,29 @@ export function PDFRenderer({
             const strokeProps = themeRenderer.getStrokeProps(shapeElement);
 
             // Debug: Log theme rendering
-            console.log('[PDFRenderer] Theme rendering:', {
-              elementId: element.id,
-              theme,
-              useTheme,
-              hasPathData: !!pathData,
-              strokeProps
-            });
+            // console.log('[PDFRenderer] Theme rendering:', {
+            //   elementId: element.id,
+            //   theme,
+            //   useTheme,
+            //   hasPathData: !!pathData,
+            //   strokeProps
+            // });
 
             // Debug: Log circle dimensions - ALWAYS log for circles, regardless of theme
-            if (element.type === 'circle') {
-              const circleRadius = Math.min(elementWidth, elementHeight) / 2;
-              console.log('[DEBUG PDFRenderer] Circle rendered:');
-              console.log('  elementId:', element.id);
-              console.log('  elementWidth:', elementWidth);
-              console.log('  elementHeight:', elementHeight);
-              console.log('  radius:', circleRadius, '(calculated: Math.min(' + elementWidth + ', ' + elementHeight + ') / 2 = ' + circleRadius + ')');
-              console.log('  centerX:', elementX + elementWidth / 2);
-              console.log('  centerY:', elementY + elementHeight / 2);
-              console.log('  strokeWidth:', strokeWidth);
-              console.log('  useTheme:', useTheme);
-              console.log('  theme:', theme);
-              console.log('  hasPathData:', !!pathData);
-            }
+            // if (element.type === 'circle') {
+            //   const circleRadius = Math.min(elementWidth, elementHeight) / 2;
+            //   console.log('[DEBUG PDFRenderer] Circle rendered:');
+            //   console.log('  elementId:', element.id);
+            //   console.log('  elementWidth:', elementWidth);
+            //   console.log('  elementHeight:', elementHeight);
+            //   console.log('  radius:', circleRadius, '(calculated: Math.min(' + elementWidth + ', ' + elementHeight + ') / 2 = ' + circleRadius + ')');
+            //   console.log('  centerX:', elementX + elementWidth / 2);
+            //   console.log('  centerY:', elementY + elementHeight / 2);
+            //   console.log('  strokeWidth:', strokeWidth);
+            //   console.log('  useTheme:', useTheme);
+            //   console.log('  theme:', theme);
+            //   console.log('  hasPathData:', !!pathData);
+            // }
             
             if (pathData) {
               // Special handling for Candy and Wobbly themes - use borderElement exactly like textbox-qna.tsx
@@ -4647,13 +4662,13 @@ export function PDFRenderer({
                   }
                   }
 
-                  console.log('[PDFRenderer] Created themed shape (Candy/Wobbly):', {
-                    elementId: element.id,
-                    theme,
-                    hasFill: !!pathFill,
-                    hasBorder: !!borderPathData,
-                    strokeWidth: borderStrokeProps.strokeWidth || strokeProps.strokeWidth
-                  });
+                  // console.log('[PDFRenderer] Created themed shape (Candy/Wobbly):', {
+                  //   elementId: element.id,
+                  //   theme,
+                  //   hasFill: !!pathFill,
+                  //   hasBorder: !!borderPathData,
+                  //   strokeWidth: borderStrokeProps.strokeWidth || strokeProps.strokeWidth
+                  // });
                 }
               } else {
                 // Regular themed rendering for other themes else {
@@ -4711,17 +4726,17 @@ export function PDFRenderer({
               // Store z-order on themed shape node
               const themedZOrderIndex = elementIdToZOrder.get(element.id);
 
-              console.log('[PDFRenderer] Created themed shape:', {
-                elementId: element.id,
-                theme,
-                pathDataLength: pathData.length,
-                strokeProps,
-                hasFill: !!pathFill,
-                hasStroke: !!pathStroke,
-                pathFill,
-                pathStroke,
-                strokeWidth: strokeProps.strokeWidth || strokeWidth
-              });
+              // console.log('[PDFRenderer] Created themed shape:', {
+              //   elementId: element.id,
+              //   theme,
+              //   pathDataLength: pathData.length,
+              //   strokeProps,
+              //   hasFill: !!pathFill,
+              //   hasStroke: !!pathStroke,
+              //   pathFill,
+              //   pathStroke,
+              //   strokeWidth: strokeProps.strokeWidth || strokeWidth
+              // });
               if (themedZOrderIndex !== undefined) {
                 shapePath.setAttr('__zOrderIndex', themedZOrderIndex);
                 shapePath.setAttr('__elementId', element.id);
@@ -4810,15 +4825,15 @@ export function PDFRenderer({
               const circleRadius = Math.min(elementWidth, elementHeight) / 2;
               
               // Debug: Log circle dimensions - ALWAYS log for circles
-              console.log('[DEBUG PDFRenderer] Circle rendered (no theme):');
-              console.log('  elementId:', element.id);
-              console.log('  elementWidth:', elementWidth);
-              console.log('  elementHeight:', elementHeight);
-              console.log('  radius:', circleRadius, '(calculated: Math.min(' + elementWidth + ', ' + elementHeight + ') / 2 = ' + circleRadius + ')');
-              console.log('  centerX:', elementX + elementWidth / 2);
-              console.log('  centerY:', elementY + elementHeight / 2);
-              console.log('  strokeWidth:', strokeWidth);
-              console.log('  useTheme: false');
+              // console.log('[DEBUG PDFRenderer] Circle rendered (no theme):');
+              // console.log('  elementId:', element.id);
+              // console.log('  elementWidth:', elementWidth);
+              // console.log('  elementHeight:', elementHeight);
+              // console.log('  radius:', circleRadius, '(calculated: Math.min(' + elementWidth + ', ' + elementHeight + ') / 2 = ' + circleRadius + ')');
+              // console.log('  centerX:', elementX + elementWidth / 2);
+              // console.log('  centerY:', elementY + elementHeight / 2);
+              // console.log('  strokeWidth:', strokeWidth);
+              // console.log('  useTheme: false');
               
               shapeNode = new Konva.Circle({
                 x: elementX + elementWidth / 2,
@@ -4902,13 +4917,13 @@ export function PDFRenderer({
     layer.draw();
     stageRef.current.draw();
     
-    console.log('[PDFRenderer] Rendered to manual layer, layer has', layer.getChildren().length, 'children');
+    // console.log('[PDFRenderer] Rendered to manual layer, layer has', layer.getChildren().length, 'children');
     
     // After all images are loaded (or failed), fix z-order
     // Use allSettled to ensure z-order fix runs even if some images fail
     if (imagePromises.length > 0) {
       Promise.allSettled(imagePromises).then(() => {
-        console.log('[DEBUG z-order PDFRenderer] All images loaded (or failed), fixing z-order...');
+        // console.log('[DEBUG z-order PDFRenderer] All images loaded (or failed), fixing z-order...');
 
         // Collect ALL elements (including background) with their z-order
         const allElements: Array<{ node: Konva.Node; zOrder: number; isFrame: boolean; originalIndex: number; isBackground: boolean; elementId?: string; nodeType?: string; originalOpacity?: number }> = [];
@@ -4925,15 +4940,15 @@ export function PDFRenderer({
           const nodeType = child.getAttr('__nodeType');
 
           // Debug: Log attributes for Path nodes (Ruled Lines)
-          if (child.getClassName() === 'Path') {
-            console.log(`[DEBUG z-order PDFRenderer] Found Path node at index ${i}:`, {
-              zOrder: zOrder,
-              elementId: elementId,
-              nodeType: nodeType,
-              isQnaNode: child.getAttr('__isQnaNode'),
-              className: child.getClassName()
-            });
-          }
+          // if (child.getClassName() === 'Path') {
+          //   console.log(`[DEBUG z-order PDFRenderer] Found Path node at index ${i}:`, {
+          //     zOrder: zOrder,
+          //     elementId: elementId,
+          //     nodeType: nodeType,
+          //     isQnaNode: child.getAttr('__isQnaNode'),
+          //     className: child.getClassName()
+          //   });
+          // }
 
           // Store original opacity before reordering
           const originalOpacity = child.opacity();
@@ -4989,13 +5004,13 @@ export function PDFRenderer({
         };
         
         // Debug: Log all elements before sorting
-        console.log('[DEBUG z-order PDFRenderer] Elements before sorting:');
-        allElements.forEach((el, idx) => {
-          const elementId = el.elementId || el.node.getAttr('__elementId');
-          const nodeType = el.nodeType || el.node.getAttr('__nodeType');
-          const isQnaNode = el.node.getAttr('__isQnaNode');
-          console.log(`[DEBUG z-order PDFRenderer]   [${idx}] ${el.node.getClassName()} - zOrder: ${el.zOrder}, elementId: ${elementId || 'undefined'}, nodeType: ${nodeType || 'undefined'}, isQnaNode: ${isQnaNode || false}, originalIndex: ${el.originalIndex}`);
-        });
+        // console.log('[DEBUG z-order PDFRenderer] Elements before sorting:');
+        // allElements.forEach((el, idx) => {
+        //   const elementId = el.elementId || el.node.getAttr('__elementId');
+        //   const nodeType = el.nodeType || el.node.getAttr('__nodeType');
+        //   const isQnaNode = el.node.getAttr('__isQnaNode');
+        //   console.log(`[DEBUG z-order PDFRenderer]   [${idx}] ${el.node.getClassName()} - zOrder: ${el.zOrder}, elementId: ${elementId || 'undefined'}, nodeType: ${nodeType || 'undefined'}, isQnaNode: ${isQnaNode || false}, originalIndex: ${el.originalIndex}`);
+        // });
         
         // Sort all elements by z-order: backgrounds first (zOrder -1), then by zOrder
         // For elements with the same zOrder and elementId, maintain node type order
@@ -5031,9 +5046,9 @@ export function PDFRenderer({
         });
         
         // Reposition all elements in correct z-order
-        console.log('[DEBUG z-order PDFRenderer] Repositioning', allElements.length, 'elements...');
-        console.log('[DEBUG z-order PDFRenderer] Layer children before reordering:', layer.getChildren().length);
-        console.log('[DEBUG z-order PDFRenderer] Background elements:', allElements.filter(el => el.isBackground).length);
+        // console.log('[DEBUG z-order PDFRenderer] Repositioning', allElements.length, 'elements...');
+        // console.log('[DEBUG z-order PDFRenderer] Layer children before reordering:', layer.getChildren().length);
+        // console.log('[DEBUG z-order PDFRenderer] Background elements:', allElements.filter(el => el.isBackground).length);
         
         // Instead of using moveTo() which can fail, remove all elements and re-add them in correct order
         // Remove all elements from layer
@@ -5058,31 +5073,31 @@ export function PDFRenderer({
             const elementId = el.elementId || el.node.getAttr('__elementId');
             const nodeType = el.nodeType || el.node.getAttr('__nodeType');
             const isQnaNode = el.node.getAttr('__isQnaNode');
-            console.log(`[DEBUG z-order PDFRenderer] Added ${el.node.getClassName()} at position ${i} (zOrder: ${el.zOrder}, isBackground: ${el.isBackground}, originalIndex: ${el.originalIndex}, opacity: ${finalOpacity}, originalOpacity: ${el.originalOpacity}, elementId: ${elementId || 'undefined'}, nodeType: ${nodeType || 'undefined'}, isQnaNode: ${isQnaNode || false})`);
+            // console.log(`[DEBUG z-order PDFRenderer] Added ${el.node.getClassName()} at position ${i} (zOrder: ${el.zOrder}, isBackground: ${el.isBackground}, originalIndex: ${el.originalIndex}, opacity: ${finalOpacity}, originalOpacity: ${el.originalOpacity}, elementId: ${elementId || 'undefined'}, nodeType: ${nodeType || 'undefined'}, isQnaNode: ${isQnaNode || false})`);
             
             // Special debug for QnA background rects
             if (el.node.getClassName() === 'Rect' && el.node.getAttr('__isQnaNode')) {
               const rectNode = el.node as Konva.Rect;
               const fillValue = rectNode.fill ? rectNode.fill() : 'N/A';
-              console.log(`[DEBUG z-order PDFRenderer] QnA Background Rect at position ${i}:`, {
-                elementId: el.node.getAttr('__elementId'),
-                opacity: finalOpacity,
-                originalOpacity: el.originalOpacity,
-                fill: fillValue,
-                fillType: typeof fillValue === 'string' ? (fillValue.startsWith('rgba') ? 'rgba' : fillValue.startsWith('rgb') ? 'rgb' : fillValue.startsWith('#') ? 'hex' : 'other') : 'N/A',
-                fillHasAlpha: typeof fillValue === 'string' && fillValue.includes('rgba')
-              });
+              // console.log(`[DEBUG z-order PDFRenderer] QnA Background Rect at position ${i}:`, {
+              //   elementId: el.node.getAttr('__elementId'),
+              //   opacity: finalOpacity,
+              //   originalOpacity: el.originalOpacity,
+              //   fill: fillValue,
+              //   fillType: typeof fillValue === 'string' ? (fillValue.startsWith('rgba') ? 'rgba' : fillValue.startsWith('rgb') ? 'rgb' : fillValue.startsWith('#') ? 'hex' : 'other') : 'N/A',
+              //   fillHasAlpha: typeof fillValue === 'string' && fillValue.includes('rgba')
+              // });
             }
             
             // Special debug for QnA ruled lines (Path elements)
             if (el.node.getClassName() === 'Path' && el.node.getAttr('__isQnaNode') && el.node.getAttr('__nodeType') === 'qna-line') {
-              console.log(`[DEBUG z-order PDFRenderer] QnA Ruled Line Path at position ${i}:`, {
-                elementId: el.node.getAttr('__elementId'),
-                nodeType: el.node.getAttr('__nodeType'),
-                zOrderIndex: el.node.getAttr('__zOrderIndex'),
-                zOrder: el.zOrder,
-                originalIndex: el.originalIndex
-              });
+              // console.log(`[DEBUG z-order PDFRenderer] QnA Ruled Line Path at position ${i}:`, {
+              //   elementId: el.node.getAttr('__elementId'),
+              //   nodeType: el.node.getAttr('__nodeType'),
+              //   zOrderIndex: el.node.getAttr('__zOrderIndex'),
+              //   zOrder: el.zOrder,
+              //   originalIndex: el.originalIndex
+              // });
             }
           } catch (error) {
             console.error(`[DEBUG z-order PDFRenderer] Error adding element at position ${i}:`, error);
@@ -5093,11 +5108,11 @@ export function PDFRenderer({
           }
         });
         
-        console.log('[DEBUG z-order PDFRenderer] Layer children after reordering:', layer.getChildren().length);
+        // console.log('[DEBUG z-order PDFRenderer] Layer children after reordering:', layer.getChildren().length);
         
         layer.draw();
         stageRef.current?.draw();
-        console.log('[DEBUG z-order PDFRenderer] Z-order fix complete');
+        // console.log('[DEBUG z-order PDFRenderer] Z-order fix complete');
       }).catch((error) => {
         console.error('[DEBUG z-order PDFRenderer] Error waiting for images:', error);
       });

@@ -112,7 +112,41 @@ const getLineHeight = FEATURE_FLAGS.USE_SHARED_TEXT_LAYOUT ? sharedGetLineHeight
  * This creates a uniform gap between text baseline and ruled line,
  * regardless of font size
  */
-const RULED_LINE_BASELINE_OFFSET = 12;
+// Check multiple ways to detect PDF export environment
+const isPdfExport = typeof window !== 'undefined' && (
+  (window as any).__PDF_EXPORT__ === true ||
+  window.location.pathname.includes('pdf-renderer') ||
+  window.location.search.includes('pdf=true') ||
+  navigator.userAgent.includes('HeadlessChrome')
+);
+
+// Debug logging for PDF export detection
+if (typeof window !== 'undefined') {
+  console.log('[Ruled Lines Debug] PDF Export Detection:', {
+    isPdfExport,
+    __PDF_EXPORT__: (window as any).__PDF_EXPORT__,
+    pathname: window.location.pathname,
+    userAgent: navigator.userAgent.includes('HeadlessChrome'),
+    windowLocation: window.location.href
+  });
+}
+
+// CRITICAL FIX: Force PDF export detection for pdf-renderer.html
+// The HTML template sets __PDF_EXPORT__ = true, but detection might fail
+const forcePdfExport = typeof window !== 'undefined' && 
+  (window.location.pathname.includes('pdf-renderer') || (window as any).__PDF_EXPORT__ === true);
+
+// Use negative offset for PDF to move lines above text baseline
+// Check for PDF-specific override from window
+const pdfOverride = typeof window !== 'undefined' ? (window as any).PDF_RULED_LINE_BASELINE_OFFSET : undefined;
+const RULED_LINE_BASELINE_OFFSET = pdfOverride !== undefined ? pdfOverride : (isPdfExport || forcePdfExport) ? -20 : 12;
+
+console.log('[Ruled Lines Debug] Final offset:', {
+  isPdfExport,
+  forcePdfExport,
+  pdfOverride,
+  finalOffset: RULED_LINE_BASELINE_OFFSET
+});
 
 function stripHtml(text: string) {
   if (!text) return '';

@@ -195,10 +195,10 @@ class PDFRendererService {
         await Promise.race([Promise.all([waitAll, waitCritical]), timeout(10000)]); // Increased timeout to 10s
 
         const finalFonts = Array.from(document.fonts).map(f => ({ family: f.family, status: f.status }));
-        console.log('[PDFRendererService] Fonts preloaded before rendering:', JSON.stringify(finalFonts.filter(f => f.status === 'loaded').slice(0, 20), null, 2));
+        // console.log('[PDFRendererService] Fonts preloaded before rendering:', JSON.stringify(finalFonts.filter(f => f.status === 'loaded').slice(0, 20), null, 2));
       });
 
-      console.log('[PDFRendererService] Fonts preloaded before rendering');
+      // console.log('[PDFRendererService] Fonts preloaded before rendering');
 
       // Wait for script to load and execute
       await page.evaluate(() => {
@@ -587,7 +587,7 @@ class PDFRendererService {
         await Promise.race([Promise.all([waitAll, waitCritical]), timeout(5000)]);
 
         const finalFonts = Array.from(document.fonts).map(f => ({ family: f.family, status: f.status }));
-        console.log('[PDFRendererService] Fonts status after load attempt:', JSON.stringify(finalFonts.slice(0, 50), null, 2));
+        // console.log('[PDFRendererService] Fonts status after load attempt:', JSON.stringify(finalFonts.slice(0, 50), null, 2));
       });
 
       console.log('[PDFRendererService] Fonts loaded');
@@ -696,7 +696,7 @@ class PDFRendererService {
         };
       });
       
-      console.log('[PDFRendererService] Stage debug info:', JSON.stringify(stageDebugInfo, null, 2));
+      // console.log('[PDFRendererService] Stage debug info:', JSON.stringify(stageDebugInfo, null, 2));
 
       // Wait for renderComplete flag OR layers (fallback if callback doesn't fire)
       await page.evaluate(() => {

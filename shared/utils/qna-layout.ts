@@ -14,7 +14,15 @@ import { wrapText, measureText, calculateTextX, getLineHeight, buildFont } from 
  * regardless of font size
  */
 // Use smaller offset when running PDF export (set by PDF renderer) to match server printout
-const RULED_LINE_BASELINE_OFFSET = (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) ? 6 : 12;
+// Check multiple ways to detect PDF export environment
+const isPdfExport = typeof window !== 'undefined' && (
+  (window as any).__PDF_EXPORT__ === true ||
+  window.location.pathname.includes('pdf-renderer') ||
+  window.location.search.includes('pdf=true') ||
+  navigator.userAgent.includes('HeadlessChrome')
+);
+// Use negative offset for PDF to move lines above text baseline
+const RULED_LINE_BASELINE_OFFSET = isPdfExport ? -8 : 12;
 
 export interface CreateBlockLayoutParams {
   questionText: string;
@@ -118,8 +126,11 @@ export function createBlockLayout(params: CreateBlockLayoutParams): LayoutResult
         });
         // Only add line position if ruledLinesTarget is 'question'
         if (ruledLinesTarget === 'question') {
+          const ruledLineOffset = (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) 
+            ? -questionStyle.fontSize * 0.3  // Negative value to move lines up
+            : RULED_LINE_BASELINE_OFFSET;
           linePositions.push({
-            y: baselineY + RULED_LINE_BASELINE_OFFSET,
+            y: baselineY + ruledLineOffset,
             lineHeight: questionLineHeight,
             style: questionStyle
           });
@@ -129,8 +140,11 @@ export function createBlockLayout(params: CreateBlockLayoutParams): LayoutResult
         // Only add line position if ruledLinesTarget is 'question'
         if (ruledLinesTarget === 'question') {
           const baselineY = cursorY + questionBaselineOffset;
+          const ruledLineOffset = (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) 
+            ? -questionStyle.fontSize * 0.3  // Negative value to move lines up
+            : RULED_LINE_BASELINE_OFFSET;
           linePositions.push({
-            y: baselineY + RULED_LINE_BASELINE_OFFSET,
+            y: baselineY + ruledLineOffset,
             lineHeight: questionLineHeight,
             style: questionStyle
           });
@@ -157,8 +171,11 @@ export function createBlockLayout(params: CreateBlockLayoutParams): LayoutResult
         });
         // Only add line position if ruledLinesTarget is 'answer'
         if (ruledLinesTarget === 'answer') {
+          const ruledLineOffset = (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) 
+            ? -answerStyle.fontSize * 0.3  // Negative value to move lines up
+            : RULED_LINE_BASELINE_OFFSET;
           linePositions.push({
-            y: baselineY + RULED_LINE_BASELINE_OFFSET,
+            y: baselineY + ruledLineOffset,
             lineHeight: answerLineHeight,
             style: answerStyle
           });
@@ -168,8 +185,11 @@ export function createBlockLayout(params: CreateBlockLayoutParams): LayoutResult
         // Only add line position if ruledLinesTarget is 'answer'
         if (ruledLinesTarget === 'answer') {
           const baselineY = cursorY + answerBaselineOffset;
+          const ruledLineOffset = (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) 
+            ? -answerStyle.fontSize * 0.3  // Negative value to move lines up
+            : RULED_LINE_BASELINE_OFFSET;
           linePositions.push({
-            y: baselineY + RULED_LINE_BASELINE_OFFSET,
+            y: baselineY + ruledLineOffset,
             lineHeight: answerLineHeight,
             style: answerStyle
           });
@@ -279,8 +299,11 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
         style: questionStyle
       });
       // Track line position for ruled lines (position line slightly below text baseline)
+      const ruledLineOffset = (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) 
+        ? -questionStyle.fontSize * 0.3  // Negative value to move lines up
+        : RULED_LINE_BASELINE_OFFSET;
       linePositions.push({
-        y: baselineY + RULED_LINE_BASELINE_OFFSET,
+        y: baselineY + ruledLineOffset,
         lineHeight: questionLineHeight,
         style: questionStyle
       });
@@ -290,8 +313,11 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
       const baselineY = cursorY + questionBaselineOffset;
       questionLinePositions.push(baselineY);
       // Track empty line position for ruled lines
+      const ruledLineOffset = (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) 
+        ? -questionStyle.fontSize * 0.3  // Negative value to move lines up
+        : RULED_LINE_BASELINE_OFFSET;
       linePositions.push({
-        y: baselineY + RULED_LINE_BASELINE_OFFSET,
+        y: baselineY + ruledLineOffset,
         lineHeight: questionLineHeight,
         style: questionStyle
       });
@@ -454,8 +480,11 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
             
             // Update the last line position for ruled lines (use combined line height)
             if (linePositions.length > 0) {
+              const ruledLineOffset = (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) 
+                ? -answerStyle.fontSize * 0.3  // Negative value to move lines up
+                : RULED_LINE_BASELINE_OFFSET;
               linePositions[linePositions.length - 1] = {
-                y: combinedBaselineY + RULED_LINE_BASELINE_OFFSET,
+                y: combinedBaselineY + ruledLineOffset,
                 lineHeight: combinedLineHeight,
                 style: answerStyle // Use answer style for combined line
               };
@@ -528,8 +557,11 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
   const emptyLinesToRender = Math.max(0, leadingBreaks - 1);
   for (let i = 0; i < emptyLinesToRender; i++) {
     const answerBaselineY = answerCursorY + answerBaselineOffset;
+    const ruledLineOffset = (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) 
+      ? -answerStyle.fontSize * 0.3  // Negative value to move lines up
+      : RULED_LINE_BASELINE_OFFSET;
     linePositions.push({
-      y: answerBaselineY + RULED_LINE_BASELINE_OFFSET,
+      y: answerBaselineY + ruledLineOffset,
       lineHeight: answerLineHeight,
       style: answerStyle
     });
@@ -544,8 +576,11 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
     const blanksToRender = emptyRun; // render exactly as many empty lines as collected
     for (let i = 0; i < blanksToRender; i += 1) {
       const answerBaselineY = answerCursorY + answerBaselineOffset;
+      const ruledLineOffset = (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) 
+        ? -answerStyle.fontSize * 0.3  // Negative value to move lines up
+        : RULED_LINE_BASELINE_OFFSET;
       linePositions.push({
-        y: answerBaselineY + RULED_LINE_BASELINE_OFFSET,
+        y: answerBaselineY + ruledLineOffset,
         lineHeight: answerLineHeight,
         style: answerStyle
       });
@@ -571,8 +606,11 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
       y: answerBaselineY, // Store baseline position directly
       style: answerStyle
     });
+    const ruledLineOffset = (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) 
+      ? -answerStyle.fontSize * 0.3  // Negative value to move lines up
+      : RULED_LINE_BASELINE_OFFSET;
     linePositions.push({
-      y: answerBaselineY + RULED_LINE_BASELINE_OFFSET,
+      y: answerBaselineY + ruledLineOffset,
       lineHeight: answerLineHeight,
       style: answerStyle
     });

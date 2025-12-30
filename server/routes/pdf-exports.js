@@ -199,28 +199,28 @@ async function loadBookDataFromDB(bookId, userId) {
       const elements = pageData.elements || [];
       
       // Debug: Log all elements to check if fillOpacity is present, especially QnA elements
-      elements.forEach((element, index) => {
-        if (element.textType === 'qna' || element.type === 'rect') {
-          console.log(`[DEBUG pdf-exports] Element ${index} from DB:`, {
-            id: element.id,
-            type: element.type,
-            textType: element.textType,
-            hasFillOpacity: 'fillOpacity' in element,
-            fillOpacity: element.fillOpacity,
-            hasBackgroundOpacity: 'backgroundOpacity' in element,
-            backgroundOpacity: element.backgroundOpacity,
-            hasBackground: 'background' in element,
-            background: element.background ? {
-              hasFillOpacity: 'fillOpacity' in (element.background || {}),
-              fillOpacity: element.background?.fillOpacity,
-              hasOpacity: 'opacity' in (element.background || {}),
-              opacity: element.background?.opacity,
-              hasBackgroundOpacity: 'backgroundOpacity' in (element.background || {}),
-              backgroundOpacity: element.background?.backgroundOpacity
-            } : undefined
-          });
-        }
-      });
+      // elements.forEach((element, index) => {
+      //   if (element.textType === 'qna' || element.type === 'rect') {
+      //     console.log(`[DEBUG pdf-exports] Element ${index} from DB:`, {
+      //       id: element.id,
+      //       type: element.type,
+      //       textType: element.textType,
+      //       hasFillOpacity: 'fillOpacity' in element,
+      //       fillOpacity: element.fillOpacity,
+      //       hasBackgroundOpacity: 'backgroundOpacity' in element,
+      //       backgroundOpacity: element.backgroundOpacity,
+      //       hasBackground: 'background' in element,
+      //       background: element.background ? {
+      //         hasFillOpacity: 'fillOpacity' in (element.background || {}),
+      //         fillOpacity: element.background?.fillOpacity,
+      //         hasOpacity: 'opacity' in (element.background || {}),
+      //         opacity: element.background?.opacity,
+      //         hasBackgroundOpacity: 'backgroundOpacity' in (element.background || {}),
+      //         backgroundOpacity: element.background?.backgroundOpacity
+      //       } : undefined
+      //     });
+      //   }
+      // });
       
       // Update answer elements with actual answer text
       const updatedElements = elements.map(element => {
