@@ -13,7 +13,8 @@ import { wrapText, measureText, calculateTextX, getLineHeight, buildFont } from 
  * This creates a uniform gap between text baseline and ruled line,
  * regardless of font size
  */
-const RULED_LINE_BASELINE_OFFSET = 12;
+// Use smaller offset when running PDF export (set by PDF renderer) to match server printout
+const RULED_LINE_BASELINE_OFFSET = (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) ? 6 : 12;
 
 export interface CreateBlockLayoutParams {
   questionText: string;

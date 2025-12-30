@@ -171,7 +171,7 @@ Die Anwendung verwendet plattformunabhängige shared Utilities für konsistentes
 - **Text Layout:** `shared/utils/text-layout.ts` - Text-Layout-Berechnungen
 - **QnA Layout:** `shared/utils/qna-layout.ts` - QnA-Layout-Berechnungen
 - **Themes & Palettes:** `shared/data/templates/` - Zentralisierte Theme- und Palette-Definitionen
-- **Rendering Logic:** `shared/rendering/` - Server-seitiges PDF-Rendering
+- **Rendering Logic:** Primary PDF rendering uses the client React bundle (served to Puppeteer). The historical server-side `shared/rendering/` fallback has been removed and is no longer used.
 
 **Weitere Informationen:** Siehe `docs/architecture/shared-utilities.md`
 

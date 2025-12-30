@@ -10,15 +10,19 @@ const { wrapText, measureText, calculateTextX, getLineHeight } = require('./text
  * This creates a uniform gap between text baseline and ruled line,
  * regardless of font size
  */
-const RULED_LINE_BASELINE_OFFSET = 12;
+function resolveRuledLineBaselineOffset(pdfExport) {
+  if (typeof pdfExport === 'boolean') return pdfExport ? 6 : 12;
+  return 12;
+}
 
 /**
  * Create block layout for question and answer text
  */
 function createBlockLayout(params) {
-  const { questionText, answerText, questionStyle, answerStyle, width, height, padding, ctx, questionPosition = 'left', questionWidth = 40, ruledLinesTarget = 'answer', blockQuestionAnswerGap = 10 } = params;
+  const { questionText, answerText, questionStyle, answerStyle, width, height, padding, ctx, questionPosition = 'left', questionWidth = 40, ruledLinesTarget = 'answer', blockQuestionAnswerGap = 10, pdfExport } = params;
   const runs = [];
   const linePositions = [];
+  const RULED_LINE_BASELINE_OFFSET = resolveRuledLineBaselineOffset(pdfExport);
   
   // Calculate line heights
   const questionLineHeight = getLineHeight(questionStyle);
@@ -160,7 +164,7 @@ function createBlockLayout(params) {
  * Create layout for question and answer text
  */
 function createLayout(params) {
-  const { questionText, answerText, questionStyle, answerStyle, width, height, padding, ctx, answerInNewRow = false, questionAnswerGap = 0, layoutVariant = 'inline', questionPosition = 'left', questionWidth = 40 } = params;
+  const { questionText, answerText, questionStyle, answerStyle, width, height, padding, ctx, answerInNewRow = false, questionAnswerGap = 0, layoutVariant = 'inline', questionPosition = 'left', questionWidth = 40, pdfExport } = params;
   
   // Block layout uses different logic
   if (layoutVariant === 'block') {
@@ -196,6 +200,7 @@ function createLayout(params) {
   
   // For combined lines, use the larger baseline offset to align both texts
   const combinedBaselineOffset = Math.max(questionBaselineOffset, answerBaselineOffset);
+  const RULED_LINE_BASELINE_OFFSET = resolveRuledLineBaselineOffset(pdfExport);
   
   let cursorY = padding;
   const questionLines = wrapText(questionText, questionStyle, availableWidth, ctx);

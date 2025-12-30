@@ -233,6 +233,14 @@ export function PDFRenderer({
   const [backgroundImage, setBackgroundImage] = useState<HTMLImageElement | null>(null);
   const [patternImage, setPatternImage] = useState<HTMLCanvasElement | null>(null);
 
+  useEffect(() => {
+    // mark this run as PDF export so shared layout adjusts ruled-line offset
+    if (typeof window !== 'undefined') {
+      (window as any).__PDF_EXPORT__ = true;
+    }
+    // ...existing code...
+  }, []);
+
   // Expose stage ref globally for Puppeteer screenshot access
   useEffect(() => {
     if (stageRef.current) {
@@ -2908,7 +2916,8 @@ export function PDFRenderer({
             ruledLinesTarget: ruledLinesTarget,
             blockQuestionAnswerGap: blockQuestionAnswerGap,
             answerInNewRow: answerInNewRow,
-            questionAnswerGap: questionAnswerGap
+            questionAnswerGap: questionAnswerGap,
+            pdfExport: true
           });
           
           const runs = layout.runs;
