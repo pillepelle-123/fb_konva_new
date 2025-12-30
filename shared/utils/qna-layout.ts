@@ -22,7 +22,7 @@ const isPdfExport = typeof window !== 'undefined' && (
   navigator.userAgent.includes('HeadlessChrome')
 );
 // Use negative offset for PDF to move lines above text baseline
-const RULED_LINE_BASELINE_OFFSET = isPdfExport ? -8 : 12;
+const RULED_LINE_BASELINE_OFFSET = isPdfExport ? 16 : 12;
 
 export interface CreateBlockLayoutParams {
   questionText: string;
@@ -63,8 +63,8 @@ export function createBlockLayout(params: CreateBlockLayoutParams): LayoutResult
   const linePositions: LinePosition[] = [];
   
   // Calculate line heights
-  const questionLineHeight = getLineHeight(questionStyle);
-  const answerLineHeight = getLineHeight(answerStyle);
+  const questionLineHeight = isPdfExport ? getLineHeight(questionStyle) * 1.15 : getLineHeight(questionStyle);
+  const answerLineHeight = isPdfExport ? getLineHeight(answerStyle) * 1.15 : getLineHeight(answerStyle);
   
   // Baseline offsets
   const questionBaselineOffset = questionStyle.fontSize * 0.8;
@@ -126,9 +126,7 @@ export function createBlockLayout(params: CreateBlockLayoutParams): LayoutResult
         });
         // Only add line position if ruledLinesTarget is 'question'
         if (ruledLinesTarget === 'question') {
-          const ruledLineOffset = (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) 
-            ? -questionStyle.fontSize * 0.3  // Negative value to move lines up
-            : RULED_LINE_BASELINE_OFFSET;
+          const ruledLineOffset = isPdfExport ? 16 : RULED_LINE_BASELINE_OFFSET;
           linePositions.push({
             y: baselineY + ruledLineOffset,
             lineHeight: questionLineHeight,
@@ -140,9 +138,7 @@ export function createBlockLayout(params: CreateBlockLayoutParams): LayoutResult
         // Only add line position if ruledLinesTarget is 'question'
         if (ruledLinesTarget === 'question') {
           const baselineY = cursorY + questionBaselineOffset;
-          const ruledLineOffset = (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) 
-            ? -questionStyle.fontSize * 0.3  // Negative value to move lines up
-            : RULED_LINE_BASELINE_OFFSET;
+          const ruledLineOffset = isPdfExport ? 16 : RULED_LINE_BASELINE_OFFSET;
           linePositions.push({
             y: baselineY + ruledLineOffset,
             lineHeight: questionLineHeight,
@@ -171,9 +167,7 @@ export function createBlockLayout(params: CreateBlockLayoutParams): LayoutResult
         });
         // Only add line position if ruledLinesTarget is 'answer'
         if (ruledLinesTarget === 'answer') {
-          const ruledLineOffset = (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) 
-            ? -answerStyle.fontSize * 0.3  // Negative value to move lines up
-            : RULED_LINE_BASELINE_OFFSET;
+          const ruledLineOffset = isPdfExport ? 16 : RULED_LINE_BASELINE_OFFSET;
           linePositions.push({
             y: baselineY + ruledLineOffset,
             lineHeight: answerLineHeight,
@@ -185,9 +179,7 @@ export function createBlockLayout(params: CreateBlockLayoutParams): LayoutResult
         // Only add line position if ruledLinesTarget is 'answer'
         if (ruledLinesTarget === 'answer') {
           const baselineY = cursorY + answerBaselineOffset;
-          const ruledLineOffset = (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) 
-            ? -answerStyle.fontSize * 0.3  // Negative value to move lines up
-            : RULED_LINE_BASELINE_OFFSET;
+          const ruledLineOffset = isPdfExport ? 16 : RULED_LINE_BASELINE_OFFSET;
           linePositions.push({
             y: baselineY + ruledLineOffset,
             lineHeight: answerLineHeight,
@@ -237,7 +229,7 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
   const linePositions: LinePosition[] = [];
   
   // Calculate line heights for both styles
-  const questionLineHeight = getLineHeight(questionStyle);
+  const questionLineHeight = isPdfExport ? getLineHeight(questionStyle) * 1 : getLineHeight(questionStyle);
   const answerLineHeight = getLineHeight(answerStyle);
   
   // Baseline offset: text baseline is typically at fontSize * 0.8 from top
@@ -299,9 +291,7 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
         style: questionStyle
       });
       // Track line position for ruled lines (position line slightly below text baseline)
-      const ruledLineOffset = (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) 
-        ? -questionStyle.fontSize * 0.3  // Negative value to move lines up
-        : RULED_LINE_BASELINE_OFFSET;
+      const ruledLineOffset = isPdfExport ? 16 : RULED_LINE_BASELINE_OFFSET;
       linePositions.push({
         y: baselineY + ruledLineOffset,
         lineHeight: questionLineHeight,
@@ -313,9 +303,7 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
       const baselineY = cursorY + questionBaselineOffset;
       questionLinePositions.push(baselineY);
       // Track empty line position for ruled lines
-      const ruledLineOffset = (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) 
-        ? -questionStyle.fontSize * 0.3  // Negative value to move lines up
-        : RULED_LINE_BASELINE_OFFSET;
+      const ruledLineOffset = isPdfExport ? 16 : RULED_LINE_BASELINE_OFFSET;
       linePositions.push({
         y: baselineY + ruledLineOffset,
         lineHeight: questionLineHeight,
@@ -480,9 +468,7 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
             
             // Update the last line position for ruled lines (use combined line height)
             if (linePositions.length > 0) {
-              const ruledLineOffset = (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) 
-                ? -answerStyle.fontSize * 0.3  // Negative value to move lines up
-                : RULED_LINE_BASELINE_OFFSET;
+              const ruledLineOffset = isPdfExport ? 16 : RULED_LINE_BASELINE_OFFSET;
               linePositions[linePositions.length - 1] = {
                 y: combinedBaselineY + ruledLineOffset,
                 lineHeight: combinedLineHeight,
@@ -557,9 +543,7 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
   const emptyLinesToRender = Math.max(0, leadingBreaks - 1);
   for (let i = 0; i < emptyLinesToRender; i++) {
     const answerBaselineY = answerCursorY + answerBaselineOffset;
-    const ruledLineOffset = (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) 
-      ? -answerStyle.fontSize * 0.3  // Negative value to move lines up
-      : RULED_LINE_BASELINE_OFFSET;
+    const ruledLineOffset = isPdfExport ? 16 : RULED_LINE_BASELINE_OFFSET;
     linePositions.push({
       y: answerBaselineY + ruledLineOffset,
       lineHeight: answerLineHeight,
@@ -576,9 +560,7 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
     const blanksToRender = emptyRun; // render exactly as many empty lines as collected
     for (let i = 0; i < blanksToRender; i += 1) {
       const answerBaselineY = answerCursorY + answerBaselineOffset;
-      const ruledLineOffset = (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) 
-        ? -answerStyle.fontSize * 0.3  // Negative value to move lines up
-        : RULED_LINE_BASELINE_OFFSET;
+      const ruledLineOffset = isPdfExport ? 16 : RULED_LINE_BASELINE_OFFSET;
       linePositions.push({
         y: answerBaselineY + ruledLineOffset,
         lineHeight: answerLineHeight,
@@ -606,9 +588,7 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
       y: answerBaselineY, // Store baseline position directly
       style: answerStyle
     });
-    const ruledLineOffset = (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) 
-      ? -answerStyle.fontSize * 0.3  // Negative value to move lines up
-      : RULED_LINE_BASELINE_OFFSET;
+    const ruledLineOffset = isPdfExport ? 16 : RULED_LINE_BASELINE_OFFSET;
     linePositions.push({
       y: answerBaselineY + ruledLineOffset,
       lineHeight: answerLineHeight,
@@ -628,4 +608,3 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
     linePositions
   };
 }
-

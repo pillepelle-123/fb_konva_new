@@ -929,8 +929,7 @@ export function PDFRenderer({
         const elementRotation = typeof element.rotation === 'number' ? element.rotation : 0;
         const elementOpacity = typeof element.opacity === 'number' ? element.opacity : 1;
         
-        // Render QnA elements (standard QnA textbox - textbox-qna.tsx logic)
-        // RE-ENABLED: use classic QnA rendering path for stability
+        // Render QnA elements using shared layout (matches textbox-qna.tsx exactly)
         if (element.textType === 'qna') {
           // Get tool defaults for qna
           const currentPage = state.currentBook?.pages?.find(p => p.id === page.id) || page;
@@ -979,17 +978,69 @@ export function PDFRenderer({
               }
             }
           } else if ((element as any).questionText) {
-            // Support direct questionText property (for server-side rendering)
             questionText = (element as any).questionText;
           }
           
-          // Get answer text - support multiple properties
+          // Get answer text
           let answerText = (element as any).answerText || element.formattedText || element.text || '';
           if (answerText.includes('<')) {
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = answerText;
             answerText = tempDiv.textContent || tempDiv.innerText || '';
           }
+          
+          // Use shared layout (same as textbox-qna.tsx)
+          const layoutVariant = element.layoutVariant || 'inline';
+          const questionPosition = element.questionPosition || 'left';
+          const questionWidth = element.questionWidth ?? 40;
+          const ruledLinesTarget = element.ruledLinesTarget || 'answer';
+          const blockQuestionAnswerGap = element.blockQuestionAnswerGap ?? 10;
+          const answerInNewRow = element.answerInNewRow ?? false;
+          const questionAnswerGap = element.questionAnswerGap ?? 0;
+          
+          // Create layout using shared functions (matches textbox-qna.tsx)
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          
+          const layout = sharedCreateLayout({
+            questionText: questionText || '',
+            answerText: answerText || '',
+            questionStyle: {
+              fontSize: questionStyle.fontSize || 45,
+              fontFamily: resolveFontFamily(questionStyle.fontFamily, questionStyle.fontBold ?? false, questionStyle.fontItalic ?? false),
+              fontBold: questionStyle.fontBold ?? false,
+              fontItalic: questionStyle.fontItalic ?? false,
+              fontColor: questionStyle.fontColor || '#666666',
+              fontOpacity: questionStyle.fontOpacity ?? 1,
+              paragraphSpacing: questionStyle.paragraphSpacing || 'small',
+              align: element.align || 'left'
+            },
+            answerStyle: {
+              fontSize: answerStyle.fontSize || 50,
+              fontFamily: resolveFontFamily(answerStyle.fontFamily, answerStyle.fontBold ?? false, answerStyle.fontItalic ?? false),
+              fontBold: answerStyle.fontBold ?? false,
+              fontItalic: answerStyle.fontItalic ?? false,
+              fontColor: answerStyle.fontColor || '#1f2937',
+              fontOpacity: answerStyle.fontOpacity ?? 1,
+              paragraphSpacing: answerStyle.paragraphSpacing || 'medium',
+              align: element.align || 'left'
+            },
+            width: elementWidth,
+            height: elementHeight,
+            padding: padding,
+            ctx: ctx,
+            layoutVariant: layoutVariant,
+            questionPosition: questionPosition,
+            questionWidth: questionWidth,
+            ruledLinesTarget: ruledLinesTarget,
+            blockQuestionAnswerGap: blockQuestionAnswerGap,
+            answerInNewRow: answerInNewRow,
+            questionAnswerGap: questionAnswerGap
+          });
+          
+          const runs = layout.runs;
+          const linePositions = layout.linePositions;
+          const contentHeight = layout.contentHeight;
           
           // Debug: Log QnA Inline text extraction
           console.log('[DEBUG PDFRenderer] QnA Inline text extraction:', {
@@ -1171,8 +1222,7 @@ export function PDFRenderer({
             }
           }
           
-          // Get layout variant (needed for ruled lines rendering)
-          const layoutVariant = element.layoutVariant || 'inline';
+          // Layout variant already defined above
           
           // Get paragraph spacing settings (needed for ruled lines rendering)
           const qParagraphSpacing = element.paragraphSpacing || questionStyle.paragraphSpacing || 'small';
@@ -1871,854 +1921,45 @@ export function PDFRenderer({
             console.log('  totalLinesCount:', ruledLinesRenderedCount);
           }
           
-          // Render border if enabled
-          const showBorder = element.borderEnabled ?? (questionStyle.border?.enabled || answerStyle.border?.enabled) ?? false;
-          if (showBorder) {
-            const borderColor = element.borderColor || questionStyle.border?.borderColor || answerStyle.border?.borderColor || '#000000';
-            const borderWidth = element.borderWidth || questionStyle.borderWidth || answerStyle.borderWidth || 1;
-            const borderOpacity = getStandardizedOpacity(element, 'border', 1);
-            const cornerRadius = element.cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
-            const theme = element.borderTheme || questionStyle.borderTheme || answerStyle.borderTheme || 'default';
-            
-            // Create border element for theme-specific settings
-              const borderElement = {
-                type: 'rect' as const,
-                id: element.id + '-border',
-                x: 0,
-                y: 0,
-                width: elementWidth,
-                height: dynamicHeight,
-                cornerRadius: cornerRadius,
-                stroke: borderColor,
-                strokeWidth: borderWidth,
-              fill: 'transparent',
-              theme: theme,
-              roughness: theme === 'rough' ? 8 : undefined,
-              // Pass through theme-specific settings
-              candyRandomness: (element as any).candyRandomness,
-              candyIntensity: (element as any).candyIntensity,
-              candySpacingMultiplier: (element as any).candySpacingMultiplier,
-              candyHoled: (element as any).candyHoled
-              } as CanvasElement;
-              
-            // Use centralized border rendering with fallback
-            const borderNode = renderThemedBorderKonvaWithFallback({
-              width: borderWidth,
-              color: borderColor,
-              opacity: borderOpacity,
-              path: createRectPath(0, 0, elementWidth, dynamicHeight),
-              theme: theme,
-              themeSettings: {
-                roughness: theme === 'rough' ? 8 : undefined,
-                candyRandomness: (borderElement as any).candyRandomness,
-                candyIntensity: (borderElement as any).candyIntensity,
-                candySpacingMultiplier: (borderElement as any).candySpacingMultiplier,
-                candyHoled: (borderElement as any).candyHoled
+          // Render text using shared layout runs (matches textbox-qna.tsx RichTextShape)
+          if (runs.length > 0) {
+            const textShape = new Konva.Shape({
+              x: elementX,
+              y: elementY,
+              sceneFunc: (ctx, shape) => {
+                ctx.save();
+                ctx.textBaseline = 'alphabetic';
+                runs.forEach((run) => {
+                  const style = run.style;
+                  const fontString = sharedBuildFont(style);
+                  const textColor = style.fontColor || '#000000';
+                  const textOpacity = (style.fontOpacity !== undefined ? style.fontOpacity : 1) * elementOpacity;
+                  
+                  ctx.font = fontString;
+                  ctx.fillStyle = textColor;
+                  ctx.globalAlpha = textOpacity;
+                  ctx.fillText(run.text || '', run.x, run.y);
+                });
+                ctx.restore();
+                ctx.fillStrokeShape(shape);
               },
-              cornerRadius: cornerRadius,
-              strokeScaleEnabled: true,
-              listening: false
-            }, () => {
-              // Fallback: use existing manual implementation
-              const themeRenderer = getThemeRenderer(theme);
-              if (themeRenderer && theme !== 'default') {
-              const pathData = themeRenderer.generatePath(borderElement);
-                const strokeProps = themeRenderer.getStrokeProps(borderElement);
-              
-              if (pathData) {
-                  return new Konva.Path({
-                  data: pathData,
-                  x: elementX,
-                  y: elementY,
-                    stroke: strokeProps.stroke !== undefined ? strokeProps.stroke : borderColor,
-                    strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : borderWidth,
-                    fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
-                    opacity: (strokeProps.opacity !== undefined ? strokeProps.opacity : 1) * borderOpacity,
-                    shadowColor: strokeProps.shadowColor,
-                    shadowBlur: strokeProps.shadowBlur,
-                    shadowOpacity: strokeProps.shadowOpacity,
-                    shadowOffsetX: strokeProps.shadowOffsetX,
-                    shadowOffsetY: strokeProps.shadowOffsetY,
-                  strokeScaleEnabled: true,
-                  rotation: elementRotation,
-                  listening: false,
-                    lineCap: strokeProps.lineCap || 'round',
-                    lineJoin: strokeProps.lineJoin || 'round',
-                  });
-                }
-              }
-              // Fallback to default Rect
-              const rectPath = `M ${elementX} ${elementY} L ${elementX + elementWidth} ${elementY} L ${elementX + elementWidth} ${elementY + dynamicHeight} L ${elementX} ${elementY + dynamicHeight} Z`;
-              return new Konva.Path({
-                data: rectPath,
-                x: 0,
-                y: 0,
-                stroke: borderColor,
-                strokeWidth: borderWidth,
-                fill: 'transparent',
-                opacity: borderOpacity,
-                strokeScaleEnabled: true,
-                rotation: elementRotation,
-                listening: false,
-                visible: true
-              });
+              width: elementWidth,
+              height: contentHeight,
+              rotation: elementRotation,
+              listening: false,
+              visible: true
             });
             
-            if (borderNode) {
-              // Set position and rotation
-              borderNode.x(elementX);
-              borderNode.y(elementY);
-              borderNode.rotation(elementRotation);
-              borderNode.visible(true);
-              
-              // Ensure shadow properties are set (for Glow theme)
-              if (borderNode instanceof Konva.Path) {
-                const themeRenderer = getThemeRenderer(theme);
-                const strokeProps = themeRenderer.getStrokeProps(borderElement);
-                if (strokeProps.shadowColor) {
-                  borderNode.shadowColor(strokeProps.shadowColor);
-                  borderNode.shadowBlur(strokeProps.shadowBlur || 0);
-                  borderNode.shadowOpacity(strokeProps.shadowOpacity || 0);
-                  borderNode.shadowOffsetX(strokeProps.shadowOffsetX || 0);
-                  borderNode.shadowOffsetY(strokeProps.shadowOffsetY || 0);
-                }
-              }
-              
-              layer.add(borderNode);
+            layer.add(textShape);
+            const zOrderIndex = elementIdToZOrder.get(element.id);
+            if (zOrderIndex !== undefined) {
+              textShape.setAttr('__zOrderIndex', zOrderIndex);
+              textShape.setAttr('__elementId', element.id);
+              textShape.setAttr('__nodeType', 'qna-text');
             }
           }
           
-          // Get alignment settings (needed for text rendering)
-          // Note: layoutVariant, effectivePadding, combinedLineHeight, textBaselineOffset, etc. are already defined above (before Ruled Lines block)
-          const questionAlign = element.align || (element as any).format?.textAlign || questionStyle.align || 'left';
-          const answerAlign = element.align || (element as any).format?.textAlign || answerStyle.align || 'left';
-          
-          if (layoutVariant === 'block') {
-            // Block layout: question and answer in separate areas
-            const questionPosition = element.questionPosition || 'left';
-            const qFontSize = questionStyle.fontSize || 45;
-            const aFontSize = answerStyle.fontSize || 50;
-            const qLineHeight = qFontSize * getLineHeightMultiplier(qParagraphSpacing);
-            const aLineHeight = aFontSize * getLineHeightMultiplier(aParagraphSpacing);
-            
-            const qFontBold = questionStyle.fontBold ?? false;
-            const qFontItalic = questionStyle.fontItalic ?? false;
-            const qFontFamily = resolveFontFamily(questionStyle.fontFamily, qFontBold, qFontItalic);
-            const qFontColor = questionStyle.fontColor || '#666666';
-            const qFontOpacity = getStandardizedOpacity(element, 'font', questionStyle.fontOpacity ?? 1);
-            
-            const aFontBold = answerStyle.fontBold ?? false;
-            const aFontItalic = answerStyle.fontItalic ?? false;
-            const aFontFamily = resolveFontFamily(answerStyle.fontFamily, aFontBold, aFontItalic);
-            const aFontColor = answerStyle.fontColor || '#1f2937';
-            const aFontOpacity = getStandardizedOpacity(element, 'font', answerStyle.fontOpacity ?? 1);
-            
-            let questionArea = { x: elementX + padding, y: elementY + padding, width: textWidth, height: dynamicHeight - padding * 2 };
-            let answerArea = { x: elementX + padding, y: elementY + padding, width: textWidth, height: dynamicHeight - padding * 2 };
-            
-            // Calculate dynamic question area size based on text content
-            let questionWidth = 0;
-            let questionHeight = 0;
-            
-            if (questionText && questionText.trim() !== '') {
-              const canvas = document.createElement('canvas');
-              const context = canvas.getContext('2d')!;
-              const qFontFamilyClean = qFontFamily.includes('Mynerve') ? 'Mynerve, cursive' : qFontFamily;
-              context.font = `${qFontBold ? 'bold ' : ''}${qFontItalic ? 'italic ' : ''}${qFontSize}px ${qFontFamilyClean}`;
-              
-              // Calculate required width and height for question text
-              const words = questionText.split(' ');
-              let maxLineWidth = 0;
-              let currentLineWidth = 0;
-              let lineCount = 1;
-              
-              for (const word of words) {
-                const wordWidth = context.measureText(word + ' ').width;
-                if (currentLineWidth + wordWidth > elementWidth * 0.6 && currentLineWidth > 0) {
-                  maxLineWidth = Math.max(maxLineWidth, currentLineWidth);
-                  currentLineWidth = wordWidth;
-                  lineCount++;
-                } else {
-                  currentLineWidth += wordWidth;
-                }
-              }
-              maxLineWidth = Math.max(maxLineWidth, currentLineWidth);
-              
-              questionWidth = Math.min(maxLineWidth + padding * 2, elementWidth * 0.6);
-              questionHeight = lineCount * qLineHeight + padding * 2;
-            }
-            
-            // Calculate areas based on position
-            if (questionPosition === 'left' || questionPosition === 'right') {
-              const questionWidthPercent = element.questionWidth || 40;
-              const finalQuestionWidth = (elementWidth * questionWidthPercent) / 100;
-              const answerWidth = elementWidth - finalQuestionWidth - padding * 3;
-              
-              if (questionPosition === 'left') {
-                questionArea = { x: elementX + padding, y: elementY + padding, width: finalQuestionWidth, height: dynamicHeight - padding * 2 };
-                answerArea = { x: elementX + finalQuestionWidth + padding * 2, y: elementY + padding, width: answerWidth, height: dynamicHeight - padding * 2 };
-              } else {
-                answerArea = { x: elementX + padding, y: elementY + padding, width: answerWidth, height: dynamicHeight - padding * 2 };
-                questionArea = { x: elementX + answerWidth + padding * 2, y: elementY + padding, width: finalQuestionWidth, height: dynamicHeight - padding * 2 };
-              }
-            } else {
-              const finalQuestionHeight = Math.max(questionHeight, qFontSize + padding * 2);
-              const answerHeight = dynamicHeight - finalQuestionHeight - padding * 3;
-              
-              if (questionPosition === 'top') {
-                questionArea = { x: elementX + padding, y: elementY + padding, width: textWidth, height: finalQuestionHeight };
-                answerArea = { x: elementX + padding, y: elementY + finalQuestionHeight + padding * 2, width: textWidth, height: answerHeight };
-              } else {
-                answerArea = { x: elementX + padding, y: elementY + padding, width: textWidth, height: answerHeight };
-                questionArea = { x: elementX + padding, y: elementY + answerHeight + padding * 2, width: textWidth, height: finalQuestionHeight };
-              }
-            }
-            
-            // Render question in its area
-            if (questionText && questionText.trim() !== '') {
-              // console.log('[DEBUG PDFRenderer] Rendering question text (block layout):', {
-              //   elementId: element.id,
-              //   questionText: questionText.substring(0, 50),
-              //   questionArea: questionArea,
-              //   qFontColor,
-              //   qFontOpacity,
-              //   elementOpacity,
-              //   finalOpacity: elementOpacity * qFontOpacity
-              // });
-              const canvas = document.createElement('canvas');
-              const context = canvas.getContext('2d')!;
-              const qFontFamilyClean = qFontFamily.includes('Mynerve') ? 'Mynerve, cursive' : qFontFamily;
-              context.font = `${qFontBold ? 'bold ' : ''}${qFontItalic ? 'italic ' : ''}${qFontSize}px ${qFontFamilyClean}`;
-              
-              const words = questionText.split(' ');
-              let currentLine = '';
-              let currentY = questionArea.y;
-              
-              words.forEach((word) => {
-                const testLine = currentLine ? currentLine + ' ' + word : word;
-                const testWidth = context.measureText(testLine).width;
-                
-                if (testWidth > questionArea.width && currentLine) {
-                  const questionNode = new Konva.Text({
-                    x: questionArea.x,
-                    y: currentY,
-                    text: currentLine,
-                    fontSize: qFontSize,
-                    fontFamily: qFontFamilyClean,
-                    fontStyle: qFontItalic ? 'italic' : 'normal',
-                    fontWeight: qFontBold ? 'bold' : 'normal',
-                    fill: qFontColor,
-                    opacity: Math.max(0.01, elementOpacity * qFontOpacity),
-                    align: questionAlign,
-                    width: questionArea.width,
-                    rotation: elementRotation,
-                    listening: false,
-                    visible: true
-                  });
-
-                  // Set z-order attributes for question text (block layout)
-                  const questionZOrderIndex = elementIdToZOrder.get(element.id);
-                  if (questionZOrderIndex !== undefined) {
-                    questionNode.setAttr('__zOrderIndex', questionZOrderIndex);
-                    questionNode.setAttr('__isQnaNode', true);
-                    questionNode.setAttr('__elementId', element.id);
-                    questionNode.setAttr('__nodeType', 'qna-text');
-                  }
-
-                  layer.add(questionNode);
-                  currentLine = word;
-                  currentY += qLineHeight;
-                } else {
-                  currentLine = testLine;
-                }
-              });
-              
-              if (currentLine) {
-                const questionNode = new Konva.Text({
-                  x: questionArea.x,
-                  y: currentY,
-                  text: currentLine,
-                  fontSize: qFontSize,
-                  fontFamily: qFontFamilyClean,
-                  fontStyle: qFontItalic ? 'italic' : 'normal',
-                  fontWeight: qFontBold ? 'bold' : 'normal',
-                  fill: qFontColor,
-                  opacity: elementOpacity * qFontOpacity,
-                  align: questionAlign,
-                  width: questionArea.width,
-                  rotation: elementRotation,
-                  listening: false,
-                  visible: true
-                });
-
-                // Set z-order attributes for question text (block layout)
-                const questionZOrderIndex = elementIdToZOrder.get(element.id);
-                if (questionZOrderIndex !== undefined) {
-                  questionNode.setAttr('__zOrderIndex', questionZOrderIndex);
-                  questionNode.setAttr('__isQnaNode', true);
-                  questionNode.setAttr('__elementId', element.id);
-                  questionNode.setAttr('__nodeType', 'qna-text');
-                }
-
-                layer.add(questionNode);
-              }
-            }
-            
-            // Render answer in its area
-            if (answerText && answerText.trim() !== '') {
-              // console.log('[DEBUG PDFRenderer] Rendering answer text (block layout):', {
-              //   elementId: element.id,
-              //   answerText: answerText.substring(0, 50),
-              //   answerArea: answerArea,
-              //   aFontColor,
-              //   aFontOpacity,
-              //   elementOpacity,
-              //   finalOpacity: elementOpacity * aFontOpacity
-              // });
-              const canvas = document.createElement('canvas');
-              const context = canvas.getContext('2d')!;
-              const aFontFamilyClean = aFontFamily.includes('Mynerve') ? 'Mynerve, cursive' : aFontFamily;
-              context.font = `${aFontBold ? 'bold ' : ''}${aFontItalic ? 'italic ' : ''}${aFontSize}px ${aFontFamilyClean}`;
-              
-              const lines = answerText.split('\n');
-              // Match Editor logic exactly: use currentY that increments after each line
-              // PST: Layout = Block: Adjust Y position for subsequent ruled lines, before it was >> let currentY = answerArea.y + aFontSize * 0.2;
-              let currentY = answerArea.y;
-              
-              lines.forEach((line) => {
-                if (!line.trim()) {
-                  currentY += aLineHeight;
-                  return;
-                }
-                
-                const words = line.split(' ');
-                let currentLine = '';
-                
-                words.forEach((word) => {
-                  const testLine = currentLine ? currentLine + ' ' + word : word;
-                  const testWidth = context.measureText(testLine).width;
-                  
-                  if (testWidth > answerArea.width && currentLine) {
-                    const answerNode = new Konva.Text({
-                      x: answerArea.x,
-                      y: currentY,
-                      text: currentLine,
-                      fontSize: aFontSize,
-                      fontFamily: aFontFamilyClean,
-                      fontStyle: aFontItalic ? 'italic' : 'normal',
-                      fontWeight: aFontBold ? 'bold' : 'normal',
-                      fill: aFontColor,
-                      opacity: elementOpacity * aFontOpacity,
-                      align: answerAlign,
-                      width: answerArea.width,
-                      rotation: elementRotation,
-                      listening: false,
-                      visible: true
-                    });
-
-                    // Set z-order attributes for answer text (block layout)
-                    const answerZOrderIndex = elementIdToZOrder.get(element.id);
-                    if (answerZOrderIndex !== undefined) {
-                      answerNode.setAttr('__zOrderIndex', answerZOrderIndex);
-                      answerNode.setAttr('__isQnaNode', true);
-                      answerNode.setAttr('__elementId', element.id);
-                      answerNode.setAttr('__nodeType', 'qna-text');
-                    }
-
-                    layer.add(answerNode);
-                    currentLine = word;
-                    currentY += aLineHeight;
-                  } else {
-                    currentLine = testLine;
-                  }
-                });
-                
-                if (currentLine) {
-                  const answerNode = new Konva.Text({
-                    x: answerArea.x,
-                    y: currentY,
-                    text: currentLine,
-                    fontSize: aFontSize,
-                    fontFamily: aFontFamilyClean,
-                    fontStyle: aFontItalic ? 'italic' : 'normal',
-                    fontWeight: aFontBold ? 'bold' : 'normal',
-                    fill: aFontColor,
-                    opacity: Math.max(0.01, elementOpacity * aFontOpacity),
-                    align: answerAlign,
-                    width: answerArea.width,
-                    rotation: elementRotation,
-                    listening: false,
-                    visible: true
-                  });
-
-                  // Set z-order attributes for answer text (block layout)
-                  const answerZOrderIndex = elementIdToZOrder.get(element.id);
-                  if (answerZOrderIndex !== undefined) {
-                    answerNode.setAttr('__zOrderIndex', answerZOrderIndex);
-                    answerNode.setAttr('__isQnaNode', true);
-                    answerNode.setAttr('__elementId', element.id);
-                    answerNode.setAttr('__nodeType', 'qna-text');
-                  }
-
-                  layer.add(answerNode);
-                  currentY += aLineHeight;
-                }
-              });
-            }
-          } else {
-            // Inline layout: question and answer can appear on same line
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d')!;
-            
-            // Render question text first
-            if (questionText && questionText.trim() !== '') {
-              // console.log('[DEBUG PDFRenderer] Rendering question text (inline layout):', {
-              //   elementId: element.id,
-              //   questionText: questionText.substring(0, 50)
-              // });
-              const questionFontSize = questionStyle.fontSize || 45;
-              const questionFontBold = questionStyle.fontBold ?? false;
-              const questionFontItalic = questionStyle.fontItalic ?? false;
-              const questionFontFamily = resolveFontFamily(questionStyle.fontFamily, questionFontBold, questionFontItalic);
-              const questionFontColor = questionStyle.fontColor || '#666666';
-              const questionFontOpacity = questionStyle.fontOpacity ?? 1;
-              
-              context.font = `${questionFontBold ? 'bold ' : ''}${questionFontItalic ? 'italic ' : ''}${questionFontSize}px ${questionFontFamily}`;
-              
-              // Build question lines
-              const questionWords = questionText.split(' ');
-              const questionLines: string[] = [];
-              let currentLine = '';
-              let currentLineWidth = 0;
-              
-              for (const word of questionWords) {
-                const wordWithSpace = currentLine ? ' ' + word : word;
-                const wordWidth = context.measureText(wordWithSpace).width;
-                
-                if (currentLineWidth + wordWidth <= textWidth) {
-                  currentLine += wordWithSpace;
-                  currentLineWidth += wordWidth;
-                } else {
-                  if (currentLine) questionLines.push(currentLine);
-                  currentLine = word;
-                  currentLineWidth = context.measureText(word).width;
-                }
-              }
-              if (currentLine) questionLines.push(currentLine);
-              
-              // Calculate where question ends for answer positioning (needed for alignment)
-              const lastQuestionLine = questionLines[questionLines.length - 1] || '';
-              const questionTextWidth = context.measureText(lastQuestionLine).width;
-              
-              // Check if answer can fit on same line (needed for alignment calculation)
-              const gapForCheck = Math.max(10, qFontSize * 0.5);
-              const availableWidthAfterQuestion = textWidth - questionTextWidth - gapForCheck;
-              let canFitOnSameLineForAlignment = false;
-              
-              if (availableWidthAfterQuestion > 0 && answerText) {
-                const firstAnswerLine = answerText.split('\n')[0] || '';
-                const firstAnswerWord = firstAnswerLine.split(' ')[0] || '';
-                if (firstAnswerWord) {
-                  const firstWordWidth = context.measureText(firstAnswerWord).width;
-                  canFitOnSameLineForAlignment = firstWordWidth <= availableWidthAfterQuestion;
-                } else {
-                  canFitOnSameLineForAlignment = true;
-                }
-              }
-              
-              // Calculate combined width and startX for alignment (if answer fits on same line)
-              let questionStartX = elementX + padding;
-              if (canFitOnSameLineForAlignment && answerText) {
-                const qContext = document.createElement('canvas').getContext('2d')!;
-                const qFontFamilyClean = questionFontFamily.includes('Mynerve') ? 'Mynerve, cursive' : questionFontFamily;
-                qContext.font = `${questionFontBold ? 'bold ' : ''}${questionFontItalic ? 'italic' : ''}${qFontSize}px ${qFontFamilyClean}`;
-                const qWidth = qContext.measureText(lastQuestionLine).width;
-                const gap = Math.max(10, qFontSize * 0.5);
-                const firstAnswerLine = answerText.split('\n')[0] || '';
-                const firstAnswerWord = firstAnswerLine.split(' ')[0] || '';
-                const aWidth = firstAnswerWord ? context.measureText(firstAnswerWord).width : 0;
-                const combinedWidth = qWidth + gap + aWidth;
-                
-                if (answerAlign === 'center') {
-                  questionStartX = elementX + (elementWidth - combinedWidth) / 2;
-                } else if (answerAlign === 'right') {
-                  questionStartX = elementX + elementWidth - padding - combinedWidth;
-                }
-              }
-              
-              // Render all question lines with shared baseline alignment
-              const number = qFontSize - aFontSize;
-              questionLines.forEach((line, index) => {
-                const sharedBaseline = effectivePadding + (index * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.8) - (number / 7);
-                const questionY = sharedBaseline - (qFontSize * 0.8);
-                
-                // For the last question line, use questionStartX if answer fits on same line and alignment is not left
-                // Otherwise, use normal padding
-                const questionX = (index === questionLines.length - 1 && canFitOnSameLineForAlignment && answerAlign !== 'left') 
-                  ? questionStartX 
-                  : elementX + padding;
-                
-                // Debug: Log font metrics for first few question lines
-                if (index < 3) {
-                  const canvas = document.createElement('canvas');
-                  const ctx = canvas.getContext('2d');
-                  if (ctx) {
-                    const weightStr = questionFontBold ? 'bold ' : '';
-                    const styleStr = questionFontItalic ? 'italic ' : '';
-                    const testFont = `${weightStr}${styleStr}${questionFontSize}px ${questionFontFamily}`;
-                    ctx.font = testFont;
-                    ctx.textBaseline = 'alphabetic';
-                    const metrics = ctx.measureText('M');
-                    const actualBoundingBoxAscent = metrics.actualBoundingBoxAscent;
-                    const actualBoundingBoxDescent = metrics.actualBoundingBoxDescent;
-                    const width = metrics.width;
-                    // console.log('[CLIENT PDFRenderer] Question font metrics:', JSON.stringify({
-                    //   lineIndex: index,
-                    //   text: line ? line.substring(0, 30) : '(empty)',
-                    //   font: testFont,
-                    //   fontSize: questionFontSize,
-                    //   fontFamily: questionFontFamily,
-                    //   fontWeight: questionFontBold ? 'bold' : 'normal',
-                    //   fontStyle: questionFontItalic ? 'italic' : 'normal',
-                    //   actualBoundingBoxAscent: actualBoundingBoxAscent !== undefined ? actualBoundingBoxAscent : null,
-                    //   actualBoundingBoxDescent: actualBoundingBoxDescent !== undefined ? actualBoundingBoxDescent : null,
-                    //   width: width,
-                    //   baselineY: sharedBaseline,
-                    //   topY: questionY,
-                    //   x: questionX,
-                    //   y: elementY + questionY
-                    // }, null, 2));
-                  }
-                }
-                
-                const questionNode = new Konva.Text({
-                  x: questionX,
-                  y: elementY + questionY,
-                  text: line,
-                  fontSize: questionFontSize,
-                  fontFamily: questionFontFamily,
-                  fontStyle: questionFontItalic ? 'italic' : 'normal',
-                  fontWeight: questionFontBold ? 'bold' : 'normal',
-                  fill: questionFontColor,
-                  opacity: elementOpacity * questionFontOpacity,
-                  align: questionAlign,
-                  width: textWidth,
-                  rotation: elementRotation,
-                  listening: false,
-                  visible: true
-                });
-
-                // Set z-order attributes for question text
-                const questionZOrderIndex = elementIdToZOrder.get(element.id);
-                if (questionZOrderIndex !== undefined) {
-                  questionNode.setAttr('__zOrderIndex', questionZOrderIndex);
-                  questionNode.setAttr('__isQnaNode', true);
-                  questionNode.setAttr('__elementId', element.id);
-                  questionNode.setAttr('__nodeType', 'qna-text');
-                }
-
-                layer.add(questionNode);
-              });
-              
-              // Render answer text with inline layout logic
-              if (answerText && answerText.trim() !== '') {
-                // console.log('[DEBUG PDFRenderer] Rendering answer text (inline layout):', {
-                //   elementId: element.id,
-                //   answerText: answerText.substring(0, 50)
-                // });
-                const answerFontSize = answerStyle.fontSize || 50;
-                const answerFontBold = answerStyle.fontBold ?? false;
-                const answerFontItalic = answerStyle.fontItalic ?? false;
-                const answerFontFamily = resolveFontFamily(answerStyle.fontFamily, answerFontBold, answerFontItalic);
-                const answerFontColor = answerStyle.fontColor || '#1f2937';
-                const answerFontOpacity = answerStyle.fontOpacity ?? 1;
-                
-                context.font = `${answerFontBold ? 'bold ' : ''}${answerFontItalic ? 'italic ' : ''}${answerFontSize}px ${answerFontFamily}`;
-                
-                // Check if there's enough space after the question to render answer on the same line
-                // Dynamic gap based on font size (same as Editor)
-                const gap = Math.max(10, qFontSize * 0.5);
-                const availableWidthAfterQuestion = textWidth - questionTextWidth - gap;
-                let canFitOnSameLine = false;
-                
-                if (availableWidthAfterQuestion > 0) {
-                  const firstAnswerLine = answerText.split('\n')[0] || '';
-                  const firstAnswerWord = firstAnswerLine.split(' ')[0] || '';
-                  if (firstAnswerWord) {
-                    const firstWordWidth = context.measureText(firstAnswerWord).width;
-                    canFitOnSameLine = firstWordWidth <= availableWidthAfterQuestion;
-                  } else {
-                    canFitOnSameLine = true;
-                  }
-                }
-                
-                // Handle line breaks in answer text
-                const userLines = answerText.split('\n');
-                let isFirstLine = canFitOnSameLine;
-                let totalAnswerLineCount = 0;
-                
-                userLines.forEach((line) => {
-                  if (!line.trim() && !isFirstLine) {
-                    totalAnswerLineCount++;
-                    return;
-                  }
-                  
-                  const words = line.split(' ');
-                  let wordIndex = 0;
-                  let firstLineSegmentCount = 0;
-                  
-                  // Safety limit to prevent infinite loops with malformed data
-                  const maxWords = Math.min(words.length, 10000);
-                  let outerIterationCount = 0;
-                  
-                  while (wordIndex < words.length && outerIterationCount < maxWords) {
-                    let lineText = '';
-                    let lineWidth = 0;
-                    let availableWidth = textWidth;
-                    
-                    // For first line only, start after question (if there's space)
-                    if (isFirstLine && canFitOnSameLine) {
-                      availableWidth = textWidth - questionTextWidth - gap;
-                    }
-                    
-                    // Safety check: ensure availableWidth is valid
-                    if (availableWidth <= 0 || !isFinite(availableWidth)) {
-                      availableWidth = Math.max(textWidth, 100); // Fallback to reasonable width
-                    }
-                    
-                    // Build line with as many words as fit
-                    let innerIterationCount = 0;
-                    const maxInnerIterations = 1000;
-                    while (wordIndex < words.length && innerIterationCount < maxInnerIterations) {
-                      const word = words[wordIndex];
-                      if (!word || word.length === 0) {
-                        wordIndex++;
-                        innerIterationCount++;
-                        continue;
-                      }
-                      const wordWithSpace = lineText ? ' ' + word : word;
-                      const wordWidth = context.measureText(wordWithSpace).width;
-                      
-                      // Safety check: ensure wordWidth is valid
-                      if (!isFinite(wordWidth) || wordWidth === Infinity || isNaN(wordWidth)) {
-                        wordIndex++;
-                        innerIterationCount++;
-                        continue;
-                      }
-                      
-                      if (lineWidth + wordWidth <= availableWidth) {
-                        lineText += wordWithSpace;
-                        lineWidth += wordWidth;
-                        wordIndex++;
-                        innerIterationCount++;
-                      } else {
-                        break;
-                      }
-                    }
-                    
-                    // Safety: break if we're stuck
-                    if (innerIterationCount >= maxInnerIterations) {
-                      break;
-                    }
-                    
-                    // Safety: prevent infinite loops
-                    if (outerIterationCount >= maxWords) {
-                      break;
-                    }
-                    outerIterationCount++;
-                    
-                    if (lineText) {
-                      if (isFirstLine) {
-                        firstLineSegmentCount++;
-                        if (firstLineSegmentCount === 1) {
-                          // First segment on same line as question
-                          // Calculate combined width for alignment
-                          const lastQuestionLine = questionLines[questionLines.length - 1] || '';
-                          
-                          // Use question font context for accurate measurement
-                          const qContext = document.createElement('canvas').getContext('2d')!;
-                          const qFontFamilyClean = questionFontFamily.includes('Mynerve') ? 'Mynerve, cursive' : questionFontFamily;
-                          qContext.font = `${questionFontBold ? 'bold ' : ''}${questionFontItalic ? 'italic ' : ''}${qFontSize}px ${qFontFamilyClean}`;
-                          const qWidth = qContext.measureText(lastQuestionLine).width;
-                          
-                          const gap = Math.max(10, qFontSize * 0.5); // Dynamic gap based on font size
-                          const aWidth = context.measureText(lineText).width;
-                          const combinedWidth = qWidth + gap + aWidth;
-                          
-                          // Calculate startX based on answerAlign
-                          let startX = elementX + padding;
-                          if (answerAlign === 'center') {
-                            startX = elementX + (elementWidth - combinedWidth) / 2;
-                          } else if (answerAlign === 'right') {
-                            startX = elementX + elementWidth - padding - combinedWidth;
-                          }
-                          
-                          // Calculate shared baseline for both question and answer text
-                          const number = qFontSize - aFontSize;
-                          const sharedBaseline = effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.8) - (number / 7);
-                          const answerY = sharedBaseline - (aFontSize * 0.8);
-                          
-                          // Debug: Log font metrics for first answer text node
-                          if (firstLineSegmentCount === 1) {
-                            const canvas = document.createElement('canvas');
-                            const ctx = canvas.getContext('2d');
-                            if (ctx) {
-                              const weightStr = answerFontBold ? 'bold ' : '';
-                              const styleStr = answerFontItalic ? 'italic ' : '';
-                              const testFont = `${weightStr}${styleStr}${answerFontSize}px ${answerFontFamily}`;
-                              ctx.font = testFont;
-                              ctx.textBaseline = 'alphabetic';
-                              const metrics = ctx.measureText('M');
-                              const actualBoundingBoxAscent = metrics.actualBoundingBoxAscent;
-                              const actualBoundingBoxDescent = metrics.actualBoundingBoxDescent;
-                              const width = metrics.width;
-                              // console.log('[CLIENT PDFRenderer] Answer font metrics (first segment):', JSON.stringify({
-                              //   segmentIndex: firstLineSegmentCount,
-                              //   text: lineText ? lineText.substring(0, 30) : '(empty)',
-                              //   font: testFont,
-                              //   fontSize: answerFontSize,
-                              //   fontFamily: answerFontFamily,
-                              //   fontWeight: answerFontBold ? 'bold' : 'normal',
-                              //   fontStyle: answerFontItalic ? 'italic' : 'normal',
-                              //   actualBoundingBoxAscent: actualBoundingBoxAscent !== undefined ? actualBoundingBoxAscent : null,
-                              //   actualBoundingBoxDescent: actualBoundingBoxDescent !== undefined ? actualBoundingBoxDescent : null,
-                              //   width: width,
-                              //   baselineY: sharedBaseline,
-                              //   topY: answerY,
-                              //   x: startX + qWidth + gap,
-                              //   y: elementY + answerY
-                              // }, null, 2));
-                            }
-                          }
-                          
-                          // Render answer after question with shared baseline alignment
-                          const answerNode = new Konva.Text({
-                            x: startX + qWidth + gap,
-                            y: elementY + answerY,
-                            text: lineText,
-                            fontSize: answerFontSize,
-                            fontFamily: answerFontFamily,
-                            fontStyle: answerFontItalic ? 'italic' : 'normal',
-                            fontWeight: answerFontBold ? 'bold' : 'normal',
-                            fill: answerFontColor,
-                            opacity: Math.max(0.01, elementOpacity * answerFontOpacity),
-                            align: 'left',
-                            rotation: elementRotation,
-                            listening: false,
-                            visible: true
-                          });
-
-                          // Set z-order attributes for answer text
-                          const answerZOrderIndex = elementIdToZOrder.get(element.id);
-                          if (answerZOrderIndex !== undefined) {
-                            answerNode.setAttr('__zOrderIndex', answerZOrderIndex);
-                            answerNode.setAttr('__isQnaNode', true);
-                            answerNode.setAttr('__elementId', element.id);
-                            answerNode.setAttr('__nodeType', 'qna-text');
-                          }
-
-                          layer.add(answerNode);
-                          isFirstLine = false;
-                        } else {
-                          // Wrapped segments of first line
-                          const combinedLineBaseline = effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6);
-                          const answerBaselineOffsetLocal = -(aFontSize * getLineHeightMultiplier(aParagraphSpacing) * 0.15) + (aFontSize * (aFontSize >= 50 ? aFontSize >= 96 ? aFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1));
-                          totalAnswerLineCount = firstLineSegmentCount - 1;
-                          const answerLineIndex = totalAnswerLineCount - 1;
-                          // FIXED: Dynamic offset based on font size for proper spacing
-                          const dynamicOffset = aFontSize >= 96 ? aFontSize * 0.4 : aFontSize >= 50 ? aFontSize * 0.3 : aFontSize * 0.2;
-                          const answerBaseline = combinedLineBaseline + (answerLineIndex * aLineHeight) + answerBaselineOffsetLocal + dynamicOffset;
-                          const answerY = answerBaseline - (aFontSize * 0.8);
-                          
-                          const answerNode = new Konva.Text({
-                            x: elementX + padding,
-                            y: elementY + answerY,
-                            text: lineText,
-                            fontSize: answerFontSize,
-                            fontFamily: answerFontFamily,
-                            fontStyle: answerFontItalic ? 'italic' : 'normal',
-                            fontWeight: answerFontBold ? 'bold' : 'normal',
-                            fill: answerFontColor,
-                            opacity: elementOpacity * answerFontOpacity,
-                            align: answerAlign,
-                            width: textWidth,
-                            rotation: elementRotation,
-                            listening: false,
-                            visible: true
-                          });
-                          
-                          layer.add(answerNode);
-                        }
-                      } else {
-                        // Answer-only lines (after first line)
-                        const combinedLineBaseline = effectivePadding + ((questionLines.length - 1) * combinedLineHeight) + textBaselineOffset + (maxFontSize * 0.6);
-                        const answerBaselineOffsetLocal = -(aFontSize * getLineHeightMultiplier(aParagraphSpacing) * 0.15) + (aFontSize * (aFontSize >= 50 ? aFontSize >= 96 ? aFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1));
-                        totalAnswerLineCount++;
-                        // FIXED: Dynamic offset based on font size for proper spacing
-                        const dynamicOffset = aFontSize >= 96 ? aFontSize * 0.4 : aFontSize >= 50 ? aFontSize * 0.3 : aFontSize * 0.2;
-                        const answerBaseline = combinedLineBaseline + (totalAnswerLineCount * aLineHeight) + answerBaselineOffsetLocal + dynamicOffset;
-                        const answerY = answerBaseline - (aFontSize * 0.8);
-                        
-                        const answerNode = new Konva.Text({
-                          x: elementX + padding,
-                          y: elementY + answerY,
-                          text: lineText,
-                          fontSize: answerFontSize,
-                          fontFamily: answerFontFamily,
-                          fontStyle: answerFontItalic ? 'italic' : 'normal',
-                          fontWeight: answerFontBold ? 'bold' : 'normal',
-                          fill: answerFontColor,
-                          opacity: elementOpacity * answerFontOpacity,
-                          align: answerAlign,
-                          width: textWidth,
-                          rotation: elementRotation,
-                          listening: false,
-                          visible: true
-                        });
-                        
-                        layer.add(answerNode);
-                      }
-                    }
-                  }
-                });
-              }
-            } else if (answerText && answerText.trim() !== '') {
-              // Only answer text, no question
-              console.log('[DEBUG PDFRenderer] Rendering answer text only (inline layout):', {
-                elementId: element.id,
-                answerText: answerText.substring(0, 50)
-              });
-              const answerFontSize = answerStyle.fontSize || 50;
-              const answerFontBold = answerStyle.fontBold ?? false;
-              const answerFontItalic = answerStyle.fontItalic ?? false;
-              const answerFontFamily = resolveFontFamily(answerStyle.fontFamily, answerFontBold, answerFontItalic);
-              const answerFontColor = answerStyle.fontColor || '#1f2937';
-              const answerFontOpacity = answerStyle.fontOpacity ?? 1;
-              
-              const answerNode = new Konva.Text({
-                x: elementX + padding,
-                y: elementY + effectivePadding,
-                text: answerText,
-                fontSize: answerFontSize,
-                fontFamily: answerFontFamily,
-                fontStyle: answerFontItalic ? 'italic' : 'normal',
-                fontWeight: answerFontBold ? 'bold' : 'normal',
-                fill: answerFontColor,
-                width: textWidth,
-                align: answerAlign,
-                verticalAlign: 'top',
-                wrap: 'word',
-                rotation: elementRotation,
-                opacity: Math.max(0.01, elementOpacity * answerFontOpacity),
-                visible: true,
-                listening: false
-              });
-              
-              layer.add(answerNode);
-            }
-          }
-          
-          // QnA element fully handled by this block – skip remaining element rendering
+          // QnA element fully handled - skip remaining rendering
           continue;
         }
         // Render QnA elements (standard QnA textbox - textbox-qna.tsx logic)

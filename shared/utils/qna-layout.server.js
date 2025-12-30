@@ -11,7 +11,7 @@ const { wrapText, measureText, calculateTextX, getLineHeight } = require('./text
  * regardless of font size
  */
 function resolveRuledLineBaselineOffset(pdfExport) {
-  if (typeof pdfExport === 'boolean') return pdfExport ? 6 : 12;
+  if (typeof pdfExport === 'boolean') return pdfExport ? 10 : 12;
   return 12;
 }
 
@@ -20,17 +20,29 @@ function resolveRuledLineBaselineOffset(pdfExport) {
  */
 function createBlockLayout(params) {
   const { questionText, answerText, questionStyle, answerStyle, width, height, padding, ctx, questionPosition = 'left', questionWidth = 40, ruledLinesTarget = 'answer', blockQuestionAnswerGap = 10, pdfExport } = params;
+  
+  // Adjust font sizes for PDF export to match client rendering
+  const adjustedQuestionStyle = pdfExport ? {
+    ...questionStyle,
+    fontSize: Math.round(questionStyle.fontSize * 1.05)
+  } : questionStyle;
+  
+  const adjustedAnswerStyle = pdfExport ? {
+    ...answerStyle,
+    fontSize: Math.round(answerStyle.fontSize * 1.05)
+  } : answerStyle;
+  
   const runs = [];
   const linePositions = [];
   const RULED_LINE_BASELINE_OFFSET = resolveRuledLineBaselineOffset(pdfExport);
   
   // Calculate line heights
-  const questionLineHeight = getLineHeight(questionStyle);
-  const answerLineHeight = getLineHeight(answerStyle);
+  const questionLineHeight = pdfExport ? getLineHeight(adjustedQuestionStyle) * 1.08 : getLineHeight(adjustedQuestionStyle);
+  const answerLineHeight = pdfExport ? getLineHeight(adjustedAnswerStyle) * 1.08 : getLineHeight(adjustedAnswerStyle);
   
   // Baseline offsets
-  const questionBaselineOffset = questionStyle.fontSize * 0.8;
-  const answerBaselineOffset = answerStyle.fontSize * 0.8;
+  const questionBaselineOffset = adjustedQuestionStyle.fontSize * 0.8;
+  const answerBaselineOffset = adjustedAnswerStyle.fontSize * 0.8;
   
   // Calculate question and answer areas based on position
   let questionArea = { x: padding, y: padding, width: width - padding * 2, height: height - padding * 2 };
@@ -40,7 +52,7 @@ function createBlockLayout(params) {
   let calculatedQuestionHeight = 0;
   
   if (questionText && ctx) {
-    const questionLines = wrapText(questionText, questionStyle, width - padding * 2, ctx);
+    const questionLines = wrapText(questionText, adjustedQuestionStyle, width - padding * 2, ctx);
     calculatedQuestionHeight = questionLines.length * questionLineHeight + padding * 2;
   }
   
@@ -58,7 +70,7 @@ function createBlockLayout(params) {
       questionArea = { x: answerWidth + padding + gap, y: padding, width: finalQuestionWidth, height: height - padding * 2 };
     }
   } else {
-    const finalQuestionHeight = Math.max(calculatedQuestionHeight, questionStyle.fontSize + padding * 2);
+    const finalQuestionHeight = Math.max(calculatedQuestionHeight, adjustedQuestionStyle.fontSize + padding * 2);
     const gap = blockQuestionAnswerGap;
     const answerHeight = height - finalQuestionHeight - padding * 2 - gap;
     
@@ -73,25 +85,25 @@ function createBlockLayout(params) {
   
   // Render question text in question area
   if (questionText) {
-    const questionLines = wrapText(questionText, questionStyle, questionArea.width, ctx);
+    const questionLines = wrapText(questionText, adjustedQuestionStyle, questionArea.width, ctx);
     let cursorY = questionArea.y;
     
     questionLines.forEach((line) => {
       if (line.text) {
         const baselineY = cursorY + questionBaselineOffset;
-        const textX = calculateTextX(line.text, questionStyle, questionArea.x, questionArea.width, ctx);
+        const textX = calculateTextX(line.text, adjustedQuestionStyle, questionArea.x, questionArea.width, ctx);
         runs.push({
           text: line.text,
           x: textX,
           y: baselineY,
-          style: questionStyle
+          style: adjustedQuestionStyle
         });
         // Only add line position if ruledLinesTarget is 'question'
         if (ruledLinesTarget === 'question') {
           linePositions.push({
             y: baselineY + RULED_LINE_BASELINE_OFFSET,
             lineHeight: questionLineHeight,
-            style: questionStyle
+            style: adjustedQuestionStyle
           });
         }
         cursorY += questionLineHeight;
@@ -102,7 +114,7 @@ function createBlockLayout(params) {
           linePositions.push({
             y: baselineY + RULED_LINE_BASELINE_OFFSET,
             lineHeight: questionLineHeight,
-            style: questionStyle
+            style: adjustedQuestionStyle
           });
         }
         cursorY += questionLineHeight;
@@ -112,25 +124,25 @@ function createBlockLayout(params) {
   
   // Render answer text in answer area
   if (answerText) {
-    const answerLines = wrapText(answerText, answerStyle, answerArea.width, ctx);
+    const answerLines = wrapText(answerText, adjustedAnswerStyle, answerArea.width, ctx);
     let cursorY = answerArea.y;
     
     answerLines.forEach((line) => {
       if (line.text) {
         const baselineY = cursorY + answerBaselineOffset;
-        const textX = calculateTextX(line.text, answerStyle, answerArea.x, answerArea.width, ctx);
+        const textX = calculateTextX(line.text, adjustedAnswerStyle, answerArea.x, answerArea.width, ctx);
         runs.push({
           text: line.text,
           x: textX,
           y: baselineY,
-          style: answerStyle
+          style: adjustedAnswerStyle
         });
         // Only add line position if ruledLinesTarget is 'answer'
         if (ruledLinesTarget === 'answer') {
           linePositions.push({
             y: baselineY + RULED_LINE_BASELINE_OFFSET,
             lineHeight: answerLineHeight,
-            style: answerStyle
+            style: adjustedAnswerStyle
           });
         }
         cursorY += answerLineHeight;
@@ -141,7 +153,7 @@ function createBlockLayout(params) {
           linePositions.push({
             y: baselineY + RULED_LINE_BASELINE_OFFSET,
             lineHeight: answerLineHeight,
-            style: answerStyle
+            style: adjustedAnswerStyle
           });
         }
         cursorY += answerLineHeight;
@@ -166,13 +178,24 @@ function createBlockLayout(params) {
 function createLayout(params) {
   const { questionText, answerText, questionStyle, answerStyle, width, height, padding, ctx, answerInNewRow = false, questionAnswerGap = 0, layoutVariant = 'inline', questionPosition = 'left', questionWidth = 40, pdfExport } = params;
   
+  // Adjust font sizes for PDF export to match client rendering
+  const adjustedQuestionStyle = pdfExport ? {
+    ...questionStyle,
+    fontSize: Math.round(questionStyle.fontSize * 1.05)
+  } : questionStyle;
+  
+  const adjustedAnswerStyle = pdfExport ? {
+    ...answerStyle,
+    fontSize: Math.round(answerStyle.fontSize * 1.05)
+  } : answerStyle;
+  
   // Block layout uses different logic
   if (layoutVariant === 'block') {
     return createBlockLayout({
       questionText,
       answerText,
-      questionStyle,
-      answerStyle,
+      questionStyle: adjustedQuestionStyle,
+      answerStyle: adjustedAnswerStyle,
       width,
       height,
       padding,
@@ -180,7 +203,8 @@ function createLayout(params) {
       questionPosition,
       questionWidth,
       ruledLinesTarget: params.ruledLinesTarget,
-      blockQuestionAnswerGap: params.blockQuestionAnswerGap
+      blockQuestionAnswerGap: params.blockQuestionAnswerGap,
+      pdfExport
     });
   }
   
@@ -190,20 +214,20 @@ function createLayout(params) {
   const linePositions = [];
   
   // Calculate line heights for both styles
-  const questionLineHeight = getLineHeight(questionStyle);
-  const answerLineHeight = getLineHeight(answerStyle);
+  const questionLineHeight = pdfExport ? getLineHeight(adjustedQuestionStyle) * 1.08 : getLineHeight(adjustedQuestionStyle);
+  const answerLineHeight = pdfExport ? getLineHeight(adjustedAnswerStyle) * 1.08 : getLineHeight(adjustedAnswerStyle);
   
   // Baseline offset: text baseline is typically at fontSize * 0.8 from top
   // When using textBaseline = 'top', we need to adjust Y position
-  const questionBaselineOffset = questionStyle.fontSize * 0.8;
-  const answerBaselineOffset = answerStyle.fontSize * 0.8;
+  const questionBaselineOffset = adjustedQuestionStyle.fontSize * 0.8;
+  const answerBaselineOffset = adjustedAnswerStyle.fontSize * 0.8;
   
   // For combined lines, use the larger baseline offset to align both texts
   const combinedBaselineOffset = Math.max(questionBaselineOffset, answerBaselineOffset);
   const RULED_LINE_BASELINE_OFFSET = resolveRuledLineBaselineOffset(pdfExport);
   
   let cursorY = padding;
-  const questionLines = wrapText(questionText, questionStyle, availableWidth, ctx);
+  const questionLines = wrapText(questionText, adjustedQuestionStyle, availableWidth, ctx);
   const lastQuestionLineWidth = questionLines.length ? questionLines[questionLines.length - 1].width : 0;
   
   // Store Y positions for each question line
@@ -215,18 +239,18 @@ function createLayout(params) {
       // Calculate baseline Y position: cursorY (top of line) + baseline offset
       const baselineY = cursorY + questionBaselineOffset;
       questionLinePositions.push(baselineY);
-      const textX = calculateTextX(line.text, questionStyle, padding, availableWidth, ctx);
+      const textX = calculateTextX(line.text, adjustedQuestionStyle, padding, availableWidth, ctx);
       runs.push({
         text: line.text,
         x: textX,
         y: baselineY, // Store baseline position directly
-        style: questionStyle
+        style: adjustedQuestionStyle
       });
       // Track line position for ruled lines (position line slightly below text baseline)
       linePositions.push({
         y: baselineY + RULED_LINE_BASELINE_OFFSET,
         lineHeight: questionLineHeight,
-        style: questionStyle
+        style: adjustedQuestionStyle
       });
       cursorY += questionLineHeight;
     } else {
@@ -237,7 +261,7 @@ function createLayout(params) {
       linePositions.push({
         y: baselineY + RULED_LINE_BASELINE_OFFSET,
         lineHeight: questionLineHeight,
-        style: questionStyle
+        style: adjustedQuestionStyle
       });
       cursorY += questionLineHeight;
     }
@@ -245,7 +269,7 @@ function createLayout(params) {
 
   // Calculate gap: base gap + user-defined gap
   // If answerInNewRow is true, questionAnswerGap applies vertically (not horizontally)
-  const baseInlineGap = Math.min(32, answerStyle.fontSize * 0.5);
+  const baseInlineGap = Math.min(32, adjustedAnswerStyle.fontSize * 0.5);
   const inlineGap = answerInNewRow ? baseInlineGap : baseInlineGap + questionAnswerGap;
   let contentHeight = cursorY;
 
@@ -287,7 +311,7 @@ function createLayout(params) {
       // Split first paragraph into words to check if at least the first word fits
       const answerWords = firstParagraph.split(' ').filter(Boolean);
       if (answerWords.length > 0) {
-        const firstWordWidth = measureText(answerWords[0], answerStyle, ctx);
+        const firstWordWidth = measureText(answerWords[0], adjustedAnswerStyle, ctx);
         
         if (inlineAvailable > firstWordWidth) {
           startAtSameLine = true;
@@ -298,7 +322,7 @@ function createLayout(params) {
           
           for (const word of answerWords) {
             const testText = inlineText ? `${inlineText} ${word}` : word;
-            const testWidth = measureText(testText, answerStyle, ctx);
+            const testWidth = measureText(testText, adjustedAnswerStyle, ctx);
             
             if (testWidth <= inlineAvailable) {
               inlineText = testText;
@@ -317,11 +341,11 @@ function createLayout(params) {
             const combinedBaselineY = lastQuestionLineY + (combinedBaselineOffset - questionBaselineOffset);
             
             // Calculate combined width (question + gap + answer)
-            const inlineTextWidth = measureText(inlineText, answerStyle, ctx);
+            const inlineTextWidth = measureText(inlineText, adjustedAnswerStyle, ctx);
             const combinedWidth = lastQuestionLineWidth + inlineGap + inlineTextWidth;
             
             // Get alignment (use question style alignment, or answer style if question doesn't have one)
-            const align = questionStyle.align || answerStyle.align || 'left';
+            const align = adjustedQuestionStyle.align || adjustedAnswerStyle.align || 'left';
             
             // Calculate X positions based on alignment
             let questionX;
@@ -345,7 +369,7 @@ function createLayout(params) {
             
             // Update the last question line Y position and X position to use combined baseline and alignment
             const lastQuestionRunIndex = runs.length - 1;
-            if (lastQuestionRunIndex >= 0 && runs[lastQuestionRunIndex].style === questionStyle) {
+            if (lastQuestionRunIndex >= 0 && runs[lastQuestionRunIndex].style === adjustedQuestionStyle) {
               runs[lastQuestionRunIndex].y = combinedBaselineY;
               runs[lastQuestionRunIndex].x = questionX;
             }
@@ -356,7 +380,7 @@ function createLayout(params) {
               text: inlineText,
               x: inlineTextX,
               y: combinedBaselineY, // Same baseline as question
-              style: answerStyle
+              style: adjustedAnswerStyle
             });
             
             // Update cursorY to account for combined line height (use larger line height)
@@ -383,7 +407,7 @@ function createLayout(params) {
               linePositions[linePositions.length - 1] = {
                 y: combinedBaselineY + RULED_LINE_BASELINE_OFFSET,
                 lineHeight: combinedLineHeight,
-                style: answerStyle // Use answer style for combined line
+                style: adjustedAnswerStyle // Use answer style for combined line
               };
             }
             
@@ -421,10 +445,10 @@ function createLayout(params) {
 
   // Wrap remaining answer text for new lines
   const remainingAnswerLines = startAtSameLine && remainingAnswerText && remainingAnswerText.trim()
-    ? wrapText(remainingAnswerText, answerStyle, availableWidth, ctx)
+    ? wrapText(remainingAnswerText, adjustedAnswerStyle, availableWidth, ctx)
     : startAtSameLine
     ? [] // If startAtSameLine is true but no remaining text, don't render additional lines
-    : wrapText(answerTextWithoutLeadingBreaks, answerStyle, availableWidth, ctx);
+    : wrapText(answerTextWithoutLeadingBreaks, adjustedAnswerStyle, availableWidth, ctx);
 
   // Start answer on new line if not on same line as question
   // If answerInNewRow is true, questionAnswerGap applies vertically
@@ -456,7 +480,7 @@ function createLayout(params) {
     linePositions.push({
       y: answerBaselineY + RULED_LINE_BASELINE_OFFSET,
       lineHeight: answerLineHeight,
-      style: answerStyle
+      style: adjustedAnswerStyle
     });
     answerCursorY += answerLineHeight;
   }
@@ -472,7 +496,7 @@ function createLayout(params) {
       linePositions.push({
         y: answerBaselineY + RULED_LINE_BASELINE_OFFSET,
         lineHeight: answerLineHeight,
-        style: answerStyle
+        style: adjustedAnswerStyle
       });
       answerCursorY += answerLineHeight;
     }
@@ -489,10 +513,10 @@ function createLayout(params) {
     flushEmptyRun();
 
     const answerBaselineY = answerCursorY + answerBaselineOffset;
-    const textX = calculateTextX(line.text, answerStyle, padding, availableWidth, ctx);
+    const textX = calculateTextX(line.text, adjustedAnswerStyle, padding, availableWidth, ctx);
     
     // DEBUG: Log first answer line position
-    if (runs.filter(r => r.style === answerStyle).length === 0) {
+    if (runs.filter(r => r.style === adjustedAnswerStyle).length === 0) {
       console.log('[DEBUG qna-layout.server] First answer line position:', {
         answerCursorY: answerCursorY,
         answerBaselineOffset: answerBaselineOffset,
@@ -506,12 +530,12 @@ function createLayout(params) {
       text: line.text,
       x: textX,
       y: answerBaselineY, // Store baseline position directly
-      style: answerStyle
+      style: adjustedAnswerStyle
     });
     linePositions.push({
       y: answerBaselineY + RULED_LINE_BASELINE_OFFSET,
       lineHeight: answerLineHeight,
-      style: answerStyle
+      style: adjustedAnswerStyle
     });
     answerCursorY += answerLineHeight;
   });
