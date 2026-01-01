@@ -64,7 +64,7 @@ export function createBlockLayout(params: CreateBlockLayoutParams): LayoutResult
   
   // Calculate line heights
   const questionLineHeight = isPdfExport ? getLineHeight(questionStyle) * 1.15 : getLineHeight(questionStyle);
-  const answerLineHeight = isPdfExport ? getLineHeight(answerStyle) * 1.15 : getLineHeight(answerStyle);
+  const answerLineHeight = isPdfExport ? getLineHeight(answerStyle) * 1 : getLineHeight(answerStyle);
   
   // Baseline offsets
   const questionBaselineOffset = questionStyle.fontSize * 0.8;
@@ -225,8 +225,9 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
   const linePositions: LinePosition[] = [];
   
   // Calculate line heights for both styles
-  const questionLineHeight = isPdfExport ? getLineHeight(questionStyle) * 1 : getLineHeight(questionStyle);
-  const answerLineHeight = getLineHeight(answerStyle);
+  // For PDF export, apply scaling factor to match visual appearance (same as block layout)
+  const questionLineHeight = isPdfExport ? getLineHeight(questionStyle) * 1.2 : getLineHeight(questionStyle);
+  const answerLineHeight = isPdfExport ? getLineHeight(answerStyle) * 1 : getLineHeight(answerStyle);
   
   // Baseline offset: text baseline is typically at fontSize * 0.8 from top
   // When using textBaseline = 'top', we need to adjust Y position
