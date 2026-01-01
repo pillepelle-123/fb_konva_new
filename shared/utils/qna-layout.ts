@@ -22,7 +22,7 @@ const isPdfExport = typeof window !== 'undefined' && (
   navigator.userAgent.includes('HeadlessChrome')
 );
 // Use negative offset for PDF to move lines above text baseline
-const RULED_LINE_BASELINE_OFFSET = isPdfExport ? 16 : 12;
+const RULED_LINE_BASELINE_OFFSET = isPdfExport ? -20 : 12;
 
 export interface CreateBlockLayoutParams {
   questionText: string;
@@ -126,9 +126,8 @@ export function createBlockLayout(params: CreateBlockLayoutParams): LayoutResult
         });
         // Only add line position if ruledLinesTarget is 'question'
         if (ruledLinesTarget === 'question') {
-          const ruledLineOffset = isPdfExport ? 16 : RULED_LINE_BASELINE_OFFSET;
           linePositions.push({
-            y: baselineY + ruledLineOffset,
+            y: baselineY + RULED_LINE_BASELINE_OFFSET,
             lineHeight: questionLineHeight,
             style: questionStyle
           });
@@ -138,9 +137,8 @@ export function createBlockLayout(params: CreateBlockLayoutParams): LayoutResult
         // Only add line position if ruledLinesTarget is 'question'
         if (ruledLinesTarget === 'question') {
           const baselineY = cursorY + questionBaselineOffset;
-          const ruledLineOffset = isPdfExport ? 16 : RULED_LINE_BASELINE_OFFSET;
           linePositions.push({
-            y: baselineY + ruledLineOffset,
+            y: baselineY + RULED_LINE_BASELINE_OFFSET,
             lineHeight: questionLineHeight,
             style: questionStyle
           });
@@ -167,9 +165,8 @@ export function createBlockLayout(params: CreateBlockLayoutParams): LayoutResult
         });
         // Only add line position if ruledLinesTarget is 'answer'
         if (ruledLinesTarget === 'answer') {
-          const ruledLineOffset = isPdfExport ? 16 : RULED_LINE_BASELINE_OFFSET;
           linePositions.push({
-            y: baselineY + ruledLineOffset,
+            y: baselineY + RULED_LINE_BASELINE_OFFSET,
             lineHeight: answerLineHeight,
             style: answerStyle
           });
@@ -179,9 +176,8 @@ export function createBlockLayout(params: CreateBlockLayoutParams): LayoutResult
         // Only add line position if ruledLinesTarget is 'answer'
         if (ruledLinesTarget === 'answer') {
           const baselineY = cursorY + answerBaselineOffset;
-          const ruledLineOffset = isPdfExport ? 16 : RULED_LINE_BASELINE_OFFSET;
           linePositions.push({
-            y: baselineY + ruledLineOffset,
+            y: baselineY + RULED_LINE_BASELINE_OFFSET,
             lineHeight: answerLineHeight,
             style: answerStyle
           });
@@ -291,9 +287,8 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
         style: questionStyle
       });
       // Track line position for ruled lines (position line slightly below text baseline)
-      const ruledLineOffset = isPdfExport ? 16 : RULED_LINE_BASELINE_OFFSET;
       linePositions.push({
-        y: baselineY + ruledLineOffset,
+        y: baselineY + RULED_LINE_BASELINE_OFFSET,
         lineHeight: questionLineHeight,
         style: questionStyle
       });
@@ -303,9 +298,8 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
       const baselineY = cursorY + questionBaselineOffset;
       questionLinePositions.push(baselineY);
       // Track empty line position for ruled lines
-      const ruledLineOffset = isPdfExport ? 16 : RULED_LINE_BASELINE_OFFSET;
       linePositions.push({
-        y: baselineY + ruledLineOffset,
+        y: baselineY + RULED_LINE_BASELINE_OFFSET,
         lineHeight: questionLineHeight,
         style: questionStyle
       });
@@ -468,9 +462,8 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
             
             // Update the last line position for ruled lines (use combined line height)
             if (linePositions.length > 0) {
-              const ruledLineOffset = isPdfExport ? 16 : RULED_LINE_BASELINE_OFFSET;
               linePositions[linePositions.length - 1] = {
-                y: combinedBaselineY + ruledLineOffset,
+                y: combinedBaselineY + RULED_LINE_BASELINE_OFFSET,
                 lineHeight: combinedLineHeight,
                 style: answerStyle // Use answer style for combined line
               };
@@ -543,9 +536,8 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
   const emptyLinesToRender = Math.max(0, leadingBreaks - 1);
   for (let i = 0; i < emptyLinesToRender; i++) {
     const answerBaselineY = answerCursorY + answerBaselineOffset;
-    const ruledLineOffset = isPdfExport ? 16 : RULED_LINE_BASELINE_OFFSET;
     linePositions.push({
-      y: answerBaselineY + ruledLineOffset,
+      y: answerBaselineY + RULED_LINE_BASELINE_OFFSET,
       lineHeight: answerLineHeight,
       style: answerStyle
     });
@@ -560,9 +552,8 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
     const blanksToRender = emptyRun; // render exactly as many empty lines as collected
     for (let i = 0; i < blanksToRender; i += 1) {
       const answerBaselineY = answerCursorY + answerBaselineOffset;
-      const ruledLineOffset = isPdfExport ? 16 : RULED_LINE_BASELINE_OFFSET;
       linePositions.push({
-        y: answerBaselineY + ruledLineOffset,
+        y: answerBaselineY + RULED_LINE_BASELINE_OFFSET,
         lineHeight: answerLineHeight,
         style: answerStyle
       });
@@ -588,9 +579,8 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
       y: answerBaselineY, // Store baseline position directly
       style: answerStyle
     });
-    const ruledLineOffset = isPdfExport ? 16 : RULED_LINE_BASELINE_OFFSET;
     linePositions.push({
-      y: answerBaselineY + ruledLineOffset,
+      y: answerBaselineY + RULED_LINE_BASELINE_OFFSET,
       lineHeight: answerLineHeight,
       style: answerStyle
     });

@@ -1259,6 +1259,9 @@ export function PDFRenderer({
           // Render ruled lines if enabled (after background, before border and text - matching client-side order)
           const answerRuledLines = element.ruledLines ?? false;
           
+          // Track how many lines are rendered (defined outside if block for debug logging)
+          let ruledLinesRenderedCount = 0;
+          
           // Debug: Log ruled lines check (first path)
           console.log('[DEBUG PDFRenderer] Ruled lines check (first path):');
           console.log('  elementId:', element.id);
@@ -1277,9 +1280,6 @@ export function PDFRenderer({
             // aFontSize, aLineHeight, effectivePadding, combinedLineHeight, textBaselineOffset are already defined above
             const startX = elementX + padding;
             const endX = elementX + elementWidth - padding;
-            
-            // Track how many lines are rendered
-            let ruledLinesRenderedCount = 0;
             
             if (layoutVariant === 'block') {
               // Block layout: ruled lines in answer area
@@ -1337,15 +1337,36 @@ export function PDFRenderer({
                 }
               }
               
-              // Generate lines aligned with text baselines in answer area
-              const textBaselineY = answerArea.y + aFontSize * 0.8; // Text baseline position
-              let lineY = textBaselineY + aFontSize * 0.2; // Position lines slightly below text baseline
-              const endY = answerArea.y + answerArea.height;
+              // Extract baseline positions directly from runs (more accurate than linePositions)
+              // RULED_LINE_BASELINE_OFFSET für PDF Export (muss mit shared/utils/qna-layout.ts übereinstimmen)
+              const RULED_LINE_BASELINE_OFFSET = -20;
+              // Zusätzlicher Offset vom oberen Rand der Textbox (in Pixeln)
+              // Erhöht den Abstand aller Ruled Lines vom oberen Rand, ohne den Text zu verschieben
+              const RULED_LINE_TOP_OFFSET = 28; // <-- HIER EINSTELLEN (z.B. 10, 15, 20, etc.)
+              
+              const targetStyle = ruledLinesTarget === 'question' ? questionStyle : answerStyle;
+              
+              // Extract unique baseline Y positions from runs (relative to element)
+              // run.y is already the baseline position relative to element (from sharedCreateLayout)
+              const baselineYPositions = new Set<number>();
+              runs.forEach((run) => {
+                // Filter by style to match ruledLinesTarget
+                if (run.style.fontSize === targetStyle.fontSize) {
+                  baselineYPositions.add(run.y);
+                }
+              });
+              
               const startX = answerArea.x;
               const endX = answerArea.x + answerArea.width;
               
-              while (lineY < endY) {
-                // Generate ruled line using shared theme engine (supports all themes: Candy, Zigzag, Glow, Wobbly, Rough, Default)
+              // Render lines at each baseline position
+              Array.from(baselineYPositions).sort((a, b) => a - b).forEach((baselineY) => {
+                // Calculate line Y position: elementY + baselineY + offset + top offset
+                const lineY = elementY + baselineY + RULED_LINE_BASELINE_OFFSET + RULED_LINE_TOP_OFFSET;
+                
+                // Check if line is within the target area (vertically)
+                if (lineY >= answerArea.y && lineY <= answerArea.y + answerArea.height) {
+                  // Generate ruled line using shared theme engine
                 const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
                 const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
                 const theme = (supportedThemes.includes(aTheme as Theme) ? aTheme : 'default') as Theme;
@@ -1447,107 +1468,50 @@ export function PDFRenderer({
                       lineNode.shadowOpacity(strokeProps.shadowOpacity || 0);
                       lineNode.shadowOffsetX(strokeProps.shadowOffsetX || 0);
                       lineNode.shadowOffsetY(strokeProps.shadowOffsetY || 0);
-                    }
                   }
                 }
                 
-                if (lineNode) {
                   layer.add(lineNode);
                   ruledLinesRenderedCount++;
                 }
-                
-                lineY += aLineHeight;
-              }
-              
-              // Debug: Log block layout ruled lines count
-              console.log('[DEBUG PDFRenderer] Block layout ruled lines rendered:');
-              console.log('  elementId:', element.id);
-              console.log('  linesCount:', ruledLinesRenderedCount);
-            } else {
-              // Inline layout: position ruled lines based on actual text layout
-              // This matches the logic from textbox-qna.tsx
-              if (questionText && answerText) {
-                const canvas = document.createElement('canvas');
-                const context = canvas.getContext('2d')!;
-                const questionFontSize = questionStyle.fontSize || 45;
-                const questionFontBold = questionStyle.fontBold ?? false;
-                const questionFontItalic = questionStyle.fontItalic ?? false;
-                const questionFontFamily = resolveFontFamily(questionStyle.fontFamily, questionFontBold, questionFontItalic);
-                context.font = `${questionFontBold ? 'bold ' : ''}${questionFontItalic ? 'italic ' : ''}${questionFontSize}px ${questionFontFamily}`;
-                
-                // Calculate question lines
-                const questionWords = questionText.split(' ');
-                let questionLineCount = 1;
-                let currentLineWidth = 0;
-                
-                for (const word of questionWords) {
-                  const wordWidth = context.measureText(word + ' ').width;
-                  if (currentLineWidth + wordWidth > textWidth && currentLineWidth > 0) {
-                    questionLineCount++;
-                    currentLineWidth = wordWidth;
-                  } else {
-                    currentLineWidth += wordWidth;
-                  }
                 }
+              });
+              
+              // Generate additional ruled lines to fill the rest of the target area (matching client-side logic)
+              // This only applies to answer lines (ruledLinesTarget === 'answer')
+              if (ruledLinesTarget === 'answer' && baselineYPositions.size > 0) {
+                const answerLineHeight = sharedGetLineHeight(answerStyle);
+                const sortedBaselines = Array.from(baselineYPositions).sort((a, b) => a - b);
+                const lastBaselineY = sortedBaselines[sortedBaselines.length - 1];
+                // Calculate next line position: last baseline + line height + offset + top offset
+                let nextLineY = elementY + lastBaselineY + answerLineHeight + RULED_LINE_BASELINE_OFFSET + RULED_LINE_TOP_OFFSET;
                 
-                const lastQuestionLine = questionText.split(' ').reduce((acc, word) => {
-                  const testLine = acc ? acc + ' ' + word : word;
-                  const testWidth = context.measureText(testLine).width;
-                  if (testWidth > textWidth && acc) {
-                    return word;
-                  }
-                  return testLine;
-                }, '');
-                const lastQuestionLineWidth = context.measureText(lastQuestionLine).width;
-                const gap = 40;
-                const availableWidthAfterQuestion = textWidth - lastQuestionLineWidth - gap;
+                // Determine start and end X positions and bottom Y (all relative to element)
+                const relativeStartX = answerArea.x - elementX;
+                const relativeEndX = answerArea.x + answerArea.width - elementX;
+                const relativeBottomY = answerArea.y + answerArea.height - elementY;
                 
-                // Check if answer fits on same line
-                const answerFontBold = answerStyle.fontBold ?? false;
-                const answerFontItalic = answerStyle.fontItalic ?? false;
-                const answerFontFamily = resolveFontFamily(answerStyle.fontFamily, answerFontBold, answerFontItalic);
-                const answerContext = document.createElement('canvas').getContext('2d')!;
-                answerContext.font = `${answerFontBold ? 'bold ' : ''}${answerFontItalic ? 'italic ' : ''}${aFontSize}px ${answerFontFamily}`;
-                const firstAnswerLine = answerText.split('\n')[0] || '';
-                const firstAnswerWord = firstAnswerLine.split(' ')[0] || '';
-                const canFitOnSameLine = firstAnswerWord && availableWidthAfterQuestion > 0 && answerContext.measureText(firstAnswerWord).width <= availableWidthAfterQuestion;
-                
-                // Generate ruled lines based on layout
-                // KORRIGIERT: Dynamische Anpassung des Offsets basierend auf qFontSize
-                // Bei größeren Schriftgrößen wird ein größerer Offset nach unten verwendet, um Überlappungen zu vermeiden
-                const questionBaselineMultiplier = qFontSize >= 145 ? 1.1 : qFontSize >= 96 ? 1.0 : qFontSize >= 50 ? 0.9 : 0.8;
-                const combinedLineBaseline = effectivePadding + ((questionLineCount - 1) * combinedLineHeight) + textBaselineOffset + (qFontSize * questionBaselineMultiplier);
-                const answerBaselineOffset = -(aFontSize * getLineHeightMultiplier(aParagraphSpacing) * 0.15) + (aFontSize * (aFontSize >= 50 ? aFontSize >= 96 ? aFontSize >= 145 ? -0.07 : 0.01 : 0.07  : 0.1));
-                
-                // Generate lines for question lines if needed
-                if (questionLineCount > 1 || !canFitOnSameLine) {
-                  const maxQuestionLineIndex = (questionLineCount > 1 && canFitOnSameLine) 
-                    ? questionLineCount - 1
-                    : questionLineCount;
+                // Generate additional lines until we reach the bottom
+                // nextLineY is absolute (elementY + relative position)
+                while (nextLineY <= elementY + relativeBottomY) {
+                  // Generate ruled line
+                  const absoluteStartX = answerArea.x;
+                  const absoluteEndX = answerArea.x + answerArea.width;
+                  const absoluteLineY = nextLineY;
                   
-                  for (let questionLineIndex = 0; questionLineIndex < maxQuestionLineIndex; questionLineIndex++) {
-                    // KORRIGIERT: Dynamische Anpassung des Offsets basierend auf qFontSize
-                    // Bei größeren Schriftgrößen wird ein größerer Offset nach unten verwendet, um Überlappungen zu vermeiden
-                    const questionBaselineMultiplier = qFontSize >= 145 ? 1.1 : qFontSize >= 96 ? 1.0 : qFontSize >= 50 ? 0.9 : 0.8;
-                    const questionLineBaseline = effectivePadding + (questionLineIndex * combinedLineHeight) + textBaselineOffset + (qFontSize * questionBaselineMultiplier);
-                    const baseline = questionLineBaseline + answerBaselineOffset;
-                    // Use same RULED_LINE_BASELINE_OFFSET as client-side (-20 for PDF export)
-                    const RULED_LINE_BASELINE_OFFSET = -20;
-                    const lineY = elementY + baseline + RULED_LINE_BASELINE_OFFSET;
-                    
-                    if (isFinite(lineY) && !isNaN(lineY) && lineY < elementY + dynamicHeight - padding - 10) {
-                      // Generate ruled line using shared theme engine (supports all themes)
+                  // Generate ruled line using shared theme engine
                       const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
                       const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
                       const theme = (supportedThemes.includes(aTheme as Theme) ? aTheme : 'default') as Theme;
                       
+                  // Create a temporary element for theme-specific settings
                       const tempElement: CanvasElement = {
                         ...element,
                         type: 'line' as const,
-                        id: element.id + '-ruled-line-inline-question',
+                    id: element.id + '-ruled-line-extra',
                         x: 0,
                         y: 0,
-                        width: Math.abs(endX - startX),
+                    width: Math.abs(absoluteEndX - absoluteStartX),
                         height: 0,
                         strokeWidth: aWidth,
                         stroke: aColor,
@@ -1559,10 +1523,10 @@ export function PDFRenderer({
                         width: aWidth,
                         color: aColor,
                         opacity: aOpacity,
-                        path: createLinePath(startX, lineY, endX, lineY),
+                    path: createLinePath(absoluteStartX, absoluteLineY, absoluteEndX, absoluteLineY),
                         theme: theme,
                         themeSettings: {
-                          seed: seed + lineY,
+                      seed: seed + absoluteLineY,
                           roughness: theme === 'rough' ? 2 : 1,
                           candyRandomness: tempElement.candyRandomness,
                           candyIntensity: tempElement.candyIntensity,
@@ -1574,14 +1538,14 @@ export function PDFRenderer({
                       }, () => {
                         // Fallback: use existing manual implementation
                         const pathData = generateLinePath({
-                          x1: startX,
-                          y1: lineY,
-                          x2: endX,
-                          y2: lineY,
+                      x1: absoluteStartX,
+                      y1: absoluteLineY,
+                      x2: absoluteEndX,
+                      y2: absoluteLineY,
                           strokeWidth: aWidth,
                           stroke: aColor,
                           theme: theme,
-                          seed: seed + lineY,
+                      seed: seed + absoluteLineY,
                           roughness: theme === 'rough' ? 2 : 1,
                           element: tempElement
                         });
@@ -1590,7 +1554,7 @@ export function PDFRenderer({
                           const themeRenderer = getThemeRenderer(theme);
                           const strokeProps = themeRenderer.getStrokeProps(tempElement);
                           
-                          return new Konva.Path({
+                      const fallbackNode = new Konva.Path({
                             data: pathData,
                             stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : aColor,
                             strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : aWidth,
@@ -1608,9 +1572,10 @@ export function PDFRenderer({
                             shadowOffsetX: strokeProps.shadowOffsetX,
                             shadowOffsetY: strokeProps.shadowOffsetY
                           });
+                      return fallbackNode;
                         } else {
                           return new Konva.Line({
-                            points: [startX, lineY, endX, lineY],
+                        points: [absoluteStartX, absoluteLineY, absoluteEndX, absoluteLineY],
                             stroke: aColor,
                             strokeWidth: aWidth,
                             opacity: aOpacity,
@@ -1636,283 +1601,314 @@ export function PDFRenderer({
                             lineNode.shadowOffsetY(strokeProps.shadowOffsetY || 0);
                           }
                         }
+                    
                         layer.add(lineNode);
                         ruledLinesRenderedCount++;
                       }
-                    }
-                  }
-                }
-                
-                // Generate lines for answer lines
-                let answerLineIndex = canFitOnSameLine ? 0 : 1;
-                const endY = elementY + dynamicHeight - padding;
-                
-                // console.log('[DEBUG PDFRenderer] Inline layout - starting answer lines generation:');
-                // console.log('  elementId:', element.id);
-                // console.log('  canFitOnSameLine:', canFitOnSameLine);
-                // console.log('  answerLineIndex start:', answerLineIndex);
-                // console.log('  aLineHeight:', aLineHeight);
-                // console.log('  endY:', endY);
-                // console.log('  combinedLineBaseline:', combinedLineBaseline);
-                
-                while (answerLineIndex < 1000) { // Safety limit
-                  // KORRIGIERT: Entferne (aFontSize * 0.6) - dieses Offset verursacht den 22px Versatz
-                  // Im Client-Code wird nur baselineY + fontSize * 0.15 verwendet
-                  const answerBaseline = combinedLineBaseline + (answerLineIndex * aLineHeight) + answerBaselineOffset;
-                  // Use same RULED_LINE_BASELINE_OFFSET as client-side (-20 for PDF export)
-                  const RULED_LINE_BASELINE_OFFSET = -20;
-                  const lineY = elementY + answerBaseline + RULED_LINE_BASELINE_OFFSET;
                   
-                  if (!isFinite(lineY) || lineY === Infinity || isNaN(lineY) || lineY >= endY) break;
-                  
-                  // Generate ruled line using shared theme engine (supports all themes)
-                  const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-                  const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
-                  const theme = (supportedThemes.includes(aTheme as Theme) ? aTheme : 'default') as Theme;
-                  
-                  const tempElement: CanvasElement = {
-                    ...element,
-                    type: 'line' as const,
-                    id: element.id + '-ruled-line-inline-answer',
-                    x: 0,
-                    y: 0,
-                    width: Math.abs(endX - startX),
-                    height: 0,
-                    strokeWidth: aWidth,
-                    stroke: aColor,
-                    theme: theme as CanvasElement['theme']
-                  };
-                  
-                  // Use centralized border rendering with fallback
-                  const lineNode = renderThemedBorderKonvaWithFallback({
-                    width: aWidth,
-                    color: aColor,
-                    opacity: aOpacity,
-                    path: createLinePath(startX, lineY, endX, lineY),
-                    theme: theme,
-                    themeSettings: {
-                      seed: seed + lineY,
-                      roughness: theme === 'rough' ? 2 : 1,
-                      candyRandomness: tempElement.candyRandomness,
-                      candyIntensity: tempElement.candyIntensity,
-                      candySpacingMultiplier: tempElement.candySpacingMultiplier,
-                      candyHoled: tempElement.candyHoled
-                    },
-                    strokeScaleEnabled: true,
-                    listening: false
-                  }, () => {
-                    // Fallback: use existing manual implementation
-                    const pathData = generateLinePath({
-                      x1: startX,
-                      y1: lineY,
-                      x2: endX,
-                      y2: lineY,
-                      strokeWidth: aWidth,
-                      stroke: aColor,
-                      theme: theme,
-                      seed: seed + lineY,
-                      roughness: theme === 'rough' ? 2 : 1,
-                      element: tempElement
-                    });
-                    
-                    if (pathData) {
-                      const themeRenderer = getThemeRenderer(theme);
-                      const strokeProps = themeRenderer.getStrokeProps(tempElement);
-                      
-                      return new Konva.Path({
-                        data: pathData,
-                        stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : aColor,
-                        strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : aWidth,
-                        fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
-                        opacity: aOpacity,
-                        strokeScaleEnabled: true,
-                        rotation: elementRotation,
-                        listening: false,
-                        visible: true,
-                        lineCap: strokeProps.lineCap || 'round',
-                        lineJoin: strokeProps.lineJoin || 'round',
-                        shadowColor: strokeProps.shadowColor,
-                        shadowBlur: strokeProps.shadowBlur,
-                        shadowOpacity: strokeProps.shadowOpacity,
-                        shadowOffsetX: strokeProps.shadowOffsetX,
-                        shadowOffsetY: strokeProps.shadowOffsetY
-                      });
-                    } else {
-                      return new Konva.Line({
-                        points: [startX, lineY, endX, lineY],
-                        stroke: aColor,
-                        strokeWidth: aWidth,
-                        opacity: aOpacity,
-                        rotation: elementRotation,
-                        listening: false,
-                        visible: true
-                      });
-                    }
-                  });
-                  
-                  // Set additional properties
-                  if (lineNode) {
-                    lineNode.rotation(elementRotation);
-                    lineNode.visible(true);
-                    if (lineNode instanceof Konva.Path) {
-                      const themeRenderer = getThemeRenderer(theme);
-                      const strokeProps = themeRenderer.getStrokeProps(tempElement);
-                      if (strokeProps.shadowColor) {
-                        lineNode.shadowColor(strokeProps.shadowColor);
-                        lineNode.shadowBlur(strokeProps.shadowBlur || 0);
-                        lineNode.shadowOpacity(strokeProps.shadowOpacity || 0);
-                        lineNode.shadowOffsetX(strokeProps.shadowOffsetX || 0);
-                        lineNode.shadowOffsetY(strokeProps.shadowOffsetY || 0);
-                      }
-                    }
-
-                    // Set z-order attributes for inline layout ruled lines
-                    const zOrderIndex = elementIdToZOrder.get(element.id);
-                    if (zOrderIndex !== undefined) {
-                      lineNode.setAttr('__zOrderIndex', zOrderIndex);
-                      lineNode.setAttr('__isQnaNode', true);
-                      lineNode.setAttr('__elementId', element.id);
-                      lineNode.setAttr('__nodeType', 'qna-line');
-                    }
-
-                    layer.add(lineNode);
-                    ruledLinesRenderedCount++;
-                  }
-                  
-                  answerLineIndex++;
-                }
-                
-                // Debug: Log inline layout ruled lines count
-                console.log('[DEBUG PDFRenderer] Inline layout ruled lines rendered:');
-                console.log('  elementId:', element.id);
-                console.log('  linesCount:', ruledLinesRenderedCount);
-                console.log('  questionLineCount:', questionLineCount);
-                console.log('  canFitOnSameLine:', canFitOnSameLine);
-              } else {
-                // Only one type of text - generate simple lines
-                const activeFontSize = answerText ? aFontSize : (questionStyle.fontSize || 45);
-                let lineY = elementY + effectivePadding + (activeFontSize * 0.8) + 4;
-                const endY = elementY + dynamicHeight - padding;
-                
-                while (lineY < endY) {
-                  // Generate ruled line using shared theme engine (supports all themes)
-                  const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-                  const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
-                  const theme = (supportedThemes.includes(aTheme as Theme) ? aTheme : 'default') as Theme;
-                  
-                  const tempElement: CanvasElement = {
-                    ...element,
-                    type: 'line' as const,
-                    id: element.id + '-ruled-line-single',
-                    x: 0,
-                    y: 0,
-                    width: Math.abs(endX - startX),
-                    height: 0,
-                    strokeWidth: aWidth,
-                    stroke: aColor,
-                    theme: theme as CanvasElement['theme']
-                  };
-                  
-                  // Use centralized border rendering with fallback
-                  const lineNode = renderThemedBorderKonvaWithFallback({
-                    width: aWidth,
-                    color: aColor,
-                    opacity: aOpacity,
-                    path: createLinePath(startX, lineY, endX, lineY),
-                    theme: theme,
-                    themeSettings: {
-                      seed: seed + lineY,
-                      roughness: theme === 'rough' ? 2 : 1,
-                      candyRandomness: tempElement.candyRandomness,
-                      candyIntensity: tempElement.candyIntensity,
-                      candySpacingMultiplier: tempElement.candySpacingMultiplier,
-                      candyHoled: tempElement.candyHoled
-                    },
-                    strokeScaleEnabled: true,
-                    listening: false
-                  }, () => {
-                    // Fallback: use existing manual implementation
-                    const pathData = generateLinePath({
-                      x1: startX,
-                      y1: lineY,
-                      x2: endX,
-                      y2: lineY,
-                      strokeWidth: aWidth,
-                      stroke: aColor,
-                      theme: theme,
-                      seed: seed + lineY,
-                      roughness: theme === 'rough' ? 2 : 1,
-                      element: tempElement
-                    });
-                    
-                    if (pathData) {
-                      const themeRenderer = getThemeRenderer(theme);
-                      const strokeProps = themeRenderer.getStrokeProps(tempElement);
-                      
-                      return new Konva.Path({
-                        data: pathData,
-                        stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : aColor,
-                        strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : aWidth,
-                        fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
-                        opacity: aOpacity,
-                        strokeScaleEnabled: true,
-                        rotation: elementRotation,
-                        listening: false,
-                        visible: true,
-                        lineCap: strokeProps.lineCap || 'round',
-                        lineJoin: strokeProps.lineJoin || 'round',
-                        shadowColor: strokeProps.shadowColor,
-                        shadowBlur: strokeProps.shadowBlur,
-                        shadowOpacity: strokeProps.shadowOpacity,
-                        shadowOffsetX: strokeProps.shadowOffsetX,
-                        shadowOffsetY: strokeProps.shadowOffsetY
-                      });
-                    } else {
-                      return new Konva.Line({
-                        points: [startX, lineY, endX, lineY],
-                        stroke: aColor,
-                        strokeWidth: aWidth,
-                        opacity: aOpacity,
-                        rotation: elementRotation,
-                        listening: false,
-                        visible: true
-                      });
-                    }
-                  });
-                  
-                  // Set additional properties
-                  if (lineNode) {
-                    lineNode.rotation(elementRotation);
-                    lineNode.visible(true);
-                    if (lineNode instanceof Konva.Path) {
-                      const themeRenderer = getThemeRenderer(theme);
-                      const strokeProps = themeRenderer.getStrokeProps(tempElement);
-                      if (strokeProps.shadowColor) {
-                        lineNode.shadowColor(strokeProps.shadowColor);
-                        lineNode.shadowBlur(strokeProps.shadowBlur || 0);
-                        lineNode.shadowOpacity(strokeProps.shadowOpacity || 0);
-                        lineNode.shadowOffsetX(strokeProps.shadowOffsetX || 0);
-                        lineNode.shadowOffsetY(strokeProps.shadowOffsetY || 0);
-                      }
-                    }
-
-                  if (lineNode) {
-                    // Set z-order attributes for inline layout ruled lines
-                    const zOrderIndex = elementIdToZOrder.get(element.id);
-                    if (zOrderIndex !== undefined) {
-                      lineNode.setAttr('__zOrderIndex', zOrderIndex);
-                      lineNode.setAttr('__isQnaNode', true);
-                      lineNode.setAttr('__elementId', element.id);
-                      lineNode.setAttr('__nodeType', 'qna-line');
-                    }
-
-                    layer.add(lineNode);
-                    ruledLinesRenderedCount++;
-                  }
-                  
-                  lineY += aLineHeight;
+                  nextLineY += answerLineHeight;
                 }
               }
+              
+              // Debug: Log block layout ruled lines count
+              console.log('[DEBUG PDFRenderer] Block layout ruled lines rendered:');
+              console.log('  elementId:', element.id);
+              console.log('  linesCount:', ruledLinesRenderedCount);
+            } else {
+              // Inline layout: extract baseline positions directly from runs
+              // RULED_LINE_BASELINE_OFFSET für PDF Export (muss mit shared/utils/qna-layout.ts übereinstimmen)
+              const RULED_LINE_BASELINE_OFFSET = -20;
+              // Zusätzlicher Offset vom oberen Rand der Textbox (in Pixeln)
+              // Erhöht den Abstand aller Ruled Lines vom oberen Rand, ohne den Text zu verschieben
+              const RULED_LINE_TOP_OFFSET = 28; // <-- HIER EINSTELLEN (z.B. 10, 15, 20, etc.)
+              
+              // Extract unique baseline Y positions from all runs (relative to element)
+              // run.y is already the baseline position relative to element (from sharedCreateLayout)
+              const baselineYPositions = new Set<number>();
+              runs.forEach((run) => {
+                baselineYPositions.add(run.y);
+              });
+              
+              // Render lines at each baseline position
+              Array.from(baselineYPositions).sort((a, b) => a - b).forEach((baselineY) => {
+                // Only generate lines that are within the box dimensions (0 <= baselineY <= elementHeight)
+                // This ensures ruled lines only appear inside the visible border area
+                if (baselineY >= 0 && baselineY <= elementHeight) {
+                  // Calculate line Y position: elementY + baselineY + offset + top offset
+                  const lineY = elementY + baselineY + RULED_LINE_BASELINE_OFFSET + RULED_LINE_TOP_OFFSET;
+                  
+                  // Generate ruled line using shared theme engine
+                  const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+                  const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
+                  const theme = (supportedThemes.includes(aTheme as Theme) ? aTheme : 'default') as Theme;
+                  
+                  const tempElement: CanvasElement = {
+                    ...element,
+                    type: 'line' as const,
+                    id: element.id + '-ruled-line-inline',
+                    x: 0,
+                    y: 0,
+                    width: Math.abs(endX - startX),
+                    height: 0,
+                    strokeWidth: aWidth,
+                    stroke: aColor,
+                    theme: theme as CanvasElement['theme']
+                  };
+                  
+                  // Use centralized border rendering with fallback
+                  const lineNode = renderThemedBorderKonvaWithFallback({
+                    width: aWidth,
+                    color: aColor,
+                    opacity: aOpacity,
+                    path: createLinePath(startX, lineY, endX, lineY),
+                    theme: theme,
+                    themeSettings: {
+                      seed: seed + lineY,
+                      roughness: theme === 'rough' ? 2 : 1,
+                      candyRandomness: tempElement.candyRandomness,
+                      candyIntensity: tempElement.candyIntensity,
+                      candySpacingMultiplier: tempElement.candySpacingMultiplier,
+                      candyHoled: tempElement.candyHoled
+                    },
+                    strokeScaleEnabled: true,
+                    listening: false
+                  }, () => {
+                    // Fallback: use existing manual implementation
+                    const pathData = generateLinePath({
+                      x1: startX,
+                      y1: lineY,
+                      x2: endX,
+                      y2: lineY,
+                      strokeWidth: aWidth,
+                      stroke: aColor,
+                      theme: theme,
+                      seed: seed + lineY,
+                      roughness: theme === 'rough' ? 2 : 1,
+                      element: tempElement
+                    });
+                    
+                    if (pathData) {
+                      const themeRenderer = getThemeRenderer(theme);
+                      const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                      
+                      return new Konva.Path({
+                        data: pathData,
+                        stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : aColor,
+                        strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : aWidth,
+                        fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
+                        opacity: aOpacity,
+                        strokeScaleEnabled: true,
+                        rotation: elementRotation,
+                        listening: false,
+                        visible: true,
+                        lineCap: strokeProps.lineCap || 'round',
+                        lineJoin: strokeProps.lineJoin || 'round',
+                        shadowColor: strokeProps.shadowColor,
+                        shadowBlur: strokeProps.shadowBlur,
+                        shadowOpacity: strokeProps.shadowOpacity,
+                        shadowOffsetX: strokeProps.shadowOffsetX,
+                        shadowOffsetY: strokeProps.shadowOffsetY
+                      });
+                    } else {
+                      return new Konva.Line({
+                        points: [startX, lineY, endX, lineY],
+                        stroke: aColor,
+                        strokeWidth: aWidth,
+                        opacity: aOpacity,
+                        rotation: elementRotation,
+                        listening: false,
+                        visible: true
+                      });
+                    }
+                  });
+                  
+                  // Set additional properties
+                  if (lineNode) {
+                    lineNode.rotation(elementRotation);
+                    lineNode.visible(true);
+                    if (lineNode instanceof Konva.Path) {
+                      const themeRenderer = getThemeRenderer(theme);
+                      const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                      if (strokeProps.shadowColor) {
+                        lineNode.shadowColor(strokeProps.shadowColor);
+                        lineNode.shadowBlur(strokeProps.shadowBlur || 0);
+                        lineNode.shadowOpacity(strokeProps.shadowOpacity || 0);
+                        lineNode.shadowOffsetX(strokeProps.shadowOffsetX || 0);
+                        lineNode.shadowOffsetY(strokeProps.shadowOffsetY || 0);
+                      }
+                    }
+
+                    // Set z-order attributes for inline layout ruled lines
+                    const zOrderIndex = elementIdToZOrder.get(element.id);
+                    if (zOrderIndex !== undefined) {
+                      lineNode.setAttr('__zOrderIndex', zOrderIndex);
+                      lineNode.setAttr('__isQnaNode', true);
+                      lineNode.setAttr('__elementId', element.id);
+                      lineNode.setAttr('__nodeType', 'qna-line');
+                    }
+
+                    layer.add(lineNode);
+                    ruledLinesRenderedCount++;
+                  }
+                }
+              });
+              
+              // Generate additional ruled lines to fill the rest of the textbox (matching client-side logic)
+              // This only applies to answer lines (ruledLinesTarget === 'answer')
+              if (ruledLinesTarget === 'answer' && baselineYPositions.size > 0) {
+                // Filter baselines by answer style
+                const answerBaselineYPositions = new Set<number>();
+                runs.forEach((run) => {
+                  if (run.style.fontSize === answerStyle.fontSize) {
+                    answerBaselineYPositions.add(run.y);
+                  }
+                });
+                
+                if (answerBaselineYPositions.size > 0) {
+                  const answerLineHeight = sharedGetLineHeight(answerStyle);
+                  const sortedAnswerBaselines = Array.from(answerBaselineYPositions).sort((a, b) => a - b);
+                  const lastBaselineY = sortedAnswerBaselines[sortedAnswerBaselines.length - 1];
+                  // Calculate next line position: last baseline + line height + offset + top offset
+                  let nextLineY = elementY + lastBaselineY + answerLineHeight + RULED_LINE_BASELINE_OFFSET + RULED_LINE_TOP_OFFSET;
+                  
+                  // Determine start and end X positions and bottom Y (all relative to element)
+                  const relativeStartX = padding;
+                  const relativeEndX = elementWidth - padding;
+                  const relativeBottomY = elementHeight - padding;
+                  
+                  // Generate additional lines until we reach the bottom
+                  // nextLineY is absolute (elementY + relative position)
+                  while (nextLineY <= elementY + relativeBottomY) {
+                    // Generate ruled line
+                    // Convert relative coordinates to absolute for rendering
+                    const absoluteStartX = elementX + relativeStartX;
+                    const absoluteEndX = elementX + relativeEndX;
+                    const absoluteLineY = nextLineY;
+                    
+                    // Generate ruled line using shared theme engine
+                  const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+                  const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
+                  const theme = (supportedThemes.includes(aTheme as Theme) ? aTheme : 'default') as Theme;
+                  
+                    // Create a temporary element for theme-specific settings
+                  const tempElement: CanvasElement = {
+                    ...element,
+                    type: 'line' as const,
+                      id: element.id + '-ruled-line-extra',
+                    x: 0,
+                    y: 0,
+                      width: Math.abs(absoluteEndX - absoluteStartX),
+                    height: 0,
+                    strokeWidth: aWidth,
+                    stroke: aColor,
+                    theme: theme as CanvasElement['theme']
+                  };
+                  
+                  // Use centralized border rendering with fallback
+                  const lineNode = renderThemedBorderKonvaWithFallback({
+                    width: aWidth,
+                    color: aColor,
+                    opacity: aOpacity,
+                      path: createLinePath(absoluteStartX, absoluteLineY, absoluteEndX, absoluteLineY),
+                    theme: theme,
+                    themeSettings: {
+                        seed: seed + absoluteLineY,
+                      roughness: theme === 'rough' ? 2 : 1,
+                      candyRandomness: tempElement.candyRandomness,
+                      candyIntensity: tempElement.candyIntensity,
+                      candySpacingMultiplier: tempElement.candySpacingMultiplier,
+                      candyHoled: tempElement.candyHoled
+                    },
+                    strokeScaleEnabled: true,
+                    listening: false
+                  }, () => {
+                    // Fallback: use existing manual implementation
+                    const pathData = generateLinePath({
+                        x1: absoluteStartX,
+                        y1: absoluteLineY,
+                        x2: absoluteEndX,
+                        y2: absoluteLineY,
+                      strokeWidth: aWidth,
+                      stroke: aColor,
+                      theme: theme,
+                        seed: seed + absoluteLineY,
+                      roughness: theme === 'rough' ? 2 : 1,
+                      element: tempElement
+                    });
+                    
+                    if (pathData) {
+                      const themeRenderer = getThemeRenderer(theme);
+                      const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                      
+                      return new Konva.Path({
+                        data: pathData,
+                        stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : aColor,
+                        strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : aWidth,
+                        fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
+                        opacity: aOpacity,
+                        strokeScaleEnabled: true,
+                        rotation: elementRotation,
+                        listening: false,
+                        visible: true,
+                        lineCap: strokeProps.lineCap || 'round',
+                        lineJoin: strokeProps.lineJoin || 'round',
+                        shadowColor: strokeProps.shadowColor,
+                        shadowBlur: strokeProps.shadowBlur,
+                        shadowOpacity: strokeProps.shadowOpacity,
+                        shadowOffsetX: strokeProps.shadowOffsetX,
+                        shadowOffsetY: strokeProps.shadowOffsetY
+                      });
+                    } else {
+                      return new Konva.Line({
+                          points: [absoluteStartX, absoluteLineY, absoluteEndX, absoluteLineY],
+                        stroke: aColor,
+                        strokeWidth: aWidth,
+                        opacity: aOpacity,
+                        rotation: elementRotation,
+                        listening: false,
+                        visible: true
+                      });
+                    }
+                  });
+                  
+                  // Set additional properties
+                  if (lineNode) {
+                    lineNode.rotation(elementRotation);
+                    lineNode.visible(true);
+                    if (lineNode instanceof Konva.Path) {
+                      const themeRenderer = getThemeRenderer(theme);
+                      const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                      if (strokeProps.shadowColor) {
+                        lineNode.shadowColor(strokeProps.shadowColor);
+                        lineNode.shadowBlur(strokeProps.shadowBlur || 0);
+                        lineNode.shadowOpacity(strokeProps.shadowOpacity || 0);
+                        lineNode.shadowOffsetX(strokeProps.shadowOffsetX || 0);
+                        lineNode.shadowOffsetY(strokeProps.shadowOffsetY || 0);
+                      }
+                    }
+
+                      // Set z-order attributes
+                    const zOrderIndex = elementIdToZOrder.get(element.id);
+                    if (zOrderIndex !== undefined) {
+                      lineNode.setAttr('__zOrderIndex', zOrderIndex);
+                      lineNode.setAttr('__isQnaNode', true);
+                      lineNode.setAttr('__elementId', element.id);
+                      lineNode.setAttr('__nodeType', 'qna-line');
+                    }
+
+                    layer.add(lineNode);
+                    ruledLinesRenderedCount++;
+                  }
+                  
+                    nextLineY += answerLineHeight;
+                  }
+                }
+              }
+              
+              // Debug: Log inline layout ruled lines count
+              console.log('[DEBUG PDFRenderer] Inline layout ruled lines rendered:');
+              console.log('  elementId:', element.id);
+              console.log('  linesCount:', ruledLinesRenderedCount);
             }
             
             // Debug: Log total ruled lines rendered
@@ -1959,974 +1955,62 @@ export function PDFRenderer({
             }
           }
           
-          // QnA element fully handled - skip remaining rendering
-          continue;
-        }
-        // Render QnA elements (standard QnA textbox - textbox-qna.tsx logic)
-        // NEW shared-layout based QnA rendering path – temporarily disabled
-        if (false && element.textType === 'qna') {
-          // Get tool defaults for qna
-          const currentPage = state.currentBook?.pages?.find(p => p.id === page.id) || page;
-          const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
-          const bookTheme = bookData?.themeId || bookData?.bookTheme;
-          const pageColorPaletteId = currentPage?.colorPaletteId;
-          const bookColorPaletteId = bookData?.colorPaletteId;
-
-          const activeTheme = pageTheme || bookTheme || 'default';
-          const effectivePaletteId = pageColorPaletteId || bookColorPaletteId;
-          const qnaDefaults = getGlobalThemeDefaults(activeTheme, 'qna', effectivePaletteId);
-
-
-          // Match client-side style extraction from textbox-qna.tsx
-          const questionSettings = (element as any).questionSettings || {};
-          const answerSettings = (element as any).answerSettings || {};
-          const format = (element as any).format || {};
+          // Render border if enabled (after background, ruled lines, and text - matching client-side order)
+          const borderTheme = element.borderTheme || qnaDefaults.borderTheme || 'default';
+          const borderColor = element.borderColor || qnaDefaults.borderColor || '#1f2937';
+          const borderWidth = element.borderWidth || qnaDefaults.borderWidth || 0;
+          const borderOpacity = getStandardizedOpacity(element, 'border', 1);
+          const cornerRadius = element.cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
           
-          // Determine alignment based on layout variant and individual settings (matching textbox-qna.tsx logic)
-          const layoutVariant = (element as any).layoutVariant || 'inline';
-          const individualSettings = (element as any).qnaIndividualSettings ?? false;
-          
-          // For question style align: if inline OR (block without individual settings), use shared align
-          // Otherwise use individual question align
-          let questionAlign: 'left' | 'center' | 'right' | 'justify' = 'left';
-          if (layoutVariant === 'inline' || (layoutVariant === 'block' && !individualSettings)) {
-            // Shared align: check element.align, element.format?.textAlign, questionSettings.align, answerSettings.align
-            questionAlign = (element.align || format.textAlign || questionSettings.align || answerSettings.align || 'left') as 'left' | 'center' | 'right' | 'justify';
-          } else {
-            // Individual align: use questionSettings.align
-            questionAlign = (questionSettings.align || element.align || format.textAlign || 'left') as 'left' | 'center' | 'right' | 'justify';
-          }
-          
-          // For answer style align: if inline OR (block without individual settings), use shared align
-          // Otherwise use individual answer align
-          let answerAlign: 'left' | 'center' | 'right' | 'justify' = 'left';
-          if (layoutVariant === 'inline' || (layoutVariant === 'block' && !individualSettings)) {
-            // Shared align: check element.align, element.format?.textAlign, questionSettings.align, answerSettings.align
-            answerAlign = (element.align || format.textAlign || questionSettings.align || answerSettings.align || 'left') as 'left' | 'center' | 'right' | 'justify';
-          } else {
-            // Individual align: use answerSettings.align
-            answerAlign = (answerSettings.align || element.align || format.textAlign || 'left') as 'left' | 'center' | 'right' | 'justify';
-          }
-          
-          const questionStyle = {
-            fontSize: questionSettings.fontSize || qnaDefaults.questionSettings?.fontSize || qnaDefaults.fontSize || 42,
-            fontFamily: resolveFontFamily(questionSettings.fontFamily || qnaDefaults.questionSettings?.fontFamily || qnaDefaults.fontFamily, questionSettings.fontBold ?? false, questionSettings.fontItalic ?? false),
-            fontBold: questionSettings.fontBold ?? qnaDefaults.questionSettings?.fontBold ?? false,
-            fontItalic: questionSettings.fontItalic ?? qnaDefaults.questionSettings?.fontItalic ?? false,
-            fontColor: questionSettings.fontColor || qnaDefaults.questionSettings?.fontColor || '#666666',
-            fontOpacity: questionSettings.fontOpacity ?? qnaDefaults.questionSettings?.fontOpacity ?? 1,
-            paragraphSpacing: questionSettings.paragraphSpacing || qnaDefaults.questionSettings?.paragraphSpacing || (element as any).paragraphSpacing || 'small',
-            align: questionAlign
-          };
-          
-          const answerStyle = {
-            fontSize: answerSettings.fontSize || qnaDefaults.answerSettings?.fontSize || qnaDefaults.fontSize || 48,
-            fontFamily: resolveFontFamily(answerSettings.fontFamily || qnaDefaults.answerSettings?.fontFamily || qnaDefaults.fontFamily, answerSettings.fontBold ?? false, answerSettings.fontItalic ?? false),
-            fontBold: answerSettings.fontBold ?? qnaDefaults.answerSettings?.fontBold ?? false,
-            fontItalic: answerSettings.fontItalic ?? qnaDefaults.answerSettings?.fontItalic ?? false,
-            fontColor: answerSettings.fontColor || qnaDefaults.answerSettings?.fontColor || '#1f2937',
-            fontOpacity: answerSettings.fontOpacity ?? qnaDefaults.answerSettings?.fontOpacity ?? 1,
-            paragraphSpacing: answerSettings.paragraphSpacing || qnaDefaults.answerSettings?.paragraphSpacing || (element as any).paragraphSpacing || 'medium',
-            align: answerAlign
-          };
-          
-          // When individualSettings is false, use answer font properties for question as well
-          const effectiveQuestionStyle = individualSettings ? questionStyle : { ...questionStyle, ...answerStyle };
-          
-          const padding = element.padding ?? qnaDefaults.padding ?? 8;
-          
-          // Get question text
-          let questionText = '';
-          if (element.questionId) {
-            const questionData = state.tempQuestions?.[element.questionId];
-            if (questionData) {
-              try {
-                const parsed = JSON.parse(questionData);
-                questionText = parsed?.text || questionData;
-              } catch {
-                questionText = questionData;
-              }
-            }
-          }
-          
-          // Get answer text - match client-side logic exactly
-          let answerText = element.text || element.formattedText || '';
-          if (answerText && answerText.includes('<')) {
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = answerText;
-            answerText = tempDiv.textContent || tempDiv.innerText || '';
-          }
-          const sanitizedAnswer = answerText || '';
-          const answerContent = sanitizedAnswer || 'Antwort hinzufügen...';
-          
-          // Use shared functions with feature flag fallback
-          const LINE_HEIGHT: Record<string, number> = {
-            small: 1,
-            medium: 1.2,
-            large: 1.5
-          };
-          
-          const buildFont = FEATURE_FLAGS.USE_SHARED_TEXT_LAYOUT ? sharedBuildFont : (style: RichTextStyle) => {
-            const weight = style.fontBold ? 'bold ' : '';
-            const italic = style.fontItalic ? 'italic ' : '';
-            return `${weight}${italic}${style.fontSize}px ${style.fontFamily}`;
-          };
-          
-          const getLineHeight = FEATURE_FLAGS.USE_SHARED_TEXT_LAYOUT ? sharedGetLineHeight : (style: RichTextStyle) => {
-            const spacing: 'small' | 'medium' | 'large' = style.paragraphSpacing || 'medium';
-            return style.fontSize * (LINE_HEIGHT[spacing] || 1.2);
-          };
-          
-          const measureText = FEATURE_FLAGS.USE_SHARED_TEXT_LAYOUT ? sharedMeasureText : (text: string, style: RichTextStyle, ctx: CanvasRenderingContext2D | null) => {
-            if (!ctx) {
-              return text.length * (style.fontSize * 0.6);
-            }
-            ctx.save();
-            ctx.font = buildFont(style);
-            const width = ctx.measureText(text).width;
-            ctx.restore();
-            return width;
-          };
-          
-          const wrapText = FEATURE_FLAGS.USE_SHARED_TEXT_LAYOUT ? sharedWrapText : (text: string, style: RichTextStyle, maxWidth: number, ctx: CanvasRenderingContext2D | null) => {
-            const lines: { text: string; width: number }[] = [];
-            if (!text) return lines;
-            const paragraphs = text.split('\n');
-            paragraphs.forEach((paragraph, paragraphIdx) => {
-              const words = paragraph.split(' ').filter(Boolean);
-              if (words.length === 0) {
-                lines.push({ text: '', width: 0 });
-              } else {
-                let currentLine = words[0];
-                for (let i = 1; i < words.length; i += 1) {
-                  const word = words[i];
-                  const testLine = `${currentLine} ${word}`;
-                  const testWidth = measureText(testLine, style, ctx);
-                  if (testWidth > maxWidth && currentLine) {
-                    lines.push({ text: currentLine, width: measureText(currentLine, style, ctx) });
-                    currentLine = word;
-                  } else {
-                    currentLine = testLine;
-                  }
-                }
-                lines.push({ text: currentLine, width: measureText(currentLine, style, ctx) });
-              }
-              if (paragraphIdx < paragraphs.length - 1) {
-                lines.push({ text: '', width: 0 });
-              }
-            });
-            return lines;
-          };
-          
-          // Extract layout settings from element (layoutVariant already defined above)
-          const questionPosition = (element as any).questionPosition || 'left';
-          const questionWidth = (element as any).questionWidth ?? 40;
-          const ruledLinesTarget = (element as any).ruledLinesTarget || 'answer';
-          const blockQuestionAnswerGap = (element as any).blockQuestionAnswerGap ?? 10;
-          const answerInNewRow = (element as any).answerInNewRow ?? false;
-          // IMPORTANT: Match client-side logic exactly - use questionAnswerGap directly, no Horizontal/Vertical variants
-          // Client uses: const questionAnswerGap = qnaElement.questionAnswerGap ?? 0;
-          const questionAnswerGap = (element as any).questionAnswerGap ?? 0;
-          
-          // Helper function to calculate text X position based on alignment
-          const calculateTextX = FEATURE_FLAGS.USE_SHARED_TEXT_LAYOUT ? sharedCalculateTextX : (text: string, style: RichTextStyle, startX: number, availableWidth: number, ctx: CanvasRenderingContext2D | null): number => {
-            const align = style.align || 'left';
-            const textWidth = measureText(text, style, ctx);
+          if (borderWidth > 0) {
+            const themeRenderer = getThemeRenderer(borderTheme);
+            const useTheme = themeRenderer && borderTheme !== 'default';
             
-            switch (align) {
-              case 'center':
-                return startX + (availableWidth - textWidth) / 2;
-              case 'right':
-                return startX + availableWidth - textWidth;
-              case 'justify':
-                return startX;
-              case 'left':
-              default:
-                return startX;
-            }
-          };
-          
-          // Create layout using sharedCreateLayout (same as textbox-qna.tsx)
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          
-          // NOTE: Font loading is handled by pdf-renderer-service.js before rendering
-          // The fonts should already be loaded when this code executes
-          // If fonts are not loaded, the measurement will use fallback metrics
-          
-          // Use sharedCreateLayout to get runs and linePositions (matching textbox-qna.tsx)
-          const layout = sharedCreateLayout({
-            questionText: questionText || '',
-            answerText: answerContent,
-            questionStyle: effectiveQuestionStyle,
-            answerStyle: answerStyle,
-            width: elementWidth,
-            height: elementHeight,
-            padding: padding,
-            ctx: ctx,
-            layoutVariant: layoutVariant,
-            questionPosition: questionPosition,
-            questionWidth: questionWidth,
-            ruledLinesTarget: ruledLinesTarget,
-            blockQuestionAnswerGap: blockQuestionAnswerGap,
-            answerInNewRow: answerInNewRow,
-            questionAnswerGap: questionAnswerGap,
-            pdfExport: true
-          });
-          
-          const runs = layout.runs;
-          const linePositions = layout.linePositions;
-          const contentHeight = layout.contentHeight;
-          let blockRuledLinesNodes: Array<Konva.Path | Konva.Line> = [];
-          
-          // Block layout uses different logic for ruled lines
-          if (layoutVariant === 'block') {
-            // Get question and answer areas from layout (if available)
-            const questionArea = layout.questionArea || { x: padding, y: padding, width: elementWidth - padding * 2, height: elementHeight - padding * 2 };
-            const answerArea = layout.answerArea || { x: padding, y: padding, width: elementWidth - padding * 2, height: elementHeight - padding * 2 };
-            
-            // Collect ruled lines nodes for block layout (will be inserted after background)
-            blockRuledLinesNodes = [];
-            const ruledLines = (element as any).ruledLines ?? false;
-            if (ruledLines && linePositions.length > 0) {
-              const ruledLinesWidth = (element as any).ruledLinesWidth ?? 0.8;
-              const ruledLinesTheme = (element as any).ruledLinesTheme || 'rough';
-              const ruledLinesColor = (element as any).ruledLinesColor || '#1f2937';
-              const ruledLinesOpacity = (element as any).ruledLinesOpacity ?? 1;
-              const targetArea = ruledLinesTarget === 'question' ? questionArea : answerArea;
-              
-              // Filter line positions by target (question or answer)
-              const targetLinePositions = linePositions.filter((linePos) => {
-                if (!linePos.style) return false;
-                // Compare style properties to identify target lines
-                const targetStyle = ruledLinesTarget === 'question' ? questionStyle : answerStyle;
-                // Use fontSize as primary identifier (most reliable)
-                const styleMatches = linePos.style.fontSize === targetStyle.fontSize;
-                // Also check fontFamily if available
-                const familyMatches = !linePos.style.fontFamily || !targetStyle.fontFamily || 
-                                     linePos.style.fontFamily === targetStyle.fontFamily;
-                return styleMatches && familyMatches;
-              });
-              
-              targetLinePositions.forEach((linePos) => {
-                // Check if line is within the target area (vertically)
-                if (linePos.y >= targetArea.y && linePos.y <= targetArea.y + targetArea.height) {
-                  // Use the target area's x position and width, not the full width
-                  // This ensures lines are only drawn within the question or answer block
-                  const startX = elementX + targetArea.x;
-                  const endX = elementX + targetArea.x + targetArea.width;
-                  
-                  // Generate ruled line using generateLinePath (matching client-side behavior)
-                  const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-                  const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
-                  const theme = (supportedThemes.includes(ruledLinesTheme as Theme) ? ruledLinesTheme : 'default') as Theme;
-                  
-                  // Create a temporary element for theme-specific settings
-                  const tempElement: CanvasElement = {
-                    ...element,
-                    type: 'line',
-                    id: element.id + '-ruled-line',
-                    x: 0,
-                    y: 0,
-                    width: Math.abs(endX - startX),
-                    height: 0,
-                    strokeWidth: ruledLinesWidth,
-                    stroke: ruledLinesColor,
-                    theme: theme as CanvasElement['theme']
-                  };
-                  
-                  // Generate path using generateLinePath (same as renderThemedLine uses internally)
-                  const pathData = generateLinePath({
-                    x1: startX,
-                    y1: elementY + linePos.y,
-                    x2: endX,
-                    y2: elementY + linePos.y,
-                    strokeWidth: ruledLinesWidth,
-                    stroke: ruledLinesColor,
-                    theme: theme,
-                    seed: seed + linePos.y,
-                    roughness: theme === 'rough' ? 2 : 1,
-                    element: tempElement
-                  });
-                  
-                  let lineNode: Konva.Path | Konva.Line | null = null;
-                  if (pathData) {
-                    // Get stroke props from theme renderer (important for candy theme which uses fill instead of stroke)
-                    const themeRenderer = getThemeRenderer(theme);
-                    const strokeProps = themeRenderer.getStrokeProps(tempElement);
-                    
-                    lineNode = new Konva.Path({
-                      data: pathData,
-                      stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : ruledLinesColor,
-                      strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : ruledLinesWidth,
-                      fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
-                      opacity: ruledLinesOpacity * elementOpacity,
-                      strokeScaleEnabled: true,
-                      rotation: elementRotation,
-                      listening: false,
-                      visible: true,
-                      lineCap: strokeProps.lineCap || 'round',
-                      lineJoin: strokeProps.lineJoin || 'round'
-                    });
-                  } else {
-                    // Fallback to simple line if path generation fails
-                    lineNode = new Konva.Line({
-                      points: [startX, elementY + linePos.y, endX, elementY + linePos.y],
-                      stroke: ruledLinesColor,
-                      strokeWidth: ruledLinesWidth,
-                      opacity: ruledLinesOpacity * elementOpacity,
-                      rotation: elementRotation,
-                      listening: false,
-                      visible: true
-                    });
-                  }
-                  
-                  if (lineNode) {
-                    blockRuledLinesNodes.push(lineNode);
-                  }
-                }
-              });
-              
-              // Generate additional ruled lines to fill the rest of the target area (matching client-side logic)
-              // This only applies to answer lines (ruledLinesTarget === 'answer')
-              if (ruledLinesTarget === 'answer' && targetLinePositions.length > 0) {
-                const answerLineHeight = sharedGetLineHeight(answerStyle);
-                const lastLinePosition = targetLinePositions[targetLinePositions.length - 1];
-                let nextLineY = lastLinePosition.y + lastLinePosition.lineHeight;
-                
-                // Determine start and end X positions and bottom Y (all relative to element)
-                // targetArea coordinates are already relative to element (x, y are relative to element origin)
-                const relativeStartX = targetArea.x;
-                const relativeEndX = targetArea.x + targetArea.width;
-                const relativeBottomY = targetArea.y + targetArea.height;
-                
-                // Generate additional lines until we reach the bottom
-                // nextLineY is relative to element (0 = top of element)
-                while (nextLineY <= relativeBottomY) {
-                  // Generate ruled line
-                  // Convert relative coordinates to absolute for rendering
-                  const absoluteStartX = elementX + relativeStartX;
-                  const absoluteEndX = elementX + relativeEndX;
-                  const absoluteLineY = elementY + nextLineY;
-                  
-                  // Generate ruled line using generateLinePath (matching client-side behavior)
-                  const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-                  const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
-                  const theme = (supportedThemes.includes(ruledLinesTheme as Theme) ? ruledLinesTheme : 'default') as Theme;
-                  
-                  // Create a temporary element for theme-specific settings
-                  const tempElement: CanvasElement = {
-                    ...element,
-                    type: 'line' as const,
-                    id: element.id + '-ruled-line-extra',
-                    x: 0,
-                    y: 0,
-                    width: Math.abs(absoluteEndX - absoluteStartX),
-                    height: 0,
-                    strokeWidth: ruledLinesWidth,
-                    stroke: ruledLinesColor,
-                    theme: theme as CanvasElement['theme']
-                  };
-                  
-                  // Generate path using generateLinePath (same as renderThemedLine uses internally)
-                  const pathData = generateLinePath({
-                    x1: absoluteStartX,
-                    y1: absoluteLineY,
-                    x2: absoluteEndX,
-                    y2: absoluteLineY,
-                    strokeWidth: ruledLinesWidth,
-                    stroke: ruledLinesColor,
-                    theme: theme,
-                    seed: seed + nextLineY,
-                    roughness: theme === 'rough' ? 2 : 1,
-                    element: tempElement
-                  });
-                  
-                  let lineNode: Konva.Path | Konva.Line | null = null;
-                  if (pathData) {
-                    // Get stroke props from theme renderer (important for candy theme which uses fill instead of stroke)
-                    const themeRenderer = getThemeRenderer(theme);
-                    const strokeProps = themeRenderer.getStrokeProps(tempElement);
-                    
-                    lineNode = new Konva.Path({
-                      data: pathData,
-                      stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : ruledLinesColor,
-                      strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : ruledLinesWidth,
-                      fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
-                      opacity: ruledLinesOpacity * elementOpacity,
-                      strokeScaleEnabled: true,
-                      rotation: elementRotation,
-                      listening: false,
-                      visible: true,
-                      lineCap: strokeProps.lineCap || 'round',
-                      lineJoin: strokeProps.lineJoin || 'round'
-                    });
-                  } else {
-                    // Fallback to simple line if path generation fails
-                    lineNode = new Konva.Line({
-                      points: [absoluteStartX, absoluteLineY, absoluteEndX, absoluteLineY],
-                      stroke: ruledLinesColor,
-                      strokeWidth: ruledLinesWidth,
-                      opacity: ruledLinesOpacity * elementOpacity,
-                      rotation: elementRotation,
-                      listening: false,
-                      visible: true
-                    });
-                  }
-                  
-                  if (lineNode) {
-                    blockRuledLinesNodes.push(lineNode);
-                  }
-                  
-                  nextLineY += answerLineHeight;
-                }
-              }
-            }
-          }
-          // Inline layout - runs and linePositions are already created by sharedCreateLayout
-          // No manual creation needed - sharedCreateLayout handles everything
-          
-          // Render background if enabled
-          // Match client-side logic: check backgroundEnabled first, then fallback to style settings
-          const showBackground = (element as any).backgroundEnabled ?? 
-            (questionStyle.background?.enabled || answerStyle.background?.enabled) ?? false;
-          
-          // Debug: Log background check
-          // console.log('[DEBUG PDFRenderer] QnA Background check:');
-          // console.log('  elementId:', element.id);
-          // console.log('  element.backgroundEnabled:', (element as any).backgroundEnabled);
-          // console.log('  questionStyle.background?.enabled:', questionStyle.background?.enabled);
-          // console.log('  answerStyle.background?.enabled:', answerStyle.background?.enabled);
-          // console.log('  showBackground:', showBackground);
-          
-          let bgRect: Konva.Rect | null = null;
-          if (showBackground) {
-            // Get backgroundColor from element, questionStyle, or answerStyle
-            const backgroundColor = (element as any).backgroundColor || 
-              questionStyle.background?.backgroundColor || 
-              answerStyle.background?.backgroundColor || 
-              'transparent';
-            // Don't render if backgroundColor is transparent or empty
-            if (backgroundColor !== 'transparent' && backgroundColor) {
-              // Use backgroundOpacity (standardized property)
-              const backgroundOpacity = (element as any).backgroundOpacity !== undefined 
-                ? (element as any).backgroundOpacity 
-                : (element as any).background?.opacity !== undefined
-                  ? (element as any).background.opacity
-                  : (element as any).background?.backgroundOpacity !== undefined
-                    ? (element as any).background.backgroundOpacity
-                    : (element as any).questionSettings?.backgroundOpacity !== undefined
-                      ? (element as any).questionSettings.backgroundOpacity
-                      : (element as any).answerSettings?.backgroundOpacity !== undefined
-                        ? (element as any).answerSettings.backgroundOpacity
-                        : questionStyle.background?.opacity ?? 
-                          answerStyle.background?.opacity ?? 
-                          questionStyle.backgroundOpacity ?? 
-                          answerStyle.backgroundOpacity ?? 
-                          1;
-              const cornerRadius = (element as any).cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
-              const finalOpacity = backgroundOpacity * elementOpacity;
-              
-              // Apply opacity directly to fill color (RGBA) instead of using opacity property
-              // This ensures opacity is preserved during PDF export
-              let fillColor = backgroundColor;
-              if (finalOpacity < 1 && backgroundColor.startsWith('#')) {
-                fillColor = hexToRgba(backgroundColor, finalOpacity);
-              } else if (finalOpacity < 1 && backgroundColor.startsWith('rgb')) {
-                // Convert rgb to rgba
-                const rgbMatch = backgroundColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
-                if (rgbMatch) {
-                  fillColor = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${finalOpacity})`;
-                }
-              }
-              
-              bgRect = new Konva.Rect({
-                x: elementX,
-                y: elementY,
-                width: elementWidth,
-                height: contentHeight,
-                fill: fillColor,
-                opacity: 1, // Set to 1 since opacity is now in fill color
-                cornerRadius: cornerRadius,
-                rotation: elementRotation,
-                listening: false,
-              });
-              
-              // Add background and position it after page background, but before other elements
-              layer.add(bgRect);
-              
-              // Verify opacity is set correctly
-              // console.log('[DEBUG PDFRenderer] QnA Background opacity verification (second path):', {
-              //   elementId: element.id,
-              //   finalOpacity: finalOpacity,
-              //   fillColor: fillColor,
-              //   originalBackgroundColor: backgroundColor,
-              //   bgRectFill: bgRect.fill(),
-              //   bgRectOpacity: bgRect.opacity()
-              // });
-              
-              // Store z-order on background rect
-              const zOrderIndex = elementIdToZOrder.get(element.id);
-              if (zOrderIndex !== undefined) {
-                bgRect.setAttr('__zOrderIndex', zOrderIndex);
-                bgRect.setAttr('__isQnaNode', true);
-                bgRect.setAttr('__elementId', element.id);
-                bgRect.setAttr('__nodeType', 'qna-background');
-              }
-              
-              // Find all page background nodes (full canvas size at 0,0) and move bgRect after them
-              const stage = layer.getStage();
-              const stageWidth = stage ? stage.width() : width;
-              const stageHeight = stage ? stage.height() : height;
-              
-              let lastPageBgIndex = -1;
-              layer.getChildren().forEach((node, idx) => {
-                if (node === bgRect) return; // Skip self
-                // Skip QnA nodes - they should not be considered page backgrounds
-                if (node.getAttr('__isQnaNode')) return;
-                if (node.getClassName() !== 'Rect' && node.getClassName() !== 'Image') return;
-                const nodeX = node.x ? node.x() : 0;
-                const nodeY = node.y ? node.y() : 0;
-                const nodeWidth = node.width ? node.width() : 0;
-                const nodeHeight = node.height ? node.height() : 0;
-                if (nodeX === 0 && nodeY === 0 && nodeWidth === stageWidth && nodeHeight === stageHeight) {
-                  lastPageBgIndex = Math.max(lastPageBgIndex, idx);
-                }
-              });
-              
-              // Move bgRect to position right after last page background node
-              if (lastPageBgIndex !== -1) {
-                const bgRectIndex = layer.getChildren().indexOf(bgRect);
-                if (bgRectIndex !== -1 && bgRectIndex !== lastPageBgIndex + 1) {
-                  layer.getChildren().splice(bgRectIndex, 1);
-                  layer.getChildren().splice(lastPageBgIndex + 1, 0, bgRect);
-                }
-              }
-              
-              // Debug: Log background rendering - Log values directly
-              // console.log('[DEBUG PDFRenderer] QnA Background rendered:');
-              // console.log('  elementId:', element.id);
-              // console.log('  backgroundColor:', backgroundColor);
-              // console.log('  element.fillOpacity:', (element as any).fillOpacity);
-              // console.log('  element.background.fillOpacity:', (element as any).background?.fillOpacity);
-              // console.log('  element.backgroundOpacity:', (element as any).backgroundOpacity);
-              // console.log('  element.background.opacity:', (element as any).background?.opacity);
-              // console.log('  element.background.backgroundOpacity:', (element as any).background?.backgroundOpacity);
-              // console.log('  element.opacity:', (element as any).opacity);
-              // // Log answerSettings and questionSettings
-              // console.log('  element.answerSettings:', (element as any).answerSettings);
-              // console.log('  element.questionSettings:', (element as any).questionSettings);
-              // console.log('  element.answerSettings?.fillOpacity:', (element as any).answerSettings?.fillOpacity);
-              // console.log('  element.questionSettings?.fillOpacity:', (element as any).questionSettings?.fillOpacity);
-              // console.log('  element.answerSettings?.background?.fillOpacity:', (element as any).answerSettings?.background?.fillOpacity);
-              // console.log('  element.questionSettings?.background?.fillOpacity:', (element as any).questionSettings?.background?.fillOpacity);
-              // console.log('  element.answerSettings?.backgroundOpacity:', (element as any).answerSettings?.backgroundOpacity);
-              // console.log('  element.questionSettings?.backgroundOpacity:', (element as any).questionSettings?.backgroundOpacity);
-              // console.log('  All element opacity keys:', Object.keys(element).filter(k => k.toLowerCase().includes('opacity')));
-              // console.log('  All element fill keys:', Object.keys(element).filter(k => k.toLowerCase().includes('fill')));
-              // console.log('  questionStyle.background?.opacity:', questionStyle.background?.opacity);
-              // console.log('  answerStyle.background?.opacity:', answerStyle.background?.opacity);
-              // console.log('  questionStyle.backgroundOpacity:', questionStyle.backgroundOpacity);
-              // console.log('  answerStyle.backgroundOpacity:', answerStyle.backgroundOpacity);
-              // console.log('  backgroundOpacity (final):', backgroundOpacity);
-              // console.log('  elementOpacity:', elementOpacity);
-              // console.log('  finalOpacity:', backgroundOpacity * elementOpacity);
-              // console.log('  showBackground:', showBackground);
-              // console.log('  bgRectIndex:', layer.getChildren().indexOf(bgRect));
-              // console.log('  lastPageBgIndex:', lastPageBgIndex);
-            }
-          }
-          
-          // Collect all ruled lines nodes (block and inline) for z-index management
-          let allRuledLinesNodes: Array<Konva.Path | Konva.Line> = [];
-          
-          // Insert block layout ruled lines after background (if they exist)
-          if (layoutVariant === 'block' && blockRuledLinesNodes && blockRuledLinesNodes.length > 0) {
-            allRuledLinesNodes = [...blockRuledLinesNodes];
-            const zOrderIndex = elementIdToZOrder.get(element.id);
-            console.log(`[DEBUG PDFRenderer] Adding ${blockRuledLinesNodes.length} block ruled lines nodes for element ${element.id}, zOrderIndex: ${zOrderIndex}`);
-            blockRuledLinesNodes.forEach((lineNode, idx) => {
-              // Set z-order attributes for block ruled lines
-              if (zOrderIndex !== undefined) {
-                lineNode.setAttr('__zOrderIndex', zOrderIndex);
-                lineNode.setAttr('__isQnaNode', true);
-                lineNode.setAttr('__elementId', element.id);
-                lineNode.setAttr('__nodeType', 'qna-line');
-              }
-              layer.add(lineNode);
-              console.log(`[DEBUG PDFRenderer] Added block ruled line node ${idx} for element ${element.id} with zOrder: ${zOrderIndex}`);
-            });
-          }
-          
-          // Render ruled lines if enabled (after background, before border and text)
-          // Note: For block layout, ruled lines are already rendered above (within the block layout section)
-          // This section only handles inline layout
-          const ruledLines = (element as any).ruledLines ?? false;
-          const ruledLinesNodes: Array<Konva.Path | Konva.Line> = [];
-          
-          // Debug logging for ruled lines - Log values directly
-          console.log('[DEBUG PDFRenderer] Ruled lines check:');
-          console.log('  elementId:', element.id);
-          console.log('  ruledLines:', ruledLines);
-          console.log('  layoutVariant:', layoutVariant);
-          console.log('  hasLinePositions:', !!linePositions);
-          console.log('  linePositionsCount:', linePositions ? linePositions.length : 0);
-          console.log('  elementHeight:', elementHeight);
-          console.log('  elementWidth:', elementWidth);
-          
-          if (ruledLines && linePositions && linePositions.length > 0 && layoutVariant !== 'block') {
-            const ruledLinesWidth = (element as any).ruledLinesWidth ?? 0.8;
-            const ruledLinesTheme = (element as any).ruledLinesTheme || 'rough';
-            const ruledLinesColor = (element as any).ruledLinesColor || '#1f2937';
-            const ruledLinesOpacity = (element as any).ruledLinesOpacity ?? 1;
-            
-            linePositions.forEach((linePos) => {
-              // For inline layout, use full width with padding
-              // Only generate lines that are within the box dimensions (0 <= y <= elementHeight)
-              // Match client-side logic: if (linePos.y >= 0 && linePos.y <= boxHeight)
-              if (linePos.y < 0 || linePos.y > elementHeight) {
-                console.log('[PDFRenderer] Skipping ruled line (out of bounds):', {
-                  linePosY: linePos.y,
-                  elementHeight: elementHeight,
-                  condition: linePos.y < 0 || linePos.y > elementHeight
-                });
-                return;
-              }
-              
-              const startX = elementX + padding;
-              const endX = elementX + elementWidth - padding;
-              
-              console.log('[PDFRenderer] Rendering ruled line (inline):', {
-                linePosY: linePos.y,
-                elementHeight: elementHeight,
-                startX: startX,
-                endX: endX,
-                elementX: elementX,
-                elementY: elementY,
-                padding: padding,
-                absoluteY: elementY + linePos.y
-              });
-              
-              // Generate ruled line using generateLinePath (matching client-side behavior)
-              const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-              const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
-              const theme = (supportedThemes.includes(ruledLinesTheme as Theme) ? ruledLinesTheme : 'default') as Theme;
-              
-              // Create a temporary element for theme-specific settings
-              const tempElement: CanvasElement = {
-                ...element,
-                type: 'line',
-                id: element.id + '-ruled-line',
-                x: 0,
-                y: 0,
-                width: Math.abs(endX - startX),
-                height: 0,
-                strokeWidth: ruledLinesWidth,
-                stroke: ruledLinesColor,
-                theme: theme as CanvasElement['theme']
-              };
-              
-              // Use same RULED_LINE_BASELINE_OFFSET as client-side (-20 for PDF export)
-              const RULED_LINE_BASELINE_OFFSET = -20;
-              const lineY = elementY + linePos.y + RULED_LINE_BASELINE_OFFSET;
-              
-              // Use centralized border rendering with fallback
-              const lineNode = renderThemedBorderKonvaWithFallback({
-                width: ruledLinesWidth,
-                color: ruledLinesColor,
-                opacity: ruledLinesOpacity * elementOpacity,
-                path: createLinePath(startX, lineY, endX, lineY),
-                theme: theme,
-                themeSettings: {
-                  seed: seed + linePos.y,
-                  roughness: theme === 'rough' ? 2 : 1,
-                  candyRandomness: (tempElement as any).candyRandomness,
-                  candyIntensity: (tempElement as any).candyIntensity,
-                  candySpacingMultiplier: (tempElement as any).candySpacingMultiplier,
-                  candyHoled: (tempElement as any).candyHoled
-                },
-                strokeScaleEnabled: true,
-                listening: false
-              }, () => {
-                // Fallback: use existing manual implementation
-              const pathData = generateLinePath({
-                x1: startX,
-                  y1: lineY,
-                x2: endX,
-                  y2: lineY,
-                strokeWidth: ruledLinesWidth,
-                stroke: ruledLinesColor,
-                theme: theme,
-                seed: seed + linePos.y,
-                roughness: theme === 'rough' ? 2 : 1,
-                element: tempElement
-              });
-              
-              if (pathData) {
-                const themeRenderer = getThemeRenderer(theme);
-                const strokeProps = themeRenderer.getStrokeProps(tempElement);
-                
-                  return new Konva.Path({
-                  data: pathData,
-                  stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : ruledLinesColor,
-                  strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : ruledLinesWidth,
-                  fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
-                  opacity: ruledLinesOpacity * elementOpacity,
-                  strokeScaleEnabled: true,
-                  rotation: elementRotation,
-                  listening: false,
-                  visible: true,
-                  lineCap: strokeProps.lineCap || 'round',
-                    lineJoin: strokeProps.lineJoin || 'round',
-                    shadowColor: strokeProps.shadowColor,
-                    shadowBlur: strokeProps.shadowBlur,
-                    shadowOpacity: strokeProps.shadowOpacity,
-                    shadowOffsetX: strokeProps.shadowOffsetX,
-                    shadowOffsetY: strokeProps.shadowOffsetY
-                });
-              } else {
-                  return new Konva.Line({
-                    points: [startX, lineY, endX, lineY],
-                  stroke: ruledLinesColor,
-                  strokeWidth: ruledLinesWidth,
-                  opacity: ruledLinesOpacity * elementOpacity,
-                  rotation: elementRotation,
-                  listening: false,
-                  visible: true
-                });
-              }
-              });
-              
-              // Set additional properties
-              if (lineNode) {
-                lineNode.rotation(elementRotation);
-                lineNode.visible(true);
-                if (lineNode instanceof Konva.Path) {
-                  const themeRenderer = getThemeRenderer(theme);
-                  const strokeProps = themeRenderer.getStrokeProps(tempElement);
-                  if (strokeProps.shadowColor) {
-                    lineNode.shadowColor(strokeProps.shadowColor);
-                    lineNode.shadowBlur(strokeProps.shadowBlur || 0);
-                    lineNode.shadowOpacity(strokeProps.shadowOpacity || 0);
-                    lineNode.shadowOffsetX(strokeProps.shadowOffsetX || 0);
-                    lineNode.shadowOffsetY(strokeProps.shadowOffsetY || 0);
-                  }
-                }
-                ruledLinesNodes.push(lineNode);
-              }
-            });
-            
-            // Generate additional ruled lines to fill the rest of the textbox (matching client-side logic)
-            // This only applies to answer lines (ruledLinesTarget === 'answer')
-            if (ruledLinesTarget === 'answer' && linePositions && linePositions.length > 0) {
-              // Filter line positions by target (answer)
-              // For inline layout, we need to filter by style properties
-              const targetLinePositions = linePositions.filter((linePos) => {
-                if (!linePos.style) return false;
-                // Compare style properties to identify answer lines
-                // Use fontSize as primary identifier (most reliable)
-                const styleMatches = linePos.style.fontSize === answerStyle.fontSize;
-                // Also check fontFamily if available
-                const familyMatches = !linePos.style.fontFamily || !answerStyle.fontFamily || 
-                                     linePos.style.fontFamily === answerStyle.fontFamily;
-                return styleMatches && familyMatches;
-              });
-              
-              if (targetLinePositions.length > 0) {
-                const answerLineHeight = sharedGetLineHeight(answerStyle);
-                const lastLinePosition = targetLinePositions[targetLinePositions.length - 1];
-                let nextLineY = lastLinePosition.y + lastLinePosition.lineHeight;
-                
-                // Determine start and end X positions and bottom Y (all relative to element)
-                const relativeStartX = padding;
-                const relativeEndX = elementWidth - padding;
-                const relativeBottomY = elementHeight - padding;
-                
-                // Generate additional lines until we reach the bottom
-                // nextLineY is relative to element (0 = top of element)
-                while (nextLineY <= relativeBottomY) {
-                  // Generate ruled line
-                  // Convert relative coordinates to absolute for rendering
-                  const absoluteStartX = elementX + relativeStartX;
-                  const absoluteEndX = elementX + relativeEndX;
-                  const absoluteLineY = elementY + nextLineY;
-                  
-                  // Generate ruled line using generateLinePath (matching client-side behavior)
-                  const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-                  const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
-                  const theme = (supportedThemes.includes(ruledLinesTheme as Theme) ? ruledLinesTheme : 'default') as Theme;
-                  
-                  // Create a temporary element for theme-specific settings
-                  const tempElement: CanvasElement = {
-                    ...element,
-                    type: 'line' as const,
-                    id: element.id + '-ruled-line-extra',
-                    x: 0,
-                    y: 0,
-                    width: Math.abs(absoluteEndX - absoluteStartX),
-                    height: 0,
-                    strokeWidth: ruledLinesWidth,
-                    stroke: ruledLinesColor,
-                    theme: theme as CanvasElement['theme']
-                  };
-                  
-                  // Use centralized border rendering with fallback
-                  const lineNode = renderThemedBorderKonvaWithFallback({
-                    width: ruledLinesWidth,
-                    color: ruledLinesColor,
-                    opacity: ruledLinesOpacity * elementOpacity,
-                    path: createLinePath(absoluteStartX, absoluteLineY, absoluteEndX, absoluteLineY),
-                    theme: theme,
-                    themeSettings: {
-                      seed: seed + nextLineY,
-                      roughness: theme === 'rough' ? 2 : 1,
-                      candyRandomness: (tempElement as any).candyRandomness,
-                      candyIntensity: (tempElement as any).candyIntensity,
-                      candySpacingMultiplier: (tempElement as any).candySpacingMultiplier,
-                      candyHoled: (tempElement as any).candyHoled
-                    },
-                    strokeScaleEnabled: true,
-                    listening: false
-                  }, () => {
-                    // Fallback: use existing manual implementation
-                  const pathData = generateLinePath({
-                    x1: absoluteStartX,
-                    y1: absoluteLineY,
-                    x2: absoluteEndX,
-                    y2: absoluteLineY,
-                    strokeWidth: ruledLinesWidth,
-                    stroke: ruledLinesColor,
-                    theme: theme,
-                    seed: seed + nextLineY,
-                    roughness: theme === 'rough' ? 2 : 1,
-                    element: tempElement
-                  });
-                  
-                  if (pathData) {
-                    const themeRenderer = getThemeRenderer(theme);
-                    const strokeProps = themeRenderer.getStrokeProps(tempElement);
-                    
-                      return new Konva.Path({
-                      data: pathData,
-                      stroke: strokeProps.stroke !== undefined && strokeProps.stroke !== 'transparent' ? strokeProps.stroke : ruledLinesColor,
-                      strokeWidth: strokeProps.strokeWidth !== undefined ? strokeProps.strokeWidth : ruledLinesWidth,
-                      fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
-                      opacity: ruledLinesOpacity * elementOpacity,
-                      strokeScaleEnabled: true,
-                      rotation: elementRotation,
-                      listening: false,
-                      visible: true,
-                      lineCap: strokeProps.lineCap || 'round',
-                        lineJoin: strokeProps.lineJoin || 'round',
-                        shadowColor: strokeProps.shadowColor,
-                        shadowBlur: strokeProps.shadowBlur,
-                        shadowOpacity: strokeProps.shadowOpacity,
-                        shadowOffsetX: strokeProps.shadowOffsetX,
-                        shadowOffsetY: strokeProps.shadowOffsetY
-                    });
-                  } else {
-                      return new Konva.Line({
-                      points: [absoluteStartX, absoluteLineY, absoluteEndX, absoluteLineY],
-                      stroke: ruledLinesColor,
-                      strokeWidth: ruledLinesWidth,
-                      opacity: ruledLinesOpacity * elementOpacity,
-                      rotation: elementRotation,
-                      listening: false,
-                      visible: true
-                    });
-                  }
-                  });
-                  
-                  // Set additional properties
-                  if (lineNode) {
-                    lineNode.rotation(elementRotation);
-                    lineNode.visible(true);
-                    if (lineNode instanceof Konva.Path) {
-                      const themeRenderer = getThemeRenderer(theme);
-                      const strokeProps = themeRenderer.getStrokeProps(tempElement);
-                      if (strokeProps.shadowColor) {
-                        lineNode.shadowColor(strokeProps.shadowColor);
-                        lineNode.shadowBlur(strokeProps.shadowBlur || 0);
-                        lineNode.shadowOpacity(strokeProps.shadowOpacity || 0);
-                        lineNode.shadowOffsetX(strokeProps.shadowOffsetX || 0);
-                        lineNode.shadowOffsetY(strokeProps.shadowOffsetY || 0);
-                      }
-                    }
-                    ruledLinesNodes.push(lineNode);
-                  }
-                  
-                  nextLineY += answerLineHeight;
-                }
-              }
-            }
-            
-            // Add ruled lines nodes directly to layer with proper z-order attributes
-            if (ruledLinesNodes.length > 0) {
-              const zOrderIndex = elementIdToZOrder.get(element.id);
-              console.log(`[DEBUG PDFRenderer] Adding ${ruledLinesNodes.length} ruled lines nodes for element ${element.id}, zOrderIndex: ${zOrderIndex}`);
-              ruledLinesNodes.forEach((lineNode, index) => {
-                // Set z-order attributes for ruled lines
-                if (zOrderIndex !== undefined) {
-                  lineNode.setAttr('__zOrderIndex', zOrderIndex);
-                  lineNode.setAttr('__isQnaNode', true);
-                  lineNode.setAttr('__elementId', element.id);
-                  lineNode.setAttr('__nodeType', 'qna-line');
-                }
-                // Add directly to layer - they will be included in z-order sorting
-                layer.add(lineNode);
-                console.log(`[DEBUG PDFRenderer] Added ruled line node ${index} for element ${element.id} with zOrder: ${zOrderIndex}`);
-              });
-            }
-          }
-          
-          // Render border if enabled
-          const showBorder = (element as any).borderEnabled && (element as any).borderColor && (element as any).borderWidth !== undefined;
-          if (showBorder) {
-            const borderColor = (element as any).borderColor || qnaDefaults.borderColor || '#000000';
-            const borderWidth = (element as any).borderWidth || 1;
-            const borderOpacity = (element as any).borderOpacity !== undefined ? (element as any).borderOpacity : 1;
-            const cornerRadius = (element as any).cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
-            // Match client-side logic: Check element.borderTheme first, then fallback to element.theme, then 'default'
-            // This matches textbox-qna.tsx line 2025: const themeValue = qnaElement.borderTheme || element.theme || 'default';
-            const borderThemeRaw = (element as any).borderTheme || 
-                                  element.theme ||
-                                  (element as any).questionSettings?.borderTheme || 
-                                  (element as any).answerSettings?.borderTheme || 
-                                  'default';
-            // Map 'sketchy' to 'rough' if needed (matching textbox-qna.tsx)
-            const borderThemeRawMapped = borderThemeRaw === 'sketchy' ? 'rough' : borderThemeRaw;
-            const borderTheme = borderThemeRawMapped as 'default' | 'rough' | 'glow' | 'candy' | 'zigzag' | 'wobbly'; // Use the selected theme directly (don't map 'default' to 'rough')
-            
-            // Create border element for theme-specific settings
+            if (useTheme) {
+              // Use themed border rendering
               const borderElement = {
-                type: 'rect' as const,
-                id: (element as any).id + '-border',
+                type: 'rect' as any,
+                id: element.id + '-border',
                 x: 0,
                 y: 0,
                 width: elementWidth,
-                height: contentHeight,
+                height: dynamicHeight,
                 cornerRadius: cornerRadius,
                 stroke: borderColor,
               strokeWidth: borderWidth,
                 fill: 'transparent',
-              theme: borderTheme,
-                roughness: borderTheme === 'rough' ? 8 : (borderTheme === 'sketchy' ? 2 : 1),
-              // Pass through theme-specific settings
+                roughness: borderTheme === 'rough' ? 8 : undefined,
               candyRandomness: (element as any).candyRandomness,
               candyIntensity: (element as any).candyIntensity,
               candySpacingMultiplier: (element as any).candySpacingMultiplier,
               candyHoled: (element as any).candyHoled
               } as CanvasElement;
               
-            // Use centralized border rendering with fallback
+              const borderPathData = themeRenderer.generatePath(borderElement);
+              const borderStrokeProps = themeRenderer.getStrokeProps(borderElement);
+              
+              if (borderPathData) {
+                let pathStroke = borderStrokeProps.stroke || borderColor;
+                if (pathStroke && borderOpacity < 1) {
+                  if (pathStroke.startsWith('#')) {
+                    pathStroke = hexToRgba(pathStroke, borderOpacity);
+                  } else if (pathStroke.startsWith('rgb')) {
+                    const rgbMatch = pathStroke.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                    if (rgbMatch) {
+                      pathStroke = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${borderOpacity})`;
+                    }
+                  }
+                }
+                
+                const borderPathConfig = createRectPath(0, 0, elementWidth, dynamicHeight);
             const borderPath = renderThemedBorderKonvaWithFallback({
               width: borderWidth,
-              color: borderColor,
-              opacity: borderOpacity * elementOpacity,
-              path: createRectPath(0, 0, elementWidth, contentHeight),
+                  color: pathStroke,
+                  opacity: borderOpacity < 1 ? 1 : elementOpacity,
+                  path: borderPathConfig,
               theme: borderTheme,
               themeSettings: {
-                roughness: borderTheme === 'rough' ? 8 : (borderTheme === 'sketchy' ? 2 : 1),
+                    roughness: borderTheme === 'rough' ? 8 : undefined,
                 candyRandomness: (borderElement as any).candyRandomness,
                 candyIntensity: (borderElement as any).candyIntensity,
                 candySpacingMultiplier: (borderElement as any).candySpacingMultiplier,
@@ -2936,141 +2020,103 @@ export function PDFRenderer({
               strokeScaleEnabled: true,
               listening: false
             }, () => {
-              // Fallback: use existing manual implementation
-              const themeRenderer = getThemeRenderer(borderTheme);
-              if (themeRenderer) {
-              const pathData = themeRenderer.generatePath(borderElement);
-              const strokeProps = themeRenderer.getStrokeProps(borderElement);
-              
-              if (pathData) {
                   return new Konva.Path({
-                  data: pathData,
+                    data: borderPathData,
                   x: elementX,
                   y: elementY,
-                  stroke: strokeProps.stroke || borderColor,
-                    strokeWidth: strokeProps.strokeWidth || borderWidth,
-                  fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
-                  opacity: borderOpacity * elementOpacity,
+                    stroke: pathStroke,
+                    strokeWidth: borderStrokeProps.strokeWidth || borderWidth,
+                    opacity: borderOpacity < 1 ? 1 : elementOpacity,
+                    fill: borderStrokeProps.fill || 'transparent',
                   strokeScaleEnabled: true,
                   rotation: elementRotation,
                   listening: false,
-                  lineCap: strokeProps.lineCap || 'round',
-                  lineJoin: strokeProps.lineJoin || 'round',
-                    shadowColor: strokeProps.shadowColor,
-                    shadowBlur: strokeProps.shadowBlur,
-                    shadowOpacity: strokeProps.shadowOpacity,
-                    shadowOffsetX: strokeProps.shadowOffsetX,
-                    shadowOffsetY: strokeProps.shadowOffsetY
-                  });
-                }
-              }
-              // Fallback to default Rect (as Path)
-              const rectPath = `M ${elementX} ${elementY} L ${elementX + elementWidth} ${elementY} L ${elementX + elementWidth} ${elementY + contentHeight} L ${elementX} ${elementY + contentHeight} Z`;
-              return new Konva.Path({
-                data: rectPath,
-                x: 0,
-                y: 0,
-                stroke: borderColor,
-                strokeWidth: borderWidth,
-                fill: 'transparent',
-                opacity: borderOpacity * elementOpacity,
-                strokeScaleEnabled: true,
-                rotation: elementRotation,
-                listening: false,
-                visible: true
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                    shadowColor: borderStrokeProps.shadowColor,
+                    shadowBlur: borderStrokeProps.shadowBlur,
+                    shadowOpacity: borderStrokeProps.shadowOpacity,
+                    shadowOffsetX: borderStrokeProps.shadowOffsetX,
+                    shadowOffsetY: borderStrokeProps.shadowOffsetY
               });
             });
             
             if (borderPath) {
-              // Set position and rotation
               borderPath.x(elementX);
               borderPath.y(elementY);
               borderPath.rotation(elementRotation);
               borderPath.visible(true);
               
-              // Ensure shadow properties are set (for Glow theme)
               if (borderPath instanceof Konva.Path) {
-                const themeRenderer = getThemeRenderer(borderTheme);
-                const strokeProps = themeRenderer.getStrokeProps(borderElement);
-                if (strokeProps.shadowColor) {
-                  borderPath.shadowColor(strokeProps.shadowColor);
-                  borderPath.shadowBlur(strokeProps.shadowBlur || 0);
-                  borderPath.shadowOpacity(strokeProps.shadowOpacity || 0);
-                  borderPath.shadowOffsetX(strokeProps.shadowOffsetX || 0);
-                  borderPath.shadowOffsetY(strokeProps.shadowOffsetY || 0);
-                }
-              }
-
-                // Set z-order attributes for border
+                    if (borderStrokeProps.shadowColor) {
+                      borderPath.shadowColor(borderStrokeProps.shadowColor);
+                      borderPath.shadowBlur(borderStrokeProps.shadowBlur || 0);
+                      borderPath.shadowOpacity(borderStrokeProps.shadowOpacity || 0);
+                      borderPath.shadowOffsetX(borderStrokeProps.shadowOffsetX || 0);
+                      borderPath.shadowOffsetY(borderStrokeProps.shadowOffsetY || 0);
+                    }
+                  }
+                  
+                  layer.add(borderPath);
                 const borderZOrderIndex = elementIdToZOrder.get(element.id);
                 if (borderZOrderIndex !== undefined) {
                   borderPath.setAttr('__zOrderIndex', borderZOrderIndex);
-                  borderPath.setAttr('__isQnaNode', true);
                   borderPath.setAttr('__elementId', element.id);
+                    borderPath.setAttr('__isQnaNode', true);
                   borderPath.setAttr('__nodeType', 'qna-border');
                 }
-
-                layer.add(borderPath);
-
-                // Insert border after ruled lines (or after background if no ruled lines)
-                const totalRuledLinesCount = allRuledLinesNodes.length + ruledLinesNodes.length;
-                const insertAfterIndex = bgRect ? layer.getChildren().indexOf(bgRect) + 1 + totalRuledLinesCount : layer.getChildren().length;
-                const borderPathIndex = layer.getChildren().indexOf(borderPath);
-                if (borderPathIndex !== -1 && borderPathIndex !== insertAfterIndex) {
-                  layer.getChildren().splice(borderPathIndex, 1);
-                  layer.getChildren().splice(insertAfterIndex, 0, borderPath);
                 }
+              }
+            } else {
+              // Default border rendering without theme
+              let rectStroke = borderColor;
+              if (rectStroke && borderOpacity < 1) {
+                if (rectStroke.startsWith('#')) {
+                  rectStroke = hexToRgba(rectStroke, borderOpacity);
+                } else if (rectStroke.startsWith('rgb')) {
+                  const rgbMatch = rectStroke.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                  if (rgbMatch) {
+                    rectStroke = `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${borderOpacity})`;
+                  }
+                }
+              }
+              
+              const borderRect = new Konva.Rect({
+              x: elementX,
+              y: elementY,
+              width: elementWidth,
+                height: dynamicHeight,
+                fill: 'transparent',
+                stroke: rectStroke,
+                strokeWidth: borderWidth,
+                cornerRadius: cornerRadius,
+              rotation: elementRotation,
+                opacity: borderOpacity < 1 ? 1 : elementOpacity,
+                listening: false
+              });
+              
+              layer.add(borderRect);
+              const borderZOrderIndex = elementIdToZOrder.get(element.id);
+              if (borderZOrderIndex !== undefined) {
+                borderRect.setAttr('__zOrderIndex', borderZOrderIndex);
+                borderRect.setAttr('__elementId', element.id);
+                borderRect.setAttr('__isQnaNode', true);
+                borderRect.setAttr('__nodeType', 'qna-border');
               }
             }
           }
           
-          // Render text runs using a single Konva.Shape (matching textbox-qna.tsx RichTextShape behavior)
-          // IMPORTANT: Client uses a SINGLE Shape for ALL runs, not one Shape per run
-          // The Shape is positioned at (elementX, elementY), then all runs are drawn within it
-          if (runs.length > 0) {
-            const textShape = new Konva.Shape({
-              x: elementX,
-              y: elementY,
-              sceneFunc: (ctx, shape) => {
-                ctx.save();
-                // Use 'alphabetic' baseline for proper text alignment (matching client)
-                ctx.textBaseline = 'alphabetic';
-                // Draw all runs within this single shape (like client-side RichTextShape)
-                runs.forEach((run) => {
-                  const style = run.style;
-                  // Build font string with bold/italic support (like client)
-                  const fontString = sharedBuildFont(style);
-                  const textColor = style.fontColor || '#000000';
-                  const textOpacity = (style.fontOpacity !== undefined ? style.fontOpacity : 1) * elementOpacity;
-                  
-                  ctx.font = fontString;
-                  ctx.fillStyle = textColor;
-                  ctx.globalAlpha = textOpacity;
-                  // Y position is already the baseline position (from sharedCreateLayout)
-                  ctx.fillText(run.text || '', run.x, run.y);
-                });
-                ctx.restore();
-                ctx.fillStrokeShape(shape);
-              },
-              width: elementWidth,
-              height: contentHeight,
-              rotation: elementRotation,
-              listening: false,
-              visible: true
-            });
-            
-            layer.add(textShape);
-            // Store z-order on text shape
-            const zOrderIndex = elementIdToZOrder.get(element.id);
-            if (zOrderIndex !== undefined) {
-              textShape.setAttr('__zOrderIndex', zOrderIndex);
-              textShape.setAttr('__elementId', element.id);
-              textShape.setAttr('__nodeType', 'qna-text');
-            }
-          }
+          // QnA element fully handled - skip remaining rendering
+          continue;
         }
+        // Render QnA elements (standard QnA textbox - textbox-qna.tsx logic)
+        // NOTE: A large disabled code block was removed here to fix parsing errors
+        // The disabled block contained an alternative QnA rendering path that was not being used
+        // If needed in the future, it can be restored from git history
+        // The active QnA rendering path is above (starting around line 933)
+        
         // Render free_text elements
-        else if (element.textType === 'free_text') {
+        if (element.textType === 'free_text') {
           let textContent = element.formattedText || element.text || '';
           
           if (textContent.includes('<')) {
