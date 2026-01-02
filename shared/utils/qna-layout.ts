@@ -74,14 +74,6 @@ export function createBlockLayout(params: CreateBlockLayoutParams): LayoutResult
   let questionArea = { x: padding, y: padding, width: width - padding * 2, height: height - padding * 2 };
   let answerArea = { x: padding, y: padding, width: width - padding * 2, height: height - padding * 2 };
   
-  // Calculate question dimensions
-  let calculatedQuestionHeight = 0;
-  
-  if (questionText && ctx) {
-    const questionLines = wrapText(questionText, questionStyle, width - padding * 2, ctx);
-    calculatedQuestionHeight = questionLines.length * questionLineHeight + padding * 2;
-  }
-  
   // Calculate areas based on position
   if (questionPosition === 'left' || questionPosition === 'right') {
     const finalQuestionWidth = (width * questionWidth) / 100;
@@ -96,16 +88,22 @@ export function createBlockLayout(params: CreateBlockLayoutParams): LayoutResult
       questionArea = { x: answerWidth + padding + gap, y: padding, width: finalQuestionWidth, height: height - padding * 2 };
     }
   } else {
-    const finalQuestionHeight = Math.max(calculatedQuestionHeight, questionStyle.fontSize + padding * 2);
+    // For vertical layouts (top/bottom), calculate height correctly
+    // The question area starts at y: padding, and the text fills the area
+    // finalQuestionHeight should be just the text height (no extra padding)
+    const textHeight = questionText && ctx 
+      ? wrapText(questionText, questionStyle, width - padding * 2, ctx).length * questionLineHeight
+      : questionStyle.fontSize;
+    const finalQuestionHeight = Math.max(textHeight, questionStyle.fontSize);
     const gap = blockQuestionAnswerGap;
     const answerHeight = height - finalQuestionHeight - padding * 2 - gap;
     
     if (questionPosition === 'top') {
       questionArea = { x: padding, y: padding, width: width - padding * 2, height: finalQuestionHeight };
-      answerArea = { x: padding, y: finalQuestionHeight + padding + gap, width: width - padding * 2, height: answerHeight };
+      answerArea = { x: padding, y: padding + finalQuestionHeight + gap, width: width - padding * 2, height: answerHeight };
     } else {
       answerArea = { x: padding, y: padding, width: width - padding * 2, height: answerHeight };
-      questionArea = { x: padding, y: answerHeight + padding + gap, width: width - padding * 2, height: finalQuestionHeight };
+      questionArea = { x: padding, y: padding + answerHeight + gap, width: width - padding * 2, height: finalQuestionHeight };
     }
   }
   

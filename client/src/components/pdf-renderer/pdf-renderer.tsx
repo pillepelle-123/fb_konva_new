@@ -1310,7 +1310,9 @@ export function PDFRenderer({
                 }
               } else {
                 // Calculate question height
-                let questionHeight = 0;
+                // For vertical layouts (top/bottom), calculate height correctly
+                // The question area starts at y: elementY + padding, so we only need padding at the top
+                let textHeight = 0;
                 if (questionText && questionText.trim() !== '') {
                   const qFontSize = questionStyle.fontSize || 45;
                   const qLineHeight = qFontSize * getLineHeightMultiplier(qParagraphSpacing);
@@ -1335,14 +1337,16 @@ export function PDFRenderer({
                     }
                   }
                   
-                  questionHeight = lineCount * qLineHeight + padding * 2;
+                  textHeight = lineCount * qLineHeight;
                 }
                 
-                const finalQuestionHeight = Math.max(questionHeight, (questionStyle.fontSize || 45) + padding * 2);
-                const answerHeight = dynamicHeight - finalQuestionHeight - padding * 3;
+                // For vertical layouts, finalQuestionHeight should be just the text height (no extra padding)
+                const finalQuestionHeight = Math.max(textHeight, questionStyle.fontSize || 45);
+                const gap = element.blockQuestionAnswerGap ?? 10;
+                const answerHeight = dynamicHeight - finalQuestionHeight - padding * 2 - gap;
                 
                 if (questionPosition === 'top') {
-                  answerArea = { x: elementX + padding, y: elementY + finalQuestionHeight + padding * 2, width: textWidth, height: answerHeight };
+                  answerArea = { x: elementX + padding, y: elementY + padding + finalQuestionHeight + gap, width: textWidth, height: answerHeight };
                 } else {
                   answerArea = { x: elementX + padding, y: elementY + padding, width: textWidth, height: answerHeight };
                 }

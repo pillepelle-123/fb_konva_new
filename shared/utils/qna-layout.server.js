@@ -70,16 +70,22 @@ function createBlockLayout(params) {
       questionArea = { x: answerWidth + padding + gap, y: padding, width: finalQuestionWidth, height: height - padding * 2 };
     }
   } else {
-    const finalQuestionHeight = Math.max(calculatedQuestionHeight, adjustedQuestionStyle.fontSize + padding * 2);
+    // For vertical layouts (top/bottom), calculate height correctly
+    // The question area starts at y: padding, and the text fills the area
+    // finalQuestionHeight should be just the text height (no extra padding)
+    const textHeight = questionText && ctx 
+      ? wrapText(questionText, adjustedQuestionStyle, width - padding * 2, ctx).length * questionLineHeight
+      : adjustedQuestionStyle.fontSize;
+    const finalQuestionHeight = Math.max(textHeight, adjustedQuestionStyle.fontSize);
     const gap = blockQuestionAnswerGap;
     const answerHeight = height - finalQuestionHeight - padding * 2 - gap;
     
     if (questionPosition === 'top') {
       questionArea = { x: padding, y: padding, width: width - padding * 2, height: finalQuestionHeight };
-      answerArea = { x: padding, y: finalQuestionHeight + padding + gap, width: width - padding * 2, height: answerHeight };
+      answerArea = { x: padding, y: padding + finalQuestionHeight + gap, width: width - padding * 2, height: answerHeight };
     } else {
       answerArea = { x: padding, y: padding, width: width - padding * 2, height: answerHeight };
-      questionArea = { x: padding, y: answerHeight + padding + gap, width: width - padding * 2, height: finalQuestionHeight };
+      questionArea = { x: padding, y: padding + answerHeight + gap, width: width - padding * 2, height: finalQuestionHeight };
     }
   }
   
