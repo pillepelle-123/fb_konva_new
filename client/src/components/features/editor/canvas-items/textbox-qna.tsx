@@ -783,7 +783,40 @@ function createLayoutLocal(params: {
 // Use shared functions with feature flag fallback
 const createLayout = FEATURE_FLAGS.USE_SHARED_QNA_LAYOUT ? sharedCreateLayout : createLayoutLocal;
 
-const RichTextShape = forwardRef<Konva.Shape, {
+// PERFORMANCE OPTIMIZATION: Efficient comparison function for runs array
+// Compares runs without expensive JSON.stringify operations
+const areRunsEqual = (prevRuns: TextRun[], nextRuns: TextRun[]): boolean => {
+  if (prevRuns.length !== nextRuns.length) {
+    return false;
+  }
+  
+  // Shallow compare each run - only check critical properties
+  for (let i = 0; i < prevRuns.length; i++) {
+    const prev = prevRuns[i];
+    const next = nextRuns[i];
+    
+    // Compare text content and position (most likely to change)
+    if (prev.text !== next.text || prev.x !== next.x || prev.y !== next.y) {
+      return false;
+    }
+    
+    // Compare style properties (fontSize, fontFamily, fontColor are most critical)
+    if (prev.style.fontSize !== next.style.fontSize ||
+        prev.style.fontFamily !== next.style.fontFamily ||
+        prev.style.fontColor !== next.style.fontColor ||
+        prev.style.fontBold !== next.style.fontBold ||
+        prev.style.fontItalic !== next.style.fontItalic ||
+        prev.style.fontOpacity !== next.style.fontOpacity) {
+      return false;
+    }
+  }
+  
+  return true;
+};
+
+// PERFORMANCE OPTIMIZATION: Memoized RichTextShape with custom comparison
+// Prevents unnecessary re-renders when props haven't actually changed
+const RichTextShapeComponent = forwardRef<Konva.Shape, {
   runs: TextRun[];
   width: number;
   height: number;
@@ -810,6 +843,25 @@ const RichTextShape = forwardRef<Konva.Shape, {
     }}
   />
 ));
+
+RichTextShapeComponent.displayName = 'RichTextShapeComponent';
+
+// Wrap with React.memo and custom comparison function
+const RichTextShape = React.memo(RichTextShapeComponent, (prevProps, nextProps) => {
+  // Compare width and height first (cheapest check)
+  if (prevProps.width !== nextProps.width || prevProps.height !== nextProps.height) {
+    return false; // Props changed, need to re-render
+  }
+  
+  // Compare runs array efficiently
+  if (!areRunsEqual(prevProps.runs, nextProps.runs)) {
+    return false; // Runs changed, need to re-render
+  }
+  
+  // Props are equal, skip re-render
+  return true;
+}) as typeof RichTextShapeComponent;
+
 RichTextShape.displayName = 'RichTextShape';
 
 function getClickArea(

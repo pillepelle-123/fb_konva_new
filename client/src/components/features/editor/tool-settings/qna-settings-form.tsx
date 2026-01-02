@@ -299,7 +299,7 @@ export function QnASettingsForm({
                   // Nur fontBold aktualisieren - CSS font-weight wird verwendet, Font-Familie bleibt unverändert
                   updateFn('fontBold', !displayStyle.fontBold);
                 }}
-                className="px-3"
+                className="px-3 flex-shrink-0"
               >
                 <strong>B</strong>
               </Button>
@@ -312,23 +312,25 @@ export function QnASettingsForm({
                   // Nur fontItalic aktualisieren - CSS font-style wird verwendet, Font-Familie bleibt unverändert
                   updateFn('fontItalic', !displayStyle.fontItalic);
                 }}
-                className="px-3"
+                className="px-3 flex-shrink-0"
               >
                 <em>I</em>
               </Button>
             </Tooltip>
-            <Tooltip content="Font Family" side="left">
-              <Button
-                variant="outline"
-                size="xxs"
-                onClick={() => setShowFontSelector(true)}
-                className="flex-1 justify-start"
-                style={{ fontFamily: displayStyle.fontFamily }}
-              >
-                <Type className="h-4 w-4 mr-2" />
-                <span className="truncate">{getCurrentFontName(displayStyle.fontFamily)}</span>
-              </Button>
-            </Tooltip>
+            <div className="flex-1">
+              <Tooltip content={`Font: ${getCurrentFontName(displayStyle.fontFamily)}`} side="left">
+                <Button
+                  variant="outline"
+                  size="xxs"
+                  onClick={() => setShowFontSelector(true)}
+                  className="w-full justify-start"
+                  style={{ fontFamily: displayStyle.fontFamily }}
+                >
+                  <Type className="h-4 w-4 mr-2" />
+                  <span className="truncate">{getCurrentFontName(displayStyle.fontFamily)}</span>
+                </Button>
+              </Tooltip>
+            </div>
           </div>
         </div>
         
