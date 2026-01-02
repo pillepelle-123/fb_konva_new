@@ -17,7 +17,8 @@ export interface ThemeRenderer {
     stroke: string;
     strokeWidth: number;
     fill?: string;
-    strokeDasharray?: string;
+    strokeDasharray?: number[] | string;
+    dash?: number[];
     opacity?: number;
     shadowColor?: string;
     shadowBlur?: number;
@@ -70,7 +71,8 @@ const themeRenderers: Record<Theme, ThemeRenderer> = {
   glow: createThemeRenderer('glow'),
   candy: createThemeRenderer('candy'),
   wobbly: createThemeRenderer('wobbly'),
-  zigzag: createThemeRenderer('zigzag')
+  zigzag: createThemeRenderer('zigzag'),
+  dashed: createThemeRenderer('dashed')
 };
 
 /**

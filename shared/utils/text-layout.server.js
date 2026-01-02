@@ -156,9 +156,27 @@ function measureText(text, style, ctx) {
   }
   ctx.save();
   ctx.font = buildFont(style);
-  const width = ctx.measureText(text).width;
+  ctx.textBaseline = 'alphabetic'; // Match rendering baseline
+  const metrics = ctx.measureText(text);
+
+  // Use actualBoundingBoxRight to account for glyph overhangs and swashes
+  // This is critical for fonts like "Tourney", "Audiowide", and "Bilbo Swash Caps"
+  // actualBoundingBoxRight is the distance from text origin to the right edge
+  // This includes all overhangs, which width does not
+  let textWidth;
+  if (metrics.actualBoundingBoxRight !== undefined) {
+    // actualBoundingBoxRight is the actual rendered right edge including all overhangs/swashes
+    textWidth = metrics.actualBoundingBoxRight;
+  } else {
+    // Fallback: use standard width measurement with safety margin for glyph overhangs
+    // Some fonts have significant overhangs that width doesn't account for
+    // Add a safety margin based on font size (typically 5-10% for fonts with overhangs)
+    const safetyMargin = style.fontSize * 0.12; // 12% of font size as safety margin
+    textWidth = metrics.width + safetyMargin;
+  }
+
   ctx.restore();
-  return width;
+  return textWidth;
 }
 
 /**
@@ -184,6 +202,32 @@ function calculateTextX(text, style, startX, availableWidth, ctx) {
 }
 
 /**
+ * List of fonts known to have glyph overhangs that can cause text to overflow
+ * These fonts need special handling in PDF export
+ */
+const FONTS_WITH_GLYPH_OVERHANGS = [
+  'Tourney',
+  'Audiowide',
+  'Bilbo Swash Caps',
+  'Silkscreen',
+  'Turret Road',
+  'Bungee Hairline',
+  'Rubik Glitch',
+  'Bonheur Royale',
+  'Dr Sugiyama',
+  'Aguafina Script'
+];
+
+/**
+ * Check if a font family has glyph overhangs
+ */
+function hasGlyphOverhangs(fontFamily) {
+  // Extract font name from CSS string (remove quotes and take first font)
+  const fontName = fontFamily.replace(/['"]/g, '').split(',')[0].trim();
+  return FONTS_WITH_GLYPH_OVERHANGS.includes(fontName);
+}
+
+/**
  * Wrap text into lines
  */
 function wrapText(text, style, maxWidth, ctx) {
@@ -200,12 +244,39 @@ function wrapText(text, style, maxWidth, ctx) {
         const word = words[i];
         const testLine = `${currentLine} ${word}`;
         const testWidth = measureText(testLine, style, ctx);
+        
+        // IMPORTANT: Add safety margin for glyph overhangs when actualBoundingBoxRight is not available
+        // Some fonts (like "Tourney") have significant overhangs that width doesn't account for
+        // We add a small percentage-based margin to ensure text doesn't overflow
+        let adjustedTestWidth = testWidth;
+        if (ctx) {
+          ctx.save();
+          ctx.font = buildFont(style);
+          ctx.textBaseline = 'alphabetic';
+          const metrics = ctx.measureText(testLine);
+          ctx.restore();
+          
+          // If actualBoundingBoxRight is not available, add a safety margin
+          // This accounts for glyph overhangs that width doesn't measure
+          // Use a percentage of font size (typically 5-10% for fonts with overhangs)
+          if (metrics.actualBoundingBoxRight === undefined) {
+            const safetyMargin = style.fontSize * 0.12; // 12% of font size as safety margin
+            adjustedTestWidth = testWidth + safetyMargin;
+          }
+        }
+        
         // IMPORTANT: Use Math.ceil to round up testWidth to account for sub-pixel rendering differences
         // Canvas2D measureText can have small rounding errors that cause premature line breaks
         // Rounding up ensures we don't break too early, matching client-side behavior
         // This is more reliable than a fixed tolerance
+
+        // CRITICAL FIX: For server-side PDF export, reduce available width by 15% for fonts with glyph overhangs
+        // Only applies to known problematic fonts to avoid affecting normal fonts like Times New Roman
+        const hasOverhangs = hasGlyphOverhangs(style.fontFamily);
+        const effectiveMaxWidth = hasOverhangs ? maxWidth * 0.85 : maxWidth;
+
         const roundedTestWidth = Math.ceil(testWidth);
-        if (roundedTestWidth > maxWidth && currentLine) {
+        if (roundedTestWidth > effectiveMaxWidth && currentLine) {
           lines.push({ text: currentLine, width: measureText(currentLine, style, ctx) });
           currentLine = word;
         } else {

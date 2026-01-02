@@ -5,10 +5,11 @@ const THEME_STROKE_RANGES = {
   default: { min: 1, max: 100 },
   rough: { min: 1, max: 100 },
   glow: { min: 1, max: 50 },
-  candy: { min: 14, max: 50 },
-  zigzag: { min: 1, max: 40 },    // Increased from 20 for faster stroke width scaling
+  candy: { min: 12, max: 50 },
+  zigzag: { min: 3, max: 40 },    // Increased from 20 for faster stroke width scaling
   wobbly: { min: 1, max: 50 },
-  sketchy: { min: 1, max: 100 }   // alias for rough
+  sketchy: { min: 1, max: 100 },   // alias for rough
+  dashed: { min: 1, max: 100 }     // Gestrichlete Linien für alle Elementtypen
 };
 
 function commonToActualStrokeWidth(commonWidth, theme = 'default') {

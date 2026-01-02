@@ -15,6 +15,7 @@ import type { LinePosition, LayoutResult } from '../../../../../../shared/types/
 import { buildFont as sharedBuildFont, getLineHeight as sharedGetLineHeight, measureText as sharedMeasureText, calculateTextX as sharedCalculateTextX, wrapText as sharedWrapText } from '../../../../../../shared/utils/text-layout';
 import { createLayout as sharedCreateLayout, createBlockLayout as sharedCreateBlockLayout } from '../../../../../../shared/utils/qna-layout';
 import { createInlineTextEditor } from './inline-text-editor';
+import { commonToActualStrokeWidth, actualToCommonStrokeWidth, THEME_STROKE_RANGES } from '../../../../utils/stroke-width-converter';
 
 type QnaSettings = {
   fontSize?: number;
@@ -1370,9 +1371,13 @@ export default function TextboxQna(props: CanvasItemProps) {
 
   // Generate ruled lines if enabled
   const ruledLines = qnaElement.ruledLines ?? false;
-  const ruledLinesWidth = qnaElement.ruledLinesWidth ?? 0.8;
   // Use theme defaults from qnaDefaults - prioritize element value, then theme defaults, then fallback
   const ruledLinesTheme = qnaElement.ruledLinesTheme || qnaDefaults.ruledLinesTheme || 'rough';
+
+  // Clamp ruled lines width to theme-specific min/max range
+  const rawRuledLinesWidth = qnaElement.ruledLinesWidth ?? qnaDefaults.ruledLinesWidth ?? 0.8;
+  const themeRange = THEME_STROKE_RANGES[ruledLinesTheme] || THEME_STROKE_RANGES.default;
+  const ruledLinesWidth = Math.max(themeRange.min, Math.min(themeRange.max, rawRuledLinesWidth));
   const ruledLinesColor = qnaElement.ruledLinesColor || qnaDefaults.ruledLinesColor || '#1f2937';
   const ruledLinesOpacity = qnaElement.ruledLinesOpacity ?? 1;
 
@@ -1386,7 +1391,7 @@ export default function TextboxQna(props: CanvasItemProps) {
     const generateRuledLineElement = (y: number, startX: number, endX: number): React.ReactElement | null => {
       const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
       // Ensure theme is one of the supported themes
-      const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
+      const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly', 'dashed'];
       // Convert to string and check if it's a valid theme
       const themeString = String(ruledLinesTheme || 'default').toLowerCase().trim();
       const theme = (supportedThemes.includes(themeString as Theme) ? themeString : 'default') as Theme;

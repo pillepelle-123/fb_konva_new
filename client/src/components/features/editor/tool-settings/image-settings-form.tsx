@@ -141,7 +141,7 @@ export function ImageSettingsForm({
                 label="Frame Width"
                 value={actualToCommonStrokeWidth(element.strokeWidth || 2, frameTheme)}
                 onChange={(value) => updateSetting('strokeWidth', commonToActualStrokeWidth(value, frameTheme))}
-                min={0}
+                min={1}
                 max={getMaxStrokeWidth()}
               />
               

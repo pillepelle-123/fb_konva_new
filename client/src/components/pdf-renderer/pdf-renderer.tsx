@@ -1000,7 +1000,18 @@ export function PDFRenderer({
           
           // Create layout using shared functions (matches textbox-qna.tsx)
           const canvas = document.createElement('canvas');
+          canvas.width = 100; // Set reasonable size for proper font loading
+          canvas.height = 100;
           const ctx = canvas.getContext('2d');
+
+          // DEBUG: Log font loading context
+          if (ctx) {
+            console.log('[PDF Layout] Canvas context created:', {
+              canvasWidth: canvas.width,
+              canvasHeight: canvas.height,
+              contextAvailable: !!ctx
+            });
+          }
           
           const layout = sharedCreateLayout({
             questionText: questionText || '',
@@ -1337,22 +1348,26 @@ export function PDFRenderer({
                 }
               }
               
-              // Extract baseline positions directly from runs (more accurate than linePositions)
+              // Block layout: use linePositions from layout (same as app) instead of extracting from runs
+              // This ensures ruled lines are rendered for empty lines too
               // RULED_LINE_BASELINE_OFFSET für PDF Export (muss mit shared/utils/qna-layout.ts übereinstimmen)
               const RULED_LINE_BASELINE_OFFSET = -20;
               // Zusätzlicher Offset vom oberen Rand der Textbox (in Pixeln)
               // Erhöht den Abstand aller Ruled Lines vom oberen Rand, ohne den Text zu verschieben
               const RULED_LINE_TOP_OFFSET = 28; // <-- HIER EINSTELLEN (z.B. 10, 15, 20, etc.)
-              
+
               const targetStyle = ruledLinesTarget === 'question' ? questionStyle : answerStyle;
-              
-              // Extract unique baseline Y positions from runs (relative to element)
-              // run.y is already the baseline position relative to element (from sharedCreateLayout)
+
+              // Use linePositions from layout instead of extracting from runs
+              // This ensures ruled lines for empty lines are included (unlike runs which only contain text)
               const baselineYPositions = new Set<number>();
-              runs.forEach((run) => {
+              linePositions.forEach((linePos) => {
                 // Filter by style to match ruledLinesTarget
-                if (run.style.fontSize === targetStyle.fontSize) {
-                  baselineYPositions.add(run.y);
+                if (linePos.style.fontSize === targetStyle.fontSize) {
+                  // Convert absolute line position back to relative baseline position
+                  // linePos.y includes RULED_LINE_BASELINE_OFFSET, so we need to subtract it
+                  const baselineY = linePos.y - RULED_LINE_BASELINE_OFFSET;
+                  baselineYPositions.add(baselineY);
                 }
               });
               
@@ -1368,7 +1383,7 @@ export function PDFRenderer({
                 if (lineY >= answerArea.y && lineY <= answerArea.y + answerArea.height) {
                   // Generate ruled line using shared theme engine
                 const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-                const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
+                const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly', 'dashed'];
                 const theme = (supportedThemes.includes(aTheme as Theme) ? aTheme : 'default') as Theme;
                 
                 // Create a temporary element for theme-specific settings
@@ -1501,7 +1516,7 @@ export function PDFRenderer({
                   
                   // Generate ruled line using shared theme engine
                       const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-                      const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
+                      const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly', 'dashed'];
                       const theme = (supportedThemes.includes(aTheme as Theme) ? aTheme : 'default') as Theme;
                       
                   // Create a temporary element for theme-specific settings
@@ -1615,18 +1630,22 @@ export function PDFRenderer({
               console.log('  elementId:', element.id);
               console.log('  linesCount:', ruledLinesRenderedCount);
             } else {
-              // Inline layout: extract baseline positions directly from runs
+              // Inline layout: use linePositions from layout (same as app) instead of extracting from runs
+              // This ensures ruled lines are rendered for empty lines too
               // RULED_LINE_BASELINE_OFFSET für PDF Export (muss mit shared/utils/qna-layout.ts übereinstimmen)
-              const RULED_LINE_BASELINE_OFFSET = -20;
+                  const RULED_LINE_BASELINE_OFFSET = -20;
               // Zusätzlicher Offset vom oberen Rand der Textbox (in Pixeln)
               // Erhöht den Abstand aller Ruled Lines vom oberen Rand, ohne den Text zu verschieben
               const RULED_LINE_TOP_OFFSET = 28; // <-- HIER EINSTELLEN (z.B. 10, 15, 20, etc.)
-              
-              // Extract unique baseline Y positions from all runs (relative to element)
-              // run.y is already the baseline position relative to element (from sharedCreateLayout)
+
+              // Use linePositions from layout instead of extracting from runs
+              // This ensures ruled lines for empty lines are included (unlike runs which only contain text)
               const baselineYPositions = new Set<number>();
-              runs.forEach((run) => {
-                baselineYPositions.add(run.y);
+              linePositions.forEach((linePos) => {
+                // Convert absolute line position back to relative baseline position
+                // linePos.y includes RULED_LINE_BASELINE_OFFSET, so we need to subtract it
+                const baselineY = linePos.y - RULED_LINE_BASELINE_OFFSET;
+                baselineYPositions.add(baselineY);
               });
               
               // Render lines at each baseline position
@@ -1639,7 +1658,7 @@ export function PDFRenderer({
                   
                   // Generate ruled line using shared theme engine
                   const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-                  const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
+                  const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly', 'dashed'];
                   const theme = (supportedThemes.includes(aTheme as Theme) ? aTheme : 'default') as Theme;
                   
                   const tempElement: CanvasElement = {
@@ -1787,7 +1806,7 @@ export function PDFRenderer({
                     
                     // Generate ruled line using shared theme engine
                   const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-                  const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
+                  const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly', 'dashed'];
                   const theme = (supportedThemes.includes(aTheme as Theme) ? aTheme : 'default') as Theme;
                   
                     // Create a temporary element for theme-specific settings

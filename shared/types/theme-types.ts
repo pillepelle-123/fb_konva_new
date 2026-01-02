@@ -43,5 +43,5 @@ export interface ThemeResult {
  * Theme-Typen
  * Alle unterstützten Themes
  */
-export type Theme = 'default' | 'rough' | 'glow' | 'candy' | 'wobbly' | 'zigzag';
+export type Theme = 'default' | 'rough' | 'glow' | 'candy' | 'wobbly' | 'zigzag' | 'dashed';
 

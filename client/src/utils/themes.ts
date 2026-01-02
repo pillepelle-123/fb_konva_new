@@ -22,7 +22,7 @@ if (!roughInstance || typeof roughInstance.svg !== 'function') {
   }
 }
 
-export type Theme = 'rough' | 'default' | 'glow' | 'candy' | 'zigzag' | 'wobbly';
+export type Theme = 'rough' | 'default' | 'glow' | 'candy' | 'zigzag' | 'wobbly' | 'dashed';
 
 export interface ThemeRenderer {
   generatePath: (element: CanvasElement, zoom?: number) => string;

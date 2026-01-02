@@ -1260,9 +1260,7 @@ export function QnASettingsForm({
           <Tooltip content="Ruled Lines" side="left">
             <Label className="flex items-center gap-1" variant="xs">
               <Checkbox
-                checked={(() => {
-                  return element.ruledLines ?? false;
-                })()}
+                checked={Boolean(element.ruledLines)}
                 onCheckedChange={(checked) => {
                   dispatch({
                     type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
@@ -1347,9 +1345,9 @@ export function QnASettingsForm({
                     }
                   });
                 }}
-                min={0}
+                min={1}
                 max={30}
-                step={0.1}
+                step={0.3}
                 className="w-full"
               />
             </Tooltip>
@@ -1507,7 +1505,7 @@ export function QnASettingsForm({
                   const actualWidth = commonToActualStrokeWidth(value, borderTheme);
                   updateSharedSetting('borderWidth', actualWidth);
                 }}
-                min={0}
+                min={1}
                 max={getMaxCommonWidth()}
                 step={1}
                 className="w-full"
@@ -1670,7 +1668,7 @@ export function QnASettingsForm({
                        (themeDefaults.backgroundOpacity ?? 1);
               })()) * 100)}
               onChange={(value) => updateSharedSetting('backgroundOpacity', value / 100)}
-              min={0}
+              min={5}
               max={100}
               step={5}
               unit="%"

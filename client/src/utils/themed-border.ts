@@ -108,7 +108,7 @@ export function renderThemedBorder(config: ThemedBorderConfig): React.ReactEleme
     shadowOpacity: strokeProps.shadowOpacity,
     shadowOffsetX: strokeProps.shadowOffsetX,
     shadowOffsetY: strokeProps.shadowOffsetY,
-    strokeDasharray: strokeProps.strokeDasharray,
+    dash: strokeProps.dash || strokeProps.strokeDasharray,
     lineCap: (strokeProps.lineCap as 'butt' | 'round' | 'square' | undefined) || 'round',
     lineJoin: (strokeProps.lineJoin as 'miter' | 'round' | 'bevel' | undefined) || 'round',
     strokeScaleEnabled: strokeScaleEnabled,
@@ -223,13 +223,13 @@ export function renderThemedBorderKonva(config: Omit<ThemedBorderConfig, 'key'>)
     shadowOpacity: strokeProps.shadowOpacity,
     shadowOffsetX: strokeProps.shadowOffsetX,
     shadowOffsetY: strokeProps.shadowOffsetY,
-    strokeDasharray: strokeProps.strokeDasharray,
+    dash: strokeProps.dash || strokeProps.strokeDasharray,
     lineCap: (strokeProps.lineCap as 'butt' | 'round' | 'square' | undefined) || 'round',
     lineJoin: (strokeProps.lineJoin as 'miter' | 'round' | 'bevel' | undefined) || 'round',
     strokeScaleEnabled: strokeScaleEnabled,
     listening: listening
   });
-  
+
   return konvaPath;
 }
 

@@ -371,23 +371,9 @@ function generateCandyPath(element, options = {}) {
   let circleIndex = 0;
   
   if (element.type === 'line') {
-    const length = Math.sqrt(element.width * element.width + element.height * element.height);
-    const numCircles = Math.floor(length / spacing) + 1;
-    
-    for (let i = 0; i < numCircles; i++) {
-      const t = i / (numCircles - 1);
-      const x = element.width * t;
-      const y = element.height * t;
-      
-      const random = () => {
-        const x = Math.sin(seed + i) * 10000;
-        return x - Math.floor(x);
-      };
-      const sizeVariation = hasRandomness ? 1 + (random() - 0.5) * getVariationAmount() : 1;
-      const radius = (baseCircleSize * sizeVariation) / 2;
-      
-      pathString += `M ${x - radius} ${y} A ${radius} ${radius} 0 1 0 ${x + radius} ${y} A ${radius} ${radius} 0 1 0 ${x - radius} ${y} `;
-    }
+    // Performante gestrichelte Linie statt viele Kreise rendern
+    // Die gestrichelte Darstellung erfolgt über strokeDasharray in getStrokeProps
+    return `M 0 0 L ${element.width} ${element.height}`;
   } else if (element.type === 'rect') {
     const topCircles = Math.max(1, Math.floor(element.width / spacing));
     const rightCircles = Math.max(1, Math.floor(element.height / spacing));
@@ -777,6 +763,38 @@ function generateWobblyPath(element, options = {}) {
  * @param {Object} options - Options object
  * @returns {Object} Stroke properties object
  */
+/**
+ * Generates a dashed path for all element types
+ * Uses simple paths with dash pattern applied via strokeDasharray
+ * @param {Object} element - Element object
+ * @param {Object} options - Options object
+ * @returns {string} SVG path string
+ */
+function generateDashedPath(element, options = {}) {
+  // Für alle Elementtypen: Einfache Pfade, gestrichelte Darstellung über strokeDasharray
+  if (element.type === 'line') {
+    return `M 0 0 L ${element.width} ${element.height}`;
+  } else if (element.type === 'rect') {
+    if (element.cornerRadius && element.cornerRadius > 0) {
+      const r = Math.min(element.cornerRadius, element.width / 2, element.height / 2);
+      return `M ${r} 0 L ${element.width - r} 0 Q ${element.width} 0 ${element.width} ${r} L ${element.width} ${element.height - r} Q ${element.width} ${element.height} ${element.width - r} ${element.height} L ${r} ${element.height} Q 0 ${element.height} 0 ${element.height - r} L 0 ${r} Q 0 0 ${r} 0 Z`;
+    }
+    return `M 0 0 L ${element.width} 0 L ${element.width} ${element.height} L 0 ${element.height} Z`;
+  } else if (element.type === 'circle') {
+    const r = Math.min(element.width, element.height) / 2;
+    const cx = element.width / 2, cy = element.height / 2;
+    return `M ${cx - r} ${cy} A ${r} ${r} 0 1 0 ${cx + r} ${cy} A ${r} ${r} 0 1 0 ${cx - r} ${cy}`;
+  } else if (element.type === 'brush' && element.points) {
+    let pathString = `M ${element.points[0]} ${element.points[1]}`;
+    for (let i = 2; i < element.points.length; i += 2) {
+      pathString += ` L ${element.points[i]} ${element.points[i + 1]}`;
+    }
+    return pathString;
+  }
+  // Fallback
+  return generateDefaultPath(element, options);
+}
+
 function getStrokeProps(element, theme, options = {}) {
   // For shapes (not line/brush), use borderWidth; for line/brush, use strokeWidth
   let strokeWidth = (element.type === 'line' || element.type === 'brush')
@@ -818,10 +836,53 @@ function getStrokeProps(element, theme, options = {}) {
         fill: fill
       };
     }
+
+    // Für Linien: Gestrichlete Darstellung statt Kreise (performanter)
+    if (element.type === 'line') {
+      const dashLength = Math.max(4, strokeWidth * 2);
+      const gapLength = Math.max(3, strokeWidth * 1.5);
+      const dotSize = 0.001; // Sehr kleiner Punkt für besseres Aussehen
+      const dashPattern = [dashLength, gapLength, dotSize, gapLength];
+      return {
+        stroke: strokeWidth > 0 ? element.stroke || '#ff0000' : 'transparent',
+        strokeWidth: strokeWidth,
+        fill: 'transparent',
+        strokeDasharray: dashPattern, // Für native Konva
+        dash: dashPattern, // Für React-Konva
+        lineCap: 'round'
+      };
+    }
+
+    // Für andere Elemente (rect, circle): Normale Kreise behalten
     return {
       stroke: strokeWidth > 0 ? element.stroke || '#ff0000' : 'transparent',
       strokeWidth: strokeWidth,
       fill: strokeWidth > 0 ? 'transparent' : fill
+    };
+  } else if (theme === 'dashed') {
+    // EXAKT wie Candy für line: Gestrichlete Darstellung für alle Elementtypen
+    // 1:1 Kopie der Candy-Logik für line, angewendet auf alle Typen
+    const dashLength = Math.max(4, strokeWidth * 2);
+    const gapLength = Math.max(3, strokeWidth * 1.5);
+    const dotSize = 0.001; // Sehr kleiner Punkt für besseres Aussehen
+    const dashPattern = [dashLength, gapLength, dotSize, gapLength];
+    
+    if (element.type === 'brush') {
+      return {
+        stroke: 'transparent',
+        strokeWidth: 0,
+        fill: element.stroke || '#1f2937'
+      };
+    }
+    
+    // EXAKT wie Candy für line - für alle Typen (line, rect, circle)
+    return {
+      stroke: strokeWidth > 0 ? element.stroke || '#1f2937' : 'transparent',
+      strokeWidth: strokeWidth,
+      fill: 'transparent',
+      strokeDasharray: dashPattern, // Für native Konva
+      dash: dashPattern, // Für React-Konva
+      lineCap: 'round'
     };
   } else if (theme === 'wobbly') {
     if (element.type === 'brush' || element.type === 'line') {
@@ -881,6 +942,8 @@ function generatePath(element, theme, options = {}) {
       return generateWobblyPath(element, options);
     case 'zigzag':
       return generateZigzagPath(element, options);
+    case 'dashed':
+      return generateDashedPath(element, options);
     default:
       return generateDefaultPath(element, options);
   }
@@ -894,6 +957,7 @@ export {
   generateCandyPath,
   generateWobblyPath,
   generateZigzagPath,
+  generateDashedPath,
   generatePath,
   getStrokeProps,
   generateComplexShapePath
@@ -908,6 +972,7 @@ if (typeof module !== 'undefined' && module.exports) {
     generateCandyPath,
     generateWobblyPath,
     generateZigzagPath,
+    generateDashedPath,
     generatePath,
     getStrokeProps,
     generateComplexShapePath

@@ -4,7 +4,8 @@ export const THEME_OPTIONS = [
   { value: 'glow', label: 'Glow (Soft)' },
   { value: 'candy', label: 'Candy (Dotted)' },
   { value: 'zigzag', label: 'Zig-zag (Electric)' },
-  { value: 'wobbly', label: 'Wobbly (Variable width)' }
+  { value: 'wobbly', label: 'Wobbly (Variable width)' },
+  { value: 'dashed', label: 'Dashed (Dotted line)' }
 ];
 
 export function ThemeSelect({ value, onChange, className }: { 
