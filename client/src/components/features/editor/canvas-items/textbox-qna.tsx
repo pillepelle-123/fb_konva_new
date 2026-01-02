@@ -172,16 +172,30 @@ function parseQuestionPayload(payload: string | undefined | null) {
   return payload;
 }
 
-// Use shared functions with feature flag fallback
+// Global measureText function (fallback for when cached version is not available)
+// This will be used by global functions like wrapText and calculateTextX
+// The component will use the cached version (cachedMeasureText) instead
 const measureText = FEATURE_FLAGS.USE_SHARED_TEXT_LAYOUT ? sharedMeasureText : (text: string, style: RichTextStyle, ctx: CanvasRenderingContext2D | null) => {
   if (!ctx) {
     return text.length * (style.fontSize * 0.6);
   }
   ctx.save();
   ctx.font = buildFont(style);
-  const width = ctx.measureText(text).width;
+  ctx.textBaseline = 'alphabetic';
+  const metrics = ctx.measureText(text);
+  
+  // Use actualBoundingBoxRight if available (for fonts with overhangs)
+  let textWidth: number;
+  if (metrics.actualBoundingBoxRight !== undefined) {
+    textWidth = metrics.actualBoundingBoxRight;
+  } else {
+    // Fallback with safety margin for glyph overhangs
+    const safetyMargin = style.fontSize * 0.12;
+    textWidth = metrics.width + safetyMargin;
+  }
+  
   ctx.restore();
-  return width;
+  return textWidth;
 };
 
 const calculateTextX = FEATURE_FLAGS.USE_SHARED_TEXT_LAYOUT ? sharedCalculateTextX : (text: string, style: RichTextStyle, startX: number, availableWidth: number, ctx: CanvasRenderingContext2D | null): number => {
@@ -979,6 +993,48 @@ export default function TextboxQna(props: CanvasItemProps) {
   const elementWidth = element.width ?? 0;
   const elementHeight = element.height ?? 0;
   
+  // PERFORMANCE OPTIMIZATION: Reusable canvas context for text measurements
+  // Create canvas once and reuse it instead of creating new one for each layout calculation
+  // CRITICAL: Initialize immediately (not in useEffect) to ensure it's available for first render
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const canvasContextRef = useRef<CanvasRenderingContext2D | null>(null);
+  
+  // Initialize canvas context immediately if not already initialized
+  if (typeof document !== 'undefined' && !canvasRef.current) {
+    canvasRef.current = document.createElement('canvas');
+    canvasContextRef.current = canvasRef.current.getContext('2d');
+  }
+  
+  // PERFORMANCE OPTIMIZATION: Cache for text measurements
+  // Cache key: `${text}-${fontString}` to avoid repeated measureText calls
+  const textMetricsCacheRef = useRef<Map<string, number>>(new Map());
+  const textMetricsCacheVersionRef = useRef<number>(0);
+  
+  // State to track if fonts are ready (prevents incorrect layout calculations on initial load)
+  // This fixes the issue where text is incorrectly wrapped/positioned on page load
+  const [fontsReady, setFontsReady] = useState(false);
+  
+  // Wait for fonts to be ready before calculating layout
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      setFontsReady(true); // In SSR context, assume ready
+      return;
+    }
+    
+    // Check if fonts are already ready
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => {
+        setFontsReady(true);
+      }).catch(() => {
+        // If fonts.ready fails, wait a bit and then proceed
+        setTimeout(() => setFontsReady(true), 100);
+      });
+    } else {
+      // Fallback: wait a short time for fonts to load
+      setTimeout(() => setFontsReady(true), 100);
+    }
+  }, []);
+  
   // Refs must be declared before they are used
   const textShapeRef = useRef<Konva.Shape>(null);
   const textRef = useRef<Konva.Rect>(null);
@@ -1162,6 +1218,63 @@ export default function TextboxQna(props: CanvasItemProps) {
     [individualSettings, questionStyle, answerStyle]
   );
 
+  // PERFORMANCE OPTIMIZATION: Cached measureText function
+  // Invalidates cache when font properties change
+  const cachedMeasureText = useCallback((text: string, style: RichTextStyle, ctx: CanvasRenderingContext2D | null): number => {
+    // Use shared function if feature flag is enabled
+    if (FEATURE_FLAGS.USE_SHARED_TEXT_LAYOUT) {
+      return sharedMeasureText(text, style, ctx);
+    }
+    
+    // Fallback for no context
+    if (!ctx) {
+      return text.length * (style.fontSize * 0.6);
+    }
+    
+    // Build font string for cache key
+    const fontString = buildFont(style);
+    const cacheKey = `${text}-${fontString}`;
+    
+    // Check cache first
+    if (textMetricsCacheRef.current.has(cacheKey)) {
+      return textMetricsCacheRef.current.get(cacheKey)!;
+    }
+    
+    // Measure text and cache result
+    ctx.save();
+    ctx.font = fontString;
+    ctx.textBaseline = 'alphabetic';
+    const metrics = ctx.measureText(text);
+    
+    // Use actualBoundingBoxRight if available (for fonts with overhangs)
+    let textWidth: number;
+    if (metrics.actualBoundingBoxRight !== undefined) {
+      textWidth = metrics.actualBoundingBoxRight;
+    } else {
+      // Fallback with safety margin for glyph overhangs
+      const safetyMargin = style.fontSize * 0.12;
+      textWidth = metrics.width + safetyMargin;
+    }
+    
+    ctx.restore();
+    
+    // Cache the result
+    textMetricsCacheRef.current.set(cacheKey, textWidth);
+    
+    return textWidth;
+  }, [questionStyle.fontSize, questionStyle.fontFamily, questionStyle.fontBold, questionStyle.fontItalic, 
+      answerStyle.fontSize, answerStyle.fontFamily, answerStyle.fontBold, answerStyle.fontItalic]);
+  
+  // Invalidate cache when font properties change
+  useEffect(() => {
+    textMetricsCacheRef.current.clear();
+    textMetricsCacheVersionRef.current += 1;
+  }, [questionStyle.fontSize, questionStyle.fontFamily, questionStyle.fontBold, questionStyle.fontItalic,
+      answerStyle.fontSize, answerStyle.fontFamily, answerStyle.fontBold, answerStyle.fontItalic]);
+
+  // Note: cachedMeasureText is available for future use if we need to optimize createLayoutLocal
+  // Currently, the main optimization is canvas context reuse (see layout useMemo below)
+
   const padding = element.padding ?? qnaDefaults.padding ?? 8;
 
   const questionText = useMemo(() => {
@@ -1232,7 +1345,26 @@ export default function TextboxQna(props: CanvasItemProps) {
   const blockQuestionAnswerGap = qnaElement.blockQuestionAnswerGap ?? 10;
 
   const layout = useMemo(() => {
-    const canvasContext = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
+    // CRITICAL FIX: Don't calculate layout until fonts are ready
+    // This prevents incorrect text wrapping and positioning on initial page load
+    // When fonts aren't loaded, measureText returns incorrect values, causing:
+    // - Text to wrap too early
+    // - Question and answer text to overlap in combined lines
+    if (!fontsReady || !canvasContextRef.current) {
+      // Return empty layout as fallback until fonts are ready
+      // This ensures the component renders but with minimal layout
+      return {
+        runs: [],
+        contentHeight: boxHeight,
+        linePositions: []
+      };
+    }
+    
+    // PERFORMANCE OPTIMIZATION: Reuse cached canvas context instead of creating new one
+    const canvasContext = canvasContextRef.current;
+    
+    // If using shared layout, it will handle its own context
+    // Otherwise, use cached context for local layout calculations
     return createLayout({
       questionText: preparedQuestionText,
       answerText: answerContent,
@@ -1249,7 +1381,7 @@ export default function TextboxQna(props: CanvasItemProps) {
       questionWidth,
       blockQuestionAnswerGap
     });
-  }, [answerContent, answerStyle, effectiveQuestionStyle, boxHeight, boxWidth, padding, preparedQuestionText, answerInNewRow, questionAnswerGap, layoutVariant, questionPosition, questionWidth, blockQuestionAnswerGap]);
+  }, [fontsReady, answerContent, answerStyle, effectiveQuestionStyle, boxHeight, boxWidth, padding, preparedQuestionText, answerInNewRow, questionAnswerGap, layoutVariant, questionPosition, questionWidth, blockQuestionAnswerGap]);
   
   // Filter runs to show only question runs when answer editor is open
   const visibleRuns = useMemo(() => {
