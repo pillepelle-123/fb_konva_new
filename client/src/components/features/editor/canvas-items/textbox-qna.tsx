@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useEffect, forwardRef, useState, useCallback } from 'react';
-import { Shape, Rect, Path, Text as KonvaText, Group } from 'react-konva';
+import { Shape, Rect, Path, Text as KonvaText, Group, Circle } from 'react-konva';
 import BaseCanvasItem, { type CanvasItemProps } from './base-canvas-item';
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
@@ -1014,6 +1014,9 @@ export default function TextboxQna(props: CanvasItemProps) {
   // This fixes the issue where text is incorrectly wrapped/positioned on page load
   const [fontsReady, setFontsReady] = useState(false);
   
+  // State for loading indicator animation
+  const [spinnerOpacity, setSpinnerOpacity] = useState(0.8);
+  
   // Wait for fonts to be ready before calculating layout
   useEffect(() => {
     if (typeof document === 'undefined') {
@@ -1335,6 +1338,77 @@ export default function TextboxQna(props: CanvasItemProps) {
 
   const preparedQuestionText = questionText ? stripHtml(questionText) : questionText;
 
+  // PERFORMANCE OPTIMIZATION: Debounced text content for layout calculations
+  // This prevents expensive layout recalculations during rapid text input
+  const [debouncedAnswerContent, setDebouncedAnswerContent] = useState(answerContent);
+  const [debouncedPreparedQuestionText, setDebouncedPreparedQuestionText] = useState(preparedQuestionText);
+  const [isCalculatingLayout, setIsCalculatingLayout] = useState(false);
+  
+  // Ref to store previous layout during debounce phase
+  const previousLayoutRef = useRef<LayoutResult | null>(null);
+  
+  // Debounce answer content changes
+  useEffect(() => {
+    if (answerContent === debouncedAnswerContent) {
+      setIsCalculatingLayout(false);
+      return;
+    }
+    
+    setIsCalculatingLayout(true);
+    const timeoutId = setTimeout(() => {
+      setDebouncedAnswerContent(answerContent);
+      setIsCalculatingLayout(false);
+    }, 150); // 150ms debounce delay
+    
+    return () => clearTimeout(timeoutId);
+  }, [answerContent, debouncedAnswerContent]);
+  
+  // Debounce question text changes
+  useEffect(() => {
+    if (preparedQuestionText === debouncedPreparedQuestionText) {
+      return;
+    }
+    
+    setIsCalculatingLayout(true);
+    const timeoutId = setTimeout(() => {
+      setDebouncedPreparedQuestionText(preparedQuestionText);
+      setIsCalculatingLayout(false);
+    }, 150); // 150ms debounce delay
+    
+    return () => clearTimeout(timeoutId);
+  }, [preparedQuestionText, debouncedPreparedQuestionText]);
+  
+  // Animate spinner opacity during layout calculation
+  useEffect(() => {
+    if (!isCalculatingLayout) {
+      setSpinnerOpacity(0.8);
+      return;
+    }
+    
+    let animationFrame: number;
+    let startTime: number;
+    const animate = (timestamp: number) => {
+      if (!startTime) startTime = timestamp;
+      const elapsed = timestamp - startTime;
+      
+      // Pulsing animation: fade between 0.4 and 0.8
+      const pulse = Math.sin(elapsed / 300) * 0.2 + 0.6;
+      setSpinnerOpacity(pulse);
+      
+      if (isCalculatingLayout) {
+        animationFrame = requestAnimationFrame(animate);
+      }
+    };
+    
+    animationFrame = requestAnimationFrame(animate);
+    
+    return () => {
+      if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
+      }
+    };
+  }, [isCalculatingLayout]);
+
   // Extract layout settings from element
   const answerInNewRow = qnaElement.answerInNewRow ?? false;
   const questionAnswerGap = qnaElement.questionAnswerGap ?? 0;
@@ -1360,14 +1434,20 @@ export default function TextboxQna(props: CanvasItemProps) {
       };
     }
     
+    // PERFORMANCE OPTIMIZATION: Use debounced text content for layout calculations
+    // During debounce phase, use previous layout to avoid flickering
+    if (isCalculatingLayout && previousLayoutRef.current) {
+      return previousLayoutRef.current;
+    }
+    
     // PERFORMANCE OPTIMIZATION: Reuse cached canvas context instead of creating new one
     const canvasContext = canvasContextRef.current;
     
     // If using shared layout, it will handle its own context
     // Otherwise, use cached context for local layout calculations
-    return createLayout({
-      questionText: preparedQuestionText,
-      answerText: answerContent,
+    const newLayout = createLayout({
+      questionText: debouncedPreparedQuestionText,
+      answerText: debouncedAnswerContent,
       questionStyle: effectiveQuestionStyle,
       answerStyle,
       width: boxWidth,
@@ -1381,7 +1461,12 @@ export default function TextboxQna(props: CanvasItemProps) {
       questionWidth,
       blockQuestionAnswerGap
     });
-  }, [fontsReady, answerContent, answerStyle, effectiveQuestionStyle, boxHeight, boxWidth, padding, preparedQuestionText, answerInNewRow, questionAnswerGap, layoutVariant, questionPosition, questionWidth, blockQuestionAnswerGap]);
+    
+    // Store layout for use during debounce phase
+    previousLayoutRef.current = newLayout;
+    
+    return newLayout;
+  }, [fontsReady, debouncedAnswerContent, debouncedPreparedQuestionText, isCalculatingLayout, answerStyle, effectiveQuestionStyle, boxHeight, boxWidth, padding, answerInNewRow, questionAnswerGap, layoutVariant, questionPosition, questionWidth, blockQuestionAnswerGap]);
   
   // Filter runs to show only question runs when answer editor is open
   const visibleRuns = useMemo(() => {
@@ -2404,7 +2489,48 @@ export default function TextboxQna(props: CanvasItemProps) {
 
       {/* Text that can extend beyond the box */}
       {/* When answer editor is open, only show question runs */}
-      <RichTextShape ref={textShapeRef} runs={visibleRuns} width={boxWidth} height={layout.contentHeight} />
+      <Group opacity={isCalculatingLayout ? 0.6 : 1}>
+        <RichTextShape ref={textShapeRef} runs={visibleRuns} width={boxWidth} height={layout.contentHeight} />
+      </Group>
+      
+      {/* Visual loading indicator during debounce phase */}
+      {isCalculatingLayout && (
+        <Group>
+          {/* Semi-transparent overlay */}
+          <Rect
+            x={0}
+            y={0}
+            width={boxWidth}
+            height={boxHeight}
+            fill="#ffffff"
+            opacity={0.2}
+            listening={false}
+          />
+          {/* Pulsing loading spinner */}
+          <Group
+            x={boxWidth / 2}
+            y={boxHeight / 2}
+            listening={false}
+          >
+            <Circle
+              x={0}
+              y={0}
+              radius={6}
+              fill="#3b82f6"
+              opacity={spinnerOpacity}
+            />
+            <Circle
+              x={0}
+              y={0}
+              radius={10}
+              stroke="#3b82f6"
+              strokeWidth={1.5}
+              opacity={spinnerOpacity * 0.5}
+              dash={[3, 3]}
+            />
+          </Group>
+        </Group>
+      )}
 
       {/* Placeholder text when no answer exists */}
       {answerAreaBounds && !answerContent && !isAnswerEditorOpen && (
