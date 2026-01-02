@@ -33,7 +33,6 @@ export function ColorSelector({
   favoriteColors,
   onAddFavorite,
   onRemoveFavorite,
-  onBack,
   isOverridden = false,
   onResetOverride,
   showOpacitySlider = true
@@ -41,20 +40,6 @@ export function ColorSelector({
 
   return (
     <div className="space-y-2">
-      {onBack && (
-        <div className="flex items-center">
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={onBack}
-            className="px-2"
-          >
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Back
-          </Button>
-        </div>
-      )}
-      
       <div className="mt-0">
         <div className="flex items-center gap-2 mb-2">
           <Label variant="xs">Current:</Label>

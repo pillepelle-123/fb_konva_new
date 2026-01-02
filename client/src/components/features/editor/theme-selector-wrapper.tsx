@@ -485,32 +485,9 @@ export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: The
   return (
     <div className="h-full flex flex-col">
       {/* Header with Apply and Cancel buttons */}
-      <div className="flex flex-col items-center justify-between p-4 border-b border-gray-200 shrink-0">
-        <h2 className="text-lg font-semibold">{title}</h2>
-        <div className="flex items-center gap-2">
-            <div className="flex items-center gap-3 justify-right">
-            <Button
-                variant="outline"
-                size="sm"
-                onClick={handleCancel}
-                className="py-5 px-3 h-8"
-            >
-                <X className="h-4 w-4 mr mr-1" />
-                Cancel
-            </Button>
-            <Button
-                variant="default"
-                size="sm"
-                onClick={handleApply}
-                disabled={!selectedTheme}
-                className="py-5 px-3 h-8"
-            >
-                <Check className="h-4 w-4 mr-1" />
-                Apply
-            </Button>
-            </div>
-        </div>
-      </div>
+      {/* <div className="flex flex-col items-center justify-between p-4 border-b border-gray-200 shrink-0"> */}
+        {/* <h2 className="text-lg font-semibold">{title}</h2> */}
+      {/* </div> */}
       
       {/* Content area */}
       <div className="flex-1 min-h-0 overflow-hidden">

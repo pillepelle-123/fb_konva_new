@@ -989,32 +989,7 @@ export function PaletteSelector({ onBack, title, isBookLevel = false, previewPos
   return (
     <>
       <SelectorShell
-        headerContent={
-          <>
-            <h2 className="text-lg font-semibold">{title}</h2>
-            <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleCancel}
-                className="py-5 px-3 h-8"
-              >
-                <X className="h-4 w-4 mr-1" />
-                Cancel
-              </Button>
-              <Button
-                variant="default"
-                size="sm"
-                onClick={handleApply}
-                disabled={!selectedPalette}
-                className="py-5 px-3 h-8"
-              >
-                <Check className="h-4 w-4 mr-1" />
-                Apply
-              </Button>
-            </div>
-          </>
-        }
+        headerContent={null}
         listSection={listSection}
         previewSection={previewSection}
         previewPosition={previewPosition}

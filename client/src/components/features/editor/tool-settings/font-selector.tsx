@@ -10,12 +10,11 @@ interface FontSelectorProps {
   isBold: boolean;
   isItalic: boolean;
   onFontSelect: (fontName: string) => void;
-  onBack: () => void;
   element?: any;
   state?: any;
 }
 
-export function FontSelector({ currentFont, isBold, isItalic, onFontSelect, onBack, element, state }: FontSelectorProps) {
+export function FontSelector({ currentFont, isBold, isItalic, onFontSelect, element, state }: FontSelectorProps) {
   let fontFamily = currentFont || element?.font?.fontFamily || element?.fontFamily;
   
   // If no fontFamily provided, try to get from theme defaults
@@ -48,18 +47,6 @@ export function FontSelector({ currentFont, isBold, isItalic, onFontSelect, onBa
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 mb-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onBack}
-          className="px-2 h-8"
-        >
-          <ChevronLeft className="h-4 w-4 mr-1" />
-          Back
-        </Button>
-      </div>
-
       {FONT_GROUPS.map((group, groupIndex) => (
         <div key={group.name}>
           {groupIndex > 0 && <Separator />}

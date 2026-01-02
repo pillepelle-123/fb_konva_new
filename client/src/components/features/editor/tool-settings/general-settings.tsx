@@ -53,6 +53,18 @@ interface GeneralSettingsProps {
   isBackgroundApplyDisabled?: boolean;
   isBookChatAvailable?: boolean;
   onOpenBookChat?: () => void;
+  showPagePalette?: boolean;
+  setShowPagePalette?: (value: boolean) => void;
+  showBookPalette?: boolean;
+  setShowBookPalette?: (value: boolean) => void;
+  showPageLayout?: boolean;
+  setShowPageLayout?: (value: boolean) => void;
+  showBookLayout?: boolean;
+  setShowBookLayout?: (value: boolean) => void;
+  showPageThemeSelector?: boolean;
+  setShowPageThemeSelector?: (value: boolean) => void;
+  showBookThemeSelector?: boolean;
+  setShowBookThemeSelector?: (value: boolean) => void;
 }
 
 export function GeneralSettings({
@@ -79,17 +91,43 @@ export function GeneralSettings({
   onApplyBackgroundImage,
   isBackgroundApplyDisabled,
   isBookChatAvailable = false,
-  onOpenBookChat
+  onOpenBookChat,
+  showPagePalette: externalShowPagePalette = false,
+  setShowPagePalette: externalSetShowPagePalette,
+  showBookPalette: externalShowBookPalette = false,
+  setShowBookPalette: externalSetShowBookPalette,
+  showPageLayout: externalShowPageLayout = false,
+  setShowPageLayout: externalSetShowPageLayout,
+  showBookLayout: externalShowBookLayout = false,
+  setShowBookLayout: externalSetShowBookLayout,
+  showPageThemeSelector: externalShowPageThemeSelector = false,
+  setShowPageThemeSelector: externalSetShowPageThemeSelector,
+  showBookThemeSelector: externalShowBookThemeSelector = false,
+  setShowBookThemeSelector: externalSetShowBookThemeSelector
 }: GeneralSettingsProps) {
   const { state, dispatch, canEditSettings } = useEditor();
   const { user } = useAuth();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
-  const [showPagePalette, setShowPagePalette] = useState(false);
-  const [showBookPalette, setShowBookPalette] = useState(false);
-  const [showPageLayout, setShowPageLayout] = useState(false);
-  const [showBookLayout, setShowBookLayout] = useState(false);
-  const [showPageThemeSelector, setShowPageThemeSelector] = useState(false);
-  const [showBookThemeSelector, setShowBookThemeSelector] = useState(false);
+  // Use external state management if provided, otherwise fall back to local state
+  const [localShowPagePalette, setLocalShowPagePalette] = useState(false);
+  const [localShowBookPalette, setLocalShowBookPalette] = useState(false);
+  const [localShowPageLayout, setLocalShowPageLayout] = useState(false);
+  const [localShowBookLayout, setLocalShowBookLayout] = useState(false);
+  const [localShowPageThemeSelector, setLocalShowPageThemeSelector] = useState(false);
+  const [localShowBookThemeSelector, setLocalShowBookThemeSelector] = useState(false);
+
+  const showPagePalette = externalSetShowPagePalette ? externalShowPagePalette : localShowPagePalette;
+  const setShowPagePalette = externalSetShowPagePalette || setLocalShowPagePalette;
+  const showBookPalette = externalSetShowBookPalette ? externalShowBookPalette : localShowBookPalette;
+  const setShowBookPalette = externalSetShowBookPalette || setLocalShowBookPalette;
+  const showPageLayout = externalSetShowPageLayout ? externalShowPageLayout : localShowPageLayout;
+  const setShowPageLayout = externalSetShowPageLayout || setLocalShowPageLayout;
+  const showBookLayout = externalSetShowBookLayout ? externalShowBookLayout : localShowBookLayout;
+  const setShowBookLayout = externalSetShowBookLayout || setLocalShowBookLayout;
+  const showPageThemeSelector = externalSetShowPageThemeSelector ? externalShowPageThemeSelector : localShowPageThemeSelector;
+  const setShowPageThemeSelector = externalSetShowPageThemeSelector || setLocalShowPageThemeSelector;
+  const showBookThemeSelector = externalSetShowBookThemeSelector ? externalShowBookThemeSelector : localShowBookThemeSelector;
+  const setShowBookThemeSelector = externalSetShowBookThemeSelector || setLocalShowBookThemeSelector;
   const [showEditorSettings, setShowEditorSettings] = useState(false);
   const [forceImageMode, setForceImageMode] = useState(false);
   
@@ -572,18 +610,6 @@ export function GeneralSettings({
     
     return (
       <div className="space-y-4">
-        <div className="flex items-center gap-2 mb-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowEditorSettings(false)}
-            className="px-2 h-8"
-          >
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Back
-          </Button>
-        </div>
-        
         <div className="space-y-3">
           <div className="flex items-center space-x-2">
             <Checkbox

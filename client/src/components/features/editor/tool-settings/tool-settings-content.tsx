@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useEditor } from '../../../../context/editor-context';
 import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 
@@ -104,6 +105,19 @@ interface ToolSettingsContentProps {
   onRetryBookChat?: () => void;
   bookChatShouldFocusInput?: boolean;
   onChatInputFocused?: () => void;
+  showPagePalette?: boolean;
+  setShowPagePalette?: (value: boolean) => void;
+  showBookPalette?: boolean;
+  setShowBookPalette?: (value: boolean) => void;
+  showPageLayout?: boolean;
+  setShowPageLayout?: (value: boolean) => void;
+  showBookLayout?: boolean;
+  setShowBookLayout?: (value: boolean) => void;
+  showPageThemeSelector?: boolean;
+  setShowPageThemeSelector?: (value: boolean) => void;
+  showBookThemeSelector?: boolean;
+  setShowBookThemeSelector?: (value: boolean) => void;
+  setSelectorTitle?: (title: string | null) => void;
 }
 
 export function ToolSettingsContent({
@@ -145,7 +159,20 @@ export function ToolSettingsContent({
   bookChatError,
   onRetryBookChat,
   bookChatShouldFocusInput = false,
-  onChatInputFocused
+  onChatInputFocused,
+  showPagePalette = false,
+  setShowPagePalette,
+  showBookPalette = false,
+  setShowBookPalette,
+  showPageLayout = false,
+  setShowPageLayout,
+  showBookLayout = false,
+  setShowBookLayout,
+  showPageThemeSelector = false,
+  setShowPageThemeSelector,
+  showBookThemeSelector = false,
+  setShowBookThemeSelector,
+  setSelectorTitle
 }: ToolSettingsContentProps) {
   const { state, dispatch } = useEditor();
   const { user } = useAuth();
@@ -153,6 +180,27 @@ export function ToolSettingsContent({
   
   const toolSettings = state.toolSettings || {};
   const activeTool = state.activeTool;
+
+  // Set selector title when a selector is opened
+  useEffect(() => {
+    if (!setSelectorTitle) return;
+    
+    if (showPagePalette) {
+      setSelectorTitle('Page Color Palette');
+    } else if (showBookPalette) {
+      setSelectorTitle('Book Color Palette');
+    } else if (showPageLayout) {
+      setSelectorTitle('Page Layout');
+    } else if (showBookLayout) {
+      setSelectorTitle('Book Layout');
+    } else if (showPageThemeSelector) {
+      setSelectorTitle('Page Theme');
+    } else if (showBookThemeSelector) {
+      setSelectorTitle('Book Theme');
+    } else {
+      setSelectorTitle(null);
+    }
+  }, [showPagePalette, showBookPalette, showPageLayout, showBookLayout, showPageThemeSelector, showBookThemeSelector, setSelectorTitle]);
   
   const updateToolSetting = (key: string, value: any) => {
     dispatch({
@@ -230,18 +278,8 @@ export function ToolSettingsContent({
   if (showBookChatPanel) {
     return (
       <div className="flex flex-col h-full">
-        <div className="flex items-center justify-between mb-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onCloseBookChat?.()}
-            className="px-2 h-8"
-          >
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Zurück
-          </Button>
+        <div className="flex items-center justify-center mb-3">
           <span className="text-sm font-semibold">Buch-Chat</span>
-          <div className="w-14" />
         </div>
         <div className="flex-1 min-h-0 rounded-lg border border-border/50 bg-muted/40 p-2">
           {bookChatLoading ? (
@@ -815,33 +853,10 @@ export function ToolSettingsContent({
           el => el.id === state.selectedGroupedElement.elementId
         );
         
-        // Show Back button for individual grouped element
+        // Show individual grouped element settings
         if (selectedElement) {
           return (
             <div className="space-y-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  // Clear the grouped element selection first
-                  dispatch({ 
-                    type: 'SET_SELECTED_ELEMENTS', 
-                    payload: [] 
-                  });
-                  // Then select the parent group
-                  setTimeout(() => {
-                    dispatch({ 
-                      type: 'SET_SELECTED_ELEMENTS', 
-                      payload: [parentElement.id] 
-                    });
-                  }, 0);
-                }}
-                className="w-full justify-start gap-1 h-7 px-2"
-              >
-                <ChevronLeft className="h-3 w-3" />
-                <span className="text-sm">Back</span>
-              </Button>
-              <Separator />
               {renderElementSettings(selectedElement)}
             </div>
           );
@@ -1127,6 +1142,18 @@ export function ToolSettingsContent({
           isBackgroundApplyDisabled={isBackgroundApplyDisabled}
           isBookChatAvailable={isBookChatAvailable}
           onOpenBookChat={onOpenBookChat}
+          showPagePalette={showPagePalette}
+          setShowPagePalette={setShowPagePalette}
+          showBookPalette={showBookPalette}
+          setShowBookPalette={setShowBookPalette}
+          showPageLayout={showPageLayout}
+          setShowPageLayout={setShowPageLayout}
+          showBookLayout={showBookLayout}
+          setShowBookLayout={setShowBookLayout}
+          showPageThemeSelector={showPageThemeSelector}
+          setShowPageThemeSelector={setShowPageThemeSelector}
+          showBookThemeSelector={showBookThemeSelector}
+          setShowBookThemeSelector={setShowBookThemeSelector}
         />
       );
     }

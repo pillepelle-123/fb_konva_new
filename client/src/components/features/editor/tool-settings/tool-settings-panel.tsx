@@ -58,6 +58,13 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
   const [showFontSelector, setShowFontSelector] = useState(false);
   const [showBookPaletteOverlay, setShowBookPaletteOverlay] = useState(false);
   const [showBookChatPanel, setShowBookChatPanel] = useState(false);
+  const [showPagePalette, setShowPagePalette] = useState(false);
+  const [showBookPalette, setShowBookPalette] = useState(false);
+  const [showPageLayout, setShowPageLayout] = useState(false);
+  const [showBookLayout, setShowBookLayout] = useState(false);
+  const [showPageThemeSelector, setShowPageThemeSelector] = useState(false);
+  const [showBookThemeSelector, setShowBookThemeSelector] = useState(false);
+  const [selectorTitle, setSelectorTitle] = useState<string | null>(null);
   const [bookChatConversation, setBookChatConversation] = useState<Conversation | null>(null);
   const [bookChatLoading, setBookChatLoading] = useState(false);
   const [bookChatError, setBookChatError] = useState<string | null>(null);
@@ -308,6 +315,52 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
           showBackgroundSettings={showBackgroundSettings}
           showPageTheme={showPageTheme}
           showBookTheme={showBookTheme}
+          showFontSelector={showFontSelector}
+          showBookChatPanel={showBookChatPanel}
+          showPagePalette={showPagePalette}
+          showBookPalette={showBookPalette}
+          showPageLayout={showPageLayout}
+          showBookLayout={showBookLayout}
+          showPageThemeSelector={showPageThemeSelector}
+          showBookThemeSelector={showBookThemeSelector}
+          selectorTitle={selectorTitle}
+          onBack={() => {
+            // Reset all dialog states
+            setShowColorSelector(null);
+            setShowBackgroundSettings(false);
+            setShowPatternSettings(false);
+            setShowPageTheme(false);
+            setShowBookTheme(false);
+            setShowFontSelector(false);
+            setShowBookChatPanel(false);
+            // Clear grouped element selection
+            dispatch({ type: 'SET_SELECTED_GROUPED_ELEMENT', payload: null });
+            // Clear selected elements if we're in a grouped element view
+            if (state.selectedGroupedElement) {
+              dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [] });
+            }
+          }}
+          onCancel={() => {
+            // Close all selector dialogs
+            setShowPagePalette(false);
+            setShowBookPalette(false);
+            setShowPageLayout(false);
+            setShowBookLayout(false);
+            setShowPageThemeSelector(false);
+            setShowBookThemeSelector(false);
+          }}
+          onApply={() => {
+            // Apply logic - for now, just close the dialogs
+            // The actual apply logic is handled by the individual components
+            // This will be enhanced later to trigger the apply actions
+            setShowPagePalette(false);
+            setShowBookPalette(false);
+            setShowPageLayout(false);
+            setShowBookLayout(false);
+            setShowPageThemeSelector(false);
+            setShowBookThemeSelector(false);
+          }}
+          canApply={showPagePalette || showBookPalette || showPageLayout || showBookLayout || showPageThemeSelector || showBookThemeSelector}
         />
         
         {/* Selected Tool Icon Preview (when collapsed) */}
@@ -393,6 +446,19 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
           onRetryBookChat={fetchBookChatConversation}
           bookChatShouldFocusInput={bookChatShouldFocusInput}
           onChatInputFocused={() => setBookChatShouldFocusInput(false)}
+          showPagePalette={showPagePalette}
+          setShowPagePalette={setShowPagePalette}
+          showBookPalette={showBookPalette}
+          setShowBookPalette={setShowBookPalette}
+          showPageLayout={showPageLayout}
+          setShowPageLayout={setShowPageLayout}
+          showBookLayout={showBookLayout}
+          setShowBookLayout={setShowBookLayout}
+          showPageThemeSelector={showPageThemeSelector}
+          setShowPageThemeSelector={setShowPageThemeSelector}
+          showBookThemeSelector={showBookThemeSelector}
+          setShowBookThemeSelector={setShowBookThemeSelector}
+          setSelectorTitle={setSelectorTitle}
           />
         )}
       </ToolSettingsContainer>
@@ -584,4 +650,4 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
   );
 });
 
-export default ToolSettingsPanel;RF
+export default ToolSettingsPanel;

@@ -91,7 +91,7 @@ export function SelectorListSection({
       {(title || headerActions) && (
         <div className="flex items-center justify-between mb-3 w-full">
           <div className="flex items-center gap-2">
-            {title}
+            {/* {title} */}
           </div>
           {headerActions && (
             <div className="flex items-center gap-2">
