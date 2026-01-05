@@ -532,11 +532,11 @@ export default function Canvas() {
     // Get page color palette (or book color palette if page.colorPaletteId is null)
     const pageColorPaletteId = page?.colorPaletteId ?? null;
     const bookColorPaletteId = state.currentBook?.colorPaletteId ?? null;
-    
+
     // If book.colorPaletteId is null, use theme's default palette
     const bookThemeId = state.currentBook?.bookTheme || state.currentBook?.themeId || 'default';
     const bookThemePaletteId = !bookColorPaletteId ? getThemePaletteId(bookThemeId) : null;
-    
+
     // Determine effective palette: page palette > book palette > theme's default palette
     const effectivePaletteId = pageColorPaletteId ?? bookColorPaletteId ?? bookThemePaletteId;
 
@@ -547,6 +547,39 @@ export default function Canvas() {
     const palette = colorPalettes.find((item) => item.id === effectivePaletteId) ?? null;
     return { paletteId: effectivePaletteId, palette };
   };
+
+  // Phase 2.3: Determine if element should be interactive based on current tool
+  // This optimizes performance by reducing event listeners on non-interactive elements
+  const shouldElementBeInteractive = useCallback((element: CanvasElement): boolean => {
+    // Always interactive in select mode (for selection, dragging, etc.)
+    if (state.activeTool === 'select') {
+      return true;
+    }
+
+    // In brush mode: Only shapes can be painted on
+    if (state.activeTool === 'brush') {
+      return ['rect', 'circle', 'line', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(element.type);
+    }
+
+    // In text mode: Only text elements are interactive
+    if (state.activeTool === 'text') {
+      return element.type === 'text';
+    }
+
+    // In image mode: Only image elements are interactive
+    if (state.activeTool === 'image') {
+      return element.type === 'image' || element.type === 'placeholder';
+    }
+
+    // In sticker mode: Only sticker elements are interactive
+    if (state.activeTool === 'sticker') {
+      return element.type === 'sticker';
+    }
+
+    // For any other tool mode: Elements are not interactive
+    // This reduces event listener overhead when using specialized tools
+    return false;
+  }, [state.activeTool]);
 
   // Memoize safety margin colors - used frequently in rendering
   const safetyMarginColors = useMemo(() => {
@@ -3994,6 +4027,7 @@ export default function Canvas() {
                 >
                   <CanvasItemComponent
                     element={element}
+                    interactive={shouldElementBeInteractive(element)}
                     isSelected={state.selectedElementIds.includes(element.id)}
                     zoom={zoom}
                     hoveredElementId={state.hoveredElementId}
@@ -4329,6 +4363,7 @@ export default function Canvas() {
                   <Group key={`preview-${element.id}`}>
                     <CanvasItemComponent
                       element={element}
+                      interactive={false}
                       isSelected={false}
                       zoom={zoom}
                       hoveredElementId={null}
