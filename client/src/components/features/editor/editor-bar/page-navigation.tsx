@@ -142,7 +142,7 @@ export function PageNavigation({
         </Button>
       </Tooltip>
 
-      <div className="flex items-center gap-1 bg-muted border-t border-b border-border px-2 py-0.5 h-7">
+      <div className="flex items-center gap-2 bg-muted border-t border-b border-border px-1 py-0.5 h-7">
         {/* <Tooltip content="View all pages" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
         <Button
           variant="ghost"
@@ -159,19 +159,19 @@ export function PageNavigation({
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             onBlur={handleBlur}
-            className="text-xs md:text-sm font-medium text-center w-5 h-5 p-0 border-0 bg-transparent focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:outline-none focus:shadow-none rounded-none focus:rounded-none"
+            className="text-xs font-medium text-center w-4 h-4 -p-1 border-0 bg-transparent focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:outline-none focus:shadow-none rounded-none focus:rounded-none"
             autoFocus
           />
         ) : (
           <span 
-            className="text-xs md:text-sm font-medium text-foreground cursor-pointer hover:bg-background/50 px-0.5 rounded"
+            className="text-xs font-medium text-foreground cursor-pointer hover:bg-background/50 px-[3px] pt-0.5 rounded"
             onClick={handlePageClick}
           >
             {currentPage}
           </span>
         )}
-        <span className="text-xs md:text-sm font-medium text-foreground pl">/</span> 
-        <span className="text-xs md:text-sm font-medium text-foreground pl">{totalPages}</span> 
+        <span className="text-xs font-medium pt-0.5 text-foreground">/</span> 
+        <span className="text-xs font-medium pt-0.5 text-foreground">{totalPages}</span> 
       </div>
 
       <Tooltip content="Go to next page pair" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">

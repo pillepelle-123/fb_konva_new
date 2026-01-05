@@ -122,15 +122,15 @@ const isPdfExport = typeof window !== 'undefined' && (
 );
 
 // Debug logging for PDF export detection
-if (typeof window !== 'undefined') {
-  console.log('[Ruled Lines Debug] PDF Export Detection:', {
-    isPdfExport,
-    __PDF_EXPORT__: (window as any).__PDF_EXPORT__,
-    pathname: window.location.pathname,
-    userAgent: navigator.userAgent.includes('HeadlessChrome'),
-    windowLocation: window.location.href
-  });
-}
+// if (typeof window !== 'undefined') {
+//   console.log('[Ruled Lines Debug] PDF Export Detection:', {
+//     isPdfExport,
+//     __PDF_EXPORT__: (window as any).__PDF_EXPORT__,
+//     pathname: window.location.pathname,
+//     userAgent: navigator.userAgent.includes('HeadlessChrome'),
+//     windowLocation: window.location.href
+//   });
+// }
 
 // CRITICAL FIX: Force PDF export detection for pdf-renderer.html
 // The HTML template sets __PDF_EXPORT__ = true, but detection might fail
@@ -142,12 +142,12 @@ const forcePdfExport = typeof window !== 'undefined' &&
 const pdfOverride = typeof window !== 'undefined' ? (window as any).PDF_RULED_LINE_BASELINE_OFFSET : undefined;
 const RULED_LINE_BASELINE_OFFSET = pdfOverride !== undefined ? pdfOverride : (isPdfExport || forcePdfExport) ? -20 : 12;
 
-console.log('[Ruled Lines Debug] Final offset:', {
-  isPdfExport,
-  forcePdfExport,
-  pdfOverride,
-  finalOffset: RULED_LINE_BASELINE_OFFSET
-});
+// console.log('[Ruled Lines Debug] Final offset:', {
+//   isPdfExport,
+//   forcePdfExport,
+//   pdfOverride,
+//   finalOffset: RULED_LINE_BASELINE_OFFSET
+// });
 
 function stripHtml(text: string) {
   if (!text) return '';

@@ -24,12 +24,7 @@ const ITEM_STYLE: Record<
   { background: string; border: string; label: string }
 > = {
   qna: {
-    background: 'rgba(60, 60, 60, 0.65)', // blue
-    border: '#EEEEEE',
-    label: 'Q&A Inline'
-  },
-  qna: {
-    background: 'rgba(37, 99, 235, 0.65)', // darker blue
+    background: 'rgba(160, 18, 160, 0.65)', // darker blue
     border: '#1e3a8a',
     label: 'Q&A'
   },

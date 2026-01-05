@@ -4560,7 +4560,15 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [user]);
 
+  // Feature flag to disable preview generation (Phase 2 optimization)
+  // Preview generation is no longer used in the UI, only causes memory overhead
+  const ENABLE_PREVIEW_GENERATION = false;
+
   useEffect(() => {
+    if (!ENABLE_PREVIEW_GENERATION) {
+      return;
+    }
+
     if (!state.currentBook) {
       previewSignaturesRef.current = {};
       generatingPreviewsRef.current.clear();
@@ -4640,7 +4648,9 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    const limitedTasks = tasks.slice(0, 4);
+    // Memory optimization: Reduce parallel preview generation from 4 to 2
+    // This reduces memory pressure while still maintaining reasonable preview generation speed
+    const limitedTasks = tasks.slice(0, 2);
 
     let cancelled = false;
 
@@ -4723,7 +4733,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         window.clearTimeout(timeoutHandle);
       }
     };
-  }, [state.currentBook, state.pagePreviewVersions, state.pagePreviewCache]);
+  }, [ENABLE_PREVIEW_GENERATION, ENABLE_PREVIEW_GENERATION ? state.currentBook : null, ENABLE_PREVIEW_GENERATION ? state.pagePreviewVersions : null, ENABLE_PREVIEW_GENERATION ? state.pagePreviewCache : null]);
 
   const derivedPageMetadata = useMemo(() => {
     const pages = state.currentBook?.pages ?? [];

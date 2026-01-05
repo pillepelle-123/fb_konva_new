@@ -178,6 +178,7 @@ export default function Canvas() {
     };
   }, []);
 
+
   // Alte Preview-Export-Logik entfernt - wird jetzt über Preview-Seiten gelöst
   const [selectedQuestionElementId, setSelectedQuestionElementId] = useState<string | null>(null);
   const [showQuestionSelectorModal, setShowQuestionSelectorModal] = useState(false);
@@ -327,9 +328,12 @@ export default function Canvas() {
   }, []);
 
   // Background image cache for preloading
+  // Memory optimization: Limit cache size to prevent excessive RAM usage
+  const MAX_CACHE_ENTRIES = 20; // Maximum number of cached images
   const [backgroundImageCache, setBackgroundImageCache] = useState<Map<string, BackgroundImageEntry>>(new Map());
   const backgroundImageCacheRef = useRef<Map<string, BackgroundImageEntry>>(new Map());
   const loadingImagesRef = useRef<Set<string>>(new Set());
+  const cacheAccessOrderRef = useRef<string[]>([]); // Track access order for LRU eviction
   const [backgroundQuality, setBackgroundQuality] = useState<'preview' | 'full'>('preview');
   
   // Snapping functionality
@@ -2503,11 +2507,46 @@ export default function Canvas() {
   // Preload background images when page changes or background is updated
   useEffect(() => {
     const background = currentPage?.background;
-    const cache = backgroundImageCacheRef.current;
     
+    // Helper function to evict least recently used entries
+    const evictOldEntries = () => {
+      const accessOrder = cacheAccessOrderRef.current;
+      const cache = backgroundImageCacheRef.current;
+      
+      // Remove entries until we're under the limit
+      while (cache.size >= MAX_CACHE_ENTRIES && accessOrder.length > 0) {
+        const oldestKey = accessOrder.shift();
+        if (oldestKey && cache.has(oldestKey)) {
+          const entry = cache.get(oldestKey);
+          // Free image resources
+          if (entry?.full) {
+            entry.full.src = '';
+          }
+          if (entry?.preview && entry.preview !== entry.full) {
+            entry.preview.src = '';
+          }
+          cache.delete(oldestKey);
+        }
+      }
+    };
+
     // Function to preload a single image
-    const preloadImage = (imageUrl: string, _isCurrentPage: boolean = false) => {
-      if (!imageUrl || cache.has(imageUrl)) return;
+    const preloadImage = (imageUrl: string) => {
+      if (!imageUrl) return;
+      
+      const cache = backgroundImageCacheRef.current;
+      const accessOrder = cacheAccessOrderRef.current;
+      
+      // If already in cache, update access order (LRU)
+      if (cache.has(imageUrl)) {
+        // Move to end (most recently used)
+        const index = accessOrder.indexOf(imageUrl);
+        if (index > -1) {
+          accessOrder.splice(index, 1);
+        }
+        accessOrder.push(imageUrl);
+        return;
+      }
       
       const loadingImages = loadingImagesRef.current;
       if (loadingImages.has(imageUrl)) return; // Already loading
@@ -2518,7 +2557,12 @@ export default function Canvas() {
       img.crossOrigin = 'anonymous';
       
       const storeEntry = (entry: BackgroundImageEntry) => {
+        // Evict old entries if needed before adding new one
+        evictOldEntries();
+        
+        // Add new entry
         cache.set(imageUrl, entry);
+        accessOrder.push(imageUrl);
         loadingImages.delete(imageUrl);
         setBackgroundImageCache(new Map(cache));
       };
@@ -2536,7 +2580,7 @@ export default function Canvas() {
       
       img.onerror = () => {
         loadingImages.delete(imageUrl);
-        console.error(`Failed to load background image: ${imageUrl}`, {
+        console.error(`[Background Cache] Failed to load background image: ${imageUrl}`, {
           src: img.src,
           complete: img.complete,
           naturalWidth: img.naturalWidth,
@@ -2555,23 +2599,31 @@ export default function Canvas() {
           paletteColors: activePalette?.colors
         }) || background.value;
       if (imageUrl) {
-        preloadImage(imageUrl, true);
+        preloadImage(imageUrl);
       }
     }
     
-    // Also preload images from all other pages for smooth transitions
+    // Also preload images from nearby pages for smooth transitions
+    // Memory optimization: Only preload adjacent pages (±2) instead of all pages
     if (state.currentBook?.pages) {
+      const activeIndex = state.activePageIndex;
+      const preloadRange = 2; // Only preload 2 pages before and after current page
+      
       state.currentBook.pages.forEach((page, index) => {
-        const pageBackground = page.background;
-        if (pageBackground?.type === 'image') {
-          const { paletteId, palette } = getPaletteForPage(page);
-          const imageUrl =
-            resolveBackgroundImageUrl(pageBackground, {
-              paletteId,
-              paletteColors: palette?.colors
-            }) || pageBackground.value;
-          if (imageUrl) {
-            preloadImage(imageUrl, index === state.activePageIndex);
+        // Prioritize current page and nearby pages
+        const distance = Math.abs(index - activeIndex);
+        if (distance <= preloadRange) {
+          const pageBackground = page.background;
+          if (pageBackground?.type === 'image') {
+            const { paletteId, palette } = getPaletteForPage(page);
+            const imageUrl =
+              resolveBackgroundImageUrl(pageBackground, {
+                paletteId,
+                paletteColors: palette?.colors
+              }) || pageBackground.value;
+            if (imageUrl) {
+              preloadImage(imageUrl);
+            }
           }
         }
       });
