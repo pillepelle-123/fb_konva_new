@@ -20,30 +20,13 @@ import UndoRedoControls from './undo-redo-controls';
 import UnsavedChangesDialog from '../../../ui/overlays/unsaved-changes-dialog';
 import ConfirmationDialog from '../../../ui/overlays/confirmation-dialog';
 import AlertDialog from '../../../ui/overlays/alert-dialog';
-import { Settings, CircleUser, X } from 'lucide-react';
+import { Settings, X } from 'lucide-react';
 import { Tooltip } from '../../../ui/composites/tooltip';
 import { EditorBarContainer } from './editor-bar-container';
 
-import ProfilePicture from '../../users/profile-picture';
 import { PagesSubmenu } from './page-explorer';
-import PageAssignmentPopover from './page-assignment-popover';
+import { PageAssignmentButton } from './page-assignment-button';
 
-// Helper function to get consistent color from name (same as in profile-picture.tsx)
-function getConsistentColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const colors = [
-    '3b82f6', '8b5cf6', 'ef4444', '10b981', 'f59e0b', 'ec4899', '06b6d4', 'f97316',
-    'f87171', 'fb7185', 'f472b6', 'e879f9', 'c084fc', 'a78bfa', '8b5cf6', '7c3aed',
-    '6366f1', '4f46e5', '3b82f6', '2563eb', '0ea5e9', '0891b2', '0e7490', '0f766e',
-    '059669', '047857', '065f46', '166534', '15803d', '16a34a', '22c55e', '4ade80',
-    '65a30d', '84cc16', 'a3e635', 'bef264', 'eab308', 'f59e0b', 'f97316', 'ea580c',
-    'dc2626', 'b91c1c', '991b1b', '7f1d1d', '78716c', '57534e', '44403c', '292524'
-  ];
-  return colors[Math.abs(hash) % colors.length];
-}
 
 
 function getPairPages(pages: Page[], index: number): Page[] {
@@ -322,9 +305,9 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
             isRestrictedView={state.pageAccessLevel === 'own_page'}
           />
         ) : (
-          <div className="flex items-center justify-between w-full h-12 px-4 py-1 gap-4 relative z-[100]">
+          <div className="flex items-center justify-between w-full h-11 px-0 gap-2 relative z-[100]">
             {/* Left Section - Page Controls */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <PageNavigation
                 currentPage={currentVisiblePage}
                 totalPages={totalVisiblePages}
@@ -355,19 +338,22 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
               <BookTitle title={state.currentBook.name} readOnly={state.userRole === 'author'} />
             </div>
 
-            {/* Right Section - User Assignment & Settings */}
-            <div className="flex items-center gap-3">
-              <PageAssignmentButton 
-                currentPage={currentPage} 
-                bookId={state.currentBook.id} 
-                onOpenDialog={() => {}} 
+            <div className="mr-2" style={{ transform: 'translateY(-1px)' }}>
+            <PageAssignmentButton
+                currentPage={currentPage}
+                bookId={state.currentBook.id}
               />
+              </div>
+
+            {/* Right Section - User Assignment & Settings */}
+            <div className="flex items-center gap-2">
+              
               
               {(state.userRole !== 'author' || (state.userRole === 'author' && state.editorInteractionLevel === 'full_edit_with_settings')) && (
                 <Tooltip content="Settings" side="bottom_editor_bar">
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="xs"
                     onClick={() => {
                       dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
                       dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [] });
@@ -391,11 +377,11 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
               <Tooltip content="Close Editor" side="bottom_editor_bar">
                 <Button
                   variant="ghost"
-                  size="sm"
+                  size="xs"
                   onClick={handleClose}
-                  className="h-8 w-8 p-0"
+                  className="h-7 w-7 p-0"
                 >
-                  <X className="h-5 w-5" />
+                  <X className="h-4 w-4" />
                 </Button>
               </Tooltip>
             </div>
@@ -483,89 +469,4 @@ function BookManagerModal({ isOpen, onClose, bookId, initialTab }: { isOpen: boo
   );
 }
 
-function PageAssignmentButton({ currentPage, bookId, onOpenDialog }: { currentPage: number; bookId: number; onOpenDialog: () => void }) {
-  const { state, dispatch } = useEditor();
-  const { user } = useAuth();
-  const assignedUser = state.pageAssignments[currentPage];
-  const isAuthor = state.userRole === 'author';
-  
-  const handleAssignUser = (user: any) => {
-    const updatedAssignments = { ...state.pageAssignments };
-    if (user) {
-      updatedAssignments[currentPage] = user;
-    } else {
-      delete updatedAssignments[currentPage];
-    }
-    dispatch({ type: 'SET_PAGE_ASSIGNMENTS', payload: updatedAssignments });
-  };
-  
-  // Force re-render when assignments change
-  const assignmentKey = `${currentPage}-${assignedUser?.id || 'none'}`;
-
-  if (assignedUser) {
-    if (isAuthor) {
-      return (
-        <Tooltip content={`Assigned to ${assignedUser.name}`} side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
-          <div className="h-full w-full p-0 pt-1.5 rounded-full" key={assignmentKey}>
-            <ProfilePicture name={assignedUser.name} size="sm" userId={assignedUser.id} variant='withColoredBorder' className='h-full w-full' />
-          </div>
-        </Tooltip>
-      );
-    }
-    return (
-      <Tooltip
-        content={
-          <>
-            Assigned to <strong style={{ fontSize: '1.4em' }}>{assignedUser.name}</strong> - Click to reassign
-          </>
-        }
-        side="bottom_editor_bar"
-        backgroundColor={`#${getConsistentColor(assignedUser.name)}`}
-        textColor="#ffffff"
-      >
-        <PageAssignmentPopover
-          currentPage={currentPage}
-          bookId={bookId}
-          onAssignUser={handleAssignUser}
-        >
-          <Button
-            variant="ghost"
-            size="md"
-            className="h-full w-full p-0 pt-1.5 rounded-full"
-            key={assignmentKey}
-          >
-            <ProfilePicture name={assignedUser.name} size="sm" userId={assignedUser.id} variant='withColoredBorder' className='h-full w-full hover:ring hover:ring-highlight hover:ring-offset-1' />
-          </Button>
-        </PageAssignmentPopover>
-      </Tooltip>
-    );
-  }
-
-  if (isAuthor) {
-    return (
-      <Tooltip content="Assign user to page" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
-        <div className="h-full w-full p-0 pt-1.5 rounded-full">
-          <CircleUser className="rounded-full h-10 w-10 stroke-highlight" />
-        </div>
-      </Tooltip>
-    );
-  }
-
-  return (
-    <PageAssignmentPopover
-      currentPage={currentPage}
-      bookId={bookId}
-      onAssignUser={handleAssignUser}
-    >
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-full w-full p-0 pt-1.5 rounded-full"
-        title="Assign user to page"
-      >
-        <CircleUser className="rounded-full h-10 w-10 stroke-highlight hover:bg-highlight hover:stroke-background transition-all duration-300 ease-in-out" />
-      </Button>
-    </PageAssignmentPopover>
-  );
-}
 

@@ -20,25 +20,25 @@ export default function UndoRedoControls() {
     <ButtonGroup>
       <Button
         variant="outline"
-        size="sm"
+        size="xs"
         onClick={undo}
         disabled={!canUndo || isDisabled}
-        className="h-8 md:h-9 px-2 md:px-3"
+        className="h-7"
         title="Undo"
       >
-        <Undo className="h-4 w-4 md:h-5 md:w-5" />
+        <Undo className="h-5 w-5" />
       </Button>
       
       <Popover>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
-            size="sm"
+            size="xs"
             disabled={isDisabled}
-            className="h-8 md:h-9 px-2 md:px-3"
+            className="h-7 rounded-none"
             title="History"
           >
-            <History className="h-4 w-4 md:h-5 md:w-5" />
+            <History className="h-5 w-5" />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-64 p-2">
@@ -66,13 +66,13 @@ export default function UndoRedoControls() {
       
       <Button
         variant="outline"
-        size="sm"
+        size="xs"
         onClick={redo}
         disabled={!canRedo || isDisabled}
-        className="h-8 md:h-9 px-2 md:px-3"
+        className="h-7"
         title="Redo"
       >
-        <Redo className="h-4 w-4 md:h-5 md:w-5" />
+        <Redo className="h-5 w-5" />
       </Button>
     </ButtonGroup>
   );

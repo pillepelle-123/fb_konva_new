@@ -129,21 +129,21 @@ export function PageNavigation({
     onGoToPage(nextPage);
   };
   return (
-    <div className="flex items-center gap-1 md:gap-2">
+    <div className="flex items-center gap-0">
       <Tooltip content={canGoPrev ? "Go to previous page pair" : "Already on first page"} side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
         <Button
           variant="outline"
-          size="sm"
+          size="xs"
           onClick={handlePrevPair}
           disabled={!canGoPrev}
-          className="h-8 w-8 p-0 md:h-9 md:w-9"
+          className="rounded-r-none"
         >
-          <ChevronLeft className="h-3 w-3 md:h-4 md:w-4" />
+          <ChevronLeft className="h-5 w-5" />
         </Button>
       </Tooltip>
 
-      <div className="flex items-center gap-1 md:gap-2 bg-muted rounded-lg px-2 py-1 md:px-3 md:py-1.5">
-        <Tooltip content="View all pages" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
+      <div className="flex items-center gap-1 bg-muted border-t border-b border-border px-2 py-0.5 h-7">
+        {/* <Tooltip content="View all pages" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
         <Button
           variant="ghost"
           size="sm"
@@ -152,7 +152,7 @@ export function PageNavigation({
         >
           <BookOpen className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground hover:text-foreground" />
         </Button>
-        </Tooltip>
+        </Tooltip> */}
         {isEditing ? (
           <Input
             value={inputValue}
@@ -164,24 +164,25 @@ export function PageNavigation({
           />
         ) : (
           <span 
-            className="text-xs md:text-sm font-medium text-foreground cursor-pointer hover:bg-background/50 px-1 rounded"
+            className="text-xs md:text-sm font-medium text-foreground cursor-pointer hover:bg-background/50 px-0.5 rounded"
             onClick={handlePageClick}
           >
             {currentPage}
           </span>
         )}
-        <span className="text-xs md:text-sm font-medium text-foreground pl">/</span><span>{totalPages}</span>
+        <span className="text-xs md:text-sm font-medium text-foreground pl">/</span> 
+        <span className="text-xs md:text-sm font-medium text-foreground pl">{totalPages}</span> 
       </div>
 
       <Tooltip content="Go to next page pair" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
         <Button
           variant="outline"
-          size="sm"
+          size="xs"
           onClick={handleNextPair}
           disabled={!canGoNext || currentPage >= totalPages - 1}
-          className="h-8 w-8 p-0 md:h-9 md:w-9"
+          className='rounded-l-none'
         >
-          <ChevronRight className="h-3 w-3 md:h-4 md:w-4" />
+          <ChevronRight className="h-5 w-5" />
         </Button>
       </Tooltip>
 

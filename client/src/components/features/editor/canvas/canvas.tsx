@@ -120,6 +120,8 @@ export default function Canvas() {
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const previousActivePageIndexRef = useRef<number | null>(null);
+  const fitToViewRef = useRef<(() => void) | null>(null);
   const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
   const [panelOffset, setPanelOffset] = useState(0);
 
@@ -3242,6 +3244,11 @@ export default function Canvas() {
     setStagePos(clampStagePosition({ x: centerX, y: centerY }, optimalZoom));
   }, [canvasWidth, canvasHeight, clampStagePosition, hasPartnerPage, state.isMiniPreview, state.currentBook?.orientation, setZoomFromContext]);
 
+  // Keep fitToViewRef up to date
+  useEffect(() => {
+    fitToViewRef.current = fitToView;
+  }, [fitToView]);
+
   // Auto-fit when entering the canvas editor or when container size changes
   useEffect(() => {
     if (state.isMiniPreview) {
@@ -3270,6 +3277,41 @@ export default function Canvas() {
       return () => clearTimeout(timeoutId);
     }
   }, [fitToView, state.isMiniPreview, containerSize.width, containerSize.height, hasManualZoom]);
+
+  // Auto-fit when page changes (reset zoom to show both pages)
+  useEffect(() => {
+    // Skip in mini preview mode
+    if (state.isMiniPreview) {
+      previousActivePageIndexRef.current = state.activePageIndex;
+      return;
+    }
+    
+    const previousPageIndex = previousActivePageIndexRef.current;
+    const currentPageIndex = state.activePageIndex;
+    
+    // Initialize ref on first render (skip auto-fit on initial load)
+    if (previousPageIndex === null) {
+      previousActivePageIndexRef.current = currentPageIndex;
+      return;
+    }
+    
+    // Only auto-fit if page actually changed
+    if (previousPageIndex !== currentPageIndex) {
+      // Page actually changed - reset zoom to show both pages
+      setHasManualZoom(false);
+      // Update ref immediately to prevent duplicate calls
+      previousActivePageIndexRef.current = currentPageIndex;
+      
+      // Use a small timeout to ensure the page has fully loaded
+      const timeoutId = setTimeout(() => {
+        if (fitToViewRef.current) {
+          fitToViewRef.current();
+        }
+      }, 100);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [state.activePageIndex, state.isMiniPreview]);
 
   // Listen for fitToView trigger events (e.g., when modal opens)
   useEffect(() => {

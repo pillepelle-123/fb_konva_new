@@ -41,12 +41,12 @@ export function PageActions({
       >
         <Button
           variant="outline"
-          size="sm"
+          size="xs"
           onClick={() => window.dispatchEvent(new CustomEvent('addPage'))}
           disabled={addDisabled}
-          className={`h-8 md:h-9 px-2 md:px-3 ${addDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+          className={`h-7 ${addDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
-          <Plus className="h-4 w-4 md:h-5 md:w-5" />
+          <Plus className="h-5 w-5" />
           {/* <span className="hidden md:inline ml-2">Add</span> */}
         </Button>
       </Tooltip>
@@ -59,12 +59,12 @@ export function PageActions({
       >
         <Button
           variant="outline"
-          size="sm"
+          size="xs"
           onClick={onDuplicatePage}
           disabled={duplicateDisabled}
-          className={`h-8 md:h-9 px-2 md:px-3 ${duplicateDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+          className={`h-7 ${duplicateDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
-          <Copy className="h-4 w-4 md:h-5 md:w-5" />
+          <Copy className="h-5 w-5" />
           {/* <span className="hidden md:inline ml-2">Duplicate</span> */}
         </Button>
       </Tooltip>
@@ -73,12 +73,12 @@ export function PageActions({
         <Tooltip content="Assign friends to this page" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
           <Button
             variant="outline"
-            size="sm"
+            size="xs"
             onClick={onAssignFriends}
             disabled={isAuthor}
-            className={`h-8 md:h-9 px-2 md:px-3 ${isAuthor ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`h-7 ${isAuthor ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            <Users className="h-4 w-4 md:h-5 md:w-5" />
+            <Users className="h-5 w-5" />
           </Button>
         </Tooltip>
       )}
@@ -95,14 +95,14 @@ export function PageActions({
       >
         <Button
           variant="outline"
-          size="sm"
+          size="xs"
           onClick={onDeletePage}
           disabled={deleteDisabled}
-          className={`h-8 md:h-9 px-2 md:px-3 text-destructive hover:text-destructive ${
+          className={`h-7 text-destructive hover:text-destructive ${
             deleteDisabled ? 'opacity-50 cursor-not-allowed' : ''
           }`}
         >
-          <Trash2 className="h-4 w-4 md:h-5 md:w-5" />
+          <Trash2 className="h-5 w-5" />
           {/* <span className="hidden md:inline ml-2">Delete</span> */}
         </Button>
       </Tooltip>

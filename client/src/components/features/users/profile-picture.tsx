@@ -14,7 +14,7 @@ interface ProfilePictureProps {
 }
 
 const sizeMap: Record<'xs' | 'sm' | 'md' | 'lg', { class: string; pixels: number }> = {
-  xs: { class: 'w-6 h-6', pixels: 32 },
+  xs: { class: 'w-5 h-5', pixels: 24 },
   sm: { class: 'w-10 h-10', pixels: 32 },
   md: { class: 'w-24 h-24', pixels: 96 },
   lg: { class: 'w-48 h-48', pixels: 192 },

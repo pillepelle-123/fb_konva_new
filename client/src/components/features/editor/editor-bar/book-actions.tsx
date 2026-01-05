@@ -27,12 +27,12 @@ export function BookActions({
       <Tooltip content={isSaving ? 'Saving...' : isAuthorOnUnassignedPage ? 'Cannot save - not your assigned page' : 'Save book'} side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
         <Button
           variant="outline"
-          size="sm"
+          size="xs"
           onClick={onSave}
           disabled={isSaveDisabled}
-          className="h-8 md:h-9 px-2 md:px-3"
+          className="h-7"
         >
-          <Save className="h-4 w-4 md:h-5 md:w-5" />
+          <Save className="h-5 w-5 stroke-[1.5]" />
           {/* <span className="hidden md:inline ml-2">{isSaving ? 'Saving...' : 'Save'}</span> */}
         </Button>
       </Tooltip>
@@ -40,22 +40,22 @@ export function BookActions({
       <Tooltip content="Preview book" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
         <Button
           variant="outline"
-          size="sm"
+          size="xs"
           onClick={onPreview}
-          className="h-8 md:h-9 px-2 md:px-3"
+          className="h-7"
         >
-          <Eye className="h-4 w-4 md:h-5 md:w-5" />
+          <Eye className="h-5 w-5" />
         </Button>
       </Tooltip>
 
       <Tooltip content="Export as PDF" side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
         <Button
           variant="outline"
-          size="sm"
+          size="xs"
           onClick={onExport}
-          className="h-8 md:h-9 px-2 md:px-3"
+          className="h-7"
         >
-          <Printer className="h-4 w-4 md:h-5 md:w-5" />
+          <Printer className="h-5 w-5" />
           {/* <span className="hidden md:inline ml-2">Export</span> */}
         </Button>
       </Tooltip>

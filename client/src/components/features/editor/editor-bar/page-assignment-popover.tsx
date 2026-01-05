@@ -254,8 +254,16 @@ export default function PageAssignmentPopover({
         {children}
       </PopoverTrigger>
       <PopoverContent className="w-64 p-2" align="end" side="bottom">
-        <div className="space-y-2">
-          <div className="text-sm font-medium px-2 py-1">
+        <div className="space-y-2 relative">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute top-0 right-0 h-6 w-6"
+            onClick={() => setOpen(false)}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+          <div className="text-sm font-medium px-2 py-1 pr-8">
             Assign Page {currentPage}
           </div>
           
@@ -286,7 +294,7 @@ export default function PageAssignmentPopover({
                     </div>
                     {assignedUser?.id === friend.id && (
                       <>
-                        <Tooltip content="Remove Assignment">
+                        <Tooltip side="right" content="Remove Assignment">
                           <Button
                             variant="ghost"
                             size="icon"

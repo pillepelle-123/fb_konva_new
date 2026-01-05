@@ -2,12 +2,13 @@ import { useMemo, useState } from 'react';
 import { useEditor } from '../../../context/editor-context';
 import type { CanvasElement } from '../../../context/editor-context';
 import { Button } from '../../../components/ui/primitives';
-import { ChevronDown, ChevronUp, Download, Layout } from 'lucide-react';
+import { Book, BookOpen, ChevronDown, ChevronUp, Download, Info, Layout } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '../../../components/ui/composites/tabs';
 import { exportThemeAndPalette } from '../../../utils/theme-palette-exporter';
 import { exportLayout } from '../../../utils/layout-exporter';
 import { calculatePageDimensions } from '../../../utils/template-utils';
 import { PagesSubmenu } from './editor-bar/page-explorer';
+import { Tooltip } from '../../ui';
 
 const matchesElementDescriptor = (element: CanvasElement, value: string) => {
   const fallbackType = (element as CanvasElement & { type?: string }).type;
@@ -216,30 +217,32 @@ export function StatusBar() {
       }}
     >
       <div className="flex flex-col">
-        <div className="flex items-center gap-3 px-4 h-12">
-          <Button
-            variant="outline"
+        <div className="flex items-center gap-2 px-2 h-10">
+          {/* <Button
+            variant="ghost"
             size="icon"
             className="h-8 w-8 shrink-0"
             onClick={toggleExpanded}
           >
             <ToggleIcon className="h-4 w-4" />
             <span className="sr-only">{isExpanded ? 'Collapse status bar' : 'Expand status bar'}</span>
-          </Button>
+          </Button> */}
 
           <Tabs value={activeSection} onValueChange={(value) => setActiveSection(value as StatusBarSection)} className="shrink-0">
             <TabsList className="h-8 bg-muted">
               <TabsTrigger value="details" className="px-3 py-1 text-xs sm:text-sm">
-                Details
+              <Info className="h-4 w-4" />
               </TabsTrigger>
               <TabsTrigger value="pages" className="px-3 py-1 text-xs sm:text-sm">
-                Pages
+                <Tooltip content="Page Explorer" side="top" backgroundColor="bg-background" textColor="text-foreground">
+                <BookOpen className="h-4 w-4" />      
+              </Tooltip>
               </TabsTrigger>
             </TabsList>
           </Tabs>
 
           {!isExpanded && (
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 p-0">
               {activeSection === 'details' ? (
                 renderDetailsContent(true)
               ) : (

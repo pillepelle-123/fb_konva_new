@@ -184,6 +184,13 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
     // Reset color selector when element selection changes
     setShowColorSelector(null);
   }, [activeTool, state.selectedElementIds.length]);
+
+  // Reset all submenu states when element selection changes
+  useEffect(() => {
+    setShowFontSelector(false);
+    setShowColorSelector(null);
+    setSelectorTitle(null);
+  }, [state.selectedElementIds]);
   
   // Initialize background image state when selector opens
   useEffect(() => {

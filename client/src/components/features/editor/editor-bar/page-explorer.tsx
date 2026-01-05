@@ -485,7 +485,7 @@ export function PagesSubmenu({
                   key={page.id}
                   variant={isActivePage ? "primary" : "outline"} //"outline"
                   size="xs"
-                  className="h-7 w-7 p-0 text-xs"
+                  className="p-0 w-7 rounded-none"
                   disabled={isNonEditable}
                   onClick={
                     isNonEditable
@@ -542,7 +542,7 @@ export function PagesSubmenu({
   if (!showHeader) {
     return (
       <div
-        className={`${isCompact || isMicro ? 'px-2 py-1' : 'px-4 py-2'} w-full min-w-0`}
+        className={`${isCompact || isMicro ? 'py-1' : 'px-2 py-2'} w-full min-w-0`}
         data-book-id={bookId}
       >
         {content}
@@ -553,8 +553,8 @@ export function PagesSubmenu({
   return (
     <div className="flex items-start w-full px-4 py-3 gap-4" data-book-id={bookId}>
       {onClose && (
-        <Button variant="ghost" size="sm" onClick={onClose} className="px-2 h-8">
-          <ChevronLeft className="h-4 w-4 mr-1" />
+        <Button variant="ghost" size="xs" onClick={onClose} className="px-2 h-7">
+          <ChevronLeft className="h-3 w-3 mr-1" />
           Back
         </Button>
       )}
