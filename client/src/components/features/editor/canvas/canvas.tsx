@@ -2641,6 +2641,73 @@ export default function Canvas() {
     }),
   ]);
 
+  // Phase 2.1: Automatic cache cleanup when page changes
+  // Remove cache entries for pages outside the preload range (±2 pages) to free memory
+  useEffect(() => {
+    if (!state.currentBook?.pages) return;
+
+    const activeIndex = state.activePageIndex;
+    const preloadRange = 2; // Same range as used in preloading
+    const cache = backgroundImageCacheRef.current;
+    const accessOrder = cacheAccessOrderRef.current;
+    const loadingImages = loadingImagesRef.current;
+
+    // Collect all URLs that should be kept in cache (current page ± preloadRange)
+    const urlsToKeep = new Set<string>();
+
+    state.currentBook.pages.forEach((page, index) => {
+      const distance = Math.abs(index - activeIndex);
+      if (distance <= preloadRange) {
+        const pageBackground = page.background;
+        if (pageBackground?.type === 'image') {
+          const { paletteId, palette } = getPaletteForPage(page);
+          const imageUrl =
+            resolveBackgroundImageUrl(pageBackground, {
+              paletteId,
+              paletteColors: palette?.colors
+            }) || pageBackground.value;
+          if (imageUrl) {
+            urlsToKeep.add(imageUrl);
+          }
+        }
+      }
+    });
+
+    // Remove cache entries that are not in the keep set and not currently loading
+    const urlsToRemove: string[] = [];
+    for (const [url] of cache) {
+      if (!urlsToKeep.has(url) && !loadingImages.has(url)) {
+        urlsToRemove.push(url);
+      }
+    }
+
+    // Remove the entries and free resources
+    urlsToRemove.forEach(url => {
+      const entry = cache.get(url);
+      if (entry) {
+        // Free image resources
+        if (entry.full) {
+          entry.full.src = '';
+        }
+        if (entry.preview && entry.preview !== entry.full) {
+          entry.preview.src = '';
+        }
+        cache.delete(url);
+      }
+
+      // Remove from access order
+      const orderIndex = accessOrder.indexOf(url);
+      if (orderIndex > -1) {
+        accessOrder.splice(orderIndex, 1);
+      }
+    });
+
+    // Update the state to trigger re-renders
+    if (urlsToRemove.length > 0) {
+      setBackgroundImageCache(new Map(cache));
+    }
+  }, [state.activePageIndex, state.currentBook?.pages]);
+
   useEffect(() => {
     const handleClickOutside = () => {
       setContextMenu({ x: 0, y: 0, visible: false });
