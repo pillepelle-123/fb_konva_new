@@ -125,6 +125,59 @@ export default function Canvas() {
   const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
   const [panelOffset, setPanelOffset] = useState(0);
 
+  // Debounced Canvas Updates for smoother performance
+  const useDebouncedCanvasUpdate = () => {
+    const timeoutRef = useRef<NodeJS.Timeout>();
+
+    const debouncedBatchDraw = useCallback((stage: Konva.Stage | null, delay: number = 16) => {
+      if (!stage) return;
+
+      // Clear existing timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+
+      // Set new debounced update
+      timeoutRef.current = setTimeout(() => {
+        try {
+          stage.batchDraw();
+        } catch (error) {
+          console.debug('Debounced canvas update error:', error);
+        }
+      }, delay);
+    }, []);
+
+    // Cleanup on unmount
+    useEffect(() => {
+      return () => {
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+        }
+      };
+    }, []);
+
+    return debouncedBatchDraw;
+  };
+
+  const debouncedBatchDraw = useDebouncedCanvasUpdate();
+
+  // Smart canvas update function - uses debouncing for non-critical updates
+  const smartCanvasUpdate = useCallback((immediate: boolean = false) => {
+    if (!stageRef.current) return;
+
+    if (immediate) {
+      // Immediate update for critical UI changes (selections, etc.)
+      try {
+        stageRef.current.batchDraw();
+      } catch (error) {
+        console.debug('Immediate canvas update error:', error);
+      }
+    } else {
+      // Debounced update for smoother performance during interactions
+      debouncedBatchDraw(stageRef.current);
+    }
+  }, [debouncedBatchDraw]);
+
   // Use custom hooks for state management
   const drawingState = useCanvasDrawing();
   const selectionState = useCanvasSelection();
@@ -1670,7 +1723,8 @@ export default function Canvas() {
         // Force transformer update during panning to prevent selection rectangle delay
         if (transformerRef.current) {
           transformerRef.current.forceUpdate();
-          transformerRef.current.getLayer()?.batchDraw();
+          // Use smart canvas update - immediate for panning responsiveness
+          smartCanvasUpdate(true);
         }
       }
     } else if (drawingState.isDrawing && state.activeTool === 'brush') {
@@ -2419,7 +2473,8 @@ export default function Canvas() {
       // Force transformer update during panning to prevent selection rectangle delay
       if (transformerRef.current) {
         transformerRef.current.forceUpdate();
-        transformerRef.current.getLayer()?.batchDraw();
+        // Use smart canvas update - immediate for selection responsiveness
+        smartCanvasUpdate(true);
       }
     } else if (e.evt.ctrlKey) {
       // Zoom with Ctrl + mousewheel
@@ -2451,7 +2506,8 @@ export default function Canvas() {
       // Force transformer update during panning to prevent selection rectangle delay
       if (transformerRef.current) {
         transformerRef.current.forceUpdate();
-        transformerRef.current.getLayer()?.batchDraw();
+        // Use smart canvas update - immediate for selection responsiveness
+        smartCanvasUpdate(true);
       }
     }
   };
@@ -4203,7 +4259,8 @@ export default function Canvas() {
                           setTimeout(() => {
                             if (transformerRef.current) {
                               transformerRef.current.forceUpdate();
-                              transformerRef.current.getLayer()?.batchDraw();
+                              // Use smart canvas update - immediate for selection changes
+                              smartCanvasUpdate(true);
                             }
                           }, 0);
                         } else if (elementSelected && !linkedSelected) {
