@@ -125,6 +125,19 @@ export default function Canvas() {
   const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
   const [panelOffset, setPanelOffset] = useState(0);
 
+  // Direct Panning Optimization: Store pending stage position to avoid state updates during panning
+  const [pendingStagePos, setPendingStagePos] = useState<{x: number, y: number} | null>(null);
+
+  // Feature Flag for Transformer Optimization (can be controlled via localStorage in dev)
+  const TRANSFORMER_OPTIMIZATION_ENABLED = process.env.NODE_ENV === 'development'
+    ? localStorage.getItem('transformer-optimization') !== 'false' // Default true in dev, can be disabled
+    : true; // Always enabled in production
+
+  // Feature Flag for Direct Stage Panning Optimization
+  const DIRECT_PANNING_ENABLED = process.env.NODE_ENV === 'development'
+    ? localStorage.getItem('direct-panning') !== 'false' // Default true in dev, can be disabled
+    : true; // Always enabled in production
+
   // Debounced Canvas Updates for smoother performance
   const useDebouncedCanvasUpdate = () => {
     const timeoutRef = useRef<NodeJS.Timeout>();
@@ -178,6 +191,42 @@ export default function Canvas() {
     }
   }, [debouncedBatchDraw]);
 
+  // Transformer optimization: Batched transformer updates for better performance
+  const batchedTransformerUpdate = useCallback(() => {
+    if (!transformerRef.current) return;
+
+    if (TRANSFORMER_OPTIMIZATION_ENABLED) {
+      // Optimized: Use requestAnimationFrame for smoother updates
+      requestAnimationFrame(() => {
+        try {
+          if (transformerRef.current) {
+            transformerRef.current.forceUpdate();
+            smartCanvasUpdate(true); // Immediate canvas update for transformer
+          }
+        } catch (error) {
+          console.debug('Batched transformer update error:', error);
+          // Fallback to legacy method
+          legacyTransformerUpdate();
+        }
+      });
+    } else {
+      // Legacy method when optimization is disabled
+      legacyTransformerUpdate();
+    }
+  }, [smartCanvasUpdate]);
+
+  // Legacy transformer update (original implementation)
+  const legacyTransformerUpdate = useCallback(() => {
+    if (!transformerRef.current) return;
+
+    try {
+      transformerRef.current.forceUpdate();
+      transformerRef.current.getLayer()?.batchDraw();
+    } catch (error) {
+      console.debug('Legacy transformer update error:', error);
+    }
+  }, []);
+
   // Use custom hooks for state management
   const drawingState = useCanvasDrawing();
   const selectionState = useCanvasSelection();
@@ -206,6 +255,17 @@ export default function Canvas() {
     isPanning, setIsPanning, panStart, setPanStart, hasPanned, setHasPanned,
     hasManualZoom, setHasManualZoom, lastMousePos, setLastMousePos
   } = zoomPanState;
+
+  // Sync pending stage position to state after panning ends
+  useEffect(() => {
+    if (!isPanning && pendingStagePos) {
+      // Only update state if the position actually changed
+      if (pendingStagePos.x !== stagePos.x || pendingStagePos.y !== stagePos.y) {
+        setStagePos(pendingStagePos);
+      }
+      setPendingStagePos(null);
+    }
+  }, [isPanning, pendingStagePos, stagePos.x, stagePos.y, setStagePos]);
 
   // For backward compatibility
   const setZoomFromContext = setZoom;
@@ -1046,12 +1106,9 @@ export default function Canvas() {
             
             if (validNodes.length > 0) {
               transformer.nodes(validNodes);
-              transformer.forceUpdate();
               transformer.moveToTop();
-              const layer = transformer.getLayer();
-              if (layer) {
-                layer.batchDraw();
-              }
+              // Use batched transformer update for better performance
+              batchedTransformerUpdate();
             } else {
               // All nodes are invalid, clear transformer
               transformer.nodes([]);
@@ -1163,8 +1220,7 @@ export default function Canvas() {
                   };
                 };
                 
-                transformer.forceUpdate();
-                transformer.getLayer()?.batchDraw();
+                batchedTransformerUpdate();
               }
             }
           } catch {
@@ -1186,8 +1242,8 @@ export default function Canvas() {
         if ((transformer as any).__originalGetClientRect) {
           transformer.getClientRect = (transformer as any).__originalGetClientRect;
           delete (transformer as any).__originalGetClientRect;
-          transformer.forceUpdate();
-          transformer.getLayer()?.batchDraw();
+          // Use batched transformer update for better performance
+          batchedTransformerUpdate();
         }
       }
     }
@@ -1217,11 +1273,7 @@ export default function Canvas() {
           });
           
           if (validNodes.length > 0 && validNodes.length === nodes.length) {
-            transformer.forceUpdate();
-            const layer = transformer.getLayer();
-            if (layer) {
-              layer.batchDraw();
-            }
+            batchedTransformerUpdate();
           } else if (validNodes.length !== nodes.length) {
             // Some nodes are invalid, update the transformer with only valid nodes
             if (validNodes.length > 0) {
@@ -1230,10 +1282,7 @@ export default function Canvas() {
               // All nodes are invalid, clear transformer
               transformer.nodes([]);
             }
-            const layer = transformer.getLayer();
-            if (layer) {
-              layer.batchDraw();
-            }
+            batchedTransformerUpdate();
           }
         } catch (error) {
           // Silently handle transformer update errors (nodes may have been destroyed)
@@ -1313,11 +1362,7 @@ export default function Canvas() {
           if (validNodes.length > 0 && transformerRef.current) {
             try {
               transformer.nodes(validNodes);
-              transformer.forceUpdate();
-              const layer = transformer.getLayer();
-              if (layer) {
-                layer.batchDraw();
-              }
+              batchedTransformerUpdate();
             } catch (error) {
               // Silently handle transformer update errors (nodes may have been destroyed)
               console.debug('Transformer update error:', error);
@@ -1698,12 +1743,20 @@ export default function Canvas() {
         const pos = e.target.getStage()?.getPointerPosition();
         if (pos) {
           setHasPanned(true);
-          setStagePos(
-            clampStagePosition({
-              x: pos.x - panStart.x,
-              y: pos.y - panStart.y
-            })
-          );
+          const newPos = clampStagePosition({
+            x: pos.x - panStart.x,
+            y: pos.y - panStart.y
+          });
+
+          if (DIRECT_PANNING_ENABLED && stageRef.current) {
+            // Direct stage manipulation for better performance
+            stageRef.current.x(newPos.x);
+            stageRef.current.y(newPos.y);
+            setPendingStagePos(newPos);
+          } else {
+            // Fallback to state updates
+            setStagePos(newPos);
+          }
         }
       }
       return;
@@ -1713,12 +1766,20 @@ export default function Canvas() {
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
         setHasPanned(true);
-        setStagePos(
-          clampStagePosition({
-            x: pos.x - panStart.x,
-            y: pos.y - panStart.y
-          })
-        );
+        const newPos = clampStagePosition({
+          x: pos.x - panStart.x,
+          y: pos.y - panStart.y
+        });
+
+        if (DIRECT_PANNING_ENABLED && stageRef.current) {
+          // Direct stage manipulation for better performance
+          stageRef.current.x(newPos.x);
+          stageRef.current.y(newPos.y);
+          setPendingStagePos(newPos);
+        } else {
+          // Fallback to state updates
+          setStagePos(newPos);
+        }
 
         // Force transformer update during panning to prevent selection rectangle delay
         if (transformerRef.current) {

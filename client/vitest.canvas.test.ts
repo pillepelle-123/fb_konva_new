@@ -8,7 +8,9 @@ export default defineConfig({
     environment: 'jsdom',
     include: [
       'src/components/features/editor/canvas/__tests__/canvas-listening-optimization.test.tsx',
-      'src/components/features/editor/canvas/__tests__/canvas-debounced-updates.test.tsx'
+      'src/components/features/editor/canvas/__tests__/canvas-debounced-updates.test.tsx',
+      'src/components/features/editor/canvas/__tests__/canvas-transformer-optimization.test.tsx',
+      'src/components/features/editor/canvas/__tests__/canvas-direct-panning.test.tsx'
     ],
     exclude: ['node_modules', 'dist'],
   },
