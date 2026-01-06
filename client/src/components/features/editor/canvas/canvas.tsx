@@ -138,6 +138,13 @@ export default function Canvas() {
     ? localStorage.getItem('direct-panning') !== 'false' // Default true in dev, can be disabled
     : true; // Always enabled in production
 
+  // Feature Flag for Adaptive Pixel Ratio (dynamically adjust rendering resolution based on zoom)
+  const ADAPTIVE_PIXEL_RATIO_ENABLED = true;
+  /*
+  = process.env.NODE_ENV === 'development'
+    ? localStorage.getItem('adaptive-pixel-ratio') !== 'false' // Default true in dev, can be disabled
+    : true; // Always enabled in production
+  */
   // Debounced Canvas Updates for smoother performance
   const useDebouncedCanvasUpdate = () => {
     const timeoutRef = useRef<NodeJS.Timeout>();
@@ -811,6 +818,19 @@ export default function Canvas() {
     previewPageOffsetX,
     pageOffsetY
   } = canvasDimensions;
+
+  // Adaptive Pixel Ratio - reduce rendering resolution at high zoom levels for better performance
+  const adaptivePixelRatio = useMemo(() => {
+    if (!ADAPTIVE_PIXEL_RATIO_ENABLED) return 1;
+
+    // At zoom levels >= 200%, reduce pixel ratio to improve performance
+    // At zoom levels >= 160%, reduce slightly for medium-high zoom
+    // At zoom levels < 50%, slightly increase for sharper display on high-DPI screens
+    if (zoom >= 2.0) return 0.75; // 25% reduction at high zoom
+    if (zoom >= 1.6) return 0.85; // 15% reduction at medium-high zoom
+    if (zoom < 0.5) return 1.25; // Slight increase for very low zoom
+    return 1; // Standard ratio for normal zoom levels
+  }, [zoom, ADAPTIVE_PIXEL_RATIO_ENABLED]);
 
   // Alert helper functions
   const showCoverRestrictionAlert = useCallback(
@@ -3932,6 +3952,7 @@ export default function Canvas() {
           zoom={zoom}
           stagePos={stagePos}
           activeTool={state.activeTool}
+          pixelRatio={adaptivePixelRatio}
           onClick={handleStageClick}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}

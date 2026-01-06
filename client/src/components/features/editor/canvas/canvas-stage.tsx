@@ -8,6 +8,7 @@ interface CanvasStageProps {
   zoom: number;
   stagePos: { x: number; y: number };
   activeTool: string;
+  pixelRatio?: number; // Adaptive pixel ratio for performance optimization
   onClick?: (e: Konva.KonvaEventObject<MouseEvent>) => void;
   onMouseDown?: (e: Konva.KonvaEventObject<MouseEvent>) => void;
   onMouseMove?: (e: Konva.KonvaEventObject<MouseEvent>) => void;
@@ -25,6 +26,7 @@ const CanvasStage = forwardRef<Konva.Stage, CanvasStageProps>(({
   zoom,
   stagePos,
   activeTool,
+  pixelRatio = 1,
   onClick,
   onMouseDown,
   onMouseMove,
@@ -48,7 +50,7 @@ const CanvasStage = forwardRef<Konva.Stage, CanvasStageProps>(({
       height={height}
       scaleX={zoom}
       scaleY={zoom}
-      pixelRatio={1}
+      pixelRatio={pixelRatio}
       onClick={interactive ? onClick : undefined}
       onTap={interactive ? onClick : undefined}
       onMouseDown={interactive ? onMouseDown : undefined}
