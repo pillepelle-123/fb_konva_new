@@ -140,11 +140,12 @@ export default function Canvas() {
 
   // Feature Flag for Adaptive Pixel Ratio (dynamically adjust rendering resolution based on zoom)
   const ADAPTIVE_PIXEL_RATIO_ENABLED = true;
-  /*
-  = process.env.NODE_ENV === 'development'
-    ? localStorage.getItem('adaptive-pixel-ratio') !== 'false' // Default true in dev, can be disabled
+
+  // Feature Flag for Adaptive Image Resolution (load images at different resolutions based on zoom)
+  const ADAPTIVE_IMAGE_RESOLUTION_ENABLED = process.env.NODE_ENV === 'development'
+    ? localStorage.getItem('adaptive-image-resolution') !== 'false' // Default true in dev, can be disabled
     : true; // Always enabled in production
-  */
+
   // Debounced Canvas Updates for smoother performance
   const useDebouncedCanvasUpdate = () => {
     const timeoutRef = useRef<NodeJS.Timeout>();

@@ -1,8 +1,8 @@
-import { defineConfig } from 'vitest/config';
+﻿import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react],
   test: {
     globals: true,
     environment: 'jsdom',
@@ -11,7 +11,9 @@ export default defineConfig({
       'src/components/features/editor/canvas/__tests__/canvas-debounced-updates.test.tsx',
       'src/components/features/editor/canvas/__tests__/canvas-transformer-optimization.test.tsx',
       'src/components/features/editor/canvas/__tests__/canvas-direct-panning.test.tsx',
-      'src/components/features/editor/canvas/__tests__/canvas-adaptive-pixel-ratio.test.tsx'
+      'src/components/features/editor/canvas/__tests__/canvas-adaptive-pixel-ratio.test.tsx',
+      'src/utils/__tests__/image-resolution-utils.test.ts',
+      'src/components/features/editor/canvas-items/__tests__/image-adaptive-resolution.test.tsx'
     ],
     exclude: ['node_modules', 'dist'],
   },

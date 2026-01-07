@@ -9,6 +9,12 @@ import type { CanvasElement } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import { useEditor } from '../../../../context/editor-context';
 import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
+import { getAdaptiveImageUrl, type AdaptiveImageOptions } from '../../../../utils/image-resolution-utils';
+
+// Feature Flag for Adaptive Image Resolution
+const ADAPTIVE_IMAGE_RESOLUTION_ENABLED = process.env.NODE_ENV === 'development'
+  ? localStorage.getItem('adaptive-image-resolution') !== 'false' // Default true in dev, can be disabled
+  : true; // Always enabled in production
 
 type ClipPosition = 
   | 'left-top' 
@@ -111,6 +117,11 @@ export function getCrop(
 
 export default function Image(props: CanvasItemProps) {
   const { element, zoom = 1 } = props;
+
+  // Feature Flag for Adaptive Image Resolution (serve images at optimal resolution based on zoom)
+  const ADAPTIVE_IMAGE_RESOLUTION_ENABLED = process.env.NODE_ENV === 'development'
+    ? localStorage.getItem('adaptive-image-resolution') !== 'false' // Default true in dev, can be disabled
+    : true; // Always enabled in production
   const { token } = useAuth();
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const imageRef = useRef<Konva.Image>(null);
@@ -188,6 +199,13 @@ export default function Image(props: CanvasItemProps) {
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
         imageUrl = `${apiUrl}/images/proxy?url=${encodeURIComponent(element.src)}&token=${encodeURIComponent(token)}`;
       }
+
+      // Apply adaptive image resolution based on zoom level
+      // This optimizes memory usage by serving images at appropriate resolutions
+      imageUrl = getAdaptiveImageUrl(imageUrl, {
+        zoom: zoom || 1,
+        enabled: ADAPTIVE_IMAGE_RESOLUTION_ENABLED
+      });
       
       const img = new window.Image();
       // Only set crossOrigin for S3 URLs or external URLs, not for local URLs
@@ -198,23 +216,46 @@ export default function Image(props: CanvasItemProps) {
       
       img.onload = () => setImage(img);
       img.onerror = (error) => {
-        console.warn('Failed to load image with CORS, trying without:', error);
-        // Fallback: try loading without CORS (only for non-S3 URLs)
-        if (!isS3Url) {
-          const fallbackImg = new window.Image();
-          // Don't set crossOrigin for fallback
-          fallbackImg.onload = () => setImage(fallbackImg);
-          fallbackImg.onerror = () => console.error('Failed to load image:', element.src);
-          fallbackImg.src = element.src;
+        console.warn('Failed to load image, trying fallback strategies:', error);
+
+        // First fallback: Try original URL if adaptive URL failed
+        const originalImageUrl = element.src;
+        if (isS3Url && token && imageUrl !== originalImageUrl) {
+          console.warn('Adaptive image resolution failed, trying original URL');
+          const originalImg = new window.Image();
+          originalImg.crossOrigin = 'anonymous';
+          originalImg.onload = () => setImage(originalImg);
+          originalImg.onerror = () => {
+            // Second fallback: Try without CORS for non-S3 URLs
+            if (!isS3Url) {
+              const fallbackImg = new window.Image();
+              fallbackImg.onload = () => setImage(fallbackImg);
+              fallbackImg.onerror = () => console.error('Failed to load image after all fallbacks:', element.src);
+              fallbackImg.src = element.src;
+            } else {
+              console.error('Failed to load S3 image after all attempts:', element.src);
+            }
+          };
+          const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+          originalImg.src = `${apiUrl}/images/proxy?url=${encodeURIComponent(element.src)}&token=${encodeURIComponent(token)}`;
         } else {
-          console.error('Failed to load S3 image through proxy:', element.src);
+          // Fallback: try loading without CORS (only for non-S3 URLs)
+          if (!isS3Url) {
+            const fallbackImg = new window.Image();
+            // Don't set crossOrigin for fallback
+            fallbackImg.onload = () => setImage(fallbackImg);
+            fallbackImg.onerror = () => console.error('Failed to load image:', element.src);
+            fallbackImg.src = element.src;
+          } else {
+            console.error('Failed to load S3 image through proxy:', element.src);
+          }
         }
       };
       img.src = imageUrl;
     } else {
       setImage(null);
     }
-  }, [element.type, element.src, token]);
+  }, [element.type, element.src, token, zoom, ADAPTIVE_IMAGE_RESOLUTION_ENABLED]);
 
   // onTransform Handler direkt auf dem Image-Node - genau wie in der React-Konva-Lösung
   // Basierend auf: https://konvajs.org/docs/sandbox/Scale_Image_To_Fit.html
