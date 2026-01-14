@@ -14,9 +14,11 @@ import { Label } from '../../../ui/primitives/label';
 import { ThemeSelector } from '../templates/theme-selector';
 import { getGlobalThemeDefaults, getGlobalTheme, getThemePaletteId, getThemePageBackgroundColors } from '../../../../utils/global-themes';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
-import { PaletteSelector } from '../templates/palette-selector';
+import { PaletteSelector, type PaletteSelectorRef } from '../templates/palette-selector';
+import { type LayoutSelectorWrapperRef } from '../layout-selector-wrapper';
+import { type ThemeSelectorWrapperRef } from '../theme-selector-wrapper';
 import { commonToActual } from '../../../../utils/font-size-converter';
-import { useState } from 'react';
+import { useState, useRef, useImperativeHandle, forwardRef } from 'react';
 import ConfirmationDialog from '../../../ui/overlays/confirmation-dialog';
 import { BackgroundImageSelector } from './background-image-selector';
 import { applyBackgroundImageTemplate, getBackgroundImageWithUrl } from '../../../../utils/background-image-utils';
@@ -67,7 +69,12 @@ interface GeneralSettingsProps {
   setShowBookThemeSelector?: (value: boolean) => void;
 }
 
-export function GeneralSettings({
+export interface GeneralSettingsRef {
+  applyCurrentSelector: () => void;
+}
+
+export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsProps>((props, ref) => {
+  const {
   showColorSelector,
   setShowColorSelector,
   showBackgroundSettings,
@@ -104,7 +111,7 @@ export function GeneralSettings({
   setShowPageThemeSelector: externalSetShowPageThemeSelector,
   showBookThemeSelector: externalShowBookThemeSelector = false,
   setShowBookThemeSelector: externalSetShowBookThemeSelector
-}: GeneralSettingsProps) {
+  } = props;
   const { state, dispatch, canEditSettings } = useEditor();
   const { user } = useAuth();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
@@ -138,6 +145,34 @@ export function GeneralSettings({
   const [bookThemeKey, setBookThemeKey] = useState(0);
   const [pagePaletteKey, setPagePaletteKey] = useState(0);
   const [bookPaletteKey, setBookPaletteKey] = useState(0);
+
+  // Refs for selector components
+  const pagePaletteRef = useRef<PaletteSelectorRef>(null);
+  const bookPaletteRef = useRef<PaletteSelectorRef>(null);
+  const pageLayoutRef = useRef<LayoutSelectorWrapperRef>(null);
+  const bookLayoutRef = useRef<LayoutSelectorWrapperRef>(null);
+  const pageThemeRef = useRef<ThemeSelectorWrapperRef>(null);
+  const bookThemeRef = useRef<ThemeSelectorWrapperRef>(null);
+
+  // Expose applyCurrentSelector method to parent
+  useImperativeHandle(ref, () => ({
+    applyCurrentSelector: () => {
+      if (showPagePalette && pagePaletteRef.current) {
+        pagePaletteRef.current.apply();
+      } else if (showBookPalette && bookPaletteRef.current) {
+        bookPaletteRef.current.apply();
+      } else if (showPageLayout && pageLayoutRef.current) {
+        pageLayoutRef.current.apply();
+      } else if (showBookLayout && bookLayoutRef.current) {
+        bookLayoutRef.current.apply();
+      } else if (showPageThemeSelector && pageThemeRef.current) {
+        pageThemeRef.current.apply();
+      } else if (showBookThemeSelector && bookThemeRef.current) {
+        bookThemeRef.current.apply();
+      }
+    }
+  }));
+
 
   const stripColorFields = (obj: any) => {
     if (!obj || typeof obj !== 'object') {
@@ -1327,6 +1362,7 @@ export function GeneralSettings({
     const pageActiveTemplates = getActiveTemplateIds(currentPage, state.currentBook);
     return (
       <PaletteSelector
+        ref={pagePaletteRef}
         key={`page-palette-${pagePaletteKey}`}
         onBack={() => {
           setShowPagePalette(false);
@@ -1343,6 +1379,7 @@ export function GeneralSettings({
     const bookActiveTemplates = getActiveTemplateIds(undefined, state.currentBook);
     return (
       <PaletteSelector
+        ref={bookPaletteRef}
         key={`book-palette-${bookPaletteKey}`}
         onBack={() => {
           setShowBookPalette(false);
@@ -1358,6 +1395,7 @@ export function GeneralSettings({
   if (showPageLayout) {
     return (
       <LayoutSelectorWrapper
+        ref={pageLayoutRef}
         key={`page-layout-${pageLayoutKey}`}
         onBack={() => {
           setShowPageLayout(false);
@@ -1372,6 +1410,7 @@ export function GeneralSettings({
   if (showBookLayout) {
     return (
       <LayoutSelectorWrapper
+        ref={bookLayoutRef}
         key={`book-layout-${bookLayoutKey}`}
         onBack={() => {
           setShowBookLayout(false);
@@ -1386,6 +1425,7 @@ export function GeneralSettings({
   if (showPageThemeSelector) {
     return (
       <ThemeSelectorWrapper
+        ref={pageThemeRef}
         key={`page-theme-${pageThemeKey}`}
         onBack={() => {
           setShowPageThemeSelector(false);
@@ -1400,6 +1440,7 @@ export function GeneralSettings({
   if (showBookThemeSelector) {
     return (
       <ThemeSelectorWrapper
+        ref={bookThemeRef}
         key={`book-theme-${bookThemeKey}`}
         onBack={() => {
           setShowBookThemeSelector(false);
@@ -1734,4 +1775,6 @@ export function GeneralSettings({
       </div>
     </>
   );
-}
+});
+
+GeneralSettings.displayName = 'GeneralSettings';

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import { Button } from '../../ui/primitives/button';
 import { Check, X } from 'lucide-react';
 import { LayoutSelector as TemplateLayoutSelector } from './templates/layout-selector';
@@ -17,7 +17,11 @@ interface LayoutSelectorWrapperProps {
   previewPosition?: 'top' | 'bottom'; // 'bottom' = Preview below list (default), 'top' = Preview above list
 }
 
-export function LayoutSelectorWrapper({ onBack, title, isBookLevel = false }: LayoutSelectorWrapperProps) {
+export interface LayoutSelectorWrapperRef {
+  apply: () => void;
+}
+
+export const LayoutSelectorWrapper = forwardRef<LayoutSelectorWrapperRef, LayoutSelectorWrapperProps>(({ onBack, title, isBookLevel = false }, ref) => {
   const { state, dispatch } = useEditor();
   
   // Get active layout template ID with inheritance fallback
@@ -53,6 +57,11 @@ export function LayoutSelectorWrapper({ onBack, title, isBookLevel = false }: La
   const [isExporting, setIsExporting] = useState(false);
   const originalPageIndexRef = useRef<number>(state.activePageIndex);
   const previewPageIndexRef = useRef<number | null>(null);
+
+  // Expose apply method to parent component
+  useImperativeHandle(ref, () => ({
+    apply: handleApply
+  }));
   
   // Cleanup: Lösche Preview-Seite wenn Component unmountet
   useEffect(() => {
@@ -439,5 +448,7 @@ export function LayoutSelectorWrapper({ onBack, title, isBookLevel = false }: La
       />
     </div>
   );
-}
+});
+
+LayoutSelectorWrapper.displayName = 'LayoutSelectorWrapper';
 

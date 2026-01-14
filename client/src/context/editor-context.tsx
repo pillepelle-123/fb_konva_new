@@ -3267,7 +3267,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             const activeTheme = action.payload.themeId || bookThemeId || 'default';
 
             // Use centralized theme application function
-            const updatedElement = applyThemeToElementConsistent(element, activeTheme, effectiveBookColorPaletteId);
+            // When preserveColors is true, don't apply palette colors - only theme defaults
+            const paletteIdToUse = action.payload.preserveColors ? undefined : effectiveBookColorPaletteId;
+            const updatedElement = applyThemeToElementConsistent(element, activeTheme, paletteIdToUse);
 
             // Preserve colors if requested (for theme-only application)
             if (action.payload.preserveColors) {

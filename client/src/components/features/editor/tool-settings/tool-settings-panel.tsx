@@ -1,9 +1,10 @@
-import { useState, useEffect, useImperativeHandle, forwardRef, useCallback } from 'react';
+import { useState, useEffect, useImperativeHandle, forwardRef, useCallback, useRef } from 'react';
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import { ToolSettingsContainer } from './tool-settings-container';
 import { ToolSettingsHeader } from './tool-settings-header';
 import { ToolSettingsContent } from './tool-settings-content';
+import { GeneralSettings, type GeneralSettingsRef } from './general-settings';
 import { Modal } from '../../../ui/overlays/modal';
 import { QuestionSelectorModal } from '../question-selector-modal';
 import ImagesContent from '../../images/images-content';
@@ -66,6 +67,7 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
   const [showBookThemeSelector, setShowBookThemeSelector] = useState(false);
   const [selectorTitle, setSelectorTitle] = useState<string | null>(null);
   const [bookChatConversation, setBookChatConversation] = useState<Conversation | null>(null);
+  const generalSettingsRef = useRef<GeneralSettingsRef>(null);
   const [bookChatLoading, setBookChatLoading] = useState(false);
   const [bookChatError, setBookChatError] = useState<string | null>(null);
   const [bookChatShouldFocusInput, setBookChatShouldFocusInput] = useState(false);
@@ -357,15 +359,19 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
             setShowBookThemeSelector(false);
           }}
           onApply={() => {
-            // Apply logic - for now, just close the dialogs
-            // The actual apply logic is handled by the individual components
-            // This will be enhanced later to trigger the apply actions
-            setShowPagePalette(false);
-            setShowBookPalette(false);
-            setShowPageLayout(false);
-            setShowBookLayout(false);
-            setShowPageThemeSelector(false);
-            setShowBookThemeSelector(false);
+            // Trigger apply actions for the active selector
+            if (showPagePalette || showBookPalette || showPageLayout || showBookLayout || showPageThemeSelector || showBookThemeSelector) {
+              // Call applyCurrentSelector on the GeneralSettings component
+              generalSettingsRef.current?.applyCurrentSelector();
+
+              // Close the dialogs
+              setShowPagePalette(false);
+              setShowBookPalette(false);
+              setShowPageLayout(false);
+              setShowBookLayout(false);
+              setShowPageThemeSelector(false);
+              setShowBookThemeSelector(false);
+            }
           }}
           canApply={showPagePalette || showBookPalette || showPageLayout || showBookLayout || showPageThemeSelector || showBookThemeSelector}
         />
@@ -466,6 +472,7 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
           showBookThemeSelector={showBookThemeSelector}
           setShowBookThemeSelector={setShowBookThemeSelector}
           setSelectorTitle={setSelectorTitle}
+          generalSettingsRef={generalSettingsRef}
           />
         )}
       </ToolSettingsContainer>

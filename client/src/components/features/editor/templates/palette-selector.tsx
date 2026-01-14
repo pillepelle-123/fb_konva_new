@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import { Button } from '../../../ui/primitives/button';
 import { RotateCcw, Check, X, Eye, Palette } from 'lucide-react';
 import { Label } from '../../../ui/primitives/label';
@@ -20,7 +20,11 @@ interface PaletteSelectorProps {
   themeId?: string; // Theme ID to get default palette from
 }
 
-export function PaletteSelector({ onBack, title, isBookLevel = false, previewPosition = 'bottom', themeId }: PaletteSelectorProps) {
+export interface PaletteSelectorRef {
+  apply: () => void;
+}
+
+export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorProps>(({ onBack, title, isBookLevel = false, previewPosition = 'bottom', themeId }, ref) => {
   const { state, dispatch } = useEditor();
   const [selectedCategory, setSelectedCategory] = useState<string>('Default');
   
@@ -68,7 +72,12 @@ export function PaletteSelector({ onBack, title, isBookLevel = false, previewPos
   const [isExporting, setIsExporting] = useState(false);
   const originalPageIndexRef = useRef<number>(state.activePageIndex);
   const previewPageIndexRef = useRef<number | null>(null);
-  
+
+  // Expose apply method to parent component
+  useImperativeHandle(ref, () => ({
+    apply: handleApply
+  }));
+
   // Cleanup: Lösche Preview-Seite wenn Component unmountet
   useEffect(() => {
     return () => {
@@ -1009,5 +1018,7 @@ export function PaletteSelector({ onBack, title, isBookLevel = false, previewPos
       />
     </>
   );
-}
+});
+
+PaletteSelector.displayName = 'PaletteSelector';
 

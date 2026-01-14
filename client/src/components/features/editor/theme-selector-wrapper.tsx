@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import { Button } from '../../ui/primitives/button';
 import { Check, X } from 'lucide-react';
 import { ThemeSelector } from './templates/theme-selector';
@@ -18,7 +18,11 @@ interface ThemeSelectorWrapperProps {
   isBookLevel?: boolean;
 }
 
-export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: ThemeSelectorWrapperProps) {
+export interface ThemeSelectorWrapperRef {
+  apply: () => void;
+}
+
+export const ThemeSelectorWrapper = forwardRef<ThemeSelectorWrapperRef, ThemeSelectorWrapperProps>(({ onBack, title, isBookLevel = false }, ref) => {
   const { state, dispatch } = useEditor();
   const buildBackgroundFromTheme = (
     theme: ReturnType<typeof getGlobalTheme> | undefined,
@@ -97,7 +101,12 @@ export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: The
   const originalPageIndexRef = useRef<number>(state.activePageIndex);
   const previewPageIndexRef = useRef<number | null>(null);
   const hasUserSelectedThemeRef = useRef<boolean>(false);
-  
+
+  // Expose apply method to parent component
+  useImperativeHandle(ref, () => ({
+    apply: handleApply
+  }));
+
   // Update selectedTheme when currentTheme changes (only if user hasn't manually selected)
   useEffect(() => {
     if (!hasUserSelectedThemeRef.current) {
@@ -186,9 +195,24 @@ export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: The
   
   const handleApply = () => {
     if (!selectedTheme) return;
-    
+
     if (isBookLevel) {
+      // Check if book is using theme's default palette before changing theme
+      const currentBookPaletteId = state.currentBook?.colorPaletteId;
+      const currentBookThemeId = state.currentBook?.bookTheme || 'default';
+      const currentThemeDefaultPaletteId = getThemePaletteId(currentBookThemeId);
+      const isBookUsingThemeDefaultPalette = currentBookPaletteId === currentThemeDefaultPaletteId;
+
       dispatch({ type: 'SET_BOOK_THEME', payload: selectedTheme });
+
+      // If book was using theme's default palette, update to new theme's default palette
+      if (isBookUsingThemeDefaultPalette) {
+        const newThemeDefaultPaletteId = getThemePaletteId(selectedTheme);
+        dispatch({
+          type: 'SET_BOOK_COLOR_PALETTE',
+          payload: { colorPaletteId: newThemeDefaultPaletteId || null }
+        });
+      }
 
       if (state.currentBook) {
         state.currentBook.pages.forEach((page, pageIndex) => {
@@ -215,26 +239,9 @@ export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: The
               pageIndex,
               themeId: themeForElements,
               skipHistory: true,
-              preserveColors: false // Don't preserve colors - we want to apply theme/palette fully
+              preserveColors: true // Preserve existing colors - only change page backgrounds
             }
           });
-          
-          // Apply palette colors to elements if palette is available
-          const activePaletteId = page?.colorPaletteId || state.currentBook?.colorPaletteId || null;
-          if (activePaletteId) {
-            const palette = colorPalettes.find(p => p.id === activePaletteId);
-            if (palette) {
-              dispatch({
-                type: 'APPLY_COLOR_PALETTE',
-                payload: {
-                  palette,
-                  pageIndex,
-                  applyToAllPages: false,
-                  skipHistory: true
-                }
-              });
-            }
-          }
         });
       }
     } else {
@@ -255,35 +262,42 @@ export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: The
           pageIndex: state.activePageIndex,
           themeId: resolvedThemeId,
           skipHistory: true,
-          preserveColors: false // Don't preserve colors - we want to apply theme/palette fully
+          preserveColors: true // Preserve existing colors - only change page backgrounds
         }
       });
 
       const theme = getGlobalTheme(resolvedThemeId);
       const currentPage = state.currentBook?.pages[state.activePageIndex];
       if (theme && currentPage) {
-        // Automatisch die neue Theme-Palette anwenden
-        // SET_PAGE_THEME hat die colorPaletteId aktualisiert - jetzt die Elemente neu einfärben
-        const newThemePaletteId = getThemePaletteId(resolvedThemeId);
-        let newPalette: any = null;
-        if (newThemePaletteId) {
-          newPalette = colorPalettes.find(p => p.id === newThemePaletteId);
-          if (newPalette) {
-            dispatch({
-              type: 'APPLY_COLOR_PALETTE',
-              payload: {
-                palette: newPalette,
-                pageIndex: state.activePageIndex,
-                applyToAllPages: false,
-                skipHistory: true
-              }
-            });
-          }
+        // Check if user has "Theme's Default Palette" selected - if so, update to new theme's palette
+        const activePaletteId = currentPage.colorPaletteId || state.currentBook?.colorPaletteId || null;
+        const currentThemeId = currentPage.themeId || state.currentBook?.bookTheme || 'default';
+        const currentThemeDefaultPaletteId = getThemePaletteId(currentThemeId);
+
+        const isUsingThemeDefaultPalette = activePaletteId === currentThemeDefaultPaletteId;
+
+        let paletteToUse;
+        if (isUsingThemeDefaultPalette) {
+          // User has "Theme's Default Palette" selected - update to new theme's default palette
+          const newThemeDefaultPaletteId = getThemePaletteId(resolvedThemeId);
+          paletteToUse = newThemeDefaultPaletteId ? colorPalettes.find(p => p.id === newThemeDefaultPaletteId) || null : null;
+
+          // Update the page's color palette to the new theme's default
+          dispatch({
+            type: 'SET_PAGE_COLOR_PALETTE',
+            payload: {
+              pageIndex: state.activePageIndex,
+              colorPaletteId: newThemeDefaultPaletteId || null
+            }
+          });
+        } else {
+          // User has a specific palette selected - preserve it
+          paletteToUse = activePaletteId ? colorPalettes.find(p => p.id === activePaletteId) || null : null;
         }
 
         const pageColors = getThemePageBackgroundColors(
           resolvedThemeId,
-          newPalette || undefined  // Verwende die neue Palette für Background-Berechnung
+          paletteToUse || undefined  // Use appropriate palette for background calculation
         );
         const backgroundOpacity = theme.pageSettings.backgroundOpacity || 1;
 
@@ -524,4 +538,6 @@ export function ThemeSelectorWrapper({ onBack, title, isBookLevel = false }: The
       />
     </div>
   );
-}
+});
+
+ThemeSelectorWrapper.displayName = 'ThemeSelectorWrapper';

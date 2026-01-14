@@ -24,7 +24,7 @@ import { Tooltip } from '../../../ui';
 
 import { useAuth } from '../../../../context/auth-context';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
-import { GeneralSettings } from './general-settings';
+import { GeneralSettings, type GeneralSettingsRef } from './general-settings';
 import { actualToCommon, commonToActual, COMMON_FONT_SIZE_RANGE } from '../../../../utils/font-size-converter';
 import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE } from '../../../../utils/corner-radius-converter';
 import { getFontFamily as getFontFamilyByName, hasBoldVariant, hasItalicVariant } from '../../../../utils/font-families';
@@ -118,6 +118,7 @@ interface ToolSettingsContentProps {
   showBookThemeSelector?: boolean;
   setShowBookThemeSelector?: (value: boolean) => void;
   setSelectorTitle?: (title: string | null) => void;
+  generalSettingsRef?: React.RefObject<GeneralSettingsRef>;
 }
 
 export function ToolSettingsContent({
@@ -172,7 +173,8 @@ export function ToolSettingsContent({
   setShowPageThemeSelector,
   showBookThemeSelector = false,
   setShowBookThemeSelector,
-  setSelectorTitle
+  setSelectorTitle,
+  generalSettingsRef
 }: ToolSettingsContentProps) {
   const { state, dispatch } = useEditor();
   const { user } = useAuth();
@@ -1123,6 +1125,7 @@ export function ToolSettingsContent({
     if (activeTool === 'select' && state.selectedElementIds.length === 0) {
       return (
         <GeneralSettings
+          ref={generalSettingsRef}
           showColorSelector={showColorSelector}
           setShowColorSelector={setShowColorSelector}
           showBackgroundSettings={showBackgroundSettings}
