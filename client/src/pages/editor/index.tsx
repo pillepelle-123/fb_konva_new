@@ -650,11 +650,24 @@ function EditorContent() {
       }, 0);
     };
 
+    const handleAddPagePairAtIndex = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { insertionIndex } = customEvent.detail;
+      dispatch({ type: 'ADD_PAGE_PAIR_AT_INDEX', payload: { insertionIndex } });
+
+      // Navigate to the first newly added page
+      setTimeout(() => {
+        dispatch({ type: 'SET_ACTIVE_PAGE', payload: insertionIndex });
+      }, 0);
+    };
+
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('addPage', handleAddPage);
+    window.addEventListener('addPagePairAtIndex', handleAddPagePairAtIndex);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('addPage', handleAddPage);
+      window.removeEventListener('addPagePairAtIndex', handleAddPagePairAtIndex);
     };
   }, [undo, redo, saveBook, state.currentBook, dispatch]);
 

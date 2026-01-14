@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, FileText } from 'lucide-react';
+import { ChevronLeft, FileText, Plus } from 'lucide-react';
 import { Button } from '../../../ui/primitives/button';
 import { ButtonGroup } from '../../../ui/composites/button-group';
 import { Tooltip } from '../../../ui/composites/tooltip';
@@ -8,6 +8,7 @@ import ProfilePicture from '../../users/profile-picture';
 // import PagePreview from '../../books/page-preview'; // Disabled but kept for future use
 import { useEditor } from '../../../../context/editor-context';
 import { computePageMetadataEntry } from '../../../../utils/book-structure';
+import { getConsistentColor } from '../../../../utils/consistent-color';
 import type { Page } from '../../../../context/editor-context';
 
 type PagesSubmenuProps = {
@@ -21,6 +22,7 @@ type PagesSubmenuProps = {
   viewMode?: 'default' | 'compact' | 'micro';
   showHeader?: boolean;
   compactLabelMode?: 'default' | 'minimal';
+  onShowAddPageDialog?: (insertionIndex: number) => void;
 };
 
 export function PagesSubmenu({
@@ -33,10 +35,15 @@ export function PagesSubmenu({
   isRestrictedView = false,
   viewMode = 'default',
   showHeader = true,
-  compactLabelMode = 'default'
+  compactLabelMode = 'default',
+  onShowAddPageDialog
 }: PagesSubmenuProps) {
   const { state, ensurePagesLoaded, getPageMetadata: resolvePageMetadata } = useEditor();
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [showAddButton, setShowAddButton] = useState(false);
+  const [addButtonPosition, setAddButtonPosition] = useState<number | null>(null);
+  const [pendingInsertionIndex, setPendingInsertionIndex] = useState<number | null>(null);
+  const hideButtonTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const microScrollRef = useRef<HTMLDivElement | null>(null);
   const book = state.currentBook;
@@ -97,6 +104,15 @@ export function PagesSubmenu({
     },
     [totalPages],
   );
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (hideButtonTimeoutRef.current) {
+        clearTimeout(hideButtonTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Create pair entries based on all pages (including placeholders)
   const pairEntries = useMemo(() => {
@@ -219,6 +235,7 @@ export function PagesSubmenu({
     // Sort entries by startIndex to ensure correct order
     return entries.sort((a, b) => a.startIndex - b.startIndex);
   }, [book, totalPages, pagesByNumber, getGroupingPairId]);
+
 
   if (!book) {
     return null;
@@ -464,54 +481,197 @@ export function PagesSubmenu({
   const microContent = (
     <div
       ref={microScrollRef}
-      className="flex gap-2 overflow-x-auto overflow-y-hidden pb-1 scrollbar-thin"
+      className="flex overflow-x-auto overflow-y-hidden pb-1 scrollbar-thin relative"
+      onMouseLeave={() => {
+        // Delay hiding when leaving the container
+        hideButtonTimeoutRef.current = setTimeout(() => {
+          setShowAddButton(false);
+          setAddButtonPosition(null);
+          setPendingInsertionIndex(null);
+        }, 100);
+      }}
     >
-      {pairEntries.map((pair) => (
-        <div key={pair.pairId} className="flex-shrink-0">
-          <ButtonGroup>
-            {pair.pages.map((page, index) => {
-              if (!page) {
-                return (
-                  <Button key={`placeholder-${pair.pairId}-${index}`} variant="outline" size="xs" className="h-8 w-8 p-0" disabled>
-                    -
+      {pairEntries.map((pair, pairIndex) => (
+        <div key={pair.pairId} className="flex items-center">
+          {/* Invisible spacer that triggers add button */}
+          {pairIndex > 0 && (
+            <div
+              className="w-4 h-8 flex-shrink-0"
+              onMouseEnter={(e) => {
+                // Clear any pending hide timeout
+                if (hideButtonTimeoutRef.current) {
+                  clearTimeout(hideButtonTimeoutRef.current);
+                  hideButtonTimeoutRef.current = null;
+                }
+
+                const rect = e.currentTarget.getBoundingClientRect();
+                const containerRect = e.currentTarget.parentElement?.parentElement?.getBoundingClientRect();
+                if (containerRect) {
+                  const relativeLeft = rect.left - containerRect.left + rect.width / 2;
+                  setAddButtonPosition(relativeLeft);
+
+                  // Calculate insertion index: insert after the pair that comes before this spacer
+                  // pairIndex represents the pair after the spacer, so we want to insert after pair (pairIndex - 1)
+                  const pairBeforeSpacer = pairIndex - 1;
+                  if (pairBeforeSpacer >= 0 && pairEntries[pairBeforeSpacer]) {
+                    // Each pair typically has 2 pages, so insert after 2 * (pairBeforeSpacer + 1) pages
+                    const pagesBeforeInsertion = (pairBeforeSpacer + 1) * 2;
+                    setPendingInsertionIndex(pagesBeforeInsertion);
+                  }
+
+                  setShowAddButton(true);
+                }
+              }}
+              onMouseLeave={() => {
+                // Delay hiding to allow mouse to move to floating button
+                hideButtonTimeoutRef.current = setTimeout(() => {
+                  setShowAddButton(false);
+                  setAddButtonPosition(null);
+                }, 100);
+              }}
+            >
+             <span className="p-1 text-xs text-muted-foreground/50">+</span>
+            </div>
+          )}
+
+          <div className="flex-shrink-0">
+            <ButtonGroup>
+              {pair.pages.map((page, index) => {
+                if (!page) {
+                  return (
+                    <Button key={`placeholder-${pair.pairId}-${index}`} variant="outline" size="xs" className="h-8 w-8 p-0" disabled>
+                      -
+                    </Button>
+                  );
+                }
+                const isActivePage = !page.isPlaceholder && page.id === activePageId;
+                const isNonEditable = isNonEditablePageNumber(page.pageNumber);
+                const isPlaceholder = page.isPlaceholder ?? false;
+                const assignedUser = state.pageAssignments[page.pageNumber] || null;
+                const userColor = assignedUser ? getConsistentColor(assignedUser.name) : isActivePage ? '303a50' : 'e2e8f0';
+                const buttonElement = (
+                  <Button
+                    key={page.id}
+                    variant={isActivePage ? "primary" : "outline"} //"outline"
+                    size="xs"
+                    className="p-0 w-7 rounded-none"
+                    disabled={isNonEditable}
+                    style={{ borderBottom: `5px solid #${userColor}` }}
+                    onMouseEnter={() => {
+                      // Clear any pending timeout and hide immediately
+                      if (hideButtonTimeoutRef.current) {
+                        clearTimeout(hideButtonTimeoutRef.current);
+                        hideButtonTimeoutRef.current = null;
+                      }
+                      setShowAddButton(false);
+                      setAddButtonPosition(null);
+                      setPendingInsertionIndex(null);
+                    }}
+                    onClick={
+                      isNonEditable
+                        ? undefined
+                        : () => {
+                            if (isPlaceholder) {
+                              // Load the page if it's a placeholder
+                              const pageIndex = page.pageNumber - 1; // Convert to 0-based
+                              ensurePagesLoaded(pageIndex, pageIndex + 1);
+                            } else {
+                              const indexToLoad = book.pages.findIndex((p) => p.id === page.id);
+                              if (indexToLoad >= 0) {
+                                ensurePagesLoaded(indexToLoad, indexToLoad + 1);
+                              }
+                            }
+                            onPageSelect(page.pageNumber);
+                          }
+                    }
+                  >
+                    {page.pageNumber}
                   </Button>
                 );
-              }
-              const isActivePage = !page.isPlaceholder && page.id === activePageId;
-              const isNonEditable = isNonEditablePageNumber(page.pageNumber);
-              const isPlaceholder = page.isPlaceholder ?? false;
-              return (
-                <Button
-                  key={page.id}
-                  variant={isActivePage ? "primary" : "outline"} //"outline"
-                  size="xs"
-                  className="p-0 w-7 rounded-none"
-                  disabled={isNonEditable}
-                  onClick={
-                    isNonEditable
-                      ? undefined
-                      : () => {
-                          if (isPlaceholder) {
-                            // Load the page if it's a placeholder
-                            const pageIndex = page.pageNumber - 1; // Convert to 0-based
-                            ensurePagesLoaded(pageIndex, pageIndex + 1);
-                          } else {
-                            const indexToLoad = book.pages.findIndex((p) => p.id === page.id);
-                            if (indexToLoad >= 0) {
-                              ensurePagesLoaded(indexToLoad, indexToLoad + 1);
-                            }
-                          }
-                          onPageSelect(page.pageNumber);
-                        }
-                  }
-                >
-                  {page.pageNumber}
-                </Button>
-              );
-            })}
-          </ButtonGroup>
+
+                // Wrap with tooltip if user is assigned
+                if (assignedUser) {
+                  return (
+                    <Tooltip
+                      side="top"
+                      key={page.id}
+                      content={
+                        <div className="flex items-center gap-2">
+                          <ProfilePicture
+                            name={assignedUser.name}
+                            size="xs"
+                            userId={assignedUser.id}
+                          />
+                          <span>Assigned to {assignedUser.name}</span>
+                        </div>
+                      }
+                    >
+                      {buttonElement}
+                    </Tooltip>
+                  );
+                }
+
+                return buttonElement;
+              })}
+            </ButtonGroup>
+          </div>
         </div>
       ))}
+
+      {/* Floating Add Button */}
+      {showAddButton && addButtonPosition !== null && (
+        <div
+          className={`absolute top-0 flex items-center justify-center transition-all duration-200 ease-out cursor-pointer ${
+            showAddButton ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+          }`}
+          style={{
+            left: `${addButtonPosition}px`,
+            transform: 'translateX(-50%)',
+            zIndex: 10
+          }}
+          onMouseEnter={() => {
+            // Clear any pending hide timeout
+            if (hideButtonTimeoutRef.current) {
+              clearTimeout(hideButtonTimeoutRef.current);
+              hideButtonTimeoutRef.current = null;
+            }
+          }}
+          onMouseLeave={() => {
+            // Delay hiding to allow mouse to move back to spacer or to click
+            hideButtonTimeoutRef.current = setTimeout(() => {
+              setShowAddButton(false);
+              setAddButtonPosition(null);
+              setPendingInsertionIndex(null);
+            }, 500);
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            if (pendingInsertionIndex !== null && onShowAddPageDialog) {
+              // Clear any pending timeout immediately
+              if (hideButtonTimeoutRef.current) {
+                clearTimeout(hideButtonTimeoutRef.current);
+                hideButtonTimeoutRef.current = null;
+              }
+              onShowAddPageDialog(pendingInsertionIndex);
+              // Hide the button after triggering the dialog
+              setShowAddButton(false);
+              setAddButtonPosition(null);
+              setPendingInsertionIndex(null);
+            }
+          }}
+        >
+          <Tooltip side="top" content="Add page pair">
+            <Button
+              variant="outline"
+              size="xs"
+              className="h-8 w-8 p-0 rounded-full bg-background shadow-md hover:bg-accent"
+            >
+              <Plus className="h-3 w-3" />
+            </Button>
+          </Tooltip>
+        </div>
+      )}
     </div>
   );
 
@@ -551,14 +711,16 @@ export function PagesSubmenu({
   }
 
   return (
-    <div className="flex items-start w-full px-4 py-3 gap-4" data-book-id={bookId}>
-      {onClose && (
-        <Button variant="ghost" size="xs" onClick={onClose} className="px-2 h-7">
-          <ChevronLeft className="h-3 w-3 mr-1" />
-          Back
-        </Button>
-      )}
-      {content}
+    <div>
+      <div className="flex items-start w-full px-4 py-3 gap-4" data-book-id={bookId}>
+        {onClose && (
+          <Button variant="ghost" size="xs" onClick={onClose} className="px-2 h-7">
+            <ChevronLeft className="h-3 w-3 mr-1" />
+            Back
+          </Button>
+        )}
+        {content}
+      </div>
     </div>
   );
 }

@@ -812,6 +812,8 @@ type EditorAction =
   | { type: 'MOVE_ELEMENT_UP'; payload: string }
   | { type: 'MOVE_ELEMENT_DOWN'; payload: string }
   | { type: 'ADD_PAGE' }
+  | { type: 'ADD_PAGE_PAIR_AT_INDEX'; payload: { insertionIndex: number } }
+  | { type: 'ADD_EMPTY_PAGE_PAIR_AT_INDEX'; payload: { insertionIndex: number } }
   | { type: 'DELETE_PAGE'; payload: number }
   | { type: 'DUPLICATE_PAGE'; payload: number }
   | { type: 'CREATE_PREVIEW_PAGE'; payload: number } // pageIndex to duplicate
@@ -1930,7 +1932,458 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         Math.min(insertIndex + 1, finalAddState.currentBook!.pages.length - 1)
       );
       return finalAddState;
-    
+
+    case 'ADD_PAGE_PAIR_AT_INDEX': {
+      if (!state.currentBook || state.userRole === 'author') return state;
+      const { insertionIndex } = action.payload;
+      const savedAddPageState = saveToHistory(state, 'Add Spread', {
+        cloneEntireBook: true
+      });
+      const book = savedAddPageState.currentBook!;
+
+      // Get book-level settings
+      const bookThemeId = book.themeId || book.bookTheme || 'default';
+      const bookLayoutTemplateId = book.layoutTemplateId || null;
+      const bookColorPaletteId = book.colorPaletteId || null;
+
+      // Initialize page background with book theme if available
+      let initialBackground: PageBackground = {
+        type: 'color',
+        value: '#ffffff',
+        opacity: 1
+      };
+
+      // Apply book theme to background if set
+      if (bookThemeId && bookThemeId !== 'default') {
+        const theme = getGlobalTheme(bookThemeId);
+        if (theme) {
+          // Get page background colors from palette, not from themes.json
+          const pageColors = getThemePageBackgroundColors(bookThemeId, bookColorPaletteId);
+
+          const backgroundOpacity = theme.pageSettings.backgroundOpacity || 1;
+          const backgroundImageConfig = theme.pageSettings.backgroundImage;
+          let appliedBackgroundImage = false;
+
+          if (backgroundImageConfig && backgroundImageConfig.enabled) {
+            initialBackground = {
+              type: 'image',
+              value: backgroundImageConfig.src,
+              opacity: backgroundOpacity,
+              imageSize: backgroundImageConfig.size || 'cover',
+              imageRepeat: backgroundImageConfig.repeat || false,
+              imagePosition: backgroundImageConfig.position || 'center-middle',
+              imageContainWidthPercent: backgroundImageConfig.containWidthPercent || 100,
+              backgroundImageTemplateId: backgroundImageConfig.templateId
+            };
+            appliedBackgroundImage = true;
+          }
+
+          if (!appliedBackgroundImage) {
+            initialBackground = {
+              type: 'color',
+              value: pageColors.background || '#ffffff',
+              opacity: backgroundOpacity
+            };
+          }
+
+          // Add ruled lines if theme has them
+          if (theme.pageSettings.ruledLines?.enabled) {
+            initialBackground.ruledLines = theme.pageSettings.ruledLines;
+          }
+        }
+      }
+
+      const basePageId = Date.now();
+      const canvasSize = calculatePageDimensions(book.pageSize || 'A4', book.orientation || 'portrait');
+      const spreadPlan = buildSpreadPlanForBook(book, canvasSize);
+
+      const themeContextBook: Book = {
+        ...book,
+        themeId: bookThemeId !== 'default' ? bookThemeId : book.themeId,
+        bookTheme: bookThemeId !== 'default' ? bookThemeId : book.bookTheme,
+        colorPaletteId: bookColorPaletteId || book.colorPaletteId,
+        layoutTemplateId: bookLayoutTemplateId || book.layoutTemplateId
+      } as Book;
+
+      // Prepare tool settings for the new page (clone existing to avoid mutation)
+      const toolSettingsForNewPage: Record<string, any> = savedAddPageState.toolSettings
+        ? { ...savedAddPageState.toolSettings }
+        : {};
+      const hadInitialToolSettings = Object.keys(toolSettingsForNewPage).length > 0;
+
+      // Determine palette to use for tool defaults
+      let paletteToUse: ColorPalette | null = null;
+      if (bookColorPaletteId) {
+        paletteToUse = colorPalettes.find(p => p.id === bookColorPaletteId) || null;
+      }
+
+      if (paletteToUse) {
+        const toolUpdates = {
+          brush: { strokeColor: paletteToUse.colors.primary },
+          line: { strokeColor: paletteToUse.colors.primary },
+          rect: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          circle: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          triangle: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          polygon: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          heart: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          star: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          'speech-bubble': { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          dog: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          cat: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          smiley: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          text: { fontColor: paletteToUse.colors.text || paletteToUse.colors.primary, borderColor: paletteToUse.colors.primary, backgroundColor: paletteToUse.colors.surface || paletteToUse.colors.background },
+          question: { fontColor: paletteToUse.colors.text || paletteToUse.colors.primary, borderColor: paletteToUse.colors.primary, backgroundColor: paletteToUse.colors.surface || paletteToUse.colors.background },
+          answer: { fontColor: paletteToUse.colors.accent || paletteToUse.colors.text || paletteToUse.colors.primary, borderColor: paletteToUse.colors.primary, backgroundColor: paletteToUse.colors.background },
+        };
+        Object.entries(toolUpdates).forEach(([tool, settings]) => {
+          toolSettingsForNewPage[tool] = { ...(toolSettingsForNewPage[tool] || {}), ...settings };
+        });
+      } else if (!hadInitialToolSettings) {
+        // Fallback to theme-based defaults if no book palette
+        const toolUpdates: Record<string, any> = {};
+
+        if (bookThemeId && bookThemeId !== 'default') {
+          const theme = getGlobalTheme(bookThemeId);
+          if (theme) {
+            // Apply theme-based tool defaults
+            const themeTools = theme.toolSettings || {};
+            Object.entries(themeTools).forEach(([tool, settings]) => {
+              toolSettingsForNewPage[tool] = { ...(toolSettingsForNewPage[tool] || {}), ...settings };
+            });
+          }
+        }
+      }
+
+      // Update new page with elements from layout template
+      const newTemplatePage: Page = {
+        id: basePageId + 2,
+        pageNumber: 0,
+        elements: [],
+        background: clonePageBackground(initialBackground),
+        database_id: undefined,
+        layoutTemplateId: book.layoutTemplateId ?? undefined,
+        colorPaletteId: undefined,
+        pageType: 'content',
+        isSpecialPage: false,
+        isLocked: false,
+        isPrintable: true,
+        pagePairId: '',
+        layoutVariation: 'normal',
+        backgroundVariation: 'normal',
+        backgroundTransform: undefined
+      };
+
+      const pageElements = applyVariationToElements(
+        spreadPlan.left.template,
+        spreadPlan.left.variation,
+        canvasSize,
+        spreadPlan.left.seed
+      );
+      const newPageWithLayout: Page = {
+        ...newTemplatePage,
+        elements: pageElements
+      };
+
+      const pairId = generatePagePairId(book.pages);
+      const leftPageId = basePageId;
+      const rightPageId = basePageId + 1;
+
+      const createPageFromPlan = (plan: SpreadPlanPage, pageId: number): Page => {
+        const baseElements = applyVariationToElements(plan.template, plan.variation, canvasSize, plan.seed);
+        const basePage: Page = {
+          id: pageId,
+          pageNumber: 0,
+          elements: baseElements,
+          background: clonePageBackground(initialBackground),
+          database_id: undefined,
+          layoutTemplateId: plan.template?.id ?? book.layoutTemplateId ?? undefined,
+          colorPaletteId: undefined,
+          pageType: 'content',
+          isSpecialPage: false,
+          isLocked: false,
+          isPrintable: true,
+          pagePairId: pairId,
+          layoutVariation: plan.variation,
+          backgroundVariation: plan.background.variation,
+          backgroundTransform: plan.background.transform
+        };
+        return applyThemeAndPaletteToPage(basePage, themeContextBook, toolSettingsForNewPage);
+      };
+
+      const leftPage = createPageFromPlan(spreadPlan.left, leftPageId);
+      const rightPage = createPageFromPlan(spreadPlan.right, rightPageId);
+
+      // Use the specified insertionIndex instead of calculating it
+      const insertIndex = Math.max(0, Math.min(insertionIndex, book.pages.length));
+
+      const updatedPages = [...book.pages];
+      updatedPages.splice(insertIndex, 0, leftPage, rightPage);
+      const renumberedPages = updatedPages.map((page, index) => ({ ...page, pageNumber: index + 1 }));
+
+      const updatedPageAssignments: Record<number, any> = {};
+      Object.entries(savedAddPageState.pageAssignments).forEach(([pageNumStr, assignment]) => {
+        const pageNum = parseInt(pageNumStr, 10);
+        if (Number.isNaN(pageNum)) return;
+        if (pageNum >= insertIndex + 1) {
+          updatedPageAssignments[pageNum + 2] = assignment;
+        } else {
+          updatedPageAssignments[pageNum] = assignment;
+        }
+      });
+      updatedPageAssignments[insertIndex + 1] = null;
+      updatedPageAssignments[insertIndex + 2] = null;
+
+      // Update pagination state to reflect the new total pages
+      const updatedPagination = savedAddPageState.pagePagination
+        ? {
+            ...savedAddPageState.pagePagination,
+            totalPages: renumberedPages.length,
+            loadedPages: {
+              ...savedAddPageState.pagePagination.loadedPages,
+              // Mark the new pages as loaded
+              [insertIndex]: true,
+              [insertIndex + 1]: true,
+            },
+          }
+        : {
+            totalPages: renumberedPages.length,
+            pageSize: PAGE_CHUNK_SIZE,
+            loadedPages: { [insertIndex]: true, [insertIndex + 1]: true },
+          };
+
+      const addPageState = {
+        ...savedAddPageState,
+        toolSettings: toolSettingsForNewPage,
+        currentBook: {
+          ...book,
+          pages: renumberedPages
+        },
+        pageAssignments: updatedPageAssignments,
+        pagePagination: updatedPagination,
+        activePageIndex: insertIndex,
+        hasUnsavedChanges: true
+      };
+      const addPageStateWithInvalidation = invalidatePagePreviews(addPageState, [leftPageId, rightPageId]);
+      let finalAddState = addPageStateWithInvalidation;
+      finalAddState = markPageIndexAsModified(finalAddState, insertIndex);
+      finalAddState = markPageIndexAsModified(
+        finalAddState,
+        Math.min(insertIndex + 1, finalAddState.currentBook!.pages.length - 1)
+      );
+      return finalAddState;
+    }
+
+    case 'ADD_EMPTY_PAGE_PAIR_AT_INDEX': {
+      if (!state.currentBook || state.userRole === 'author') return state;
+      const { insertionIndex } = action.payload;
+      const savedAddPageState = saveToHistory(state, 'Add Empty Spread', {
+        cloneEntireBook: true
+      });
+      const book = savedAddPageState.currentBook!;
+
+      // Get book-level settings
+      const bookThemeId = book.themeId || book.bookTheme || 'default';
+      const bookColorPaletteId = book.colorPaletteId || null;
+
+      // Initialize page background with book theme if available
+      let initialBackground: PageBackground = {
+        type: 'color',
+        value: '#ffffff',
+        opacity: 1
+      };
+
+      // Apply book theme to background if set
+      if (bookThemeId && bookThemeId !== 'default') {
+        const theme = getGlobalTheme(bookThemeId);
+        if (theme) {
+          const pageColors = getThemePageBackgroundColors(bookThemeId, bookColorPaletteId);
+
+          const backgroundOpacity = theme.pageSettings.backgroundOpacity || 1;
+          const backgroundImageConfig = theme.pageSettings.backgroundImage;
+          let appliedBackgroundImage = false;
+
+          if (backgroundImageConfig && backgroundImageConfig.enabled) {
+            const backgroundImages = state.backgroundImages || [];
+            const backgroundImage = backgroundImages.find(img => img.id === backgroundImageConfig.imageId);
+            if (backgroundImage) {
+              initialBackground = {
+                type: 'image',
+                value: backgroundImage.url,
+                opacity: backgroundOpacity,
+                scale: backgroundImageConfig.scale || 1,
+                position: backgroundImageConfig.position || 'center'
+              };
+              appliedBackgroundImage = true;
+            }
+          }
+
+          if (!appliedBackgroundImage && pageColors.background) {
+            initialBackground = {
+              type: 'color',
+              value: pageColors.background,
+              opacity: backgroundOpacity
+            };
+          }
+        }
+      }
+
+      // Prepare tool settings for the new page (clone existing to avoid mutation)
+      const toolSettingsForNewPage: Record<string, any> = savedAddPageState.toolSettings
+        ? { ...savedAddPageState.toolSettings }
+        : {};
+      const hadInitialToolSettings = Object.keys(toolSettingsForNewPage).length > 0;
+
+      // Determine palette to use for tool defaults
+      let paletteToUse: ColorPalette | null = null;
+      if (bookColorPaletteId) {
+        paletteToUse = colorPalettes.find(p => p.id === bookColorPaletteId) || null;
+      }
+
+      if (paletteToUse) {
+        const toolUpdates = {
+          brush: { strokeColor: paletteToUse.colors.primary },
+          line: { strokeColor: paletteToUse.colors.primary },
+          rect: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          circle: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          triangle: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          polygon: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          heart: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          star: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          'speech-bubble': { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          dog: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          cat: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          smiley: { strokeColor: paletteToUse.colors.primary, fillColor: paletteToUse.colors.surface || paletteToUse.colors.accent },
+          text: { fontColor: paletteToUse.colors.text || paletteToUse.colors.primary, borderColor: paletteToUse.colors.primary, backgroundColor: paletteToUse.colors.surface || paletteToUse.colors.background },
+          question: { fontColor: paletteToUse.colors.text || paletteToUse.colors.primary, borderColor: paletteToUse.colors.primary, backgroundColor: paletteToUse.colors.surface || paletteToUse.colors.background },
+          answer: { fontColor: paletteToUse.colors.accent || paletteToUse.colors.text || paletteToUse.colors.primary, borderColor: paletteToUse.colors.primary, backgroundColor: paletteToUse.colors.background },
+        };
+        Object.entries(toolUpdates).forEach(([tool, settings]) => {
+          toolSettingsForNewPage[tool] = { ...(toolSettingsForNewPage[tool] || {}), ...settings };
+        });
+      } else if (!hadInitialToolSettings) {
+        // Fallback to theme-based defaults if no book palette
+        const toolUpdates: Record<string, any> = {};
+
+        if (bookThemeId && bookThemeId !== 'default') {
+          const theme = getGlobalTheme(bookThemeId);
+          if (theme) {
+            const themeTools = theme.toolSettings || {};
+            Object.entries(themeTools).forEach(([tool, settings]) => {
+              toolUpdates[tool] = { ...settings };
+            });
+          }
+        }
+        Object.entries(toolUpdates).forEach(([tool, settings]) => {
+          toolSettingsForNewPage[tool] = { ...(toolSettingsForNewPage[tool] || {}), ...settings };
+        });
+      }
+
+      const insertIndex = Math.min(insertionIndex, book.pages.length);
+
+      // Generate unique IDs for the new pages
+      const basePageId = Date.now();
+      const pairId = generatePagePairId(book.pages);
+      const leftPageId = basePageId;
+      const rightPageId = basePageId + 1;
+
+      // Create empty pages without template elements
+      const leftPage: Page = {
+        id: leftPageId,
+        pageNumber: 0, // Will be set by renumbering
+        elements: [], // Empty - no template elements
+        background: clonePageBackground(initialBackground),
+        database_id: undefined,
+        layoutTemplateId: undefined, // No layout template for empty pages
+        colorPaletteId: undefined,
+        pageType: 'content',
+        isSpecialPage: false,
+        isLocked: false,
+        isPrintable: true,
+        pagePairId: pairId,
+        layoutVariation: 'normal',
+        backgroundVariation: 'normal',
+        backgroundTransform: undefined
+      };
+
+      const rightPage: Page = {
+        id: rightPageId,
+        pageNumber: 0, // Will be set by renumbering
+        elements: [], // Empty - no template elements
+        background: clonePageBackground(initialBackground),
+        database_id: undefined,
+        layoutTemplateId: undefined, // No layout template for empty pages
+        colorPaletteId: undefined,
+        pageType: 'content',
+        isSpecialPage: false,
+        isLocked: false,
+        isPrintable: true,
+        pagePairId: pairId,
+        layoutVariation: 'normal',
+        backgroundVariation: 'normal',
+        backgroundTransform: undefined
+      };
+
+      // Apply theme and palette to pages
+      const themedLeftPage = applyThemeAndPaletteToPage(leftPage, book, toolSettingsForNewPage);
+      const themedRightPage = applyThemeAndPaletteToPage(rightPage, book, toolSettingsForNewPage);
+
+      // Insert the pages at the specified index
+      const updatedPages = [...book.pages];
+      updatedPages.splice(insertIndex, 0, themedLeftPage, themedRightPage);
+
+      // Renumber pages
+      const renumberedPages = updatedPages.map((page, index) => ({ ...page, pageNumber: index + 1 }));
+      const updatedPageAssignments = { ...savedAddPageState.pageAssignments };
+      Object.entries(updatedPageAssignments).forEach(([pageNum, assignment]) => {
+        const pageNumber = parseInt(pageNum);
+        if (pageNumber >= insertIndex) {
+          delete updatedPageAssignments[pageNum];
+          updatedPageAssignments[pageNumber + 2] = assignment;
+        }
+      });
+      updatedPageAssignments[insertIndex] = null;
+      updatedPageAssignments[insertIndex + 1] = null;
+
+      // Update pagination state to reflect the new total pages
+      const updatedPagination = savedAddPageState.pagePagination
+        ? {
+            ...savedAddPageState.pagePagination,
+            totalPages: renumberedPages.length,
+            loadedPages: {
+              ...savedAddPageState.pagePagination.loadedPages,
+              // Mark the new pages as loaded
+              [insertIndex]: true,
+              [insertIndex + 1]: true,
+            },
+          }
+        : {
+            totalPages: renumberedPages.length,
+            pageSize: PAGE_CHUNK_SIZE,
+            loadedPages: { [insertIndex]: true, [insertIndex + 1]: true },
+          };
+
+      const addPageState = {
+        ...savedAddPageState,
+        toolSettings: toolSettingsForNewPage,
+        currentBook: {
+          ...book,
+          pages: renumberedPages
+        },
+        pageAssignments: updatedPageAssignments,
+        pagePagination: updatedPagination,
+        activePageIndex: insertIndex,
+        hasUnsavedChanges: true
+      };
+      const addPageStateWithInvalidation = invalidatePagePreviews(addPageState, [leftPageId, rightPageId]);
+      let finalAddState = addPageStateWithInvalidation;
+      finalAddState = markPageIndexAsModified(finalAddState, insertIndex);
+      finalAddState = markPageIndexAsModified(
+        finalAddState,
+        Math.min(insertIndex + 1, finalAddState.currentBook!.pages.length - 1)
+      );
+      return finalAddState;
+    }
+
     case 'DELETE_PAGE': {
       if (!state.currentBook || state.userRole === 'author') return state;
       if (state.currentBook.pages.length <= 2) return state;

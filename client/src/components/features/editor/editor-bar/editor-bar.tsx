@@ -60,6 +60,8 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
   const [showAlert, setShowAlert] = useState<{ title: string; message: string } | null>(null);
 
   const [showPagesSubmenu, setShowPagesSubmenu] = useState(false);
+  const [showAddPageDialog, setShowAddPageDialog] = useState(false);
+  const [addPageInsertionIndex, setAddPageInsertionIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (initialPreviewOpen) {
@@ -158,6 +160,24 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
   const handleExitWithoutSaving = () => {
     setShowCloseConfirm(false);
     navigate('/books');
+  };
+
+  const handleShowAddPageDialog = (insertionIndex: number) => {
+    setAddPageInsertionIndex(insertionIndex);
+    setShowAddPageDialog(true);
+  };
+
+  const handleConfirmAddPage = () => {
+    if (addPageInsertionIndex !== null) {
+      dispatch({ type: 'ADD_PAGE_PAIR_AT_INDEX', payload: { insertionIndex: addPageInsertionIndex } });
+    }
+    setShowAddPageDialog(false);
+    setAddPageInsertionIndex(null);
+  };
+
+  const handleCancelAddPage = () => {
+    setShowAddPageDialog(false);
+    setAddPageInsertionIndex(null);
   };
 
   const handleExitWithSaving = async () => {
@@ -295,7 +315,7 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
       {/* Editor Bar */}
       <EditorBarContainer isVisible={state.editorBarVisible}>
         {showPagesSubmenu ? (
-          <PagesSubmenu 
+          <PagesSubmenu
             pages={visiblePages} // Always use visiblePages to exclude preview pages
             activePageIndex={state.pageAccessLevel === 'own_page' ? visiblePageNumbers.indexOf(currentPage) : visiblePages.findIndex((p, idx) => idx === state.activePageIndex)}
             onClose={() => setShowPagesSubmenu(false)}
@@ -303,6 +323,7 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
             onReorderPages={handleReorderPages}
             bookId={state.currentBook.id}
             isRestrictedView={state.pageAccessLevel === 'own_page'}
+            onShowAddPageDialog={handleShowAddPageDialog}
           />
         ) : (
           <div className="flex items-center justify-between w-full h-11 px-0 gap-2 relative z-[100]">
@@ -417,6 +438,18 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
         onSaveAndExit={handleExitWithSaving}
         onExitWithoutSaving={handleExitWithoutSaving}
         onCancel={() => setShowCloseConfirm(false)}
+      />
+
+      <ConfirmationDialog
+        open={showAddPageDialog}
+        onOpenChange={setShowAddPageDialog}
+        title="Add Page Pair"
+        description="Are you sure you want to add a new page pair at this position? This will shift all subsequent pages."
+        onConfirm={handleConfirmAddPage}
+        onCancel={handleCancelAddPage}
+        confirmText="Add Pages"
+        cancelText="Cancel"
+        confirmVariant="default"
       />
       
       <ConfirmationDialog

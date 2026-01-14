@@ -2,13 +2,14 @@ import { useMemo, useState } from 'react';
 import { useEditor } from '../../../context/editor-context';
 import type { CanvasElement } from '../../../context/editor-context';
 import { Button } from '../../../components/ui/primitives';
-import { Book, BookOpen, ChevronDown, ChevronUp, Download, Info, Layout } from 'lucide-react';
+import { BookOpen, Download, Info, Layout } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '../../../components/ui/composites/tabs';
 import { exportThemeAndPalette } from '../../../utils/theme-palette-exporter';
 import { exportLayout } from '../../../utils/layout-exporter';
 import { calculatePageDimensions } from '../../../utils/template-utils';
 import { PagesSubmenu } from './editor-bar/page-explorer';
 import { Tooltip } from '../../ui';
+import AddPageConfirmationDialog from '../../ui/overlays/add-page-confirmation-dialog';
 
 const matchesElementDescriptor = (element: CanvasElement, value: string) => {
   const fallbackType = (element as CanvasElement & { type?: string }).type;
@@ -19,8 +20,9 @@ type StatusBarSection = 'details' | 'pages';
 
 export function StatusBar() {
   const { state, dispatch, getVisiblePages, ensurePagesLoaded } = useEditor();
-  const [isExpanded, setIsExpanded] = useState(false);
   const [activeSection, setActiveSection] = useState<StatusBarSection>('pages');
+  const [showAddPageDialog, setShowAddPageDialog] = useState(false);
+  const [addPageInsertionIndex, setAddPageInsertionIndex] = useState<number | null>(null);
 
   const visiblePages = useMemo(() => getVisiblePages(), [getVisiblePages]);
 
@@ -139,8 +141,32 @@ export function StatusBar() {
     dispatch({ type: 'REORDER_PAGES', payload: { fromIndex, toIndex, count } });
   };
 
-  const toggleExpanded = () => setIsExpanded((prev) => !prev);
-  const ToggleIcon = isExpanded ? ChevronDown : ChevronUp;
+  const handleShowAddPageDialog = (insertionIndex: number) => {
+    setAddPageInsertionIndex(insertionIndex);
+    setShowAddPageDialog(true);
+  };
+
+  const handleAddPagesWithLayout = () => {
+    if (addPageInsertionIndex !== null) {
+      dispatch({ type: 'ADD_PAGE_PAIR_AT_INDEX', payload: { insertionIndex: addPageInsertionIndex } });
+    }
+    setShowAddPageDialog(false);
+    setAddPageInsertionIndex(null);
+  };
+
+  const handleAddEmptyPages = () => {
+    if (addPageInsertionIndex !== null) {
+      dispatch({ type: 'ADD_EMPTY_PAGE_PAIR_AT_INDEX', payload: { insertionIndex: addPageInsertionIndex } });
+    }
+    setShowAddPageDialog(false);
+    setAddPageInsertionIndex(null);
+  };
+
+  const handleCancelAddPage = () => {
+    setShowAddPageDialog(false);
+    setAddPageInsertionIndex(null);
+  };
+
 
   const renderDetailsContent = (condensed: boolean) => (
     <div
@@ -204,44 +230,45 @@ export function StatusBar() {
       }
       showHeader={false}
       compactLabelMode={mode === 'expanded' ? 'default' : mode === 'compact' ? 'minimal' : 'minimal'}
+      onShowAddPageDialog={handleShowAddPageDialog}
     />
   );
 
   return (
-    <div 
-      className="bg-card border-t border-border text-muted-foreground shrink-0 relative z-[1000]"
-      style={{ 
-        isolation: 'isolate',
-        position: 'relative',
-        zIndex: 1000
-      }}
-    >
-      <div className="flex flex-col">
-        <div className="flex items-center gap-2 px-2 h-10">
-          {/* <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 shrink-0"
-            onClick={toggleExpanded}
-          >
-            <ToggleIcon className="h-4 w-4" />
-            <span className="sr-only">{isExpanded ? 'Collapse status bar' : 'Expand status bar'}</span>
-          </Button> */}
+    <>
+      <div
+        className="bg-card border-t border-border text-muted-foreground shrink-0 relative z-[1000]"
+        style={{
+          isolation: 'isolate',
+          position: 'relative',
+          zIndex: 1000
+        }}
+      >
+        <div className="flex flex-col">
+          <div className="flex items-center gap-2 px-2 h-10">
+            {/* <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              onClick={toggleExpanded}
+            >
+              <ToggleIcon className="h-4 w-4" />
+              <span className="sr-only">{isExpanded ? 'Collapse status bar' : 'Expand status bar'}</span>
+            </Button> */}
 
-          <Tabs value={activeSection} onValueChange={(value) => setActiveSection(value as StatusBarSection)} className="shrink-0">
-            <TabsList className="h-8 bg-muted">
-              <TabsTrigger value="details" className="px-3 py-1 text-xs sm:text-sm">
-              <Info className="h-4 w-4" />
-              </TabsTrigger>
-              <TabsTrigger value="pages" className="px-3 py-1 text-xs sm:text-sm">
-                <Tooltip content="Page Explorer" side="top" backgroundColor="bg-background" textColor="text-foreground">
-                <BookOpen className="h-4 w-4" />      
-              </Tooltip>
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+            <Tabs value={activeSection} onValueChange={(value) => setActiveSection(value as StatusBarSection)} className="shrink-0">
+              <TabsList className="h-8 bg-muted">
+                <TabsTrigger value="details" className="px-3 py-1 text-xs sm:text-sm">
+                <Info className="h-4 w-4" />
+                </TabsTrigger>
+                <TabsTrigger value="pages" className="px-3 py-1 text-xs sm:text-sm">
+                  <Tooltip content="Page Explorer" side="top" backgroundColor="bg-background" textColor="text-foreground">
+                  <BookOpen className="h-4 w-4" />
+                </Tooltip>
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
 
-          {!isExpanded && (
             <div className="flex-1 min-w-0 p-0">
               {activeSection === 'details' ? (
                 renderDetailsContent(true)
@@ -251,21 +278,22 @@ export function StatusBar() {
                 </div>
               )}
             </div>
-          )}
-        </div>
-
-        {isExpanded && (
-          <div className="border-t border-border/70 bg-muted/30 px-4 py-3 min-w-0">
-            {activeSection === 'details' ? (
-              renderDetailsContent(false)
-            ) : (
-              <div className="w-full min-w-0">
-                {renderPageExplorer('expanded')}
-              </div>
-            )}
           </div>
-        )}
+        </div>
       </div>
-    </div>
+
+      <AddPageConfirmationDialog
+        open={showAddPageDialog}
+        onOpenChange={setShowAddPageDialog}
+        title="Add Page Pair"
+        description="Are you sure you want to add a new page pair at this position? This will shift all subsequent pages."
+        onCancel={handleCancelAddPage}
+        onAddWithLayout={handleAddPagesWithLayout}
+        onAddEmpty={handleAddEmptyPages}
+        cancelText="Cancel"
+        addWithLayoutText="Add Pages with Layout"
+        addEmptyText="Add empty Pages"
+      />
+    </>
   );
 }
