@@ -1,0 +1,25 @@
+---
+description: "Code-Qualitätsstandards und Best Practices für fb-konva-fullstack"
+globs: ["client/src/**/*.{ts,tsx}", "server/**/*.js"]
+alwaysApply: false
+---
+
+## Code-Qualität
+- **TypeScript**: Strenge Typisierung bevorzugen
+- **React**: Funktionale Komponenten mit Hooks
+- **Node.js**: Async/await für Datenbank-Operationen
+- **Konva.js**: Performance-optimierte Canvas-Manipulation
+- **Error Handling**: Umfassende Fehlerbehandlung mit sinnvollen Meldungen
+
+## Testing & Qualität
+- **Unit Tests**: Vitest für Komponenten und Utilities
+- **Integration Tests**: API-Endpoints und Datenbank-Operationen
+- **Visual Tests**: PDF-Export Vergleiche
+- **Performance Tests**: Canvas-Operationen und Rendering
+
+## Vermeide
+- ❌ Globale State-Management-Libraries (Redux/Zustand) - React Context reicht
+- ❌ Inline-Styles - Tailwind CSS für konsistente UI
+- ❌ Direkte DOM-Manipulation - Konva.js API verwenden
+- ❌ Harte Credentials - Immer Environment-Variables
+- ❌ Große Commits - Kleine, fokussierte Änderungen

@@ -1,0 +1,27 @@
+---
+description: "Allgemeine Kommunikationsregeln und Projekt-Architektur für fb-konva-fullstack"
+alwaysApply: true
+---
+
+## Kommunikation
+- **Antworte immer auf Deutsch**, es sei denn der User fragt explizit auf Englisch
+- Sei präzise und direkt, aber freundlich
+- Erkläre technische Konzepte verständlich
+
+## Projekt-Architektur
+- **Full-Stack-Struktur**: Client (React/TypeScript) ↔ Server (Node.js) ↔ PostgreSQL
+- **Canvas-System**: Konva.js für interaktive Editor-Funktionalität
+- **PDF-Export**: Separater Renderer für hochwertige PDF-Generierung
+- **Datenbank**: PostgreSQL mit Migrations-System
+
+## Datei-Organisation
+- **Client**: `src/components/`, `src/utils/`, `src/hooks/`, `src/services/`
+- **Server**: `routes/`, `services/`, `utils/`, `migrations/`
+- **Dokumentation**: `docs/` mit klarer Struktur (features/, implementation/, testing/)
+- **Konfiguration**: `.cursorignore` für Performance-Optimierung
+
+## Spezielle Regeln
+- **Canvas-Editor**: Komplexe State-Management mit React Context
+- **PDF-Renderer**: Separater Build-Prozess für optimale Performance
+- **Background Images**: Effiziente Lade- und Cache-Strategien
+- **Real-time Collaboration**: Optimistische Updates mit Conflict Resolution

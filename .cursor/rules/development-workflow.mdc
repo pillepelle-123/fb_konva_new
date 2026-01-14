@@ -1,0 +1,29 @@
+---
+description: "Entwicklungs-Workflow, Dokumentation und Best Practices"
+alwaysApply: false
+---
+
+## Entwicklung-Workflow
+- **Git**: Klare Commit-Messages, Feature-Branches
+- **Code-Reviews**: Selbst-Review vor Push
+- **Dokumentation**: Neue Features in `docs/features/` dokumentieren
+- **Migrationen**: Neue Datenbank-Änderungen als Migration-Scripts
+
+## Prioritäten
+1. **Benutzerfreundlichkeit** des Canvas-Editors
+2. **PDF-Qualität** und Rendering-Geschwindigkeit
+3. **Code-Wartbarkeit** und TypeScript-Sicherheit
+4. **Performance** bei großen Canvas-Operationen
+5. **Zuverlässigkeit** der Datenbank-Operationen
+
+## Dokumentation
+- Neue Features in `docs/features/` dokumentieren
+- API-Änderungen in `docs/implementation/` beschreiben
+- Migrations-Dokumentation für Datenbank-Änderungen
+- Performance-Tests in `docs/testing/` dokumentieren
+
+## Deployment
+- Automatisierte Builds mit `deploy_fb.sh`
+- Environment-spezifische Konfiguration
+- Datenbank-Migration vor Deployment ausführen
+- PDF-Renderer separat deployen für optimale Performance

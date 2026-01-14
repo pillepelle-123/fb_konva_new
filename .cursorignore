@@ -1,0 +1,72 @@
+# --- KRITISCH FÜR PERFORMANCE ---
+# Schließe den Backup-Ordner komplett aus, damit die KI nicht in alten Code-Versionen "halluziniert"
+.pillepelle/
+../.pillepelle/
+
+# Standard-Abhängigkeiten (bereits in .gitignore, aber hier explizit für den Indexer)
+node_modules/
+**/node_modules/
+
+# Build-Artefakte (verhindert, dass die KI minifizierten Code liest)
+dist/
+build/
+.next/
+.nuxt/
+.vite/
+
+# --- PRIVATSPHÄRE & LOGS ---
+.env*
+*.log
+npm-debug.log*
+
+# --- BINÄRDATEIEN & ASSETS (KI kann diese nicht sinnvoll indizieren) ---
+# Spart enorm viel RAM bei großen Projekten
+*.png
+*.jpg
+*.jpeg
+*.gif
+#*.svg
+#*.pdf
+*.mp4
+*.zip
+*.tgz
+
+# --- TEMPORÄRE DATEIEN ---
+tmp/
+temp/
+.cache/
+.parcel-cache/
+.eslintcache
+
+# --- EDITOR-DATEN ---
+.vscode/
+.idea/
+.DS_Store
+
+# --- TEIL 2 ---
+
+# --- DOKUMENTATIONS-ARCHIV (Migrations-Logs) ---
+# Schließt die Flut an Migrations-Protokollen aus
+docs/migration/
+
+# --- BINÄRE FARBPROFILE ---
+# Verhindert das Einlesen von ICC-Profilen
+**/*.icc
+
+# --- DATENBANK-HISTORIE ---
+# Verhindert Verwirrung durch alte SQL-Stände
+server/migrations/
+**/*.sql
+# AUSNAHME: Aktuelle Datenbankstruktur soll zugänglich bleiben
+!server/migrations/database.sql
+
+# --- PERFORMANCE TESTS & MOCKS ---
+# Diese Dateien enthalten oft riesige Daten-Arrays
+**/*.perf.test.ts
+client/src/utils/__tests__/
+
+# --- TOOLING CONFIGS ---
+# Meist für die KI irrelevant
+.github/
+.amazonq/
+LICENSE

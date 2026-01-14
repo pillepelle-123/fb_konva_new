@@ -56,13 +56,13 @@ export const useCanvasItemActions = ({
           id: newId,
           x: element.x + 20,
           y: element.y + 20,
-          // Clear text for question-answer pairs
-          text: (element.textType === 'question' || element.textType === 'answer') ? '' : element.text,
-          formattedText: (element.textType === 'question' || element.textType === 'answer') ? '' : element.formattedText,
+          // Clear text for question, answer and qna elements
+          text: (element.textType === 'question' || element.textType === 'answer' || element.textType === 'qna') ? '' : element.text,
+          formattedText: (element.textType === 'question' || element.textType === 'answer' || element.textType === 'qna') ? '' : element.formattedText,
           // Clear question styling for duplicated questions
           fontColor: element.textType === 'question' ? '#9ca3af' : (element.fontColor || element.fill),
-          // Clear questionId for question elements
-          questionId: (element.textType === 'question') ? undefined : element.questionId,
+          // Clear questionId for question and qna elements
+          questionId: (element.textType === 'question' || element.textType === 'qna') ? undefined : element.questionId,
           // Update questionElementId reference for answer elements
           questionElementId: element.questionElementId ? idMapping.get(element.questionElementId) : element.questionElementId
         };

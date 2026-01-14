@@ -44,6 +44,7 @@ import {
 } from './canvas-utils';
 import { colorPalettes } from '../../../../data/templates/color-palettes';
 import { getStickerById, loadStickerRegistry } from '../../../../data/templates/stickers';
+import { toast } from 'sonner';
 
 
 const CanvasPageEditArea = React.memo(function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
@@ -115,7 +116,7 @@ type BackgroundImageEntry = {
 
 
 export default function Canvas() {
-  const { state, dispatch, getAnswerText, getQuestionAssignmentsForUser, undo, redo, canAccessEditor, canEditCanvas, ensurePagesLoaded } = useEditor();
+  const { state, dispatch, getAnswerText, getQuestionAssignmentsForUser, undo, redo, canAccessEditor, canEditCanvas, ensurePagesLoaded, isQuestionAvailableForUser, getQuestionText } = useEditor();
   const { token, user } = useAuth();
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
@@ -2410,19 +2411,51 @@ export default function Canvas() {
     filteredClipboard.forEach((element) => {
       const newId = idMapping.get(element.id)!;
       newElementIds.push(newId);
+
+      let questionId = element.questionId;
+      let shouldShowConflictToast = false;
+
+      // Check if this is a qna element with a questionId being pasted
+      if (element.textType === 'qna' && element.questionId) {
+        // Check if the current page is assigned to a user
+        const currentPageNumber = state.activePageIndex + 1;
+        const assignedUser = state.pageAssignments[currentPageNumber];
+
+        if (assignedUser) {
+          // Check if this question is already assigned to this user
+          const isAvailable = isQuestionAvailableForUser(element.questionId, assignedUser.id);
+          if (!isAvailable) {
+            // Question is already assigned to this user - clear questionId and show toast
+            questionId = undefined;
+            shouldShowConflictToast = true;
+
+            // Show toast error similar to page-assignment-popover.tsx
+            const questionText = getQuestionText(element.questionId) || 'Unknown question';
+            setTimeout(() => {
+              toast.error(
+                `Cannot paste question "${questionText}" on page ${currentPageNumber}.\n\nThis question is already assigned to ${assignedUser.name} on another page.`,
+                {
+                  duration: 5000, // Show for 5 seconds to allow reading longer messages
+                }
+              );
+            }, 100);
+          }
+        }
+      }
+
       const pastedElement = {
         ...element,
         id: newId,
         x: x + (element.x - minX),
         y: y + (element.y - minY),
         pageId: state.currentBook?.pages[state.activePageIndex]?.id, // Track source page
-        // Clear text for question and answer when pasting
-        text: (element.textType === 'question' || element.textType === 'answer') ? '' : element.text,
-        formattedText: (element.textType === 'question' || element.textType === 'answer') ? '' : element.formattedText,
+        // Clear text for question, answer and qna elements when pasting
+        text: (element.textType === 'question' || element.textType === 'answer' || element.textType === 'qna') ? '' : element.text,
+        formattedText: (element.textType === 'question' || element.textType === 'answer' || element.textType === 'qna') ? '' : element.formattedText,
         // Clear question styling for pasted questions
         fontColor: element.textType === 'question' ? '#9ca3af' : (element.fontColor || element.fill),
-        // Clear questionId for question elements to reset question assignment
-        questionId: (element.textType === 'question') ? undefined : element.questionId,
+        // Clear questionId for question elements and qna elements with conflicts
+        questionId: (element.textType === 'question' || (element.textType === 'qna' && shouldShowConflictToast)) ? undefined : questionId,
         // Update questionElementId reference for answer elements
         questionElementId: element.questionElementId ? idMapping.get(element.questionElementId) : element.questionElementId
       };

@@ -109,11 +109,11 @@ export function PageAssignmentButton({ currentPage, bookId }: PageAssignmentButt
     >
       <Button
         variant="ghost"
-        size="xs"
+        size="md"
         className="p-0 pt-0.5 rounded-full"
         title="Assign user to page"
       >
-        <CircleUser className="rounded-full  stroke-highlight hover:bg-highlight hover:stroke-background transition-all duration-300 ease-in-out"/>
+        <CircleUser className="rounded-full  stroke-highlight hover:bg-highlight hover:stroke-background transition-all duration-300 ease-in-out h-full w-full"/>
       </Button>
     </PageAssignmentPopover>
   );

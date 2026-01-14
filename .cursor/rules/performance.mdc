@@ -1,0 +1,29 @@
+---
+description: "Performance-Optimierungen für Canvas, PDF-Export und Datenbank-Operationen"
+globs: tsx}","client/src/components/pdf-renderer/**/*.{ts,tsx}"]
+alwaysApply: false
+---
+## Performance & Optimierung
+- **Canvas-Performance**: Minimale Re-Renders, effiziente Event-Handler
+- **PDF-Export**: Optimierte Rendering-Pipelines
+- **Bundle-Größe**: Tree-Shaking und Code-Splitting
+- **Datenbank**: Optimierte Queries mit Indizes
+
+## Canvas-spezifische Regeln
+- Verwende `React.memo()` für Canvas-Komponenten
+- Implementiere `useCallback` für Event-Handler
+- Optimiere Konva.js Layer-Struktur
+- Vermeide unnötige Canvas-Re-Renders
+- Nutze `stage.batchDraw()` für Massen-Updates
+
+## PDF-Renderer Optimierungen
+- Separater Build für optimale Bundle-Größe
+- Lazy-Loading für schwere Rendering-Bibliotheken
+- Memory-Management bei großen PDFs
+- Optimierte Font-Loading Strategien
+
+## Datenbank-Performance
+- Verwende prepared statements für wiederholte Queries
+- Implementiere sinnvolle Datenbank-Indizes
+- Batch-Operationen für Massen-Updates
+- Connection-Pooling für skalierbare Operationen
