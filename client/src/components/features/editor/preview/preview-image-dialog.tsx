@@ -146,7 +146,7 @@ export function PreviewImageDialog({
                   className="px-3 h-8"
                 >
                   <Check className="h-4 w-4 mr-1" />
-                  Apply to Book
+                  Apply to all Pages
                 </Button>
               )}
             </div>

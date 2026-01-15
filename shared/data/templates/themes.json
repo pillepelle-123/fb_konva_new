@@ -150,7 +150,8 @@
           "fontBold": false,
           "fontItalic": true,
           "fontOpacity": 1
-        }
+        },
+        "qnaIndividualSettings": true
       },
       "shape": {
         "borderWidth": 1,

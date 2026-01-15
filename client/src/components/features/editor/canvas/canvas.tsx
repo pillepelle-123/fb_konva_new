@@ -2758,7 +2758,18 @@ export default function Canvas() {
       loadingImages.add(imageUrl);
       // Image not in cache, preload it
       const img = new window.Image();
-      img.crossOrigin = 'anonymous';
+      
+      // Don't set crossOrigin for data URLs (base64) or local URLs
+      // Data URLs are already local and don't need CORS
+      const isDataUrl = imageUrl.startsWith('data:');
+      const isLocalUrl = imageUrl.startsWith('http://localhost') || imageUrl.startsWith('https://localhost') || 
+                        imageUrl.startsWith('http://127.0.0.1') || imageUrl.startsWith('https://127.0.0.1') ||
+                        (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://'));
+      
+      // Only set crossOrigin for external URLs (S3, etc.)
+      if (!isDataUrl && !isLocalUrl) {
+        img.crossOrigin = 'anonymous';
+      }
       
       const storeEntry = (entry: BackgroundImageEntry) => {
         // Evict old entries if needed before adding new one
@@ -2833,17 +2844,98 @@ export default function Canvas() {
       });
     }
     // Use a serialized version of the background to detect changes
+    // Also include palette dependencies to reload images when palette changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     state.activePageIndex, 
     state.currentBook?.pages, 
     currentPage?.background?.type, 
     currentPage?.background?.value, 
+    activePaletteId,
+    JSON.stringify(activePalette?.colors),
     JSON.stringify({
       templateId: (currentPage?.background as any)?.backgroundImageTemplateId,
       applyPalette: (currentPage?.background as any)?.applyPalette,
     }),
   ]);
+
+  // Listen for cache invalidation events (e.g., when palette changes)
+  useEffect(() => {
+    const handleInvalidateCache = (event: CustomEvent<{ pageIndex?: number }>) => {
+      const cache = backgroundImageCacheRef.current;
+      const accessOrder = cacheAccessOrderRef.current;
+      const loadingImages = loadingImagesRef.current;
+      
+      const targetPageIndex = event.detail?.pageIndex;
+      
+      if (targetPageIndex !== undefined && state.currentBook?.pages) {
+        // Invalidate cache for specific page
+        // When palette changes, the Base64 URL changes, so we need to invalidate
+        // all Data URL entries that might belong to this page's background
+        const page = state.currentBook.pages[targetPageIndex];
+        if (page?.background?.type === 'image') {
+          // Remove all Data URL entries (Base64 SVG images change when palette changes)
+          // Also remove the specific URL if it exists
+          const urlsToRemove: string[] = [];
+          
+          for (const [url] of cache) {
+            // Remove all data URLs (they change when palette changes)
+            // Also remove entries that match the current page's background template ID
+            if (url.startsWith('data:') || 
+                (page.background.backgroundImageTemplateId && url.includes(page.background.backgroundImageTemplateId))) {
+              urlsToRemove.push(url);
+            }
+          }
+          
+          // Also try to get the current URL and remove it
+          const { paletteId, palette } = getPaletteForPage(page);
+          const currentImageUrl =
+            resolveBackgroundImageUrl(page.background, {
+              paletteId,
+              paletteColors: palette?.colors
+            }) || page.background.value;
+          
+          if (currentImageUrl && !urlsToRemove.includes(currentImageUrl)) {
+            urlsToRemove.push(currentImageUrl);
+          }
+          
+          // Remove all matching entries
+          urlsToRemove.forEach(url => {
+            const entry = cache.get(url);
+            if (entry) {
+              if (entry.full) entry.full.src = '';
+              if (entry.preview && entry.preview !== entry.full) entry.preview.src = '';
+              cache.delete(url);
+            }
+            const orderIndex = accessOrder.indexOf(url);
+            if (orderIndex > -1) {
+              accessOrder.splice(orderIndex, 1);
+            }
+            loadingImages.delete(url);
+          });
+          
+          if (urlsToRemove.length > 0) {
+            setBackgroundImageCache(new Map(cache));
+          }
+        }
+      } else {
+        // Invalidate all cache entries
+        for (const [url, entry] of cache) {
+          if (entry.full) entry.full.src = '';
+          if (entry.preview && entry.preview !== entry.full) entry.preview.src = '';
+        }
+        cache.clear();
+        accessOrder.length = 0;
+        loadingImages.clear();
+        setBackgroundImageCache(new Map());
+      }
+    };
+
+    window.addEventListener('invalidateBackgroundImageCache', handleInvalidateCache as EventListener);
+    return () => {
+      window.removeEventListener('invalidateBackgroundImageCache', handleInvalidateCache as EventListener);
+    };
+  }, [state.currentBook?.pages]);
 
   // Phase 2.1: Automatic cache cleanup when page changes
   // Remove cache entries for pages outside the preload range (±2 pages) to free memory

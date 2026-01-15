@@ -1,15 +1,14 @@
 import type { ReactNode } from 'react';
 import { Button } from '../../../ui/primitives/button';
-import { X, Check } from 'lucide-react';
+import { X, Check, BookCheck } from 'lucide-react';
+import { Checkbox } from '../../../ui/primitives/checkbox';
+import { Tooltip } from '../../../ui/composites/tooltip';
 
 interface SelectorShellProps {
   headerContent?: ReactNode;
   listSection: ReactNode;
-  previewSection?: ReactNode;
-  previewPosition?: 'top' | 'bottom' | 'right';
   className?: string;
   headerClassName?: string;
-  sidePreviewWrapperClassName?: string;
 }
 
 interface SelectorListSectionProps {
@@ -22,39 +21,18 @@ interface SelectorListSectionProps {
   onCancel?: () => void;
   onApply?: () => void;
   canApply?: boolean;
+  applyToEntireBook?: boolean;
+  onApplyToEntireBookChange?: (checked: boolean) => void;
 }
 
 export function SelectorShell({
   headerContent,
   listSection,
-  previewSection,
-  previewPosition = 'bottom',
   className = '',
-  headerClassName = '',
-  sidePreviewWrapperClassName = ''
+  headerClassName = ''
 }: SelectorShellProps) {
   const baseClasses = ['h-full', 'flex', 'flex-col', className].filter(Boolean).join(' ');
   const headerClasses = ['flex', 'flex-col', 'items-center', 'justify-between', 'p-4', 'border-b', 'border-gray-200', 'shrink-0', headerClassName].filter(Boolean).join(' ');
-
-  if (previewSection && previewPosition === 'right') {
-    const sidePreviewClasses = ['w-1/2', 'border-l', 'border-gray-200', 'flex', 'flex-col', 'min-h-0', 'overflow-hidden', sidePreviewWrapperClassName].filter(Boolean).join(' ');
-
-    return (
-      <div className={baseClasses}>
-        {headerContent && (
-          <div className={headerClasses}>
-            {headerContent}
-          </div>
-        )}
-        <div className="flex-1 min-h-0 flex flex-row overflow-hidden">
-          {listSection}
-          <div className={sidePreviewClasses}>
-            {previewSection}
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className={baseClasses}>
@@ -64,17 +42,7 @@ export function SelectorShell({
         </div>
       )}
       <div className="flex-1 min-h-0 flex flex-col">
-        {previewSection && previewPosition === 'top' ? (
-          <>
-            {previewSection}
-            {listSection}
-          </>
-        ) : (
-          <>
-            {listSection}
-            {previewSection}
-          </>
-        )}
+        {listSection}
       </div>
     </div>
   );
@@ -89,9 +57,11 @@ export function SelectorListSection({
   scrollClassName = '',
   onCancel,
   onApply,
-  canApply = false
+  canApply = false,
+  applyToEntireBook = false,
+  onApplyToEntireBookChange
 }: SelectorListSectionProps) {
-  const containerClasses = ['p-2', 'flex-1', 'min-h-0', 'flex', 'flex-col', className].filter(Boolean).join(' ');
+  const containerClasses = ['flex-1', 'min-h-0', 'flex', 'flex-col', className].filter(Boolean).join(' ');
   const scrollClasses = ['space-y-2', 'flex-1', 'overflow-y-auto', scrollClassName].filter(Boolean).join(' ');
 
   return (
@@ -102,12 +72,26 @@ export function SelectorListSection({
         {children}
       </div>
       {(title || headerActions || onCancel || onApply) && (
-        <div className="flex items-center justify-end mt-4 w-full shrink-0">
+        <div className="flex items-center justify-between mt-4 w-full shrink-0">
           {/* <div className="flex items-center gap-2">
             {title}
           </div> */}
           <div className="flex items-center gap-2">
             {headerActions}
+            {onApplyToEntireBookChange && (
+              <div className="flex items-center gap-1">
+                <Tooltip content="Apply to entire book" side="left">
+                  <Checkbox
+                    id="apply-to-entire-book"
+                    checked={applyToEntireBook}
+                    onCheckedChange={(checked) => onApplyToEntireBookChange(checked === true)}
+                  />
+                </Tooltip>
+                <BookCheck className="h-4 w-4" />
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
             {onCancel && (
               <Button
                 variant="outline"
@@ -127,10 +111,10 @@ export function SelectorListSection({
                 onClick={onApply}
                 disabled={!canApply}
                 className="gap-1  px-2"
-                title="Apply"
+                title={applyToEntireBook ? "Apply to all Pages" : "Apply"}
               >
                 <Check className="h-4 w-4" />
-                <span className="text-xs">Apply</span>
+                <span className="text-xs">{applyToEntireBook ? "Apply to all Pages" : "Apply"}</span>
               </Button>
             )}
           </div>

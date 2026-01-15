@@ -15,7 +15,7 @@ import { calculatePageDimensions } from '../../../../utils/template-utils';
 import { MIN_TOTAL_PAGES, MAX_TOTAL_PAGES } from '../../../../constants/book-limits';
 import { pageTemplates as builtinPageTemplates } from '../../../../data/templates/page-templates';
 import { mirrorTemplate } from '../../../../utils/layout-mirroring';
-import { generateSequentialPairId } from '../../../../utils/book-structure';
+import { recalculatePagePairIds } from '../../../../utils/book-structure';
 import { applyMirroredLayout, applyRandomLayout } from '../../../../utils/layout-variations';
 import { deriveLayoutStrategyFlags } from '../../../../utils/layout-strategy';
 import { BasicInfoStep } from './steps/basic-info-step';
@@ -303,15 +303,16 @@ export function CreationWizard({ open, onOpenChange, onSuccess }: CreationWizard
       };
 
       if (element.textType === 'qna') {
+        // Theme settings override layout settings (Theme has priority)
         updatedElement.questionSettings = {
-          ...(defaults.questionSettings || {}),
-          ...(element.questionSettings || {})
+          ...(element.questionSettings || {}),
+          ...(defaults.questionSettings || {})
           // Border/Background are shared properties - borderEnabled/backgroundEnabled are only on top-level
         };
 
         updatedElement.answerSettings = {
-          ...(defaults.answerSettings || {}),
-          ...(element.answerSettings || {})
+          ...(element.answerSettings || {}),
+          ...(defaults.answerSettings || {})
           // Border/Background are shared properties - borderEnabled/backgroundEnabled are only on top-level
         };
       }
@@ -572,8 +573,8 @@ export function CreationWizard({ open, onOpenChange, onSuccess }: CreationWizard
     const cloneBackgroundForPage = () => (background ? JSON.parse(JSON.stringify(background)) : undefined);
     let pageIdSeed = Date.now();
     const nextPageId = () => pageIdSeed++;
-    let pairCounter = 0;
-    const nextPairId = () => generateSequentialPairId(pairCounter++);
+    // Temporary pairId generator - will be recalculated by recalculatePagePairIds after page numbering
+    const nextPairId = () => 'temp';
     const strategyFlags = deriveLayoutStrategyFlags(wizardState.layoutStrategy, wizardState.randomMode);
     const shouldMirrorRightBackground = strategyFlags.mirrorRightBackground;
     const shouldRandomizeBackground = strategyFlags.randomizeBackground;
@@ -834,7 +835,7 @@ export function CreationWizard({ open, onOpenChange, onSuccess }: CreationWizard
       themeId: themeToUse,
       colorPaletteId: paletteToUse.id,
       layoutTemplateId: template?.id || null,
-      pages,
+      pages: pagesWithCorrectPairIds,
       isTemporary: true,
       minPages: MIN_TOTAL_PAGES,
       maxPages: MAX_TOTAL_PAGES,

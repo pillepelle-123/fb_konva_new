@@ -6,35 +6,31 @@ import { SelectorShell, SelectorListSection } from './selector-shell';
 import { getMirroredTemplateId, mirrorTemplate } from '../../../../utils/layout-mirroring';
 import { LayoutTemplatePreview } from './layout-template-preview';
 import { Checkbox } from '../../../ui/primitives/checkbox';
+import { Tooltip } from '../../../ui/composites/tooltip';
+import { Card } from '../../../ui/composites/card';
 
 interface LayoutSelectorProps {
   selectedLayout: PageTemplate | null;
   onLayoutSelect: (template: PageTemplate) => void;
   onPreviewClick?: (template: PageTemplate) => void; // Optional - for preview functionality
-  previewPosition?: 'top' | 'bottom' | 'right'; // 'bottom' = Preview below list (default), 'top' = Preview above list, 'right' = Preview to the right
-  showBookLayoutOption?: boolean;
-  isBookLayoutSelected?: boolean;
-  onBookLayoutSelect?: () => void;
-  bookLayout?: PageTemplate | null;
   skipShell?: boolean; // If true, return only the listSection without SelectorShell wrapper
   onCancel?: () => void;
   onApply?: () => void;
   canApply?: boolean;
+  applyToEntireBook?: boolean;
+  onApplyToEntireBookChange?: (checked: boolean) => void;
 }
 
 export function LayoutSelector({
   selectedLayout,
   onLayoutSelect,
   onPreviewClick,
-  previewPosition = 'bottom',
-  showBookLayoutOption = false,
-  isBookLayoutSelected = false,
-  onBookLayoutSelect,
-  bookLayout,
   skipShell = false,
   onCancel,
   onApply,
-  canApply = false
+  canApply = false,
+  applyToEntireBook = false,
+  onApplyToEntireBookChange
 }: LayoutSelectorProps) {
   // All templates are now in page-templates.ts, no conversion needed
   const mergedPageTemplates: PageTemplate[] = builtinPageTemplates;
@@ -137,25 +133,6 @@ export function LayoutSelector({
     });
   }, [mergedPageTemplates, filters]);
 
-  const previewSection = (
-    <div className="p-4 border-t border-gray-200 shrink-0">
-      <h3 className="text-sm font-medium mb-3">Preview</h3>
-      {selectedLayout ? (
-        <div className="bg-white border rounded-lg p-4">
-          <div className="text-sm font-medium mb-2">{selectedLayout.name}</div>
-          <div className="text-xs text-gray-600 mb-3">
-            {selectedLayout.textboxes.length} Textbox{selectedLayout.textboxes.length !== 1 ? 'es' : ''} •{' '}
-            {selectedLayout.constraints.imageSlots} Image
-            {selectedLayout.constraints.imageSlots !== 1 ? 's' : ''}
-          </div>
-          <LayoutTemplatePreview template={selectedLayout} showLegend />
-        </div>
-      ) : (
-        <div className="text-gray-500 text-sm">Select a layout to see preview</div>
-      )}
-    </div>
-  );
-
   const listSection = (
     <SelectorListSection
       title={
@@ -164,11 +141,13 @@ export function LayoutSelector({
           Layout Templates
         </>
       }
-      className={previewPosition === 'right' ? 'w-1/2 border-r border-gray-200' : ''}
+      className=""
       scrollClassName="min-h-0"
       onCancel={onCancel}
       onApply={onApply}
       canApply={canApply}
+      applyToEntireBook={applyToEntireBook}
+      onApplyToEntireBookChange={onApplyToEntireBookChange}
     >
       <div className="w-full p-3 mb-3 border border-gray-200 rounded-lg bg-white/70">
         <div className="flex items-center gap-2 mb-3 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
@@ -191,9 +170,9 @@ export function LayoutSelector({
             </button>
           )}
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="text-xs text-slate-600 space-y-1">
-            <span>Q&A Boxes</span>
+            <span># of Q&A Boxes</span>
             <select
               className="w-full rounded border border-gray-200 bg-white px-2 py-1 text-sm"
               value={filters.qna}
@@ -286,60 +265,10 @@ export function LayoutSelector({
           </label>
         </div>
       </div>
-      {showBookLayoutOption && (
-        <div
-          key="book-layout-entry"
-          className={`w-full p-3 border rounded-lg transition-colors flex items-start gap-2 ${
-            isBookLayoutSelected
-              ? 'border-blue-500 bg-blue-50'
-              : 'border-gray-200 hover:border-gray-300'
-          }`}
-        >
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onBookLayoutSelect?.();
-            }}
-            onMouseDown={(e) => {
-              e.stopPropagation();
-            }}
-            className="flex-1 text-left"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <span className="font-medium text-sm">Book Layout</span>
-            </div>
-            <div className="text-xs text-gray-600">
-              {bookLayout ? `${bookLayout.textboxes.length} elements • ${bookLayout.constraints.imageSlots} images` : 'Follow the layout set at book level'}
-            </div>
-          </button>
-          {onPreviewClick && bookLayout && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onPreviewClick(bookLayout);
-              }}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-              onPointerDown={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-              className="p-1.5 rounded hover:bg-gray-200 transition-colors flex-shrink-0 mt-1"
-              title="Preview Page with Book Layout"
-            >
-              <Eye className="h-4 w-4 text-gray-600" />
-            </button>
-          )}
-        </div>
-      )}
       {filteredTemplates.map((template) => {
         const mirroredId = getMirroredTemplateId(template.id);
-        const isBaseSelected = !isBookLayoutSelected && selectedLayout?.id === template.id;
-        const isMirroredSelected = !isBookLayoutSelected && selectedLayout?.id === mirroredId;
+        const isBaseSelected = selectedLayout?.id === template.id;
+        const isMirroredSelected = selectedLayout?.id === mirroredId;
         const isActive = isBaseSelected || isMirroredSelected;
         const mirrorChecked = mirroredFlags[template.id] ?? isMirroredSelected;
         const displayTemplate = getDisplayTemplate(template, mirrorChecked);
@@ -349,65 +278,56 @@ export function LayoutSelector({
           columns: template.columns ?? 1
         };
         return (
-        <div
+        <Card
           key={template.id}
-          className={`w-full p-3 border rounded-lg transition-colors flex items-start gap-2 select-none ${
-            isActive
-              ? 'border-blue-500 bg-blue-50'
-              : 'border-gray-200 hover:border-gray-300'
-          }`}
+          onClick={(e) => {
+            const target = e.target as HTMLElement;
+            // Don't trigger if clicking on button or checkbox
+            if (target.closest('button[type="button"]') || target.closest('input[type="checkbox"]') || target.closest('label')) {
+              return;
+            }
+            const isMirrored = mirroredFlags[template.id] ?? isMirroredSelected;
+            onLayoutSelect(getDisplayTemplate(template, isMirrored));
+          }}
           onMouseDown={(e) => {
             const target = e.target as HTMLElement;
             if (target.closest('button[type="button"]')) {
               e.preventDefault();
             }
           }}
-          onClick={(e) => {
-            const target = e.target as HTMLElement;
-            if (target.closest('button[type="button"]')) {
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              const target = e.target as HTMLElement;
+              // Don't trigger if focus is on button or checkbox
+              if (target.closest('button[type="button"]') || target.closest('input[type="checkbox"]')) {
+                return;
+              }
               e.preventDefault();
-              e.stopPropagation();
-            }
-          }}
-        >
-          <div
-            onClick={(e) => {
-              e.stopPropagation();
               const isMirrored = mirroredFlags[template.id] ?? isMirroredSelected;
               onLayoutSelect(getDisplayTemplate(template, isMirrored));
-            }}
-            onMouseDown={(e) => {
-              e.stopPropagation();
-            }}
-            className="flex-1 text-left cursor-pointer"
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                e.stopPropagation();
-                const isMirrored = mirroredFlags[template.id] ?? isMirroredSelected;
-                onLayoutSelect(getDisplayTemplate(template, isMirrored));
-              }
-            }}
-          >
+            }
+          }}
+          className={`w-full p-3 transition-colors flex items-start gap-2 select-none cursor-pointer ${
+            isActive
+              ? 'border-blue-500 bg-blue-50'
+              : 'border-gray-200 hover:border-gray-300'
+          }`}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="flex-1 text-left">
             <div className="flex items-center justify-between mb-2">
-              <span className="font-medium text-sm">{template.name}</span>
+              {/* <span className="font-medium text-sm">{template.name}</span> */}
               <span className="text-xs text-gray-500 capitalize">{template.category}</span>
             </div>
             <div className="text-xs text-gray-600 flex flex-wrap gap-2">
-              <span>{meta.qnaInlineCount} Q&A</span>
+              <span>{meta.qnaInlineCount} Questions</span>
               <span>•</span>
               <span>{meta.imageCount} image{meta.imageCount === 1 ? '' : 's'}</span>
               <span>•</span>
               <span>{meta.columns} column{meta.columns === 1 ? '' : 's'}</span>
             </div>
-            <div className="mt-3 w-1/4 min-w-[70px]">
-              <LayoutTemplatePreview
-                template={displayTemplate}
-                showItemLabels={false}
-              />
-            </div>
+
             <label className="mt-3 inline-flex items-center gap-2 text-xs font-medium text-gray-600">
               <Checkbox
                 checked={mirrorChecked}
@@ -418,48 +338,55 @@ export function LayoutSelector({
             </label>
           </div>
           {onPreviewClick && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onPreviewClick(displayTemplate);
-              }}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-              onPointerDown={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-              className="p-1.5 rounded hover:bg-gray-200 transition-colors flex-shrink-0 mt-1"
-              title="Preview Page with this Layout"
-            >
-              <Eye className="h-4 w-4 text-gray-600" />
-            </button>
+            <Tooltip content="Preview Page with this Layout" side="left">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onPreviewClick(displayTemplate);
+                }}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                className="w-1/4 min-w-[70px] relative group cursor-pointer"
+              >
+                <LayoutTemplatePreview
+                  template={displayTemplate}
+                  showItemLabels={false}
+                />
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded">
+                  <Eye className="h-5 w-5 text-white" />
+                </div>
+              </button>
+            </Tooltip>
           )}
-        </div>
+          {!onPreviewClick && (
+            <div className="w-1/4 min-w-[70px]">
+              <LayoutTemplatePreview
+                template={displayTemplate}
+                showItemLabels={false}
+              />
+            </div>
+          )}
+        </Card>
         );
       })}
     </SelectorListSection>
   );
 
   if (skipShell) {
-    return (
-      <>
-        {listSection}
-        {previewSection}
-      </>
-    );
+    return listSection;
   }
 
   return (
     <SelectorShell
       listSection={listSection}
-      previewSection={previewSection}
-      previewPosition={previewPosition}
-      sidePreviewWrapperClassName="w-1/2"
     />
   );
 }

@@ -98,6 +98,7 @@ export const ThemeSelectorWrapper = forwardRef<ThemeSelectorWrapperRef, ThemeSel
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [applyToEntireBook, setApplyToEntireBook] = useState(false);
   const originalPageIndexRef = useRef<number>(state.activePageIndex);
   const previewPageIndexRef = useRef<number | null>(null);
   const hasUserSelectedThemeRef = useRef<boolean>(false);
@@ -248,6 +249,88 @@ export const ThemeSelectorWrapper = forwardRef<ThemeSelectorWrapperRef, ThemeSel
       const isBookThemeSelection = selectedTheme === '__BOOK_THEME__';
       const resolvedThemeId = isBookThemeSelection ? (state.currentBook?.bookTheme || 'default') : selectedTheme;
 
+      // Apply to all pages if checkbox is checked
+      if (applyToEntireBook && state.currentBook) {
+        state.currentBook.pages.forEach((page, pageIndex) => {
+          dispatch({
+            type: 'SET_PAGE_THEME',
+            payload: {
+              pageIndex: pageIndex,
+              themeId: isBookThemeSelection ? '__BOOK_THEME__' : selectedTheme
+            }
+          });
+
+          dispatch({
+            type: 'APPLY_THEME_TO_ELEMENTS',
+            payload: {
+              pageIndex: pageIndex,
+              themeId: resolvedThemeId,
+              skipHistory: true,
+              preserveColors: true
+            }
+          });
+
+          const theme = getGlobalTheme(resolvedThemeId);
+          if (theme && page) {
+            const activePaletteId = page.colorPaletteId || state.currentBook?.colorPaletteId || null;
+            const currentThemeId = page.themeId || state.currentBook?.bookTheme || 'default';
+            const currentThemeDefaultPaletteId = getThemePaletteId(currentThemeId);
+
+            const isUsingThemeDefaultPalette = activePaletteId === currentThemeDefaultPaletteId;
+
+            let paletteToUse;
+            if (isUsingThemeDefaultPalette) {
+              const newThemeDefaultPaletteId = getThemePaletteId(resolvedThemeId);
+              paletteToUse = newThemeDefaultPaletteId ? colorPalettes.find(p => p.id === newThemeDefaultPaletteId) || null : null;
+
+              dispatch({
+                type: 'SET_PAGE_COLOR_PALETTE',
+                payload: {
+                  pageIndex: pageIndex,
+                  colorPaletteId: newThemeDefaultPaletteId || null
+                }
+              });
+            } else {
+              paletteToUse = activePaletteId ? colorPalettes.find(p => p.id === activePaletteId) || null : null;
+            }
+
+            const pageColors = getThemePageBackgroundColors(
+              resolvedThemeId,
+              paletteToUse || undefined
+            );
+            const backgroundOpacity = theme.pageSettings.backgroundOpacity || 1;
+
+            const newBackground = buildBackgroundFromTheme(
+              theme,
+              resolvedThemeId,
+              pageColors,
+              backgroundOpacity
+            );
+
+            dispatch({
+              type: 'UPDATE_PAGE_BACKGROUND',
+              payload: {
+                pageIndex: pageIndex,
+                background: newBackground
+              }
+            });
+          }
+        });
+
+        const historyThemeLabel = selectedTheme === '__BOOK_THEME__'
+          ? 'Book Theme'
+          : getGlobalTheme(selectedTheme)?.name || selectedTheme;
+
+        dispatch({
+          type: 'SAVE_TO_HISTORY',
+          payload: `Apply Theme "${historyThemeLabel}" to all pages`
+        });
+
+        onBack();
+        return;
+      }
+
+      // Apply to single page (original logic)
       dispatch({
         type: 'SET_PAGE_THEME',
         payload: {
@@ -508,8 +591,6 @@ export const ThemeSelectorWrapper = forwardRef<ThemeSelectorWrapperRef, ThemeSel
         <ThemeSelector
           currentTheme={currentTheme}
           selectedTheme={selectedTheme === '__BOOK_THEME__' ? undefined : selectedTheme}
-          isBookThemeSelected={!isBookLevel && selectedTheme === '__BOOK_THEME__'}
-          showBookThemeOption={!isBookLevel}
           onThemeSelect={(themeId) => {
             hasUserSelectedThemeRef.current = true;
             setSelectedTheme(themeId);
@@ -521,6 +602,8 @@ export const ThemeSelectorWrapper = forwardRef<ThemeSelectorWrapperRef, ThemeSel
           onCancel={onBack}
           onApply={handleApply}
           canApply={true}
+          applyToEntireBook={applyToEntireBook}
+          onApplyToEntireBookChange={setApplyToEntireBook}
         />
       </div>
       

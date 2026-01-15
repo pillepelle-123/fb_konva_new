@@ -26,6 +26,7 @@ import {
 } from '../../components/features/books/create/types';
 import { convertTemplateToElements } from '../../utils/template-to-elements';
 import { calculatePageDimensions } from '../../utils/template-utils';
+import { calculatePagePairId } from '../../utils/book-structure';
 import { useAuth } from '../../context/auth-context';
 
 const stepConfig = [
@@ -272,28 +273,6 @@ export default function BookCreatePage() {
       const background = buildBackground('default');
       const pages: Array<Record<string, unknown>> = [];
       
-      // Generate pagePairId for pages (same logic as handleSubmit)
-      const getPagePairId = (pageNumber: number, pageType: string) => {
-        if (pageType === 'back-cover' || pageType === 'front-cover') {
-          return 'spread-cover';
-        }
-        if (pageType === 'inner-front') {
-          return 'spread-intro-0';
-        }
-        if (pageType === 'inner-back') {
-          return 'spread-outro-last';
-        }
-        if (pageNumber === totalPages - 1) {
-          return 'spread-outro-last';
-        }
-        if (pageNumber === 4) {
-          return 'spread-intro-0';
-        }
-        const contentPageIndex = pageNumber - 4;
-        const pairIndex = Math.floor((contentPageIndex - 1) / 2);
-        return `spread-content-${pairIndex}`;
-      };
-      
       for (let i = 1; i <= totalPages; i++) {
         const isBackCover = i === 1;
         const isFrontCover = i === 2;
@@ -327,7 +306,7 @@ export default function BookCreatePage() {
           themeId: shouldHaveThemeAndBackground ? undefined : null,
           colorPaletteId: shouldHaveThemeAndBackground ? 'default' : null,
           pageType,
-          pagePairId: getPagePairId(i, pageType),
+          pagePairId: calculatePagePairId(i, totalPages, pageType),
           isPrintable: isPrintedPage,
           isLocked: isInnerPage,
           isSpecialPage: pageType === 'back-cover' || pageType === 'front-cover' || pageType === 'inner-front' || pageType === 'inner-back',
@@ -517,42 +496,6 @@ export default function BookCreatePage() {
       const background = buildBackground(wizardState.design.themeId);
       const pages: Array<Record<string, unknown>> = [];
       
-      // Generate pagePairId for pages
-      // Pages are paired: (1,2), (3,4), (5,6), ..., (totalPages-1, totalPages)
-      // Special pages get their own pair IDs based on their spread type
-      const getPagePairId = (pageNumber: number, pageType: string) => {
-        if (pageType === 'back-cover' || pageType === 'front-cover') {
-          return 'spread-cover';
-        }
-        if (pageType === 'inner-front') {
-          // Inner Front (page 3) pairs with the first content page (page 4)
-          return 'spread-intro-0';
-        }
-        if (pageType === 'inner-back') {
-          // Inner Back (last page) pairs with the last content page (totalPages - 1)
-          return 'spread-outro-last';
-        }
-        // Regular content pages: pair them starting from page 4
-        // Page 4-5: spread-content-0, Page 6-7: spread-content-1, etc.
-        // But the last content page (totalPages - 1) pairs with Inner Back (totalPages)
-        if (pageNumber === totalPages - 1) {
-          // Last content page pairs with Inner Back
-          return 'spread-outro-last';
-        }
-        // Content pages: pair them starting from page 4
-        // Page 4-5: spread-content-0, Page 6-7: spread-content-1, etc.
-        // But page 4 pairs with Inner Front (page 3)
-        if (pageNumber === 4) {
-          return 'spread-intro-0';
-        }
-        // For pages 5 onwards (except the last content page):
-        // Page 5: spread-content-0 (pairs with page 6 if it exists, otherwise standalone)
-        // Page 6-7: spread-content-1, Page 8-9: spread-content-2, etc.
-        const contentPageIndex = pageNumber - 4; // Page 5 -> 1, Page 6 -> 2, Page 7 -> 3, etc.
-        const pairIndex = Math.floor((contentPageIndex - 1) / 2); // Page 5-6 -> 0, Page 7-8 -> 1, etc.
-        return `spread-content-${pairIndex}`;
-      };
-      
       for (let i = 1; i <= totalPages; i++) {
         // Page mapping per requirement:
         // 1: Back Cover (NO layout template, but can have theme/background)
@@ -601,7 +544,7 @@ export default function BookCreatePage() {
             ? wizardState.design.paletteId // null means "Theme's Default Palette"
             : null,
           pageType,
-          pagePairId: getPagePairId(i, pageType),
+          pagePairId: calculatePagePairId(i, totalPages, pageType),
           isPrintable: isPrintedPage,
           isLocked: isInnerPage,
           // Only mark back-cover, front-cover, inner-front, inner-back as special

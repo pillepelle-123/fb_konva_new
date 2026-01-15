@@ -1,7 +1,7 @@
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import { Button } from '../../../ui/primitives/button';
-import { ChevronLeft, Settings, Image, PaintBucket, LayoutPanelLeft, Paintbrush2, Palette, ArrowDown, ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight, MessagesSquare, Columns3Cog } from 'lucide-react';
+import { ChevronLeft, Settings, Image, PaintBucket, LayoutPanelLeft, Paintbrush2, Palette, ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight, MessagesSquare, Columns3Cog } from 'lucide-react';
 import { RadioGroup } from '../../../ui/primitives/radio-group';
 import { ButtonGroup } from '../../../ui/composites/button-group';
 import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
@@ -46,7 +46,6 @@ interface GeneralSettingsProps {
   setShowBackgroundImageTemplateSelector: (value: boolean) => void;
   onOpenTemplates: () => void;
   onOpenLayouts: () => void;
-  onOpenBookLayouts: () => void;
   onOpenThemes: () => void;
   onOpenPalettes: () => void;
   selectedBackgroundImageId?: string | null;
@@ -88,11 +87,10 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
   setShowBackgroundImageModal,
   showBackgroundImageTemplateSelector,
   setShowBackgroundImageTemplateSelector,
-  onOpenTemplates,
-  onOpenLayouts,
-  onOpenBookLayouts,
-  onOpenThemes,
-  onOpenPalettes,
+    onOpenTemplates,
+    onOpenLayouts,
+    onOpenThemes,
+    onOpenPalettes,
   selectedBackgroundImageId,
   onBackgroundImageSelect,
   onApplyBackgroundImage,
@@ -117,58 +115,37 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
   // Use external state management if provided, otherwise fall back to local state
   const [localShowPagePalette, setLocalShowPagePalette] = useState(false);
-  const [localShowBookPalette, setLocalShowBookPalette] = useState(false);
   const [localShowPageLayout, setLocalShowPageLayout] = useState(false);
-  const [localShowBookLayout, setLocalShowBookLayout] = useState(false);
   const [localShowPageThemeSelector, setLocalShowPageThemeSelector] = useState(false);
-  const [localShowBookThemeSelector, setLocalShowBookThemeSelector] = useState(false);
 
   const showPagePalette = externalSetShowPagePalette ? externalShowPagePalette : localShowPagePalette;
   const setShowPagePalette = externalSetShowPagePalette || setLocalShowPagePalette;
-  const showBookPalette = externalSetShowBookPalette ? externalShowBookPalette : localShowBookPalette;
-  const setShowBookPalette = externalSetShowBookPalette || setLocalShowBookPalette;
   const showPageLayout = externalSetShowPageLayout ? externalShowPageLayout : localShowPageLayout;
   const setShowPageLayout = externalSetShowPageLayout || setLocalShowPageLayout;
-  const showBookLayout = externalSetShowBookLayout ? externalShowBookLayout : localShowBookLayout;
-  const setShowBookLayout = externalSetShowBookLayout || setLocalShowBookLayout;
   const showPageThemeSelector = externalSetShowPageThemeSelector ? externalShowPageThemeSelector : localShowPageThemeSelector;
   const setShowPageThemeSelector = externalSetShowPageThemeSelector || setLocalShowPageThemeSelector;
-  const showBookThemeSelector = externalSetShowBookThemeSelector ? externalShowBookThemeSelector : localShowBookThemeSelector;
-  const setShowBookThemeSelector = externalSetShowBookThemeSelector || setLocalShowBookThemeSelector;
   const [showEditorSettings, setShowEditorSettings] = useState(false);
   const [forceImageMode, setForceImageMode] = useState(false);
   
   // Keys to force remount when dialogs are opened
   const [pageLayoutKey, setPageLayoutKey] = useState(0);
-  const [bookLayoutKey, setBookLayoutKey] = useState(0);
   const [pageThemeKey, setPageThemeKey] = useState(0);
-  const [bookThemeKey, setBookThemeKey] = useState(0);
   const [pagePaletteKey, setPagePaletteKey] = useState(0);
-  const [bookPaletteKey, setBookPaletteKey] = useState(0);
 
   // Refs for selector components
   const pagePaletteRef = useRef<PaletteSelectorRef>(null);
-  const bookPaletteRef = useRef<PaletteSelectorRef>(null);
   const pageLayoutRef = useRef<LayoutSelectorWrapperRef>(null);
-  const bookLayoutRef = useRef<LayoutSelectorWrapperRef>(null);
   const pageThemeRef = useRef<ThemeSelectorWrapperRef>(null);
-  const bookThemeRef = useRef<ThemeSelectorWrapperRef>(null);
 
   // Expose applyCurrentSelector method to parent
   useImperativeHandle(ref, () => ({
     applyCurrentSelector: () => {
       if (showPagePalette && pagePaletteRef.current) {
         pagePaletteRef.current.apply();
-      } else if (showBookPalette && bookPaletteRef.current) {
-        bookPaletteRef.current.apply();
       } else if (showPageLayout && pageLayoutRef.current) {
         pageLayoutRef.current.apply();
-      } else if (showBookLayout && bookLayoutRef.current) {
-        bookLayoutRef.current.apply();
       } else if (showPageThemeSelector && pageThemeRef.current) {
         pageThemeRef.current.apply();
-      } else if (showBookThemeSelector && bookThemeRef.current) {
-        bookThemeRef.current.apply();
       }
     }
   }));
@@ -230,188 +207,29 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
             Back
           </Button>
         </div>
-        
-        {/* Button to apply Book Theme to current page */}
-        {state.currentBook?.bookTheme && state.currentBook.bookTheme !== 'default' && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              const bookThemeId = state.currentBook?.bookTheme || 'default';
-              // Set page theme to book theme
-              dispatch({ type: 'SET_PAGE_THEME', payload: { pageIndex: state.activePageIndex, themeId: bookThemeId } });
-              
-              // Apply theme to all elements on current page
-              dispatch({
-                type: 'APPLY_THEME_TO_ELEMENTS',
-                payload: { pageIndex: state.activePageIndex, themeId: bookThemeId, preserveColors: true }
-              });
-              
-              const theme = getGlobalTheme(bookThemeId);
-              if (theme) {
-                const currentPage = state.currentBook?.pages[state.activePageIndex];
-                if (currentPage) {
-                  const activePaletteId = currentPage?.colorPaletteId || state.currentBook?.colorPaletteId || null;
-                  const paletteOverride = activePaletteId
-                    ? colorPalettes.find(palette => palette.id === activePaletteId)
-                    : undefined;
-                  const existingBackground = currentPage.background;
-                  const paletteColors = paletteOverride?.colors;
-                  const backgroundOpacity = theme.pageSettings.backgroundOpacity ?? existingBackground?.opacity ?? 1;
-
-              const backgroundImageConfig = theme.pageSettings.backgroundImage;
-              let newBackground: PageBackground | null = null;
-
-              if (backgroundImageConfig?.enabled && backgroundImageConfig.templateId) {
-                const imageBackground = applyBackgroundImageTemplate(backgroundImageConfig.templateId, {
-                  imageSize: backgroundImageConfig.size,
-                  imageRepeat: backgroundImageConfig.repeat,
-                  imagePosition: backgroundImageConfig.position,
-                  imageWidth: backgroundImageConfig.width,
-                  opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
-                  backgroundColor: paletteColors?.background || existingBackground?.value || '#ffffff'
-                });
-
-                if (imageBackground) {
-                  newBackground = {
-                    ...imageBackground,
-                    pageTheme: bookThemeId
-                  };
-                }
-              }
-
-                  const resolvedBaseColor = existingBackground
-                    ? existingBackground.type === 'pattern'
-                      ? existingBackground.patternForegroundColor || paletteColors?.background || '#ffffff'
-                      : (typeof existingBackground.value === 'string' ? existingBackground.value : paletteColors?.background || '#ffffff')
-                    : paletteColors?.background || '#ffffff';
-
-                  const resolvedPatternForeground = existingBackground?.patternForegroundColor
-                    || paletteColors?.background
-                    || resolvedBaseColor;
-                  const resolvedPatternBackground = existingBackground?.patternBackgroundColor
-                    || paletteColors?.primary
-                    || paletteColors?.accent
-                    || resolvedPatternForeground;
-
-              if (!newBackground && theme.pageSettings.backgroundPattern?.enabled) {
-                newBackground = {
-                      type: 'pattern',
-                      value: theme.pageSettings.backgroundPattern.style,
-                      opacity: backgroundOpacity,
-                      pageTheme: bookThemeId,
-                      patternSize: theme.pageSettings.backgroundPattern.size,
-                      patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
-                      patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity,
-                      patternForegroundColor: resolvedPatternForeground,
-                      patternBackgroundColor: resolvedPatternBackground
-                    };
-              } else if (!newBackground) {
-                newBackground = {
-                      type: 'color',
-                      value: resolvedBaseColor,
-                      opacity: backgroundOpacity,
-                      pageTheme: bookThemeId
-                    };
-                  }
-
-                  dispatch({
-                    type: 'UPDATE_PAGE_BACKGROUND',
-                    payload: {
-                      pageIndex: state.activePageIndex,
-                      background: newBackground
-                    }
-                  });
-                }
-              }
-            }}
-            className="w-full mb-4"
-          >
-            <ArrowDown className="h-4 w-4 mr-2" />
-            Book Theme übernehmen
-          </Button>
-        )}
-        
         <ThemeSelector
           currentTheme={(() => {
-            // CRITICAL: Check if page.themeId exists as an OWN property (not inherited)
-            // Use Object.prototype.hasOwnProperty to ensure it's not in the prototype chain
             const currentPage = state.currentBook?.pages[state.activePageIndex];
-            if (!currentPage) return '__BOOK_THEME__';
-            
-            // Check if themeId exists as an own property in the object
-            const hasThemeIdOwnProperty = Object.prototype.hasOwnProperty.call(currentPage, 'themeId');
-            const themeIdValue = currentPage.themeId;
-            const bookThemeId = state.currentBook?.bookTheme || state.currentBook?.themeId || 'default';
-            
-            // CRITICAL FIX: If page.themeId exists as own property, it's an explicit theme
-            // Even if it matches bookThemeId, we show the explicit theme (not '__BOOK_THEME__')
-            // This distinguishes between "inheriting book theme" (no themeId) and 
-            // "explicitly set to same theme" (has themeId, even if matching bookThemeId)
-            const result = (hasThemeIdOwnProperty && themeIdValue !== undefined && themeIdValue !== null)
-              ? themeIdValue  // Page has explicit theme - show it (even if it matches bookThemeId)
-              : '__BOOK_THEME__';  // Page inherits book theme (no themeId) - show '__BOOK_THEME__'
-            
-            // console.log('[GeneralSettings] Page Theme currentTheme calculation:', {
-            //   hasThemeIdOwnProperty,
-            //   themeIdValue,
-            //   bookThemeId,
-            //   result,
-            //   pageId: currentPage.id,
-            //   pageNumber: currentPage.pageNumber
-            // });
-            
-            return result;
+            return currentPage?.themeId || state.currentBook?.bookTheme || state.currentBook?.themeId || 'default';
           })()}
           title="Page Theme"
-          showBookThemeOption
-          isBookThemeSelected={(() => {
-            // Page inherits book theme ONLY if themeId doesn't exist as own property
-            // If themeId exists (even if it matches bookThemeId), it's an explicit theme
-            const currentPage = state.currentBook?.pages[state.activePageIndex];
-            if (!currentPage) return true;
-            // Check if themeId exists as an own property in the object
-            const hasThemeIdOwnProperty = Object.prototype.hasOwnProperty.call(currentPage, 'themeId');
-            const themeIdValue = currentPage.themeId;
-            const bookThemeId = state.currentBook?.bookTheme || state.currentBook?.themeId || 'default';
-            
-            // Page inherits book theme ONLY if themeId doesn't exist as own property OR is undefined/null
-            // If themeId exists and has a value (even if matching bookThemeId), it's an explicit theme
-            const result = !hasThemeIdOwnProperty || themeIdValue === undefined || themeIdValue === null;
-            
-            // console.log('[GeneralSettings] Page Theme isBookThemeSelected calculation:', {
-            //   hasThemeIdOwnProperty,
-            //   themeIdValue,
-            //   bookThemeId,
-            //   result,
-            //   pageId: currentPage.id,
-            //   pageNumber: currentPage.pageNumber
-            // });
-            
-            return result;
-          })()}
           onThemeSelect={(themeId) => {
-            const isBookThemeSelection = themeId === '__BOOK_THEME__';
-            const resolvedThemeId =
-              isBookThemeSelection
-                ? state.currentBook?.bookTheme || state.currentBook?.themeId || 'default'
-                : themeId;
             
             // Set page theme (saves history)
             dispatch({ type: 'SET_PAGE_THEME', payload: { pageIndex: state.activePageIndex, themeId } });
-            
+
             // Apply theme to all elements on current page (no history, part of theme application)
             dispatch({
               type: 'APPLY_THEME_TO_ELEMENTS',
               payload: {
                 pageIndex: state.activePageIndex,
-                themeId: resolvedThemeId,
+                themeId,
                 skipHistory: true,
                 preserveColors: true
               }
             });
-            
-            const theme = getGlobalTheme(resolvedThemeId);
+
+            const theme = getGlobalTheme(themeId);
             if (!theme) {
               return;
             }
@@ -429,7 +247,7 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
               ? colorPalettes.find(palette => palette.id === activePaletteId) || null
               : null;
             const pageColors = getThemePageBackgroundColors(
-              resolvedThemeId,
+              themeId,
               paletteOverride || undefined
             );
             const backgroundOpacity = theme.pageSettings.backgroundOpacity || 1;
@@ -447,12 +265,12 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
                 backgroundColor: pageColors.backgroundColor
               });
               
-              if (imageBackground) {
-                newBackground = {
-                  ...imageBackground,
-                  pageTheme: resolvedThemeId
-                };
-              }
+                if (imageBackground) {
+                  newBackground = {
+                    ...imageBackground,
+                    pageTheme: themeId
+                  };
+                }
             }
             
             if (!newBackground && theme.pageSettings.backgroundPattern?.enabled) {
@@ -460,7 +278,7 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
                 type: 'pattern',
                 value: theme.pageSettings.backgroundPattern.style,
                 opacity: backgroundOpacity,
-                pageTheme: resolvedThemeId,
+                pageTheme: themeId,
                 patternSize: theme.pageSettings.backgroundPattern.size,
                 patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
                 patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity,
@@ -474,7 +292,7 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
                 type: 'color',
                 value: pageColors.backgroundColor,
                 opacity: backgroundOpacity,
-                pageTheme: resolvedThemeId
+                pageTheme: themeId
               };
             }
             
@@ -493,7 +311,7 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
             const toolUpdates: Record<string, any> = {};
             
             toolTypes.forEach(toolType => {
-              const activeTheme = resolvedThemeId || state.currentBook?.bookTheme || 'default';
+              const activeTheme = themeId || state.currentBook?.bookTheme || 'default';
               const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType as any, undefined);
               
               if (toolType === 'brush' || toolType === 'line') {
@@ -566,8 +384,6 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
           currentTheme={state.currentBook?.bookTheme || 'default'}
           title="Book Theme"
           onThemeSelect={(themeId) => {
-            // SET_BOOK_THEME now handles updating all pages that inherit book theme
-            // It will delete page.themeId, update backgrounds, and apply theme/palette to elements
             dispatch({ type: 'SET_BOOK_THEME', payload: themeId });
             
             if (!state.currentBook) {
@@ -1375,23 +1191,6 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
     );
   }
   
-  if (showBookPalette) {
-    const bookActiveTemplates = getActiveTemplateIds(undefined, state.currentBook);
-    return (
-      <PaletteSelector
-        ref={bookPaletteRef}
-        key={`book-palette-${bookPaletteKey}`}
-        onBack={() => {
-          setShowBookPalette(false);
-          setBookPaletteKey(prev => prev + 1); // Force remount on next open
-        }}
-        title="Book Color Palette"
-        isBookLevel={true}
-        themeId={bookActiveTemplates.themeId}
-      />
-    );
-  }
-  
   if (showPageLayout) {
     return (
       <LayoutSelectorWrapper
@@ -1407,21 +1206,6 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
     );
   }
   
-  if (showBookLayout) {
-    return (
-      <LayoutSelectorWrapper
-        ref={bookLayoutRef}
-        key={`book-layout-${bookLayoutKey}`}
-        onBack={() => {
-          setShowBookLayout(false);
-          setBookLayoutKey(prev => prev + 1); // Force remount on next open
-        }}
-        title="Book Layout"
-        isBookLevel={true}
-      />
-    );
-  }
-  
   if (showPageThemeSelector) {
     return (
       <ThemeSelectorWrapper
@@ -1433,21 +1217,6 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
         }}
         title="Page Theme"
         isBookLevel={false}
-      />
-    );
-  }
-
-  if (showBookThemeSelector) {
-    return (
-      <ThemeSelectorWrapper
-        ref={bookThemeRef}
-        key={`book-theme-${bookThemeKey}`}
-        onBack={() => {
-          setShowBookThemeSelector(false);
-          setBookThemeKey(prev => prev + 1); // Force remount on next open
-        }}
-        title="Book Theme"
-        isBookLevel={true}
       />
     );
   }
@@ -1486,176 +1255,29 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const pageActiveTemplates = getActiveTemplateIds(currentPage, state.currentBook);
   
-  // DEBUG: Log page state with object identity tracking
-  if (currentPage) {
-    // CRITICAL: Use Object.prototype.hasOwnProperty to check if themeId exists as an own property
-    // 'themeId' in currentPage also checks the prototype chain, which is wrong
-    const hasThemeIdIn = 'themeId' in currentPage;
-    const hasThemeIdOwnProperty = Object.prototype.hasOwnProperty.call(currentPage, 'themeId');
-    const themeIdValue = currentPage.themeId;
-    const bookThemeId = state.currentBook?.bookTheme || state.currentBook?.themeId || 'default';
-    
-    // Log detailed information including object identity
-    // console.log('[GeneralSettings] Page state:', {
-    //   pageIndex: state.activePageIndex,
-    //   hasThemeIdIn,
-    //   hasThemeIdOwnProperty,
-    //   themeIdValue,
-    //   bookTheme: bookThemeId,
-    //   pageActiveTemplatesThemeId: pageActiveTemplates.themeId,
-    //   pageKeys: Object.keys(currentPage).slice(0, 10), // First 10 keys
-    //   pageOwnKeys: Object.getOwnPropertyNames(currentPage).slice(0, 10),
-    //   pageId: currentPage.id,
-    //   pageNumber: currentPage.pageNumber,
-    //   // Log if themeId matches bookThemeId (should be treated as inheritance)
-    //   themeIdMatchesBookTheme: themeIdValue === bookThemeId,
-    //   shouldTreatAsInheritance: !hasThemeIdOwnProperty || themeIdValue === undefined || themeIdValue === null || themeIdValue === bookThemeId
-    // });
-    
-    // CRITICAL: If themeId exists but matches bookThemeId, log a warning
-    if (hasThemeIdOwnProperty && themeIdValue && themeIdValue === bookThemeId) {
-      // console.warn('[GeneralSettings] WARNING: Page has themeId as own property but it matches bookThemeId. This should be treated as inheritance!', {
-      //   pageId: currentPage.id,
-      //   pageNumber: currentPage.pageNumber,
-      //   themeIdValue,
-      //   bookThemeId
-      // });
-    }
-  }
   
+  // Get page layout - always use the active layout (page layout or book layout as fallback)
+  // Get page layout - use page layout if available, otherwise fall back to book layout
   const pageLayout = pageActiveTemplates.layoutTemplateId
-    ? pageTemplates.find(t => t.id === pageActiveTemplates.layoutTemplateId) || null
-    : null;
+    ? (pageTemplates.find(t => t.id === pageActiveTemplates.layoutTemplateId) || null)
+    : (bookActiveTemplates.layoutTemplateId
+        ? (pageTemplates.find(t => t.id === bookActiveTemplates.layoutTemplateId) || null)
+        : null);
   const pageTheme = getGlobalTheme(pageActiveTemplates.themeId);
+  // Get page palette - use page palette if available, otherwise fall back to book palette
   // If pageActiveTemplates.colorPaletteId is null, check if theme has a default palette
   const pagePaletteId = pageActiveTemplates.colorPaletteId || (pageActiveTemplates.themeId ? getThemePaletteId(pageActiveTemplates.themeId) : null);
-  const pagePalette = pagePaletteId
-    ? colorPalettes.find(p => p.id === pagePaletteId) || null
+  const bookPaletteIdForFallback = bookActiveTemplates.colorPaletteId || (bookActiveTemplates.themeId ? getThemePaletteId(bookActiveTemplates.themeId) : null);
+  const effectivePaletteId = pagePaletteId || bookPaletteIdForFallback;
+  const pagePalette = effectivePaletteId
+    ? (colorPalettes.find(p => p.id === effectivePaletteId) || null)
     : null;
-  const pageInheritsLayout = !currentPage?.layoutTemplateId;
-  
-  // CRITICAL: Check if page.themeId exists as an OWN property (not inherited)
-  // Use Object.prototype.hasOwnProperty to ensure it's not in the prototype chain
-  // If themeId doesn't exist as own property, the page inherits the book theme
-  // CRITICAL FIX: If themeId exists (even if it matches bookThemeId), it's an explicit theme
-  const hasThemeIdOwnProperty = currentPage ? Object.prototype.hasOwnProperty.call(currentPage, 'themeId') : false;
-  const themeIdValue = currentPage?.themeId;
-  const bookThemeId = state.currentBook?.bookTheme || state.currentBook?.themeId || 'default';
-  
-  // Page inherits book theme ONLY if themeId doesn't exist as own property
-  // If themeId exists (even if it matches bookThemeId), it's an explicit theme
-  // This distinguishes between "inheriting book theme" (no themeId) and 
-  // "explicitly set to same theme" (has themeId, even if matching bookThemeId)
-  const pageInheritsTheme = !hasThemeIdOwnProperty || themeIdValue === undefined || themeIdValue === null;
-  const pageInheritsPalette = !currentPage?.colorPaletteId;
-  
-  // console.log('[GeneralSettings] pageInheritsTheme:', pageInheritsTheme, 'hasThemeIdOwnProperty:', hasThemeIdOwnProperty, 'themeIdValue:', themeIdValue, 'bookThemeId:', bookThemeId);
 
   return (
     <>
       <div className="space-y-3">
-        {state.editorInteractionLevel === 'full_edit_with_settings' && (
-          <>
-            <div>
-              <Label variant="xs" className="text-muted-foreground mb-2 block">Book Settings</Label>
-              <div className="space-y-1">
-                {canShowBookChatButton && (
-                  <Button
-                    variant="ghost_hover"
-                    size="sm"
-                    onClick={() => onOpenBookChat?.()}
-                    className="w-full justify-start"
-                  >
-                    <MessagesSquare className="h-4 w-4 mr-2" />
-                    Chat
-                  </Button>
-                )}
-                <Button
-                    variant="ghost_hover"
-                    size="sm"
-                    onClick={() => {
-                      setBookLayoutKey(prev => prev + 1); // Force remount
-                      setShowBookLayout(true);
-                    }}
-                    className="w-full justify-start"
-                  >
-                    <LayoutPanelLeft className="h-4 w-4 mr-2" />
-                    <span className="flex-1 text-left">Book Layout</span>
-                    {bookLayout && (
-                      <div className="ml-2 h-6 w-12 bg-gray-100 rounded border relative overflow-hidden shrink-0">
-                        <div className="absolute inset-1 grid grid-cols-2 gap-1">
-                          {bookLayout.textboxes.slice(0, 4).map((_, i) => (
-                            <div key={i} className="bg-blue-200 rounded-sm opacity-60" />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </Button>
-                <Button
-                  variant="ghost_hover"
-                  size="sm"
-                  onClick={() => {
-                    setBookThemeKey(prev => prev + 1); // Force remount
-                    setShowBookThemeSelector(true);
-                  }}
-                  className="w-full justify-start"
-                >
-                  <Paintbrush2 className="h-4 w-4 mr-2" />
-                  <span className="flex-1 text-left">Book Theme</span>
-                  {bookTheme && (
-                    <span className="text-xs text-muted-foreground ml-2">
-                      {bookTheme.name}
-                    </span>
-                  )}
-                </Button>
-
-            <Button
-              variant="ghost_hover"
-              size="sm"
-              onClick={() => {
-                setBookPaletteKey(prev => prev + 1); // Force remount
-                setShowBookPalette(true);
-              }}
-              className="w-full justify-start"
-            >
-              <Palette className="h-4 w-4 mr-2" />
-              <span className="flex-1 text-left">Book Color Palette</span>
-              {bookPalette && (
-                <div className="ml-2 flex h-4 w-16 rounded overflow-hidden shrink-0 border border-gray-200">
-                  {Object.values(bookPalette.colors).map((color, index) => (
-                    <div
-                      key={index}
-                      className="flex-1"
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
-                </div>
-              )}
-            </Button>
-              </div>
-            </div>
-            
-            <div>
-              <Label variant="xs" className="text-muted-foreground mb-2 block">Editor Settings</Label>
-              <div className="space-y-1">
-                <Button
-                  variant="ghost_hover"
-                  size="sm"
-                  onClick={() => setShowEditorSettings(true)}
-                  className="w-full justify-start"
-                >
-                  <Columns3Cog className="h-4 w-4 mr-2" />
-                  Editor
-                </Button>
-              </div>
-            </div>
-            
-            <Separator />
-          </>
-        )}
-        
         <div>
-          <Label variant="xs" className="text-muted-foreground mb-2 block">Page Settings</Label>
+          <Label variant="xs" className="text-muted-foreground mb-2 block">Styling Settings</Label>
           <div className="space-y-1">
             <Button
               variant="ghost_hover"
@@ -1681,11 +1303,7 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
                   >
                     <LayoutPanelLeft className="h-4 w-4 mr-2" />
                     <span className="flex-1 text-left">Layout</span>
-                    {pageInheritsLayout ? (
-                      <span className="text-xs text-muted-foreground ml-2 italic">
-                        Book Layout
-                      </span>
-                    ) : pageLayout ? (
+                    {pageLayout && (
                       <div className="ml-2 h-6 w-12 bg-gray-100 rounded border relative overflow-hidden shrink-0">
                         <div className="absolute inset-1 grid grid-cols-2 gap-1">
                           {pageLayout.textboxes.slice(0, 4).map((_, i) => (
@@ -1693,7 +1311,7 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
                           ))}
                         </div>
                       </div>
-                    ) : null}
+                    )}
                   </Button>
                   <Button
                     variant="ghost_hover"
@@ -1709,19 +1327,9 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
                   >
                     <Paintbrush2 className="h-4 w-4 mr-2" />
                     <span className="flex-1 text-left">Theme</span>
-                    {pageInheritsTheme ? (
-                      <span className="text-xs text-muted-foreground ml-2 italic">
-                        Book Theme
-                      </span>
-                    ) : pageTheme ? (
-                      <span className="text-xs text-muted-foreground ml-2">
-                        {pageTheme.name}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground ml-2 italic">
-                        Book Theme
-                      </span>
-                    )}
+                    <span className="text-xs text-muted-foreground ml-2">
+                      {pageTheme?.name}
+                    </span>
                   </Button>
                   <Button
                     variant="ghost_hover"
@@ -1737,24 +1345,7 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
                   >
                     <Palette className="h-4 w-4 mr-2" />
                     <span className="flex-1 text-left">Color Palette</span>
-                    {pageInheritsPalette ? (
-                      // When inheriting, show bookPalette (which includes theme palette if book.colorPaletteId is null)
-                      bookPalette ? (
-                        <div className="ml-2 flex h-4 w-16 rounded overflow-hidden shrink-0 border border-gray-200">
-                          {Object.values(bookPalette.colors).map((color, index) => (
-                            <div
-                              key={index}
-                              className="flex-1"
-                              style={{ backgroundColor: color }}
-                            />
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-muted-foreground ml-2 italic">
-                          Book Color Palette
-                        </span>
-                      )
-                    ) : pagePalette ? (
+                    {pagePalette && (
                       <div className="ml-2 flex h-4 w-16 rounded overflow-hidden shrink-0 border border-gray-200">
                         {Object.values(pagePalette.colors).map((color, index) => (
                           <div
@@ -1764,14 +1355,43 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
                           />
                         ))}
                       </div>
-                    ) : (
-                      <span className="text-xs text-muted-foreground ml-2 italic">
-                        Book Color Palette
-                      </span>
                     )}
                   </Button>
           </div>
         </div>
+        <Separator />
+
+        {state.editorInteractionLevel === 'full_edit_with_settings' && (
+          <>
+            <div>
+              <Label variant="xs" className="text-muted-foreground mb-2 block">Editor Settings</Label>
+              <div className="space-y-1">
+                {canShowBookChatButton && (
+                  <Button
+                    variant="ghost_hover"
+                    size="sm"
+                    onClick={() => onOpenBookChat?.()}
+                    className="w-full justify-start"
+                  >
+                    <MessagesSquare className="h-4 w-4 mr-2" />
+                    Chat
+                  </Button>
+                )}
+                <Button
+                  variant="ghost_hover"
+                  size="sm"
+                  onClick={() => setShowEditorSettings(true)}
+                  className="w-full justify-start"
+                >
+                  <Columns3Cog className="h-4 w-4 mr-2" />
+                  Editor
+                </Button>
+              </div>
+            </div>
+            
+          </>
+        )}
+
       </div>
     </>
   );

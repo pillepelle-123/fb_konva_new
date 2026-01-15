@@ -14,7 +14,6 @@ interface LayoutSelectorWrapperProps {
   onBack: () => void;
   title: string;
   isBookLevel?: boolean;
-  previewPosition?: 'top' | 'bottom'; // 'bottom' = Preview below list (default), 'top' = Preview above list
 }
 
 export interface LayoutSelectorWrapperRef {
@@ -50,11 +49,11 @@ export const LayoutSelectorWrapper = forwardRef<LayoutSelectorWrapperRef, Layout
   const [selectedLayout, setSelectedLayout] = useState<PageTemplate | null>(
     isBookLevel ? currentLayout : pageHasCustomLayout ? currentLayout : bookLayout
   );
-  const [selectedBookLayout, setSelectedBookLayout] = useState<boolean>(!isBookLevel && !pageHasCustomLayout);
   const [previewLayout, setPreviewLayout] = useState<PageTemplate | null>(null); // Separate state for preview
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [applyToEntireBook, setApplyToEntireBook] = useState(false);
   const originalPageIndexRef = useRef<number>(state.activePageIndex);
   const previewPageIndexRef = useRef<number | null>(null);
 
@@ -82,10 +81,8 @@ export const LayoutSelectorWrapper = forwardRef<LayoutSelectorWrapperRef, Layout
       if (currentLayout) {
         setSelectedLayout(currentLayout);
       }
-      setSelectedBookLayout(false);
     } else {
       setSelectedLayout(bookLayout || null);
-      setSelectedBookLayout(true);
     }
   }, [isBookLevel, pageHasCustomLayout, currentLayout, bookLayout]);
   
@@ -203,37 +200,40 @@ export const LayoutSelectorWrapper = forwardRef<LayoutSelectorWrapperRef, Layout
       return;
     }
     
-    if (selectedBookLayout) {
-      if (bookLayout) {
+    if (!selectedLayout) return;
+    
+    // Apply to all pages if checkbox is checked
+    if (applyToEntireBook && state.currentBook) {
+      state.currentBook.pages.forEach((_, pageIndex) => {
         dispatch({
           type: 'APPLY_LAYOUT_TEMPLATE',
           payload: {
-            template: bookLayout,
-            pageIndex: state.activePageIndex,
-            applyToAllPages: false
+            template: selectedLayout,
+            pageIndex: pageIndex,
+            applyToAllPages: false,
+            skipHistory: true
           }
         });
-      }
-      
-      dispatch({
-        type: 'SET_PAGE_LAYOUT_TEMPLATE',
-        payload: {
-          pageIndex: state.activePageIndex,
-          layoutTemplateId: null
-        }
+        
+        dispatch({
+          type: 'SET_PAGE_LAYOUT_TEMPLATE',
+          payload: {
+            pageIndex: pageIndex,
+            layoutTemplateId: selectedLayout.id
+          }
+        });
       });
       
       dispatch({
         type: 'SAVE_TO_HISTORY',
-        payload: 'Apply Page Layout: Book Layout'
+        payload: `Apply Layout to all pages: ${selectedLayout.name}`
       });
       
       onBack();
       return;
     }
     
-    if (!selectedLayout) return;
-    
+    // Apply to single page (original logic)
     dispatch({
       type: 'APPLY_LAYOUT_TEMPLATE',
       payload: {
@@ -251,31 +251,6 @@ export const LayoutSelectorWrapper = forwardRef<LayoutSelectorWrapperRef, Layout
       }
     });
     
-    // Apply theme to all elements on the page after layout is applied
-    // This ensures newly added textboxes get the correct theme defaults (e.g., font family)
-    // Get theme from layout template (if it has one), otherwise use page/book theme
-    const layoutTheme = (selectedLayout as any).theme;
-    const currentPage = state.currentBook?.pages[state.activePageIndex];
-    const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
-    const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme || 'default';
-    // Priority: layout theme > page theme > book theme
-    const themeToApply = layoutTheme || pageTheme || bookTheme;
-    
-    // Apply theme to elements - use setTimeout to ensure APPLY_LAYOUT_TEMPLATE has updated the state
-    if (themeToApply) {
-      setTimeout(() => {
-        dispatch({
-          type: 'APPLY_THEME_TO_ELEMENTS',
-          payload: {
-            pageIndex: state.activePageIndex,
-            themeId: themeToApply,
-            skipHistory: true,
-            preserveColors: true
-          }
-        });
-      }, 0);
-    }
-    
     dispatch({
       type: 'SAVE_TO_HISTORY',
       payload: `Apply Page Layout: ${selectedLayout.name}`
@@ -291,8 +266,7 @@ export const LayoutSelectorWrapper = forwardRef<LayoutSelectorWrapperRef, Layout
   };
   
   const handlePreview = (template?: PageTemplate) => {
-    const effectiveLayout = selectedBookLayout ? bookLayout : selectedLayout;
-    const layoutToPreview = template || effectiveLayout;
+    const layoutToPreview = template || selectedLayout;
     if (!layoutToPreview) return;
     // Set preview layout (without changing selectedLayout to avoid blue border)
     setPreviewLayout(layoutToPreview);
@@ -311,7 +285,7 @@ export const LayoutSelectorWrapper = forwardRef<LayoutSelectorWrapperRef, Layout
   };
   
   const handleApplyToPage = () => {
-    if (!previewLayout && !selectedBookLayout) return;
+    if (!previewLayout) return;
     
     dispatch({ type: 'DELETE_PREVIEW_PAGE' });
     dispatch({ type: 'SET_ACTIVE_PAGE', payload: originalPageIndexRef.current });
@@ -322,13 +296,11 @@ export const LayoutSelectorWrapper = forwardRef<LayoutSelectorWrapperRef, Layout
         ? originalPageIndexRef.current
         : state.activePageIndex;
     
-      const layoutToApply = selectedBookLayout ? bookLayout : previewLayout;
-      
-      if (layoutToApply) {
+      if (previewLayout) {
         dispatch({
           type: 'APPLY_LAYOUT_TEMPLATE',
           payload: {
-            template: layoutToApply,
+            template: previewLayout,
           pageIndex: targetPageIndex,
             applyToAllPages: false
           }
@@ -339,19 +311,16 @@ export const LayoutSelectorWrapper = forwardRef<LayoutSelectorWrapperRef, Layout
         type: 'SET_PAGE_LAYOUT_TEMPLATE',
         payload: {
         pageIndex: targetPageIndex,
-          layoutTemplateId: selectedBookLayout ? null : layoutToApply?.id
+          layoutTemplateId: previewLayout?.id
         }
       });
       
       // Update selectedLayout after applying
-      setSelectedLayout(selectedBookLayout ? bookLayout || null : layoutToApply);
-      setSelectedBookLayout(selectedBookLayout);
+      setSelectedLayout(previewLayout);
       
       dispatch({
         type: 'SAVE_TO_HISTORY',
-        payload: selectedBookLayout
-          ? 'Apply Page Layout: Book Layout'
-          : `Apply Page Layout: ${layoutToApply?.name || 'Layout'}`
+        payload: `Apply Page Layout: ${previewLayout?.name || 'Layout'}`
       });
     }, 100);
   };
@@ -386,7 +355,6 @@ export const LayoutSelectorWrapper = forwardRef<LayoutSelectorWrapperRef, Layout
       
       // Update selectedLayout after applying
       setSelectedLayout(previewLayout);
-      setSelectedBookLayout(false);
       
       dispatch({
         type: 'SAVE_TO_HISTORY',
@@ -416,23 +384,16 @@ export const LayoutSelectorWrapper = forwardRef<LayoutSelectorWrapperRef, Layout
           selectedLayout={selectedLayout}
           onLayoutSelect={(template) => {
             setSelectedLayout(template);
-            setSelectedBookLayout(false);
           }}
           onPreviewClick={(template) => {
             // Open preview dialog immediately with the template
             handlePreview(template);
           }}
-          previewPosition="bottom"
-          showBookLayoutOption={!isBookLevel}
-          isBookLayoutSelected={selectedBookLayout}
-          onBookLayoutSelect={() => {
-            setSelectedBookLayout(true);
-            setSelectedLayout(bookLayout || null);
-          }}
-          bookLayout={bookLayout}
           onCancel={onBack}
           onApply={handleApply}
           canApply={true}
+          applyToEntireBook={applyToEntireBook}
+          onApplyToEntireBookChange={setApplyToEntireBook}
         />
       </div>
 

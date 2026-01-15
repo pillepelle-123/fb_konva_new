@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, FileText, Plus } from 'lucide-react';
 import { Button } from '../../../ui/primitives/button';
 import { ButtonGroup } from '../../../ui/composites/button-group';
@@ -7,7 +7,7 @@ import { Badge } from '../../../ui/composites/badge';
 import ProfilePicture from '../../users/profile-picture';
 // import PagePreview from '../../books/page-preview'; // Disabled but kept for future use
 import { useEditor } from '../../../../context/editor-context';
-import { computePageMetadataEntry } from '../../../../utils/book-structure';
+import { computePageMetadataEntry, calculatePagePairId } from '../../../../utils/book-structure';
 import { getConsistentColor } from '../../../../utils/consistent-color';
 import type { Page } from '../../../../context/editor-context';
 
@@ -67,44 +67,6 @@ export function PagesSubmenu({
     return map;
   }, [book?.pages]);
 
-  const getGroupingPairId = useCallback(
-    (pageNumber: number, metadata?: ReturnType<typeof resolvePageMetadata>) => {
-      // CRITICAL: ALWAYS check totalPages FIRST, before ANY other logic
-      // This is the most important check - it ensures last pages are always correctly identified
-      if (totalPages > 0) {
-        // Last page (e.g., 64) and second-to-last page (e.g., 63) should be grouped together
-        if (pageNumber === totalPages || pageNumber === totalPages - 1) {
-          return 'spread-outro-last';
-        }
-        // Also check if pageNumber >= totalPages - 1 as a safety net
-        if (pageNumber >= totalPages - 1) {
-          return 'spread-outro-last';
-        }
-      }
-      
-      // Use totalPages directly (from pagination or calculated) instead of lastPageNumber
-      // This ensures correct grouping even when not all pages are loaded
-      if (!metadata) {
-        return `spread-content-${Math.max(0, Math.floor(Math.max(0, pageNumber - 5) / 2))}`;
-      }
-      const { pageType } = metadata;
-      if (pageType === 'back-cover' || pageType === 'front-cover') {
-        return 'spread-cover';
-      }
-      if (pageType === 'inner-front' || pageNumber === 4) {
-        return 'spread-intro-0';
-      }
-      // Additional check for inner-back or last-page types
-      if (pageType === 'inner-back' || pageType === 'last-page') {
-        return 'spread-outro-last';
-      }
-      const offset = Math.max(0, pageNumber - 5);
-      const pairIndex = Math.floor(offset / 2);
-      return `spread-content-${pairIndex}`;
-    },
-    [totalPages],
-  );
-
   // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
@@ -117,44 +79,15 @@ export function PagesSubmenu({
   // Create pair entries based on all pages (including placeholders)
   const pairEntries = useMemo(() => {
     if (!book || totalPages === 0) return [];
-    const getMetadata = (pageNumber: number) => {
-      // CRITICAL: Always compute pageType and pagePairId based on totalPages, NOT from database
-      // This fixes cases where pages have incorrect pageType/pagePairId stored in database
-      const page = pagesByNumber.get(pageNumber) ?? undefined;
-      
-      // Compute correct pageType based on totalPages, ignoring database value
-      const correctPageType: NonNullable<Page['pageType']> = pageNumber === 1 ? 'back-cover'
-        : pageNumber === 2 ? 'front-cover'
-        : pageNumber === 3 ? 'inner-front'
-        : pageNumber === totalPages ? 'inner-back'
-        : 'content';
-      
-      // Create metadata with correct pageType - pass page with overridden pageType
-      const pageWithCorrectType = page ? { ...page, pageType: correctPageType } : undefined;
-      const metadata = computePageMetadataEntry(pageNumber, totalPages, pageWithCorrectType);
-      
-      // Override both pageType and pagePairId to ensure they're always computed correctly
-      if (metadata) {
-        // Use getGroupingPairId to compute the correct pairId, ignoring any pagePairId from database
-        const recomputedPairId = getGroupingPairId(pageNumber, { ...metadata, pageType: correctPageType });
-        return {
-          ...metadata,
-          pageType: correctPageType,
-          pagePairId: recomputedPairId,
-        };
-      }
-      return metadata;
-    };
-
-    // First, collect all pairIds and their page numbers in order
+    
+    // Group pages by their pagePairId from database, with fallback to calculated ID
     const pairIdMap = new Map<string, number[]>();
     
     for (let pageNumber = 1; pageNumber <= totalPages; pageNumber++) {
-      const metadata = getMetadata(pageNumber);
-      if (!metadata) continue;
-      // CRITICAL: Always compute pairId directly, ignoring any pagePairId from metadata
-      // This ensures that the last pages (63, 64) always get 'spread-outro-last'
-      const pairId = getGroupingPairId(pageNumber, metadata);
+      const page = pagesByNumber.get(pageNumber);
+      
+      // Use pagePairId from database if available, otherwise calculate it
+      const pairId = page?.pagePairId || calculatePagePairId(pageNumber, totalPages, page?.pageType);
       
       if (!pairIdMap.has(pairId)) {
         pairIdMap.set(pairId, []);
@@ -179,13 +112,13 @@ export function PagesSubmenu({
       const minPageNumber = Math.min(...pairPageNumbers);
       return { pairId, pairPageNumbers, minPageNumber };
     }).sort((a, b) => {
-      // CRITICAL: Ensure 'spread-outro-last' ALWAYS comes last, regardless of page numbers
+      // CRITICAL: Ensure 'pair-outro-last' ALWAYS comes last, regardless of page numbers
       // This is the most important sorting rule
-      if (a.pairId === 'spread-outro-last' && b.pairId !== 'spread-outro-last') {
-        return 1; // a (spread-outro-last) comes after b
+      if (a.pairId === 'pair-outro-last' && b.pairId !== 'pair-outro-last') {
+        return 1; // a (pair-outro-last) comes after b
       }
-      if (b.pairId === 'spread-outro-last' && a.pairId !== 'spread-outro-last') {
-        return -1; // b (spread-outro-last) comes after a
+      if (b.pairId === 'pair-outro-last' && a.pairId !== 'pair-outro-last') {
+        return -1; // b (pair-outro-last) comes after a
       }
       // For all other pairs, sort by minPageNumber
       return a.minPageNumber - b.minPageNumber;
@@ -205,15 +138,15 @@ export function PagesSubmenu({
           }
           return actualPage;
         }
-        const meta = getMetadata(pn);
+        const metadata = computePageMetadataEntry(pn, totalPages);
         return {
           id: -pn, // Use negative number for placeholder IDs (consistent with createPlaceholderPage)
           pageNumber: pn,
           elements: [],
-          pageType: meta?.pageType,
-          pagePairId: pairId, // Always use the computed pairId, not from metadata
-          isSpecialPage: meta?.isSpecial ?? false,
-          isLocked: meta ? !meta.isEditable : false,
+          pageType: metadata?.pageType,
+          pagePairId: pairId, // Use the pairId from grouping
+          isSpecialPage: metadata?.isSpecial ?? false,
+          isLocked: metadata ? !metadata.isEditable : false,
           isPrintable: true,
           isPlaceholder: true,
         } as Page;
@@ -221,8 +154,8 @@ export function PagesSubmenu({
       const startIndex = pairPageNumbers[0] - 1; // Convert to 0-based index
       const isPairNonEditable = pairPages.some((p) => {
         if (!p) return false;
-        const meta = getMetadata(p.pageNumber);
-        return !(meta?.isEditable ?? true);
+        const metadata = computePageMetadataEntry(p.pageNumber ?? 0, totalPages, p);
+        return !(metadata?.isEditable ?? true);
       });
       entries.push({
         pairId,
@@ -234,7 +167,7 @@ export function PagesSubmenu({
     }
     // Sort entries by startIndex to ensure correct order
     return entries.sort((a, b) => a.startIndex - b.startIndex);
-  }, [book, totalPages, pagesByNumber, getGroupingPairId]);
+  }, [book, totalPages, pagesByNumber]);
 
 
   if (!book) {
@@ -621,7 +554,7 @@ export function PagesSubmenu({
       {/* Floating Add Button */}
       {showAddButton && addButtonPosition !== null && (
         <div
-          className={`absolute top-0 flex items-center justify-center transition-all duration-200 ease-out cursor-pointer ${
+          className={`absolute top-0.5 flex items-center justify-center transition-all duration-200 ease-out cursor-pointer ${
             showAddButton ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
           }`}
           style={{
@@ -665,7 +598,7 @@ export function PagesSubmenu({
             <Button
               variant="outline"
               size="xs"
-              className="h-8 w-8 p-0 rounded-full bg-background shadow-md hover:bg-accent"
+              className="h-6 w-6 p-0 rounded-full bg-background shadow-md hover:bg-accent"
             >
               <Plus className="h-3 w-3" />
             </Button>

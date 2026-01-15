@@ -25,3 +25,4 @@ alwaysApply: true
 - **PDF-Renderer**: Separater Build-Prozess für optimale Performance
 - **Background Images**: Effiziente Lade- und Cache-Strategien
 - **Real-time Collaboration**: Optimistische Updates mit Conflict Resolution
+- **Migration statt Backward Kompatibilität**: Bei Lösungsänderungen werden bestehende Artefakte (z.B. Datenbank-Einträge) durch Migrations angepasst, anstatt Backward Kompatibilität zu wahren

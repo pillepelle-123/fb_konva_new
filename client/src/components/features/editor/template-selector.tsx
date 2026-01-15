@@ -230,7 +230,6 @@ export function TemplateSelector({ onBack }: TemplateSelectorProps) {
                   <LayoutSelector 
                     selectedLayout={selectedLayout}
                     onLayoutSelect={setSelectedLayout}
-                    previewPosition="bottom"
                     skipShell={true}
                   />
                 </div>
@@ -244,7 +243,6 @@ export function TemplateSelector({ onBack }: TemplateSelectorProps) {
                   <ThemeSelector 
                     selectedTheme={selectedTheme}
                     onThemeSelect={setSelectedTheme}
-                    previewPosition="bottom"
                     skipShell={true}
                   />
                 </div>

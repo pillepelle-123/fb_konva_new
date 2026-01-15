@@ -1,8 +1,9 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { CanvasElement } from '../context/editor-context';
+import type { CanvasElement, Page, Book } from '../context/editor-context';
 import type { PageTemplate } from '../types/template-types';
 import { convertTemplateToElements } from './template-to-elements';
-import { scaleTemplateToCanvas } from './template-utils';
+import { getActiveTemplateIds } from './template-inheritance';
+import { getGlobalThemeDefaults } from './global-themes';
 
 interface ContentMapping {
   existingElement: CanvasElement;
@@ -14,134 +15,101 @@ export function applyLayoutTemplateWithPreservation(
   existingElements: CanvasElement[],
   template: PageTemplate,
   canvasSize?: { width: number; height: number },
-  pageSize?: string,
-  orientation?: string
+  _pageSize?: string,
+  _orientation?: string,
+  page?: Page,
+  book?: Book | null
 ): CanvasElement[] {
   // Convert template to elements (skaliert automatisch, wenn canvasSize vorhanden ist)
   // Übergib pageSize und orientation NICHT als canvasSize, da convertTemplateToElements
   // nur canvasSize benötigt und die Skalierung intern durchführt
   const templateElements = convertTemplateToElements(template, canvasSize);
   
-  // Separate textbox and non-textbox elements
-  const existingTextboxes = existingElements.filter(el => 
-    el.type === 'text' || el.textType
+  // Separate elements into categories for layout mapping
+  // Only QNA textboxes and images/image-placeholders participate in layout mapping
+  const existingMappableElements = existingElements.filter(el =>
+    el.textType === 'qna' || el.type === 'image' || el.type === 'placeholder'
   );
-  const existingNonTextboxes = existingElements.filter(el => 
-    el.type !== 'text' && !el.textType
+
+  // Template slots for QNA and images
+  const templateMappableSlots = templateElements.filter(el =>
+    el.textType === 'qna' || el.type === 'image' || el.type === 'placeholder'
   );
-  
-  const templateTextboxes = templateElements.filter(el => 
-    el.type === 'text' || el.textType
+
+  // Elements that should remain in their current positions (unchanged)
+  const existingUnmappableElements = existingElements.filter(el =>
+    !(el.textType === 'qna' || el.type === 'image' || el.type === 'placeholder')
   );
-  const templateNonTextboxes = templateElements.filter(el => 
-    el.type !== 'text' && !el.textType
-  );
-  
-  // Smart mapping for textboxes
-  const mappings = createSmartMappings(existingTextboxes, templateTextboxes);
+
+  // Smart mapping for QNA textboxes and images/image-placeholders
+  const mappings = createSmartMappings(existingMappableElements, templateMappableSlots);
   const resultElements: CanvasElement[] = [];
   
   // Apply mappings
   mappings.forEach(mapping => {
+    // Only change position, size and rotation, preserve all other properties from existing element
     const preservedElement = {
-      ...mapping.templateSlot,
-      id: mapping.existingElement.id, // Preserve ID
-      text: mapping.existingElement.text,
-      formattedText: mapping.existingElement.formattedText,
-      questionId: mapping.existingElement.questionId,
-      answerId: mapping.existingElement.answerId,
-      questionElementId: mapping.existingElement.questionElementId,
-      textType: mapping.existingElement.textType || mapping.templateSlot.textType,
-      // Preserve other content-related properties
-      questionSettings: mapping.existingElement.questionSettings,
-      answerSettings: mapping.existingElement.answerSettings,
-      qnaIndividualSettings: mapping.existingElement.qnaIndividualSettings
+      ...mapping.existingElement,  // Basis: Bestehendes Element (behält alle Styling-Eigenschaften)
+      // Position, Größe UND Rotation vom Template übernehmen
+      x: mapping.templateSlot.x,
+      y: mapping.templateSlot.y,
+      width: mapping.templateSlot.width,
+      height: mapping.templateSlot.height,
+      rotation: mapping.templateSlot.rotation || 0,
+      // ID bleibt erhalten (bereits durch ...existingElement)
+      id: mapping.existingElement.id
     };
     resultElements.push(preservedElement);
   });
   
-  // Handle unmapped existing textboxes (more content than template slots)
-  // Only keep surplus elements that have content (not placeholders)
+  // Handle unmapped existing mappable elements (more content than template slots)
+  // Keep surplus QNA textboxes and images at their original positions
   const mappedExistingIds = new Set(mappings.map(m => m.existingElement.id));
-  const unmappedExisting = existingTextboxes.filter(el => !mappedExistingIds.has(el.id));
-  
-  if (unmappedExisting.length > 0) {
-    // Filter to only keep elements with content
-    const elementsWithContent = unmappedExisting.filter(element => {
-      // For qna textboxes: has content if questionId is set OR text/formattedText has content
-      if (element.textType === 'qna') {
-        const hasQuestionId = !!element.questionId;
-        const hasText = !!(element.text && element.text.trim() && element.text !== 'Double-click to add text...');
-        const hasFormattedText = !!(element.formattedText && element.formattedText.trim() && !element.formattedText.includes('Double-click to add text'));
-        return hasQuestionId || hasText || hasFormattedText;
-      }
-      // For other text types: has content if text/formattedText is not empty
-      if (element.type === 'text') {
-        const hasText = !!(element.text && element.text.trim());
-        const hasFormattedText = !!(element.formattedText && element.formattedText.trim());
-        return hasText || hasFormattedText;
-      }
-      // Default: keep if unsure (safety measure)
-      return true;
+  const unmappedMappableElements = existingMappableElements.filter(el => !mappedExistingIds.has(el.id));
+
+  // Keep unmapped mappable elements at their original positions
+  unmappedMappableElements.forEach(element => {
+    resultElements.push({
+      ...element
+      // x, y, width, height remain unchanged
     });
-    
-    // Keep surplus textboxes with content at their original positions
-    elementsWithContent.forEach((element) => {
-      resultElements.push({
-        ...element
-        // x, y, width, height remain unchanged
-      });
+  });
+
+  // Keep all unmappable elements (like regular textboxes) at their original positions
+  existingUnmappableElements.forEach(element => {
+    resultElements.push({
+      ...element
+      // x, y, width, height remain unchanged
     });
-  }
-  
+  });
+
   // Handle unmapped template slots (create new empty elements)
   const mappedTemplateIds = new Set(mappings.map(m => m.templateSlot.id));
-  const unmappedTemplateSlots = templateTextboxes.filter(el => !mappedTemplateIds.has(el.id));
-  
+  const unmappedTemplateSlots = templateMappableSlots.filter(el => !mappedTemplateIds.has(el.id));
+
   unmappedTemplateSlots.forEach(slot => {
-    resultElements.push({
+    // Get current theme and palette IDs for new elements
+    const activeTemplateIds = getActiveTemplateIds(page, book || null);
+    const themeId = activeTemplateIds.themeId;
+    const paletteId = activeTemplateIds.colorPaletteId || undefined;
+
+    // Get theme defaults with palette for the element type
+    const elementType = slot.textType || slot.type || 'text';
+    const themeDefaults = getGlobalThemeDefaults(themeId, elementType, paletteId);
+
+    // Create new element with theme/palette applied
+    const newElement = {
       ...slot,
+      ...themeDefaults,
       id: uuidv4(), // New ID for new elements
       text: '',
-      formattedText: ''
-    });
+      formattedText: '',
+      rotation: slot.rotation || 0
+    };
+
+    resultElements.push(newElement);
   });
-  
-  // Add non-textbox elements from template (images, shapes, etc.)
-  templateNonTextboxes.forEach(element => {
-    resultElements.push({
-      ...element,
-      id: uuidv4()
-    });
-  });
-  
-  // Preserve existing non-textbox elements
-  // For images/placeholders: only keep if they have content (not placeholders)
-  // For images with content: always keep them (even if they conflict with template) to preserve user content
-  existingNonTextboxes.forEach(element => {
-    // For image/placeholder elements: only keep if they have content
-    if (element.type === 'image' || element.type === 'placeholder') {
-      // Has content if type is 'image' (uploaded) OR src exists
-      const hasContent = element.type === 'image' || !!element.src;
-      if (hasContent) {
-        // Always keep images with content, even if they conflict with template positions
-        // This ensures user content is never lost
-        resultElements.push(element);
-      }
-      // If it's a placeholder without content, don't add it (will be removed)
-    } else {
-      // For other non-textbox elements (shapes, etc.): check for conflicts
-      // Only keep if they don't conflict with template positions
-      const hasConflict = templateNonTextboxes.some(templateEl => 
-        isElementOverlapping(element, templateEl)
-      );
-      
-      if (!hasConflict) {
-        resultElements.push(element);
-      }
-    }
-  });
-  
+
   return resultElements;
 }
 
@@ -152,138 +120,66 @@ function createSmartMappings(
   const mappings: ContentMapping[] = [];
   const usedExisting = new Set<string>();
   const usedTemplate = new Set<string>();
-  
-  // Priority: qna elements should be mapped first to ensure they get layout positions
+
+  // Helper function to sort elements by y-position (top to bottom)
+  const sortByYPosition = (elements: CanvasElement[]): CanvasElement[] => {
+    return [...elements].sort((a, b) => {
+      // Primary: y-position (top to bottom)
+      if (a.y !== b.y) return a.y - b.y;
+      // Secondary: x-position (left to right) for same y
+      return a.x - b.x;
+    });
+  };
+
+  // 1. Map QNA textboxes to QNA slots (sorted by y-position)
   const qnaElements = existingElements.filter(el => el.textType === 'qna');
-  const otherTextElements = existingElements.filter(el => el.textType !== 'qna');
-  
-  // First pass: exact type matches, prioritizing qna
-  [...qnaElements, ...otherTextElements].forEach(existing => {
-    if (usedExisting.has(existing.id)) return;
-    
-    const matchingSlot = templateSlots.find(slot => 
-      !usedTemplate.has(slot.id) && 
-      existing.textType === slot.textType
-    );
-    
-    if (matchingSlot) {
+  const qnaSlots = templateSlots.filter(slot => slot.textType === 'qna');
+
+  const sortedQnaElements = sortByYPosition(qnaElements);
+  const sortedQnaSlots = sortByYPosition(qnaSlots);
+
+  // Map QNA elements to QNA slots in order
+  sortedQnaElements.forEach((existing, index) => {
+    if (index < sortedQnaSlots.length) {
+      const slot = sortedQnaSlots[index];
       mappings.push({
         existingElement: existing,
-        templateSlot: matchingSlot,
+        templateSlot: slot,
         confidence: 1.0
       });
       usedExisting.add(existing.id);
-      usedTemplate.add(matchingSlot.id);
+      usedTemplate.add(slot.id);
     }
   });
-  
-  // Second pass: compatible type matches, prioritizing qna to qna slots
-  qnaElements.forEach(existing => {
-    if (usedExisting.has(existing.id)) return;
-    
-    // Try to find qna slots first
-    const qnaSlot = templateSlots.find(slot => 
-      !usedTemplate.has(slot.id) && 
-      (slot.textType === 'qna')
-    );
-    
-    if (qnaSlot) {
+
+  // 2. Map images/image-placeholders to image slots (sorted by y-position)
+  const imageElements = existingElements.filter(el =>
+    el.type === 'image' || el.type === 'placeholder'
+  );
+  const imageSlots = templateSlots.filter(slot =>
+    slot.type === 'image' || slot.type === 'placeholder'
+  );
+
+  const sortedImageElements = sortByYPosition(imageElements);
+  const sortedImageSlots = sortByYPosition(imageSlots);
+
+  // Map image elements to image slots in order
+  sortedImageElements.forEach((existing, index) => {
+    if (index < sortedImageSlots.length) {
+      const slot = sortedImageSlots[index];
       mappings.push({
         existingElement: existing,
-        templateSlot: qnaSlot,
-        confidence: 0.9
+        templateSlot: slot,
+        confidence: 1.0
       });
       usedExisting.add(existing.id);
-      usedTemplate.add(qnaSlot.id);
-      return;
-    }
-    
-    // Fallback to other compatible slots
-    const compatibleSlot = templateSlots.find(slot => 
-      !usedTemplate.has(slot.id) && 
-      isTypeCompatible(existing.textType, slot.textType)
-    );
-    
-    if (compatibleSlot) {
-      mappings.push({
-        existingElement: existing,
-        templateSlot: compatibleSlot,
-        confidence: 0.7
-      });
-      usedExisting.add(existing.id);
-      usedTemplate.add(compatibleSlot.id);
+      usedTemplate.add(slot.id);
     }
   });
-  
-  // Third pass: compatible type matches for other text elements
-  otherTextElements.forEach(existing => {
-    if (usedExisting.has(existing.id)) return;
-    
-    const compatibleSlot = templateSlots.find(slot => 
-      !usedTemplate.has(slot.id) && 
-      isTypeCompatible(existing.textType, slot.textType)
-    );
-    
-    if (compatibleSlot) {
-      mappings.push({
-        existingElement: existing,
-        templateSlot: compatibleSlot,
-        confidence: 0.7
-      });
-      usedExisting.add(existing.id);
-      usedTemplate.add(compatibleSlot.id);
-    }
-  });
-  
-  // Fourth pass: any remaining matches
-  existingElements.forEach(existing => {
-    if (usedExisting.has(existing.id)) return;
-    
-    const availableSlot = templateSlots.find(slot => 
-      !usedTemplate.has(slot.id)
-    );
-    
-    if (availableSlot) {
-      mappings.push({
-        existingElement: existing,
-        templateSlot: availableSlot,
-        confidence: 0.5
-      });
-      usedExisting.add(existing.id);
-      usedTemplate.add(availableSlot.id);
-    }
-  });
-  
+
   return mappings;
 }
 
-function isTypeCompatible(
-  existingType: string | undefined,
-  templateType: string | undefined
-): boolean {
-  // Define compatibility rules
-  const compatibilityMap: Record<string, string[]> = {
-    'question': ['text', 'qna'],
-    'answer': ['text', 'qna'],
-    'text': ['question', 'answer', 'qna'],
-    'qna': ['question', 'answer', 'text']
-  };
-
-  if (!existingType || !templateType) return true;
-
-  return compatibilityMap[existingType]?.includes(templateType) || false;
-}
-
-function isElementOverlapping(el1: CanvasElement, el2: CanvasElement): boolean {
-  const margin = 20; // Minimum spacing
-  
-  return !(
-    el1.x + el1.width + margin < el2.x ||
-    el2.x + el2.width + margin < el1.x ||
-    el1.y + el1.height + margin < el2.y ||
-    el2.y + el2.height + margin < el1.y
-  );
-}
 
 export function validateTemplateCompatibility(
   template: PageTemplate,

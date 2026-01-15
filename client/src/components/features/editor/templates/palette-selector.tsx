@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import { Button } from '../../../ui/primitives/button';
+import { Tooltip } from '../../../ui/composites/tooltip';
+import { Card } from '../../../ui/composites/card';
 import { RotateCcw, Eye, Palette } from 'lucide-react';
 import { Label } from '../../../ui/primitives/label';
 import { getAllCategories, getPalettesByCategory, colorPalettes } from '../../../../data/templates/color-palettes';
@@ -11,12 +13,12 @@ import { exportCanvasAsImage } from '../../../../utils/canvas-export';
 import Konva from 'konva';
 import { getActiveTemplateIds } from '../../../../utils/template-inheritance';
 import { SelectorShell, SelectorListSection } from './selector-shell';
+import { Separator } from '../../../ui';
 
 interface PaletteSelectorProps {
   onBack: () => void;
   title: string;
   isBookLevel?: boolean;
-  previewPosition?: 'top' | 'bottom'; // 'bottom' = Preview below list (default), 'top' = Preview above list
   themeId?: string; // Theme ID to get default palette from
 }
 
@@ -24,7 +26,7 @@ export interface PaletteSelectorRef {
   apply: () => void;
 }
 
-export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorProps>(({ onBack, title, isBookLevel = false, previewPosition = 'bottom', themeId }, ref) => {
+export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorProps>(({ onBack, title, isBookLevel = false, themeId }, ref) => {
   const { state, dispatch } = useEditor();
   const [selectedCategory, setSelectedCategory] = useState<string>('Default');
   
@@ -62,14 +64,10 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
       : (currentPalette || (shouldUseThemePalette ? themePalette : bookPalette || null))
   );
   const [useThemePalette, setUseThemePalette] = useState<boolean>(shouldUseThemePalette);
-  const [useBookPalette, setUseBookPalette] = useState<boolean>(
-    isBookLevel 
-      ? false // Book level doesn't use "Book Color Palette" option
-      : (pagePaletteOverrideId === null) // Page level: use Book Color Palette if no override
-  );
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [applyToEntireBook, setApplyToEntireBook] = useState(false);
   const originalPageIndexRef = useRef<number>(state.activePageIndex);
   const previewPageIndexRef = useRef<number | null>(null);
 
@@ -95,26 +93,19 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
       return;
     }
 
-    // Page level: distinguish between three cases:
+    // Page level: distinguish between two cases:
     // 1. Explicit page palette (pagePaletteOverrideId is set and not themePaletteId)
-    // 2. Book Color Palette (pagePaletteOverrideId is null)
-    // 3. Theme's Default Palette (pagePaletteOverrideId === themePaletteId)
+    // 2. Theme's Default Palette (pagePaletteOverrideId === themePaletteId)
+    // Note: Book Color Palette option is removed - pages will use book palette by default if no override
     
-    if (pagePaletteOverrideId === null) {
-      // Page inherits book palette -> Book Color Palette
-      setUseBookPalette(true);
-      setUseThemePalette(false);
-      setSelectedPalette(bookPalette || null);
-    } else if (pagePaletteOverrideId === themePaletteId) {
+    if (pagePaletteOverrideId === themePaletteId) {
       // Page explicitly uses theme palette -> Theme's Default Palette
-      setUseBookPalette(false);
       setUseThemePalette(true);
       setSelectedPalette(themePalette);
     } else {
-      // Page has explicit palette -> explicit palette
-      setUseBookPalette(false);
+      // Page has explicit palette or inherits book palette -> explicit palette or book palette
       setUseThemePalette(false);
-      setSelectedPalette(currentPalette || null);
+      setSelectedPalette(currentPalette || bookPalette || null);
     }
   }, [isBookLevel, pagePaletteOverrideId, currentPaletteId, currentPalette, bookPalette, themePalette, themePaletteId, bookPaletteId]);
 
@@ -127,11 +118,7 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
       return themePalette;
     }
 
-    if (useBookPalette) {
-      return bookPalette || selectedPalette;
-    }
-
-    return selectedPalette;
+    return selectedPalette || bookPalette;
   };
   
   const categories = getAllCategories();
@@ -433,7 +420,7 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
         // Navigiere zur Preview-Seite nur wenn noch nicht dort
         if (!isAlreadyOnPreviewPage) {
           dispatch({ type: 'SET_ACTIVE_PAGE', payload: previewPageIndex });
-          await new Promise(resolve => setTimeout(resolve, 200));
+          await new Promise(resolve => setTimeout(resolve, 300));
         }
         
         // Wende Palette auf Preview-Seite an (skip history)
@@ -448,7 +435,7 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
             type: 'SET_PAGE_COLOR_PALETTE',
             payload: { 
               pageIndex: previewPageIndex, 
-              colorPaletteId: useBookPalette ? null : paletteForPreview.id,
+              colorPaletteId: paletteForPreview.id,
               skipHistory: true
             }
           });
@@ -463,10 +450,23 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
           }
         });
         
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // Invalidiere den Background-Image-Cache für die Preview-Seite
+        // Dies stellt sicher, dass Background-Images mit der neuen Palette neu geladen werden
+        window.dispatchEvent(new CustomEvent('invalidateBackgroundImageCache', {
+          detail: { pageIndex: previewPageIndex }
+        }));
         
+        // Warte länger, damit Background-Images mit neuer Palette neu geladen werden können
+        // Background-Images werden neu generiert, wenn sich die Palette ändert (SVG mit Palette-Farben)
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
+        // Stelle sicher, dass die Stage neu gerendert wurde
         const stage = (window as unknown as { konvaStage?: Konva.Stage }).konvaStage || null;
         if (stage) {
+          // Force re-render der Stage, um sicherzustellen, dass alle Bilder geladen sind
+          stage.draw();
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
           const dataURL = await exportCanvasAsImage(stage, 0.5, 0.75);
           setPreviewImage(dataURL);
         }
@@ -479,29 +479,17 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
     
     applyPaletteAndExport();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showPreviewDialog, selectedPalette, state.currentBook?.pages, isBookLevel, dispatch, useBookPalette, bookPalette]);
+  }, [showPreviewDialog, selectedPalette, state.currentBook?.pages, isBookLevel, dispatch, bookPalette]);
   
   const handlePaletteSelect = (palette: ColorPalette) => {
-    setUseBookPalette(false);
     setUseThemePalette(false);
     setSelectedPalette(palette);
   };
   
   const handleSelectThemePalette = () => {
-    setUseBookPalette(false);
     setUseThemePalette(true);
     if (themePalette) {
       setSelectedPalette(themePalette);
-    }
-  };
-  
-  const handleSelectBookPalette = () => {
-    setUseBookPalette(true);
-    setUseThemePalette(false);
-    if (bookPalette) {
-      setSelectedPalette(bookPalette);
-    } else {
-      setSelectedPalette(null);
     }
   };
   
@@ -517,10 +505,71 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
         payload: useThemePalette ? null : paletteToApply.id
       });
     } else {
-      // If using theme palette, explicitly set the theme palette ID so it's used instead of book palette
+      // Apply to all pages if checkbox is checked
+      if (applyToEntireBook && state.currentBook) {
+        state.currentBook.pages.forEach((_, pageIndex) => {
+          const colorPaletteIdToSet = useThemePalette 
+            ? (themePaletteId || null)
+            : paletteToApply.id;
+          
+          dispatch({
+            type: 'SET_PAGE_COLOR_PALETTE',
+            payload: { 
+              pageIndex: pageIndex, 
+              colorPaletteId: colorPaletteIdToSet
+            }
+          });
+          
+          dispatch({
+            type: 'APPLY_COLOR_PALETTE',
+            payload: {
+              palette: paletteToApply,
+              pageIndex: pageIndex,
+              applyToAllPages: false
+            }
+          });
+        });
+        
+        // Update tool settings to use palette colors for new elements
+        const toolUpdates = {
+          brush: { strokeColor: paletteToApply.colors.primary },
+          line: { strokeColor: paletteToApply.colors.primary },
+          rect: { strokeColor: paletteToApply.colors.primary, fillColor: paletteToApply.colors.surface },
+          circle: { strokeColor: paletteToApply.colors.primary, fillColor: paletteToApply.colors.surface },
+          triangle: { strokeColor: paletteToApply.colors.primary, fillColor: paletteToApply.colors.surface },
+          polygon: { strokeColor: paletteToApply.colors.primary, fillColor: paletteToApply.colors.surface },
+          heart: { strokeColor: paletteToApply.colors.primary, fillColor: paletteToApply.colors.surface },
+          star: { strokeColor: paletteToApply.colors.primary, fillColor: paletteToApply.colors.surface },
+          'speech-bubble': { strokeColor: paletteToApply.colors.primary, fillColor: paletteToApply.colors.surface },
+          dog: { strokeColor: paletteToApply.colors.primary, fillColor: paletteToApply.colors.surface },
+          cat: { strokeColor: paletteToApply.colors.primary, fillColor: paletteToApply.colors.surface },
+          smiley: { strokeColor: paletteToApply.colors.primary, fillColor: paletteToApply.colors.surface },
+          text: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background },
+          question: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.surface },
+          answer: { fontColor: paletteToApply.colors.accent, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background },
+          qna: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background }
+        };
+        
+        Object.entries(toolUpdates).forEach(([tool, settings]) => {
+          dispatch({
+            type: 'UPDATE_TOOL_SETTINGS',
+            payload: { tool, settings }
+          });
+        });
+        
+        dispatch({
+          type: 'SAVE_TO_HISTORY',
+          payload: `Apply Color Palette to all pages: ${paletteToApply.name}`
+        });
+        
+        onBack();
+        return;
+      }
+      
+      // Apply to single page (original logic)
       const colorPaletteIdToSet = useThemePalette 
         ? (themePaletteId || null)  // Explicitly set theme palette ID
-        : (useBookPalette ? null : paletteToApply.id);  // null for book palette, or explicit palette ID
+        : paletteToApply.id;  // Explicit palette ID
       
       dispatch({
         type: 'SET_PAGE_COLOR_PALETTE',
@@ -583,17 +632,10 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
     onBack();
   };
   
-  const handlePreview = (palette?: ColorPalette, inheritBookPalette = false) => {
-    const paletteToUse = inheritBookPalette
-      ? bookPalette || palette || selectedPalette
-      : palette || selectedPalette;
+  const handlePreview = (palette?: ColorPalette) => {
+    const paletteToUse = palette || selectedPalette;
     if (!paletteToUse) return;
-    // Setze Palette-Auswahl abhängig von Quelle
-    if (inheritBookPalette) {
-      setUseBookPalette(true);
-      setSelectedPalette(paletteToUse);
-    } else if (palette && palette.id !== selectedPalette?.id) {
-      setUseBookPalette(false);
+    if (palette && palette.id !== selectedPalette?.id) {
       setSelectedPalette(palette);
     }
     setShowPreviewDialog(true);
@@ -625,7 +667,7 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
       // If using theme palette, explicitly set the theme palette ID so it's used instead of book palette
       const colorPaletteIdToSet = useThemePalette 
         ? (themePaletteId || null)  // Explicitly set theme palette ID
-        : (useBookPalette ? null : paletteToApply.id);  // null for book palette, or explicit palette ID
+        : paletteToApply.id;  // Explicit palette ID
       
       dispatch({
         type: 'SET_PAGE_COLOR_PALETTE',
@@ -777,7 +819,7 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
   };
 
   const renderPalettePreview = (palette: ColorPalette) => (
-    <div className="flex h-6 w-full rounded overflow-hidden">
+    <div className="flex h-3 w-full rounded overflow-hidden">
       {Object.values(palette.colors).map((color, index) => (
         <div
           key={index}
@@ -789,7 +831,6 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
   );
 
   const PaletteEntry = ({
-    key,
     isSelected,
     onClick,
     title,
@@ -797,7 +838,6 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
     showPreviewButton = true,
     onPreviewClick
   }: {
-    key: string;
     isSelected: boolean;
     onClick: () => void;
     title: string | React.ReactNode;
@@ -805,92 +845,40 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
     showPreviewButton?: boolean;
     onPreviewClick?: () => void;
   }) => (
-    <div
-      key={key}
-      className={`w-full p-2 border rounded-lg transition-colors flex items-start gap-2 ${
+    <Card
+      onClick={onClick}
+      className={`w-full p-2 transition-colors flex items-start gap-2 cursor-pointer ${
         isSelected
           ? 'border-blue-500 bg-blue-50'
           : 'border-gray-200 hover:border-gray-300'
       }`}
     >
-      <button
-        onClick={onClick}
-        className="flex-1 text-left"
-        type="button"
-      >
-        <div className="font-medium text-sm mb-1">{title}</div>
-        <div className="mb-2">
-          {previewContent}
-        </div>
-      </button>
+      <div className="flex-1 text-left">
+        <div className="text-xs mb-1">{title}</div>
+        {previewContent}
+      </div>
       {showPreviewButton && onPreviewClick && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            onPreviewClick();
-          }}
-          onMouseDown={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-          }}
-          className="p-1.5 rounded hover:bg-gray-200 transition-colors flex-shrink-0 mt-1"
-          title="Preview Page with this Color Palette"
-          type="button"
-        >
-          <Eye className="h-4 w-4 text-gray-600" />
-        </button>
+        <Tooltip side="left" content="Preview Page with this Color Palette">
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onPreviewClick();
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+            }}
+            className="flex-shrink-0"
+            type="button"
+          >
+            <Eye className="h-4 w-4 text-gray-600" />
+          </Button>
+        </Tooltip>
       )}
-    </div>
-  );
-
-  const previewSection = (
-    <div className="p-4 border-t border-gray-200 shrink-0" style={{ display: 'none' }}>
-      <h3 className="text-sm font-medium mb-3">Preview</h3>
-      {selectedPalette ? (
-        <div className="bg-white border rounded-lg p-4">
-          <div className="text-sm font-medium mb-2">{selectedPalette.name}</div>
-          <div className="aspect-[210/297] bg-gray-50 border rounded p-4 flex flex-col gap-3">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-600 w-20">Primary</span>
-                <div
-                  className="flex-1 h-8 rounded border border-gray-300"
-                  style={{ backgroundColor: selectedPalette.colors.primary }}
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-600 w-20">Secondary</span>
-                <div
-                  className="flex-1 h-8 rounded border border-gray-300"
-                  style={{ backgroundColor: selectedPalette.colors.secondary }}
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-600 w-20">Accent</span>
-                <div
-                  className="flex-1 h-8 rounded border border-gray-300"
-                  style={{ backgroundColor: selectedPalette.colors.accent }}
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-600 w-20">Background</span>
-                <div
-                  className="flex-1 h-8 rounded border border-gray-300"
-                  style={{ backgroundColor: selectedPalette.colors.background }}
-                />
-              </div>
-            </div>
-            <div className="mt-4">
-              <div className="text-xs text-gray-600 mb-2">Color Preview</div>
-              {renderPalettePreview(selectedPalette)}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="text-gray-500 text-sm">Select a palette to see preview</div>
-      )}
-    </div>
+    </Card>
   );
 
   const listSection = (
@@ -918,44 +906,26 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
       onCancel={onBack}
       onApply={handleApply}
       canApply={true}
+      applyToEntireBook={applyToEntireBook}
+      onApplyToEntireBookChange={setApplyToEntireBook}
       beforeList={(
         <div className="space-y-2 mb-3 w-full">
-          <Label variant="xs">Categories</Label>
-          <div className="flex flex-wrap gap-1">
-            {categories.map(category => (
-              <Button
-                key={category}
-                variant={selectedCategory === category ? 'default' : 'outline'}
-                size="xs"
-                onClick={() => setSelectedCategory(category)}
-                className="text-xs"
-              >
-                {category}
-              </Button>
-            ))}
+          <div className="flex items-start gap-2 px-2">
+            <div className="flex-1 text-left">
+              <div className="text-xs font-medium mb-1">
+                {useThemePalette ? "Theme's Default Palette" : (selectedPalette?.name + ' (selected)' || 'No Palette Selected')}
+              </div>
+              {(useThemePalette ? themePalette : selectedPalette) && renderPalettePreview(useThemePalette ? themePalette : selectedPalette!)}
+            </div>
           </div>
+          <Separator />
         </div>
       )}
     >
-      {!isBookLevel && bookPalette && (
-        <PaletteEntry
-          key="book-palette-entry"
-          isSelected={useBookPalette}
-          onClick={() => handleSelectBookPalette()}
-          title={
-            <>
-              <div>Book Color Palette</div>
-              <div className="text-xs text-gray-600">{bookPalette.name}</div>
-            </>
-          }
-          previewContent={renderPalettePreview(bookPalette)}
-          onPreviewClick={() => handlePreview(bookPalette, true)}
-        />
-      )}
       {themePalette && (
         <PaletteEntry
           key="theme-palette-entry"
-          isSelected={useThemePalette && (isBookLevel || !useBookPalette)}
+          isSelected={useThemePalette}
           onClick={() => handleSelectThemePalette()}
           title="Theme's Default Palette"
           previewContent={renderPalettePreview(themePalette)}
@@ -965,7 +935,7 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
       {getPalettesByCategory(selectedCategory).map(palette => (
         <PaletteEntry
           key={palette.id}
-          isSelected={!useBookPalette && !useThemePalette && selectedPalette?.id === palette.id}
+          isSelected={!useThemePalette && selectedPalette?.id === palette.id}
           onClick={() => handlePaletteSelect(palette)}
           title={palette.name}
           previewContent={renderPalettePreview(palette)}
@@ -980,8 +950,6 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
       <SelectorShell
         headerContent={null}
         listSection={listSection}
-        previewSection={previewSection}
-        previewPosition={previewPosition}
       />
 
       <PreviewImageDialog

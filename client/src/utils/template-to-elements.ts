@@ -4,7 +4,6 @@ import type { CanvasElement } from '../context/editor-context';
 import { applyTextboxStyle, applyShapeStyle } from './template-style-applier';
 import { getGlobalThemeDefaults } from './global-themes';
 import { scaleTemplateToCanvas } from './template-utils';
-import { commonToActual } from './font-size-converter';
 
 interface TemplateTextbox {
   type: 'question' | 'answer' | 'text' | 'qna';
@@ -97,52 +96,8 @@ export function convertTemplateTextboxToElement(
     styledElement.rotation = textbox.rotation;
   }
   
-  // Apply only primary layout properties from questionSettings/answerSettings
-  // Only fontSize is a layout property; all other properties (fontFamily, fontColor, etc.) come from themes
-  if (isQna && textbox.questionSettings) {
-    const questionLayoutSettings: any = {};
-    // Only extract fontSize from questionSettings (layout property)
-    if (typeof textbox.questionSettings.fontSize === 'number') {
-      questionLayoutSettings.fontSize = commonToActual(textbox.questionSettings.fontSize);
-    }
-    // fontSize might also be in a nested font object
-    if (textbox.questionSettings.font && typeof textbox.questionSettings.font === 'object') {
-      const font = textbox.questionSettings.font as Record<string, unknown>;
-      if (typeof font.fontSize === 'number') {
-        questionLayoutSettings.fontSize = commonToActual(font.fontSize);
-      }
-    }
-    
-    // Merge only fontSize into questionSettings
-    if (Object.keys(questionLayoutSettings).length > 0) {
-      styledElement.questionSettings = {
-        ...styledElement.questionSettings,
-        ...questionLayoutSettings
-      };
-    }
-  }
-  if (isQna && textbox.answerSettings) {
-    const answerLayoutSettings: any = {};
-    // Only extract fontSize from answerSettings (layout property)
-    if (typeof textbox.answerSettings.fontSize === 'number') {
-      answerLayoutSettings.fontSize = commonToActual(textbox.answerSettings.fontSize);
-    }
-    // fontSize might also be in a nested font object
-    if (textbox.answerSettings.font && typeof textbox.answerSettings.font === 'object') {
-      const font = textbox.answerSettings.font as Record<string, unknown>;
-      if (typeof font.fontSize === 'number') {
-        answerLayoutSettings.fontSize = commonToActual(font.fontSize);
-      }
-    }
-    
-    // Merge only fontSize into answerSettings
-    if (Object.keys(answerLayoutSettings).length > 0) {
-      styledElement.answerSettings = {
-        ...styledElement.answerSettings,
-        ...answerLayoutSettings
-      };
-    }
-  }
+  // fontSize is NO LONGER a layout property - it comes from themes only
+  // layout.json only contains position, size, align, paragraphSpacing, and other layout properties
   
   return styledElement;
 }

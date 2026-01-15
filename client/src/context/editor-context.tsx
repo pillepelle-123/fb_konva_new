@@ -135,11 +135,10 @@ import {
   computePageMetadataEntry,
   cloneCanvasElements,
   clonePageBackground,
-  collectPairIds,
   ensureSpecialPages,
-  getNextNumericPairId,
   getPairBounds,
-  generateSequentialPairId
+  calculatePagePairId,
+  recalculatePagePairIds
 } from '../utils/book-structure';
 import { applyMirroredLayout, applyRandomLayout, createSeededRNG } from '../utils/layout-variations';
 import { deriveLayoutStrategyFlags, derivePageLayoutVariation } from '../utils/layout-strategy';
@@ -515,9 +514,6 @@ export interface Book {
 type PageKey = string | number;
 type BookMetadataSnapshot = Omit<Book, 'pages'>;
 
-function generatePagePairId(pages: Page[]) {
-  return getNextNumericPairId(collectPairIds(pages));
-}
 
 function cloneData<T>(value: T): T {
   try {
@@ -1866,7 +1862,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         elements: pageElements
       };
       
-      const pairId = generatePagePairId(book.pages);
+      // Temporary pairId - will be recalculated by recalculatePagePairIds after insertion
+      const pairId = 'temp';
       const leftPageId = basePageId;
       const rightPageId = basePageId + 1;
 
@@ -2084,7 +2081,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         elements: pageElements
       };
 
-      const pairId = generatePagePairId(book.pages);
+      // Temporary pairId - will be recalculated by recalculatePagePairIds after insertion
+      const pairId = 'temp';
       const leftPageId = basePageId;
       const rightPageId = basePageId + 1;
 
@@ -2119,6 +2117,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const updatedPages = [...book.pages];
       updatedPages.splice(insertIndex, 0, leftPage, rightPage);
       const renumberedPages = updatedPages.map((page, index) => ({ ...page, pageNumber: index + 1 }));
+      // Recalculate all pagePairIds after renumbering
+      const pagesWithCorrectPairIds = recalculatePagePairIds(renumberedPages);
 
       const updatedPageAssignments: Record<number, any> = {};
       Object.entries(savedAddPageState.pageAssignments).forEach(([pageNumStr, assignment]) => {
@@ -2137,7 +2137,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const updatedPagination = savedAddPageState.pagePagination
         ? {
             ...savedAddPageState.pagePagination,
-            totalPages: renumberedPages.length,
+            totalPages: pagesWithCorrectPairIds.length,
             loadedPages: {
               ...savedAddPageState.pagePagination.loadedPages,
               // Mark the new pages as loaded
@@ -2146,7 +2146,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             },
           }
         : {
-            totalPages: renumberedPages.length,
+            totalPages: pagesWithCorrectPairIds.length,
             pageSize: PAGE_CHUNK_SIZE,
             loadedPages: { [insertIndex]: true, [insertIndex + 1]: true },
           };
@@ -2282,7 +2282,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
 
       // Generate unique IDs for the new pages
       const basePageId = Date.now();
-      const pairId = generatePagePairId(book.pages);
+      // Temporary pairId - will be recalculated by recalculatePagePairIds after insertion
+      const pairId = 'temp';
       const leftPageId = basePageId;
       const rightPageId = basePageId + 1;
 
@@ -2333,6 +2334,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
 
       // Renumber pages
       const renumberedPages = updatedPages.map((page, index) => ({ ...page, pageNumber: index + 1 }));
+      // Recalculate all pagePairIds after renumbering
+      const pagesWithCorrectPairIds = recalculatePagePairIds(renumberedPages);
       const updatedPageAssignments = { ...savedAddPageState.pageAssignments };
       Object.entries(updatedPageAssignments).forEach(([pageNum, assignment]) => {
         const pageNumber = parseInt(pageNum);
@@ -2348,7 +2351,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const updatedPagination = savedAddPageState.pagePagination
         ? {
             ...savedAddPageState.pagePagination,
-            totalPages: renumberedPages.length,
+            totalPages: pagesWithCorrectPairIds.length,
             loadedPages: {
               ...savedAddPageState.pagePagination.loadedPages,
               // Mark the new pages as loaded
@@ -2357,7 +2360,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             },
           }
         : {
-            totalPages: renumberedPages.length,
+            totalPages: pagesWithCorrectPairIds.length,
             pageSize: PAGE_CHUNK_SIZE,
             loadedPages: { [insertIndex]: true, [insertIndex + 1]: true },
           };
@@ -2367,7 +2370,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         toolSettings: toolSettingsForNewPage,
         currentBook: {
           ...book,
-          pages: renumberedPages
+          pages: pagesWithCorrectPairIds
         },
         pageAssignments: updatedPageAssignments,
         pagePagination: updatedPagination,
@@ -2407,6 +2410,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         (_, index) => index < bounds.start || index > bounds.end
       );
       const renumberedPages = pagesAfterDelete.map((page, index) => ({ ...page, pageNumber: index + 1 }));
+      // Recalculate all pagePairIds after renumbering
+      const pagesWithCorrectPairIds = recalculatePagePairIds(renumberedPages);
       const updatedPageAssignmentsAfterDelete: Record<number, any> = {};
       Object.entries(savedDeletePageState.pageAssignments).forEach(([pageNumStr, user]) => {
         const pageNum = parseInt(pageNumStr, 10);
@@ -2432,7 +2437,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         pageAssignments: updatedPageAssignmentsAfterDelete
       };
       let finalDeleteState = deletePageState;
-      for (let i = bounds.start; i < renumberedPages.length; i++) {
+      for (let i = bounds.start; i < pagesWithCorrectPairIds.length; i++) {
         finalDeleteState = markPageIndexAsModified(finalDeleteState, i);
       }
       return finalDeleteState;
@@ -2449,7 +2454,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         cloneEntireBook: true
       });
       const insertIndex = bounds.end + 1;
-      const pairId = generatePagePairId(savedDuplicateState.currentBook!.pages);
+      // Temporary pairId - will be recalculated by recalculatePagePairIds after insertion
+      const pairId = 'temp';
       const timestamp = Date.now();
       const duplicatedPages = pairPages.map((page, offset) => ({
         ...page,
@@ -2464,6 +2470,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const pagesWithDuplicate = [...savedDuplicateState.currentBook!.pages];
       pagesWithDuplicate.splice(insertIndex, 0, ...duplicatedPages);
       const renumberedPages = pagesWithDuplicate.map((page, index) => ({ ...page, pageNumber: index + 1 }));
+      // Recalculate all pagePairIds after renumbering
+      const pagesWithCorrectPairIds = recalculatePagePairIds(renumberedPages);
       
       const updatedPageAssignments = { ...savedDuplicateState.pageAssignments };
       const shiftAmount = duplicatedPages.length;
@@ -2487,7 +2495,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         ...savedDuplicateState,
         currentBook: {
           ...savedDuplicateState.currentBook!,
-          pages: renumberedPages
+          pages: pagesWithCorrectPairIds
         },
         pageAssignments: updatedPageAssignments,
         activePageIndex: insertIndex,
@@ -3653,10 +3661,42 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           });
       const updatedBookApplyTheme = { ...savedApplyThemeState.currentBook! };
       
-      const copyColorValues = (from: any, to: any) => {
+      const copyColorAndThemeValues = (from: any, to: any) => {
         if (!from || !to || typeof from !== 'object' || typeof to !== 'object') {
           return;
         }
+
+        // Theme properties that should be preserved when applying theme with preserveColors
+        const themeProperties = [
+          // Font properties
+          'fontFamily',
+          'textDecoration',
+          'fontStyle',
+          'fontWeight',
+          'fontSize',
+          'lineHeight',
+          'textAlign',
+          'verticalAlign',
+          // Border properties
+          'borderEnabled',
+          'borderStyle',
+          'borderWidth',
+          'borderRadius',
+          'borderTheme',
+          'borderOpacity',
+          'borderColor',
+          // Background properties
+          'backgroundEnabled',
+          'backgroundOpacity',
+          'backgroundColor',
+          // Ruled lines properties
+          'ruledLines',
+          'ruledLinesWidth',
+          'ruledLinesTheme',
+          'ruledLinesColor',
+          'ruledLinesOpacity',
+          'ruledLinesTarget'
+        ];
 
         Object.keys(from).forEach((key) => {
           const value = from[key];
@@ -3672,6 +3712,15 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             lowerKey.endsWith('colors') ||
             (lowerKey.includes('color') && !lowerKey.includes('colorstop'));
 
+          // Check if this is a theme property that should NOT be preserved (should come from new theme)
+          const isThemeProperty = themeProperties.includes(key);
+
+          // Skip theme properties entirely - they should come from the new theme, not be copied from old element
+          if (isThemeProperty) {
+            return; // Don't copy theme properties, let them come from the new theme
+          }
+
+          // Only preserve colors, NOT theme properties (theme properties should come from new theme)
           if (isColorKey) {
             if (Array.isArray(value)) {
               to[key] = value.map((item: any) => (typeof item === 'object' ? { ...item } : item));
@@ -3679,18 +3728,19 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
               if (!to[key] || typeof to[key] !== 'object') {
                 to[key] = {};
               }
-              copyColorValues(value, to[key]);
+              copyColorAndThemeValues(value, to[key]);
             } else {
               to[key] = value;
             }
             return;
           }
 
+          // For non-color, non-theme objects, recurse to handle nested colors
           if (typeof value === 'object' && !Array.isArray(value)) {
             if (!to[key] || typeof to[key] !== 'object') {
               to[key] = {};
             }
-            copyColorValues(value, to[key]);
+            copyColorAndThemeValues(value, to[key]);
           }
         });
       };
@@ -3724,9 +3774,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             const paletteIdToUse = action.payload.preserveColors ? undefined : effectiveBookColorPaletteId;
             const updatedElement = applyThemeToElementConsistent(element, activeTheme, paletteIdToUse);
 
-            // Preserve colors if requested (for theme-only application)
+            // Preserve colors and theme properties if requested (for theme-only application)
             if (action.payload.preserveColors) {
-              copyColorValues(element, updatedElement);
+              copyColorAndThemeValues(element, updatedElement);
             }
 
             return updatedElement;
@@ -3801,9 +3851,11 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       );
       remainingPages.splice(targetIndex, 0, ...movingPages);
       const reorderedPagesWithNumbers = remainingPages.map((page, index) => ({ ...page, pageNumber: index + 1 }));
+      // Recalculate all pagePairIds after reordering
+      const pagesWithCorrectPairIds = recalculatePagePairIds(reorderedPagesWithNumbers);
       
       const newPageAssignments: Record<number, any> = {};
-      reorderedPagesWithNumbers.forEach((page, newIndex) => {
+      pagesWithCorrectPairIds.forEach((page, newIndex) => {
         const originalIndex = savedReorderState.currentBook!.pages.findIndex((p) => p.id === page.id);
         const oldAssignment = savedReorderState.pageAssignments[originalIndex + 1];
         if (oldAssignment !== undefined) {
@@ -3812,7 +3864,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       });
       const activePageId = savedReorderState.currentBook!.pages[savedReorderState.activePageIndex]?.id;
       const newActiveIndex = activePageId
-        ? reorderedPagesWithNumbers.findIndex((page) => page.id === activePageId)
+        ? pagesWithCorrectPairIds.findIndex((page) => page.id === activePageId)
         : savedReorderState.activePageIndex;
       
       const reorderState = withPreviewInvalidation(
@@ -3820,7 +3872,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           ...savedReorderState,
           currentBook: {
             ...savedReorderState.currentBook!,
-            pages: reorderedPagesWithNumbers
+            pages: pagesWithCorrectPairIds
           },
           pageAssignments: newPageAssignments,
           activePageIndex: newActiveIndex,
@@ -4250,7 +4302,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           layoutTemplate,
           canvasSize,
           pageSize,
-          orientation
+          orientation,
+          page,        // Pass page for theme/palette detection
+          updatedBookLayout  // Pass book for theme/palette detection
         );
         
         // Set themeId on page if layout has a theme, so new textboxes use correct theme defaults

@@ -25,10 +25,6 @@ export const SPECIAL_PAGE_CONFIG: Record<
   'content': { locked: false, printable: true, spread: 'content', order: 99 }
 };
 
-const COVER_PAIR_ID = 'spread-cover';
-const INTRO_PAIR_ID = 'spread-intro-0';
-const OUTRO_PAIR_ID = 'spread-outro-last';
-
 export function getSpecialPageConfig(pageType?: Page['pageType']) {
   if (!pageType) return null;
   return SPECIAL_PAGE_CONFIG[pageType] ?? null;
@@ -102,25 +98,6 @@ function deriveFallbackPageType(pageNumber: number, totalPages: number): NonNull
   return 'content';
 }
 
-function deriveFallbackPairId(
-  pageNumber: number,
-  totalPages: number,
-  pageType: NonNullable<Page['pageType']>
-): string {
-  if (pageType === 'back-cover' || pageType === 'front-cover') {
-    return COVER_PAIR_ID;
-  }
-  if (pageType === 'inner-front' || pageType === 'first-page' || pageNumber === 4) {
-    return INTRO_PAIR_ID;
-  }
-  if (pageType === 'inner-back' || pageType === 'last-page' || pageNumber >= totalPages - 1) {
-    return OUTRO_PAIR_ID;
-  }
-  const offset = Math.max(0, pageNumber - 5);
-  const pairIndex = Math.floor(offset / 2);
-  return `spread-content-${pairIndex}`;
-}
-
 export function buildPageMetadataMap(
   pages: Page[],
   totalPagesOverride?: number
@@ -150,7 +127,8 @@ export function computePageMetadataEntry(pageNumber: number, totalPages: number,
   const isSpecial = pageType !== 'content';
   const isEditable = !(pageType === 'inner-front' || pageType === 'inner-back');
   const isSelectable = isEditable;
-  const pairId = page?.pagePairId ?? deriveFallbackPairId(pageNumber, totalPages, pageType);
+  // Use pagePairId from page if available, otherwise calculate it using the unified system
+  const pairId = page?.pagePairId ?? calculatePagePairId(pageNumber, totalPages, pageType);
   const canAssignUser = isEditable && !(pageType === 'back-cover' || pageType === 'front-cover');
   const canAddQna = canAssignUser;
 
@@ -190,25 +168,51 @@ export function getPairBounds(pages: Page[], index: number) {
   return { start, end };
 }
 
-export function generateSequentialPairId(counter: number) {
-  return `spread-${counter}`;
+
+/**
+ * Calculates the correct pagePairId for a page based on its pageNumber and totalPages.
+ * Uses pair-X format (e.g., pair-0, pair-1, pair-cover, pair-intro-0, pair-outro-last).
+ */
+export function calculatePagePairId(pageNumber: number, totalPages: number, pageType?: Page['pageType']): string {
+  // Special pages
+  if (pageNumber === 1 || pageNumber === 2) {
+    return 'pair-cover'; // Cover pages
+  }
+  if (pageNumber === 3) {
+    return 'pair-intro-0'; // Inner Front
+  }
+  if (pageNumber === totalPages) {
+    return 'pair-outro-last'; // Inner Back
+  }
+  if (pageNumber === totalPages - 1) {
+    return 'pair-outro-last'; // Last content page pairs with Inner Back
+  }
+  if (pageNumber === 4) {
+    return 'pair-intro-0'; // First content page pairs with Inner Front
+  }
+  
+  // Regular content pages: pair them starting from page 5
+  // Page 5-6: pair-0, Page 7-8: pair-1, etc.
+  const contentPageIndex = pageNumber - 4; // Page 5 -> 1, Page 6 -> 2, etc.
+  const pairIndex = Math.floor((contentPageIndex - 1) / 2); // Page 5-6 -> 0, Page 7-8 -> 1
+  return `pair-${pairIndex}`;
 }
 
-export function collectPairIds(pages: Page[]): Set<string> {
-  return new Set(
-    pages
-      .map((page) => page.pagePairId)
-      .filter((id): id is string => Boolean(id))
-  );
-}
-
-export function getNextNumericPairId(existingIds: Set<string>) {
-  const numericIds = Array.from(existingIds)
-    .filter((id) => id.startsWith('pair-'))
-    .map((id) => Number(id.split('-')[1]))
-    .filter((value) => !Number.isNaN(value));
-  const nextId = numericIds.length ? Math.max(...numericIds) + 1 : 0;
-  return `pair-${nextId}`;
+/**
+ * Recalculates pagePairId for all pages in the array based on their pageNumber and totalPages.
+ * Ensures all pages have correct pagePairId values after insertions, deletions, or reordering.
+ */
+export function recalculatePagePairIds(pages: Page[]): Page[] {
+  const totalPages = pages.length;
+  return pages.map((page, index) => {
+    const pageNumber = page.pageNumber ?? index + 1;
+    const calculatedPairId = calculatePagePairId(pageNumber, totalPages, page.pageType);
+    return {
+      ...page,
+      pagePairId: calculatedPairId,
+      pageNumber: pageNumber // Ensure pageNumber is set
+    };
+  });
 }
 
 function createSpecialPage(pageType: NonNullable<Page['pageType']>, pairId: string): Page {
@@ -233,10 +237,6 @@ function createSpecialPage(pageType: NonNullable<Page['pageType']>, pairId: stri
 }
 
 export function ensureSpecialPages(pages: Page[]): Page[] {
-  const existingPairIds = collectPairIds(pages);
-  let pairCounter = existingPairIds.size;
-  const getNextPairId = () => generateSequentialPairId(pairCounter++);
-
   const spreadPairMap = new Map<'cover' | 'intro' | 'outro', string>();
   const updatedPages = pages.map((page) => {
     if (!page.pageType || !isSpecialPageType(page.pageType)) {
@@ -247,8 +247,9 @@ export function ensureSpecialPages(pages: Page[]): Page[] {
       return page;
     }
     if (config.spread !== 'content') {
+      // Use existing pagePairId if available, otherwise will be calculated later
       const existingPair = spreadPairMap.get(config.spread);
-      const appliedPairId = existingPair || page.pagePairId || getNextPairId();
+      const appliedPairId = existingPair || page.pagePairId || 'temp';
       if (!existingPair) {
         spreadPairMap.set(config.spread, appliedPairId);
       }
@@ -272,7 +273,7 @@ export function ensureSpecialPages(pages: Page[]): Page[] {
 
   const ensurePairIdForSpread = (spread: 'cover' | 'intro' | 'outro') => {
     if (!spreadPairMap.has(spread)) {
-      spreadPairMap.set(spread, getNextPairId());
+      spreadPairMap.set(spread, 'temp');
     }
     return spreadPairMap.get(spread)!;
   };
@@ -323,9 +324,12 @@ export function ensureSpecialPages(pages: Page[]): Page[] {
       orderedPages[lastIndex] = enforceInnerBackConfig(orderedPages[lastIndex]);
     }
   }
-  return orderedPages.map((page, index) => ({
+  const renumberedPages = orderedPages.map((page, index) => ({
     ...page,
     pageNumber: index + 1
   }));
+  
+  // Recalculate all pagePairIds using the unified system
+  return recalculatePagePairIds(renumberedPages);
 }
 

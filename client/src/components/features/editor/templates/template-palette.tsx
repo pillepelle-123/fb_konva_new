@@ -63,36 +63,6 @@ export function TemplatePalette({ selectedPalette, onPaletteSelect, skipShell = 
     });
   };
 
-  const previewSection = (
-    <div className="p-4 border-t border-gray-200 shrink-0">
-      <h3 className="text-sm font-medium mb-3">Preview</h3>
-      {selectedPalette ? (
-        <div className="bg-white border rounded-lg p-4">
-          <div className="text-sm font-medium mb-2">{selectedPalette.name}</div>
-          <div className="aspect-[210/297] border rounded p-4" style={{ backgroundColor: selectedPalette.colors.background }}>
-            <div 
-              className="w-full h-8 rounded mb-2 border"
-              style={{ backgroundColor: selectedPalette.colors.primary }}
-            />
-            <div 
-              className="w-3/4 h-6 rounded mb-2 border"
-              style={{ backgroundColor: selectedPalette.colors.secondary }}
-            />
-            <div 
-              className="w-1/2 h-4 rounded border"
-              style={{ backgroundColor: selectedPalette.colors.accent }}
-            />
-          </div>
-          <div className="text-xs text-gray-600 mt-2">
-            {selectedPalette.contrast} contrast
-          </div>
-        </div>
-      ) : (
-        <div className="text-gray-500 text-sm">Select a palette to see preview</div>
-      )}
-    </div>
-  );
-
   const listSection = (
     <SelectorListSection
       title={
@@ -152,19 +122,12 @@ export function TemplatePalette({ selectedPalette, onPaletteSelect, skipShell = 
   );
   
   if (skipShell) {
-    return (
-      <>
-        {listSection}
-        {previewSection}
-      </>
-    );
+    return listSection;
   }
 
   return (
     <SelectorShell
       listSection={listSection}
-      previewSection={previewSection}
-      previewPosition="bottom"
     />
   );
 }
