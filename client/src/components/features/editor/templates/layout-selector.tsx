@@ -16,6 +16,10 @@ interface LayoutSelectorProps {
   isBookLayoutSelected?: boolean;
   onBookLayoutSelect?: () => void;
   bookLayout?: PageTemplate | null;
+  skipShell?: boolean; // If true, return only the listSection without SelectorShell wrapper
+  onCancel?: () => void;
+  onApply?: () => void;
+  canApply?: boolean;
 }
 
 export function LayoutSelector({
@@ -26,7 +30,11 @@ export function LayoutSelector({
   showBookLayoutOption = false,
   isBookLayoutSelected = false,
   onBookLayoutSelect,
-  bookLayout
+  bookLayout,
+  skipShell = false,
+  onCancel,
+  onApply,
+  canApply = false
 }: LayoutSelectorProps) {
   // All templates are now in page-templates.ts, no conversion needed
   const mergedPageTemplates: PageTemplate[] = builtinPageTemplates;
@@ -158,6 +166,9 @@ export function LayoutSelector({
       }
       className={previewPosition === 'right' ? 'w-1/2 border-r border-gray-200' : ''}
       scrollClassName="min-h-0"
+      onCancel={onCancel}
+      onApply={onApply}
+      canApply={canApply}
     >
       <div className="w-full p-3 mb-3 border border-gray-200 rounded-lg bg-white/70">
         <div className="flex items-center gap-2 mb-3 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
@@ -433,6 +444,15 @@ export function LayoutSelector({
       })}
     </SelectorListSection>
   );
+
+  if (skipShell) {
+    return (
+      <>
+        {listSection}
+        {previewSection}
+      </>
+    );
+  }
 
   return (
     <SelectorShell

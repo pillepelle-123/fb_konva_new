@@ -190,34 +190,6 @@ export function ToolSettingsHeader({
         </Button>
       )}
 
-      {/* Cancel/Apply Buttons - only show when a selector is open */}
-      {hasOpenSelector && (
-        <>
-          {onCancel && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onCancel}
-              className="h-8 w-8 p-0"
-              title="Cancel"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          )}
-          {onApply && (
-            <Button
-              variant="default"
-              size="sm"
-              onClick={onApply}
-              disabled={!canApply}
-              className="h-8 w-8 p-0"
-              title="Apply"
-            >
-              <Check className="h-4 w-4" />
-            </Button>
-          )}
-        </>
-      )}
 
       {!(state.userRole === 'author' && !isOnAssignedPage) && (
         <Button

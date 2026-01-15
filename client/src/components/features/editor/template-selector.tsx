@@ -7,6 +7,7 @@ import ConfirmationDialog from '../../ui/overlays/confirmation-dialog';
 import { LayoutSelector } from './templates/layout-selector';
 import { ThemeSelector } from './templates/theme-selector';
 import { TemplatePalette } from './templates/template-palette';
+import { SelectorShell } from './templates/selector-shell';
 import type { PageTemplate, ColorPalette } from '../../../types/template-types';
 
 interface TemplateSelectorProps {
@@ -221,27 +222,48 @@ export function TemplateSelector({ onBack }: TemplateSelectorProps) {
         {/* Content area - flex-1 to take remaining space */}
         <div className="flex-1 min-h-0 flex flex-col p-4 overflow-hidden">
           {/* Three-column layout */}
-          <div className="flex border border-gray-200 rounded-lg bg-white flex-1 min-h-0">
-            <div className="flex-1 min-h-0 flex flex-col">
-              <LayoutSelector 
-                selectedLayout={selectedLayout}
-                onLayoutSelect={setSelectedLayout}
-                previewPosition="bottom"
-              />
-            </div>
-            <div className="flex-1 min-h-0 flex flex-col border-l border-gray-200">
-              <ThemeSelector 
-                selectedTheme={selectedTheme}
-                onThemeSelect={setSelectedTheme}
-                previewPosition="bottom"
-              />
-            </div>
-            <div className="flex-1 min-h-0 flex flex-col border-l border-gray-200">
-              <TemplatePalette 
-                selectedPalette={selectedPalette}
-                onPaletteSelect={setSelectedPalette}
-              />
-            </div>
+          <div className="flex border border-gray-200 rounded-lg bg-white flex-1 min-h-0 overflow-hidden">
+            <SelectorShell
+              headerContent={<div className="text-sm font-medium">Select</div>}
+              listSection={
+                <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                  <LayoutSelector 
+                    selectedLayout={selectedLayout}
+                    onLayoutSelect={setSelectedLayout}
+                    previewPosition="bottom"
+                    skipShell={true}
+                  />
+                </div>
+              }
+              className="flex-1 min-h-0"
+            />
+            <SelectorShell
+              headerContent={<div className="text-sm font-medium">Select</div>}
+              listSection={
+                <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                  <ThemeSelector 
+                    selectedTheme={selectedTheme}
+                    onThemeSelect={setSelectedTheme}
+                    previewPosition="bottom"
+                    skipShell={true}
+                  />
+                </div>
+              }
+              className="flex-1 min-h-0 border-l border-gray-200"
+            />
+            <SelectorShell
+              headerContent={<div className="text-sm font-medium">Select</div>}
+              listSection={
+                <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                  <TemplatePalette 
+                    selectedPalette={selectedPalette}
+                    onPaletteSelect={setSelectedPalette}
+                    skipShell={true}
+                  />
+                </div>
+              }
+              className="flex-1 min-h-0 border-l border-gray-200"
+            />
           </div>
 
           {/* Apply scope toggle and validation warnings */}

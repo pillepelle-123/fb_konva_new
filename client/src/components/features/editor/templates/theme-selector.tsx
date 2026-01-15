@@ -14,6 +14,10 @@ interface ThemeSelectorProps {
   previewPosition?: 'top' | 'bottom' | 'right'; // 'bottom' = Preview below list (default), 'top' = Preview above list, 'right' = Preview to the right
   isBookThemeSelected?: boolean;
   showBookThemeOption?: boolean;
+  skipShell?: boolean; // If true, return only the listSection without SelectorShell wrapper
+  onCancel?: () => void;
+  onApply?: () => void;
+  canApply?: boolean;
 }
 
 export function ThemeSelector({ 
@@ -24,7 +28,11 @@ export function ThemeSelector({
   title,
   previewPosition = 'bottom',
   isBookThemeSelected = false,
-  showBookThemeOption = false
+  showBookThemeOption = false,
+  skipShell = false,
+  onCancel,
+  onApply,
+  canApply = false
 }: ThemeSelectorProps) {
   // Use selectedTheme if provided (template-selector), otherwise use currentTheme (general-settings)
   const activeTheme = selectedTheme || currentTheme || 'default';
@@ -101,6 +109,9 @@ export function ThemeSelector({
       }
       className={previewPosition === 'right' ? 'w-1/2 border-r border-gray-200' : ''}
       scrollClassName="min-h-0"
+      onCancel={onCancel}
+      onApply={onApply}
+      canApply={canApply}
     >
       {includeBookThemeEntry && (
         <div
@@ -169,6 +180,15 @@ export function ThemeSelector({
       })}
     </SelectorListSection>
   );
+
+  if (skipShell) {
+    return (
+      <>
+        {listSection}
+        {previewSection}
+      </>
+    );
+  }
 
   return (
     <SelectorShell

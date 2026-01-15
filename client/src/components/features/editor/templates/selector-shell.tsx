@@ -1,4 +1,6 @@
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { Button } from '../../../ui/primitives/button';
+import { X, Check } from 'lucide-react';
 
 interface SelectorShellProps {
   headerContent?: ReactNode;
@@ -17,6 +19,9 @@ interface SelectorListSectionProps {
   children: ReactNode;
   className?: string;
   scrollClassName?: string;
+  onCancel?: () => void;
+  onApply?: () => void;
+  canApply?: boolean;
 }
 
 export function SelectorShell({
@@ -81,29 +86,56 @@ export function SelectorListSection({
   beforeList,
   children,
   className = '',
-  scrollClassName = ''
+  scrollClassName = '',
+  onCancel,
+  onApply,
+  canApply = false
 }: SelectorListSectionProps) {
   const containerClasses = ['p-2', 'flex-1', 'min-h-0', 'flex', 'flex-col', className].filter(Boolean).join(' ');
   const scrollClasses = ['space-y-2', 'flex-1', 'overflow-y-auto', scrollClassName].filter(Boolean).join(' ');
 
   return (
     <div className={containerClasses}>
-      {(title || headerActions) && (
-        <div className="flex items-center justify-between mb-3 w-full">
-          <div className="flex items-center gap-2">
-            {/* {title} */}
-          </div>
-          {headerActions && (
-            <div className="flex items-center gap-2">
-              {headerActions}
-            </div>
-          )}
-        </div>
-      )}
+
       {beforeList}
       <div className={scrollClasses}>
         {children}
       </div>
+      {(title || headerActions || onCancel || onApply) && (
+        <div className="flex items-center justify-end mt-4 w-full shrink-0">
+          {/* <div className="flex items-center gap-2">
+            {title}
+          </div> */}
+          <div className="flex items-center gap-2">
+            {headerActions}
+            {onCancel && (
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={onCancel}
+                className="gap-1 px-2"
+                title="Cancel"
+              >
+                <X className="h-4 w-4" />
+                <span className="text-xs">Cancel</span>
+              </Button>
+            )}
+            {onApply && (
+              <Button
+                variant="default"
+                size="xs"
+                onClick={onApply}
+                disabled={!canApply}
+                className="gap-1  px-2"
+                title="Apply"
+              >
+                <Check className="h-4 w-4" />
+                <span className="text-xs">Apply</span>
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

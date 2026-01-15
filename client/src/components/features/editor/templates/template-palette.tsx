@@ -3,13 +3,15 @@ import { colorPalettes } from '../../../../data/templates/color-palettes';
 import type { ColorPalette } from '../../../../types/template-types';
 import { useEditor } from '../../../../context/editor-context';
 import { Button } from '../../../ui/primitives/button';
+import { SelectorShell, SelectorListSection } from './selector-shell';
 
 interface TemplatePaletteProps {
   selectedPalette: ColorPalette | null;
   onPaletteSelect: (palette: ColorPalette) => void;
+  skipShell?: boolean; // If true, return only the listSection without SelectorShell wrapper
 }
 
-export function TemplatePalette({ selectedPalette, onPaletteSelect }: TemplatePaletteProps) {
+export function TemplatePalette({ selectedPalette, onPaletteSelect, skipShell = false }: TemplatePaletteProps) {
   const { state, dispatch } = useEditor();
   
   const resetColorOverrides = () => {
@@ -60,93 +62,109 @@ export function TemplatePalette({ selectedPalette, onPaletteSelect }: TemplatePa
       });
     });
   };
-  
-  return (
-    <div className="flex flex-col h-full">
-      {/* List section - flex-1 with scroll */}
-      {/* <div className="p-2 flex-1 min-h-0 flex flex-col border-b border-gray-200"> */}
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium flex items-center gap-2">
-            <Palette className="h-4 w-4" />
-            Color Palettes
-          </h3>
-          <Button
-            variant="outline"
-            size="xs"
-            onClick={resetColorOverrides}
-            className="text-xs"
-            title="Reset all manual color overrides to allow palette colors to be applied"
-          >
-            <RotateCcw className="h-3 w-3 mr-1" />
-            Reset
-          </Button>
-        </div>
-        <div className="space-y-2 flex-1 overflow-y-auto">
-          {colorPalettes.map((palette) => (
-            <button
-              key={palette.id}
-              onClick={() => handlePaletteSelect(palette)}
-              className={`w-full p-3 border rounded-lg text-left transition-colors ${
-                selectedPalette?.id === palette.id
-                  ? 'border-blue-500 bg-blue-50'
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}
-            >
-              <div className="font-medium text-sm">{palette.name}</div>
-              <div className="mt-2 flex gap-1">
-                <div 
-                  className="w-4 h-4 rounded-sm border border-gray-300"
-                  style={{ backgroundColor: palette.colors.primary }}
-                />
-                <div 
-                  className="w-4 h-4 rounded-sm border border-gray-300"
-                  style={{ backgroundColor: palette.colors.secondary }}
-                />
-                <div 
-                  className="w-4 h-4 rounded-sm border border-gray-300"
-                  style={{ backgroundColor: palette.colors.accent }}
-                />
-                <div 
-                  className="w-4 h-4 rounded-sm border border-gray-300"
-                  style={{ backgroundColor: palette.colors.background }}
-                />
-              </div>
-              <div className="text-xs text-gray-600 mt-1">
-                {palette.contrast} contrast
-              </div>
-            </button>
-          ))}
-        </div>
-      {/* </div> */}
-      
-      {/* Preview section - shrink-0 at bottom */}
-      <div className="p-4 border-t border-gray-200 shrink-0">
-        <h3 className="text-sm font-medium mb-3">Preview</h3>
-        {selectedPalette ? (
-          <div className="bg-white border rounded-lg p-4">
-            <div className="text-sm font-medium mb-2">{selectedPalette.name}</div>
-            <div className="aspect-[210/297] border rounded p-4" style={{ backgroundColor: selectedPalette.colors.background }}>
-              <div 
-                className="w-full h-8 rounded mb-2 border"
-                style={{ backgroundColor: selectedPalette.colors.primary }}
-              />
-              <div 
-                className="w-3/4 h-6 rounded mb-2 border"
-                style={{ backgroundColor: selectedPalette.colors.secondary }}
-              />
-              <div 
-                className="w-1/2 h-4 rounded border"
-                style={{ backgroundColor: selectedPalette.colors.accent }}
-              />
-            </div>
-            <div className="text-xs text-gray-600 mt-2">
-              {selectedPalette.contrast} contrast
-            </div>
+
+  const previewSection = (
+    <div className="p-4 border-t border-gray-200 shrink-0">
+      <h3 className="text-sm font-medium mb-3">Preview</h3>
+      {selectedPalette ? (
+        <div className="bg-white border rounded-lg p-4">
+          <div className="text-sm font-medium mb-2">{selectedPalette.name}</div>
+          <div className="aspect-[210/297] border rounded p-4" style={{ backgroundColor: selectedPalette.colors.background }}>
+            <div 
+              className="w-full h-8 rounded mb-2 border"
+              style={{ backgroundColor: selectedPalette.colors.primary }}
+            />
+            <div 
+              className="w-3/4 h-6 rounded mb-2 border"
+              style={{ backgroundColor: selectedPalette.colors.secondary }}
+            />
+            <div 
+              className="w-1/2 h-4 rounded border"
+              style={{ backgroundColor: selectedPalette.colors.accent }}
+            />
           </div>
-        ) : (
-          <div className="text-gray-500 text-sm">Select a palette to see preview</div>
-        )}
-      </div>
+          <div className="text-xs text-gray-600 mt-2">
+            {selectedPalette.contrast} contrast
+          </div>
+        </div>
+      ) : (
+        <div className="text-gray-500 text-sm">Select a palette to see preview</div>
+      )}
     </div>
+  );
+
+  const listSection = (
+    <SelectorListSection
+      title={
+        <>
+          <Palette className="h-4 w-4" />
+          Color Palettes
+        </>
+      }
+      headerActions={
+        <Button
+          variant="outline"
+          size="xs"
+          onClick={resetColorOverrides}
+          className="text-xs"
+          title="Reset all manual color overrides to allow palette colors to be applied"
+        >
+          <RotateCcw className="h-3 w-3 mr-1" />
+          Reset
+        </Button>
+      }
+    >
+      {colorPalettes.map((palette) => (
+        <button
+          key={palette.id}
+          onClick={() => handlePaletteSelect(palette)}
+          className={`w-full p-3 border rounded-lg text-left transition-colors ${
+            selectedPalette?.id === palette.id
+              ? 'border-blue-500 bg-blue-50'
+              : 'border-gray-200 hover:border-gray-300'
+          }`}
+        >
+          <div className="font-medium text-sm">{palette.name}</div>
+          <div className="mt-2 flex gap-1">
+            <div 
+              className="w-4 h-4 rounded-sm border border-gray-300"
+              style={{ backgroundColor: palette.colors.primary }}
+            />
+            <div 
+              className="w-4 h-4 rounded-sm border border-gray-300"
+              style={{ backgroundColor: palette.colors.secondary }}
+            />
+            <div 
+              className="w-4 h-4 rounded-sm border border-gray-300"
+              style={{ backgroundColor: palette.colors.accent }}
+            />
+            <div 
+              className="w-4 h-4 rounded-sm border border-gray-300"
+              style={{ backgroundColor: palette.colors.background }}
+            />
+          </div>
+          <div className="text-xs text-gray-600 mt-1">
+            {palette.contrast} contrast
+          </div>
+        </button>
+      ))}
+    </SelectorListSection>
+  );
+  
+  if (skipShell) {
+    return (
+      <>
+        {listSection}
+        {previewSection}
+      </>
+    );
+  }
+
+  return (
+    <SelectorShell
+      listSection={listSection}
+      previewSection={previewSection}
+      previewPosition="bottom"
+    />
   );
 }

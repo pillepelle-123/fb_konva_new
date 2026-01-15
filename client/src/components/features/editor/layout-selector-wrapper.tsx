@@ -430,6 +430,9 @@ export const LayoutSelectorWrapper = forwardRef<LayoutSelectorWrapperRef, Layout
             setSelectedLayout(bookLayout || null);
           }}
           bookLayout={bookLayout}
+          onCancel={onBack}
+          onApply={handleApply}
+          canApply={true}
         />
       </div>
 

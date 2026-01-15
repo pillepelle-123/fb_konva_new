@@ -518,6 +518,9 @@ export const ThemeSelectorWrapper = forwardRef<ThemeSelectorWrapperRef, ThemeSel
             handlePreview(themeId);
           }}
           title={title}
+          onCancel={onBack}
+          onApply={handleApply}
+          canApply={true}
         />
       </div>
       

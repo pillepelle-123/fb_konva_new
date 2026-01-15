@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import { Button } from '../../../ui/primitives/button';
-import { RotateCcw, Check, X, Eye, Palette } from 'lucide-react';
+import { RotateCcw, Eye, Palette } from 'lucide-react';
 import { Label } from '../../../ui/primitives/label';
 import { getAllCategories, getPalettesByCategory, colorPalettes } from '../../../../data/templates/color-palettes';
 import type { ColorPalette } from '../../../../types/template-types';
@@ -788,6 +788,62 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
     </div>
   );
 
+  const PaletteEntry = ({
+    key,
+    isSelected,
+    onClick,
+    title,
+    previewContent,
+    showPreviewButton = true,
+    onPreviewClick
+  }: {
+    key: string;
+    isSelected: boolean;
+    onClick: () => void;
+    title: string | React.ReactNode;
+    previewContent: React.ReactNode;
+    showPreviewButton?: boolean;
+    onPreviewClick?: () => void;
+  }) => (
+    <div
+      key={key}
+      className={`w-full p-2 border rounded-lg transition-colors flex items-start gap-2 ${
+        isSelected
+          ? 'border-blue-500 bg-blue-50'
+          : 'border-gray-200 hover:border-gray-300'
+      }`}
+    >
+      <button
+        onClick={onClick}
+        className="flex-1 text-left"
+        type="button"
+      >
+        <div className="font-medium text-sm mb-1">{title}</div>
+        <div className="mb-2">
+          {previewContent}
+        </div>
+      </button>
+      {showPreviewButton && onPreviewClick && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            onPreviewClick();
+          }}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+          className="p-1.5 rounded hover:bg-gray-200 transition-colors flex-shrink-0 mt-1"
+          title="Preview Page with this Color Palette"
+          type="button"
+        >
+          <Eye className="h-4 w-4 text-gray-600" />
+        </button>
+      )}
+    </div>
+  );
+
   const previewSection = (
     <div className="p-4 border-t border-gray-200 shrink-0" style={{ display: 'none' }}>
       <h3 className="text-sm font-medium mb-3">Preview</h3>
@@ -859,6 +915,9 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
           </Button>
         ) : null
       }
+      onCancel={onBack}
+      onApply={handleApply}
+      canApply={true}
       beforeList={(
         <div className="space-y-2 mb-3 w-full">
           <Label variant="xs">Categories</Label>
@@ -879,118 +938,39 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
       )}
     >
       {!isBookLevel && bookPalette && (
-        <div
+        <PaletteEntry
           key="book-palette-entry"
-          className={`w-full p-3 border rounded-lg transition-colors flex items-start gap-2 ${
-            useBookPalette
-              ? 'border-blue-500 bg-blue-50'
-              : 'border-gray-200 hover:border-gray-300'
-          }`}
-        >
-          <button
-            onClick={() => handleSelectBookPalette()}
-            className="flex-1 text-left"
-            type="button"
-          >
-            <div className="font-medium text-sm mb-1">Book Color Palette</div>
-            <div className="mb-2">
-              {renderPalettePreview(bookPalette)}
-            </div>
-            <div className="text-xs text-gray-600">{bookPalette.name}</div>
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-              handlePreview(bookPalette, true);
-            }}
-            onMouseDown={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-            }}
-            className="p-1.5 rounded hover:bg-gray-200 transition-colors flex-shrink-0 mt-1"
-            title="Preview Page with this Color Palette"
-            type="button"
-          >
-            <Eye className="h-4 w-4 text-gray-600" />
-          </button>
-        </div>
+          isSelected={useBookPalette}
+          onClick={() => handleSelectBookPalette()}
+          title={
+            <>
+              <div>Book Color Palette</div>
+              <div className="text-xs text-gray-600">{bookPalette.name}</div>
+            </>
+          }
+          previewContent={renderPalettePreview(bookPalette)}
+          onPreviewClick={() => handlePreview(bookPalette, true)}
+        />
       )}
       {themePalette && (
-        <div
+        <PaletteEntry
           key="theme-palette-entry"
-          className={`w-full p-3 border rounded-lg transition-colors flex items-start gap-2 ${
-            useThemePalette && (isBookLevel || !useBookPalette)
-              ? 'border-blue-500 bg-blue-50'
-              : 'border-gray-200 hover:border-gray-300'
-          }`}
-        >
-          <button
-            onClick={() => handleSelectThemePalette()}
-            className="flex-1 text-left"
-            type="button"
-          >
-            <div className="font-medium text-sm mb-1">Theme's Default Palette</div>
-            <div className="mb-2">
-              {renderPalettePreview(themePalette)}
-            </div>
-            {/* <div className="text-xs text-gray-600">{themePalette.name}</div> */}
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-              handlePreview(themePalette);
-            }}
-            onMouseDown={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-            }}
-            className="p-1.5 rounded hover:bg-gray-200 transition-colors flex-shrink-0 mt-1"
-            title="Preview Page with this Color Palette"
-            type="button"
-          >
-            <Eye className="h-4 w-4 text-gray-600" />
-          </button>
-        </div>
+          isSelected={useThemePalette && (isBookLevel || !useBookPalette)}
+          onClick={() => handleSelectThemePalette()}
+          title="Theme's Default Palette"
+          previewContent={renderPalettePreview(themePalette)}
+          onPreviewClick={() => handlePreview(themePalette)}
+        />
       )}
       {getPalettesByCategory(selectedCategory).map(palette => (
-        <div
+        <PaletteEntry
           key={palette.id}
-          className={`w-full p-3 border rounded-lg transition-colors flex items-start gap-2 ${
-            !useBookPalette && !useThemePalette && selectedPalette?.id === palette.id
-              ? 'border-blue-500 bg-blue-50'
-              : 'border-gray-200 hover:border-gray-300'
-          }`}
-        >
-          <button
-            onClick={() => handlePaletteSelect(palette)}
-            className="flex-1 text-left"
-            type="button"
-          >
-            <div className="font-medium text-sm mb-1">{palette.name}</div>
-            <div className="mb-2">
-              {renderPalettePreview(palette)}
-            </div>
-            {/* <div className="text-xs text-gray-600">{palette.contrast} contrast</div> */}
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-              handlePreview(palette);
-            }}
-            onMouseDown={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-            }}
-            className="p-1.5 rounded hover:bg-gray-200 transition-colors flex-shrink-0 mt-1"
-            title="Preview Page with this Color Palette"
-            type="button"
-          >
-            <Eye className="h-4 w-4 text-gray-600" />
-          </button>
-        </div>
+          isSelected={!useBookPalette && !useThemePalette && selectedPalette?.id === palette.id}
+          onClick={() => handlePaletteSelect(palette)}
+          title={palette.name}
+          previewContent={renderPalettePreview(palette)}
+          onPreviewClick={() => handlePreview(palette)}
+        />
       ))}
     </SelectorListSection>
   );
