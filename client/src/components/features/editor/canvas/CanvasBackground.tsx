@@ -62,9 +62,9 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
   const { paletteId, palette } = getPaletteForPage(page);
   const normalizedPalette = palette || undefined;
   const palettePatternStroke =
-    getPalettePartColor(normalizedPalette, 'pagePatternForeground', 'primary', '#666666') || '#666666';
+    getPalettePartColor(normalizedPalette, 'pagePattern', 'primary', '#666666') || '#666666';
   const palettePatternFill =
-    getPalettePartColor(normalizedPalette, 'pagePatternBackground', 'background', 'transparent') || 'transparent';
+    getPalettePartColor(normalizedPalette, 'pageBackground', 'background', 'transparent') || 'transparent';
 
   if (!background) return null;
 

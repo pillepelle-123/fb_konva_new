@@ -5,8 +5,7 @@ type PaletteColorSlot = keyof ColorPalette['colors'];
 
 const DEFAULT_PALETTE_PARTS: Record<string, PaletteColorSlot> = {
   pageBackground: 'surface',
-  pagePatternForeground: 'primary',
-  pagePatternBackground: 'background',
+  pagePattern: 'primary',
   qnaBorder: 'primary',
   qnaBackground: 'surface',
   qnaQuestionText: 'text',

@@ -4544,8 +4544,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           // patternForegroundColor = color of the space between patterns - update from palette
           updatedBackground = {
             ...currentBackground,
-            patternBackgroundColor: getPalettePartColor(appliedPalette, 'pagePatternForeground', 'primary', appliedPalette.colors.primary),
-            patternForegroundColor: getPalettePartColor(appliedPalette, 'pagePatternBackground', 'background', appliedPalette.colors.background)
+            patternBackgroundColor: getPalettePartColor(appliedPalette, 'pagePattern', 'primary', appliedPalette.colors.primary),
+            patternForegroundColor: getPalettePartColor(appliedPalette, 'pageBackground', 'background', appliedPalette.colors.background)
           };
         } else {
           // For 'image' type, preserve everything - color palette doesn't affect image backgrounds
@@ -6236,8 +6236,8 @@ function applyThemeAndPaletteToPage(
   let updatedBackground = page.background;
   if (palette && page.background) {
     const pageBgColor = getPalettePartColor(palette, 'pageBackground', 'background', palette.colors.background) || palette.colors.background;
-    const patternForeground = getPalettePartColor(palette, 'pagePatternForeground', 'primary', palette.colors.primary) || palette.colors.primary;
-    const patternBackground = getPalettePartColor(palette, 'pagePatternBackground', 'background', palette.colors.background) || palette.colors.background;
+    const patternForeground = getPalettePartColor(palette, 'pagePattern', 'primary', palette.colors.primary) || palette.colors.primary;
+    const patternBackground = getPalettePartColor(palette, 'pageBackground', 'background', palette.colors.background) || palette.colors.background;
     if (page.background.type === 'color') {
       updatedBackground = {
         ...page.background,

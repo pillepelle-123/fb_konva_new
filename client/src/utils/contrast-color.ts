@@ -115,7 +115,7 @@ export function getPageBackgroundColor(
     const normalizedPalette = palette || undefined;
     const palettePatternFill = getPalettePartColor(
       normalizedPalette,
-      'pagePatternBackground',
+      'pageBackground',
       'background',
       '#ffffff'
     ) || '#ffffff';

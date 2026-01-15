@@ -259,9 +259,9 @@ export function PDFRenderer({
   const palette = pagePaletteId ? colorPalettes.find(p => p.id === pagePaletteId) : null;
   const normalizedPalette = palette || undefined;
   const palettePatternStroke =
-    getPalettePartColor(normalizedPalette, 'pagePatternForeground', 'primary', '#666666') || '#666666';
+    getPalettePartColor(normalizedPalette, 'pagePattern', 'primary', '#666666') || '#666666';
   const palettePatternFill =
-    getPalettePartColor(normalizedPalette, 'pagePatternBackground', 'background', 'transparent') || 'transparent';
+    getPalettePartColor(normalizedPalette, 'pageBackground', 'background', 'transparent') || 'transparent';
 
   // Helper function to resolve image URL through proxy if it's an S3 URL
   const resolveImageUrlWithProxy = useCallback((imageUrl: string | undefined): string | undefined => {
