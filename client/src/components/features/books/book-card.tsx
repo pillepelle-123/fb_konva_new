@@ -217,7 +217,7 @@ export default function BookCard({ book, isArchived = false, onRestore, onDelete
             <>
               <div className="flex-1">
                 <Tooltip content="Edit Book" side="bottom">
-                <Link to={`/editor/${book.id}`} className="block">
+                <Link to={`/editor/${book.id}`} className="block w-full">
                   <Button variant="default" size="sm" className="w-full space-x-2 bg-primary hover:bg-primary/90">
                     <FilePenLine className="h-5 w-5" />
                   </Button>

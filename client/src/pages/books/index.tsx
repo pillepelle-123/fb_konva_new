@@ -6,7 +6,6 @@ import { Card, CardContent } from '../../components/ui/composites/card';
 import { Input } from '../../components/ui/primitives/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
 import BooksGrid from '../../components/features/books/book-grid';
-import BookCreationWizard from '../../components/features/books/creation/creation-wizard';
 import { Book, BookPlus, Archive, ChevronRight, ChevronUp, Plus } from 'lucide-react';
 import PageUserIcon from '../../components/ui/icons/page-user-icon';
 import FloatingActionButton from '../../components/ui/composites/floating-action-button';
@@ -28,7 +27,6 @@ export default function BooksList() {
   const navigate = useNavigate();
   const location = useLocation();
   const [books, setBooks] = useState<Book[]>([]);
-  const [showAddForm, setShowAddForm] = useState(false);
   const [showCollaboratorModal, setShowCollaboratorModal] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -137,10 +135,6 @@ export default function BooksList() {
               <span>View Archive</span>
               <ChevronRight className="h-4 w-4" />
             </Button>
-            <Button onClick={() => setShowAddForm(true)} className="space-x-2  mt-5">
-              <BookPlus className="h-6 w-6" />
-              <span>Create a Book</span>
-            </Button>
             <Button 
               onClick={() => navigate('/books/create')} 
               className="space-x-2 mt-2"
@@ -162,7 +156,7 @@ export default function BooksList() {
               <p className="text-muted-foreground mb-6">
                 Create your first book to get started with your projects.
               </p>
-              <Button onClick={() => setShowAddForm(true)} className="space-x-2">
+              <Button onClick={() => navigate('/books/create')} className="space-x-2">
                 <Plus className="h-4 w-4" />
                 <span>Create Your First Book</span>
               </Button>
@@ -172,12 +166,6 @@ export default function BooksList() {
           <BooksGrid books={books} onArchive={handleArchive} onPageUserManager={(bookId) => navigate(`/books/${bookId}/page-users`)} />
         )}
 
-        {/* Add Book Wizard */}
-        <BookCreationWizard 
-          open={showAddForm} 
-          onOpenChange={setShowAddForm} 
-          onSuccess={fetchBooks} 
-        />
 
         {/* Collaborator Dialog */}
         <Dialog open={!!showCollaboratorModal} onOpenChange={() => setShowCollaboratorModal(null)}>

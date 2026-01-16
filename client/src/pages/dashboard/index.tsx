@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/composites/card';
@@ -7,7 +7,6 @@ import { BookOpen, Users, FileText, Plus, ArrowRight, Calendar, MessageSquare, H
 import FloatingActionButton from '../../components/ui/composites/floating-action-button';
 import { ChartContainer } from '../../components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell } from 'recharts';
-import CreationWizard from '../../components/features/books/creation/creation-wizard';
 import ProfilePicture from '../../components/features/users/profile-picture';
 
 interface DashboardData {
@@ -52,9 +51,9 @@ interface DashboardData {
 
 export default function Dashboard() {
   const { user, token } = useAuth();
+  const navigate = useNavigate();
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -397,9 +396,9 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-4">
-              <Button 
-                onClick={() => setShowCreateDialog(true)}
-                className="flex-1 min-w-[200px] w-full h-auto py-4 px-6 justify-start space-x-3" 
+              <Button
+                onClick={() => navigate('/books/create')}
+                className="flex-1 min-w-[200px] w-full h-auto py-4 px-6 justify-start space-x-3"
                 variant="outline"
               >
                 <BookPlus className="h-5 w-5" />
@@ -506,13 +505,6 @@ export default function Dashboard() {
       
       <FloatingActionButton />
       
-      <CreationWizard
-        open={showCreateDialog}
-        onOpenChange={setShowCreateDialog}
-        onSuccess={() => {
-          fetchDashboardData(); // Refresh dashboard data
-        }}
-      />
     </div>
   );
 }

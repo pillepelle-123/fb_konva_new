@@ -403,21 +403,18 @@ export function DesignStep({
                           {theme.name}
                         </p>
                         <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{theme.description}</p>
-                        <div className="mt-2 flex items-center gap-1.5">
+                        {/* <div className="mt-2 flex items-center gap-1.5">
                           <span className="text-[9px] text-muted-foreground">Default:</span>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="xxs"
+                          <span
                             onClick={(e) => {
                               e.stopPropagation();
                               handleSelectThemeDefaultPalette(e);
                             }}
-                            className="h-auto px-1 py-0.5 text-[10px] font-medium"
+                            className="inline-flex items-center justify-center whitespace-nowrap rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-auto px-1 py-0.5 text-[10px] font-medium cursor-pointer transition-colors"
                           >
                             {theme.paletteName}
-                          </Button>
-                        </div>
+                          </span>
+                        </div> */}
                       </button>
                     );
                   })}

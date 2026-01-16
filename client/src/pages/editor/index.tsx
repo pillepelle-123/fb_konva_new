@@ -9,7 +9,6 @@ import ToolSettingsPanel, { type ToolSettingsPanelRef } from '../../components/f
 import { StatusBar } from '../../components/features/editor/status-bar';
 import { toast } from 'sonner';
 import QuestionSelectionHandler from '../../components/features/editor/question-selection-handler';
-import TemplateGallery from '../../components/templates/template-gallery';
 import { fetchTemplates, fetchColorPalettes, apiService } from '../../services/api';
 import { getGlobalTheme, getThemePageBackgroundColors } from '../../utils/global-themes';
 import { applyBackgroundImageTemplate } from '../../utils/background-image-utils';
@@ -22,7 +21,6 @@ function EditorContent() {
   const navigate = useNavigate();
   const { state, dispatch, loadBook, undo, redo, saveBook, canAccessEditor, canEditCanvas, ensurePagesLoaded } = useEditor();
   const toolSettingsPanelRef = useRef<ToolSettingsPanelRef>(null);
-  const [showTemplateGallery, setShowTemplateGallery] = useState(false);
 
   const openPreviewOnLoad = useMemo(() => {
     const searchParams = new URLSearchParams(location.search);
@@ -736,20 +734,16 @@ function EditorContent() {
         <div className="flex-1 min-h-0">
           <div className="h-full flex flex-col bg-background">
             <div className="flex-1 flex min-h-0">
-              {canEditCanvas() && <Toolbar onOpenTemplates={() => setShowTemplateGallery(true)} />}
+              {canEditCanvas() && <Toolbar />}
               <div className="flex-1 overflow-hidden bg-highlight">
                 <Canvas />
               </div>
-              {canEditCanvas() && <ToolSettingsPanel ref={toolSettingsPanelRef} onOpenTemplates={() => setShowTemplateGallery(true)} />}
+              {canEditCanvas() && <ToolSettingsPanel ref={toolSettingsPanelRef} />}
             </div>
             
             <StatusBar />
           </div>
 
-        <TemplateGallery
-          isOpen={showTemplateGallery}
-          onClose={() => setShowTemplateGallery(false)}
-        />
       </div>
       
     </div>
