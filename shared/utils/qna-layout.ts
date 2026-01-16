@@ -63,8 +63,22 @@ export function createBlockLayout(params: CreateBlockLayoutParams): LayoutResult
   const linePositions: LinePosition[] = [];
   
   // Calculate line heights
-  const questionLineHeight = isPdfExport ? getLineHeight(questionStyle) * 1.15 : getLineHeight(questionStyle);
-  const answerLineHeight = isPdfExport ? getLineHeight(answerStyle) * 1 : getLineHeight(answerStyle);
+  // CRITICAL FIX: Removed PDF-specific multiplier (was 1.15) that caused cumulative offset errors
+  // Both question and answer now use same line height calculation for consistency
+  const questionLineHeight = getLineHeight(questionStyle);
+  const answerLineHeight = getLineHeight(answerStyle);
+  
+  // DEBUG: Log line height calculations for PDF export
+  if (isPdfExport && typeof console !== 'undefined') {
+    console.log('[DEBUG qna-layout.ts Block] Line Heights:', {
+      questionLineHeight,
+      answerLineHeight,
+      questionFontSize: questionStyle.fontSize,
+      answerFontSize: answerStyle.fontSize,
+      questionParagraphSpacing: questionStyle.paragraphSpacing,
+      answerParagraphSpacing: answerStyle.paragraphSpacing
+    });
+  }
   
   // Baseline offsets
   const questionBaselineOffset = questionStyle.fontSize * 0.8;
@@ -151,7 +165,7 @@ export function createBlockLayout(params: CreateBlockLayoutParams): LayoutResult
     const answerLines = wrapText(answerText, answerStyle, answerArea.width, ctx);
     let cursorY = answerArea.y;
     
-    answerLines.forEach((line) => {
+    answerLines.forEach((line, idx) => {
       if (line.text) {
         const baselineY = cursorY + answerBaselineOffset;
         const textX = calculateTextX(line.text, answerStyle, answerArea.x, answerArea.width, ctx);
@@ -163,11 +177,26 @@ export function createBlockLayout(params: CreateBlockLayoutParams): LayoutResult
         });
         // Only add line position if ruledLinesTarget is 'answer'
         if (ruledLinesTarget === 'answer') {
+          const ruledLineY = baselineY + RULED_LINE_BASELINE_OFFSET;
           linePositions.push({
-            y: baselineY + RULED_LINE_BASELINE_OFFSET,
+            y: ruledLineY,
             lineHeight: answerLineHeight,
             style: answerStyle
           });
+          
+          // DEBUG: Log first answer line position for PDF export
+          if (isPdfExport && idx === 0 && typeof console !== 'undefined') {
+            console.log('[DEBUG qna-layout.ts Block] First Answer Line:', {
+              lineIndex: idx,
+              cursorY,
+              answerBaselineOffset,
+              baselineY,
+              RULED_LINE_BASELINE_OFFSET,
+              ruledLineY,
+              answerAreaY: answerArea.y,
+              text: line.text.substring(0, 30)
+            });
+          }
         }
         cursorY += answerLineHeight;
       } else {
@@ -223,9 +252,22 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
   const linePositions: LinePosition[] = [];
   
   // Calculate line heights for both styles
-  // For PDF export, apply scaling factor to match visual appearance (same as block layout)
-  const questionLineHeight = isPdfExport ? getLineHeight(questionStyle) * 1.2 : getLineHeight(questionStyle);
-  const answerLineHeight = isPdfExport ? getLineHeight(answerStyle) * 1 : getLineHeight(answerStyle);
+  // CRITICAL FIX: Removed PDF-specific multiplier (was 1.2) that caused cumulative offset errors
+  // Both question and answer now use same line height calculation for consistency
+  const questionLineHeight = getLineHeight(questionStyle);
+  const answerLineHeight = getLineHeight(answerStyle);
+  
+  // DEBUG: Log line height calculations for PDF export
+  if (isPdfExport && typeof console !== 'undefined') {
+    console.log('[DEBUG qna-layout.ts Inline] Line Heights:', {
+      questionLineHeight,
+      answerLineHeight,
+      questionFontSize: questionStyle.fontSize,
+      answerFontSize: answerStyle.fontSize,
+      questionParagraphSpacing: questionStyle.paragraphSpacing,
+      answerParagraphSpacing: answerStyle.paragraphSpacing
+    });
+  }
   
   // Baseline offset: text baseline is typically at fontSize * 0.8 from top
   // When using textBaseline = 'top', we need to adjust Y position

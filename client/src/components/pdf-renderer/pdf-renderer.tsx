@@ -1356,35 +1356,53 @@ export function PDFRenderer({
               // This ensures ruled lines are rendered for empty lines too
               // RULED_LINE_BASELINE_OFFSET für PDF Export (muss mit shared/utils/qna-layout.ts übereinstimmen)
               const RULED_LINE_BASELINE_OFFSET = -20;
-              // Zusätzlicher Offset vom oberen Rand der Textbox (in Pixeln)
-              // Erhöht den Abstand aller Ruled Lines vom oberen Rand, ohne den Text zu verschieben
-              const RULED_LINE_TOP_OFFSET = 28; // <-- HIER EINSTELLEN (z.B. 10, 15, 20, etc.)
+              // CRITICAL FIX: Removed RULED_LINE_TOP_OFFSET workaround (was 28)
+              // This workaround shifted ALL ruled lines down, worsening the positioning problem
+              // The root cause (incorrect line height multipliers) is now fixed in qna-layout.ts
+              const RULED_LINE_TOP_OFFSET = 0;
 
               const targetStyle = ruledLinesTarget === 'question' ? questionStyle : answerStyle;
 
               // Use linePositions from layout instead of extracting from runs
               // This ensures ruled lines for empty lines are included (unlike runs which only contain text)
-              const baselineYPositions = new Set<number>();
-              linePositions.forEach((linePos) => {
-                // Filter by style to match ruledLinesTarget
-                if (linePos.style.fontSize === targetStyle.fontSize) {
-                  // Convert absolute line position back to relative baseline position
-                  // linePos.y includes RULED_LINE_BASELINE_OFFSET, so we need to subtract it
-                  const baselineY = linePos.y - RULED_LINE_BASELINE_OFFSET;
-                  baselineYPositions.add(baselineY);
-                }
-              });
+              // CRITICAL FIX: Use linePos.y directly (like the app does) instead of extracting baseline
+              // linePos.y is already relative to textbox top and includes the baseline offset
+              // The difference between app (RULED_LINE_BASELINE_OFFSET = 12) and PDF (-20) is 32 pixels
+              // We need to add this offset to match app positioning
+              const OFFSET_CORRECTION = 32; // Difference: 12 (app) - (-20) (PDF) = 32
               
               const startX = answerArea.x;
               const endX = answerArea.x + answerArea.width;
               
-              // Render lines at each baseline position
-              Array.from(baselineYPositions).sort((a, b) => a - b).forEach((baselineY) => {
-                // Calculate line Y position: elementY + baselineY + offset + top offset
-                const lineY = elementY + baselineY + RULED_LINE_BASELINE_OFFSET + RULED_LINE_TOP_OFFSET;
+              // Filter linePositions by style to match ruledLinesTarget
+              const filteredLinePositions = linePositions.filter((linePos) => 
+                linePos.style.fontSize === targetStyle.fontSize
+              );
+              
+              // DEBUG: Log first ruled line position
+              if (filteredLinePositions.length > 0) {
+                const firstLinePos = filteredLinePositions[0];
+                const firstLineY = elementY + firstLinePos.y + OFFSET_CORRECTION;
+                console.log('[DEBUG pdf-renderer.tsx Block] First Ruled Line:', {
+                  elementId: element.id,
+                  elementY,
+                  linePosY: firstLinePos.y,
+                  OFFSET_CORRECTION,
+                  firstLineY,
+                  totalLinePositions: filteredLinePositions.length,
+                  layoutVariant: 'block'
+                });
+              }
+              
+              filteredLinePositions.forEach((linePos) => {
+                // Calculate line Y position: elementY + linePos.y (relative to textbox) + offset correction
+                // This matches how the app renders: directly using linePos.y
+                const lineY = elementY + linePos.y + OFFSET_CORRECTION;
                 
                 // Check if line is within the target area (vertically)
-                if (lineY >= answerArea.y && lineY <= answerArea.y + answerArea.height) {
+                // Note: linePos.y is relative to textbox top, so we need to check against answerArea.y relative to elementY
+                const relativeAnswerAreaY = answerArea.y - elementY;
+                if (linePos.y >= relativeAnswerAreaY && linePos.y <= relativeAnswerAreaY + answerArea.height) {
                   // Generate ruled line using shared theme engine
                 const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
                 const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly', 'dashed'];
@@ -1638,27 +1656,40 @@ export function PDFRenderer({
               // This ensures ruled lines are rendered for empty lines too
               // RULED_LINE_BASELINE_OFFSET für PDF Export (muss mit shared/utils/qna-layout.ts übereinstimmen)
                   const RULED_LINE_BASELINE_OFFSET = -20;
-              // Zusätzlicher Offset vom oberen Rand der Textbox (in Pixeln)
-              // Erhöht den Abstand aller Ruled Lines vom oberen Rand, ohne den Text zu verschieben
-              const RULED_LINE_TOP_OFFSET = 28; // <-- HIER EINSTELLEN (z.B. 10, 15, 20, etc.)
+              // CRITICAL FIX: Removed RULED_LINE_TOP_OFFSET workaround (was 28)
+              // This workaround shifted ALL ruled lines down, worsening the positioning problem
+              // The root cause (incorrect line height multipliers) is now fixed in qna-layout.ts
+              const RULED_LINE_TOP_OFFSET = 0;
 
               // Use linePositions from layout instead of extracting from runs
               // This ensures ruled lines for empty lines are included (unlike runs which only contain text)
-              const baselineYPositions = new Set<number>();
-              linePositions.forEach((linePos) => {
-                // Convert absolute line position back to relative baseline position
-                // linePos.y includes RULED_LINE_BASELINE_OFFSET, so we need to subtract it
-                const baselineY = linePos.y - RULED_LINE_BASELINE_OFFSET;
-                baselineYPositions.add(baselineY);
-              });
+              // CRITICAL FIX: Use linePos.y directly (like the app does) instead of extracting baseline
+              // linePos.y is already relative to textbox top and includes the baseline offset
+              // The difference between app (RULED_LINE_BASELINE_OFFSET = 12) and PDF (-20) is 32 pixels
+              // We need to add this offset to match app positioning
+              const OFFSET_CORRECTION = 32; // Difference: 12 (app) - (-20) (PDF) = 32
               
-              // Render lines at each baseline position
-              Array.from(baselineYPositions).sort((a, b) => a - b).forEach((baselineY) => {
-                // Only generate lines that are within the box dimensions (0 <= baselineY <= elementHeight)
+              // DEBUG: Log first ruled line position
+              if (linePositions.length > 0) {
+                const firstLinePos = linePositions[0];
+                const firstLineY = elementY + firstLinePos.y + OFFSET_CORRECTION;
+                console.log('[DEBUG pdf-renderer.tsx Inline] First Ruled Line:', {
+                  elementId: element.id,
+                  elementY,
+                  linePosY: firstLinePos.y,
+                  OFFSET_CORRECTION,
+                  firstLineY,
+                  totalLinePositions: linePositions.length
+                });
+              }
+              
+              linePositions.forEach((linePos) => {
+                // Only generate lines that are within the box dimensions (0 <= linePos.y <= elementHeight)
                 // This ensures ruled lines only appear inside the visible border area
-                if (baselineY >= 0 && baselineY <= elementHeight) {
-                  // Calculate line Y position: elementY + baselineY + offset + top offset
-                  const lineY = elementY + baselineY + RULED_LINE_BASELINE_OFFSET + RULED_LINE_TOP_OFFSET;
+                if (linePos.y >= 0 && linePos.y <= elementHeight) {
+                  // Calculate line Y position: elementY + linePos.y (relative to textbox) + offset correction
+                  // This matches how the app renders: directly using linePos.y
+                  const lineY = elementY + linePos.y + OFFSET_CORRECTION;
                   
                   // Generate ruled line using shared theme engine
                   const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
@@ -1778,21 +1809,19 @@ export function PDFRenderer({
               
               // Generate additional ruled lines to fill the rest of the textbox (matching client-side logic)
               // This only applies to answer lines (ruledLinesTarget === 'answer')
-              if (ruledLinesTarget === 'answer' && baselineYPositions.size > 0) {
-                // Filter baselines by answer style
-                const answerBaselineYPositions = new Set<number>();
-                runs.forEach((run) => {
-                  if (run.style.fontSize === answerStyle.fontSize) {
-                    answerBaselineYPositions.add(run.y);
-                  }
-                });
-                
-                if (answerBaselineYPositions.size > 0) {
-                  const answerLineHeight = sharedGetLineHeight(answerStyle);
-                  const sortedAnswerBaselines = Array.from(answerBaselineYPositions).sort((a, b) => a - b);
-                  const lastBaselineY = sortedAnswerBaselines[sortedAnswerBaselines.length - 1];
-                  // Calculate next line position: last baseline + line height + offset + top offset
-                  let nextLineY = elementY + lastBaselineY + answerLineHeight + RULED_LINE_BASELINE_OFFSET + RULED_LINE_TOP_OFFSET;
+              // CRITICAL FIX: Use linePositions directly instead of extracting from runs
+              // The offset correction (32px) is already applied above
+              const answerLinePositions = linePositions.filter((linePos) => 
+                linePos.style.fontSize === answerStyle.fontSize
+              );
+              
+              if (answerLinePositions.length > 0) {
+                const answerLineHeight = sharedGetLineHeight(answerStyle);
+                const sortedAnswerLinePositions = [...answerLinePositions].sort((a, b) => a.y - b.y);
+                const lastLinePos = sortedAnswerLinePositions[sortedAnswerLinePositions.length - 1];
+                // Calculate next line position: last linePos.y + line height + offset correction
+                // Use linePos.y directly (already includes baseline offset) + line height
+                let nextLineY = elementY + lastLinePos.y + answerLineHeight + OFFSET_CORRECTION;
                   
                   // Determine start and end X positions and bottom Y (all relative to element)
                   const relativeStartX = padding;
@@ -1921,8 +1950,7 @@ export function PDFRenderer({
 
                     layer.add(lineNode);
                     ruledLinesRenderedCount++;
-                  }
-                  
+                    
                     nextLineY += answerLineHeight;
                   }
                 }
