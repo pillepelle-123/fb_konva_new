@@ -177,7 +177,13 @@ class PDFRendererService {
           'Saira Stencil One','Emblema One','Monofett','Shojumaru','Audiowide','Bilbo Swash Caps','Stalemate'
         ];
 
-        const uniqueFamilies = Array.from(new Set(googleFamilies));
+        // System fonts that need explicit loading for consistent PDF rendering
+        const systemFamilies = [
+          'Arial','Arial Narrow','Tahoma','Verdana','Impact','Century Gothic','Bauhaus 93','Berlin Sans',
+          'Georgia','Consolas','Times New Roman','Garamond','Courier','Baskerville','Rockwell','Cambria'
+        ];
+
+        const uniqueFamilies = Array.from(new Set([...googleFamilies, ...systemFamilies]));
         const loadPromises = [];
         // Load fonts with multiple sizes to cover all possible font sizes used in the document
         const fontSizes = [16, 24, 32, 40, 48, 50, 60, 72, 96, 100, 125, 150];
@@ -573,7 +579,13 @@ class PDFRendererService {
           'Saira Stencil One','Emblema One','Monofett','Shojumaru'
         ];
 
-        const uniqueFamilies = Array.from(new Set(googleFamilies));
+        // System fonts that need explicit loading for consistent PDF rendering
+        const systemFamilies = [
+          'Arial','Arial Narrow','Tahoma','Verdana','Impact','Century Gothic','Bauhaus 93','Berlin Sans',
+          'Georgia','Consolas','Times New Roman','Garamond','Courier','Baskerville','Rockwell','Cambria'
+        ];
+
+        const uniqueFamilies = Array.from(new Set([...googleFamilies, ...systemFamilies]));
         const loadPromises = [];
         uniqueFamilies.forEach(name => {
           loadPromises.push(document.fonts.load(`400 48px "${name}"`).catch(() => {}));

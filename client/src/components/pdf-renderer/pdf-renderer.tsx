@@ -2003,7 +2003,7 @@ export function PDFRenderer({
           const borderOpacity = getStandardizedOpacity(element, 'border', 1);
           const cornerRadius = element.cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
           
-          if (borderWidth > 0) {
+          if (element.borderEnabled && borderWidth > 0) {
             const themeRenderer = getThemeRenderer(borderTheme);
             const useTheme = themeRenderer && borderTheme !== 'default';
             
