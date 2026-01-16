@@ -4644,200 +4644,70 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           elements: page.elements.map(element => {
             const updates: Partial<CanvasElement> = {};
             
-            // Apply palette colors based on element type - always override manual colors
+            // Apply palette colors only - do NOT modify border/background enabled states, widths, or opacities
+            // These properties should only be changed when applying themes, not color palettes
             if (element.type === 'text' || element.textType) {
-              // For qna, font properties are only in questionSettings/answerSettings
               if (element.textType === 'qna') {
-                // Update QnA specific settings using centralized palette colors
+                // Update QnA colors only - preserve all other properties
                 const qnaColors = getPaletteColors('qna');
-                if (element.questionSettings) {
-                  updates.questionSettings = {
-                    ...element.questionSettings,
-                    fontColor: qnaColors.qnaQuestionText
-                  };
-                }
-                if (element.answerSettings) {
-                  updates.answerSettings = {
-                    ...element.answerSettings,
-                    fontColor: qnaColors.qnaAnswerText
-                  };
-                }
-                // Update all color settings for QnA elements
-                updates.backgroundColor = qnaColors.qnaBackground;
+                // Only update colors in questionSettings/answerSettings - preserve all other properties
+                updates.questionSettings = {
+                  ...element.questionSettings,
+                  fontColor: qnaColors.qnaQuestionText,
+                  font: { ...element.questionSettings?.font, fontColor: qnaColors.qnaQuestionText }
+                };
+                updates.answerSettings = {
+                  ...element.answerSettings,
+                  fontColor: qnaColors.qnaAnswerText,
+                  font: { ...element.answerSettings?.font, fontColor: qnaColors.qnaAnswerText }
+                };
+                // Only update color properties on top-level - preserve all other properties
                 updates.borderColor = qnaColors.qnaBorder;
+                updates.backgroundColor = qnaColors.qnaBackground;
                 if (element.ruledLinesColor !== undefined) {
                   updates.ruledLinesColor = qnaColors.qnaAnswerRuledLines;
                 }
-              } else {
-                // For other text elements, update font color in nested font object if it exists
-                if (element.font) {
-                  const textColors = getPaletteColors('text');
-                  updates.font = { ...element.font, fontColor: textColors.textColor };
-                }
-              }
-              
-              // Handle free_text elements with textSettings
-              if (element.textType === 'free_text') {
+              } else if (element.textType === 'free_text') {
+                // Handle free_text elements - update colors only, preserve enabled states
                 const freeTextColors = getPaletteColors('free_text');
                 const currentBorder = element.textSettings?.border || {};
                 const currentBackground = element.textSettings?.background || {};
                 updates.textSettings = {
                   ...element.textSettings,
-                fontColor: freeTextColors.freeTextText,
+                  fontColor: freeTextColors.freeTextText,
                   font: element.textSettings?.font ?
-                  { ...element.textSettings.font, fontColor: freeTextColors.freeTextText } :
-                  { fontColor: freeTextColors.freeTextText },
+                    { ...element.textSettings.font, fontColor: freeTextColors.freeTextText } :
+                    { fontColor: freeTextColors.freeTextText },
                   border: {
                     ...currentBorder,
-                  borderColor: freeTextColors.freeTextBorder,
-                    enabled: currentBorder.enabled !== undefined ? currentBorder.enabled : true
+                    borderColor: freeTextColors.freeTextBorder
+                    // Do NOT set enabled - preserve existing value
                   },
-                borderColor: freeTextColors.freeTextBorder,
+                  borderColor: freeTextColors.freeTextBorder,
                   background: {
                     ...currentBackground,
-                  backgroundColor: freeTextColors.freeTextBackground,
-                    enabled: currentBackground.enabled !== undefined ? currentBackground.enabled : true
+                    backgroundColor: freeTextColors.freeTextBackground
+                    // Do NOT set enabled - preserve existing value
                   },
-                backgroundColor: freeTextColors.freeTextBackground,
+                  backgroundColor: freeTextColors.freeTextBackground,
                   ruledLines: element.textSettings?.ruledLines ? {
                     ...element.textSettings.ruledLines,
-                  lineColor: freeTextColors.freeTextRuledLines
+                    lineColor: freeTextColors.freeTextRuledLines
                   } : undefined,
-                ruledLinesColor: freeTextColors.freeTextRuledLines
+                  ruledLinesColor: freeTextColors.freeTextRuledLines
                 };
-              }
-              
-              // Update border colors - create nested objects if they don't exist
-              // Check if border is enabled in theme defaults before applying
-              let borderEnabled = element.border?.enabled !== false;
-              let backgroundEnabled = element.background?.enabled !== false;
-              
-              if (element.textType === 'qna') {
-                // Get theme defaults to check if border/background should be enabled
-                const pageTheme = page.background?.pageTheme || page.themeId;
-                const bookTheme = updatedBookApplyPalette.bookTheme;
-                const pageLayoutTemplateId = page.layoutTemplateId;
-                const bookLayoutTemplateId = updatedBookApplyPalette.layoutTemplateId;
-                const pageColorPaletteId = page.colorPaletteId;
-                const bookColorPaletteId = updatedBookApplyPalette.colorPaletteId;
-                
-                const activeTheme = pageTheme || bookTheme || 'default';
-                const effectivePaletteId = pageColorPaletteId === null
-                  ? getThemePaletteId(activeTheme)  // Theme's Default Palette
-                  : pageColorPaletteId;               // Explizite Palette
-                const themeDefaults = getGlobalThemeDefaults(activeTheme, 'qna', effectivePaletteId);
-                
-                // Check if border is disabled in theme or element
-                const questionBorderEnabled = element.questionSettings?.border?.enabled ?? 
-                                             element.questionSettings?.borderEnabled ?? 
-                                             themeDefaults.questionSettings?.border?.enabled ?? 
-                                             themeDefaults.questionSettings?.borderEnabled ?? 
-                                             true;
-                const answerBorderEnabled = element.answerSettings?.border?.enabled ?? 
-                                          element.answerSettings?.borderEnabled ?? 
-                                          themeDefaults.answerSettings?.border?.enabled ?? 
-                                          themeDefaults.answerSettings?.borderEnabled ?? 
-                                          true;
-                borderEnabled = questionBorderEnabled !== false && answerBorderEnabled !== false;
-                
-                // Check if background is disabled in theme or element
-                const questionBackgroundEnabled = element.questionSettings?.background?.enabled ?? 
-                                                 element.questionSettings?.backgroundEnabled ?? 
-                                                 themeDefaults.questionSettings?.background?.enabled ?? 
-                                                 themeDefaults.questionSettings?.backgroundEnabled ?? 
-                                                 true;
-                const answerBackgroundEnabled = element.answerSettings?.background?.enabled ?? 
-                                              element.answerSettings?.backgroundEnabled ?? 
-                                              themeDefaults.answerSettings?.background?.enabled ?? 
-                                              themeDefaults.answerSettings?.backgroundEnabled ?? 
-                                              true;
-                backgroundEnabled = questionBackgroundEnabled !== false && answerBackgroundEnabled !== false;
-                
-                // Get existing border/background settings or use defaults
-                const existingQuestionBorder = element.questionSettings?.border || {};
-                const existingAnswerBorder = element.answerSettings?.border || {};
-                const existingQuestionBackground = element.questionSettings?.background || {};
-                const existingAnswerBackground = element.answerSettings?.background || {};
-                
-                // Get border/background values from top-level or fallback to questionSettings/answerSettings
-                const existingBorderWidth = (element.borderWidth || existingQuestionBorder.borderWidth || existingAnswerBorder.borderWidth) ?? 2;
-                const existingBorderOpacity = element.borderOpacity ?? existingQuestionBorder.borderOpacity ?? existingAnswerBorder.borderOpacity ?? 1;
-                const existingBackgroundOpacity = element.backgroundOpacity ?? existingQuestionBackground.backgroundOpacity ?? existingAnswerBackground.backgroundOpacity ?? 0.3;
-                
-                const qnaColors = getPaletteColors('qna');
-                updates.questionSettings = {
-                  ...element.questionSettings,
-                  fontColor: qnaColors.qnaQuestionText,
-                  font: { ...element.questionSettings?.font, fontColor: qnaColors.qnaQuestionText },
-                  // Only set border.enabled in questionSettings for rendering check
-                  border: {
-                    ...existingQuestionBorder,
-                    enabled: borderEnabled
-                  },
-                  // Only set background.enabled in questionSettings for rendering check
-                  background: {
-                    ...existingQuestionBackground,
-                    enabled: backgroundEnabled
-                  }
-                };
-                updates.answerSettings = {
-                  ...element.answerSettings,
-                  fontColor: qnaColors.qnaAnswerText,
-                  font: { ...element.answerSettings?.font, fontColor: qnaColors.qnaAnswerText },
-                  // Only set border.enabled in answerSettings for rendering check
-                  border: {
-                    ...existingAnswerBorder,
-                    enabled: borderEnabled
-                  },
-                  // Only set background.enabled in answerSettings for rendering check
-                  background: {
-                    ...existingAnswerBackground,
-                    enabled: backgroundEnabled
-                  }
-                };
-                // Set all border/background properties on top-level
-                // Use centralized palette colors for QnA
-                updates.borderColor = qnaColors.qnaBorder;
-                // Set all border/background properties on top-level (only individual properties, no border/background objects)
-                updates.borderWidth = existingBorderWidth;
-                updates.borderOpacity = existingBorderOpacity;
-                updates.borderEnabled = borderEnabled;
-                // Use centralized palette colors for QnA - use qnaBackground for the entire QnA box
-                updates.backgroundColor = qnaColors.qnaBackground;
-                updates.backgroundOpacity = existingBackgroundOpacity;
-                updates.backgroundEnabled = backgroundEnabled;
-                // Set ruledLinesColor on top-level (moved from answerSettings)
-                updates.ruledLinesColor = qnaColors.qnaAnswerRuledLines;
-              }
-              
-              // Update border/background colors on top-level (only individual properties, no border/background objects)
-              // For qna, border.enabled and background.enabled are already set in questionSettings/answerSettings above
-              // For other text elements, we don't need to set border/background objects
-              const textColors = getPaletteColors('text');
-              if (element.textType === 'qna') {
-                // Border and background colors are already set above for qna
               } else {
-                // For other text elements, update border/background colors on top-level
-                const currentBorderEnabled = element.border?.enabled !== false;
-                const currentBackgroundEnabled = element.background?.enabled !== false;
-                
-                if (currentBorderEnabled) {
-                  updates.borderColor = textColors.borderColor;
+                // For other text elements, update colors only - preserve all other properties
+                const textColors = getPaletteColors('text');
+                if (element.font) {
+                  updates.font = { ...element.font, fontColor: textColors.textColor };
                 }
-
-                if (currentBackgroundEnabled) {
-                  updates.backgroundColor = textColors.backgroundColor;
-                }
+                // Update color properties on top-level - preserve enabled states, widths, opacities
+                updates.fontColor = textColors.textColor;
+                updates.fill = textColors.textColor;
+                updates.borderColor = textColors.borderColor;
+                updates.backgroundColor = textColors.backgroundColor;
               }
-
-            // Update direct font color properties - only for non-QnA text elements
-            // QnA elements get their colors from qnaColors (set earlier in this function)
-            if (element.textType !== 'qna') {
-              updates.fontColor = textColors.textColor;
-              updates.fill = textColors.textColor;
-              updates.borderColor = textColors.borderColor;
-              updates.backgroundColor = textColors.backgroundColor;
-            }
             }
             
             // Apply stroke color to shapes and lines
