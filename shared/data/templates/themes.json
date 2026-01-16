@@ -134,8 +134,7 @@
           "theme": "rough",
           "lineWidth": 1,
           "lineOpacity": 0.6,
-          "ruledLinesTheme": "rough",
-          "lineColor": "#424242"
+          "ruledLinesTheme": "rough"
         },
         "questionSettings": {
           "fontSize": 17,
@@ -178,7 +177,7 @@
         "patternBackgroundOpacity": 0.3
       },
       "backgroundImage": {
-        "enabled": true,
+        "enabled": false,
         "templateId": "colorful-geometric-01",
         "size": "cover",
         "repeat": false,
@@ -564,7 +563,6 @@
           "width": 2,
           "theme": "rough",
           "opacity": 0.9,
-          "lineColor": "#E91E63",
           "lineWidth": 2,
           "lineOpacity": 0.9,
           "ruledLinesTheme": "rough"
@@ -634,7 +632,6 @@
           "width": 4,
           "theme": "rough",
           "opacity": 0.9,
-          "lineColor": "#388E3C",
           "lineWidth": 2,
           "lineOpacity": 0.9,
           "ruledLinesTheme": "rough"
@@ -713,8 +710,7 @@
             "theme": "default",
             "lineWidth": 1,
             "lineOpacity": 0.5,
-            "ruledLinesTheme": "default",
-            "lineColor": "#BDBDBD"
+            "ruledLinesTheme": "default"
           },
           "width": 3,
           "theme": "rough",

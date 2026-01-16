@@ -1264,11 +1264,18 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
         ? (pageTemplates.find(t => t.id === bookActiveTemplates.layoutTemplateId) || null)
         : null);
   const pageTheme = getGlobalTheme(pageActiveTemplates.themeId);
-  // Get page palette - use page palette if available, otherwise fall back to book palette
-  // If pageActiveTemplates.colorPaletteId is null, check if theme has a default palette
-  const pagePaletteId = pageActiveTemplates.colorPaletteId || (pageActiveTemplates.themeId ? getThemePaletteId(pageActiveTemplates.themeId) : null);
-  const bookPaletteIdForFallback = bookActiveTemplates.colorPaletteId || (bookActiveTemplates.themeId ? getThemePaletteId(bookActiveTemplates.themeId) : null);
-  const effectivePaletteId = pagePaletteId || bookPaletteIdForFallback;
+  // Get page palette - distinguish between Theme's Default Palette and explicit palette
+  const pagePaletteOverrideId = currentPage?.colorPaletteId || null;
+  let effectivePaletteId: string | null = null;
+
+  if (pagePaletteOverrideId === null) {
+    // Theme's Default Palette - use theme's default palette
+    effectivePaletteId = pageActiveTemplates.themeId ? getThemePaletteId(pageActiveTemplates.themeId) : null;
+  } else {
+    // Explicit palette - use the stored palette ID
+    effectivePaletteId = pagePaletteOverrideId;
+  }
+
   const pagePalette = effectivePaletteId
     ? (colorPalettes.find(p => p.id === effectivePaletteId) || null)
     : null;

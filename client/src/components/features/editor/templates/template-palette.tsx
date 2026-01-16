@@ -1,5 +1,5 @@
 import { Palette, RotateCcw } from 'lucide-react';
-import { colorPalettes } from '../../../../data/templates/color-palettes';
+import { colorPalettes, getPalettePartColor } from '../../../../data/templates/color-palettes';
 import type { ColorPalette } from '../../../../types/template-types';
 import { useEditor } from '../../../../context/editor-context';
 import { Button } from '../../../ui/primitives/button';
@@ -52,7 +52,11 @@ export function TemplatePalette({ selectedPalette, onPaletteSelect, skipShell = 
       text: { fontColor: palette.colors.primary, borderColor: palette.colors.secondary, backgroundColor: palette.colors.background },
       question: { fontColor: palette.colors.primary, borderColor: palette.colors.secondary, backgroundColor: palette.colors.surface },
       answer: { fontColor: palette.colors.accent, borderColor: palette.colors.secondary, backgroundColor: palette.colors.background },
-      qna: { fontColor: palette.colors.primary, borderColor: palette.colors.secondary, backgroundColor: palette.colors.background }
+      qna: { 
+        fontColor: getPalettePartColor(palette, 'qnaQuestionText', 'text', palette.colors.text) || palette.colors.text,
+        borderColor: getPalettePartColor(palette, 'qnaBorder', 'primary', palette.colors.primary) || palette.colors.primary,
+        backgroundColor: getPalettePartColor(palette, 'qnaBackground', 'surface', palette.colors.surface) || palette.colors.surface
+      }
     };
     
     Object.entries(toolUpdates).forEach(([tool, settings]) => {

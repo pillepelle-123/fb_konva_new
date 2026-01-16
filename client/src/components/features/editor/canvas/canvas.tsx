@@ -13,6 +13,7 @@ import { SelectionRectangle } from './selection-rectangle';
 import { PreviewLine, PreviewShape, PreviewTextbox, PreviewBrush, MaterializedBrush } from './preview-elements';
 import { CanvasContainer } from './canvas-container';
 import { SnapGuidelines } from './snap-guidelines';
+import CanvasErrorBoundary from './CanvasErrorBoundary';
 import { CanvasOverlayProvider, CanvasOverlayContainer, CanvasOverlayPortal } from './canvas-overlay';
 import { CanvasBackground } from './CanvasBackground';
 import { CanvasOverlays } from './CanvasOverlays';
@@ -4070,27 +4071,28 @@ export default function Canvas() {
             </Tooltip>
           </div>
         )}
-        
-        <CanvasStage
-          ref={stageRef}
-          width={containerSize.width}
-          height={containerSize.height}
-          zoom={zoom}
-          stagePos={stagePos}
-          activeTool={state.activeTool}
-          pixelRatio={adaptivePixelRatio}
-          onClick={handleStageClick}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onContextMenu={handleContextMenu}
-          onWheel={handleWheel}
-          style={{ 
-            cursor: state.isMiniPreview && state.editorInteractionLevel === 'answer_only' 
-              ? 'default' 
-              : (state.stylePainterActive ? 'url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTkuMDYgMTEuOUwxMi4wNiA4LjlMMTUuMDYgMTEuOUwxMi4wNiAxNC45TDkuMDYgMTEuOVoiIGZpbGw9IiMwMDAiLz4KPHA+YXRoIGQ9Ik0xMi4wNiA4LjlMMTUuMDYgNS45TDE4LjA2IDguOUwxNS4wNiAxMS45TDEyLjA2IDguOVoiIGZpbGw9IiMwMDAiLz4KPC9zdmc+") 12 12, auto' : undefined)
-          }}
-        >
+
+        <CanvasErrorBoundary>
+          <CanvasStage
+            ref={stageRef}
+            width={containerSize.width}
+            height={containerSize.height}
+            zoom={zoom}
+            stagePos={stagePos}
+            activeTool={state.activeTool}
+            pixelRatio={adaptivePixelRatio}
+            onClick={handleStageClick}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onContextMenu={handleContextMenu}
+            onWheel={handleWheel}
+            style={{
+              cursor: state.isMiniPreview && state.editorInteractionLevel === 'answer_only'
+                ? 'default'
+                : (state.stylePainterActive ? 'url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTkuMDYgMTEuOUwxMi4wNiA4LjlMMTUuMDYgMTEuOUwxMi4wNiAxNC45TDkuMDYgMTEuOVoiIGZpbGw9IiMwMDAiLz4KPHA+YXRoIGQ9Ik0xMi4wNiA4LjlMMTUuMDYgNS45TDE4LjA2IDguOUwxNS4wNiAxMS45TDEyLjA2IDguOVoiIGZpbGw9IiMwMDAiLz4KPC9zdmc+") 12 12, auto' : undefined)
+            }}
+          >
           <Layer>
             {/* Page boundary */}
             <CanvasPageEditArea
@@ -5276,7 +5278,8 @@ export default function Canvas() {
               }}
             />
           </Layer>
-        </CanvasStage>
+          </CanvasStage>
+        </CanvasErrorBoundary>
         {!state.isMiniPreview && activePageBadgeMeta && activePageBadgePosition && (
           <CanvasOverlayPortal>
             <div

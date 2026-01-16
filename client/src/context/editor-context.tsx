@@ -1163,8 +1163,15 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
     } else if (pageInheritsTheme && bookThemeId && !hasExplicitBackground) {
       const theme = getGlobalTheme(bookThemeId);
       if (theme) {
-        const pageColorPaletteId = page.colorPaletteId || effectiveBookPaletteId;
-        const pagePalette = pageColorPaletteId ? colorPalettes.find((p) => p.id === pageColorPaletteId) : null;
+        let effectivePaletteId: string | null = null;
+        if (page.colorPaletteId === null) {
+          // Page uses Theme's Default Palette - use theme's palette
+          effectivePaletteId = getThemePaletteId(bookThemeId);
+        } else {
+          // Page has explicit palette - use it
+          effectivePaletteId = page.colorPaletteId;
+        }
+        const pagePalette = effectivePaletteId ? colorPalettes.find((p) => p.id === effectivePaletteId) : null;
         const pageColors = getThemePageBackgroundColors(bookThemeId, pagePalette || bookPalette || undefined);
         const backgroundOpacity = theme.pageSettings.backgroundOpacity ?? page.background?.opacity ?? 1;
 
@@ -1217,16 +1224,22 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
     if (pageInheritsTheme && bookThemeId && resolvedElements.length > 0) {
       const theme = getGlobalTheme(bookThemeId);
       if (theme) {
-        const pageColorPaletteId = page.colorPaletteId || effectiveBookPaletteId;
-        const bookThemePaletteIdForElements = !bookColorPaletteId ? getThemePaletteId(bookThemeId) : null;
-        const effectiveBookColorPaletteId = bookColorPaletteId || bookThemePaletteIdForElements;
+        let pageEffectivePaletteId: string | null = null;
+        if (page.colorPaletteId === null) {
+          // Page uses Theme's Default Palette - use theme's palette
+          pageEffectivePaletteId = getThemePaletteId(bookThemeId);
+        } else {
+          // Page has explicit palette - use it
+          pageEffectivePaletteId = page.colorPaletteId;
+        }
+
         const pageLayoutTemplateId = page.layoutTemplateId || book.layoutTemplateId || null;
         const bookLayoutTemplateId = book.layoutTemplateId || null;
 
         resolvedElements = resolvedElements.map((element: any) => {
           const toolType = element.textType || element.type;
           const activeTheme = bookThemeId || 'default';
-          const effectivePaletteId = pageColorPaletteId || effectiveBookColorPaletteId;
+          const effectivePaletteId = pageEffectivePaletteId;
           const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType as any, effectivePaletteId);
 
           const preservedRotation = typeof element.rotation === 'number' ? element.rotation : 0;
@@ -2849,9 +2862,15 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           // This ensures themeId is completely removed from the object, not just set to undefined
           const { themeId: _removedThemeId, ...pageWithoutThemeId } = page;
           
-          // Get page color palette (or book color palette if page.colorPaletteId is null)
-          const pageColorPaletteId = page.colorPaletteId || currentBookColorPaletteId || currentBookThemePaletteId;
-          const effectivePaletteId = pageColorPaletteId || null;
+          // Get effective palette for page background
+          let effectivePaletteId: string | null = null;
+          if (page.colorPaletteId === null) {
+            // Page uses Theme's Default Palette - use new theme's palette
+            effectivePaletteId = getThemePaletteId(action.payload);
+          } else {
+            // Page has explicit palette - use it
+            effectivePaletteId = page.colorPaletteId;
+          }
           const paletteOverride = effectivePaletteId ? colorPalettes.find(p => p.id === effectivePaletteId) : null;
           const pageColors = getThemePageBackgroundColors(action.payload, paletteOverride || undefined);
           const backgroundOpacity = theme.pageSettings.backgroundOpacity ?? page.background?.opacity ?? 1;
@@ -3305,8 +3324,15 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             // If book.colorPaletteId is null, use theme's default palette
             const pageColorPaletteId = targetPageTheme.colorPaletteId || null;
             const bookColorPaletteId = updatedBookPageTheme.colorPaletteId || null;
-            const bookThemePaletteId = !bookColorPaletteId ? getThemePaletteId(bookThemeId) : null;
-            const effectivePaletteId = pageColorPaletteId || bookColorPaletteId || bookThemePaletteId;
+
+            let effectivePaletteId: string | null = null;
+            if (pageColorPaletteId === null) {
+              // Page uses Theme's Default Palette - use theme's palette
+              effectivePaletteId = getThemePaletteId(bookThemeId);
+            } else {
+              // Page has explicit palette - use it
+              effectivePaletteId = pageColorPaletteId;
+            }
             const paletteOverride = effectivePaletteId ? colorPalettes.find(p => p.id === effectivePaletteId) : null;
             const pageColors = getThemePageBackgroundColors(bookThemeId, paletteOverride || undefined);
             const backgroundOpacity = theme.pageSettings.backgroundOpacity ?? targetPageTheme.background?.opacity ?? 1;
@@ -3667,6 +3693,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         }
 
         // Theme properties that should be preserved when applying theme with preserveColors
+        // NOTE: Color properties like borderColor, backgroundColor, ruledLinesColor are NOT theme properties
+        // Colors are controlled exclusively through Color Palettes, not themes
         const themeProperties = [
           // Font properties
           'fontFamily',
@@ -3677,23 +3705,20 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           'lineHeight',
           'textAlign',
           'verticalAlign',
-          // Border properties
+          // Border properties (non-color)
           'borderEnabled',
           'borderStyle',
           'borderWidth',
           'borderRadius',
           'borderTheme',
           'borderOpacity',
-          'borderColor',
-          // Background properties
+          // Background properties (non-color)
           'backgroundEnabled',
           'backgroundOpacity',
-          'backgroundColor',
-          // Ruled lines properties
+          // Ruled lines properties (non-color)
           'ruledLines',
           'ruledLinesWidth',
           'ruledLinesTheme',
-          'ruledLinesColor',
           'ruledLinesOpacity',
           'ruledLinesTarget'
         ];
@@ -4358,7 +4383,14 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         const theme = getGlobalTheme(themeOnlyId);
         if (!theme) return page;
         
-        const paletteOverrideId = page.colorPaletteId || updatedBookThemeOnly.colorPaletteId || null;
+        let paletteOverrideId: string | null = null;
+        if (page.colorPaletteId === null) {
+          // Page uses Theme's Default Palette - use theme's palette
+          paletteOverrideId = getThemePaletteId(themeOnlyId);
+        } else {
+          // Page has explicit palette - use it
+          paletteOverrideId = page.colorPaletteId;
+        }
         const paletteOverride = paletteOverrideId ? colorPalettes.find(p => p.id === paletteOverrideId) : null;
         const existingBackground = page.background;
         const backgroundOpacity = theme.pageSettings.backgroundOpacity || existingBackground?.opacity || 1;
@@ -4630,6 +4662,12 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                     fontColor: qnaColors.qnaAnswerText
                   };
                 }
+                // Update all color settings for QnA elements
+                updates.backgroundColor = qnaColors.qnaBackground;
+                updates.borderColor = qnaColors.qnaBorder;
+                if (element.ruledLinesColor !== undefined) {
+                  updates.ruledLinesColor = qnaColors.qnaAnswerRuledLines;
+                }
               } else {
                 // For other text elements, update font color in nested font object if it exists
                 if (element.font) {
@@ -4684,7 +4722,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                 const bookColorPaletteId = updatedBookApplyPalette.colorPaletteId;
                 
                 const activeTheme = pageTheme || bookTheme || 'default';
-                const effectivePaletteId = pageColorPaletteId || bookColorPaletteId;
+                const effectivePaletteId = pageColorPaletteId === null
+                  ? getThemePaletteId(activeTheme)  // Theme's Default Palette
+                  : pageColorPaletteId;               // Explizite Palette
                 const themeDefaults = getGlobalThemeDefaults(activeTheme, 'qna', effectivePaletteId);
                 
                 // Check if border is disabled in theme or element
@@ -4757,13 +4797,13 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                 };
                 // Set all border/background properties on top-level
                 // Use centralized palette colors for QnA
-                updates.borderColor = qnaColors.qnaQuestionBorder;
+                updates.borderColor = qnaColors.qnaBorder;
                 // Set all border/background properties on top-level (only individual properties, no border/background objects)
                 updates.borderWidth = existingBorderWidth;
                 updates.borderOpacity = existingBorderOpacity;
                 updates.borderEnabled = borderEnabled;
-                // Use centralized palette colors for QnA
-                updates.backgroundColor = qnaColors.qnaQuestionBackground;
+                // Use centralized palette colors for QnA - use qnaBackground for the entire QnA box
+                updates.backgroundColor = qnaColors.qnaBackground;
                 updates.backgroundOpacity = existingBackgroundOpacity;
                 updates.backgroundEnabled = backgroundEnabled;
                 // Set ruledLinesColor on top-level (moved from answerSettings)
@@ -6281,8 +6321,16 @@ function applyThemeAndPaletteToPage(
 ): Page {
   const pageThemeId = page.themeId || page.background?.pageTheme || book.themeId || book.bookTheme || undefined;
   const bookThemeId = book.themeId || book.bookTheme || undefined;
-  const pagePaletteId = page.colorPaletteId || book.colorPaletteId || undefined;
-  const bookPaletteId = book.colorPaletteId || undefined;
+
+  let effectivePaletteId: string | undefined = undefined;
+  if (page.colorPaletteId === null) {
+    // Page uses Theme's Default Palette - use theme's palette
+    effectivePaletteId = getThemePaletteId(pageThemeId || bookThemeId || 'default');
+  } else {
+    // Page has explicit palette - use it
+    effectivePaletteId = page.colorPaletteId || undefined;
+  }
+  const pagePaletteId = effectivePaletteId;
   const pageLayoutTemplateId = page.layoutTemplateId || book.layoutTemplateId || null;
   const bookLayoutTemplateId = book.layoutTemplateId || null;
 

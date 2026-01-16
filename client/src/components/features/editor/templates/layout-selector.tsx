@@ -8,6 +8,7 @@ import { LayoutTemplatePreview } from './layout-template-preview';
 import { Checkbox } from '../../../ui/primitives/checkbox';
 import { Tooltip } from '../../../ui/composites/tooltip';
 import { Card } from '../../../ui/composites/card';
+import { Separator } from '../../../ui';
 
 interface LayoutSelectorProps {
   selectedLayout: PageTemplate | null;
@@ -148,6 +149,35 @@ export function LayoutSelector({
       canApply={canApply}
       applyToEntireBook={applyToEntireBook}
       onApplyToEntireBookChange={onApplyToEntireBookChange}
+      beforeList={(
+        <div className="space-y-2 mb-3 w-full">
+          <div className="flex items-start gap-2 px-2">
+            <div className="flex-1 text-left">
+              <div className="text-xs text-gray-500 capitalize font-medium mb-1">
+                {selectedLayout?.category || 'No Layout Selected'} (selected)
+              </div>
+              {selectedLayout && (
+                <div className="text-xs text-gray-600 flex flex-wrap gap-2">
+                  <span>{selectedLayout.meta?.qnaInlineCount ?? selectedLayout.textboxes.length} Questions</span>
+                  <span>•</span>
+                  <span>{selectedLayout.meta?.imageCount ?? selectedLayout.elements.filter((element) => element.type === 'image').length} image{(selectedLayout.meta?.imageCount ?? selectedLayout.elements.filter((element) => element.type === 'image').length) === 1 ? '' : 's'}</span>
+                  <span>•</span>
+                  <span>{selectedLayout.meta?.columns ?? selectedLayout.columns ?? 1} column{(selectedLayout.meta?.columns ?? selectedLayout.columns ?? 1) === 1 ? '' : 's'}</span>
+                </div>
+              )}
+            </div>
+            {selectedLayout && (
+              <div className="w-1/4 min-w-[70px]">
+                <LayoutTemplatePreview
+                  template={selectedLayout}
+                  showItemLabels={false}
+                />
+              </div>
+            )}
+          </div>
+          <Separator />
+        </div>
+      )}
     >
       <div className="w-full p-3 mb-3 border border-gray-200 rounded-lg bg-white/70">
         <div className="flex items-center gap-2 mb-3 text-[11px] font-semibold uppercase tracking-wide text-slate-600">

@@ -1,4 +1,4 @@
-import { forwardRef } from 'react';
+import { forwardRef, useEffect } from 'react';
 import { Transformer } from 'react-konva';
 import Konva from 'konva';
 
@@ -33,6 +33,42 @@ const CanvasTransformer = forwardRef<Konva.Transformer, CanvasTransformerProps>(
   resizeEnabled = true,
   rotateEnabled = true
 }, ref) => {
+  // Defensive programming: Ensure transformer nodes are valid
+  useEffect(() => {
+    const checkTransformerNodes = () => {
+      try {
+        if (ref && typeof ref === 'object' && ref.current) {
+          const transformer = ref.current;
+          const nodes = transformer.nodes();
+
+          // Filter out invalid nodes
+          const validNodes = nodes.filter(node => {
+            try {
+              // Check if node is still attached to stage and has required methods
+              return node && typeof node.setAttrs === 'function' && node.getStage();
+            } catch (error) {
+              console.warn('[CanvasTransformer] Invalid node detected:', error);
+              return false;
+            }
+          });
+
+          // Update transformer with only valid nodes if needed
+          if (validNodes.length !== nodes.length) {
+            console.warn('[CanvasTransformer] Removing invalid nodes, keeping', validNodes.length, 'of', nodes.length);
+            transformer.nodes(validNodes);
+          }
+        }
+      } catch (error) {
+        console.error('[CanvasTransformer] Error checking nodes:', error);
+      }
+    };
+
+    // Check nodes periodically to prevent stale references
+    const interval = setInterval(checkTransformerNodes, 1000);
+
+    return () => clearInterval(interval);
+  }, [ref]);
+
   return (
     <Transformer
       ref={ref}

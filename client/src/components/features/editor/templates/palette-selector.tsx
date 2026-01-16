@@ -4,7 +4,7 @@ import { Tooltip } from '../../../ui/composites/tooltip';
 import { Card } from '../../../ui/composites/card';
 import { RotateCcw, Eye, Palette } from 'lucide-react';
 import { Label } from '../../../ui/primitives/label';
-import { getAllCategories, getPalettesByCategory, colorPalettes } from '../../../../data/templates/color-palettes';
+import { getAllCategories, getPalettesByCategory, colorPalettes, getPalettePartColor } from '../../../../data/templates/color-palettes';
 import type { ColorPalette } from '../../../../types/template-types';
 import { useEditor } from '../../../../context/editor-context';
 import { getGlobalTheme, getThemePageBackgroundColors, getThemePaletteId, getGlobalThemeDefaults } from '../../../../utils/global-themes';
@@ -38,30 +38,22 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
     ? colorPalettes.find(p => p.id === currentPaletteId) || null
     : null;
   const pagePaletteOverrideId = !isBookLevel ? currentPage?.colorPaletteId || null : null;
-  const bookPaletteId = state.currentBook?.colorPaletteId || null;
-  
+
   // Get theme default palette if themeId is provided
   const effectiveThemeId = themeId || activeTemplateIds.themeId;
   const themePaletteId = effectiveThemeId ? getThemePaletteId(effectiveThemeId) : undefined;
   const themePalette = themePaletteId ? colorPalettes.find(p => p.id === themePaletteId) || null : null;
   
-  // Get book palette: if bookPaletteId is set, use it; otherwise use book theme's palette
-  const bookThemeId = state.currentBook?.bookTheme || state.currentBook?.themeId || 'default';
-  const bookThemePaletteId = bookPaletteId ? null : getThemePaletteId(bookThemeId);
-  const bookPalette = bookPaletteId
-    ? (colorPalettes.find(p => p.id === bookPaletteId) || null)
-    : (bookThemePaletteId ? colorPalettes.find(p => p.id === bookThemePaletteId) || null : null);
-  
   // Determine if we should use theme default palette (when no explicit palette is set)
-  // For book level: if bookPaletteId is null, use theme palette
-  // For page level: default to Book Color Palette (not Theme's Default Palette)
-  const shouldUseThemePalette = isBookLevel 
-    ? (!bookPaletteId && !!themePalette)
-    : (!currentPaletteId && !!themePalette && pagePaletteOverrideId === themePaletteId);
+  // For book level: always use theme palette (no book-level palette support)
+  // For page level: use theme palette only if pagePaletteOverrideId is explicitly null
+  const shouldUseThemePalette = isBookLevel
+    ? !!themePalette
+    : (pagePaletteOverrideId === null && !!themePalette);
   const [selectedPalette, setSelectedPalette] = useState<ColorPalette | null>(
     isBookLevel
-      ? (bookPalette || (shouldUseThemePalette ? themePalette : null))
-      : (currentPalette || (shouldUseThemePalette ? themePalette : bookPalette || null))
+      ? (shouldUseThemePalette ? themePalette : null)
+      : (currentPalette || (shouldUseThemePalette ? themePalette : null))
   );
   const [useThemePalette, setUseThemePalette] = useState<boolean>(shouldUseThemePalette);
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
@@ -83,31 +75,30 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
     };
   }, [dispatch]);
   
-  // Update selected palette state when overrides or book palette change
+  // Update selected palette state when overrides change
   useEffect(() => {
     if (isBookLevel) {
-      // Book level: if bookPaletteId is null, use theme palette
-      const shouldUseTheme = !bookPaletteId && !!themePalette;
-      setSelectedPalette(bookPalette || (shouldUseTheme ? themePalette : null));
-      setUseThemePalette(shouldUseTheme);
+      // Book level: always use theme palette (no book-level palette support)
+      setSelectedPalette(themePalette);
+      setUseThemePalette(!!themePalette);
       return;
     }
 
     // Page level: distinguish between two cases:
-    // 1. Explicit page palette (pagePaletteOverrideId is set and not themePaletteId)
-    // 2. Theme's Default Palette (pagePaletteOverrideId === themePaletteId)
-    // Note: Book Color Palette option is removed - pages will use book palette by default if no override
-    
-    if (pagePaletteOverrideId === themePaletteId) {
-      // Page explicitly uses theme palette -> Theme's Default Palette
+    // 1. Theme's Default Palette (pagePaletteOverrideId === null)
+    // 2. Explicit page palette (pagePaletteOverrideId is set to a specific palette ID)
+    // Note: Even if the explicit palette ID matches the theme's default palette ID, it's still explicit
+
+    if (pagePaletteOverrideId === null) {
+      // Page explicitly uses theme's default palette (dynamic) -> Theme's Default Palette
       setUseThemePalette(true);
       setSelectedPalette(themePalette);
     } else {
-      // Page has explicit palette or inherits book palette -> explicit palette or book palette
+      // Page has explicit palette override -> use that specific palette
       setUseThemePalette(false);
-      setSelectedPalette(currentPalette || bookPalette || null);
+      setSelectedPalette(currentPalette);
     }
-  }, [isBookLevel, pagePaletteOverrideId, currentPaletteId, currentPalette, bookPalette, themePalette, themePaletteId, bookPaletteId]);
+  }, [isBookLevel, pagePaletteOverrideId, currentPaletteId, currentPalette, themePalette, themePaletteId]);
 
   const getEffectivePalette = (): ColorPalette | null => {
     if (isBookLevel) {
@@ -118,7 +109,7 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
       return themePalette;
     }
 
-    return selectedPalette || bookPalette;
+    return selectedPalette;
   };
   
   const categories = getAllCategories();
@@ -479,7 +470,7 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
     
     applyPaletteAndExport();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showPreviewDialog, selectedPalette, state.currentBook?.pages, isBookLevel, dispatch, bookPalette]);
+  }, [showPreviewDialog, selectedPalette, state.currentBook?.pages, isBookLevel, dispatch]);
   
   const handlePaletteSelect = (palette: ColorPalette) => {
     setUseThemePalette(false);
@@ -509,8 +500,8 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
       if (applyToEntireBook && state.currentBook) {
         state.currentBook.pages.forEach((_, pageIndex) => {
           const colorPaletteIdToSet = useThemePalette 
-            ? (themePaletteId || null)
-            : paletteToApply.id;
+            ? null  // For "Theme's Default Palette", store null to make it dynamic
+            : paletteToApply.id;  // Explicit palette ID (even if it matches theme default)
           
           dispatch({
             type: 'SET_PAGE_COLOR_PALETTE',
@@ -547,7 +538,11 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
           text: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background },
           question: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.surface },
           answer: { fontColor: paletteToApply.colors.accent, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background },
-          qna: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background }
+          qna: { 
+            fontColor: getPalettePartColor(paletteToApply, 'qnaQuestionText', 'text', paletteToApply.colors.text) || paletteToApply.colors.text,
+            borderColor: getPalettePartColor(paletteToApply, 'qnaBorder', 'primary', paletteToApply.colors.primary) || paletteToApply.colors.primary,
+            backgroundColor: getPalettePartColor(paletteToApply, 'qnaBackground', 'surface', paletteToApply.colors.surface) || paletteToApply.colors.surface
+          }
         };
         
         Object.entries(toolUpdates).forEach(([tool, settings]) => {
@@ -568,8 +563,8 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
       
       // Apply to single page (original logic)
       const colorPaletteIdToSet = useThemePalette 
-        ? (themePaletteId || null)  // Explicitly set theme palette ID
-        : paletteToApply.id;  // Explicit palette ID
+        ? null  // For "Theme's Default Palette", store null to make it dynamic
+        : paletteToApply.id;  // Explicit palette ID (even if it matches theme default)
       
       dispatch({
         type: 'SET_PAGE_COLOR_PALETTE',
@@ -607,7 +602,11 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
       text: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background },
       question: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.surface },
       answer: { fontColor: paletteToApply.colors.accent, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background },
-      qna: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background }
+      qna: { 
+        fontColor: getPalettePartColor(paletteToApply, 'qnaQuestionText', 'text', paletteToApply.colors.text) || paletteToApply.colors.text,
+        borderColor: getPalettePartColor(paletteToApply, 'qnaBorder', 'primary', paletteToApply.colors.primary) || paletteToApply.colors.primary,
+        backgroundColor: getPalettePartColor(paletteToApply, 'qnaBackground', 'surface', paletteToApply.colors.surface) || paletteToApply.colors.surface
+      }
     };
     
     Object.entries(toolUpdates).forEach(([tool, settings]) => {
@@ -664,10 +663,10 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
         ? originalPageIndexRef.current
         : state.activePageIndex;
     
-      // If using theme palette, explicitly set the theme palette ID so it's used instead of book palette
+      // If using theme palette, store null to make it dynamic; otherwise store explicit palette ID
       const colorPaletteIdToSet = useThemePalette 
-        ? (themePaletteId || null)  // Explicitly set theme palette ID
-        : paletteToApply.id;  // Explicit palette ID
+        ? null  // For "Theme's Default Palette", store null to make it dynamic
+        : paletteToApply.id;  // Explicit palette ID (even if it matches theme default)
       
       dispatch({
         type: 'SET_PAGE_COLOR_PALETTE',
@@ -703,7 +702,11 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
         text: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background },
         question: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.surface },
         answer: { fontColor: paletteToApply.colors.accent, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background },
-        qna: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background }
+        qna: { 
+          fontColor: getPalettePartColor(paletteToApply, 'qnaQuestionText', 'text', paletteToApply.colors.text) || paletteToApply.colors.text,
+          borderColor: getPalettePartColor(paletteToApply, 'qnaBorder', 'primary', paletteToApply.colors.primary) || paletteToApply.colors.primary,
+          backgroundColor: getPalettePartColor(paletteToApply, 'qnaBackground', 'surface', paletteToApply.colors.surface) || paletteToApply.colors.surface
+        }
       };
       
       Object.entries(toolUpdates).forEach(([tool, settings]) => {
@@ -794,7 +797,11 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
         text: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background },
         question: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.surface },
         answer: { fontColor: paletteToApply.colors.accent, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background },
-        qna: { fontColor: paletteToApply.colors.primary, borderColor: paletteToApply.colors.secondary, backgroundColor: paletteToApply.colors.background }
+        qna: { 
+          fontColor: getPalettePartColor(paletteToApply, 'qnaQuestionText', 'text', paletteToApply.colors.text) || paletteToApply.colors.text,
+          borderColor: getPalettePartColor(paletteToApply, 'qnaBorder', 'primary', paletteToApply.colors.primary) || paletteToApply.colors.primary,
+          backgroundColor: getPalettePartColor(paletteToApply, 'qnaBackground', 'surface', paletteToApply.colors.surface) || paletteToApply.colors.surface
+        }
       };
       
       Object.entries(toolUpdates).forEach(([tool, settings]) => {

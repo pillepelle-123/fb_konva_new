@@ -1,5 +1,5 @@
 import type { CanvasElement } from '../context/editor-context.tsx';
-import { colorPalettes } from '../data/templates/color-palettes.ts';
+import { colorPalettes, getPalettePartColor } from '../data/templates/color-palettes.ts';
 import type { ColorPalette } from '../types/template-types.ts';
 import { commonToActual } from './font-size-converter.ts';
 import { themeJsonToActualStrokeWidth } from './stroke-width-converter.ts';
@@ -1399,12 +1399,8 @@ export function getThemePageBackgroundColors(
 
   if (resolvedPalette) {
     return {
-      backgroundColor: resolvedPalette.colors.background,
-      patternBackgroundColor:
-        resolvedPalette.colors.primary ||
-        resolvedPalette.colors.surface ||
-        resolvedPalette.colors.accent ||
-        resolvedPalette.colors.background
+      backgroundColor: getPalettePartColor(resolvedPalette, 'pageBackground', 'background', resolvedPalette.colors.background) || resolvedPalette.colors.background,
+      patternBackgroundColor: getPalettePartColor(resolvedPalette, 'pagePattern', 'primary', resolvedPalette.colors.primary) || resolvedPalette.colors.primary
     };
   }
 
@@ -1413,12 +1409,8 @@ export function getThemePageBackgroundColors(
   
   if (palette) {
     return {
-      backgroundColor: palette.colors.background,
-      patternBackgroundColor:
-        palette.colors.primary ||
-        palette.colors.surface ||
-        palette.colors.accent ||
-        palette.colors.background
+      backgroundColor: getPalettePartColor(palette, 'pageBackground', 'background', palette.colors.background) || palette.colors.background,
+      patternBackgroundColor: getPalettePartColor(palette, 'pagePattern', 'primary', palette.colors.primary) || palette.colors.primary
     };
   }
   
