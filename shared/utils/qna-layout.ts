@@ -21,8 +21,10 @@ const isPdfExport = typeof window !== 'undefined' && (
   window.location.search.includes('pdf=true') ||
   navigator.userAgent.includes('HeadlessChrome')
 );
-// Use negative offset for PDF to move lines above text baseline
-const RULED_LINE_BASELINE_OFFSET = isPdfExport ? -20 : 12;
+// CRITICAL FIX: Use consistent offset for both App and PDF Export
+// Previously PDF used -20 and App used 12, causing 32px difference
+// Now both use 12 for consistency - this eliminates the need for offset correction
+const RULED_LINE_BASELINE_OFFSET = 12;
 
 export interface CreateBlockLayoutParams {
   questionText: string;

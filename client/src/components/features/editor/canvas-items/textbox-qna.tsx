@@ -137,10 +137,12 @@ const isPdfExport = typeof window !== 'undefined' && (
 const forcePdfExport = typeof window !== 'undefined' && 
   (window.location.pathname.includes('pdf-renderer') || (window as any).__PDF_EXPORT__ === true);
 
-// Use negative offset for PDF to move lines above text baseline
-// Check for PDF-specific override from window
+// CRITICAL FIX: Use consistent offset for both App and PDF Export
+// Previously PDF used -20 and App used 12, causing 32px difference
+// Now both use 12 for consistency - matches qna-layout.ts
+// Check for PDF-specific override from window (for backwards compatibility)
 const pdfOverride = typeof window !== 'undefined' ? (window as any).PDF_RULED_LINE_BASELINE_OFFSET : undefined;
-const RULED_LINE_BASELINE_OFFSET = pdfOverride !== undefined ? pdfOverride : (isPdfExport || forcePdfExport) ? -20 : 12;
+const RULED_LINE_BASELINE_OFFSET = pdfOverride !== undefined ? pdfOverride : 12;
 
 // console.log('[Ruled Lines Debug] Final offset:', {
 //   isPdfExport,
