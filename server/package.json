@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "nodemon index.js",
     "start": "node index.js",
-    "init-db": "node initDb.js"
+    "init-db": "node scripts/initDb.js"
   },
   "dependencies": {
     "aws-sdk": "^2.1692.0",

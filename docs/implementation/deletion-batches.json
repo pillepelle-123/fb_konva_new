@@ -1,0 +1,137 @@
+{
+  "batch1_empty_index_files": {
+    "description": "Leere index.ts Re-Export Dateien, die nicht mehr benötigt werden",
+    "risk": "low",
+    "files": []
+  },
+  "batch2_old_theme_system": {
+    "description": "Alte Theme-System Dateien, die durch neuere Systeme ersetzt wurden",
+    "risk": "low",
+    "files": [
+      "client/src/utils/themes-client-zigzag.ts",
+      "client/src/utils/themes.ts",
+      "client/src/data/theme-palette-mapping.ts"
+    ]
+  },
+  "batch3_old_template_components": {
+    "description": "Alte Template-Komponenten im templates/ Ordner",
+    "risk": "low",
+    "files": [
+      "client/src/components/templates/template-card.tsx",
+      "client/src/components/templates/template-preview.tsx",
+      "client/src/components/templates/template-selector-step.tsx"
+    ]
+  },
+  "batch4_unused_ui_primitives": {
+    "description": "UI-Primitive, die nicht mehr verwendet werden",
+    "risk": "medium",
+    "files": [
+      "client/src/components/ui/primitives/color-picker.tsx",
+      "client/src/components/ui/primitives/skeleton.tsx",
+      "client/src/components/ui/primitives/toggle.tsx"
+    ]
+  },
+  "batch5_unused_ui_overlays": {
+    "description": "UI-Overlays, die nicht mehr verwendet werden",
+    "risk": "medium",
+    "files": [
+      "client/src/components/ui/overlays/alert-dialog.tsx",
+      "client/src/components/ui/overlays/sheet.tsx"
+    ]
+  },
+  "batch6_unused_ui_composites": {
+    "description": "UI-Composites, die nicht mehr verwendet werden",
+    "risk": "medium",
+    "files": [
+      "client/src/components/ui/composites/page-navigation.tsx"
+    ]
+  },
+  "batch7_unused_shared_cards": {
+    "description": "Shared Card-Komponenten, die nicht verwendet werden",
+    "risk": "low",
+    "files": [
+      "client/src/components/shared/cards/question-selection-card.tsx",
+      "client/src/components/shared/cards/stacked-avatar-group.tsx"
+    ]
+  },
+  "batch8_unused_friends_components": {
+    "description": "Friends-Komponenten, die nicht verwendet werden",
+    "risk": "low",
+    "files": [
+      "client/src/components/features/friends/friends-book-assign-card.tsx",
+      "client/src/components/features/friends/select-friend-dialog.tsx"
+    ]
+  },
+  "batch9_unused_user_components": {
+    "description": "User-Komponenten, die nicht verwendet werden",
+    "risk": "low",
+    "files": [
+      "client/src/components/features/users/profile-dialog.tsx"
+    ]
+  },
+  "batch10_old_book_components": {
+    "description": "Alte Book-Komponenten",
+    "risk": "low",
+    "files": [
+      "client/src/components/features/books/book-list.tsx",
+      "client/src/components/features/books/page-user-content.tsx",
+      "client/src/components/features/books/questions-answers-manager.tsx"
+    ]
+  },
+  "batch11_old_book_shared": {
+    "description": "Alte Book Shared Komponenten",
+    "risk": "low",
+    "files": [
+      "client/src/components/features/books/shared/step-grid.tsx",
+      "client/src/components/features/books/shared/step-layouts.ts",
+      "client/src/components/features/books/shared/use-step-layout.ts"
+    ]
+  },
+  "batch12_unused_utils": {
+    "description": "Utils, die nicht mehr verwendet werden",
+    "risk": "medium",
+    "files": [
+      "client/src/utils/book-creation-utils.ts",
+      "client/src/utils/color-contrast-checker.ts",
+      "client/src/utils/magic-wand.ts",
+      "client/src/utils/performance-metrics.ts",
+      "client/src/utils/performance-optimization.ts",
+      "client/src/utils/template-validation.ts",
+      "client/src/utils/thumbnail-generator.ts"
+    ]
+  },
+  "batch13_unused_hooks": {
+    "description": "Hooks, die nicht mehr verwendet werden",
+    "risk": "medium",
+    "files": [
+      "client/src/hooks/useCanvasExport.ts"
+    ]
+  },
+  "batch14_unused_presets": {
+    "description": "Preset-Dateien, die nicht mehr verwendet werden",
+    "risk": "medium",
+    "files": [
+      "client/src/data/presets/brush-presets.ts",
+      "client/src/data/presets/index.ts",
+      "client/src/data/presets/shape-presets.ts",
+      "client/src/data/presets/textbox-presets.ts"
+    ]
+  },
+  "batch15_unused_shared_utils": {
+    "description": "Shared Utils, die nicht mehr verwendet werden",
+    "risk": "low",
+    "files": [
+      "shared/utils/color-utils.js",
+      "shared/utils/constants.js"
+    ]
+  },
+  "do_not_delete": {
+    "description": "Dateien die NICHT gelöscht werden sollten",
+    "reason": "Werden dynamisch geladen oder sind für Tests",
+    "files": [
+      "client/src/admin/**/*",
+      "client/src/components/features/editor/**/*",
+      "client/src/test-setup/canvas-setup.ts"
+    ]
+  }
+}

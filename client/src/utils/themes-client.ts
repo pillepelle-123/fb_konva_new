@@ -95,11 +95,6 @@ export const themes: Record<Theme, ThemeRenderer> = themeRenderers;
 export type { Theme } from '../../shared/types/theme-types';
 
 /**
- * Re-export ThemeRenderer interface
- */
-export type { ThemeRenderer } from './themes';
-
-/**
  * Interface for line path generation parameters
  */
 export interface LinePathParams {

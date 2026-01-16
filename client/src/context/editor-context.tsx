@@ -2178,11 +2178,17 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       };
       const addPageStateWithInvalidation = invalidatePagePreviews(addPageState, [leftPageId, rightPageId]);
       let finalAddState = addPageStateWithInvalidation;
+      // Mark new pages as modified
       finalAddState = markPageIndexAsModified(finalAddState, insertIndex);
       finalAddState = markPageIndexAsModified(
         finalAddState,
         Math.min(insertIndex + 1, finalAddState.currentBook!.pages.length - 1)
       );
+      // Mark all shifted pages as modified (all pages after the inserted pair)
+      // These pages have new pageNumber values and need to be saved
+      for (let i = insertIndex + 2; i < finalAddState.currentBook!.pages.length; i++) {
+        finalAddState = markPageIndexAsModified(finalAddState, i);
+      }
       return finalAddState;
     }
 
@@ -2392,11 +2398,17 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       };
       const addPageStateWithInvalidation = invalidatePagePreviews(addPageState, [leftPageId, rightPageId]);
       let finalAddState = addPageStateWithInvalidation;
+      // Mark new pages as modified
       finalAddState = markPageIndexAsModified(finalAddState, insertIndex);
       finalAddState = markPageIndexAsModified(
         finalAddState,
         Math.min(insertIndex + 1, finalAddState.currentBook!.pages.length - 1)
       );
+      // Mark all shifted pages as modified (all pages after the inserted pair)
+      // These pages have new pageNumber values and need to be saved
+      for (let i = insertIndex + 2; i < finalAddState.currentBook!.pages.length; i++) {
+        finalAddState = markPageIndexAsModified(finalAddState, i);
+      }
       return finalAddState;
     }
 

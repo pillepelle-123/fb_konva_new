@@ -1,12 +1,8 @@
 ---
-description: "Allgemeine Kommunikationsregeln und Projekt-Architektur für fb-konva-fullstack"
-alwaysApply: true
+description: "Projekt-Architektur und technische Regeln für fb-konva-fullstack"
+alwaysApply: false
+globs: ["**/*.{ts,tsx,js,json,md}"]
 ---
-
-## Kommunikation
-- **Antworte immer auf Deutsch**, es sei denn der User fragt explizit auf Englisch
-- Sei präzise und direkt, aber freundlich
-- Erkläre technische Konzepte verständlich
 
 ## Projekt-Architektur
 - **Full-Stack-Struktur**: Client (React/TypeScript) ↔ Server (Node.js) ↔ PostgreSQL

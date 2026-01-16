@@ -1,0 +1,361 @@
+{
+  "timestamp": "2026-01-16T15:14:57.503Z",
+  "summary": {
+    "totalSourceFiles": 410,
+    "usedFiles": 281,
+    "deadCodeFiles": 129,
+    "percentageUnused": "31.46%"
+  },
+  "deadCode": [
+    "client\\src\\admin\\components\\forms\\background-image-edit-dialog.tsx",
+    "client\\src\\admin\\components\\forms\\book-form-dialog.tsx",
+    "client\\src\\admin\\components\\forms\\index.ts",
+    "client\\src\\admin\\components\\forms\\page-assignment-dialog.tsx",
+    "client\\src\\admin\\components\\forms\\sticker-edit-dialog.tsx",
+    "client\\src\\admin\\components\\forms\\upload-background-images-dialog.tsx",
+    "client\\src\\admin\\components\\forms\\upload-stickers-dialog.tsx",
+    "client\\src\\admin\\components\\forms\\user-form-dialog.tsx",
+    "client\\src\\admin\\components\\table\\data-table-column-header.tsx",
+    "client\\src\\admin\\components\\table\\data-table-pagination.tsx",
+    "client\\src\\admin\\components\\table\\data-table-toolbar.tsx",
+    "client\\src\\admin\\components\\table\\data-table.tsx",
+    "client\\src\\admin\\components\\table\\index.ts",
+    "client\\src\\admin\\guards\\AdminGuard.tsx",
+    "client\\src\\admin\\hooks\\index.ts",
+    "client\\src\\admin\\hooks\\use-admin-background-images.ts",
+    "client\\src\\admin\\hooks\\use-admin-books.ts",
+    "client\\src\\admin\\hooks\\use-admin-page-records.ts",
+    "client\\src\\admin\\hooks\\use-admin-stickers.ts",
+    "client\\src\\admin\\hooks\\use-admin-users.ts",
+    "client\\src\\admin\\layouts\\AdminLayout.tsx",
+    "client\\src\\admin\\pages\\background-images\\index.tsx",
+    "client\\src\\admin\\pages\\books\\index.tsx",
+    "client\\src\\admin\\pages\\page-records\\index.tsx",
+    "client\\src\\admin\\pages\\sticker\\index.tsx",
+    "client\\src\\admin\\pages\\users\\index.tsx",
+    "client\\src\\admin\\providers\\query-client-provider.tsx",
+    "client\\src\\admin\\services\\background-images.ts",
+    "client\\src\\admin\\services\\books.ts",
+    "client\\src\\admin\\services\\http.ts",
+    "client\\src\\admin\\services\\index.ts",
+    "client\\src\\admin\\services\\pages.ts",
+    "client\\src\\admin\\services\\stickers.ts",
+    "client\\src\\admin\\services\\users.ts",
+    "client\\src\\admin\\types\\index.ts",
+    "client\\src\\admin\\types\\resources.ts",
+    "client\\src\\components\\features\\books\\book-list.tsx",
+    "client\\src\\components\\features\\books\\index.ts",
+    "client\\src\\components\\features\\books\\page-user-content.tsx",
+    "client\\src\\components\\features\\books\\questions-answers-manager.tsx",
+    "client\\src\\components\\features\\books\\shared\\step-grid.tsx",
+    "client\\src\\components\\features\\books\\shared\\step-layouts.ts",
+    "client\\src\\components\\features\\books\\shared\\use-step-layout.ts",
+    "client\\src\\components\\features\\editor\\book-export-modal.tsx",
+    "client\\src\\components\\features\\editor\\canvas-items\\image-placeholder.tsx",
+    "client\\src\\components\\features\\editor\\canvas-items\\shared-text-renderer.tsx",
+    "client\\src\\components\\features\\editor\\canvas\\canvas-helpers.tsx",
+    "client\\src\\components\\features\\editor\\canvas\\components.ts",
+    "client\\src\\components\\features\\editor\\canvas\\hooks\\useCanvasMouseEvents.ts",
+    "client\\src\\components\\features\\editor\\canvas\\safety-margin-rectangle.tsx",
+    "client\\src\\components\\features\\editor\\editor-bar\\book-actions.tsx",
+    "client\\src\\components\\features\\editor\\editor-bar\\book-title.tsx",
+    "client\\src\\components\\features\\editor\\editor-bar\\editor-bar-container.tsx",
+    "client\\src\\components\\features\\editor\\editor-bar\\editor-bar.tsx",
+    "client\\src\\components\\features\\editor\\editor-bar\\page-actions.tsx",
+    "client\\src\\components\\features\\editor\\editor-bar\\page-assignment-button.tsx",
+    "client\\src\\components\\features\\editor\\editor-bar\\page-assignment-popover.tsx",
+    "client\\src\\components\\features\\editor\\editor-bar\\page-navigation.tsx",
+    "client\\src\\components\\features\\editor\\editor-bar\\undo-redo-controls.tsx",
+    "client\\src\\components\\features\\editor\\floating-action-buttons.tsx",
+    "client\\src\\components\\features\\editor\\index.ts",
+    "client\\src\\components\\features\\editor\\pdf-export-modal.tsx",
+    "client\\src\\components\\features\\editor\\preview\\book-preview-modal.tsx",
+    "client\\src\\components\\features\\editor\\preview\\canvas-preview-dialog.tsx",
+    "client\\src\\components\\features\\editor\\preview\\mini-background.tsx",
+    "client\\src\\components\\features\\editor\\preview\\mini-konva-background.tsx",
+    "client\\src\\components\\features\\editor\\preview\\mini-template-render.tsx",
+    "client\\src\\components\\features\\editor\\quill-editor-container.tsx",
+    "client\\src\\components\\features\\editor\\template-selector.tsx",
+    "client\\src\\components\\features\\editor\\templates\\template-palette.tsx",
+    "client\\src\\components\\features\\editor\\templates\\wizard-palette-selector.tsx",
+    "client\\src\\components\\features\\editor\\toolbar\\shortcuts-dialog.tsx",
+    "client\\src\\components\\features\\editor\\toolbar\\tool-button.tsx",
+    "client\\src\\components\\features\\editor\\toolbar\\tool-group-label.tsx",
+    "client\\src\\components\\features\\editor\\toolbar\\tool-group.tsx",
+    "client\\src\\components\\features\\editor\\toolbar\\tool-popover.tsx",
+    "client\\src\\components\\features\\editor\\toolbar\\tool-settings-popover.tsx",
+    "client\\src\\components\\features\\editor\\toolbar\\toolbar-container.tsx",
+    "client\\src\\components\\features\\editor\\toolbar\\toolbar-content.tsx",
+    "client\\src\\components\\features\\editor\\toolbar\\toolbar-header.tsx",
+    "client\\src\\components\\features\\editor\\toolbar\\toolbar-toggle.tsx",
+    "client\\src\\components\\features\\editor\\toolbar\\toolbar.tsx",
+    "client\\src\\components\\features\\editor\\toolbar\\zoom-popover.tsx",
+    "client\\src\\components\\features\\friends\\friends-book-assign-card.tsx",
+    "client\\src\\components\\features\\friends\\index.ts",
+    "client\\src\\components\\features\\friends\\select-friend-dialog.tsx",
+    "client\\src\\components\\features\\images\\index.ts",
+    "client\\src\\components\\features\\index.ts",
+    "client\\src\\components\\features\\questions\\index.ts",
+    "client\\src\\components\\features\\users\\index.ts",
+    "client\\src\\components\\features\\users\\profile-dialog.tsx",
+    "client\\src\\components\\index.ts",
+    "client\\src\\components\\layouts\\index.ts",
+    "client\\src\\components\\pdf-renderer\\index.ts",
+    "client\\src\\components\\shared\\cards\\index.ts",
+    "client\\src\\components\\shared\\cards\\question-selection-card.tsx",
+    "client\\src\\components\\shared\\cards\\stacked-avatar-group.tsx",
+    "client\\src\\components\\shared\\forms\\index.ts",
+    "client\\src\\components\\templates\\template-card.tsx",
+    "client\\src\\components\\templates\\template-preview.tsx",
+    "client\\src\\components\\templates\\template-selector-step.tsx",
+    "client\\src\\components\\ui\\composites\\avatar.tsx",
+    "client\\src\\components\\ui\\composites\\page-navigation.tsx",
+    "client\\src\\components\\ui\\feedback\\index.ts",
+    "client\\src\\components\\ui\\layout\\index.ts",
+    "client\\src\\components\\ui\\overlays\\alert-dialog.tsx",
+    "client\\src\\components\\ui\\overlays\\index.ts",
+    "client\\src\\components\\ui\\overlays\\sheet.tsx",
+    "client\\src\\components\\ui\\primitives\\color-picker.tsx",
+    "client\\src\\components\\ui\\primitives\\skeleton.tsx",
+    "client\\src\\components\\ui\\primitives\\toggle.tsx",
+    "client\\src\\data\\presets\\brush-presets.ts",
+    "client\\src\\data\\presets\\index.ts",
+    "client\\src\\data\\presets\\shape-presets.ts",
+    "client\\src\\data\\presets\\textbox-presets.ts",
+    "client\\src\\data\\theme-palette-mapping.ts",
+    "client\\src\\hooks\\useCanvasExport.ts",
+    "client\\src\\test-setup\\canvas-setup.ts",
+    "client\\src\\utils\\book-creation-utils.ts",
+    "client\\src\\utils\\color-contrast-checker.ts",
+    "client\\src\\utils\\magic-wand.ts",
+    "client\\src\\utils\\performance-metrics.ts",
+    "client\\src\\utils\\performance-optimization.ts",
+    "client\\src\\utils\\template-validation.ts",
+    "client\\src\\utils\\themes-client-zigzag.ts",
+    "client\\src\\utils\\themes.ts",
+    "client\\src\\utils\\thumbnail-generator.ts",
+    "shared\\utils\\color-utils.js",
+    "shared\\utils\\constants.js"
+  ],
+  "deadCodeByDirectory": {
+    "client\\src\\admin\\components\\forms": [
+      "background-image-edit-dialog.tsx",
+      "book-form-dialog.tsx",
+      "index.ts",
+      "page-assignment-dialog.tsx",
+      "sticker-edit-dialog.tsx",
+      "upload-background-images-dialog.tsx",
+      "upload-stickers-dialog.tsx",
+      "user-form-dialog.tsx"
+    ],
+    "client\\src\\admin\\components\\table": [
+      "data-table-column-header.tsx",
+      "data-table-pagination.tsx",
+      "data-table-toolbar.tsx",
+      "data-table.tsx",
+      "index.ts"
+    ],
+    "client\\src\\admin\\guards": [
+      "AdminGuard.tsx"
+    ],
+    "client\\src\\admin\\hooks": [
+      "index.ts",
+      "use-admin-background-images.ts",
+      "use-admin-books.ts",
+      "use-admin-page-records.ts",
+      "use-admin-stickers.ts",
+      "use-admin-users.ts"
+    ],
+    "client\\src\\admin\\layouts": [
+      "AdminLayout.tsx"
+    ],
+    "client\\src\\admin\\pages\\background-images": [
+      "index.tsx"
+    ],
+    "client\\src\\admin\\pages\\books": [
+      "index.tsx"
+    ],
+    "client\\src\\admin\\pages\\page-records": [
+      "index.tsx"
+    ],
+    "client\\src\\admin\\pages\\sticker": [
+      "index.tsx"
+    ],
+    "client\\src\\admin\\pages\\users": [
+      "index.tsx"
+    ],
+    "client\\src\\admin\\providers": [
+      "query-client-provider.tsx"
+    ],
+    "client\\src\\admin\\services": [
+      "background-images.ts",
+      "books.ts",
+      "http.ts",
+      "index.ts",
+      "pages.ts",
+      "stickers.ts",
+      "users.ts"
+    ],
+    "client\\src\\admin\\types": [
+      "index.ts",
+      "resources.ts"
+    ],
+    "client\\src\\components\\features\\books": [
+      "book-list.tsx",
+      "index.ts",
+      "page-user-content.tsx",
+      "questions-answers-manager.tsx"
+    ],
+    "client\\src\\components\\features\\books\\shared": [
+      "step-grid.tsx",
+      "step-layouts.ts",
+      "use-step-layout.ts"
+    ],
+    "client\\src\\components\\features\\editor": [
+      "book-export-modal.tsx",
+      "floating-action-buttons.tsx",
+      "index.ts",
+      "pdf-export-modal.tsx",
+      "quill-editor-container.tsx",
+      "template-selector.tsx"
+    ],
+    "client\\src\\components\\features\\editor\\canvas-items": [
+      "image-placeholder.tsx",
+      "shared-text-renderer.tsx"
+    ],
+    "client\\src\\components\\features\\editor\\canvas": [
+      "canvas-helpers.tsx",
+      "components.ts",
+      "safety-margin-rectangle.tsx"
+    ],
+    "client\\src\\components\\features\\editor\\canvas\\hooks": [
+      "useCanvasMouseEvents.ts"
+    ],
+    "client\\src\\components\\features\\editor\\editor-bar": [
+      "book-actions.tsx",
+      "book-title.tsx",
+      "editor-bar-container.tsx",
+      "editor-bar.tsx",
+      "page-actions.tsx",
+      "page-assignment-button.tsx",
+      "page-assignment-popover.tsx",
+      "page-navigation.tsx",
+      "undo-redo-controls.tsx"
+    ],
+    "client\\src\\components\\features\\editor\\preview": [
+      "book-preview-modal.tsx",
+      "canvas-preview-dialog.tsx",
+      "mini-background.tsx",
+      "mini-konva-background.tsx",
+      "mini-template-render.tsx"
+    ],
+    "client\\src\\components\\features\\editor\\templates": [
+      "template-palette.tsx",
+      "wizard-palette-selector.tsx"
+    ],
+    "client\\src\\components\\features\\editor\\toolbar": [
+      "shortcuts-dialog.tsx",
+      "tool-button.tsx",
+      "tool-group-label.tsx",
+      "tool-group.tsx",
+      "tool-popover.tsx",
+      "tool-settings-popover.tsx",
+      "toolbar-container.tsx",
+      "toolbar-content.tsx",
+      "toolbar-header.tsx",
+      "toolbar-toggle.tsx",
+      "toolbar.tsx",
+      "zoom-popover.tsx"
+    ],
+    "client\\src\\components\\features\\friends": [
+      "friends-book-assign-card.tsx",
+      "index.ts",
+      "select-friend-dialog.tsx"
+    ],
+    "client\\src\\components\\features\\images": [
+      "index.ts"
+    ],
+    "client\\src\\components\\features": [
+      "index.ts"
+    ],
+    "client\\src\\components\\features\\questions": [
+      "index.ts"
+    ],
+    "client\\src\\components\\features\\users": [
+      "index.ts",
+      "profile-dialog.tsx"
+    ],
+    "client\\src\\components": [
+      "index.ts"
+    ],
+    "client\\src\\components\\layouts": [
+      "index.ts"
+    ],
+    "client\\src\\components\\pdf-renderer": [
+      "index.ts"
+    ],
+    "client\\src\\components\\shared\\cards": [
+      "index.ts",
+      "question-selection-card.tsx",
+      "stacked-avatar-group.tsx"
+    ],
+    "client\\src\\components\\shared\\forms": [
+      "index.ts"
+    ],
+    "client\\src\\components\\templates": [
+      "template-card.tsx",
+      "template-preview.tsx",
+      "template-selector-step.tsx"
+    ],
+    "client\\src\\components\\ui\\composites": [
+      "avatar.tsx",
+      "page-navigation.tsx"
+    ],
+    "client\\src\\components\\ui\\feedback": [
+      "index.ts"
+    ],
+    "client\\src\\components\\ui\\layout": [
+      "index.ts"
+    ],
+    "client\\src\\components\\ui\\overlays": [
+      "alert-dialog.tsx",
+      "index.ts",
+      "sheet.tsx"
+    ],
+    "client\\src\\components\\ui\\primitives": [
+      "color-picker.tsx",
+      "skeleton.tsx",
+      "toggle.tsx"
+    ],
+    "client\\src\\data\\presets": [
+      "brush-presets.ts",
+      "index.ts",
+      "shape-presets.ts",
+      "textbox-presets.ts"
+    ],
+    "client\\src\\data": [
+      "theme-palette-mapping.ts"
+    ],
+    "client\\src\\hooks": [
+      "useCanvasExport.ts"
+    ],
+    "client\\src\\test-setup": [
+      "canvas-setup.ts"
+    ],
+    "client\\src\\utils": [
+      "book-creation-utils.ts",
+      "color-contrast-checker.ts",
+      "magic-wand.ts",
+      "performance-metrics.ts",
+      "performance-optimization.ts",
+      "template-validation.ts",
+      "themes-client-zigzag.ts",
+      "themes.ts",
+      "thumbnail-generator.ts"
+    ],
+    "shared\\utils": [
+      "color-utils.js",
+      "constants.js"
+    ]
+  }
+}

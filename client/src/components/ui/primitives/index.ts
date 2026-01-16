@@ -1,6 +1,5 @@
 export { Button } from './button';
 export { Checkbox } from './checkbox';
-export { ColorPicker } from './color-picker';
 export { CreatableCombobox, type CreatableComboboxOption, type CreatableComboboxProps } from './creatable-combobox';
 export { IndentedSection } from './indented-section';
 export { Input } from './input';
@@ -12,4 +11,3 @@ export { Separator } from './separator';
 export { Slider } from './slider';
 export { Switch } from './switch';
 export { Textarea } from './textarea';
-export { Toggle } from './toggle';
