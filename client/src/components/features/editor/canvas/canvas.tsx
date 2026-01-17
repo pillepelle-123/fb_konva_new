@@ -349,6 +349,16 @@ export default function Canvas() {
     }, 66), // ~15fps - zoom is less critical than selection, can be slower
     [setZoomFromContext] // setZoomFromContext is stable from useCanvasZoomPan
   );
+
+  // PERFORMANCE OPTIMIZATION: Throttled stage position updates during panning
+  // Reduces update frequency during mouse move events for better performance
+  // Panning needs to be more responsive than zoom, so we use 16ms (~60fps)
+  const throttledSetStagePos = useMemo(
+    () => throttle((newPos: { x: number; y: number }) => {
+      setStagePos(newPos);
+    }, 16), // ~60fps - panning needs to be smooth but not as critical as selection
+    [setStagePos] // setStagePos is stable from useCanvasZoomPan
+  );
   
   // Prevent authors from opening question dialog
   useEffect(() => {
@@ -1884,10 +1894,10 @@ export default function Canvas() {
             // Direct stage manipulation for better performance
             stageRef.current.x(newPos.x);
             stageRef.current.y(newPos.y);
-            setPendingStagePos(newPos);
+            throttledSetStagePos(newPos);
           } else {
             // Fallback to state updates
-            setStagePos(newPos);
+            throttledSetStagePos(newPos);
           }
         }
       }
@@ -1907,10 +1917,10 @@ export default function Canvas() {
           // Direct stage manipulation for better performance
           stageRef.current.x(newPos.x);
           stageRef.current.y(newPos.y);
-          setPendingStagePos(newPos);
+          throttledSetStagePos(newPos);
         } else {
           // Fallback to state updates
-          setStagePos(newPos);
+          throttledSetStagePos(newPos);
         }
 
         // Force transformer update during panning to prevent selection rectangle delay
