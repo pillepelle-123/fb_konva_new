@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
-import { Layer, Rect, Group } from 'react-konva';
+import { Layer, Rect, Group, Text } from 'react-konva';
 import Konva from 'konva';
 import { v4 as uuidv4 } from 'uuid';
 import { useEditor } from '../../../../context/editor-context';
@@ -126,6 +126,13 @@ export default function Canvas() {
   const fitToViewRef = useRef<(() => void) | null>(null);
   const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
   const [panelOffset, setPanelOffset] = useState(0);
+
+  // Zoom minimal mode: Hide elements during zooming for better performance
+  // Use ref + state: ref for immediate access without re-renders during wheel events,
+  // state for triggering React updates when zoom mode changes
+  const isZoomingRef = useRef(false);
+  const [isZoomingState, setIsZoomingState] = useState(false);
+  const zoomTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Direct Panning Optimization: Store pending stage position to avoid state updates during panning
   const [pendingStagePos, setPendingStagePos] = useState<{x: number, y: number} | null>(null);
@@ -361,6 +368,32 @@ export default function Canvas() {
     };
   }, []);
 
+  // Handle zoom minimal mode events from zoom popover
+  useEffect(() => {
+    const handleZoomStart = () => {
+      if (!isZoomingRef.current) {
+        isZoomingRef.current = true;
+        setIsZoomingState(true);
+      }
+      if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
+      zoomTimeoutRef.current = setTimeout(() => {
+        isZoomingRef.current = false;
+        setIsZoomingState(false);
+      }, 200);
+    };
+
+    const handleZoomEnd = () => {
+      // Zoom end is handled by the timeout in zoom start
+    };
+
+    window.addEventListener('zoom-start', handleZoomStart);
+    window.addEventListener('zoom-end', handleZoomEnd);
+
+    return () => {
+      window.removeEventListener('zoom-start', handleZoomStart);
+      window.removeEventListener('zoom-end', handleZoomEnd);
+    };
+  }, []);
 
   // Alte Preview-Export-Logik entfernt - wird jetzt über Preview-Seiten gelöst
   const [selectedQuestionElementId, setSelectedQuestionElementId] = useState<string | null>(null);
@@ -2675,23 +2708,39 @@ export default function Canvas() {
       // Zoom with Ctrl + mousewheel
       const stage = stageRef.current;
       if (!stage) return;
-      
+
       const scaleBy = 1.1;
       const oldScale = zoom;
       const pointer = stage.getPointerPosition();
-      
+
       if (!pointer) return;
-      
+
       const mousePointTo = {
         x: (pointer.x - stagePos.x) / oldScale,
         y: (pointer.y - stagePos.y) / oldScale,
       };
-      
+
       const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
-      
-      // PERFORMANCE OPTIMIZATION: Use throttled zoom update during wheel events
-      // The throttle function ensures the last zoom value is applied when zoom stops
-      throttledSetZoom(newScale, pointer);
+
+      // Set zooming state: Update ref immediately, state only on first event
+      // This must happen before zoom update to ensure elements are hidden immediately
+      const wasZooming = isZoomingRef.current;
+      if (!wasZooming) {
+        isZoomingRef.current = true;
+        setIsZoomingState(true);
+      }
+
+      // Clear existing timeout and set new one
+      if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
+      zoomTimeoutRef.current = setTimeout(() => {
+        isZoomingRef.current = false;
+        setIsZoomingState(false);
+      }, 200);
+
+      // During zoom minimal mode, use direct zoom update for smooth experience
+      // Element rendering is already disabled, so no performance concerns
+      // Always use direct zoom during wheel events for smooth experience
+      setZoom(newScale, pointer);
     } else {
       // Pan with two-finger touchpad (mousewheel without Ctrl)
       setStagePos(
@@ -4176,6 +4225,39 @@ export default function Canvas() {
             }}
           >
           <Layer>
+            {/* Page boundary rectangle - always visible during zoom minimal mode */}
+            <Rect
+              x={activePageOffsetX}
+              y={pageOffsetY}
+              width={canvasWidth * zoom}
+              height={canvasHeight * zoom}
+              stroke="gray"
+              strokeWidth={1}
+              dash={[5, 5]}
+              fill="transparent"
+              listening={false}
+            />
+
+            {/* Zoom level text - only visible during zooming */}
+            {isZoomingState && (
+              <Text
+                x={activePageOffsetX + (canvasWidth * zoom) / 2}
+                y={pageOffsetY + (canvasHeight * zoom) / 2}
+                text={`${Math.round(zoom * 100)}%`}
+                fontSize={24}
+                fill="white"
+                stroke="black"
+                strokeWidth={2}
+                align="center"
+                verticalAlign="middle"
+                listening={false}
+                shadowColor="black"
+                shadowBlur={4}
+                shadowOffset={{ x: 2, y: 2 }}
+                offset={{ x: 0, y: 12 }} // Center the text vertically
+              />
+            )}
+
             {/* Page boundary */}
             <CanvasPageEditArea
               width={canvasWidth}
@@ -4347,9 +4429,10 @@ export default function Canvas() {
               x={activePageOffsetX}
               y={pageOffsetY}
             >
-              {(() => {
+              {/* Canvas elements - only render when not zooming for better performance */}
+              {!isZoomingState && (() => {
                 const elements = currentPage?.elements || [];
-                
+
                 const sorted = elements
                   .slice() // Create a copy to avoid mutating the original array
                   .sort((a, b) => {
@@ -4359,17 +4442,15 @@ export default function Canvas() {
                     const indexB = elements.findIndex(el => el.id === b.id);
                     return indexA - indexB;
                   });
-                
+
                 // In Konva, rendering order is determined by the order elements are added to the Layer,
                 // not by zIndex. So we need to ensure elements are rendered in the sorted order.
                 // The sorted array is already in the correct order, so we just need to render them in that order.
-                return sorted;
-              })().map((element, index) => {
+                return sorted.map((element, index) => (
                 // Don't use zIndex - Konva renders in the order elements are added to the Layer
                 // The sorted array ensures correct rendering order
-                
-                return (
-                <Group 
+
+                <Group
                   key={`${element.id}-${element.questionId || 'no-question'}-${index}`}
                   listening={true}
                 >
@@ -4630,10 +4711,10 @@ export default function Canvas() {
                 />
 
                 </Group>
-                );
-              })}
-            
-              {/* Preview elements */}
+                ));
+              })()}
+
+            {/* Preview elements */}
               {isDrawing && currentPath.length > 2 && (
                 <PreviewBrush points={currentPath} />
               )}

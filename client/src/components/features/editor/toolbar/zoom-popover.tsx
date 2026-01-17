@@ -55,7 +55,15 @@ export function ZoomPopover({ onToolSelect, children }: ZoomPopoverProps) {
   const handleZoomChange = (value: number) => {
     // Convert percentage (10-300) back to zoom (0.1-3)
     const newZoom = value / 100;
+
+    // Trigger zoom minimal mode for better performance during zoom changes
+    window.dispatchEvent(new CustomEvent('zoom-start'));
     setZoom(newZoom);
+
+    // Reset zoom minimal mode after a short delay
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('zoom-end'));
+    }, 200);
   };
 
   return (
