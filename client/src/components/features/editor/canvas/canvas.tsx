@@ -24,6 +24,7 @@ import { useCanvasItemActions } from './hooks/useCanvasItemActions';
 
 import { getActiveTemplateIds } from '../../../../utils/template-inheritance';
 import { Tooltip } from '../../../ui/composites/tooltip';
+import { Skeleton } from '../../../ui/primitives';
 import { Lock, LockOpen } from 'lucide-react';
 import { snapPosition, snapDimensions, type SnapGuideline } from '../../../../utils/snapping';
 
@@ -4429,8 +4430,8 @@ export default function Canvas() {
               x={activePageOffsetX}
               y={pageOffsetY}
             >
-              {/* Canvas elements - only render when not zooming for better performance */}
-              {!isZoomingState && (() => {
+              {/* Canvas elements - render skeletons during zoom, normal elements otherwise */}
+              {(() => {
                 const elements = currentPage?.elements || [];
 
                 const sorted = elements
@@ -4446,14 +4447,69 @@ export default function Canvas() {
                 // In Konva, rendering order is determined by the order elements are added to the Layer,
                 // not by zIndex. So we need to ensure elements are rendered in the sorted order.
                 // The sorted array is already in the correct order, so we just need to render them in that order.
-                return sorted.map((element, index) => (
-                // Don't use zIndex - Konva renders in the order elements are added to the Layer
-                // The sorted array ensures correct rendering order
+                return sorted.map((element, index) => {
+                  // During zoom, render elements as skeletons
+                  if (isZoomingState) {
+                    if (element.type === 'text') {
+                      // Calculate number of skeleton lines based on element height
+                      // Typical line height is about 1.2-1.5 times font size, but we'll use a simple calculation
+                      const lineHeight = element.fontSize ? element.fontSize * 1.3 : 24; // Default 24px if no font size
+                      const numLines = Math.max(1, Math.round(element.height / lineHeight));
 
-                <Group
-                  key={`${element.id}-${element.questionId || 'no-question'}-${index}`}
-                  listening={true}
-                >
+                      return (
+                        <Group
+                          key={`${element.id}-skeleton-${index}`}
+                          x={element.x}
+                          y={element.y}
+                          listening={false}
+                        >
+                          {/* Render skeleton lines */}
+                          {Array.from({ length: numLines }, (_, lineIndex) => (
+                            <Rect
+                              key={`skeleton-line-${lineIndex}`}
+                              x={0}
+                              y={lineIndex * lineHeight}
+                              width={element.width}
+                              height={Math.min(lineHeight * 0.8, element.height - lineIndex * lineHeight)} // Don't exceed element height
+                              fill="#e5e7eb" // Gray color similar to shadcn skeleton
+                              opacity={0.6}
+                              cornerRadius={32}
+                            />
+                          ))}
+                        </Group>
+                      );
+                    } else if (element.type === 'image' || element.type === 'placeholder') {
+                      // Render single skeleton rectangle for images and placeholders
+                      return (
+                        <Group
+                          key={`${element.id}-skeleton-${index}`}
+                          x={element.x}
+                          y={element.y}
+                          listening={false}
+                        >
+                          <Rect
+                            x={0}
+                            y={0}
+                            width={element.width}
+                            height={element.height}
+                            fill="#e5e7eb" // Gray color similar to shadcn skeleton
+                            opacity={0.6}
+                            cornerRadius={32}
+                          />
+                        </Group>
+                      );
+                    } else {
+                      // For other element types, don't render anything during zoom
+                      return null;
+                    }
+                  }
+
+                  // Normal rendering for non-text elements or when not zooming
+                  return (
+                    <Group
+                      key={`${element.id}-${element.questionId || 'no-question'}-${index}`}
+                      listening={true}
+                    >
                   <CanvasItemComponent
                     element={element}
                     interactive={shouldElementBeInteractive(element)}
@@ -4710,8 +4766,9 @@ export default function Canvas() {
                   isWithinSelection={elementsInSelection.has(element.id)}
                 />
 
-                </Group>
-                ));
+                    </Group>
+                  );
+                });
               })()}
 
             {/* Preview elements */}

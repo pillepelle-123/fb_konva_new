@@ -8,6 +8,7 @@ export { NumberInput } from './number-input';
 export { RadioGroup, type RadioOption, type RadioGroupProps } from './radio-group';
 export { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from './select';
 export { Separator } from './separator';
+export { Skeleton } from './skeleton';
 export { Slider } from './slider';
 export { Switch } from './switch';
 export { Textarea } from './textarea';
