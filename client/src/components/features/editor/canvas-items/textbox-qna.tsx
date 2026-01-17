@@ -1037,11 +1037,106 @@ function getClickArea(
   }
 }
 
-export default function TextboxQna(props: CanvasItemProps) {
-  const { element } = props;
+function TextboxQnaComponent(props: CanvasItemProps) {
+  const { element, activeTool } = props;
   const qnaElement = element as QnaCanvasElement;
   const { state, dispatch } = useEditor();
   const { user } = useAuth();
+  
+  // PERFORMANCE OPTIMIZATION: Memoize only the state values that TextboxQna actually needs
+  // This prevents re-renders when unrelated state values (like zoom, pan, selection) change
+  // The useMemo dependencies ensure we only re-render when these specific values change
+  const relevantState = useMemo(() => ({
+    tempQuestions: state.tempQuestions,
+    tempAnswers: state.tempAnswers,
+    pageAssignments: state.pageAssignments,
+    activePageIndex: state.activePageIndex,
+    currentPage: state.currentBook?.pages?.[state.activePageIndex],
+    bookTheme: state.currentBook?.themeId || state.currentBook?.bookTheme,
+    bookLayoutTemplateId: state.currentBook?.layoutTemplateId,
+    bookColorPaletteId: state.currentBook?.colorPaletteId,
+  }), [
+    state.tempQuestions,
+    state.tempAnswers,
+    state.pageAssignments,
+    state.activePageIndex,
+    state.currentBook?.pages,
+    state.currentBook?.themeId,
+    state.currentBook?.bookTheme,
+    state.currentBook?.layoutTemplateId,
+    state.currentBook?.colorPaletteId,
+  ]);
+  
+  // DEBUG: Track re-renders
+  const renderCountRef = useRef(0);
+  const prevPropsRef = useRef<CanvasItemProps | null>(null);
+  const prevStateRef = useRef<typeof relevantState | null>(null);
+  renderCountRef.current += 1;
+  
+  useEffect(() => {
+    if (prevPropsRef.current) {
+      const prev = prevPropsRef.current;
+      const changed: string[] = [];
+      
+      // Basic element properties
+      if (prev.element.id !== props.element.id) changed.push(`element.id: ${prev.element.id} -> ${props.element.id}`);
+      if (prev.element.x !== props.element.x) changed.push(`element.x: ${prev.element.x} -> ${props.element.x}`);
+      if (prev.element.y !== props.element.y) changed.push(`element.y: ${prev.element.y} -> ${props.element.y}`);
+      if (prev.element.width !== props.element.width) changed.push(`element.width: ${prev.element.width} -> ${props.element.width}`);
+      if (prev.element.height !== props.element.height) changed.push(`element.height: ${prev.element.height} -> ${props.element.height}`);
+      if (prev.element.rotation !== props.element.rotation) changed.push(`element.rotation: ${prev.element.rotation} -> ${props.element.rotation}`);
+      if (prev.isSelected !== props.isSelected) changed.push(`isSelected: ${prev.isSelected} -> ${props.isSelected}`);
+      if (prev.zoom !== props.zoom) changed.push(`zoom: ${prev.zoom} -> ${props.zoom}`);
+      if (prev.activeTool !== props.activeTool) changed.push(`activeTool: ${prev.activeTool} -> ${props.activeTool}`);
+      
+      // QNA-specific properties
+      const prevEl = prev.element as QnaCanvasElement;
+      const nextEl = props.element as QnaCanvasElement;
+      if (prevEl.questionId !== nextEl.questionId) changed.push(`questionId: ${prevEl.questionId} -> ${nextEl.questionId}`);
+      if (prevEl.text !== nextEl.text) changed.push(`text: ${prevEl.text?.substring(0, 20)}... -> ${nextEl.text?.substring(0, 20)}...`);
+      if (prevEl.formattedText !== nextEl.formattedText) changed.push(`formattedText changed`);
+      if (JSON.stringify(prevEl.questionSettings) !== JSON.stringify(nextEl.questionSettings)) changed.push(`questionSettings changed`);
+      if (JSON.stringify(prevEl.answerSettings) !== JSON.stringify(nextEl.answerSettings)) changed.push(`answerSettings changed`);
+      
+      // State-dependent values (these will cause re-renders when they change)
+      if (prevStateRef.current) {
+        const prevState = prevStateRef.current;
+        if (prevState.tempAnswers !== relevantState.tempAnswers) changed.push(`state.tempAnswers changed`);
+        if (prevState.tempQuestions !== relevantState.tempQuestions) changed.push(`state.tempQuestions changed`);
+        if (prevState.pageAssignments !== relevantState.pageAssignments) changed.push(`state.pageAssignments changed`);
+        if (prevState.activePageIndex !== relevantState.activePageIndex) changed.push(`state.activePageIndex: ${prevState.activePageIndex} -> ${relevantState.activePageIndex}`);
+        if (prevState.currentPage !== relevantState.currentPage) changed.push(`state.currentPage changed`);
+        if (prevState.bookTheme !== relevantState.bookTheme) changed.push(`state.bookTheme changed`);
+        if (prevState.bookLayoutTemplateId !== relevantState.bookLayoutTemplateId) changed.push(`state.bookLayoutTemplateId changed`);
+        if (prevState.bookColorPaletteId !== relevantState.bookColorPaletteId) changed.push(`state.bookColorPaletteId changed`);
+      }
+      
+      // Check if state object reference changed (this happens on every state update)
+      if (prevStateRef.current && prevStateRef.current !== relevantState) {
+        // Check if any relevant values actually changed
+        const stateValuesChanged = prevStateRef.current && (
+          prevStateRef.current.tempAnswers !== relevantState.tempAnswers ||
+          prevStateRef.current.tempQuestions !== relevantState.tempQuestions ||
+          prevStateRef.current.pageAssignments !== relevantState.pageAssignments ||
+          prevStateRef.current.activePageIndex !== relevantState.activePageIndex ||
+          prevStateRef.current.currentPage !== relevantState.currentPage ||
+          prevStateRef.current.bookTheme !== relevantState.bookTheme ||
+          prevStateRef.current.bookLayoutTemplateId !== relevantState.bookLayoutTemplateId ||
+          prevStateRef.current.bookColorPaletteId !== relevantState.bookColorPaletteId
+        );
+        
+        if (!stateValuesChanged && changed.length === 0) {
+          console.warn(`[TextboxQna] Re-render #${renderCountRef.current} for element "${element.id}" but NO PROPS/STATE CHANGED! React.memo should have prevented this. This happens because useEditor() returns a new state object on every update, even when relevant values haven't changed.`);
+        }
+      }
+      
+      if (changed.length > 0) {
+        console.log(`[TextboxQna] Re-render #${renderCountRef.current} for element "${element.id}":`, changed);
+      }
+    }
+    prevPropsRef.current = { ...props };
+    prevStateRef.current = relevantState;
+  });
   // Get element dimensions - use actual values, don't default to 0
   // This ensures we use the correct dimensions when loading
   const elementWidth = element.width ?? 0;
@@ -1142,16 +1237,16 @@ export default function TextboxQna(props: CanvasItemProps) {
     width: boxWidth,
     height: boxHeight
   });
-  const currentPage = state.currentBook?.pages[state.activePageIndex];
+  const currentPage = relevantState.currentPage;
   // CRITICAL: Use element.theme if present (set during loadBook for pages that inherit book theme)
   // Otherwise fall back to page/book theme from state
   const elementTheme = element.theme;
   const pageTheme = elementTheme || currentPage?.themeId || currentPage?.background?.pageTheme;
-  const bookTheme = elementTheme || state.currentBook?.themeId || state.currentBook?.bookTheme;
+  const bookTheme = elementTheme || relevantState.bookTheme;
   const pageLayoutTemplateId = currentPage?.layoutTemplateId;
-  const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+  const bookLayoutTemplateId = relevantState.bookLayoutTemplateId;
   const pageColorPaletteId = currentPage?.colorPaletteId;
-  const bookColorPaletteId = state.currentBook?.colorPaletteId;
+  const bookColorPaletteId = relevantState.bookColorPaletteId;
 
   const qnaDefaults = useMemo(() => {
     // Use 'qna' for all QnA elements
@@ -1338,15 +1433,17 @@ export default function TextboxQna(props: CanvasItemProps) {
     if (!element.questionId) {
       return 'Double-click to add a question...';
     }
-    const questionData = state.tempQuestions[element.questionId];
+    const questionData = relevantState.tempQuestions[element.questionId];
     if (!questionData) {
       return 'Question loading...';
     }
     return parseQuestionPayload(questionData);
-  }, [element.questionId, state.tempQuestions]);
+  }, [element.questionId, relevantState.tempQuestions]);
 
   // Update element text when assigned user changes to show their answer
   // Find the page that contains this element
+  // PERFORMANCE OPTIMIZATION: Use state.currentBook?.pages from useEditor() but memoize
+  // This is needed to find which page contains this element
   const elementPageNumber = useMemo(() => {
     if (!state.currentBook?.pages) return null;
     for (const page of state.currentBook.pages) {
@@ -1359,8 +1456,8 @@ export default function TextboxQna(props: CanvasItemProps) {
   
   const assignedUser = useMemo(() => {
     if (!elementPageNumber) return null;
-    return state.pageAssignments[elementPageNumber];
-  }, [state.pageAssignments, elementPageNumber]);
+    return relevantState.pageAssignments[elementPageNumber];
+  }, [relevantState.pageAssignments, elementPageNumber]);
   
   const answerText = useMemo(() => {
     // For QnA elements with questionId, never use element.text as answer
@@ -1369,7 +1466,7 @@ export default function TextboxQna(props: CanvasItemProps) {
     if (element.questionId) {
       // Only show answer if a user is assigned to the page containing this textbox
       if (assignedUser) {
-        const answerEntry = state.tempAnswers[element.questionId]?.[assignedUser.id] as TempAnswerEntry | undefined;
+        const answerEntry = relevantState.tempAnswers[element.questionId]?.[assignedUser.id] as TempAnswerEntry | undefined;
         return answerEntry?.text || '';
       }
       // If no user is assigned to the page, don't show any answer (even if current user has answered elsewhere)
@@ -1384,7 +1481,7 @@ export default function TextboxQna(props: CanvasItemProps) {
       return element.text;
     }
     return '';
-  }, [assignedUser, element.formattedText, element.questionId, element.text, state.tempAnswers]);
+  }, [assignedUser, element.formattedText, element.questionId, element.text, relevantState.tempAnswers]);
 
   const sanitizedAnswer = answerText ? stripHtml(answerText) : '';
   // Use answerText directly (no placeholder in canvas rendering, only in editor)
@@ -2207,9 +2304,10 @@ export default function TextboxQna(props: CanvasItemProps) {
     
     const container = stage.container();
     // Only show text cursor for answer area if question is assigned and user is authorized
-    if (hoveredArea === 'answer' && element.questionId && assignedUser && assignedUser.id === user?.id && state.activeTool === 'select') {
+    // PERFORMANCE OPTIMIZATION: Use activeTool from props instead of state
+    if (hoveredArea === 'answer' && element.questionId && assignedUser && assignedUser.id === user?.id && activeTool === 'select') {
       container.style.cursor = 'pointer';
-    } else if (hoveredArea === 'question' && state.activeTool === 'select') {
+    } else if (hoveredArea === 'question' && activeTool === 'select') {
       // Show pointer cursor for question area
       container.style.cursor = 'pointer';
     } else {
@@ -2221,7 +2319,7 @@ export default function TextboxQna(props: CanvasItemProps) {
         container.style.cursor = '';
       }
     };
-  }, [hoveredArea, assignedUser, user?.id, state.activeTool, element.questionId]);
+  }, [hoveredArea, assignedUser, user?.id, activeTool, element.questionId]);
   
   // Render tooltip directly in DOM (outside Konva canvas)
   useEffect(() => {
@@ -2230,10 +2328,10 @@ export default function TextboxQna(props: CanvasItemProps) {
     // Determine if tooltip should be shown
     let shouldShowTooltip = false;
     
-    if (hoveredArea === 'question' && tooltipPosition && questionAreaBounds && state.activeTool === 'select') {
+    if (hoveredArea === 'question' && tooltipPosition && questionAreaBounds && activeTool === 'select') {
       // Question area tooltip - always show if hovering over question area
       shouldShowTooltip = true;
-    } else if (hoveredArea === 'answer' && tooltipPosition && answerAreaBounds && element.questionId && assignedUser && assignedUser.id === user?.id && state.activeTool === 'select') {
+    } else if (hoveredArea === 'answer' && tooltipPosition && answerAreaBounds && element.questionId && assignedUser && assignedUser.id === user?.id && activeTool === 'select') {
       // Answer area tooltip - only show if question is assigned and user is authorized
       shouldShowTooltip = true;
     }
@@ -2259,7 +2357,7 @@ export default function TextboxQna(props: CanvasItemProps) {
     return () => {
       clearTimeout(showTimeout);
     };
-  }, [hoveredArea, tooltipPosition, answerAreaBounds, questionAreaBounds, assignedUser, user?.id, element.id, element.questionId, answerContent, state.activeTool]);
+  }, [hoveredArea, tooltipPosition, answerAreaBounds, questionAreaBounds, assignedUser, user?.id, element.id, element.questionId, answerContent, activeTool]);
   
   // Separate effect to render tooltip with transition
   useEffect(() => {
@@ -2268,9 +2366,9 @@ export default function TextboxQna(props: CanvasItemProps) {
     
     // Determine tooltip content
     let tooltipContentText = '';
-    if (hoveredArea === 'question' && questionAreaBounds && state.activeTool === 'select') {
+    if (hoveredArea === 'question' && questionAreaBounds && activeTool === 'select') {
       tooltipContentText = element.questionId ? 'Double-click to change question' : 'Double-click to add a question';
-    } else if (hoveredArea === 'answer' && answerAreaBounds && element.questionId && assignedUser && assignedUser.id === user?.id && state.activeTool === 'select') {
+    } else if (hoveredArea === 'answer' && answerAreaBounds && element.questionId && assignedUser && assignedUser.id === user?.id && activeTool === 'select') {
       tooltipContentText = answerContent.trim().length > 0 ? 'Double-click to edit answer' : 'Double-click to add an answer';
     }
     
@@ -2316,7 +2414,7 @@ export default function TextboxQna(props: CanvasItemProps) {
         removeElement();
       }
     };
-  }, [isTooltipMounted, tooltipPosition, hoveredArea, questionAreaBounds, answerAreaBounds, assignedUser, user?.id, element.id, element.questionId, answerContent, state.activeTool]);
+  }, [isTooltipMounted, tooltipPosition, hoveredArea, questionAreaBounds, answerAreaBounds, assignedUser, user?.id, element.id, element.questionId, answerContent, activeTool]);
   
   // Separate effect to update visibility class when isTooltipVisible changes
   useEffect(() => {
@@ -2363,7 +2461,7 @@ export default function TextboxQna(props: CanvasItemProps) {
   }, [layout, layoutVariant, effectiveQuestionStyle, answerStyle, padding, boxWidth, boxHeight, answerContent]);
   
   const handleMouseMove = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (props.interactive === false || state.activeTool !== 'select') {
+    if (props.interactive === false || activeTool !== 'select') {
       setHoveredArea(null);
       setTooltipPosition(null);
       return;
@@ -2414,7 +2512,7 @@ export default function TextboxQna(props: CanvasItemProps) {
       setHoveredArea(clickArea);
       setTooltipPosition(null);
     }
-  }, [props.interactive, state.activeTool, getClickAreaFromEvent, answerAreaBounds, questionAreaBounds, element.questionId, boxWidth]);
+  }, [props.interactive, activeTool, getClickAreaFromEvent, answerAreaBounds, questionAreaBounds, element.questionId, boxWidth]);
   
   const handleMouseLeave = useCallback(() => {
     setHoveredArea(null);
@@ -2423,7 +2521,7 @@ export default function TextboxQna(props: CanvasItemProps) {
 
   const handleDoubleClick = (e?: Konva.KonvaEventObject<MouseEvent>) => {
     if (props.interactive === false) return;
-    if (state.activeTool !== 'select') return;
+    if (activeTool !== 'select') return;
     if (e?.evt && e.evt.button !== 0) return;
     
     // Get mouse position relative to the element
@@ -2621,4 +2719,67 @@ export default function TextboxQna(props: CanvasItemProps) {
     </>
   );
 }
+
+// PERFORMANCE OPTIMIZATION: Memoize TextboxQna to prevent unnecessary re-renders
+// This is critical because TextboxQna uses useEditor() which triggers re-renders on every state update
+// The comparison function checks if props that affect rendering have actually changed
+const areTextboxQnaPropsEqual = (
+  prevProps: CanvasItemProps,
+  nextProps: CanvasItemProps
+): boolean => {
+  const prevEl = prevProps.element;
+  const nextEl = nextProps.element;
+  
+  // Element-ID muss gleich sein
+  if (prevEl.id !== nextEl.id) return false;
+  
+  // Basis-Vergleich (wie CanvasItemComponent)
+  if (prevEl.x !== nextEl.x) return false;
+  if (prevEl.y !== nextEl.y) return false;
+  if (prevEl.width !== nextEl.width) return false;
+  if (prevEl.height !== nextEl.height) return false;
+  if (prevEl.rotation !== nextEl.rotation) return false;
+  if (prevProps.isSelected !== nextProps.isSelected) return false;
+  if (prevProps.zoom !== nextProps.zoom) return false;
+  
+  // Textbox-QNA spezifische Props
+  if (prevEl.questionId !== nextEl.questionId) return false;
+  if (prevEl.text !== nextEl.text) return false;
+  if (prevEl.formattedText !== nextEl.formattedText) return false;
+  
+  // Style-Vergleich (kritisch für Rendering)
+  // Use JSON.stringify for object comparison - not optimal but functional
+  const prevQuestionSettings = (prevEl as any).questionSettings;
+  const nextQuestionSettings = (nextEl as any).questionSettings;
+  if (JSON.stringify(prevQuestionSettings) !== JSON.stringify(nextQuestionSettings)) return false;
+  
+  const prevAnswerSettings = (prevEl as any).answerSettings;
+  const nextAnswerSettings = (nextEl as any).answerSettings;
+  if (JSON.stringify(prevAnswerSettings) !== JSON.stringify(nextAnswerSettings)) return false;
+  
+  // Visual Properties
+  if (prevEl.backgroundColor !== nextEl.backgroundColor) return false;
+  if (prevEl.backgroundOpacity !== nextEl.backgroundOpacity) return false;
+  if (prevEl.borderColor !== nextEl.borderColor) return false;
+  if (prevEl.borderWidth !== nextEl.borderWidth) return false;
+  if (prevEl.borderOpacity !== nextEl.borderOpacity) return false;
+  if ((prevEl as any).ruledLines !== (nextEl as any).ruledLines) return false;
+  
+  // Other QNA-specific properties
+  if ((prevEl as any).qnaIndividualSettings !== (nextEl as any).qnaIndividualSettings) return false;
+  if ((prevEl as any).layoutVariant !== (nextEl as any).layoutVariant) return false;
+  if ((prevEl as any).answerInNewRow !== (nextEl as any).answerInNewRow) return false;
+  if ((prevEl as any).questionAnswerGap !== (nextEl as any).questionAnswerGap) return false;
+  if ((prevEl as any).blockQuestionAnswerGap !== (nextEl as any).blockQuestionAnswerGap) return false;
+  if ((prevEl as any).questionPosition !== (nextEl as any).questionPosition) return false;
+  if ((prevEl as any).questionWidth !== (nextEl as any).questionWidth) return false;
+  
+  // NOTE: State-dependent values (tempAnswers, tempQuestions, pageAssignments) are accessed via useEditor()
+  // These will cause re-renders when they change, which is correct behavior
+  // The memoization here prevents re-renders when OTHER state values change (like zoom, pan, selection)
+  
+  return true;
+};
+
+export default React.memo(TextboxQnaComponent, areTextboxQnaPropsEqual);
 

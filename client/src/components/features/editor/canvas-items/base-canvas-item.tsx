@@ -26,6 +26,13 @@ export interface CanvasItemProps {
   interactive?: boolean; // If false, disables all interactions (for PDF export)
   // Seite innerhalb eines Doppelseiten-Spreads: 'left' oder 'right'
   pageSide?: 'left' | 'right';
+  // PERFORMANCE OPTIMIZATION: Pass state values as props to avoid useEditor() hook
+  // This allows React.memo to work correctly
+  activeTool?: string;
+  lockElements?: boolean;
+  // For TextboxQna: pass activeTool to avoid useEditor() re-renders
+  // For CanvasItemComponent: pass dispatch to avoid useEditor() re-renders
+  dispatch?: React.Dispatch<any>;
 }
 
 interface BaseCanvasItemProps extends CanvasItemProps {

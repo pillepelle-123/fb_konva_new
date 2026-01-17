@@ -184,6 +184,45 @@ export default function Canvas() {
 
   const debouncedBatchDraw = useDebouncedCanvasUpdate();
 
+  // PERFORMANCE OPTIMIZATION: Throttle function for selection rectangle updates
+  // Simple throttle implementation - limits function calls to once per delay period
+  const throttle = useCallback(<T extends (...args: any[]) => void>(
+    func: T,
+    delay: number
+  ): T => {
+    let lastCallTime = 0;
+    let timeoutId: NodeJS.Timeout | null = null;
+    let lastArgs: Parameters<T> | null = null;
+
+    const throttled = ((...args: Parameters<T>) => {
+      const now = Date.now();
+      const timeSinceLastCall = now - lastCallTime;
+
+      lastArgs = args;
+
+      if (timeSinceLastCall >= delay) {
+        // Enough time has passed, call immediately
+        lastCallTime = now;
+        func(...args);
+      } else {
+        // Schedule call for when delay period expires
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        timeoutId = setTimeout(() => {
+          lastCallTime = Date.now();
+          if (lastArgs) {
+            func(...lastArgs);
+            lastArgs = null;
+          }
+          timeoutId = null;
+        }, delay - timeSinceLastCall);
+      }
+    }) as T;
+
+    return throttled;
+  }, []);
+
   // Smart canvas update function - uses debouncing for non-critical updates
   const smartCanvasUpdate = useCallback((immediate: boolean = false) => {
     if (!stageRef.current) return;
@@ -281,6 +320,26 @@ export default function Canvas() {
   const setZoomFromContext = setZoom;
   const [editingElement, setEditingElement] = useState<CanvasElement | null>(null);
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
+
+  // PERFORMANCE OPTIMIZATION: Throttled selection rectangle updates
+  // Reduces update frequency from ~120fps to ~60fps during mouse move
+  const throttledSetSelectionRect = useMemo(
+    () => throttle((rect: typeof selectionRect) => {
+      setSelectionRect(rect);
+    }, 16), // ~60fps
+    [] // throttle function is stable, no dependencies needed
+  );
+  
+  // PERFORMANCE OPTIMIZATION: Throttled zoom updates
+  // Reduces update frequency from ~120fps to ~30fps during zoom (wheel events)
+  // This prevents excessive re-renders of all canvas elements during zoom
+  // The throttle function automatically ensures the last zoom value is applied when zoom stops
+  const throttledSetZoom = useMemo(
+    () => throttle((newZoom: number, pointer?: { x: number; y: number }) => {
+      setZoomFromContext(newZoom, pointer);
+    }, 33), // ~30fps - zoom is less critical than selection, can be slower
+    [setZoomFromContext] // setZoomFromContext is stable from useCanvasZoomPan
+  );
   
   // Prevent authors from opening question dialog
   useEffect(() => {
@@ -821,6 +880,21 @@ export default function Canvas() {
     previewPageOffsetX,
     pageOffsetY
   } = canvasDimensions;
+
+  // PERFORMANCE OPTIMIZATION: Memoize elementsInSelection calculation
+  // Calculate once per selectionRect change instead of for each element
+  // This reduces complexity from O(n²) to O(n) during selection rectangle dragging
+  const elementsInSelection = useMemo(() => {
+    if (!selectionRect.visible || !currentPage) {
+      return new Set<string>();
+    }
+    return new Set(getElementsInSelection(
+      currentPage,
+      selectionRect,
+      activePageOffsetX,
+      pageOffsetY
+    ));
+  }, [selectionRect, currentPage, activePageOffsetX, pageOffsetY]);
 
   // Adaptive Pixel Ratio - reduce rendering resolution at high zoom levels for better performance
   const adaptivePixelRatio = useMemo(() => {
@@ -1929,7 +2003,8 @@ export default function Canvas() {
         };
         
 
-        setSelectionRect(newRect);
+        // PERFORMANCE OPTIMIZATION: Use throttled update during mouse move
+        throttledSetSelectionRect(newRect);
       }
     }
   };
@@ -2234,6 +2309,8 @@ export default function Canvas() {
       // Clean up initial positions
       groupMoveInitialPositionsRef.current = null;
     } else if (isSelecting) {
+      // PERFORMANCE OPTIMIZATION: Final update should be immediate (not throttled)
+      // This ensures the final selection state is correct when mouse is released
       const selectedIds = getElementsInSelection(
         currentPage,
         selectionRect,
@@ -2254,6 +2331,7 @@ export default function Canvas() {
       });
       
       dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: Array.from(finalSelectedIds) });
+      // Final update is immediate (not throttled) to ensure correct state
       setSelectionRect({ x: 0, y: 0, width: 0, height: 0, visible: false });
       setIsSelecting(false);
       setSelectionStart(null);
@@ -2609,7 +2687,10 @@ export default function Canvas() {
       };
       
       const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
-      setZoomFromContext(newScale, pointer);
+      
+      // PERFORMANCE OPTIMIZATION: Use throttled zoom update during wheel events
+      // The throttle function ensures the last zoom value is applied when zoom stops
+      throttledSetZoom(newScale, pointer);
     } else {
       // Pan with two-finger touchpad (mousewheel without Ctrl)
       setStagePos(
@@ -4298,6 +4379,9 @@ export default function Canvas() {
                     zoom={zoom}
                     hoveredElementId={state.hoveredElementId}
                     pageSide={isActiveLeft ? 'left' : 'right'}
+                    activeTool={state.activeTool}
+                    lockElements={state.editorSettings?.editor?.lockElements ?? false}
+                    dispatch={dispatch}
                     onSelect={(e) => {
                     // Handle style painter click
                     if (state.stylePainterActive && e?.evt?.button === 0) {
@@ -4541,12 +4625,7 @@ export default function Canvas() {
                     }
                     setTimeout(() => setIsDragging(false), 10);
                   }}
-                  isWithinSelection={selectionRect.visible && getElementsInSelection(
-                    currentPage,
-                    selectionRect,
-                    activePageOffsetX,
-                    pageOffsetY
-                  ).includes(element.id)}
+                  isWithinSelection={elementsInSelection.has(element.id)}
                 />
 
                 </Group>
