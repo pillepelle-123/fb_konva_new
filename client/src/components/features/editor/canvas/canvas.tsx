@@ -4844,18 +4844,77 @@ export default function Canvas() {
                     });
                   
                   return sorted;
-                })().map(element => (
-                  <Group key={`preview-${element.id}`}>
-                    <CanvasItemComponent
-                      element={element}
-                      interactive={false}
-                      isSelected={false}
-                      zoom={zoom}
-                      hoveredElementId={null}
-                      pageSide={isActiveLeft ? 'right' : 'left'}
-                    />
-                  </Group>
-                ))}
+                })().map((element, index) => {
+                  // During zoom, render partner page elements as skeletons
+                  if (isZoomingState) {
+                    if (element.type === 'text') {
+                      // Calculate number of skeleton lines based on element height
+                      // Typical line height is about 1.2-1.5 times font size, but we'll use a simple calculation
+                      const lineHeight = element.fontSize ? element.fontSize * 1.3 : 24; // Default 24px if no font size
+                      const numLines = Math.max(1, Math.round(element.height / lineHeight));
+
+                      return (
+                        <Group
+                          key={`preview-skeleton-${element.id}-${index}`}
+                          x={element.x}
+                          y={element.y}
+                          listening={false}
+                        >
+                          {/* Render skeleton lines */}
+                          {Array.from({ length: numLines }, (_, lineIndex) => (
+                            <Rect
+                              key={`preview-skeleton-line-${lineIndex}`}
+                              x={0}
+                              y={lineIndex * lineHeight}
+                              width={element.width}
+                              height={Math.min(lineHeight * 0.8, element.height - lineIndex * lineHeight)} // Don't exceed element height
+                              fill="#e5e7eb" // Gray color similar to shadcn skeleton
+                              opacity={0.4} // Slightly more transparent for preview
+                              cornerRadius={32}
+                            />
+                          ))}
+                        </Group>
+                      );
+                    } else if (element.type === 'image' || element.type === 'placeholder') {
+                      // Render single skeleton rectangle for images and placeholders
+                      return (
+                        <Group
+                          key={`preview-skeleton-${element.id}-${index}`}
+                          x={element.x}
+                          y={element.y}
+                          listening={false}
+                        >
+                          <Rect
+                            x={0}
+                            y={0}
+                            width={element.width}
+                            height={element.height}
+                            fill="#e5e7eb" // Gray color similar to shadcn skeleton
+                            opacity={0.4} // Slightly more transparent for preview
+                            cornerRadius={32}
+                          />
+                        </Group>
+                      );
+                    } else {
+                      // For other element types, don't render anything during zoom
+                      return null;
+                    }
+                  }
+
+                  // Normal rendering when not zooming
+                  return (
+                    <Group key={`preview-${element.id}`}>
+                      <CanvasItemComponent
+                        element={element}
+                        interactive={false}
+                        isSelected={false}
+                        zoom={zoom}
+                        hoveredElementId={null}
+                        pageSide={isActiveLeft ? 'right' : 'left'}
+                      />
+                    </Group>
+                  );
+                })}
               </Group>
             )}
             {partnerPage && previewPageOffsetX !== null && !state.isMiniPreview && (
