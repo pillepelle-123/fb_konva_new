@@ -1926,8 +1926,8 @@ export default function Canvas() {
         // Force transformer update during panning to prevent selection rectangle delay
         if (transformerRef.current) {
           transformerRef.current.forceUpdate();
-          // Use smart canvas update - immediate for panning responsiveness
-          smartCanvasUpdate(true);
+          // PERFORMANCE OPTIMIZATION: Use debounced canvas update during panning for better performance
+          smartCanvasUpdate(false);
         }
       }
     } else if (drawingState.isDrawing && state.activeTool === 'brush') {
@@ -2712,8 +2712,8 @@ export default function Canvas() {
       // Force transformer update during panning to prevent selection rectangle delay
       if (transformerRef.current) {
         transformerRef.current.forceUpdate();
-        // Use smart canvas update - immediate for selection responsiveness
-        smartCanvasUpdate(true);
+        // PERFORMANCE OPTIMIZATION: Use debounced canvas update during panning for better performance
+        smartCanvasUpdate(false);
       }
     } else if (e.evt.ctrlKey) {
       // Zoom with Ctrl + mousewheel
@@ -2764,8 +2764,8 @@ export default function Canvas() {
       // Force transformer update during panning to prevent selection rectangle delay
       if (transformerRef.current) {
         transformerRef.current.forceUpdate();
-        // Use smart canvas update - immediate for selection responsiveness
-        smartCanvasUpdate(true);
+        // PERFORMANCE OPTIMIZATION: Use debounced canvas update during panning for better performance
+        smartCanvasUpdate(false);
       }
     }
   };
