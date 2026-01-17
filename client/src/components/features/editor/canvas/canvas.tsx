@@ -331,13 +331,14 @@ export default function Canvas() {
   );
   
   // PERFORMANCE OPTIMIZATION: Throttled zoom updates
-  // Reduces update frequency from ~120fps to ~30fps during zoom (wheel events)
+  // Reduces update frequency from ~120fps to ~15fps during zoom (wheel events)
   // This prevents excessive re-renders of all canvas elements during zoom
   // The throttle function automatically ensures the last zoom value is applied when zoom stops
+  // Increased delay to 66ms (~15fps) for better performance - zoom visual feedback is less critical
   const throttledSetZoom = useMemo(
     () => throttle((newZoom: number, pointer?: { x: number; y: number }) => {
       setZoomFromContext(newZoom, pointer);
-    }, 33), // ~30fps - zoom is less critical than selection, can be slower
+    }, 66), // ~15fps - zoom is less critical than selection, can be slower
     [setZoomFromContext] // setZoomFromContext is stable from useCanvasZoomPan
   );
   
