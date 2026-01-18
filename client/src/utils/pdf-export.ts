@@ -76,7 +76,8 @@ export interface PDFExportOptions {
   pageRange: 'all' | 'range' | 'current';
   startPage?: number;
   endPage?: number;
-  currentPageIndex?: number;
+  currentPageIndex?: number; // Deprecated: Use currentPageNumber instead
+  currentPageNumber?: number; // Page number (1-based) instead of array index
   useCMYK?: boolean; // Optional: Export in CMYK for printing
   iccProfile?: 'iso-coated-v2' | 'fogra39'; // Optional: ICC profile to use (only when useCMYK is true)
 }
@@ -102,8 +103,24 @@ export const exportBookToPDF = async (
       const start = Math.max(1, options.startPage) - 1;
       const end = Math.min(book.pages.length, options.endPage);
       pagesToExport = book.pages.slice(start, end);
-    } else if (options.pageRange === 'current' && options.currentPageIndex !== undefined) {
-      pagesToExport = [book.pages[options.currentPageIndex]];
+    } else if (options.pageRange === 'current') {
+      // Prefer currentPageNumber over currentPageIndex for accuracy
+      // This fixes issues when pages are added and array order doesn't match pageNumber
+      if (options.currentPageNumber !== undefined) {
+        const page = book.pages.find(p => p.pageNumber === options.currentPageNumber);
+        if (page) {
+          pagesToExport = [page];
+        } else {
+          // Fallback to index if pageNumber not found
+          console.warn(`Page with pageNumber ${options.currentPageNumber} not found, falling back to index`);
+          if (options.currentPageIndex !== undefined) {
+            pagesToExport = [book.pages[options.currentPageIndex]];
+          }
+        }
+      } else if (options.currentPageIndex !== undefined) {
+        // Legacy support: use index if pageNumber not provided
+        pagesToExport = [book.pages[options.currentPageIndex]];
+      }
     }
 
     // Get PDF dimensions in mm

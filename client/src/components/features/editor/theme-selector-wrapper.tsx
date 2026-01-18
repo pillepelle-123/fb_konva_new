@@ -105,7 +105,7 @@ export const ThemeSelectorWrapper = forwardRef<ThemeSelectorWrapperRef, ThemeSel
 
   // Expose apply method to parent component
   useImperativeHandle(ref, () => ({
-    apply: handleApply
+    apply: (applyToEntireBook?: boolean) => handleApply(applyToEntireBook)
   }));
 
   // Update selectedTheme when currentTheme changes (only if user hasn't manually selected)
@@ -194,7 +194,7 @@ export const ThemeSelectorWrapper = forwardRef<ThemeSelectorWrapperRef, ThemeSel
     applyThemeAndExport();
   }, [showPreviewDialog, previewTheme, state.currentBook, dispatch]);
   
-  const handleApply = () => {
+  const handleApply = (applyToEntireBook?: boolean) => {
     if (!selectedTheme) return;
 
     if (isBookLevel) {
@@ -250,7 +250,7 @@ export const ThemeSelectorWrapper = forwardRef<ThemeSelectorWrapperRef, ThemeSel
       const resolvedThemeId = isBookThemeSelection ? (state.currentBook?.bookTheme || 'default') : selectedTheme;
 
       // Apply to all pages if checkbox is checked
-      if (shouldApplyToEntireBook && state.currentBook) {
+      if (applyToEntireBook && state.currentBook) {
         state.currentBook.pages.forEach((page, pageIndex) => {
           dispatch({
             type: 'SET_PAGE_THEME',

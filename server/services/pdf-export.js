@@ -55,8 +55,24 @@ async function generatePDFFromBook(bookData, options, exportId, updateProgress) 
       const start = Math.max(1, options.startPage) - 1;
       const end = Math.min(pagesToExport.length, options.endPage);
       pagesToExport = pagesToExport.slice(start, end);
-    } else if (options.pageRange === 'current' && options.currentPageIndex !== undefined) {
-      pagesToExport = [pagesToExport[options.currentPageIndex]];
+    } else if (options.pageRange === 'current') {
+      // Prefer currentPageNumber over currentPageIndex for accuracy
+      // This fixes issues when pages are added and array order doesn't match pageNumber
+      if (options.currentPageNumber !== undefined) {
+        const page = pagesToExport.find(p => p.pageNumber === options.currentPageNumber);
+        if (page) {
+          pagesToExport = [page];
+        } else {
+          // Fallback to index if pageNumber not found
+          console.warn(`Page with pageNumber ${options.currentPageNumber} not found, falling back to index`);
+          if (options.currentPageIndex !== undefined) {
+            pagesToExport = [pagesToExport[options.currentPageIndex]];
+          }
+        }
+      } else if (options.currentPageIndex !== undefined) {
+        // Legacy support: use index if pageNumber not provided
+        pagesToExport = [pagesToExport[options.currentPageIndex]];
+      }
     }
 
     if (pagesToExport.length === 0) {

@@ -30,12 +30,18 @@ export default function PDFExportModal({ isOpen, onClose }: PDFExportModalProps)
     setIsExporting(true);
     setProgress(0);
 
+    // Get current page number instead of index for accurate page selection
+    // This fixes issues when pages are added and array order doesn't match pageNumber
+    const currentPage = state.currentBook?.pages[state.activePageIndex];
+    const currentPageNumber = currentPage?.pageNumber ?? (state.activePageIndex + 1);
+
     const options: PDFExportOptions = {
       quality,
       pageRange,
       startPage: pageRange === 'range' ? startPage : undefined,
       endPage: pageRange === 'range' ? endPage : undefined,
-      currentPageIndex: pageRange === 'current' ? state.activePageIndex : undefined,
+      currentPageNumber: pageRange === 'current' ? currentPageNumber : undefined,
+      currentPageIndex: pageRange === 'current' ? state.activePageIndex : undefined, // Keep for backwards compatibility
       useCMYK,
       iccProfile: useCMYK ? iccProfile : undefined,
     };

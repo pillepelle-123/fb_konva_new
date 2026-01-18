@@ -154,7 +154,10 @@ export function BookExportManager({
           pageRange,
           startPage: pageRange === 'range' ? startPage : undefined,
           endPage: pageRange === 'range' ? endPage : undefined,
-          currentPageIndex: pageRange === 'current' && currentPageIndex !== undefined ? currentPageIndex : undefined,
+          currentPageNumber: pageRange === 'current' && currentPageIndex !== undefined && bookProp
+            ? (bookProp.pages[currentPageIndex]?.pageNumber ?? currentPageIndex + 1)
+            : undefined,
+          currentPageIndex: pageRange === 'current' && currentPageIndex !== undefined ? currentPageIndex : undefined, // Keep for backwards compatibility
           useCMYK,
           iccProfile: useCMYK ? iccProfile : undefined
         })
@@ -241,7 +244,11 @@ export function BookExportManager({
       pageRange,
       startPage: pageRange === 'range' ? startPage : undefined,
       endPage: pageRange === 'range' ? endPage : undefined,
-      currentPageIndex: pageRange === 'current' && currentPageIndex !== undefined ? currentPageIndex : undefined,
+      // Prefer currentPageNumber over currentPageIndex for accuracy
+      currentPageNumber: pageRange === 'current' && currentPageIndex !== undefined && bookForExport
+        ? (bookForExport.pages[currentPageIndex]?.pageNumber ?? currentPageIndex + 1)
+        : undefined,
+      currentPageIndex: pageRange === 'current' && currentPageIndex !== undefined ? currentPageIndex : undefined, // Keep for backwards compatibility
       useCMYK,
       iccProfile: useCMYK ? iccProfile : undefined,
     };

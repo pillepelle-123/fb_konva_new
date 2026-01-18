@@ -126,6 +126,7 @@ export default function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const previousActivePageIndexRef = useRef<number | null>(null);
   const fitToViewRef = useRef<(() => void) | null>(null);
+  const justCompletedSelectionRef = useRef<boolean>(false);
   const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
   const [panelOffset, setPanelOffset] = useState(0);
 
@@ -1856,6 +1857,44 @@ export default function Canvas() {
       }
       
       if (isBackgroundClick) {
+        // Check if click is within selected elements bounds (transformer rectangle)
+        // This allows dragging the group by clicking on empty space within the transformer
+        if (state.selectedElementIds.length > 1 && !state.editorSettings?.editor?.lockElements) {
+          const isWithinSelection = isPointWithinSelectedElements(
+            x,
+            y,
+            currentPage,
+            state.selectedElementIds,
+            transformerRef,
+            stagePos,
+            zoom,
+            activePageOffsetX,
+            pageOffsetY
+          );
+          
+          if (isWithinSelection) {
+            // Check if we're clicking on an actual element (not empty space)
+            const clickedElement = currentPage?.elements.find(el => {
+              return state.selectedElementIds.includes(el.id) && 
+                     x >= el.x && x <= el.x + (el.width || 100) &&
+                     y >= el.y && y <= el.y + (el.height || 100);
+            });
+            
+            // If clicking on empty space within transformer, start group move
+            if (!clickedElement) {
+              const startPos = { x, y };
+              setIsMovingGroup(true);
+              isMovingGroupRef.current = true;
+              setGroupMoveStart(startPos);
+              groupMoveStartRef.current = startPos;
+              dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Move Elements' });
+              return;
+            }
+            // If clicking on an element, let base-canvas-item handle it (will start group move)
+            return;
+          }
+        }
+        
         // Check if double-click is within selected elements bounds
         if (isDoubleClick && state.selectedElementIds.length > 0) {
           const isWithinSelection = isPointWithinSelectedElements(
@@ -2199,6 +2238,15 @@ export default function Canvas() {
 
   /* Brush */
   const handleMouseUp = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    // DEBUG: Log mouseup event
+    console.log('[handleMouseUp] Called', { 
+      isSelecting, 
+      selectionStart, 
+      currentPage: !!currentPage,
+      target: e.target.getClassName(),
+      isStage: e.target === e.target.getStage()
+    });
+    
     // Block all mouse up interactions for no_access users except panning
     if (state.editorInteractionLevel === 'no_access') {
       if (isPanning) {
@@ -2495,33 +2543,79 @@ export default function Canvas() {
       groupMoveStartRef.current = null;
       // Clean up initial positions
       groupMoveInitialPositionsRef.current = null;
-    } else if (isSelecting) {
-      // PERFORMANCE OPTIMIZATION: Final update should be immediate (not throttled)
-      // This ensures the final selection state is correct when mouse is released
-      const selectedIds = getElementsInSelection(
-        currentPage,
-        selectionRect,
-        activePageOffsetX,
-        pageOffsetY
-      );
+    }
+    
+    // Complete selection rectangle if active
+    // This must be checked AFTER all other conditions to ensure selection works
+    // even when mouse is released on background (not over any element)
+    if (isSelecting && selectionStart && currentPage) {
+      console.log('[handleMouseUp] Completing selection', { isSelecting, selectionStart, currentPage: !!currentPage });
       
-      // Add linked question-answer pairs
-      const finalSelectedIds = new Set(selectedIds);
-      selectedIds.forEach(elementId => {
-        const element = currentPage?.elements.find(el => el.id === elementId);
-        if (element?.textType === 'question') {
-          const answerElement = currentPage?.elements.find(el => el.questionElementId === elementId);
-          if (answerElement) finalSelectedIds.add(answerElement.id);
-        } else if (element?.textType === 'answer' && element.questionElementId) {
-          finalSelectedIds.add(element.questionElementId);
+      // CRITICAL: Calculate selection rectangle from current mouse position, not from state
+      // This ensures we use the most up-to-date position even if throttledSetSelectionRect
+      // hasn't updated the state yet
+      const stage = e.target.getStage();
+      const pos = stage?.getPointerPosition();
+      console.log('[handleMouseUp] Mouse position', { pos, stage: !!stage });
+      
+      if (pos) {
+        const x = (pos.x - stagePos.x) / zoom;
+        const y = (pos.y - stagePos.y) / zoom;
+        const width = x - selectionStart.x;
+        const height = y - selectionStart.y;
+        
+        const finalRect = {
+          x: width < 0 ? x : selectionStart.x,
+          y: height < 0 ? y : selectionStart.y,
+          width: Math.abs(width),
+          height: Math.abs(height),
+          visible: true
+        };
+        
+        console.log('[handleMouseUp] Final rect', finalRect);
+        
+        // Only select if rectangle is large enough
+        if (finalRect.width >= 5 && finalRect.height >= 5) {
+          const selectedIds = getElementsInSelection(
+            currentPage,
+            finalRect,
+            activePageOffsetX,
+            pageOffsetY
+          );
+          
+          console.log('[handleMouseUp] Selected IDs', selectedIds);
+          
+          // Add linked question-answer pairs
+          const finalSelectedIds = new Set(selectedIds);
+          selectedIds.forEach(elementId => {
+            const element = currentPage?.elements.find(el => el.id === elementId);
+            if (element?.textType === 'question') {
+              const answerElement = currentPage?.elements.find(el => el.questionElementId === elementId);
+              if (answerElement) finalSelectedIds.add(answerElement.id);
+            } else if (element?.textType === 'answer' && element.questionElementId) {
+              finalSelectedIds.add(element.questionElementId);
+            }
+          });
+          
+          console.log('[handleMouseUp] Final selected IDs', Array.from(finalSelectedIds));
+          dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: Array.from(finalSelectedIds) });
+          // Mark that we just completed a selection to prevent handleStageClick from clearing it
+          (window as any).__lastSelectionMouseUp = Date.now();
+        } else {
+          console.log('[handleMouseUp] Rectangle too small, clearing selection');
+          // Clear selection if rectangle is too small
+          dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [] });
         }
-      });
+      } else {
+        console.log('[handleMouseUp] No mouse position available');
+      }
       
-      dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: Array.from(finalSelectedIds) });
       // Final update is immediate (not throttled) to ensure correct state
       setSelectionRect({ x: 0, y: 0, width: 0, height: 0, visible: false });
       setIsSelecting(false);
       setSelectionStart(null);
+    } else {
+      console.log('[handleMouseUp] Not completing selection', { isSelecting, selectionStart: !!selectionStart, currentPage: !!currentPage });
     }
     setIsDrawing(false);
     setCurrentPath([]);
@@ -2957,7 +3051,62 @@ export default function Canvas() {
     }
     
     // Don't clear selection if we just completed a selection rectangle
-    if (isSelecting) return;
+    // But complete the selection first if we're still selecting
+    if (isSelecting) {
+      console.log('[handleStageClick] isSelecting is true, completing selection');
+      // Complete selection rectangle if active
+      if (selectionStart && currentPage && stageRef.current) {
+        const pointerPos = stageRef.current.getPointerPosition();
+        if (pointerPos) {
+          const x = (pointerPos.x - stagePos.x) / zoom;
+          const y = (pointerPos.y - stagePos.y) / zoom;
+          const width = x - selectionStart.x;
+          const height = y - selectionStart.y;
+          
+          const finalRect = {
+            x: width < 0 ? x : selectionStart.x,
+            y: height < 0 ? y : selectionStart.y,
+            width: Math.abs(width),
+            height: Math.abs(height),
+            visible: true
+          };
+          
+          if (finalRect.width >= 5 && finalRect.height >= 5) {
+            const selectedIds = getElementsInSelection(
+              currentPage,
+              finalRect,
+              activePageOffsetX,
+              pageOffsetY
+            );
+            
+            const finalSelectedIds = new Set(selectedIds);
+            selectedIds.forEach(elementId => {
+              const element = currentPage?.elements.find(el => el.id === elementId);
+              if (element?.textType === 'question') {
+                const answerElement = currentPage?.elements.find(el => el.questionElementId === elementId);
+                if (answerElement) finalSelectedIds.add(answerElement.id);
+              } else if (element?.textType === 'answer' && element.questionElementId) {
+                finalSelectedIds.add(element.questionElementId);
+              }
+            });
+            
+            dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: Array.from(finalSelectedIds) });
+            // Mark that we just completed a selection to prevent clearing it
+            justCompletedSelectionRef.current = true;
+            setTimeout(() => {
+              justCompletedSelectionRef.current = false;
+            }, 200);
+          } else {
+            dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [] });
+          }
+        }
+        
+        setSelectionRect({ x: 0, y: 0, width: 0, height: 0, visible: false });
+        setIsSelecting(false);
+        setSelectionStart(null);
+      }
+      return;
+    }
     
     // Don't clear selection on right-click
     if (e.evt.button === 2) return;
@@ -2980,8 +3129,15 @@ export default function Canvas() {
       (e.target.getClassName() === 'Rect' && !e.target.id());
     
     if (isBackgroundClick) {
-      // Clear selection for all tools when clicking background
-      dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [] });
+      // Don't clear selection if we just completed a selection rectangle
+      // This prevents handleStageClick from clearing the selection immediately after
+      // handleGlobalSelectionMouseUp or handleMouseUp sets it
+      if (!justCompletedSelectionRef.current) {
+        // Clear selection for all tools when clicking background
+        dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [] });
+      } else {
+        console.log('[handleStageClick] Skipping clear selection - just completed selection');
+      }
       
       // Don't switch away from pan tool or pipette tool
       if (state.activeTool !== 'select' && state.activeTool !== 'pan' && state.activeTool !== 'pipette') {
@@ -4052,6 +4208,98 @@ export default function Canvas() {
       window.removeEventListener('mouseup', handleGlobalMouseUp);
     };
   }, [state.editorInteractionLevel, state.isMiniPreview, isPanning]);
+
+  // Global mouseup listener to complete selection rectangle when mouse is released
+  // This ensures selection works even when mouse is released on background or over a canvas item
+  // that might intercept the event and prevent it from reaching the Stage
+  useEffect(() => {
+    const handleGlobalSelectionMouseUp = (e: MouseEvent) => {
+      // Only handle if we're currently selecting
+      if (!isSelecting || !selectionStart || !currentPage || !stageRef.current) return;
+      
+      // CRITICAL: Calculate selection rectangle from current mouse position, not from state
+      // This ensures we use the most up-to-date position even if throttledSetSelectionRect
+      // hasn't updated the state yet
+      const stage = stageRef.current;
+      const pointerPos = stage.getPointerPosition();
+      console.log('[handleGlobalSelectionMouseUp] Pointer position', pointerPos);
+      console.log('[handleGlobalSelectionMouseUp] Stage pos', stagePos);
+      console.log('[handleGlobalSelectionMouseUp] Zoom', zoom);
+      console.log('[handleGlobalSelectionMouseUp] Selection start', selectionStart);
+      
+      if (!pointerPos) {
+        console.log('[handleGlobalSelectionMouseUp] No pointer position');
+        return;
+      }
+      
+      // CRITICAL: Use the same coordinate calculation as in handleMouseMove
+      // The selectionStart is already in page coordinates (not stage coordinates)
+      const x = (pointerPos.x - stagePos.x) / zoom;
+      const y = (pointerPos.y - stagePos.y) / zoom;
+      const width = x - selectionStart.x;
+      const height = y - selectionStart.y;
+      
+      console.log('[handleGlobalSelectionMouseUp] Calculated coords', { x, y, width, height });
+      
+      const finalRect = {
+        x: width < 0 ? x : selectionStart.x,
+        y: height < 0 ? y : selectionStart.y,
+        width: Math.abs(width),
+        height: Math.abs(height),
+        visible: true
+      };
+      
+      console.log('[handleGlobalSelectionMouseUp] Final rect', finalRect);
+      
+      // Only select if rectangle is large enough
+      if (finalRect.width >= 5 && finalRect.height >= 5) {
+        const selectedIds = getElementsInSelection(
+          currentPage,
+          finalRect,
+          activePageOffsetX,
+          pageOffsetY
+        );
+        
+        console.log('[handleGlobalSelectionMouseUp] Selected IDs', selectedIds);
+        
+        // Add linked question-answer pairs
+        const finalSelectedIds = new Set(selectedIds);
+        selectedIds.forEach(elementId => {
+          const element = currentPage?.elements.find(el => el.id === elementId);
+          if (element?.textType === 'question') {
+            const answerElement = currentPage?.elements.find(el => el.questionElementId === elementId);
+            if (answerElement) finalSelectedIds.add(answerElement.id);
+          } else if (element?.textType === 'answer' && element.questionElementId) {
+            finalSelectedIds.add(element.questionElementId);
+          }
+        });
+        
+        console.log('[handleGlobalSelectionMouseUp] Final selected IDs', Array.from(finalSelectedIds));
+        dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: Array.from(finalSelectedIds) });
+        // Mark that we just completed a selection to prevent handleStageClick from clearing it
+        justCompletedSelectionRef.current = true;
+        // Reset flag after a short delay to allow handleStageClick to see it
+        setTimeout(() => {
+          justCompletedSelectionRef.current = false;
+        }, 200);
+      } else {
+        console.log('[handleGlobalSelectionMouseUp] Rectangle too small, clearing selection');
+        // Clear selection if rectangle is too small
+        dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [] });
+      }
+      
+      // Final update is immediate (not throttled) to ensure correct state
+      setSelectionRect({ x: 0, y: 0, width: 0, height: 0, visible: false });
+      setIsSelecting(false);
+      setSelectionStart(null);
+    };
+    
+    // Use capture phase to ensure we catch the event before it's handled by other handlers
+    window.addEventListener('mouseup', handleGlobalSelectionMouseUp, true);
+    return () => {
+      window.removeEventListener('mouseup', handleGlobalSelectionMouseUp, true);
+    };
+  }, [isSelecting, selectionStart, currentPage, activePageOffsetX, pageOffsetY, dispatch, stagePos, zoom]);
 
   const handleImageSelect = useCallback((imageId: number, imageUrl: string) => {
     // If we have a pending element ID, update the existing placeholder element

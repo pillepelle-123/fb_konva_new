@@ -300,7 +300,7 @@ async function loadBookDataFromDB(bookId, userId) {
 // Create new PDF export
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { bookId, quality, pageRange, startPage, endPage, currentPageIndex, useCMYK, iccProfile } = req.body;
+    const { bookId, quality, pageRange, startPage, endPage, currentPageIndex, currentPageNumber, useCMYK, iccProfile } = req.body;
     const userId = req.user.id;
 
     // Validate book access
@@ -362,7 +362,8 @@ router.post('/', authenticateToken, async (req, res) => {
       pageRange,
       startPage: pageRange === 'range' ? startPage : undefined,
       endPage: pageRange === 'range' ? endPage : undefined,
-      currentPageIndex: pageRange === 'current' ? currentPageIndex : undefined,
+      currentPageNumber: pageRange === 'current' ? currentPageNumber : undefined,
+      currentPageIndex: pageRange === 'current' ? currentPageIndex : undefined, // Keep for backwards compatibility
       useCMYK: useCMYK === true,
       iccProfile: useCMYK && iccProfile ? iccProfile : undefined
     };

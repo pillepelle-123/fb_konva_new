@@ -59,7 +59,7 @@ export const LayoutSelectorWrapper = forwardRef<LayoutSelectorWrapperRef, Layout
 
   // Expose apply method to parent component
   useImperativeHandle(ref, () => ({
-    apply: handleApply
+    apply: (applyToEntireBook?: boolean) => handleApply(applyToEntireBook)
   }));
   
   // Cleanup: Lösche Preview-Seite wenn Component unmountet
@@ -166,7 +166,7 @@ export const LayoutSelectorWrapper = forwardRef<LayoutSelectorWrapperRef, Layout
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showPreviewDialog, previewLayout, state.currentBook?.pages, dispatch]);
   
-  const handleApply = () => {
+  const handleApply = (applyToEntireBook?: boolean) => {
     if (isBookLevel) {
       if (!selectedLayout) return;
       
@@ -203,7 +203,7 @@ export const LayoutSelectorWrapper = forwardRef<LayoutSelectorWrapperRef, Layout
     if (!selectedLayout) return;
     
     // Apply to all pages if checkbox is checked
-    if (shouldApplyToEntireBook && state.currentBook) {
+    if (applyToEntireBook && state.currentBook) {
       state.currentBook.pages.forEach((_, pageIndex) => {
         dispatch({
           type: 'APPLY_LAYOUT_TEMPLATE',
