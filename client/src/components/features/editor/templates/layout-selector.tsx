@@ -144,11 +144,11 @@ export function LayoutSelector({
       }
       className=""
       scrollClassName="min-h-0"
-      onCancel={onCancel}
-      onApply={onApply}
+      onCancel={skipShell ? undefined : onCancel}
+      onApply={skipShell ? undefined : onApply}
       canApply={canApply}
       applyToEntireBook={applyToEntireBook}
-      onApplyToEntireBookChange={onApplyToEntireBookChange}
+      onApplyToEntireBookChange={skipShell ? undefined : onApplyToEntireBookChange}
       beforeList={(
         <div className="space-y-2 mb-3 w-full">
           <div className="flex items-start gap-2 px-2">

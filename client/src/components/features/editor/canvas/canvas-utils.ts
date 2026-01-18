@@ -286,9 +286,16 @@ export const getElementsInSelection = (
       elementBounds.width = maxX - minX + 20;
       elementBounds.height = maxY - minY + 20;
     } else if (element.type === 'text') {
-      // Text, Question, Answer textboxes
-      elementBounds.width = element.width || 150;
-      elementBounds.height = element.height || 50;
+      // Text, Question, Answer textboxes, and QnA textboxes
+      if (element.textType === 'qna') {
+        // QnA elements have dynamic sizing based on content
+        elementBounds.width = element.width || 200;
+        elementBounds.height = element.height || 100;
+      } else {
+        // Regular text elements
+        elementBounds.width = element.width || 150;
+        elementBounds.height = element.height || 50;
+      }
     } else if (element.type === 'placeholder' || element.type === 'image') {
       // Image placeholders and uploaded images
       elementBounds.width = element.width || 150;

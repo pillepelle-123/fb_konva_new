@@ -17,7 +17,7 @@ interface LayoutSelectorWrapperProps {
 }
 
 export interface LayoutSelectorWrapperRef {
-  apply: () => void;
+  apply: (applyToEntireBook?: boolean) => void;
 }
 
 export const LayoutSelectorWrapper = forwardRef<LayoutSelectorWrapperRef, LayoutSelectorWrapperProps>(({ onBack, title, isBookLevel = false }, ref) => {
@@ -203,7 +203,7 @@ export const LayoutSelectorWrapper = forwardRef<LayoutSelectorWrapperRef, Layout
     if (!selectedLayout) return;
     
     // Apply to all pages if checkbox is checked
-    if (applyToEntireBook && state.currentBook) {
+    if (shouldApplyToEntireBook && state.currentBook) {
       state.currentBook.pages.forEach((_, pageIndex) => {
         dispatch({
           type: 'APPLY_LAYOUT_TEMPLATE',
@@ -389,11 +389,7 @@ export const LayoutSelectorWrapper = forwardRef<LayoutSelectorWrapperRef, Layout
             // Open preview dialog immediately with the template
             handlePreview(template);
           }}
-          onCancel={onBack}
-          onApply={handleApply}
-          canApply={true}
-          applyToEntireBook={applyToEntireBook}
-          onApplyToEntireBookChange={setApplyToEntireBook}
+          skipShell={true}
         />
       </div>
 

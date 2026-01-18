@@ -53,10 +53,11 @@ const CanvasTransformer = forwardRef<Konva.Transformer, CanvasTransformerProps>(
           });
 
           // Update transformer with only valid nodes if needed
-          if (validNodes.length !== nodes.length) {
-            console.warn('[CanvasTransformer] Removing invalid nodes, keeping', validNodes.length, 'of', nodes.length);
-            transformer.nodes(validNodes);
-          }
+          // DISABLED: This causes issues during zoom when nodes become temporarily invalid
+          // if (validNodes.length !== nodes.length) {
+          //   console.warn('[CanvasTransformer] Removing invalid nodes, keeping', validNodes.length, 'of', nodes.length);
+          //   transformer.nodes(validNodes);
+          // }
         }
       } catch (error) {
         console.error('[CanvasTransformer] Error checking nodes:', error);
@@ -64,7 +65,14 @@ const CanvasTransformer = forwardRef<Konva.Transformer, CanvasTransformerProps>(
     };
 
     // Check nodes periodically to prevent stale references
-    const interval = setInterval(checkTransformerNodes, 1000);
+    // But skip checking during zoom to prevent removing valid nodes
+    const interval = setInterval(() => {
+      // Skip node validation during zoom when skeletons are shown
+      // This prevents the transformer from removing nodes that become temporarily invalid during zoom
+      if (!(window as any).isZooming) {
+        checkTransformerNodes();
+      }
+    }, 1000);
 
     return () => clearInterval(interval);
   }, [ref]);

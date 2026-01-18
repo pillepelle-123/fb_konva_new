@@ -65,7 +65,9 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
 
   // Expose apply method to parent component
   useImperativeHandle(ref, () => ({
-    apply: handleApply
+    apply: (applyToEntireBookOverride?: boolean) => {
+      handleApply(applyToEntireBookOverride);
+    }
   }));
 
   // Cleanup: Lösche Preview-Seite wenn Component unmountet
@@ -484,9 +486,16 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
     }
   };
   
-  const handleApply = () => {
+  const handleApply = (applyToEntireBookOverride?: boolean) => {
     const paletteToApply = getEffectivePalette();
     if (!paletteToApply) return;
+    
+    const shouldApplyToEntireBook = applyToEntireBookOverride !== undefined ? applyToEntireBookOverride : applyToEntireBook;
+    
+    // Update local state if override is provided
+    if (applyToEntireBookOverride !== undefined) {
+      setApplyToEntireBook(applyToEntireBookOverride);
+    }
     
     // Apply palette permanently (save to history)
     if (isBookLevel) {
@@ -497,7 +506,7 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
       });
     } else {
       // Apply to all pages if checkbox is checked
-      if (applyToEntireBook && state.currentBook) {
+      if (shouldApplyToEntireBook && state.currentBook) {
         state.currentBook.pages.forEach((_, pageIndex) => {
           const colorPaletteIdToSet = useThemePalette 
             ? null  // For "Theme's Default Palette", store null to make it dynamic
@@ -910,11 +919,11 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
           </Button>
         ) : null
       }
-      onCancel={onBack}
-      onApply={handleApply}
+      onCancel={undefined}
+      onApply={undefined}
       canApply={true}
       applyToEntireBook={applyToEntireBook}
-      onApplyToEntireBookChange={setApplyToEntireBook}
+      onApplyToEntireBookChange={undefined}
       beforeList={(
         <div className="space-y-2 mb-3 w-full">
           <div className="flex items-start gap-2 px-2">
@@ -954,10 +963,7 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
 
   return (
     <>
-      <SelectorShell
-        headerContent={null}
-        listSection={listSection}
-      />
+      {listSection}
 
       <PreviewImageDialog
         isOpen={showPreviewDialog}

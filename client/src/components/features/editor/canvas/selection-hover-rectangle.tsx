@@ -29,8 +29,8 @@ export function SelectionHoverRectangle({
       height={height}
       fill={finalStroke}
       stroke={finalStroke}
-      strokeWidth={2}
-      dash={[6, 6]}
+      strokeWidth={10}
+      dash={[10, 10]}
       cornerRadius={8}
       strokeScaleEnabled={false}
       listening={false}

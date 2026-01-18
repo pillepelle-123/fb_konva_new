@@ -62,7 +62,7 @@ interface GeneralSettingsProps {
 }
 
 export interface GeneralSettingsRef {
-  applyCurrentSelector: () => void;
+  applyCurrentSelector: (applyToEntireBook?: boolean) => void;
 }
 
 export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsProps>((props, ref) => {
@@ -134,13 +134,13 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
 
   // Expose applyCurrentSelector method to parent
   useImperativeHandle(ref, () => ({
-    applyCurrentSelector: () => {
+    applyCurrentSelector: (applyToEntireBook?: boolean) => {
       if (showPagePalette && pagePaletteRef.current) {
-        pagePaletteRef.current.apply();
+        pagePaletteRef.current.apply(applyToEntireBook);
       } else if (showPageLayout && pageLayoutRef.current) {
-        pageLayoutRef.current.apply();
+        pageLayoutRef.current.apply(applyToEntireBook);
       } else if (showPageThemeSelector && pageThemeRef.current) {
-        pageThemeRef.current.apply();
+        pageThemeRef.current.apply(applyToEntireBook);
       }
     }
   }));

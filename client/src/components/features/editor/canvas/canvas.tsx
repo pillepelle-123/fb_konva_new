@@ -1330,6 +1330,17 @@ export default function Canvas() {
             const nodes = transformer.nodes();
             if (nodes.length === 1) {
               const node = nodes[0];
+              
+              // Validate node is still valid
+              if (!node) return;
+              try {
+                const stage = node.getStage();
+                const parent = node.getParent();
+                if (!stage || !parent) return;
+              } catch {
+                return; // Node is invalid
+              }
+              
               const boxWidth = element.width || 100;
               const boxHeight = element.height || 100;
               
@@ -1351,27 +1362,56 @@ export default function Canvas() {
                 
                 // Override getClientRect to return box dimensions
                 transformer.getClientRect = function() {
-                  // During transform, use original method to allow resizing
-                  if (isTransforming) {
+                  try {
+                    // During transform, use original method to allow resizing
+                    if (isTransforming) {
+                      return originalGetClientRect.call(this);
+                    }
+                    
+                    // Validate node is still valid before accessing
+                    const currentNodes = this.nodes();
+                    if (currentNodes.length === 0) {
+                      return originalGetClientRect.call(this);
+                    }
+                    
+                    const currentNode = currentNodes[0];
+                    if (!currentNode) {
+                      return originalGetClientRect.call(this);
+                    }
+                    
+                    // Check if node is still valid
+                    try {
+                      const stage = currentNode.getStage();
+                      const parent = currentNode.getParent();
+                      if (!stage || !parent) {
+                        return originalGetClientRect.call(this);
+                      }
+                    } catch {
+                      return originalGetClientRect.call(this);
+                    }
+                    
+                    // Otherwise, limit to box dimensions for selection rectangle display
+                    const absPos = groupNode.getAbsolutePosition();
+                    
+                    return {
+                      x: absPos.x,
+                      y: absPos.y,
+                      width: boxWidth,
+                      height: boxHeight
+                    };
+                  } catch (error) {
+                    // Fall back to original method on error
+                    console.debug('getClientRect override error:', error);
                     return originalGetClientRect.call(this);
                   }
-                  
-                  // Otherwise, limit to box dimensions for selection rectangle display
-                  const absPos = groupNode.getAbsolutePosition();
-                  
-                  return {
-                    x: absPos.x,
-                    y: absPos.y,
-                    width: boxWidth,
-                    height: boxHeight
-                  };
                 };
                 
                 batchedTransformerUpdate();
               }
             }
-          } catch {
-            // Ignore errors
+          } catch (error) {
+            // Ignore errors - transformer might not be ready
+            console.debug('QnA transformer setup error:', error);
           }
         }, 100);
         
@@ -1380,17 +1420,25 @@ export default function Canvas() {
           // Clean up event listeners
           const transformer = transformerRef.current;
           if (transformer) {
-            transformer.off('transformstart', handleTransformStart);
-            transformer.off('transformend', handleTransformEnd);
+            try {
+              transformer.off('transformstart', handleTransformStart);
+              transformer.off('transformend', handleTransformEnd);
+            } catch {
+              // Ignore cleanup errors
+            }
           }
         };
       } else {
         // Restore original getClientRect for non-QnA elements
         if ((transformer as any).__originalGetClientRect) {
-          transformer.getClientRect = (transformer as any).__originalGetClientRect;
-          delete (transformer as any).__originalGetClientRect;
-          // Use batched transformer update for better performance
-          batchedTransformerUpdate();
+          try {
+            transformer.getClientRect = (transformer as any).__originalGetClientRect;
+            delete (transformer as any).__originalGetClientRect;
+            // Use batched transformer update for better performance
+            batchedTransformerUpdate();
+          } catch (error) {
+            console.debug('Error restoring original getClientRect:', error);
+          }
         }
       }
     }
@@ -1445,6 +1493,19 @@ export default function Canvas() {
       }, 10);
     }
   }, [currentPage?.elements]); // React will handle deep comparison optimization
+
+  // Selection rectangle is now only shown during drag-selection (isSelecting)
+  // It is no longer shown for selected items - the Transformer handles that visualization
+  // Hide selection rectangle when not selecting and elements are selected
+  useEffect(() => {
+    if (!isSelecting && state.selectedElementIds.length > 0) {
+      // Hide selection rectangle when items are selected (Transformer shows selection instead)
+      setSelectionRect({ x: 0, y: 0, width: 0, height: 0, visible: false });
+    } else if (!isSelecting && state.selectedElementIds.length === 0) {
+      // Also hide when nothing is selected and not selecting
+      setSelectionRect({ x: 0, y: 0, width: 0, height: 0, visible: false });
+    }
+  }, [isSelecting, state.selectedElementIds.length]);
 
   // Force transformer update after group movement ends
   useEffect(() => {
@@ -2744,6 +2805,9 @@ export default function Canvas() {
       if (!wasZooming) {
         isZoomingRef.current = true;
         setIsZoomingState(true);
+        // Set global flag for transformer to know about zoom state
+        (window as any).isZooming = true;
+        console.log('[Canvas] Set global isZooming = true');
       }
 
       // Clear existing timeout and set new one
@@ -2751,6 +2815,8 @@ export default function Canvas() {
       zoomTimeoutRef.current = setTimeout(() => {
         isZoomingRef.current = false;
         setIsZoomingState(false);
+        // Clear global flag after zoom ends
+        (window as any).isZooming = false;
       }, 200);
 
       // During zoom minimal mode, use direct zoom update for smooth experience
@@ -5111,14 +5177,16 @@ export default function Canvas() {
                />
             )}
             
-            {/* Selection rectangle */}
-            <SelectionRectangle
-              x={selectionRect.x}
-              y={selectionRect.y}
-              width={selectionRect.width}
-              height={selectionRect.height}
-              visible={selectionRect.visible}
-            />
+            {/* Selection rectangle - only show when dragging selection box (isSelecting) */}
+            {isSelecting && (
+              <SelectionRectangle
+                x={selectionRect.x}
+                y={selectionRect.y}
+                width={selectionRect.width}
+                height={selectionRect.height}
+                visible={selectionRect.visible}
+              />
+            )}
             
             {/* Selection rectangle for grouped element */}
             {state.selectedGroupedElement && (() => {

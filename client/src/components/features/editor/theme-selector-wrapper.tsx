@@ -19,7 +19,7 @@ interface ThemeSelectorWrapperProps {
 }
 
 export interface ThemeSelectorWrapperRef {
-  apply: () => void;
+  apply: (applyToEntireBook?: boolean) => void;
 }
 
 export const ThemeSelectorWrapper = forwardRef<ThemeSelectorWrapperRef, ThemeSelectorWrapperProps>(({ onBack, title, isBookLevel = false }, ref) => {
@@ -250,7 +250,7 @@ export const ThemeSelectorWrapper = forwardRef<ThemeSelectorWrapperRef, ThemeSel
       const resolvedThemeId = isBookThemeSelection ? (state.currentBook?.bookTheme || 'default') : selectedTheme;
 
       // Apply to all pages if checkbox is checked
-      if (applyToEntireBook && state.currentBook) {
+      if (shouldApplyToEntireBook && state.currentBook) {
         state.currentBook.pages.forEach((page, pageIndex) => {
           dispatch({
             type: 'SET_PAGE_THEME',
@@ -599,11 +599,7 @@ export const ThemeSelectorWrapper = forwardRef<ThemeSelectorWrapperRef, ThemeSel
             handlePreview(themeId);
           }}
           title={title}
-          onCancel={onBack}
-          onApply={handleApply}
-          canApply={true}
-          applyToEntireBook={applyToEntireBook}
-          onApplyToEntireBookChange={setApplyToEntireBook}
+          skipShell={true}
         />
       </div>
       

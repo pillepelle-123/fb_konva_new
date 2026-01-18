@@ -1,46 +1,50 @@
-import { useEffect } from 'react';
-import { useEditor } from '../../../../context/editor-context';
-import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
+// React
+import { useState } from 'react';
 
+// Context & Hooks
+import { useEditor } from '../../../../context/editor-context';
+import { useAuth } from '../../../../context/auth-context';
+import { useEditorSettings } from '../../../../hooks/useEditorSettings';
+
+// UI Components
 import { Button } from '../../../ui/primitives/button';
-import { AlignLeft, AlignCenter, AlignRight, AlignJustify, Rows4, Rows3, Rows2, Palette, Type, SquareRoundCorner, PanelTopBottomDashed, ChevronLeft } from 'lucide-react';
-import { QuestionPositionTop, QuestionPositionBottom, QuestionPositionLeft, QuestionPositionRight } from '../../../ui/icons/question-position-icons';
-import { ButtonGroup } from '../../../ui/composites/button-group';
-// ARCHIVED: import { QnASettingsForm } from './qna-settings-form';
-// ARCHIVED: qna2 support removed, only qna is supported
+import { Slider } from '../../../ui/primitives/slider';
+import { Separator } from '../../../ui/primitives/separator';
+import { Checkbox } from '../../../ui/primitives/checkbox';
+import { Tooltip } from '../../../ui/composites/tooltip';
+
+// Icons
+import { Palette, ChevronLeft, ArrowLeft, Check, BookCheck } from 'lucide-react';
+
+// Settings Components
+import { GeneralSettings, type GeneralSettingsRef } from './general-settings';
 import { QnASettingsForm } from './qna-settings-form';
 import { FreeTextSettingsForm } from './free-text-settings-form';
 import { ShapeSettingsForm } from './shape-settings-form';
 import { ImageSettingsForm } from './image-settings-form';
 import { StickerSettingsForm } from './sticker-settings-form';
-import type { PageBackground } from '../../../../context/editor-context';
-import { ThemeSelect } from '../../../../utils/theme-options';
 import { ColorSelector } from './color-selector';
-import { Slider } from '../../../ui/primitives/slider';
-import { Separator } from '../../../ui/primitives/separator';
-import { Label } from '../../../ui/primitives/label';
-import { IndentedSection } from '../../../ui/primitives/indented-section';
 
-import { Tooltip } from '../../../ui';
-
-import { useAuth } from '../../../../context/auth-context';
-import { useEditorSettings } from '../../../../hooks/useEditorSettings';
-import { GeneralSettings, type GeneralSettingsRef } from './general-settings';
-import { actualToCommon, commonToActual, COMMON_FONT_SIZE_RANGE } from '../../../../utils/font-size-converter';
+// Utils
+import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE } from '../../../../utils/corner-radius-converter';
-import { getFontFamily as getFontFamilyByName, hasBoldVariant, hasItalicVariant } from '../../../../utils/font-families';
-import { FontSelector } from './font-selector';
-import { getQnAThemeDefaults } from '../../../../utils/global-themes';
-import { getRuledLinesOpacity } from '../../../../utils/ruled-lines-utils';
-import { getBorderWidth, getBorderColor, getBorderOpacity, getBorderTheme } from '../../../../utils/border-utils';
+import { getBorderWidth, getBorderTheme } from '../../../../utils/border-utils';
 import { getFontSize, getFontColor, getFontFamily } from '../../../../utils/font-utils';
-import { getBackgroundColor, getBackgroundOpacity, getBackgroundEnabled } from '../../../../utils/background-utils';
+import { getBackgroundEnabled } from '../../../../utils/background-utils';
 import { getTextAlign, getParagraphSpacing, getPadding } from '../../../../utils/format-utils';
 import { getRuledLinesTheme } from '../../../../utils/theme-utils';
-import { svgRawImports } from '../../../../data/templates/stickers';
-import ChatWindow from '../../messenger/chat-window';
-import type { Conversation } from '../../messenger/types';
 import { TOOL_ICONS } from './tool-settings-utils';
+import { getCurrentMenu, getParentMenu, getMenuTitle } from './settings-navigation';
+
+// Data
+import { svgRawImports } from '../../../../data/templates/stickers';
+
+// Other Components
+import ChatWindow from '../../messenger/chat-window';
+
+// Types
+import type { PageBackground } from '../../../../context/editor-context';
+import type { Conversation } from '../../messenger/types';
 
 interface ToolSettingsContentProps {
   showColorSelector: string | null;
@@ -156,11 +160,13 @@ export function ToolSettingsContent({
   generalSettingsRef
 }: ToolSettingsContentProps) {
   const { state, dispatch } = useEditor();
-  const { user } = useAuth();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
   
   const toolSettings = state.toolSettings || {};
   const activeTool = state.activeTool;
+  
+  // State for "Apply to entire book" checkbox
+  const [applyToEntireBook, setApplyToEntireBook] = useState(false);
   
   const updateToolSetting = (key: string, value: any) => {
     dispatch({
@@ -1117,6 +1123,10 @@ export function ToolSettingsContent({
           setShowBookThemeSelector={setShowBookThemeSelector}
           showEditorSettings={showEditorSettings}
           setShowEditorSettings={setShowEditorSettings}
+          onOpenTemplates={() => {}}
+          onOpenLayouts={() => {}}
+          onOpenThemes={() => {}}
+          onOpenPalettes={() => {}}
         />
       );
     }
@@ -1236,13 +1246,142 @@ export function ToolSettingsContent({
     }
   };
 
-  return (
-    <div className="flex-1 overflow-y-auto scrollbar-hide p-2 min-h-0">
-      {shouldShowPanel ? renderToolSettings() : (
-        <div className="text-xs text-muted-foreground">
-          Select a tool or element to view settings.
+  const renderBackButton = () => {
+    const navigationState = {
+      showColorSelector,
+      showFontSelector,
+      showBackgroundSettings,
+      showPatternSettings,
+      showEditorSettings: showEditorSettings ?? false,
+      showPagePalette: showPagePalette ?? false,
+      showBookPalette: showBookPalette ?? false,
+      showPageLayout: showPageLayout ?? false,
+      showBookLayout: showBookLayout ?? false,
+      showPageThemeSelector: showPageThemeSelector ?? false,
+      showBookThemeSelector: showBookThemeSelector ?? false,
+      selectedElementIds: state.selectedElementIds,
+      currentBook: state.currentBook,
+      activePageIndex: state.activePageIndex,
+    };
+    
+    const currentMenu = getCurrentMenu(navigationState);
+    if (!currentMenu) return null;
+    
+    const parentMenu = getParentMenu(currentMenu, navigationState);
+    if (!parentMenu) return null; // Kein Parent = kein Back-Button
+    
+    const parentTitle = getMenuTitle(parentMenu);
+    
+    // Check if we're in a selector that needs Apply button
+    const isSelectorOpen = currentMenu === 'palette-selector' || currentMenu === 'layout-selector' || currentMenu === 'theme-selector';
+    
+    const handleBack = () => {
+      // Reset applyToEntireBook when closing
+      setApplyToEntireBook(false);
+      
+      // Schließe aktuelles Menü basierend auf Typ
+      switch (currentMenu) {
+        case 'color-selector':
+          setShowColorSelector(null);
+          break;
+        case 'font-selector':
+          setShowFontSelector(false);
+          break;
+        case 'pattern':
+          setShowPatternSettings(false);
+          break;
+        case 'background':
+          setShowBackgroundSettings(false);
+          break;
+        case 'editor-settings':
+          setShowEditorSettings?.(false);
+          break;
+        case 'palette-selector':
+          setShowPagePalette?.(false);
+          setShowBookPalette?.(false);
+          break;
+        case 'layout-selector':
+          setShowPageLayout?.(false);
+          setShowBookLayout?.(false);
+          break;
+        case 'theme-selector':
+          setShowPageThemeSelector?.(false);
+          setShowBookThemeSelector?.(false);
+          break;
+      }
+    };
+    
+    const handleApply = () => {
+      // Call apply method on the appropriate selector ref
+      if (generalSettingsRef?.current) {
+        generalSettingsRef.current.applyCurrentSelector(applyToEntireBook);
+      }
+      handleBack();
+    };
+    
+    // Determine if Apply button should be enabled
+    const canApply = isSelectorOpen;
+    
+    // Determine if "Apply to entire book" checkbox should be shown
+    // Only show for page-level selectors (not book-level)
+    const showApplyToEntireBook = isSelectorOpen && !showBookPalette && !showBookLayout && !showBookThemeSelector;
+    
+    return (
+      <div className="p-2 pb-2 flex-shrink-0">
+        <div className="flex items-center justify-between gap-2">
+          <Tooltip content={`Back to ${parentTitle}`} side="top">
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={handleBack}
+              className="justify-start px-2 gap-1"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </Button>
+          </Tooltip>
+          <div className="flex items-center gap-2">
+            {showApplyToEntireBook && (
+              <div className="flex items-center gap-1">
+                <Tooltip content="Apply to entire book" side="top">
+                  <Checkbox
+                    id="apply-to-entire-book"
+                    checked={applyToEntireBook}
+                    onCheckedChange={(checked) => setApplyToEntireBook(checked === true)}
+                  />
+                </Tooltip>
+                <BookCheck className="h-4 w-4" />
+              </div>
+            )}
+            {isSelectorOpen && (
+              <Button
+                variant="default"
+                size="xs"
+                onClick={handleApply}
+                disabled={!canApply}
+                className="gap-1 px-2"
+                title={applyToEntireBook ? "Apply to all Pages" : "Apply"}
+              >
+                <Check className="h-4 w-4" />
+                <span className="text-xs">{applyToEntireBook ? "Apply to all Pages" : "Apply"}</span>
+              </Button>
+            )}
+          </div>
         </div>
-      )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-2 min-h-0">
+        {shouldShowPanel ? renderToolSettings() : (
+          <div className="text-xs text-muted-foreground">
+            Select a tool or element to view settings.
+          </div>
+        )}
+      </div>
+      {renderBackButton()}
     </div>
   );
 }

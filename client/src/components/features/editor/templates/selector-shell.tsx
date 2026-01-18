@@ -64,14 +64,16 @@ export function SelectorListSection({
   const containerClasses = ['flex-1', 'min-h-0', 'flex', 'flex-col', className].filter(Boolean).join(' ');
   const scrollClasses = ['space-y-2', 'flex-1', 'overflow-y-auto', scrollClassName].filter(Boolean).join(' ');
 
+  // If onCancel/onApply are not provided, don't render buttons (for use without shell)
+  const showButtons = onCancel !== undefined || onApply !== undefined;
+
   return (
     <div className={containerClasses}>
-
       {beforeList}
       <div className={scrollClasses}>
         {children}
       </div>
-      {(title || headerActions || onCancel || onApply) && (
+      {showButtons && (title || headerActions || onCancel || onApply) && (
         <div className="flex items-center justify-between mt-4 w-full shrink-0">
           {/* <div className="flex items-center gap-2">
             {title}
