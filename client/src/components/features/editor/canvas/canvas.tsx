@@ -5067,11 +5067,25 @@ export default function Canvas() {
                       const lineHeight = element.fontSize ? element.fontSize * 1.3 : 24; // Default 24px if no font size
                       const numLines = Math.max(1, Math.round(element.height / lineHeight));
 
+                      // Account for rotation and offset (same as base-canvas-item.tsx)
+                      const elementWidth = element.width || 100;
+                      const elementHeight = element.height || 100;
+                      const offsetX = elementWidth / 2;
+                      const offsetY = elementHeight / 2;
+                      const rotation = typeof element.rotation === 'number' ? element.rotation : 0;
+                      const adjustedX = element.x + offsetX;
+                      const adjustedY = element.y + offsetY;
+
                       return (
                         <Group
                           key={`${element.id}-skeleton-${index}`}
-                          x={element.x}
-                          y={element.y}
+                          x={adjustedX}
+                          y={adjustedY}
+                          width={elementWidth}
+                          height={elementHeight}
+                          offsetX={offsetX}
+                          offsetY={offsetY}
+                          rotation={rotation}
                           listening={false}
                         >
                           {/* Render skeleton lines */}
@@ -5080,8 +5094,8 @@ export default function Canvas() {
                               key={`skeleton-line-${lineIndex}`}
                               x={0}
                               y={lineIndex * lineHeight}
-                              width={element.width}
-                              height={Math.min(lineHeight * 0.8, element.height - lineIndex * lineHeight)} // Don't exceed element height
+                              width={elementWidth}
+                              height={Math.min(lineHeight * 0.8, elementHeight - lineIndex * lineHeight)} // Don't exceed element height
                               fill="#e5e7eb" // Gray color similar to shadcn skeleton
                               opacity={0.6}
                               cornerRadius={32}
@@ -5090,19 +5104,33 @@ export default function Canvas() {
                         </Group>
                       );
                     } else if (element.type === 'image' || element.type === 'placeholder') {
+                      // Account for rotation and offset (same as base-canvas-item.tsx)
+                      const elementWidth = element.width || 100;
+                      const elementHeight = element.height || 100;
+                      const offsetX = elementWidth / 2;
+                      const offsetY = elementHeight / 2;
+                      const rotation = typeof element.rotation === 'number' ? element.rotation : 0;
+                      const adjustedX = element.x + offsetX;
+                      const adjustedY = element.y + offsetY;
+
                       // Render single skeleton rectangle for images and placeholders
                       return (
                         <Group
                           key={`${element.id}-skeleton-${index}`}
-                          x={element.x}
-                          y={element.y}
+                          x={adjustedX}
+                          y={adjustedY}
+                          width={elementWidth}
+                          height={elementHeight}
+                          offsetX={offsetX}
+                          offsetY={offsetY}
+                          rotation={rotation}
                           listening={false}
                         >
                           <Rect
                             x={0}
                             y={0}
-                            width={element.width}
-                            height={element.height}
+                            width={elementWidth}
+                            height={elementHeight}
                             fill="#e5e7eb" // Gray color similar to shadcn skeleton
                             opacity={0.6}
                             cornerRadius={32}
@@ -5469,11 +5497,25 @@ export default function Canvas() {
                       const lineHeight = element.fontSize ? element.fontSize * 1.3 : 24; // Default 24px if no font size
                       const numLines = Math.max(1, Math.round(element.height / lineHeight));
 
+                      // Account for rotation and offset (same as base-canvas-item.tsx)
+                      const elementWidth = element.width || 100;
+                      const elementHeight = element.height || 100;
+                      const offsetX = elementWidth / 2;
+                      const offsetY = elementHeight / 2;
+                      const rotation = typeof element.rotation === 'number' ? element.rotation : 0;
+                      const adjustedX = element.x + offsetX;
+                      const adjustedY = element.y + offsetY;
+
                       return (
                         <Group
                           key={`preview-skeleton-${element.id}-${index}`}
-                          x={element.x}
-                          y={element.y}
+                          x={adjustedX}
+                          y={adjustedY}
+                          width={elementWidth}
+                          height={elementHeight}
+                          offsetX={offsetX}
+                          offsetY={offsetY}
+                          rotation={rotation}
                           listening={false}
                         >
                           {/* Render skeleton lines */}
@@ -5482,8 +5524,8 @@ export default function Canvas() {
                               key={`preview-skeleton-line-${lineIndex}`}
                               x={0}
                               y={lineIndex * lineHeight}
-                              width={element.width}
-                              height={Math.min(lineHeight * 0.8, element.height - lineIndex * lineHeight)} // Don't exceed element height
+                              width={elementWidth}
+                              height={Math.min(lineHeight * 0.8, elementHeight - lineIndex * lineHeight)} // Don't exceed element height
                               fill="#e5e7eb" // Gray color similar to shadcn skeleton
                               opacity={0.4} // Slightly more transparent for preview
                               cornerRadius={32}
@@ -5492,19 +5534,33 @@ export default function Canvas() {
                         </Group>
                       );
                     } else if (element.type === 'image' || element.type === 'placeholder') {
+                      // Account for rotation and offset (same as base-canvas-item.tsx)
+                      const elementWidth = element.width || 100;
+                      const elementHeight = element.height || 100;
+                      const offsetX = elementWidth / 2;
+                      const offsetY = elementHeight / 2;
+                      const rotation = typeof element.rotation === 'number' ? element.rotation : 0;
+                      const adjustedX = element.x + offsetX;
+                      const adjustedY = element.y + offsetY;
+
                       // Render single skeleton rectangle for images and placeholders
                       return (
                         <Group
                           key={`preview-skeleton-${element.id}-${index}`}
-                          x={element.x}
-                          y={element.y}
+                          x={adjustedX}
+                          y={adjustedY}
+                          width={elementWidth}
+                          height={elementHeight}
+                          offsetX={offsetX}
+                          offsetY={offsetY}
+                          rotation={rotation}
                           listening={false}
                         >
                           <Rect
                             x={0}
                             y={0}
-                            width={element.width}
-                            height={element.height}
+                            width={elementWidth}
+                            height={elementHeight}
                             fill="#e5e7eb" // Gray color similar to shadcn skeleton
                             opacity={0.4} // Slightly more transparent for preview
                             cornerRadius={32}

@@ -1228,6 +1228,7 @@ function TextboxQnaComponent(props: CanvasItemProps) {
   // Local state for dimensions during transform (to update visually without dispatch)
   // ONLY used during active transform, NOT during initial load
   const [transformDimensions, setTransformDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [isTransforming, setIsTransforming] = useState(false);
   const transformDimensionsRef = useRef<{ width: number; height: number } | null>(null);
   
   // State to track if answer editor is open (to hide only answer text, not question)
@@ -1939,6 +1940,7 @@ function TextboxQnaComponent(props: CanvasItemProps) {
       if (e.detail?.elementId !== element.id) return;
       
       isTransformingRef.current = true;
+      setIsTransforming(true);
       
       // Get the Group node to access position and determine resize direction
       const rectNode = textRef.current;
@@ -2220,6 +2222,7 @@ function TextboxQnaComponent(props: CanvasItemProps) {
       
       // Reset flags and refs (but keep transformDimensions until element updates)
       isTransformingRef.current = false;
+      setIsTransforming(false);
       transformStartDimensionsRef.current = null;
       transformOriginalDimensionsRef.current = null;
       transformStartPositionRef.current = null;
@@ -2612,26 +2615,64 @@ function TextboxQnaComponent(props: CanvasItemProps) {
         onMouseLeave={handleMouseLeave}
       hitArea={hitArea}
     >
-      {showBackground && (
-        <Rect
-          width={boxWidth}
-          height={boxHeight}
-          fill={qnaElement.backgroundColor}
-          opacity={qnaElement.backgroundOpacity ?? 1}
-          cornerRadius={qnaElement.cornerRadius ?? qnaDefaults.cornerRadius ?? 0}
-          listening={false}
-        />
-      )}
+      {/* During transformation, render only a simple skeleton rectangle */}
+      {isTransforming ? (
+        <>
+          {/* Skeleton lines - exactly like zoom skeleton */}
+          {(() => {
+            // Calculate line height similar to zoom skeleton (based on font size if available)
+            const fontSize = answerStyle?.fontSize || questionStyle?.fontSize || 16;
+            const lineHeight = fontSize * 1.3; // Same calculation as zoom skeleton
+            const numLines = Math.max(1, Math.round(boxHeight / lineHeight));
+            return Array.from({ length: numLines }, (_, lineIndex) => (
+              <Rect
+                key={`skeleton-line-${lineIndex}`}
+                x={0}
+                y={lineIndex * lineHeight}
+                width={boxWidth}
+                height={Math.min(lineHeight * 0.8, boxHeight - lineIndex * lineHeight)} // Don't exceed element height
+                fill="#e5e7eb" // Gray color similar to shadcn skeleton - same as zoom
+                opacity={0.6} // Same opacity as zoom skeleton
+                cornerRadius={32} // Same corner radius as zoom skeleton
+                listening={false}
+              />
+            ));
+          })()}
+          {/* Hit area for transformer interaction - always needed */}
+          <Rect
+            ref={textRef}
+            x={0}
+            y={0}
+            width={boxWidth}
+            height={boxHeight}
+            fill="transparent"
+            listening={true}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+          />
+        </>
+      ) : (
+        <>
+          {showBackground && (
+            <Rect
+              width={boxWidth}
+              height={boxHeight}
+              fill={qnaElement.backgroundColor}
+              opacity={qnaElement.backgroundOpacity ?? 1}
+              cornerRadius={qnaElement.cornerRadius ?? qnaDefaults.cornerRadius ?? 0}
+              listening={false}
+            />
+          )}
 
-      {/* Ruled lines underneath each text row - render after background, before border and text */}
-      {/* Wrap in Group to ensure they stay together with other body parts */}
-      {ruledLines && ruledLinesElements.length > 0 && (
-        <Group listening={false}>
-          {ruledLinesElements}
-        </Group>
-      )}
+          {/* Ruled lines underneath each text row - render after background, before border and text */}
+          {/* Wrap in Group to ensure they stay together with other body parts */}
+          {ruledLines && ruledLinesElements.length > 0 && (
+            <Group listening={false}>
+              {ruledLinesElements}
+            </Group>
+          )}
 
-      {showBorder && (() => {
+          {showBorder && (() => {
         const borderColor = qnaElement.borderColor || '#000000';
         const borderWidth = qnaElement.borderWidth || 1;
         const borderOpacity = qnaElement.borderOpacity ?? 1;
@@ -2740,18 +2781,20 @@ function TextboxQnaComponent(props: CanvasItemProps) {
         />
       )}
       
-      {/* Hit area for double-click detection and mouse move - limited to box dimensions */}
-      <Rect
-        ref={textRef}
-        x={0}
-        y={0}
-        width={boxWidth}
-        height={boxHeight}
-        fill="transparent"
-        listening={true}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-      />
+          {/* Hit area for double-click detection and mouse move - limited to box dimensions */}
+          <Rect
+            ref={textRef}
+            x={0}
+            y={0}
+            width={boxWidth}
+            height={boxHeight}
+            fill="transparent"
+            listening={true}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+          />
+        </>
+      )}
     </BaseCanvasItem>
     </>
   );
