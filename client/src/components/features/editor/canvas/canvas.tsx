@@ -1507,6 +1507,82 @@ export default function Canvas() {
     }
   }, [isSelecting, state.selectedElementIds.length]);
 
+  // REMOVED: Effect that updated selection rectangle after zoom
+  // Selection rectangle is now only for drag-selection, not for selected items
+  // The Transformer handles visualization of selected items
+
+  // Restore transformer nodes after zoom ends
+  // During zoom, skeletons are rendered instead of actual elements, so transformer loses node references
+  // After zoom ends, we need to restore the nodes to the transformer
+  useEffect(() => {
+    // Only run when zoom ends (isZoomingState changes from true to false)
+    if (isZoomingState) {
+      return; // Still zooming, don't update
+    }
+    
+    // Only restore if we have selected elements
+    if (state.selectedElementIds.length === 0 || !transformerRef.current || !stageRef.current) {
+      return;
+    }
+    
+    // Wait a bit after zoom ends to ensure nodes are rendered again (skeletons are replaced with actual elements)
+    const timer = setTimeout(() => {
+      try {
+        if (!transformerRef.current || !stageRef.current) return;
+        
+        const transformer = transformerRef.current;
+        const stage = stageRef.current;
+        
+        // Find and restore nodes to transformer
+        const selectedNodes = state.selectedElementIds.map(id => {
+          try {
+            let node = stage.findOne(`#${id}`);
+            if (!node) {
+              const allNodes = stage.find('*');
+              node = allNodes.find(n => n.id() === id);
+            }
+            
+            // For image elements, select the Group directly (not the Image node)
+            // For text elements, select the entire group
+            if (node && node.getClassName() === 'Group') {
+              const element = currentPage?.elements.find(el => el.id === id);
+              if (element?.type === 'image') {
+                return node;
+              } else if (element?.type === 'text') {
+                return node; // Select the group itself for text elements
+              }
+            }
+            
+            return node;
+          } catch {
+            return null;
+          }
+        }).filter((node): node is Konva.Node => {
+          if (!node) return false;
+          try {
+            const stage = node.getStage();
+            const parent = node.getParent();
+            const nodeId = node.id();
+            return stage !== null && parent !== null && nodeId !== undefined;
+          } catch {
+            return false;
+          }
+        });
+        
+        if (selectedNodes.length > 0) {
+          // Restore nodes to transformer
+          transformer.nodes(selectedNodes);
+          transformer.moveToTop();
+          batchedTransformerUpdate();
+        }
+      } catch (error) {
+        console.debug('Transformer restore after zoom error:', error);
+      }
+    }, 250); // Wait after zoom ends (zoom timeout is 200ms, so wait a bit longer to ensure nodes are rendered)
+    
+    return () => clearTimeout(timer);
+  }, [isZoomingState, state.selectedElementIds, currentPage]);
+
   // Force transformer update after group movement ends
   useEffect(() => {
     if (!isMovingGroup && transformerRef.current && stageRef.current && state.selectedElementIds.length > 0) {
@@ -2805,9 +2881,6 @@ export default function Canvas() {
       if (!wasZooming) {
         isZoomingRef.current = true;
         setIsZoomingState(true);
-        // Set global flag for transformer to know about zoom state
-        (window as any).isZooming = true;
-        console.log('[Canvas] Set global isZooming = true');
       }
 
       // Clear existing timeout and set new one
@@ -2815,8 +2888,6 @@ export default function Canvas() {
       zoomTimeoutRef.current = setTimeout(() => {
         isZoomingRef.current = false;
         setIsZoomingState(false);
-        // Clear global flag after zoom ends
-        (window as any).isZooming = false;
       }, 200);
 
       // During zoom minimal mode, use direct zoom update for smooth experience
