@@ -1281,7 +1281,7 @@ export function QnASettingsForm({
           </Tooltip>
           
           {/* Ruled Lines Target (only for block layout) */}
-          {(element.layoutVariant || 'inline') === 'block' && (element.ruledLines ?? false) && (
+          {/* {(element.layoutVariant || 'inline') === 'block' && (element.ruledLines ?? false) && (
             <div className="flex-1">
               <Tooltip content="Ruled Lines Target" side="left" fullWidth={true}>
                 <ButtonGroup className="w-full">
@@ -1320,7 +1320,7 @@ export function QnASettingsForm({
                 </ButtonGroup>
               </Tooltip>
             </div>
-          )}
+          )} */}
         </div>
       </div>
       

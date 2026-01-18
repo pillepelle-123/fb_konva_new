@@ -21,6 +21,7 @@ import { useCanvasDrawing } from './hooks/useCanvasDrawing';
 import { useCanvasSelection } from './hooks/useCanvasSelection';
 import { useCanvasZoomPan } from './hooks/useCanvasZoomPan';
 import { useCanvasItemActions } from './hooks/useCanvasItemActions';
+import { calculateQuestionStyle, calculateAnswerStyle, parseQuestionPayload, stripHtml } from '../canvas-items/textbox-qna-utils';
 
 import { getActiveTemplateIds } from '../../../../utils/template-inheritance';
 import { Tooltip } from '../../../ui/composites/tooltip';
@@ -566,9 +567,13 @@ export default function Canvas() {
   // Snapping functionality
   const GUIDELINE_OFFSET = 15; // Increased for better snapping detection
 
+  // PERFORMANCE OPTIMIZATION: Memoize currentPage only when the page reference actually changes
+  // Don't recalculate when pages array reference changes but page content stays the same
   const currentPage = useMemo(
     () => state.currentBook?.pages[state.activePageIndex],
-    [state.currentBook?.pages, state.activePageIndex]
+    // Use the page reference itself as dependency, not the pages array
+    // This prevents recalculation when only one element changes
+    [state.currentBook?.pages?.[state.activePageIndex], state.activePageIndex]
   );
 
   // Question selection handler
@@ -4161,6 +4166,119 @@ export default function Canvas() {
     );
   }
 
+  // Berechne State-Werte für QNA-Elemente
+  // Serialisiere Element-Eigenschaften für Dependencies, damit Änderungen erkannt werden
+  const qnaElementsSerialized = useMemo(() => {
+    if (!currentPage?.elements) return '';
+    return currentPage.elements
+      .filter(el => el.type === 'text' && el.textType === 'qna')
+      .map(el => {
+        const qnaEl = el as any;
+        return JSON.stringify({
+          id: el.id,
+          questionId: el.questionId,
+          questionSettings: qnaEl.questionSettings,
+          answerSettings: qnaEl.answerSettings,
+          layoutVariant: qnaEl.layoutVariant,
+          qnaIndividualSettings: qnaEl.qnaIndividualSettings,
+          align: el.align,
+          formatTextAlign: (el as any).format?.textAlign, // Wichtig für Style-Berechnung
+          paragraphSpacing: el.paragraphSpacing,
+          formattedText: el.formattedText,
+          text: el.text,
+          backgroundColor: el.backgroundColor,
+          backgroundOpacity: el.backgroundOpacity,
+          backgroundEnabled: qnaEl.backgroundEnabled,
+          borderColor: el.borderColor,
+          borderWidth: el.borderWidth,
+          borderOpacity: el.borderOpacity,
+          borderEnabled: qnaEl.borderEnabled,
+          borderTheme: qnaEl.borderTheme,
+          cornerRadius: el.cornerRadius,
+          padding: el.padding,
+          answerInNewRow: qnaEl.answerInNewRow,
+          questionAnswerGap: qnaEl.questionAnswerGap,
+          blockQuestionAnswerGap: qnaEl.blockQuestionAnswerGap,
+          ruledLines: qnaEl.ruledLines,
+          ruledLinesWidth: qnaEl.ruledLinesWidth,
+          ruledLinesTheme: qnaEl.ruledLinesTheme,
+          ruledLinesColor: qnaEl.ruledLinesColor,
+          ruledLinesOpacity: qnaEl.ruledLinesOpacity,
+          ruledLinesTarget: qnaEl.ruledLinesTarget,
+          theme: el.theme // Wichtig für Theme-Berechnung
+        });
+      })
+      .join('|');
+  }, [currentPage?.elements]);
+  
+  const qnaElementData = useMemo(() => {
+    const data = new Map<string, {
+      questionText: string;
+      answerText: string;
+      questionStyle: ReturnType<typeof calculateQuestionStyle>;
+      answerStyle: ReturnType<typeof calculateAnswerStyle>;
+      assignedUser: { id: string } | null;
+    }>();
+    
+    currentPage?.elements.forEach(element => {
+      if (element.type === 'text' && element.textType === 'qna') {
+        // Berechne questionText
+        let questionText = 'Double-click to add a question...';
+        if (element.questionId) {
+          const questionData = state.tempQuestions[element.questionId];
+          if (questionData) {
+            questionText = parseQuestionPayload(questionData);
+          } else {
+            questionText = 'Question loading...';
+          }
+        }
+        
+        // Berechne assignedUser
+        let assignedUser: { id: string } | null = null;
+        const elementPageNumber = currentPage?.pageNumber ?? null;
+        if (elementPageNumber !== null) {
+          assignedUser = state.pageAssignments[elementPageNumber] || null;
+        }
+        
+        // Berechne answerText
+        let answerText = '';
+        if (element.questionId) {
+          if (assignedUser) {
+            const answerEntry = state.tempAnswers[element.questionId]?.[assignedUser.id];
+            answerText = answerEntry?.text || '';
+          }
+        } else {
+          if (element.formattedText) {
+            answerText = stripHtml(element.formattedText);
+          } else if (element.text) {
+            answerText = element.text;
+          }
+        }
+        
+        // Berechne Styles
+        const questionStyle = calculateQuestionStyle(element, currentPage, state.currentBook || undefined);
+        const answerStyle = calculateAnswerStyle(element, currentPage, state.currentBook || undefined);
+        
+        data.set(element.id, {
+          questionText,
+          answerText,
+          questionStyle,
+          answerStyle,
+          assignedUser
+        });
+      }
+    });
+    
+    return data;
+  }, [
+    qnaElementsSerialized,
+    currentPage?.pageNumber,
+    state.tempQuestions,
+    state.tempAnswers,
+    state.pageAssignments,
+    state.currentBook
+  ]);
+
   return (
     <CanvasOverlayProvider>
       <CanvasPageContainer assignedUser={state.pageAssignments[state.activePageIndex + 1] || null}>
@@ -4458,6 +4576,27 @@ export default function Canvas() {
                 // not by zIndex. So we need to ensure elements are rendered in the sorted order.
                 // The sorted array is already in the correct order, so we just need to render them in that order.
                 return sorted.map((element, index) => {
+                  // Debug: Log element reference for QNA elements to check if it changes
+                  if (element.type === 'text' && element.textType === 'qna') {
+                    // Store element reference in a ref to compare across renders
+                    const elementRefKey = `element-ref-${element.id}`;
+                    const prevRef = (window as any)[elementRefKey];
+                    if (prevRef && prevRef !== element) {
+                      console.log(`[Canvas] Element reference CHANGED for ${element.id}`, {
+                        prevRef,
+                        newRef: element,
+                        borderEnabled: (element as any).borderEnabled,
+                        padding: element.padding
+                      });
+                    } else if (!prevRef) {
+                      console.log(`[Canvas] First render for element ${element.id}`, {
+                        elementRef: element,
+                        borderEnabled: (element as any).borderEnabled,
+                        padding: element.padding
+                      });
+                    }
+                    (window as any)[elementRefKey] = element;
+                  }
                   // During zoom, render elements as skeletons
                   if (isZoomingState) {
                     if (element.type === 'text') {
@@ -4530,6 +4669,11 @@ export default function Canvas() {
                     activeTool={state.activeTool}
                     lockElements={state.editorSettings?.editor?.lockElements ?? false}
                     dispatch={dispatch}
+                    questionText={element.type === 'text' && element.textType === 'qna' ? qnaElementData.get(element.id)?.questionText : undefined}
+                    answerText={element.type === 'text' && element.textType === 'qna' ? qnaElementData.get(element.id)?.answerText : undefined}
+                    questionStyle={element.type === 'text' && element.textType === 'qna' ? qnaElementData.get(element.id)?.questionStyle : undefined}
+                    answerStyle={element.type === 'text' && element.textType === 'qna' ? qnaElementData.get(element.id)?.answerStyle : undefined}
+                    assignedUser={element.type === 'text' && element.textType === 'qna' ? qnaElementData.get(element.id)?.assignedUser : undefined}
                     onSelect={(e) => {
                     // Handle style painter click
                     if (state.stylePainterActive && e?.evt?.button === 0) {

@@ -10,6 +10,7 @@ import { calculateContrastColor } from '../../../../utils/contrast-color';
 import { colorPalettes } from '../../../../data/templates/color-palettes';
 import { getThemePaletteId } from '../../../../utils/global-themes';
 import type { ColorPalette } from '../../../../types/template-types';
+import type { RichTextStyle } from '../../../../../../shared/types/text-layout';
 
 export interface CanvasItemProps {
   element: CanvasElement;
@@ -33,6 +34,12 @@ export interface CanvasItemProps {
   // For TextboxQna: pass activeTool to avoid useEditor() re-renders
   // For CanvasItemComponent: pass dispatch to avoid useEditor() re-renders
   dispatch?: React.Dispatch<any>;
+  // Props für TextboxQna - State-abhängige Werte
+  questionText?: string;
+  answerText?: string;
+  questionStyle?: RichTextStyle;
+  answerStyle?: RichTextStyle;
+  assignedUser?: { id: string } | null;
 }
 
 interface BaseCanvasItemProps extends CanvasItemProps {

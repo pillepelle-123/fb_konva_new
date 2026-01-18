@@ -31,7 +31,7 @@ export function ShapeSettingsForm({
       return (
         <div className="space-y-2">
           <Slider
-            label="Brush Size"
+            label="Stroke Size"
             value={Math.round(element.strokeWidth || 2)}
             displayValue={Math.round(element.strokeWidth || 2)}
             onChange={(value) => {
@@ -51,11 +51,11 @@ export function ShapeSettingsForm({
             className="w-full"
           >
             <Palette className="h-4 w-4 mr-2" />
-            Brush Color
+            Stroke Color
           </Button>
           
           <Slider
-            label="Brush Opacity"
+            label="Stroke Opacity"
             value={Math.round(((element as any).strokeOpacity || 1) * 100)}
             onChange={(value) => updateSetting('strokeOpacity', value / 100)}
             min={0}
@@ -179,14 +179,14 @@ export function ShapeSettingsForm({
                   }
                 }}
               />
-              Border
+              Stroke
             </Label>
           </div>
           
           {(element.borderEnabled !== undefined ? element.borderEnabled : ((element.borderWidth || element.strokeWidth || 0) > 0)) && (
             <IndentedSection>
               <Slider
-                label="Border Width"
+                label="Stroke Width"
                 value={actualToCommonStrokeWidth((element.borderWidth || element.strokeWidth || 0), getElementTheme(element))}
                 onChange={(value) => {
                   const actualWidth = commonToActualStrokeWidth(value, getElementTheme(element));
@@ -205,12 +205,12 @@ export function ShapeSettingsForm({
                   className="w-full"
                 >
                   <Palette className="h-4 w-4 mr-2" />
-                  Border Color
+                  Stroke Color
                 </Button>
               </div>
               
               <Slider
-                label="Border Opacity"
+                label="Stroke Opacity"
                 value={Math.round((element.borderOpacity !== undefined ? element.borderOpacity : (element.opacity !== undefined ? element.opacity : 1)) * 100)}
                 onChange={(value) => updateSetting('borderOpacity', value / 100)}
                 min={0}

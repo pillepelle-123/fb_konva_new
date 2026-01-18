@@ -3,7 +3,7 @@ import { useEditor } from '../../../../context/editor-context';
 import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 
 import { Button } from '../../../ui/primitives/button';
-import { SquareMousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, AlignLeft, AlignCenter, AlignRight, AlignJustify, Rows4, Rows3, Rows2, Palette, Type, SquareRoundCorner, PanelTopBottomDashed, Triangle, Pentagon, ChevronLeft } from 'lucide-react';
+import { AlignLeft, AlignCenter, AlignRight, AlignJustify, Rows4, Rows3, Rows2, Palette, Type, SquareRoundCorner, PanelTopBottomDashed, ChevronLeft } from 'lucide-react';
 import { QuestionPositionTop, QuestionPositionBottom, QuestionPositionLeft, QuestionPositionRight } from '../../../ui/icons/question-position-icons';
 import { ButtonGroup } from '../../../ui/composites/button-group';
 // ARCHIVED: import { QnASettingsForm } from './qna-settings-form';
@@ -12,6 +12,7 @@ import { QnASettingsForm } from './qna-settings-form';
 import { FreeTextSettingsForm } from './free-text-settings-form';
 import { ShapeSettingsForm } from './shape-settings-form';
 import { ImageSettingsForm } from './image-settings-form';
+import { StickerSettingsForm } from './sticker-settings-form';
 import type { PageBackground } from '../../../../context/editor-context';
 import { ThemeSelect } from '../../../../utils/theme-options';
 import { ColorSelector } from './color-selector';
@@ -39,31 +40,7 @@ import { getRuledLinesTheme } from '../../../../utils/theme-utils';
 import { svgRawImports } from '../../../../data/templates/stickers';
 import ChatWindow from '../../messenger/chat-window';
 import type { Conversation } from '../../messenger/types';
-
-
-
-const TOOL_ICONS = {
-  select: SquareMousePointer,
-  pan: Hand,
-  text: MessageCircle,
-  question: MessageCircleQuestion,
-  answer: MessageCircleHeart,
-  qna: MessageSquare,
-  image: Image,
-  line: Minus,
-  circle: Circle,
-  rect: Square,
-  brush: Paintbrush,
-  'brush-multicolor': Paintbrush,
-  heart: Heart,
-  star: Star,
-  'speech-bubble': MessageSquare,
-  dog: Dog,
-  cat: Cat,
-  smiley: Smile,
-  triangle: Triangle,
-  polygon: Pentagon
-};
+import { TOOL_ICONS } from './tool-settings-utils';
 
 interface ToolSettingsContentProps {
   showColorSelector: string | null;
@@ -117,7 +94,8 @@ interface ToolSettingsContentProps {
   setShowPageThemeSelector?: (value: boolean) => void;
   showBookThemeSelector?: boolean;
   setShowBookThemeSelector?: (value: boolean) => void;
-  setSelectorTitle?: (title: string | null) => void;
+  showEditorSettings?: boolean;
+  setShowEditorSettings?: (value: boolean) => void;
   generalSettingsRef?: React.RefObject<GeneralSettingsRef>;
 }
 
@@ -173,7 +151,8 @@ export function ToolSettingsContent({
   setShowPageThemeSelector,
   showBookThemeSelector = false,
   setShowBookThemeSelector,
-  setSelectorTitle,
+  showEditorSettings = false,
+  setShowEditorSettings,
   generalSettingsRef
 }: ToolSettingsContentProps) {
   const { state, dispatch } = useEditor();
@@ -182,27 +161,6 @@ export function ToolSettingsContent({
   
   const toolSettings = state.toolSettings || {};
   const activeTool = state.activeTool;
-
-  // Set selector title when a selector is opened
-  useEffect(() => {
-    if (!setSelectorTitle) return;
-    
-    if (showPagePalette) {
-      setSelectorTitle('Page Color Palette');
-    } else if (showBookPalette) {
-      setSelectorTitle('Book Color Palette');
-    } else if (showPageLayout) {
-      setSelectorTitle('Page Layout');
-    } else if (showBookLayout) {
-      setSelectorTitle('Book Layout');
-    } else if (showPageThemeSelector) {
-      setSelectorTitle('Page Theme');
-    } else if (showBookThemeSelector) {
-      setSelectorTitle('Book Theme');
-    } else {
-      setSelectorTitle(null);
-    }
-  }, [showPagePalette, showBookPalette, showPageLayout, showBookLayout, showPageThemeSelector, showBookThemeSelector, setSelectorTitle]);
   
   const updateToolSetting = (key: string, value: any) => {
     dispatch({
@@ -909,7 +867,7 @@ export function ToolSettingsContent({
             return (
               <div className="space-y-2">
                 <Slider
-                  label="Brush Size"
+                  label="Stroke Size"
                   value={Math.round(singleBrush.strokeWidth || 2)}
                   displayValue={Math.round(singleBrush.strokeWidth || 2)}
                   onChange={(value) => {
@@ -1157,6 +1115,8 @@ export function ToolSettingsContent({
           setShowPageThemeSelector={setShowPageThemeSelector}
           showBookThemeSelector={showBookThemeSelector}
           setShowBookThemeSelector={setShowBookThemeSelector}
+          showEditorSettings={showEditorSettings}
+          setShowEditorSettings={setShowEditorSettings}
         />
       );
     }
@@ -1219,35 +1179,14 @@ export function ToolSettingsContent({
           />
         );
 
-      case 'sticker': {
-        const stickerOpacity = element.imageOpacity !== undefined ? element.imageOpacity : 1;
+      case 'sticker':
         return (
-          <div className="space-y-3">
-            <div>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => setShowColorSelector('element-sticker-color')}
-                className="w-full"
-              >
-                <Palette className="h-4 w-4 mr-2" />
-                Sticker Color
-              </Button>
-            </div>
-
-            <Slider
-              label="Opacity"
-              value={Math.round(stickerOpacity * 100)}
-              displayValue={Math.round(stickerOpacity * 100)}
-              onChange={(value) => updateElementSettingLocal('imageOpacity', value / 100)}
-              min={0}
-              max={100}
-              step={5}
-              unit="%"
-            />
-          </div>
+          <StickerSettingsForm
+            element={element}
+            updateElementSettingLocal={updateElementSettingLocal}
+            setShowColorSelector={setShowColorSelector}
+          />
         );
-      }
 
       case 'text': {
         // Create a style object compatible with FreeTextSettingsForm

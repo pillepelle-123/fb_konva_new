@@ -175,6 +175,27 @@ const arePropsEqual = (
   prevProps: CanvasItemComponentProps,
   nextProps: CanvasItemComponentProps
 ): boolean => {
+  // Debug: Log IMMER wenn Vergleichsfunktion aufgerufen wird (für alle Elemente, um zu sehen ob sie aufgerufen wird)
+  if (prevProps.element.type === 'text' && prevProps.element.textType === 'qna') {
+    console.log(`[CanvasItemComponent memo] Comparison function CALLED for ${prevProps.element.id}`);
+  }
+  
+  // Debug: Log wenn Vergleichsfunktion aufgerufen wird (nur für QNA-Elemente)
+  if (prevProps.element.type === 'text' && prevProps.element.textType === 'qna') {
+    const prevEl = prevProps.element;
+    const nextEl = nextProps.element;
+    
+    // Prüfe ob Element-Referenz gleich ist
+    if (prevEl === nextEl) {
+      console.log(`[CanvasItemComponent memo] Element reference is SAME for ${prevEl.id} - but checking other props...`);
+      // Wenn Referenz gleich ist, bedeutet das, dass sich das Element-Objekt nicht geändert hat
+      // ABER: Andere Props könnten sich geändert haben (z.B. Callbacks, State-Werte)
+      // Wir müssen trotzdem alle anderen Props prüfen!
+    } else {
+      console.log(`[CanvasItemComponent memo] Element reference is DIFFERENT for ${prevEl.id} - comparing properties...`);
+    }
+  }
+  
   // Element-ID muss gleich sein
   if (prevProps.element.id !== nextProps.element.id) return false;
   
@@ -193,6 +214,125 @@ const arePropsEqual = (
   if (prevEl.width !== nextEl.width) return false;
   if (prevEl.height !== nextEl.height) return false;
   if (prevEl.rotation !== nextEl.rotation) return false;
+  
+  // QNA-spezifische Element-Eigenschaften (werden nicht als Props übergeben, müssen direkt geprüft werden)
+  if (prevEl.type === 'text' && prevEl.textType === 'qna') {
+    const prevQnaEl = prevEl as any;
+    const nextQnaEl = nextEl as any;
+    
+    // Layout-Eigenschaften
+    if (prevQnaEl.layoutVariant !== nextQnaEl.layoutVariant) {
+      console.log(`[CanvasItemComponent memo] layoutVariant changed for ${prevEl.id}: ${prevQnaEl.layoutVariant} -> ${nextQnaEl.layoutVariant}`);
+      return false;
+    }
+    if (prevQnaEl.qnaIndividualSettings !== nextQnaEl.qnaIndividualSettings) {
+      console.log(`[CanvasItemComponent memo] qnaIndividualSettings changed for ${prevEl.id}`);
+      return false;
+    }
+    if (prevQnaEl.answerInNewRow !== nextQnaEl.answerInNewRow) {
+      console.log(`[CanvasItemComponent memo] answerInNewRow changed for ${prevEl.id}: ${prevQnaEl.answerInNewRow} -> ${nextQnaEl.answerInNewRow}`);
+      return false;
+    }
+    if (prevQnaEl.questionAnswerGap !== nextQnaEl.questionAnswerGap) {
+      console.log(`[CanvasItemComponent memo] questionAnswerGap changed for ${prevEl.id}: ${prevQnaEl.questionAnswerGap} -> ${nextQnaEl.questionAnswerGap}`);
+      return false;
+    }
+    if (prevQnaEl.blockQuestionAnswerGap !== nextQnaEl.blockQuestionAnswerGap) {
+      console.log(`[CanvasItemComponent memo] blockQuestionAnswerGap changed for ${prevEl.id}`);
+      return false;
+    }
+    if (prevQnaEl.questionPosition !== nextQnaEl.questionPosition) {
+      console.log(`[CanvasItemComponent memo] questionPosition changed for ${prevEl.id}`);
+      return false;
+    }
+    if (prevQnaEl.questionWidth !== nextQnaEl.questionWidth) {
+      console.log(`[CanvasItemComponent memo] questionWidth changed for ${prevEl.id}`);
+      return false;
+    }
+    
+    // Visual Properties
+    if (prevEl.backgroundColor !== nextEl.backgroundColor) {
+      console.log(`[CanvasItemComponent memo] backgroundColor changed for ${prevEl.id}`);
+      return false;
+    }
+    if (prevEl.backgroundOpacity !== nextEl.backgroundOpacity) {
+      console.log(`[CanvasItemComponent memo] backgroundOpacity changed for ${prevEl.id}: ${prevEl.backgroundOpacity} -> ${nextEl.backgroundOpacity}`);
+      return false;
+    }
+    if (prevQnaEl.backgroundEnabled !== nextQnaEl.backgroundEnabled) {
+      console.log(`[CanvasItemComponent memo] backgroundEnabled changed for ${prevEl.id}: ${prevQnaEl.backgroundEnabled} -> ${nextQnaEl.backgroundEnabled}`);
+      return false;
+    }
+    if (prevEl.borderColor !== nextEl.borderColor) {
+      console.log(`[CanvasItemComponent memo] borderColor changed for ${prevEl.id}`);
+      return false;
+    }
+    if (prevEl.borderWidth !== nextEl.borderWidth) {
+      console.log(`[CanvasItemComponent memo] borderWidth changed for ${prevEl.id}: ${prevEl.borderWidth} -> ${nextEl.borderWidth}`);
+      return false;
+    }
+    if (prevEl.borderOpacity !== nextEl.borderOpacity) {
+      console.log(`[CanvasItemComponent memo] borderOpacity changed for ${prevEl.id}: ${prevEl.borderOpacity} -> ${nextEl.borderOpacity}`);
+      return false;
+    }
+    if (prevQnaEl.borderEnabled !== nextQnaEl.borderEnabled) {
+      console.log(`[CanvasItemComponent memo] borderEnabled changed for ${prevEl.id}: ${prevQnaEl.borderEnabled} -> ${nextQnaEl.borderEnabled}`);
+      return false;
+    }
+    if (prevQnaEl.borderTheme !== nextQnaEl.borderTheme) {
+      console.log(`[CanvasItemComponent memo] borderTheme changed for ${prevEl.id}: ${prevQnaEl.borderTheme} -> ${nextQnaEl.borderTheme}`);
+      return false;
+    }
+    if (prevEl.cornerRadius !== nextEl.cornerRadius) {
+      console.log(`[CanvasItemComponent memo] cornerRadius changed for ${prevEl.id}: ${prevEl.cornerRadius} -> ${nextEl.cornerRadius}`);
+      return false;
+    }
+    if (prevEl.padding !== nextEl.padding) {
+      console.log(`[CanvasItemComponent memo] padding changed for ${prevEl.id}: ${prevEl.padding} -> ${nextEl.padding}`);
+      return false;
+    }
+    
+    // Ruled Lines
+    if (prevQnaEl.ruledLines !== nextQnaEl.ruledLines) {
+      console.log(`[CanvasItemComponent memo] ruledLines changed for ${prevEl.id}: ${prevQnaEl.ruledLines} -> ${nextQnaEl.ruledLines}`);
+      return false;
+    }
+    if (prevQnaEl.ruledLinesWidth !== nextQnaEl.ruledLinesWidth) {
+      console.log(`[CanvasItemComponent memo] ruledLinesWidth changed for ${prevEl.id}: ${prevQnaEl.ruledLinesWidth} -> ${nextQnaEl.ruledLinesWidth}`);
+      return false;
+    }
+    if (prevQnaEl.ruledLinesTheme !== nextQnaEl.ruledLinesTheme) {
+      console.log(`[CanvasItemComponent memo] ruledLinesTheme changed for ${prevEl.id}`);
+      return false;
+    }
+    if (prevQnaEl.ruledLinesColor !== nextQnaEl.ruledLinesColor) {
+      console.log(`[CanvasItemComponent memo] ruledLinesColor changed for ${prevEl.id}`);
+      return false;
+    }
+    if (prevQnaEl.ruledLinesOpacity !== nextQnaEl.ruledLinesOpacity) {
+      console.log(`[CanvasItemComponent memo] ruledLinesOpacity changed for ${prevEl.id}: ${prevQnaEl.ruledLinesOpacity} -> ${nextQnaEl.ruledLinesOpacity}`);
+      return false;
+    }
+    if (prevQnaEl.ruledLinesTarget !== nextQnaEl.ruledLinesTarget) {
+      console.log(`[CanvasItemComponent memo] ruledLinesTarget changed for ${prevEl.id}`);
+      return false;
+    }
+    
+    // Question/Answer Settings (für Style-Berechnung)
+    if (JSON.stringify(prevQnaEl.questionSettings) !== JSON.stringify(nextQnaEl.questionSettings)) {
+      console.log(`[CanvasItemComponent memo] questionSettings changed for ${prevEl.id}`);
+      return false;
+    }
+    if (JSON.stringify(prevQnaEl.answerSettings) !== JSON.stringify(nextQnaEl.answerSettings)) {
+      console.log(`[CanvasItemComponent memo] answerSettings changed for ${prevEl.id}`);
+      return false;
+    }
+    
+    // Andere Eigenschaften die Styles beeinflussen
+    if (prevEl.align !== nextEl.align) return false;
+    if (prevEl.paragraphSpacing !== nextEl.paragraphSpacing) return false;
+    if ((prevEl as any).format?.textAlign !== (nextEl as any).format?.textAlign) return false;
+  }
   
   // Hover-Status - nur re-render wenn dieses Element betroffen ist
   if (prevProps.hoveredElementId !== nextProps.hoveredElementId) {
@@ -221,8 +361,53 @@ const arePropsEqual = (
   // dispatch should be stable, but check if it changes (shouldn't happen)
   if (prevProps.dispatch !== nextProps.dispatch) return false;
   
+  // Props für TextboxQna - State-abhängige Werte
+  // Nur für QNA-Elemente relevant, aber wir prüfen sie für alle Elemente
+  // (für andere Elemente sind sie undefined, daher sind sie gleich)
+  if (prevProps.questionText !== nextProps.questionText) return false;
+  if (prevProps.answerText !== nextProps.answerText) return false;
+  
+  // Style-Vergleiche (JSON.stringify für Objekt-Vergleich)
+  if (prevProps.questionStyle !== nextProps.questionStyle) {
+    if (prevProps.questionStyle === undefined || nextProps.questionStyle === undefined) {
+      return false; // Einer ist undefined, der andere nicht
+    }
+    // Beide sind definiert, vergleiche Werte
+    if (JSON.stringify(prevProps.questionStyle) !== JSON.stringify(nextProps.questionStyle)) {
+      return false; // Werte sind unterschiedlich
+    }
+  }
+  
+  if (prevProps.answerStyle !== nextProps.answerStyle) {
+    if (prevProps.answerStyle === undefined || nextProps.answerStyle === undefined) {
+      return false; // Einer ist undefined, der andere nicht
+    }
+    // Beide sind definiert, vergleiche Werte
+    if (JSON.stringify(prevProps.answerStyle) !== JSON.stringify(nextProps.answerStyle)) {
+      return false; // Werte sind unterschiedlich
+    }
+  }
+  
+  // assignedUser Vergleich
+  if (prevProps.assignedUser?.id !== nextProps.assignedUser?.id) return false;
+  
   // Callback functions are NOT compared - they are recreated on every render
   // but React handles this correctly during reconciliation
+  
+  // Debug: Log wenn Vergleichsfunktion true zurückgibt (nur für QNA-Elemente)
+  if (prevProps.element.type === 'text' && prevProps.element.textType === 'qna') {
+    // Prüfe ob sich Callbacks geändert haben (sollten ignoriert werden, aber loggen für Debugging)
+    const callbacksChanged = 
+      prevProps.onSelect !== nextProps.onSelect ||
+      prevProps.onDragStart !== nextProps.onDragStart ||
+      prevProps.onDragEnd !== nextProps.onDragEnd;
+    
+    if (callbacksChanged) {
+      console.log(`[CanvasItemComponent memo] Comparison returned TRUE for ${prevProps.element.id}, but callbacks changed (will be ignored by React.memo)`);
+    } else {
+      console.log(`[CanvasItemComponent memo] Comparison returned TRUE for ${prevProps.element.id} - NO RE-RENDER`);
+    }
+  }
   
   // Props sind gleich, skip re-render
   return true;

@@ -1038,24 +1038,51 @@ function getClickArea(
 }
 
 function TextboxQnaComponent(props: CanvasItemProps) {
-  const { element, activeTool } = props;
+  const { 
+    element, 
+    activeTool,
+    questionText: propsQuestionText,
+    answerText: propsAnswerText,
+    questionStyle: propsQuestionStyle,
+    answerStyle: propsAnswerStyle,
+    assignedUser: propsAssignedUser
+  } = props;
   const qnaElement = element as QnaCanvasElement;
   const { state, dispatch } = useEditor();
   const { user } = useAuth();
   
-  // PERFORMANCE OPTIMIZATION: Memoize only the state values that TextboxQna actually needs
-  // This prevents re-renders when unrelated state values (like zoom, pan, selection) change
-  // The useMemo dependencies ensure we only re-render when these specific values change
-  const relevantState = useMemo(() => ({
-    tempQuestions: state.tempQuestions,
-    tempAnswers: state.tempAnswers,
-    pageAssignments: state.pageAssignments,
-    activePageIndex: state.activePageIndex,
-    currentPage: state.currentBook?.pages?.[state.activePageIndex],
-    bookTheme: state.currentBook?.themeId || state.currentBook?.bookTheme,
-    bookLayoutTemplateId: state.currentBook?.layoutTemplateId,
-    bookColorPaletteId: state.currentBook?.colorPaletteId,
-  }), [
+  // PERFORMANCE OPTIMIZATION: Use props if available, otherwise fallback to useEditor()
+  // This allows React.memo to work correctly when props are passed from canvas.tsx
+  const hasProps = propsQuestionText !== undefined || propsAnswerText !== undefined;
+  
+  // Only use relevantState if props are not available (fallback for backwards compatibility)
+  const relevantState = useMemo(() => {
+    if (hasProps) {
+      // If props are available, return minimal state (only what's needed for other logic)
+      return {
+        tempQuestions: state.tempQuestions,
+        tempAnswers: state.tempAnswers,
+        pageAssignments: state.pageAssignments,
+        activePageIndex: state.activePageIndex,
+        currentPage: state.currentBook?.pages?.[state.activePageIndex],
+        bookTheme: state.currentBook?.themeId || state.currentBook?.bookTheme,
+        bookLayoutTemplateId: state.currentBook?.layoutTemplateId,
+        bookColorPaletteId: state.currentBook?.colorPaletteId,
+      };
+    }
+    // Fallback: use full state when props are not available
+    return {
+      tempQuestions: state.tempQuestions,
+      tempAnswers: state.tempAnswers,
+      pageAssignments: state.pageAssignments,
+      activePageIndex: state.activePageIndex,
+      currentPage: state.currentBook?.pages?.[state.activePageIndex],
+      bookTheme: state.currentBook?.themeId || state.currentBook?.bookTheme,
+      bookLayoutTemplateId: state.currentBook?.layoutTemplateId,
+      bookColorPaletteId: state.currentBook?.colorPaletteId,
+    };
+  }, [
+    hasProps,
     state.tempQuestions,
     state.tempAnswers,
     state.pageAssignments,
@@ -1313,6 +1340,11 @@ function TextboxQnaComponent(props: CanvasItemProps) {
   ]);
 
   const answerStyle = useMemo(() => {
+    // Use props if available, otherwise calculate
+    if (propsAnswerStyle !== undefined) {
+      return propsAnswerStyle;
+    }
+    
     const layoutVariant = qnaElement.layoutVariant || 'inline';
     const individualSettings = qnaElement.qnaIndividualSettings ?? false;
     
@@ -1347,6 +1379,7 @@ function TextboxQnaComponent(props: CanvasItemProps) {
     
     return style;
   }, [
+    propsAnswerStyle,
     element.paragraphSpacing,
     element.align,
     (element as any).format?.textAlign,
@@ -1455,11 +1488,21 @@ function TextboxQnaComponent(props: CanvasItemProps) {
   }, [state.currentBook?.pages, element.id]);
   
   const assignedUser = useMemo(() => {
+    // Use props if available, otherwise calculate
+    if (propsAssignedUser !== undefined) {
+      return propsAssignedUser;
+    }
+    
     if (!elementPageNumber) return null;
     return relevantState.pageAssignments[elementPageNumber];
-  }, [relevantState.pageAssignments, elementPageNumber]);
+  }, [propsAssignedUser, relevantState.pageAssignments, elementPageNumber]);
   
   const answerText = useMemo(() => {
+    // Use props if available, otherwise calculate
+    if (propsAnswerText !== undefined) {
+      return propsAnswerText;
+    }
+    
     // For QnA elements with questionId, never use element.text as answer
     // The answer should only come from state.tempAnswers
     // element.text should only be used for free text (when questionId is not set)
@@ -1481,7 +1524,7 @@ function TextboxQnaComponent(props: CanvasItemProps) {
       return element.text;
     }
     return '';
-  }, [assignedUser, element.formattedText, element.questionId, element.text, relevantState.tempAnswers]);
+  }, [propsAnswerText, assignedUser, element.formattedText, element.questionId, element.text, relevantState.tempAnswers]);
 
   const sanitizedAnswer = answerText ? stripHtml(answerText) : '';
   // Use answerText directly (no placeholder in canvas rendering, only in editor)
@@ -1819,27 +1862,21 @@ function TextboxQnaComponent(props: CanvasItemProps) {
       }
     }
 
-    // For answer lines, extend to bottom of textbox
-    if (ruledLinesTarget === 'answer' && targetLinePositions.length > 0) {
+    // For answer lines, extend to bottom of textbox (only for inline layout)
+    if (layoutVariant === 'inline' && ruledLinesTarget === 'answer' && targetLinePositions.length > 0) {
       const answerLineHeight = getLineHeight(answerStyle);
       const lastLinePosition = targetLinePositions[targetLinePositions.length - 1];
       let nextLineY = lastLinePosition.y + lastLinePosition.lineHeight;
-      
+
       // Determine start and end X positions
       let startX: number;
       let endX: number;
       let bottomY: number;
-      
-      if (layoutVariant === 'block' && layout.answerArea) {
-        startX = layout.answerArea.x;
-        endX = layout.answerArea.x + layout.answerArea.width;
-        bottomY = layout.answerArea.y + layout.answerArea.height;
-      } else {
-        startX = padding;
-        endX = boxWidth - padding;
-        bottomY = boxHeight - padding;
-      }
-      
+
+      startX = padding;
+      endX = boxWidth - padding;
+      bottomY = boxHeight - padding;
+
       // Generate additional lines until we reach the bottom
       while (nextLineY <= bottomY) {
         const lineElement = generateRuledLineElement(nextLineY, startX, endX);
@@ -2747,23 +2784,22 @@ const areTextboxQnaPropsEqual = (
   if (prevEl.text !== nextEl.text) return false;
   if (prevEl.formattedText !== nextEl.formattedText) return false;
   
-  // Style-Vergleich (kritisch für Rendering)
-  // Use JSON.stringify for object comparison - not optimal but functional
-  const prevQuestionSettings = (prevEl as any).questionSettings;
-  const nextQuestionSettings = (nextEl as any).questionSettings;
-  if (JSON.stringify(prevQuestionSettings) !== JSON.stringify(nextQuestionSettings)) return false;
-  
-  const prevAnswerSettings = (prevEl as any).answerSettings;
-  const nextAnswerSettings = (nextEl as any).answerSettings;
-  if (JSON.stringify(prevAnswerSettings) !== JSON.stringify(nextAnswerSettings)) return false;
-  
   // Visual Properties
   if (prevEl.backgroundColor !== nextEl.backgroundColor) return false;
   if (prevEl.backgroundOpacity !== nextEl.backgroundOpacity) return false;
   if (prevEl.borderColor !== nextEl.borderColor) return false;
   if (prevEl.borderWidth !== nextEl.borderWidth) return false;
   if (prevEl.borderOpacity !== nextEl.borderOpacity) return false;
+  if ((prevEl as any).cornerRadius !== (nextEl as any).cornerRadius) return false;
+  if ((prevEl as any).padding !== (nextEl as any).padding) return false;
+  if ((prevEl as any).borderEnabled !== (nextEl as any).borderEnabled) return false;
+  if ((prevEl as any).backgroundEnabled !== (nextEl as any).backgroundEnabled) return false;
   if ((prevEl as any).ruledLines !== (nextEl as any).ruledLines) return false;
+  if ((prevEl as any).ruledLinesWidth !== (nextEl as any).ruledLinesWidth) return false;
+  if ((prevEl as any).ruledLinesTheme !== (nextEl as any).ruledLinesTheme) return false;
+  if ((prevEl as any).ruledLinesColor !== (nextEl as any).ruledLinesColor) return false;
+  if ((prevEl as any).ruledLinesOpacity !== (nextEl as any).ruledLinesOpacity) return false;
+  if ((prevEl as any).ruledLinesTarget !== (nextEl as any).ruledLinesTarget) return false;
   
   // Other QNA-specific properties
   if ((prevEl as any).qnaIndividualSettings !== (nextEl as any).qnaIndividualSettings) return false;
@@ -2774,9 +2810,45 @@ const areTextboxQnaPropsEqual = (
   if ((prevEl as any).questionPosition !== (nextEl as any).questionPosition) return false;
   if ((prevEl as any).questionWidth !== (nextEl as any).questionWidth) return false;
   
-  // NOTE: State-dependent values (tempAnswers, tempQuestions, pageAssignments) are accessed via useEditor()
-  // These will cause re-renders when they change, which is correct behavior
-  // The memoization here prevents re-renders when OTHER state values change (like zoom, pan, selection)
+  // Neue Props-Vergleiche (State-abhängige Werte als Props)
+  // Wenn Props vorhanden sind, verwende diese für den Vergleich (höhere Priorität)
+  // Sonst falle zurück auf Element-Eigenschaften
+  const hasProps = prevProps.questionStyle !== undefined || nextProps.questionStyle !== undefined;
+  
+  if (hasProps) {
+    // Props sind vorhanden - verwende diese für den Vergleich
+    if (prevProps.questionText !== nextProps.questionText) return false;
+    if (prevProps.answerText !== nextProps.answerText) return false;
+    
+    // Style-Vergleiche (JSON.stringify für Objekt-Vergleich)
+    if (prevProps.questionStyle === undefined || nextProps.questionStyle === undefined) {
+      if (prevProps.questionStyle !== nextProps.questionStyle) return false;
+    } else {
+      if (JSON.stringify(prevProps.questionStyle) !== JSON.stringify(nextProps.questionStyle)) return false;
+    }
+    
+    if (prevProps.answerStyle === undefined || nextProps.answerStyle === undefined) {
+      if (prevProps.answerStyle !== nextProps.answerStyle) return false;
+    } else {
+      if (JSON.stringify(prevProps.answerStyle) !== JSON.stringify(nextProps.answerStyle)) return false;
+    }
+    
+    // assignedUser Vergleich
+    if (prevProps.assignedUser?.id !== nextProps.assignedUser?.id) return false;
+  } else {
+    // Props nicht vorhanden - falle zurück auf Element-Eigenschaften (für Rückwärtskompatibilität)
+    const prevQuestionSettings = (prevEl as any).questionSettings;
+    const nextQuestionSettings = (nextEl as any).questionSettings;
+    if (JSON.stringify(prevQuestionSettings) !== JSON.stringify(nextQuestionSettings)) return false;
+    
+    const prevAnswerSettings = (prevEl as any).answerSettings;
+    const nextAnswerSettings = (nextEl as any).answerSettings;
+    if (JSON.stringify(prevAnswerSettings) !== JSON.stringify(nextAnswerSettings)) return false;
+  }
+  
+  // NOTE: Wenn Props nicht übergeben werden, werden State-abhängige Werte über useEditor() geholt
+  // Diese werden dann über relevantState useMemo erkannt und verursachen Re-Renders, was korrekt ist
+  // Die Memoization hier verhindert Re-Renders wenn ANDERE State-Werte sich ändern (wie zoom, pan, selection)
   
   return true;
 };

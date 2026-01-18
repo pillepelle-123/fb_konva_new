@@ -8,30 +8,11 @@ import { GeneralSettings, type GeneralSettingsRef } from './general-settings';
 import { Modal } from '../../../ui/overlays/modal';
 import { QuestionSelectorModal } from '../question-selector-modal';
 import ImagesContent from '../../images/images-content';
-import { SquareMousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile } from 'lucide-react';
 import { getBackgroundImagesWithUrl } from '../../../../data/templates/background-images';
 import { applyBackgroundImageTemplate } from '../../../../utils/background-image-utils';
 import type { Conversation } from '../../messenger/types';
-
-
-const TOOL_ICONS = {
-  select: SquareMousePointer,
-  pan: Hand,
-  text: MessageCircle,
-  question: MessageCircleQuestion,
-  answer: MessageCircleHeart,
-  image: Image,
-  line: Minus,
-  circle: Circle,
-  rect: Square,
-  brush: Paintbrush,
-  heart: Heart,
-  star: Star,
-  'speech-bubble': MessageSquare,
-  dog: Dog,
-  cat: Cat,
-  smiley: Smile
-};
+import { getHeaderTitleAndIcon } from './tool-settings-utils';
+import type { CanvasElement } from '../../../../context/editor-context';
 
 export interface ToolSettingsPanelRef {
   openBookTheme: () => void;
@@ -52,6 +33,7 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
   const [showBackgroundImageModal, setShowBackgroundImageModal] = useState(false);
   const [showBackgroundImageTemplateSelector, setShowBackgroundImageTemplateSelector] = useState(false);
   const [showPatternSettings, setShowPatternSettings] = useState(false);
+  const [showEditorSettings, setShowEditorSettings] = useState(false);
   const [showBackgroundSettings, setShowBackgroundSettings] = useState(false);
   const [showColorSelector, setShowColorSelector] = useState<string | null>(null);
   const [showPageTheme, setShowPageTheme] = useState(false);
@@ -65,7 +47,6 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
   const [showBookLayout, setShowBookLayout] = useState(false);
   const [showPageThemeSelector, setShowPageThemeSelector] = useState(false);
   const [showBookThemeSelector, setShowBookThemeSelector] = useState(false);
-  const [selectorTitle, setSelectorTitle] = useState<string | null>(null);
   const [bookChatConversation, setBookChatConversation] = useState<Conversation | null>(null);
   const generalSettingsRef = useRef<GeneralSettingsRef>(null);
   const [bookChatLoading, setBookChatLoading] = useState(false);
@@ -191,7 +172,6 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
   useEffect(() => {
     setShowFontSelector(false);
     setShowColorSelector(null);
-    setSelectorTitle(null);
   }, [state.selectedElementIds]);
   
   // Initialize background image state when selector opens
@@ -207,42 +187,6 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
       setSelectedBackgroundImageId(null);
     }
   }, [showBackgroundImageTemplateSelector, state.activePageIndex, state.currentBook?.pages]);
-
-  const getColorSelectorTitle = (colorType: string) => {
-    switch (colorType) {
-      case 'line-stroke':
-      case 'brush-stroke':
-        return 'Color';
-      case 'shape-stroke':
-      case 'element-brush-stroke':
-      case 'element-line-stroke':
-      case 'element-shape-stroke':
-        return 'Stroke Color';
-      case 'shape-fill':
-      case 'element-shape-fill':
-        return 'Fill Color';
-      case 'text-color':
-      case 'element-text-color':
-        return 'Font Color';
-      case 'text-border':
-      case 'element-text-border':
-        return 'Border Color';
-      case 'text-background':
-      case 'element-text-background':
-        return 'Background Color';
-      case 'background-color':
-        return 'Color';
-      case 'pattern-background':
-        return 'Background Color';
-      case 'ruled-lines-color':
-      case 'element-ruled-lines-color':
-        return 'Line Color';
-      case 'element-sticker-color':
-        return 'Sticker Color';
-      default:
-        return 'Color Selector';
-    }
-  };
 
 
 
@@ -319,7 +263,6 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
           activeLinkedElement={activeLinkedElement}
           setActiveLinkedElement={setActiveLinkedElement}
           showColorSelector={showColorSelector}
-          getColorSelectorTitle={getColorSelectorTitle}
           isOnAssignedPage={isOnAssignedPage}
           showBackgroundSettings={showBackgroundSettings}
           showPageTheme={showPageTheme}
@@ -332,9 +275,20 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
           showBookLayout={showBookLayout}
           showPageThemeSelector={showPageThemeSelector}
           showBookThemeSelector={showBookThemeSelector}
-          selectorTitle={selectorTitle}
+          showEditorSettings={showEditorSettings}
+          showPatternSettings={showPatternSettings}
+          selectorTitle={null}
           onBack={() => {
-            // Reset all dialog states
+            // If only an element-specific color selector is open, just close it
+            // This allows returning to the element settings form instead of the main panel
+            if (showColorSelector && showColorSelector.startsWith('element-') &&
+                !showBackgroundSettings && !showPageTheme && !showBookTheme &&
+                !showFontSelector && !showBookChatPanel && !state.selectedGroupedElement) {
+              setShowColorSelector(null);
+              return;
+            }
+
+            // Reset all dialog states (fallback for complex dialog combinations)
             setShowColorSelector(null);
             setShowBackgroundSettings(false);
             setShowPatternSettings(false);
@@ -342,9 +296,7 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
             setShowBookTheme(false);
             setShowFontSelector(false);
             setShowBookChatPanel(false);
-            // Clear grouped element selection
-            dispatch({ type: 'SET_SELECTED_GROUPED_ELEMENT', payload: null });
-            // Clear selected elements if we're in a grouped element view
+            // Clear selected elements (this also clears selectedGroupedElement automatically)
             if (state.selectedGroupedElement) {
               dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [] });
             }
@@ -381,9 +333,10 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
           <div className="p-1 pt-3">
             <div className="flex items-center justify-center p-1">
               {(() => {
-                // Get the appropriate icon for selected element(s) - same logic as header
-                let IconComponent = null;
-                
+                // Get the appropriate icon for selected element(s) using centralized function
+                let selectedElement: CanvasElement | null = null;
+                let isLinkedQuestionAnswerPair = false;
+
                 if (state.selectedElementIds.length === 2 && state.currentBook) {
                   const selectedElements = state.currentBook.pages[state.activePageIndex]?.elements.filter(
                     el => state.selectedElementIds.includes(el.id)
@@ -393,25 +346,46 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
                   const answerElement = selectedElements.find(el => el.textType === 'answer' && el.questionElementId === questionElement?.id);
                   
                   if (questionElement && answerElement) {
-                    IconComponent = MessageCircleQuestion;
+                    isLinkedQuestionAnswerPair = true;
                   }
-                } else if (state.selectedElementIds.length > 1) {
-                  IconComponent = TOOL_ICONS.select;
                 } else if (state.selectedElementIds.length === 1 && state.currentBook) {
-                  const selectedElement = state.currentBook.pages[state.activePageIndex]?.elements.find(
+                  selectedElement = state.currentBook.pages[state.activePageIndex]?.elements.find(
                     el => el.id === state.selectedElementIds[0]
-                  );
-                  if (selectedElement) {
-                    const elementType = selectedElement.type === 'text' && selectedElement.textType 
-                      ? selectedElement.textType 
-                      : selectedElement.type;
-                    IconComponent = TOOL_ICONS[elementType as keyof typeof TOOL_ICONS];
-                  }
+                  ) || null;
                 }
+
+                const headerInfo = getHeaderTitleAndIcon({
+                  selectedElementIds: state.selectedElementIds,
+                  selectedElement: selectedElement || undefined,
+                  selectedGroupedElement: state.selectedGroupedElement || undefined,
+                  elementType: selectedElement
+                    ? (selectedElement.type === 'text' && selectedElement.textType ? selectedElement.textType : selectedElement.type)
+                    : undefined,
+                  textType: selectedElement?.textType,
+                  showColorSelector,
+                  showBackgroundSettings,
+                  showPageTheme,
+                  showBookTheme,
+                  showFontSelector,
+                  showBookChatPanel,
+                  showPagePalette,
+                  showBookPalette,
+                  showPageLayout,
+                  showBookLayout,
+                  showPageThemeSelector,
+                  showBookThemeSelector,
+                  showEditorSettings,
+                  showPatternSettings,
+                  selectorTitle: null,
+                  activeTool: state.activeTool,
+                  isLinkedQuestionAnswerPair
+                });
+
+                const IconComponent = headerInfo.icon;
                 
-                return IconComponent ? (
+                return (
                   <IconComponent className={`h-6 w-6 ${isFlashing ? 'animate-pulse text-blue-500' : 'text-muted-foreground'}`} />
-                ) : null;
+                );
               })()} 
             </div>
           </div>
@@ -471,7 +445,8 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
           setShowPageThemeSelector={setShowPageThemeSelector}
           showBookThemeSelector={showBookThemeSelector}
           setShowBookThemeSelector={setShowBookThemeSelector}
-          setSelectorTitle={setSelectorTitle}
+          showEditorSettings={showEditorSettings}
+          setShowEditorSettings={setShowEditorSettings}
           generalSettingsRef={generalSettingsRef}
           />
         )}

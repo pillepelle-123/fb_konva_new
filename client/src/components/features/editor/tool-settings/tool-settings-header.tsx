@@ -1,26 +1,7 @@
-import { useEditor } from '../../../../context/editor-context';
+import { useEditor, type CanvasElement } from '../../../../context/editor-context';
 import { Button } from '../../../ui/primitives/button';
-import { ChevronRight, ChevronLeft, SquareMousePointer, Hand, MessageCircle, MessageCircleQuestion, MessageCircleHeart, Image, Minus, Circle, Square, Paintbrush, Heart, Star, MessageSquare, Dog, Cat, Smile, Settings, PaintBucket, Palette, MessageCircleQuestionMark, Undo2, X, Check } from 'lucide-react';
-import { Tabs, TabsList, TabsTrigger } from '../../../ui/composites/tabs';
-
-const TOOL_ICONS = {
-  select: SquareMousePointer,
-  pan: Hand,
-  text: MessageCircle,
-  question: MessageCircleQuestion,
-  answer: MessageCircleHeart,
-  image: Image,
-  line: Minus,
-  circle: Circle,
-  rect: Square,
-  brush: Paintbrush,
-  heart: Heart,
-  star: Star,
-  'speech-bubble': MessageSquare,
-  dog: Dog,
-  cat: Cat,
-  smiley: Smile
-};
+import { Undo2, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { getHeaderTitleAndIcon } from './tool-settings-utils';
 
 interface ToolSettingsHeaderProps {
   isCollapsed: boolean;
@@ -28,7 +9,6 @@ interface ToolSettingsHeaderProps {
   activeLinkedElement: string | null;
   setActiveLinkedElement: (id: string | null) => void;
   showColorSelector: string | null;
-  getColorSelectorTitle: (colorType: string) => string;
   isOnAssignedPage: boolean;
   showBackgroundSettings: boolean;
   showPageTheme: boolean;
@@ -41,6 +21,8 @@ interface ToolSettingsHeaderProps {
   showBookLayout?: boolean;
   showPageThemeSelector?: boolean;
   showBookThemeSelector?: boolean;
+  showEditorSettings?: boolean;
+  showPatternSettings?: boolean;
   selectorTitle?: string | null;
   onBack?: () => void;
   onCancel?: () => void;
@@ -54,7 +36,6 @@ export function ToolSettingsHeader({
   activeLinkedElement,
   setActiveLinkedElement,
   showColorSelector,
-  getColorSelectorTitle,
   isOnAssignedPage,
   showBackgroundSettings,
   showPageTheme,
@@ -67,6 +48,8 @@ export function ToolSettingsHeader({
   showBookLayout = false,
   showPageThemeSelector = false,
   showBookThemeSelector = false,
+  showEditorSettings = false,
+  showPatternSettings = false,
   selectorTitle = null,
   onBack,
   onCancel,
@@ -77,130 +60,109 @@ export function ToolSettingsHeader({
   const activeTool = state.activeTool;
 
   // Check if any dialog is open
-  const hasOpenDialog = showColorSelector || showBackgroundSettings || showPageTheme || showBookTheme || showFontSelector || showBookChatPanel || state.selectedGroupedElement;
+  // Include element-specific color selectors (those starting with 'element-')
+  // This includes: element-text-color, element-ruled-lines-color, element-border-color, element-background-color
+  const hasOpenDialog = Boolean(showColorSelector) || showBackgroundSettings || showPageTheme || showBookTheme || showFontSelector || showBookChatPanel || state.selectedGroupedElement;
 
   // Check if any selector is open
   const hasOpenSelector = showPagePalette || showBookPalette || showPageLayout || showBookLayout || showPageThemeSelector || showBookThemeSelector;
+
+  // Determine if we have a linked question-answer pair
+  let isLinkedQuestionAnswerPair = false;
+  let selectedElement: CanvasElement | null = null;
+
+  if (state.selectedElementIds.length === 2 && state.currentBook) {
+    const selectedElements = state.currentBook.pages[state.activePageIndex]?.elements.filter(
+      el => state.selectedElementIds.includes(el.id)
+    ) || [];
+
+    const questionElement = selectedElements.find(el => el.textType === 'question');
+    const answerElement = selectedElements.find(el => el.textType === 'answer' && el.questionElementId === questionElement?.id);
+
+    if (questionElement && answerElement) {
+      isLinkedQuestionAnswerPair = true;
+    }
+  } else if (state.selectedElementIds.length === 1 && state.currentBook) {
+    selectedElement = state.currentBook.pages[state.activePageIndex]?.elements.find(
+      el => el.id === state.selectedElementIds[0]
+    ) || null;
+
+    // If a grouped element is selected, show that element's type
+    if (state.selectedGroupedElement && selectedElement?.groupedElements) {
+      const groupedElementId = state.selectedGroupedElement.elementId;
+      selectedElement = selectedElement.groupedElements.find(
+        (el: CanvasElement) => el.id === groupedElementId
+      ) || null;
+    }
+  }
+
+  // Get title and icon using centralized function
+  const headerInfo = getHeaderTitleAndIcon({
+    selectedElementIds: state.selectedElementIds,
+    selectedElement: selectedElement || undefined,
+    selectedGroupedElement: state.selectedGroupedElement || undefined,
+    elementType: selectedElement
+      ? (selectedElement.type === 'text' && selectedElement.textType ? selectedElement.textType : selectedElement.type)
+      : undefined,
+    textType: selectedElement?.textType,
+    showColorSelector,
+    showBackgroundSettings,
+    showPageTheme,
+    showBookTheme,
+    showFontSelector,
+    showBookChatPanel,
+    showPagePalette,
+    showBookPalette,
+    showPageLayout,
+    showBookLayout,
+    showPageThemeSelector,
+    showBookThemeSelector,
+    showEditorSettings,
+    showPatternSettings,
+    selectorTitle,
+    activeTool,
+    isLinkedQuestionAnswerPair
+  });
+
+  const IconComponent = headerInfo.icon;
 
   return (
     <div className="flex items-center justify-between px-2 border-b pb-0">
       {!isCollapsed && (
         <div className="text-sm flex items-center gap-2 flex-1">
-          {(() => {
-            // Check for linked question-answer pair
-            if (state.selectedElementIds.length === 2 && state.currentBook) {
-              const selectedElements = state.currentBook.pages[state.activePageIndex]?.elements.filter(
-                el => state.selectedElementIds.includes(el.id)
-              ) || [];
-
-              const questionElement = selectedElements.find(el => el.textType === 'question');
-              const answerElement = selectedElements.find(el => el.textType === 'answer' && el.questionElementId === questionElement?.id);
-
-              if (questionElement && answerElement) {
-                return (
-                  <>
-                    <MessageCircleQuestionMark className="h-4 w-4" />
-                    Question & Answer
-                  </>
-                );
-              }
-            }
-
-            if (state.selectedElementIds.length > 1) {
-              const IconComponent = TOOL_ICONS.select;
-              return (
-                <>
-                  {IconComponent && <IconComponent className="h-4 w-4" />}
-                  Select Settings
-                </>
-              );
-            } else if (state.selectedElementIds.length === 1 && state.currentBook) {
-              let selectedElement = state.currentBook.pages[state.activePageIndex]?.elements.find(
-                el => el.id === state.selectedElementIds[0]
-              );
-
-              // If a grouped element is selected, show that element's type
-              if (state.selectedGroupedElement && selectedElement?.groupedElements) {
-                selectedElement = selectedElement.groupedElements.find(
-                  el => el.id === state.selectedGroupedElement.elementId
-                );
-              }
-
-              if (selectedElement) {
-                const elementType = selectedElement.type === 'text' && selectedElement.textType
-                  ? selectedElement.textType
-                  : selectedElement.type;
-                const IconComponent = TOOL_ICONS[elementType as keyof typeof TOOL_ICONS];
-                return (
-                  <Button variant="ghost" size="sm" className="h-8 px-0 gap-2">
-                    {IconComponent && <IconComponent className="h-4 w-4" />}
-                    {showColorSelector ? getColorSelectorTitle(showColorSelector) : `${elementType.charAt(0).toUpperCase() + elementType.slice(1)}`}
-                  </Button>
-                );
-              }
-              return `Element Settings (${state.selectedElementIds.length})`;
-            } else {
-              if (activeTool === 'select') {
-                let settingsName = 'Settings';
-                let IconComponent = Settings;
-                if (selectorTitle) {
-                  settingsName = selectorTitle;
-                  IconComponent = Palette;
-                } else if (showColorSelector) {
-                  settingsName = getColorSelectorTitle(showColorSelector);
-                } else if (showBackgroundSettings) {
-                  settingsName = 'Background';
-                  IconComponent = PaintBucket;
-                } else if (showPageTheme) {
-                  settingsName = 'Page Theme';
-                  IconComponent = Palette;
-                } else if (showBookTheme) {
-                  settingsName = 'Book Theme';
-                  IconComponent = Palette;
-                }
-                return (
-                  <>
-                    <IconComponent className="h-4 w-4" />
-                    {settingsName}
-                  </>
-                );
-              }
-              const IconComponent = TOOL_ICONS[activeTool as keyof typeof TOOL_ICONS];
-              return (
-                <>
-                  {IconComponent && <IconComponent className="h-4 w-4" />}
-                  {activeTool.charAt(0).toUpperCase() + activeTool.slice(1)}
-                </>
-              );
-            }
-          })()}
+          <IconComponent className="h-4 w-4" />
+          {headerInfo.title}
         </div>
       )}
 
-      {/* Back Button - only show when a dialog is open */}
-      {hasOpenDialog && onBack && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onBack}
-          className="h-8 w-8 p-0"
-          title="Back"
-        >
-          <Undo2 className="h-4 w-4 scale-y-[-1]" />
-        </Button>
-      )}
+      {/* Right-aligned buttons container */}
+      <div className="flex items-center gap-1 ml-auto">
+        {/* Back Button - only show when a dialog is open */}
+        {/* Show button for all color selectors, including element-specific ones (element-ruled-lines-color, element-border-color, element-background-color, element-text-color) */}
+        {/* Ensure button is shown even when an element is selected and element-specific color selector is open */}
+        {(hasOpenDialog || (showColorSelector && showColorSelector.startsWith('element-'))) && onBack && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onBack}
+            className="h-8 w-8 p-0"
+            title="Back"
+          >
+            <Undo2 className="h-4 w-4 scale-y-[-1]" />
+          </Button>
+        )}
 
-
-      {!(state.userRole === 'author' && !isOnAssignedPage) && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onToggleCollapsed}
-          className="h-8 w-8 p-0"
-        >
-          {isCollapsed ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        </Button>
-      )}
+        {!(state.userRole === 'author' && !isOnAssignedPage) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onToggleCollapsed}
+            className="h-8 w-8 p-0"
+          >
+            {isCollapsed ? <PanelRightOpen className="h-5 w-5" /> : <PanelRightClose className="h-5 w-5" />}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
