@@ -127,6 +127,7 @@ export default function Canvas() {
   const previousActivePageIndexRef = useRef<number | null>(null);
   const fitToViewRef = useRef<(() => void) | null>(null);
   const justCompletedSelectionRef = useRef<boolean>(false);
+  const isDraggingGroupRef = useRef<boolean>(false);
   const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
   const [panelOffset, setPanelOffset] = useState(0);
 
@@ -1258,34 +1259,43 @@ export default function Canvas() {
               // Use batched transformer update for better performance
               batchedTransformerUpdate();
             } else {
-              // All nodes are invalid, clear transformer
-              transformer.nodes([]);
-              const layer = transformer.getLayer();
-              if (layer) {
-                layer.batchDraw();
+              // All nodes are invalid - but don't clear during drag
+              // Nodes might be temporarily unavailable during React re-renders
+              if (!isDraggingGroupRef.current && !isMovingGroup && !isMovingGroupRef.current) {
+                transformer.nodes([]);
+                const layer = transformer.getLayer();
+                if (layer) {
+                  layer.batchDraw();
+                }
               }
             }
           } catch (error) {
             // Silently handle transformer update errors (nodes may have been destroyed)
             console.debug('Transformer update error:', error);
-            // Clear selection if update fails
-            try {
-              transformer.nodes([]);
-              transformer.getLayer()?.batchDraw();
-            } catch {
-              // Ignore cleanup errors
+            // Don't clear transformer during drag - nodes might be temporarily unavailable
+            if (!isDraggingGroupRef.current && !isMovingGroup && !isMovingGroupRef.current) {
+              try {
+                transformer.nodes([]);
+                transformer.getLayer()?.batchDraw();
+              } catch {
+                // Ignore cleanup errors
+              }
             }
           }
         } else {
-          // No valid nodes found, clear selection
-          try {
-            transformer.nodes([]);
-            const layer = transformer.getLayer();
-            if (layer) {
-              layer.batchDraw();
+          // No valid nodes found - but don't clear immediately during drag
+          // Nodes might be temporarily unavailable during React re-renders
+          // Only clear if we're not dragging and nodes are still missing after a delay
+          if (!isDraggingGroupRef.current && !isMovingGroup && !isMovingGroupRef.current) {
+            try {
+              transformer.nodes([]);
+              const layer = transformer.getLayer();
+              if (layer) {
+                layer.batchDraw();
+              }
+            } catch {
+              // Ignore cleanup errors
             }
-          } catch {
-            // Ignore cleanup errors
           }
         }
       } else {
@@ -1392,11 +1402,14 @@ export default function Canvas() {
                     }
                     
                     // Otherwise, limit to box dimensions for selection rectangle display
+                    // Get absolute position and adjust for offset to get the visual top-left corner
                     const absPos = groupNode.getAbsolutePosition();
+                    const offsetX = groupNode.offsetX() || 0;
+                    const offsetY = groupNode.offsetY() || 0;
                     
                     return {
-                      x: absPos.x,
-                      y: absPos.y,
+                      x: absPos.x - offsetX,
+                      y: absPos.y - offsetY,
                       width: boxWidth,
                       height: boxHeight
                     };
@@ -1474,21 +1487,27 @@ export default function Canvas() {
             // Some nodes are invalid, update the transformer with only valid nodes
             if (validNodes.length > 0) {
               transformer.nodes(validNodes);
+              batchedTransformerUpdate();
             } else {
-              // All nodes are invalid, clear transformer
-              transformer.nodes([]);
+              // All nodes are invalid - but don't clear during drag
+              // Nodes might be temporarily unavailable during React re-renders
+              if (!isDraggingGroupRef.current && !isMovingGroup && !isMovingGroupRef.current) {
+                transformer.nodes([]);
+                batchedTransformerUpdate();
+              }
             }
-            batchedTransformerUpdate();
           }
         } catch (error) {
           // Silently handle transformer update errors (nodes may have been destroyed)
           console.debug('Transformer update error:', error);
-          // Clear transformer on error
-          try {
-            transformer.nodes([]);
-            transformer.getLayer()?.batchDraw();
-          } catch {
-            // Ignore cleanup errors
+          // Don't clear transformer during drag - nodes might be temporarily unavailable
+          if (!isDraggingGroupRef.current && !isMovingGroup && !isMovingGroupRef.current) {
+            try {
+              transformer.nodes([]);
+              transformer.getLayer()?.batchDraw();
+            } catch {
+              // Ignore cleanup errors
+            }
           }
         }
       }, 10);
@@ -1842,6 +1861,7 @@ export default function Canvas() {
           const startPos = { x, y };
           setIsMovingGroup(true);
           isMovingGroupRef.current = true;
+          isDraggingGroupRef.current = true;
           setGroupMoveStart(startPos);
           groupMoveStartRef.current = startPos;
           dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Move Elements' });
@@ -1885,6 +1905,7 @@ export default function Canvas() {
               const startPos = { x, y };
               setIsMovingGroup(true);
               isMovingGroupRef.current = true;
+              isDraggingGroupRef.current = true;
               setGroupMoveStart(startPos);
               groupMoveStartRef.current = startPos;
               dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Move Elements' });
@@ -1918,6 +1939,8 @@ export default function Canvas() {
             
             if (clickedElement?.type !== 'text' && !state.editorSettings?.editor?.lockElements) {
               setIsMovingGroup(true);
+              isMovingGroupRef.current = true;
+              isDraggingGroupRef.current = true;
               setGroupMoveStart({ x, y });
             }
             return;
@@ -2160,12 +2183,16 @@ export default function Canvas() {
       if (state.editorSettings?.editor?.lockElements) {
         setIsMovingGroup(false);
         isMovingGroupRef.current = false;
+        isDraggingGroupRef.current = false;
         setGroupMoveStart(null);
         groupMoveStartRef.current = null;
         // Clean up initial positions
         groupMoveInitialPositionsRef.current = null;
         return;
       }
+      
+      // Mark that we're dragging to prevent transformer updates
+      isDraggingGroupRef.current = true;
       
       // Move entire selection
       const pos = e.target.getStage()?.getPointerPosition();
@@ -2539,10 +2566,54 @@ export default function Canvas() {
     } else if (isMovingGroup || isMovingGroupRef.current) {
       setIsMovingGroup(false);
       isMovingGroupRef.current = false;
+      isDraggingGroupRef.current = false;
       setGroupMoveStart(null);
       groupMoveStartRef.current = null;
       // Clean up initial positions
       groupMoveInitialPositionsRef.current = null;
+      
+      // Force transformer update after drag ends to ensure it's in sync
+      if (transformerRef.current && state.selectedElementIds.length > 0) {
+        setTimeout(() => {
+          if (transformerRef.current && !isDraggingGroupRef.current) {
+            try {
+              const transformer = transformerRef.current;
+              const stage = stageRef.current;
+              if (stage) {
+                const selectedNodes = state.selectedElementIds.map(id => {
+                  try {
+                    let node = stage.findOne(`#${id}`);
+                    if (!node) {
+                      const allNodes = stage.find('*');
+                      node = allNodes.find(n => n.id() === id);
+                    }
+                    return node;
+                  } catch {
+                    return null;
+                  }
+                }).filter((node): node is Konva.Node => {
+                  if (!node) return false;
+                  try {
+                    const stage = node.getStage();
+                    const parent = node.getParent();
+                    const nodeId = node.id();
+                    return stage !== null && parent !== null && nodeId !== undefined;
+                  } catch {
+                    return false;
+                  }
+                });
+                
+                if (selectedNodes.length > 0) {
+                  transformer.nodes(selectedNodes);
+                  batchedTransformerUpdate();
+                }
+              }
+            } catch (error) {
+              console.debug('Error updating transformer after drag:', error);
+            }
+          }
+        }, 50);
+      }
     }
     
     // Complete selection rectangle if active
@@ -3129,6 +3200,12 @@ export default function Canvas() {
       (e.target.getClassName() === 'Rect' && !e.target.id());
     
     if (isBackgroundClick) {
+      // Don't clear selection if we're currently dragging a group
+      // This prevents accidental deselection during drag operations
+      if (isDraggingGroupRef.current || isMovingGroup || isMovingGroupRef.current) {
+        return;
+      }
+      
       // Don't clear selection if we just completed a selection rectangle
       // This prevents handleStageClick from clearing the selection immediately after
       // handleGlobalSelectionMouseUp or handleMouseUp sets it
@@ -5890,9 +5967,17 @@ export default function Canvas() {
                     if (element.type === 'text' && (element.textType === 'qna' || element.textType === 'free_text')) {
                       // Only update position and rotation, not dimensions
                       // Dimensions are handled by textbox-qna.tsx's or textbox-free-text.tsx's handleTransformEnd
+                      // Convert from adjusted position (with offset) back to original position (without offset)
+                      const elementWidth = element.width || 100;
+                      const elementHeight = element.height || 100;
+                      const offsetX = elementWidth / 2;
+                      const offsetY = elementHeight / 2;
+                      const actualX = node.x() - offsetX;
+                      const actualY = node.y() - offsetY;
+                      
                       const updates: any = {
-                        x: node.x(),
-                        y: node.y(),
+                        x: actualX,
+                        y: actualY,
                         rotation: node.rotation()
                       };
                       
@@ -5939,8 +6024,11 @@ export default function Canvas() {
 
                           updates.width = finalWidth;
                           updates.height = finalHeight;
-                          updates.x = groupNode.x();
-                          updates.y = groupNode.y();
+                          // Convert from adjusted position (with offset) back to original position (without offset)
+                          const offsetX = groupNode.offsetX() || 0;
+                          const offsetY = groupNode.offsetY() || 0;
+                          updates.x = groupNode.x() - offsetX;
+                          updates.y = groupNode.y() - offsetY;
                           // Always save rotation, even if it's 0 - explicitly set to ensure it's saved
                           updates.rotation = typeof groupRotation === 'number' ? groupRotation : 0;
 
@@ -6043,8 +6131,11 @@ export default function Canvas() {
                           
                           updates.width = Math.max(20, (element.width || 150) * scaleX);
                           updates.height = Math.max(20, (element.height || 100) * scaleY);
-                          updates.x = groupNode.x();
-                          updates.y = groupNode.y();
+                          // Convert from adjusted position (with offset) back to original position (without offset)
+                          const offsetX = groupNode.offsetX() || 0;
+                          const offsetY = groupNode.offsetY() || 0;
+                          updates.x = groupNode.x() - offsetX;
+                          updates.y = groupNode.y() - offsetY;
                           updates.rotation = typeof groupNode.rotation() === 'number' ? groupNode.rotation() : 0;
                           
                           groupNode.scaleX(1);
@@ -6072,8 +6163,11 @@ export default function Canvas() {
                       const nodeScaleY = node.scaleY();
                       const nodeRotation = node.rotation();
                       
-                      updates.x = node.x();
-                      updates.y = node.y();
+                      // Convert from adjusted position (with offset) back to original position (without offset)
+                      const offsetX = node.offsetX() || 0;
+                      const offsetY = node.offsetY() || 0;
+                      updates.x = node.x() - offsetX;
+                      updates.y = node.y() - offsetY;
                       updates.scaleX = typeof nodeScaleX === 'number' ? nodeScaleX : 1;
                       updates.scaleY = typeof nodeScaleY === 'number' ? nodeScaleY : 1;
                       updates.rotation = typeof nodeRotation === 'number' ? nodeRotation : 0;

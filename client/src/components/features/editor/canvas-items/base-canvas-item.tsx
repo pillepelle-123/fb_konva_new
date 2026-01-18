@@ -205,9 +205,11 @@ export default function BaseCanvasItem({
     if (!interactive) return; // Skip interactions in non-interactive mode
     // Block position update if elements are locked
     if (state.editorSettings?.editor?.lockElements) {
-      // Reset position to original
-      e.target.x(element.x);
-      e.target.y(element.y);
+      // Reset position to original (accounting for offset)
+      const offsetX = (element.width || 100) / 2;
+      const offsetY = (element.height || 100) / 2;
+      e.target.x(element.x + offsetX);
+      e.target.y(element.y + offsetY);
       return;
     }
     const rawX = e.target.x();
@@ -215,12 +217,18 @@ export default function BaseCanvasItem({
 
     const elementWidth = element.width || 100;
     const elementHeight = element.height || 100;
+    
+    // Convert from adjusted position (with offset) back to original position (without offset)
+    const offsetX = elementWidth / 2;
+    const offsetY = elementHeight / 2;
+    const actualX = rawX - offsetX;
+    const actualY = rawY - offsetY;
 
-    // Rechteck des Elements in Seitennkoordinaten
-    const rectLeft = rawX;
-    const rectRight = rawX + elementWidth;
-    const rectTop = rawY;
-    const rectBottom = rawY + elementHeight;
+    // Rechteck des Elements in Seitennkoordinaten (using actual position, not adjusted)
+    const rectLeft = actualX;
+    const rectRight = actualX + elementWidth;
+    const rectTop = actualY;
+    const rectBottom = actualY + elementHeight;
 
     // 1) Erlaube Positionen außerhalb der Seite, solange das Element die eigene Seite noch schneidet.
     // Page-Rect (in Seitennkoordinaten): [0, canvasWidth] x [0, canvasHeight]
@@ -232,8 +240,9 @@ export default function BaseCanvasItem({
 
     if (!overlapsOwnPage) {
       // Komplett außerhalb der eigenen Seite (oben/unten/außen) -> nicht erlaubt
-      e.target.x(element.x);
-      e.target.y(element.y);
+      // Reset to original position (accounting for offset)
+      e.target.x(element.x + offsetX);
+      e.target.y(element.y + offsetY);
       if (typeof window !== 'undefined' && (e.evt as MouseEvent | DragEvent)?.clientX !== undefined) {
         const nativeEvent = e.evt as MouseEvent | DragEvent;
         window.dispatchEvent(
@@ -252,7 +261,7 @@ export default function BaseCanvasItem({
       type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
       payload: {
         id: element.id,
-        updates: { x: rawX, y: rawY }
+        updates: { x: actualX, y: actualY }
       }
     });
     onDragEnd?.(e);
@@ -269,13 +278,32 @@ export default function BaseCanvasItem({
     ? 'canvas-item no-print placeholder-element'
     : 'canvas-item';
 
+  // Set explicit width and height on Group for proper rotation pivot point calculation
+  // This ensures Konva rotates around the center instead of the top-left corner
+  const groupWidth = element.width || 100;
+  const groupHeight = element.height || 100;
+  
+  // Set offsetX and offsetY to center the rotation pivot point
+  // This makes the Group rotate around its center instead of top-left corner
+  const offsetX = groupWidth / 2;
+  const offsetY = groupHeight / 2;
+  
+  // Adjust x and y position to compensate for offset, so visual position stays the same
+  // When offsetX/offsetY are set, the visual origin shifts, so we need to adjust position
+  const adjustedX = element.x + offsetX;
+  const adjustedY = element.y + offsetY;
+
   return (
     <Group
       ref={groupRef}
       id={element.id}
       name={groupName}
-      x={element.x}
-      y={element.y}
+      x={adjustedX}
+      y={adjustedY}
+      width={groupWidth}
+      height={groupHeight}
+      offsetX={offsetX}
+      offsetY={offsetY}
       scaleX={(element && (element.textType === 'question' || element.textType === 'answer')) ? 1 : (element?.scaleX || 1)}
       scaleY={(element && (element.textType === 'question' || element.textType === 'answer')) ? 1 : (element?.scaleY || 1)}
       rotation={typeof element?.rotation === 'number' ? element.rotation : 0}
