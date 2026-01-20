@@ -1140,6 +1140,17 @@ export function PDFRenderer({
           
           const dynamicHeight = calculateHeight();
           
+          // Create Group for QnA textbox (rotates as a unit)
+          const qnaGroup = new Konva.Group({
+            x: elementX,
+            y: elementY,
+            rotation: elementRotation,
+            opacity: elementOpacity,
+            listening: false,
+          });
+          
+          layer.add(qnaGroup);
+          
           // Render background if enabled
           const showBackground = element.backgroundEnabled ?? (questionStyle.background?.enabled || answerStyle.background?.enabled) ?? false;
           
@@ -1172,19 +1183,19 @@ export function PDFRenderer({
               const fillColor = applyOpacityToColor(backgroundColor, finalOpacity);
               
               const bgRect = new Konva.Rect({
-                x: elementX,
-                y: elementY,
+                x: 0, // Relative to Group
+                y: 0, // Relative to Group
                 width: elementWidth,
                 height: dynamicHeight,
                 fill: fillColor,
                 opacity: 1, // Set to 1 since opacity is now in fill color
                 cornerRadius: cornerRadius,
-                rotation: elementRotation,
+                // rotation removed - inherited from Group
                 listening: false,
               });
               
-              // Add background and position it after page background, but before other elements
-              layer.add(bgRect);
+              // Add background to Group (rotation handled by Group)
+              qnaGroup.add(bgRect);
               
               // Verify opacity is set correctly
               // console.log('[DEBUG PDFRenderer] QnA Background opacity verification:', {
@@ -1195,41 +1206,7 @@ export function PDFRenderer({
               //   konvaOpacity: bgRect.opacity()
               // });
               
-              // Store z-order on background rect
-              const zOrderIndex = elementIdToZOrder.get(element.id);
-              if (zOrderIndex !== undefined) {
-                bgRect.setAttr('__zOrderIndex', zOrderIndex);
-                bgRect.setAttr('__isQnaNode', true);
-                bgRect.setAttr('__elementId', element.id);
-                bgRect.setAttr('__nodeType', 'qna-background');
-              }
-              
-              // Find all page background nodes (full canvas size at 0,0) and move bgRect after them
-              const stage = layer.getStage();
-              const stageWidth = stage ? stage.width() : width;
-              const stageHeight = stage ? stage.height() : height;
-              
-              let lastPageBgIndex = -1;
-              layer.getChildren().forEach((node, idx) => {
-                if (node === bgRect) return; // Skip self
-                if (node.getClassName() !== 'Rect' && node.getClassName() !== 'Image') return;
-                const nodeX = node.x ? node.x() : 0;
-                const nodeY = node.y ? node.y() : 0;
-                const nodeWidth = node.width ? node.width() : 0;
-                const nodeHeight = node.height ? node.height() : 0;
-                if (nodeX === 0 && nodeY === 0 && nodeWidth === stageWidth && nodeHeight === stageHeight) {
-                  lastPageBgIndex = Math.max(lastPageBgIndex, idx);
-                }
-              });
-              
-              // Move bgRect to position right after last page background node
-              if (lastPageBgIndex !== -1) {
-                const bgRectIndex = layer.getChildren().indexOf(bgRect);
-                if (bgRectIndex !== -1 && bgRectIndex !== lastPageBgIndex + 1) {
-                  layer.getChildren().splice(bgRectIndex, 1);
-                  layer.getChildren().splice(lastPageBgIndex + 1, 0, bgRect);
-                }
-              }
+              // Z-order will be set on Group level (see end of QnA rendering section)
             }
           }
           
@@ -1289,8 +1266,9 @@ export function PDFRenderer({
             const aWidth = element.ruledLinesWidth || 0.8;
             const aOpacity = getStandardizedOpacity(element, 'ruledLines', 0.6);
             // aFontSize, aLineHeight, effectivePadding, combinedLineHeight, textBaselineOffset are already defined above
-            const startX = elementX + padding;
-            const endX = elementX + elementWidth - padding;
+            // Relative coordinates for Group (will be used for inline layout)
+            const relativeStartX = padding;
+            const relativeEndX = elementWidth - padding;
             
             if (layoutVariant === 'block') {
               // Block layout: ruled lines in answer area
@@ -1369,8 +1347,9 @@ export function PDFRenderer({
               // Both App and PDF now use RULED_LINE_BASELINE_OFFSET = 12 in qna-layout.ts
               // linePos.y is already relative to textbox top and includes the baseline offset
               
-              const startX = answerArea.x;
-              const endX = answerArea.x + answerArea.width;
+              // Calculate relative coordinates for Group
+              const relativeStartX = answerArea.x - elementX;
+              const relativeEndX = answerArea.x + answerArea.width - elementX;
               
               // Filter linePositions by style to match ruledLinesTarget
               const filteredLinePositions = linePositions.filter((linePos) => 
@@ -1380,7 +1359,7 @@ export function PDFRenderer({
               // DEBUG: Log first ruled line position
               if (filteredLinePositions.length > 0) {
                 const firstLinePos = filteredLinePositions[0];
-                const firstLineY = elementY + firstLinePos.y;
+                const firstLineY = firstLinePos.y; // Relative to Group
                 console.log('[DEBUG pdf-renderer.tsx Block] First Ruled Line:', {
                   elementId: element.id,
                   elementY,
@@ -1392,9 +1371,9 @@ export function PDFRenderer({
               }
               
               filteredLinePositions.forEach((linePos) => {
-                // Calculate line Y position: elementY + linePos.y (relative to textbox)
+                // Calculate line Y position: linePos.y (relative to Group)
                 // This matches how the app renders: directly using linePos.y
-                const lineY = elementY + linePos.y;
+                const lineY = linePos.y;
                 
                 // Check if line is within the target area (vertically)
                 // Note: linePos.y is relative to textbox top, so we need to check against answerArea.y relative to elementY
@@ -1412,7 +1391,7 @@ export function PDFRenderer({
                   id: element.id + '-ruled-line-block',
                   x: 0,
                   y: 0,
-                  width: Math.abs(endX - startX),
+                  width: Math.abs(relativeEndX - relativeStartX),
                   height: 0,
                   strokeWidth: aWidth,
                   stroke: aColor,
@@ -1424,7 +1403,7 @@ export function PDFRenderer({
                   width: aWidth,
                   color: aColor,
                   opacity: aOpacity,
-                  path: createLinePath(startX, lineY, endX, lineY),
+                  path: createLinePath(relativeStartX, lineY, relativeEndX, lineY),
                   theme: theme,
                   themeSettings: {
                     seed: seed + lineY,
@@ -1440,9 +1419,9 @@ export function PDFRenderer({
                 }, () => {
                   // Fallback: use existing manual implementation
                   const pathData = generateLinePath({
-                    x1: startX,
+                    x1: relativeStartX,
                     y1: lineY,
-                    x2: endX,
+                    x2: relativeEndX,
                     y2: lineY,
                     strokeWidth: aWidth,
                     stroke: aColor,
@@ -1463,7 +1442,7 @@ export function PDFRenderer({
                       fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
                       opacity: aOpacity,
                       strokeScaleEnabled: true,
-                      rotation: elementRotation,
+                      // rotation removed - inherited from Group
                       listening: false,
                       visible: true,
                       lineCap: strokeProps.lineCap || 'round',
@@ -1477,11 +1456,11 @@ export function PDFRenderer({
                     return fallbackNode;
                   } else {
                     return new Konva.Line({
-                      points: [startX, lineY, endX, lineY],
+                      points: [relativeStartX, lineY, relativeEndX, lineY],
                       stroke: aColor,
                       strokeWidth: aWidth,
                       opacity: aOpacity,
-                      rotation: elementRotation,
+                      // rotation removed - inherited from Group
                       listening: false,
                       visible: true
                     });
@@ -1490,7 +1469,7 @@ export function PDFRenderer({
                 
                 // Set additional properties that are not in config
                 if (lineNode) {
-                  lineNode.rotation(elementRotation);
+                  // rotation removed - inherited from Group
                   lineNode.visible(true);
                   // Ensure shadow properties are set (for Glow theme)
                   if (lineNode instanceof Konva.Path) {
@@ -1505,7 +1484,7 @@ export function PDFRenderer({
                   }
                 }
                 
-                  layer.add(lineNode);
+                  qnaGroup.add(lineNode);
                   ruledLinesRenderedCount++;
                 }
                 }
@@ -1517,21 +1496,19 @@ export function PDFRenderer({
                 const answerLineHeight = sharedGetLineHeight(answerStyle);
                 const sortedBaselines = Array.from(baselineYPositions).sort((a, b) => a - b);
                 const lastBaselineY = sortedBaselines[sortedBaselines.length - 1];
-                // Calculate next line position: last baseline + line height + offset + top offset
-                let nextLineY = elementY + lastBaselineY + answerLineHeight + RULED_LINE_BASELINE_OFFSET + RULED_LINE_TOP_OFFSET;
+                // Calculate next line position: last baseline + line height + offset + top offset (relative to Group)
+                let nextLineY = lastBaselineY + answerLineHeight + RULED_LINE_BASELINE_OFFSET + RULED_LINE_TOP_OFFSET;
                 
-                // Determine start and end X positions and bottom Y (all relative to element)
+                // Determine start and end X positions and bottom Y (all relative to Group)
                 const relativeStartX = answerArea.x - elementX;
                 const relativeEndX = answerArea.x + answerArea.width - elementX;
                 const relativeBottomY = answerArea.y + answerArea.height - elementY;
                 
                 // Generate additional lines until we reach the bottom
-                // nextLineY is absolute (elementY + relative position)
-                while (nextLineY <= elementY + relativeBottomY) {
-                  // Generate ruled line
-                  const absoluteStartX = answerArea.x;
-                  const absoluteEndX = answerArea.x + answerArea.width;
-                  const absoluteLineY = nextLineY;
+                // nextLineY is relative to Group
+                while (nextLineY <= relativeBottomY) {
+                  // Generate ruled line with relative coordinates
+                  const lineY = nextLineY;
                   
                   // Generate ruled line using shared theme engine
                       const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
@@ -1545,7 +1522,7 @@ export function PDFRenderer({
                     id: element.id + '-ruled-line-extra',
                         x: 0,
                         y: 0,
-                    width: Math.abs(absoluteEndX - absoluteStartX),
+                    width: Math.abs(relativeEndX - relativeStartX),
                         height: 0,
                         strokeWidth: aWidth,
                         stroke: aColor,
@@ -1557,10 +1534,10 @@ export function PDFRenderer({
                         width: aWidth,
                         color: aColor,
                         opacity: aOpacity,
-                    path: createLinePath(absoluteStartX, absoluteLineY, absoluteEndX, absoluteLineY),
+                    path: createLinePath(relativeStartX, lineY, relativeEndX, lineY),
                         theme: theme,
                         themeSettings: {
-                      seed: seed + absoluteLineY,
+                      seed: seed + lineY,
                           roughness: theme === 'rough' ? 2 : 1,
                           candyRandomness: tempElement.candyRandomness,
                           candyIntensity: tempElement.candyIntensity,
@@ -1572,14 +1549,14 @@ export function PDFRenderer({
                       }, () => {
                         // Fallback: use existing manual implementation
                         const pathData = generateLinePath({
-                      x1: absoluteStartX,
-                      y1: absoluteLineY,
-                      x2: absoluteEndX,
-                      y2: absoluteLineY,
+                      x1: relativeStartX,
+                      y1: lineY,
+                      x2: relativeEndX,
+                      y2: lineY,
                           strokeWidth: aWidth,
                           stroke: aColor,
                           theme: theme,
-                      seed: seed + absoluteLineY,
+                      seed: seed + lineY,
                           roughness: theme === 'rough' ? 2 : 1,
                           element: tempElement
                         });
@@ -1595,7 +1572,7 @@ export function PDFRenderer({
                             fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
                             opacity: aOpacity,
                             strokeScaleEnabled: true,
-                            rotation: elementRotation,
+                            // rotation removed - inherited from Group
                             listening: false,
                             visible: true,
                             lineCap: strokeProps.lineCap || 'round',
@@ -1609,11 +1586,11 @@ export function PDFRenderer({
                       return fallbackNode;
                         } else {
                           return new Konva.Line({
-                        points: [absoluteStartX, absoluteLineY, absoluteEndX, absoluteLineY],
+                        points: [relativeStartX, lineY, relativeEndX, lineY],
                             stroke: aColor,
                             strokeWidth: aWidth,
                             opacity: aOpacity,
-                            rotation: elementRotation,
+                            // rotation removed - inherited from Group
                             listening: false,
                             visible: true
                           });
@@ -1622,7 +1599,7 @@ export function PDFRenderer({
                       
                       // Set additional properties
                       if (lineNode) {
-                        lineNode.rotation(elementRotation);
+                        // rotation removed - inherited from Group
                         lineNode.visible(true);
                         if (lineNode instanceof Konva.Path) {
                           const themeRenderer = getThemeRenderer(theme);
@@ -1636,7 +1613,7 @@ export function PDFRenderer({
                           }
                         }
                     
-                        layer.add(lineNode);
+                        qnaGroup.add(lineNode);
                         ruledLinesRenderedCount++;
                       }
                   
@@ -1677,9 +1654,9 @@ export function PDFRenderer({
                 // Only generate lines that are within the box dimensions (0 <= linePos.y <= elementHeight)
                 // This ensures ruled lines only appear inside the visible border area
                 if (linePos.y >= 0 && linePos.y <= elementHeight) {
-                  // Calculate line Y position: elementY + linePos.y (relative to textbox)
+                  // Calculate line Y position: linePos.y (relative to Group)
                   // This matches how the app renders: directly using linePos.y
-                  const lineY = elementY + linePos.y;
+                  const lineY = linePos.y;
                   
                   // Generate ruled line using shared theme engine
                   const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
@@ -1692,7 +1669,7 @@ export function PDFRenderer({
                     id: element.id + '-ruled-line-inline',
                     x: 0,
                     y: 0,
-                    width: Math.abs(endX - startX),
+                    width: Math.abs(relativeEndX - relativeStartX),
                     height: 0,
                     strokeWidth: aWidth,
                     stroke: aColor,
@@ -1704,7 +1681,7 @@ export function PDFRenderer({
                     width: aWidth,
                     color: aColor,
                     opacity: aOpacity,
-                    path: createLinePath(startX, lineY, endX, lineY),
+                    path: createLinePath(relativeStartX, lineY, relativeEndX, lineY),
                     theme: theme,
                     themeSettings: {
                       seed: seed + lineY,
@@ -1719,9 +1696,9 @@ export function PDFRenderer({
                   }, () => {
                     // Fallback: use existing manual implementation
                     const pathData = generateLinePath({
-                      x1: startX,
+                      x1: relativeStartX,
                       y1: lineY,
-                      x2: endX,
+                      x2: relativeEndX,
                       y2: lineY,
                       strokeWidth: aWidth,
                       stroke: aColor,
@@ -1742,7 +1719,7 @@ export function PDFRenderer({
                         fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
                         opacity: aOpacity,
                         strokeScaleEnabled: true,
-                        rotation: elementRotation,
+                        // rotation removed - inherited from Group
                         listening: false,
                         visible: true,
                         lineCap: strokeProps.lineCap || 'round',
@@ -1755,11 +1732,11 @@ export function PDFRenderer({
                       });
                     } else {
                       return new Konva.Line({
-                        points: [startX, lineY, endX, lineY],
+                        points: [relativeStartX, lineY, relativeEndX, lineY],
                         stroke: aColor,
                         strokeWidth: aWidth,
                         opacity: aOpacity,
-                        rotation: elementRotation,
+                        // rotation removed - inherited from Group
                         listening: false,
                         visible: true
                       });
@@ -1768,7 +1745,7 @@ export function PDFRenderer({
                   
                   // Set additional properties
                   if (lineNode) {
-                    lineNode.rotation(elementRotation);
+                    // rotation removed - inherited from Group
                     lineNode.visible(true);
                     if (lineNode instanceof Konva.Path) {
                       const themeRenderer = getThemeRenderer(theme);
@@ -1782,16 +1759,9 @@ export function PDFRenderer({
                       }
                     }
 
-                    // Set z-order attributes for inline layout ruled lines
-                    const zOrderIndex = elementIdToZOrder.get(element.id);
-                    if (zOrderIndex !== undefined) {
-                      lineNode.setAttr('__zOrderIndex', zOrderIndex);
-                      lineNode.setAttr('__isQnaNode', true);
-                      lineNode.setAttr('__elementId', element.id);
-                      lineNode.setAttr('__nodeType', 'qna-line');
-                    }
+                    // Z-order will be set on Group level (see end of QnA rendering section)
 
-                    layer.add(lineNode);
+                    qnaGroup.add(lineNode);
                     ruledLinesRenderedCount++;
                   }
                 }
@@ -1809,23 +1779,20 @@ export function PDFRenderer({
                 const answerLineHeight = sharedGetLineHeight(answerStyle);
                 const sortedAnswerLinePositions = [...answerLinePositions].sort((a, b) => a.y - b.y);
                 const lastLinePos = sortedAnswerLinePositions[sortedAnswerLinePositions.length - 1];
-                // Calculate next line position: last linePos.y + line height
+                // Calculate next line position: last linePos.y + line height (relative to Group)
                 // Use linePos.y directly (already includes baseline offset) + line height
-                let nextLineY = elementY + lastLinePos.y + answerLineHeight;
+                let nextLineY = lastLinePos.y + answerLineHeight;
                   
-                  // Determine start and end X positions and bottom Y (all relative to element)
+                  // Determine start and end X positions and bottom Y (all relative to Group)
                   const relativeStartX = padding;
                   const relativeEndX = elementWidth - padding;
                   const relativeBottomY = elementHeight - padding;
                   
                   // Generate additional lines until we reach the bottom
-                  // nextLineY is absolute (elementY + relative position)
-                  while (nextLineY <= elementY + relativeBottomY) {
-                    // Generate ruled line
-                    // Convert relative coordinates to absolute for rendering
-                    const absoluteStartX = elementX + relativeStartX;
-                    const absoluteEndX = elementX + relativeEndX;
-                    const absoluteLineY = nextLineY;
+                  // nextLineY is relative to Group
+                  while (nextLineY <= relativeBottomY) {
+                    // Generate ruled line with relative coordinates
+                    const lineY = nextLineY;
                     
                     // Generate ruled line using shared theme engine
                   const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
@@ -1839,7 +1806,7 @@ export function PDFRenderer({
                       id: element.id + '-ruled-line-extra',
                     x: 0,
                     y: 0,
-                      width: Math.abs(absoluteEndX - absoluteStartX),
+                      width: Math.abs(relativeEndX - relativeStartX),
                     height: 0,
                     strokeWidth: aWidth,
                     stroke: aColor,
@@ -1851,10 +1818,10 @@ export function PDFRenderer({
                     width: aWidth,
                     color: aColor,
                     opacity: aOpacity,
-                      path: createLinePath(absoluteStartX, absoluteLineY, absoluteEndX, absoluteLineY),
+                      path: createLinePath(relativeStartX, lineY, relativeEndX, lineY),
                     theme: theme,
                     themeSettings: {
-                        seed: seed + absoluteLineY,
+                        seed: seed + lineY,
                       roughness: theme === 'rough' ? 2 : 1,
                       candyRandomness: tempElement.candyRandomness,
                       candyIntensity: tempElement.candyIntensity,
@@ -1866,14 +1833,14 @@ export function PDFRenderer({
                   }, () => {
                     // Fallback: use existing manual implementation
                     const pathData = generateLinePath({
-                        x1: absoluteStartX,
-                        y1: absoluteLineY,
-                        x2: absoluteEndX,
-                        y2: absoluteLineY,
+                        x1: relativeStartX,
+                        y1: lineY,
+                        x2: relativeEndX,
+                        y2: lineY,
                       strokeWidth: aWidth,
                       stroke: aColor,
                       theme: theme,
-                        seed: seed + absoluteLineY,
+                        seed: seed + lineY,
                       roughness: theme === 'rough' ? 2 : 1,
                       element: tempElement
                     });
@@ -1889,7 +1856,7 @@ export function PDFRenderer({
                         fill: strokeProps.fill !== undefined ? strokeProps.fill : 'transparent',
                         opacity: aOpacity,
                         strokeScaleEnabled: true,
-                        rotation: elementRotation,
+                        // rotation removed - inherited from Group
                         listening: false,
                         visible: true,
                         lineCap: strokeProps.lineCap || 'round',
@@ -1902,11 +1869,11 @@ export function PDFRenderer({
                       });
                     } else {
                       return new Konva.Line({
-                          points: [absoluteStartX, absoluteLineY, absoluteEndX, absoluteLineY],
+                          points: [relativeStartX, lineY, relativeEndX, lineY],
                         stroke: aColor,
                         strokeWidth: aWidth,
                         opacity: aOpacity,
-                        rotation: elementRotation,
+                        // rotation removed - inherited from Group
                         listening: false,
                         visible: true
                       });
@@ -1915,7 +1882,7 @@ export function PDFRenderer({
                   
                   // Set additional properties
                   if (lineNode) {
-                    lineNode.rotation(elementRotation);
+                    // rotation removed - inherited from Group
                     lineNode.visible(true);
                     if (lineNode instanceof Konva.Path) {
                       const themeRenderer = getThemeRenderer(theme);
@@ -1929,16 +1896,9 @@ export function PDFRenderer({
                       }
                     }
 
-                      // Set z-order attributes
-                    const zOrderIndex = elementIdToZOrder.get(element.id);
-                    if (zOrderIndex !== undefined) {
-                      lineNode.setAttr('__zOrderIndex', zOrderIndex);
-                      lineNode.setAttr('__isQnaNode', true);
-                      lineNode.setAttr('__elementId', element.id);
-                      lineNode.setAttr('__nodeType', 'qna-line');
-                    }
+                      // Z-order will be set on Group level (see end of QnA rendering section)
 
-                    layer.add(lineNode);
+                    qnaGroup.add(lineNode);
                     ruledLinesRenderedCount++;
                     
                     nextLineY += answerLineHeight;
@@ -1961,8 +1921,8 @@ export function PDFRenderer({
           // Render text using shared layout runs (matches textbox-qna.tsx RichTextShape)
           if (runs.length > 0) {
             const textShape = new Konva.Shape({
-              x: elementX,
-              y: elementY,
+              x: 0, // Relative to Group
+              y: 0, // Relative to Group
               sceneFunc: (ctx, shape) => {
                 ctx.save();
                 ctx.textBaseline = 'alphabetic';
@@ -1982,18 +1942,13 @@ export function PDFRenderer({
               },
               width: elementWidth,
               height: contentHeight,
-              rotation: elementRotation,
+              // rotation removed - inherited from Group
               listening: false,
               visible: true
             });
             
-            layer.add(textShape);
-            const zOrderIndex = elementIdToZOrder.get(element.id);
-            if (zOrderIndex !== undefined) {
-              textShape.setAttr('__zOrderIndex', zOrderIndex);
-              textShape.setAttr('__elementId', element.id);
-              textShape.setAttr('__nodeType', 'qna-text');
-            }
+            qnaGroup.add(textShape);
+            // Z-order will be set on Group level (see end of QnA rendering section)
           }
           
           // Render border if enabled (after background, ruled lines, and text - matching client-side order)
@@ -2063,14 +2018,14 @@ export function PDFRenderer({
             }, () => {
                   return new Konva.Path({
                     data: borderPathData,
-                  x: elementX,
-                  y: elementY,
+                  x: 0, // Relative to Group
+                  y: 0, // Relative to Group
                     stroke: pathStroke,
                     strokeWidth: borderStrokeProps.strokeWidth || borderWidth,
                     opacity: borderOpacity < 1 ? 1 : elementOpacity,
                     fill: borderStrokeProps.fill || 'transparent',
                   strokeScaleEnabled: true,
-                  rotation: elementRotation,
+                  // rotation removed - inherited from Group
                   listening: false,
                     lineCap: 'round',
                     lineJoin: 'round',
@@ -2083,9 +2038,9 @@ export function PDFRenderer({
             });
             
             if (borderPath) {
-              borderPath.x(elementX);
-              borderPath.y(elementY);
-              borderPath.rotation(elementRotation);
+              borderPath.x(0); // Relative to Group
+              borderPath.y(0); // Relative to Group
+              // borderPath.rotation() removed - inherited from Group
               borderPath.visible(true);
               
               if (borderPath instanceof Konva.Path) {
@@ -2098,14 +2053,8 @@ export function PDFRenderer({
                     }
                   }
                   
-                  layer.add(borderPath);
-                const borderZOrderIndex = elementIdToZOrder.get(element.id);
-                if (borderZOrderIndex !== undefined) {
-                  borderPath.setAttr('__zOrderIndex', borderZOrderIndex);
-                  borderPath.setAttr('__elementId', element.id);
-                    borderPath.setAttr('__isQnaNode', true);
-                  borderPath.setAttr('__nodeType', 'qna-border');
-                }
+                  qnaGroup.add(borderPath);
+                // Z-order will be set on Group level (see end of QnA rendering section)
                 }
               }
             } else {
@@ -2123,28 +2072,31 @@ export function PDFRenderer({
               }
               
               const borderRect = new Konva.Rect({
-              x: elementX,
-              y: elementY,
+              x: 0, // Relative to Group
+              y: 0, // Relative to Group
               width: elementWidth,
                 height: dynamicHeight,
                 fill: 'transparent',
                 stroke: rectStroke,
                 strokeWidth: borderWidth,
                 cornerRadius: cornerRadius,
-              rotation: elementRotation,
+              // rotation removed - inherited from Group
                 opacity: borderOpacity < 1 ? 1 : elementOpacity,
                 listening: false
               });
               
-              layer.add(borderRect);
-              const borderZOrderIndex = elementIdToZOrder.get(element.id);
-              if (borderZOrderIndex !== undefined) {
-                borderRect.setAttr('__zOrderIndex', borderZOrderIndex);
-                borderRect.setAttr('__elementId', element.id);
-                borderRect.setAttr('__isQnaNode', true);
-                borderRect.setAttr('__nodeType', 'qna-border');
-              }
+              qnaGroup.add(borderRect);
+              // Z-order will be set on Group level (see end of QnA rendering section)
             }
+          }
+          
+          // Set Z-order attributes on Group level
+          const zOrderIndex = elementIdToZOrder.get(element.id);
+          if (zOrderIndex !== undefined) {
+            qnaGroup.setAttr('__zOrderIndex', zOrderIndex);
+            qnaGroup.setAttr('__isQnaNode', true);
+            qnaGroup.setAttr('__elementId', element.id);
+            qnaGroup.setAttr('__nodeType', 'qna-group');
           }
           
           // QnA element fully handled - skip remaining rendering
