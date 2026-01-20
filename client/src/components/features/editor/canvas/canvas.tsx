@@ -5776,13 +5776,27 @@ export default function Canvas() {
                 nodes.forEach(node => {
                   const elementId = node.id();
                   if (elementId) {
-                    dispatch({
-                      type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                      payload: {
-                        id: elementId,
-                        updates: { x: node.x(), y: node.y() }
-                      }
-                    });
+                    const element = currentPage?.elements.find(el => el.id === elementId);
+                    if (element) {
+                      // Offset-Korrektur wie in onTransformEnd
+                      // Die Group wird mit x={element.x + offsetX} gerendert (siehe base-canvas-item.tsx)
+                      // Beim Dragging gibt node.x() die "adjusted" Position zurück
+                      // Wir müssen den Offset abziehen, um die tatsächliche Position zu erhalten
+                      const elementWidth = element.width || 100;
+                      const elementHeight = element.height || 100;
+                      const offsetX = elementWidth / 2;
+                      const offsetY = elementHeight / 2;
+                      const actualX = node.x() - offsetX;
+                      const actualY = node.y() - offsetY;
+                      
+                      dispatch({
+                        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                        payload: {
+                          id: elementId,
+                          updates: { x: actualX, y: actualY }
+                        }
+                      });
+                    }
                   }
                 });
               }}
